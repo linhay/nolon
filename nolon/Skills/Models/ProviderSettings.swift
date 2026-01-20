@@ -20,6 +20,7 @@ public enum SkillInstallationMethod: String, CaseIterable, Codable, Identifiable
 public class ProviderSettings: ObservableObject {
     @AppStorage("provider_paths") private var storedPathsData: Data = Data()
     @AppStorage("provider_methods") private var storedMethodsData: Data = Data()
+    @AppStorage("custom_providers") private var storedCustomProvidersData: Data = Data()
 
     @Published public var paths: [SkillProvider: String] = [:] {
         didSet { savePaths() }
@@ -28,12 +29,16 @@ public class ProviderSettings: ObservableObject {
     @Published public var installationMethods: [SkillProvider: SkillInstallationMethod] = [:] {
         didSet { saveMethods() }
     }
+    
+    @Published public var customProviders: [CustomProvider] = [] {
+        didSet { saveCustomProviders() }
+    }
 
     public init() {
         loadSettings()
     }
 
-    // MARK: - Accessors
+    // MARK: - Built-in Provider Accessors
 
     public func path(for provider: SkillProvider) -> URL {
         if let pathString = paths[provider], !pathString.isEmpty {
@@ -52,6 +57,27 @@ public class ProviderSettings: ObservableObject {
 
     public func updateMethod(_ method: SkillInstallationMethod, for provider: SkillProvider) {
         installationMethods[provider] = method
+    }
+    
+    // MARK: - Custom Provider Management
+    
+    public func addCustomProvider(name: String, path: String, iconName: String = "folder") {
+        let provider = CustomProvider(name: name, path: path, iconName: iconName)
+        customProviders.append(provider)
+    }
+    
+    public func updateCustomProvider(_ provider: CustomProvider) {
+        if let index = customProviders.firstIndex(where: { $0.id == provider.id }) {
+            customProviders[index] = provider
+        }
+    }
+    
+    public func removeCustomProvider(_ provider: CustomProvider) {
+        customProviders.removeAll { $0.id == provider.id }
+    }
+    
+    public func removeCustomProvider(at offsets: IndexSet) {
+        customProviders.remove(atOffsets: offsets)
     }
 
     // MARK: - Defaults
@@ -98,6 +124,12 @@ public class ProviderSettings: ObservableObject {
                 self.installationMethods[provider] = .symlink
             }
         }
+        
+        if let decodedCustomProviders = try? JSONDecoder().decode(
+            [CustomProvider].self, from: storedCustomProvidersData)
+        {
+            self.customProviders = decodedCustomProviders
+        }
     }
 
     private func savePaths() {
@@ -111,4 +143,11 @@ public class ProviderSettings: ObservableObject {
             storedMethodsData = encoded
         }
     }
+    
+    private func saveCustomProviders() {
+        if let encoded = try? JSONEncoder().encode(customProviders) {
+            storedCustomProvidersData = encoded
+        }
+    }
 }
+

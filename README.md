@@ -6,7 +6,7 @@ Nolon is a powerful macOS application designed to streamline the management of s
 
 *   **Centralized Repository**: Maintains a single source of truth for all your skills in `~/.nolon/skills/`.
 *   **Broad Provider Support**:
-    *   **Codex**, **Claude Code**, **OpenCode**, **GitHub Copilot**, **Gemini CLI**, **Antigravity**.
+    *   **Codex**, **Claude Code**, **OpenCode**, **GitHub Copilot**, **Gemini CLI**, **Antigravity**, **Cursor**.
 *   **Flexible Configuration**:
     *   **Custom Paths**: Configure the skills directory used by each provider.
     *   **Installation Methods**: Choose between **Symbolic Link** (Live Sync) or **Copy** (Standard) for installation.

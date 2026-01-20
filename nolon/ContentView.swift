@@ -9,10 +9,11 @@ import SwiftUI
 
 struct ContentView: View {
     var body: some View {
-        SkillManagerView()
+        MainSplitView()
     }
 }
 
 #Preview {
     ContentView()
 }
+

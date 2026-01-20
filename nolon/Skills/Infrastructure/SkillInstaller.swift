@@ -82,6 +82,72 @@ public final class SkillInstaller {
         installedProviders.remove(provider)
         try repository.updateMetadata(for: skill.id, installedProviders: installedProviders)
     }
+    
+    // MARK: - Custom Provider Installation
+    
+    /// Install a skill to a custom provider
+    public func installToCustomProvider(skill: Skill, customProvider: CustomProvider) throws {
+        let providerPath = customProvider.path
+        let targetPath = "\(providerPath)/\(skill.id)"
+
+        // Check if already exists
+        if fileManager.fileExists(atPath: targetPath) {
+            throw SkillError.symlinkFailed("Skill already exists at '\(targetPath)'")
+        }
+
+        // Ensure provider directory exists
+        try createDirectory(at: providerPath)
+
+        // Always use symlink for custom providers
+        try fileManager.createSymbolicLink(
+            atPath: targetPath,
+            withDestinationPath: skill.globalPath
+        )
+    }
+    
+    /// Uninstall a skill from a custom provider
+    public func uninstallFromCustomProvider(skill: Skill, customProvider: CustomProvider) throws {
+        let providerPath = customProvider.path
+        let targetPath = "\(providerPath)/\(skill.id)"
+
+        guard fileManager.fileExists(atPath: targetPath) else {
+            return  // Already uninstalled
+        }
+
+        try fileManager.removeItem(atPath: targetPath)
+    }
+    
+    /// Scan a custom provider directory and return skill states
+    public func scanCustomProvider(customProvider: CustomProvider) throws -> [ProviderSkillState] {
+        let providerPath = customProvider.path
+
+        guard fileManager.fileExists(atPath: providerPath) else {
+            return []
+        }
+
+        guard let contents = try? fileManager.contentsOfDirectory(atPath: providerPath) else {
+            return []
+        }
+
+        var states: [ProviderSkillState] = []
+
+        for item in contents {
+            // Skip hidden files
+            if item.hasPrefix(".") { continue }
+
+            let itemPath = "\(providerPath)/\(item)"
+            let state = determineSkillState(at: itemPath)
+
+            states.append(
+                ProviderSkillState(
+                    skillName: item,
+                    state: state,
+                    path: itemPath
+                ))
+        }
+
+        return states
+    }
 
     // MARK: - Provider Scanning
 

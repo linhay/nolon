@@ -9,7 +9,7 @@ Nolon is a macOS application designed to manage skills for AI coding assistants 
     - **Symlink**: Creates symbolic links (recommended for live updates).
     - **Copy**: Physically copies skill files to the provider directory.
 - **Provider Support**:
-    - Supports: **Codex**, **Claude Code**, **OpenCode**, **GitHub Copilot**, **Gemini CLI**, **Antigravity**.
+    - Supports: **Codex**, **Claude Code**, **OpenCode**, **GitHub Copilot**, **Gemini CLI**, **Antigravity**, **Cursor**.
     - **Customizable Paths**: Users can configure the skills directory path for each provider.
 - **Migration Assistant**: Detects "orphaned" skills (physical files) in provider directories and migrants them to global storage.
 - **Health Checks**: Automatically detects and repairs broken symlinks.

@@ -1,0 +1,1036 @@
+{
+  "sourceLanguage": "en",
+  "strings": {
+    "": {},
+    "%lld refs": {},
+    "%lld scripts": {},
+    "+%lld": {},
+    "Design System Colors": {},
+    "Version: %@": {},
+    "action.delete": {
+      "comment": "Delete",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\u5220\u9664"
+          }
+        }
+      }
+    },
+    "action.install": {
+      "comment": "Install",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\u5b89\u88c5"
+          }
+        }
+      }
+    },
+    "action.migrate": {
+      "comment": "Migrate",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\u8fc1\u79fb"
+          }
+        }
+      }
+    },
+    "action.migrate_all": {
+      "comment": "Migrate All",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\u5168\u90e8\u8fc1\u79fb"
+          }
+        }
+      }
+    },
+    "action.repair": {
+      "comment": "Repair",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\u4fee\u590d"
+          }
+        }
+      }
+    },
+    "action.uninstall": {
+      "comment": "Uninstall",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\u5378\u8f7d"
+          }
+        }
+      }
+    },
+    "add_provider.choose": {
+      "comment": "Choose...",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\u9009\u62e9..."
+          }
+        }
+      }
+    },
+    "add_provider.folder_desc": {
+      "comment": "Select the folder where skills will be installed",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\u9009\u62e9 Skills \u5b89\u88c5\u76ee\u5f55"
+          }
+        }
+      }
+    },
+    "add_provider.folder_label": {
+      "comment": "Skills Folder",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Skills \u76ee\u5f55"
+          }
+        }
+      }
+    },
+    "add_provider.name_label": {
+      "comment": "Name",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\u540d\u79f0"
+          }
+        }
+      }
+    },
+    "add_provider.name_placeholder": {
+      "comment": "Provider Name",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Provider \u540d\u79f0"
+          }
+        }
+      }
+    },
+    "add_provider.no_folder": {
+      "comment": "No folder selected",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\u672a\u9009\u62e9\u76ee\u5f55"
+          }
+        }
+      }
+    },
+    "add_provider.title": {
+      "comment": "Add Provider",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\u6dfb\u52a0 Provider"
+          }
+        }
+      }
+    },
+    "app.title": {
+      "comment": "nolon",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "nolon"
+          }
+        }
+      }
+    },
+    "banner.orphaned_desc": {
+      "comment": "Some skills are not managed...",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\u68c0\u6d4b\u5230\u90e8\u5206 Skills \u672a\u88ab nolon \u7ba1\u7406..."
+          }
+        }
+      }
+    },
+    "banner.orphaned_title": {
+      "comment": "Orphaned Skills Detected",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\u53d1\u73b0\u672a\u6258\u7ba1\u7684 Skills"
+          }
+        }
+      }
+    },
+    "confirm.delete_broken_title": {
+      "comment": "Delete broken symlink?",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\u5220\u9664\u635f\u574f\u7684\u8f6f\u94fe\u63a5\uff1f"
+          }
+        }
+      }
+    },
+    "detail.content": {
+      "comment": "SKILL.md Content",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SKILL.md \u5185\u5bb9"
+          }
+        }
+      }
+    },
+    "detail.files": {
+      "comment": "Additional Files\nfiles",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\u9644\u52a0\u6587\u4ef6"
+          }
+        }
+      }
+    },
+    "detail.id": {
+      "comment": "ID",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ID"
+          }
+        }
+      }
+    },
+    "detail.install_title": {
+      "comment": "Installation",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\u5b89\u88c5\u7ba1\u7406"
+          }
+        }
+      }
+    },
+    "detail.installed_providers": {
+      "comment": "Installed Providers",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\u5df2\u5b89\u88c5\u7684 Providers"
+          }
+        }
+      }
+    },
+    "detail.metadata": {
+      "comment": "Metadata",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\u5143\u6570\u636e"
+          }
+        }
+      }
+    },
+    "detail.no_selection": {
+      "comment": "No Skill Selected",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\u672a\u9009\u62e9 Skill"
+          }
+        }
+      }
+    },
+    "detail.no_selection_desc": {
+      "comment": "Select a skill to view its details",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\u9009\u62e9\u4e00\u4e2a Skill \u4ee5\u67e5\u770b\u8be6\u60c5"
+          }
+        }
+      }
+    },
+    "detail.not_installed": {
+      "comment": "Not installed anywhere",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\u672a\u5b89\u88c5"
+          }
+        }
+      }
+    },
+    "detail.open_folder": {
+      "comment": "Open in Finder",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\u5728 Finder \u4e2d\u6253\u5f00"
+          }
+        }
+      }
+    },
+    "detail.ref_files": {
+      "comment": "%d reference files",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%d \u4e2a\u5f15\u7528\u6587\u4ef6"
+          }
+        }
+      }
+    },
+    "detail.references": {
+      "comment": "References",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\u5f15\u7528\u6587\u4ef6"
+          }
+        }
+      }
+    },
+    "detail.script_files": {
+      "comment": "%d script files",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%d \u4e2a\u811a\u672c\u6587\u4ef6"
+          }
+        }
+      }
+    },
+    "detail.scripts": {
+      "comment": "Scripts",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\u811a\u672c"
+          }
+        }
+      }
+    },
+    "detail.skill_content": {
+      "comment": "SKILL.md Content",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SKILL.md \u5185\u5bb9"
+          }
+        }
+      }
+    },
+    "detail.version": {
+      "comment": "Version %@",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\u7248\u672c %@"
+          }
+        }
+      }
+    },
+    "detail.version_label": {
+      "comment": "Version",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\u7248\u672c"
+          }
+        }
+      }
+    },
+    "generic.add": {
+      "comment": "Add",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\u6dfb\u52a0"
+          }
+        }
+      }
+    },
+    "generic.cancel": {
+      "comment": "Cancel",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\u53d6\u6d88"
+          }
+        }
+      }
+    },
+    "generic.close": {
+      "comment": "Close",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\u5173\u95ed"
+          }
+        }
+      }
+    },
+    "generic.done": {
+      "comment": "Done",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\u5b8c\u6210"
+          }
+        }
+      }
+    },
+    "generic.error": {
+      "comment": "Error",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\u9519\u8bef"
+          }
+        }
+      }
+    },
+    "generic.ok": {
+      "comment": "OK",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\u786e\u5b9a"
+          }
+        }
+      }
+    },
+    "global.empty": {
+      "comment": "No Skills",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\u6ca1\u6709 Skills"
+          }
+        }
+      }
+    },
+    "global.empty_desc": {
+      "comment": "Import skills to get started",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\u5bfc\u5165 Skills \u4ee5\u5f00\u59cb\u4f7f\u7528"
+          }
+        }
+      }
+    },
+    "global.install_to": {
+      "comment": "Install to %@",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\u5b89\u88c5\u5230 %@"
+          }
+        }
+      }
+    },
+    "global.search": {
+      "comment": "Search skills",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\u641c\u7d22 Skills"
+          }
+        }
+      }
+    },
+    "global.select_provider": {
+      "comment": "Select a provider first",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\u8bf7\u5148\u9009\u62e9\u4e00\u4e2a Provider"
+          }
+        }
+      }
+    },
+    "global.title": {
+      "comment": "Global Skills",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\u5168\u5c40 Skills"
+          }
+        }
+      }
+    },
+    "install_method.copy": {
+      "comment": "Copy",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\u590d\u5236 (Copy)"
+          }
+        }
+      }
+    },
+    "install_method.symlink": {
+      "comment": "Symbolic Link",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\u8f6f\u94fe\u63a5 (Symlink)"
+          }
+        }
+      }
+    },
+    "list.empty_desc_action": {
+      "comment": "Import a skill...",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\u5bfc\u5165 Skill..."
+          }
+        }
+      }
+    },
+    "list.empty_desc_found": {
+      "comment": "Found existing skills...",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\u53d1\u73b0\u73b0\u6709\u7684 Skills..."
+          }
+        }
+      }
+    },
+    "list.empty_title": {
+      "comment": "No Skills Managed",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\u65e0\u53d7\u7ba1 Skills"
+          }
+        }
+      }
+    },
+    "list.import": {
+      "comment": "Import Skill",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\u5bfc\u5165 Skill"
+          }
+        }
+      }
+    },
+    "list.import_btn": {
+      "comment": "Import from Folder",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\u4ece\u6587\u4ef6\u5939\u5bfc\u5165"
+          }
+        }
+      }
+    },
+    "list.migrate_btn": {
+      "comment": "Migrate Existing Skills",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\u8fc1\u79fb\u73b0\u6709 Skills"
+          }
+        }
+      }
+    },
+    "list.title": {
+      "comment": "Global Skills",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\u5168\u5c40 Skills"
+          }
+        }
+      }
+    },
+    "migration.action": {
+      "comment": "Migrate (%d)",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\u8fc1\u79fb (%d)"
+          }
+        }
+      }
+    },
+    "migration.empty": {
+      "comment": "No orphaned skills found",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\u672a\u53d1\u73b0\u5b64\u7acb Skills"
+          }
+        }
+      }
+    },
+    "migration.title": {
+      "comment": "Migrate Skills",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\u8fc1\u79fb Skills"
+          }
+        }
+      }
+    },
+    "nav.all_skills": {
+      "comment": "All Skills",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\u6240\u6709 Skills"
+          }
+        }
+      }
+    },
+    "nav.by_provider": {
+      "comment": "By Provider",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\u6309 Provider"
+          }
+        }
+      }
+    },
+    "nav.search_placeholder": {
+      "comment": "Search skills",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\u641c\u7d22 Skills"
+          }
+        }
+      }
+    },
+    "provider.antigravity": {
+      "comment": "Antigravity",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Antigravity"
+          }
+        }
+      }
+    },
+    "provider.claude": {
+      "comment": "Claude Code",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Claude Code"
+          }
+        }
+      }
+    },
+    "provider.codex": {
+      "comment": "Codex",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Codex"
+          }
+        }
+      }
+    },
+    "provider.copilot": {
+      "comment": "GitHub Copilot",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GitHub Copilot"
+          }
+        }
+      }
+    },
+    "provider.gemini": {
+      "comment": "Gemini CLI",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gemini CLI"
+          }
+        }
+      }
+    },
+    "provider.opencode": {
+      "comment": "OpenCode",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OpenCode"
+          }
+        }
+      }
+    },
+    "provider.title": {
+      "comment": "Provider Skills",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Provider Skills"
+          }
+        }
+      }
+    },
+    "provider_picker.label": {
+      "comment": "Provider",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Provider"
+          }
+        }
+      }
+    },
+    "settings.change_btn": {
+      "comment": "Change...",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\u66f4\u6539..."
+          }
+        }
+      }
+    },
+    "settings.install_method": {
+      "comment": "Installation Method",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\u5b89\u88c5\u65b9\u5f0f"
+          }
+        }
+      }
+    },
+    "settings.note": {
+      "comment": "Note",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\u6ce8\u610f"
+          }
+        }
+      }
+    },
+    "settings.providers_config": {
+      "comment": "Providers Configuration",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Providers \u914d\u7f6e"
+          }
+        }
+      }
+    },
+    "settings.skills_path": {
+      "comment": "Skills Path",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Skills \u8def\u5f84"
+          }
+        }
+      }
+    },
+    "settings.title": {
+      "comment": "Settings",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\u8bbe\u7f6e"
+          }
+        }
+      }
+    },
+    "sidebar.add_provider": {
+      "comment": "Add Provider",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\u6dfb\u52a0 Provider"
+          }
+        }
+      }
+    },
+    "sidebar.builtin_providers": {
+      "comment": "Built-in Providers",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\u5185\u7f6e Providers"
+          }
+        }
+      }
+    },
+    "sidebar.custom_providers": {
+      "comment": "Custom Providers",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\u81ea\u5b9a\u4e49 Providers"
+          }
+        }
+      }
+    },
+    "skills_list.available": {
+      "comment": "Available",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\u53ef\u5b89\u88c5"
+          }
+        }
+      }
+    },
+    "skills_list.installed": {
+      "comment": "Installed",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\u5df2\u5b89\u88c5"
+          }
+        }
+      }
+    },
+    "skills_list.no_provider": {
+      "comment": "Select a Provider",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\u9009\u62e9 Provider"
+          }
+        }
+      }
+    },
+    "skills_list.no_provider_desc": {
+      "comment": "Choose a provider from the sidebar",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\u4ece\u4fa7\u8fb9\u680f\u9009\u62e9\u4e00\u4e2a Provider"
+          }
+        }
+      }
+    },
+    "skills_list.search": {
+      "comment": "Search skills",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\u641c\u7d22 Skills"
+          }
+        }
+      }
+    },
+    "status.available": {
+      "comment": "Available",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\u53ef\u7528"
+          }
+        }
+      }
+    },
+    "status.broken": {
+      "comment": "Broken Link",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\u94fe\u63a5\u5931\u6548"
+          }
+        }
+      }
+    },
+    "status.installed": {
+      "comment": "Installed",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\u5df2\u5b89\u88c5"
+          }
+        }
+      }
+    },
+    "status.partial": {
+      "comment": "Partial",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\u90e8\u5206\u5b89\u88c5"
+          }
+        }
+      }
+    },
+    "status.physical": {
+      "comment": "Physical File",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\u7269\u7406\u6587\u4ef6"
+          }
+        }
+      }
+    },
+    "status.symlinked": {
+      "comment": "Symlinked",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\u8f6f\u94fe\u63a5"
+          }
+        }
+      }
+    },
+    "toolbar.global_skills": {
+      "comment": "Global Skills",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\u5168\u5c40 Skills"
+          }
+        }
+      }
+    },
+    "toolbar.global_skills_help": {
+      "comment": "View and install global skills",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\u67e5\u770b\u548c\u5b89\u88c5\u5168\u5c40 Skills"
+          }
+        }
+      }
+    },
+    "toolbar.settings": {
+      "comment": "Settings",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\u8bbe\u7f6e"
+          }
+        }
+      }
+    },
+    "toolbar.settings_help": {
+      "comment": "Configure providers",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\u914d\u7f6e Providers"
+          }
+        }
+      }
+    },
+    "v%@": {}
+  },
+  "version": "1.1"
+}
