@@ -1,5 +1,7 @@
 # Nolon
 
+English | [中文](README_ZH.md)
+
 Nolon is a powerful macOS application designed to streamline the management of skills for AI coding assistants like **Codex** and **Claude Code**. It acts as a centralized hub, allowing you to organize, install, and maintain your skills efficiently.
 
 ## 🚀 Key Features
@@ -16,13 +18,34 @@ Nolon is a powerful macOS application designed to streamline the management of s
 *   **Complete Folder Support**: Manages skills as complete folders, preserving auxiliary files like `scripts/` and `references/`.
 *   **Internationalization**: Fully localized in **English** and **Chinese (Simplified)**.
 
+## 🔄 Skills Management Workflow
+
+1.  **Import**: Import skills from local folders into Nolon's global storage.
+2.  **Install**: Select a skill and toggle installation for target providers (e.g., Codex, Claude).
+3.  **Migrate**: Use the "By Provider" view to find existing unmanaged skills and migrate them to Nolon's management.
+
 ## 🛠 Project Structure
 
 The project follows a clean architecture:
 
-*   **Models**: Domain entities (`Skill`, `SkillProvider`, etc.)
-*   **Infrastructure**: Storage and system operations (`SkillRepository`, `SkillInstaller`)
-*   **Views**: SwiftUI user interface (`SkillManagerView`, `SkillListView`)
+*   **Models**: Domain entities (`Skill`, `SkillProvider`, etc.) located in `Skills/Models`.
+*   **Infrastructure**: Storage and system operations (`SkillRepository`, `SkillInstaller`) located in `Skills/Infrastructure`.
+*   **Views**: SwiftUI user interface (`SkillManagerView`, `SkillListView`) located in `Skills/Views`.
+*   **App**: Entry point at `nolon/nolonApp.swift`.
+
+## 🎨 Design System
+
+We use a code-based color system located in `nolon/DesignSystem/AppColors.swift`.
+
+**Rules:**
+*   **Always** use `DesignSystem.Colors` instead of hardcoded `Color(...)` or system defaults.
+*   **Do not** use `Color.blue`, `Color.white`, etc.
+*   **Available Palette**:
+    *   **Brand**: `DesignSystem.Colors.primary`, `secondary`
+    *   **Backgrounds**: `DesignSystem.Colors.Background.canvas`, `surface`, `elevated`
+    *   **Text**: `DesignSystem.Colors.Text.primary`, `secondary`, `tertiary`, `quaternary`
+    *   **Status**: `DesignSystem.Colors.Status.info`, `success`, `warning`, `error`
+*   **Dark Mode**: All colors automatically adapt to system appearance.
 
 ## 💻 Build and Run
 
@@ -30,6 +53,20 @@ The project follows a clean architecture:
 2.  Wait for Swift Package Manager to resolve dependencies (MarkdownUI).
 3.  Select the **nolon** scheme and **My Mac** as the destination.
 4.  Run the application (Cmd+R).
+
+### Command Line Verification
+
+You can verify the build using the provided helper script:
+
+```bash
+./build.sh
+```
+
+Or manually using `xcodebuild`:
+
+```bash
+xcodebuild -project nolon.xcodeproj -scheme nolon -configuration Release
+```
 
 ## 📋 Requirements
 
@@ -42,4 +79,3 @@ This project is inspired by and references the following projects:
 
 *   **CodexSkillManager**: [https://github.com/Dimillian/CodexSkillManager](https://github.com/Dimillian/CodexSkillManager)
 *   **SkillsManager**: [https://github.com/tddworks/SkillsManager](https://github.com/tddworks/SkillsManager)
-

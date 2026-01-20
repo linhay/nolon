@@ -32,11 +32,6 @@ public struct Skill: Sendable, Equatable, Identifiable, Hashable {
     /// Full SKILL.md content
     public let content: String
 
-    // MARK: - Installation Status
-
-    /// Providers where this skill is installed
-    public var installedProviders: Set<SkillProvider>
-
     // MARK: - Metadata
 
     /// Number of reference files in references/ directory
@@ -54,7 +49,6 @@ public struct Skill: Sendable, Equatable, Identifiable, Hashable {
         version: String,
         globalPath: String,
         content: String,
-        installedProviders: Set<SkillProvider> = [],
         referenceCount: Int = 0,
         scriptCount: Int = 0
     ) {
@@ -64,17 +58,11 @@ public struct Skill: Sendable, Equatable, Identifiable, Hashable {
         self.version = version
         self.globalPath = globalPath
         self.content = content
-        self.installedProviders = installedProviders
         self.referenceCount = referenceCount
         self.scriptCount = scriptCount
     }
 
     // MARK: - Computed Properties
-
-    /// Whether this skill is installed for any provider
-    public var isInstalled: Bool {
-        !installedProviders.isEmpty
-    }
 
     /// Whether this skill has reference files
     public var hasReferences: Bool {
@@ -84,26 +72,6 @@ public struct Skill: Sendable, Equatable, Identifiable, Hashable {
     /// Whether this skill has script files
     public var hasScripts: Bool {
         scriptCount > 0
-    }
-
-    /// Check if skill is installed for a specific provider
-    public func isInstalledFor(_ provider: SkillProvider) -> Bool {
-        installedProviders.contains(provider)
-    }
-
-    /// Providers where this skill can still be installed
-    public var availableProviders: Set<SkillProvider> {
-        Set(SkillProvider.allCases).subtracting(installedProviders)
-    }
-
-    /// Whether this skill is installed in all available providers
-    public var isFullyInstalled: Bool {
-        installedProviders.count == SkillProvider.allCases.count
-    }
-
-    /// Whether this skill can be installed to at least one more provider
-    public var canBeInstalled: Bool {
-        !availableProviders.isEmpty
     }
 
     // MARK: - Search
@@ -117,20 +85,6 @@ public struct Skill: Sendable, Equatable, Identifiable, Hashable {
 
     // MARK: - Mutation Methods
 
-    /// Returns a copy with the provider added to installed providers
-    public func installing(for provider: SkillProvider) -> Skill {
-        var updated = self
-        updated.installedProviders.insert(provider)
-        return updated
-    }
-
-    /// Returns a copy with the provider removed from installed providers
-    public func uninstalling(from provider: SkillProvider) -> Skill {
-        var updated = self
-        updated.installedProviders.remove(provider)
-        return updated
-    }
-
     /// Returns a copy with updated content
     public func updating(content newContent: String) -> Skill {
         Skill(
@@ -140,22 +94,6 @@ public struct Skill: Sendable, Equatable, Identifiable, Hashable {
             version: version,
             globalPath: globalPath,
             content: newContent,
-            installedProviders: installedProviders,
-            referenceCount: referenceCount,
-            scriptCount: scriptCount
-        )
-    }
-
-    /// Returns a copy with the specified installed providers
-    public func withInstalledProviders(_ providers: Set<SkillProvider>) -> Skill {
-        Skill(
-            id: id,
-            name: name,
-            description: description,
-            version: version,
-            globalPath: globalPath,
-            content: content,
-            installedProviders: providers,
             referenceCount: referenceCount,
             scriptCount: scriptCount
         )

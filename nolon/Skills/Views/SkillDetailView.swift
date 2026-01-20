@@ -1,12 +1,10 @@
 import MarkdownUI
 import SwiftUI
 
-/// Detailed view for a single skill
+/// Detailed view for a single skill (simplified - no installation UI)
 @MainActor
 public struct SkillDetailView: View {
     let skill: Skill
-    let installer: SkillInstaller
-    let onUpdate: () async -> Void
 
     @State private var showingContent = false
 
@@ -71,44 +69,23 @@ public struct SkillDetailView: View {
                     .cornerRadius(12)
                 }
 
-                // Installation status
-                VStack(alignment: .leading, spacing: 12) {
-                    Text(NSLocalizedString("detail.install_title", comment: "Installation"))
+                // Path info
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(NSLocalizedString("detail.location", comment: "Location"))
                         .font(.headline)
-
-                    ForEach(SkillProvider.allCases, id: \.self) { provider in
-                        HStack {
-                            Text(provider.displayName)
-
-                            Spacer()
-
-                            if skill.isInstalledFor(provider) {
-                                Image(systemName: "checkmark.circle.fill")
-                                    .foregroundStyle(.green)
-
-                                Button(NSLocalizedString("action.uninstall", comment: "Uninstall"))
-                                {
-                                    Task {
-                                        try? installer.uninstall(skill: skill, from: provider)
-                                        await onUpdate()
-                                    }
-                                }
-                                .buttonStyle(.bordered)
-                                .tint(.red)
-                            } else {
-                                Image(systemName: "circle")
-                                    .foregroundStyle(.secondary)
-
-                                Button(NSLocalizedString("action.install", comment: "Install")) {
-                                    Task {
-                                        try? installer.install(skill: skill, to: provider)
-                                        await onUpdate()
-                                    }
-                                }
-                                .buttonStyle(.borderedProminent)
-                            }
-                        }
+                    
+                    Text(skill.globalPath)
+                        .font(.system(.caption, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                        .truncationMode(.middle)
+                    
+                    Button {
+                        NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: skill.globalPath)
+                    } label: {
+                        Label(NSLocalizedString("action.show_in_finder", comment: "Show in Finder"), systemImage: "folder")
                     }
+                    .buttonStyle(.bordered)
                 }
                 .padding()
                 .background(Color.secondary.opacity(0.1))

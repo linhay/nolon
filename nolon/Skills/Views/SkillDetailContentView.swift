@@ -130,33 +130,6 @@ public struct SkillDetailContentView: View {
                     value: "\(skill.scriptCount) \(NSLocalizedString("detail.files", comment: "files"))"
                 )
             }
-            
-            // Installation status
-            VStack(alignment: .leading, spacing: 8) {
-                Text(NSLocalizedString("detail.installed_providers", comment: "Installed Providers"))
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                
-                if skill.installedProviders.isEmpty {
-                    Text(NSLocalizedString("detail.not_installed", comment: "Not installed anywhere"))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .italic()
-                } else {
-                    FlowLayout(spacing: 8) {
-                        ForEach(Array(skill.installedProviders), id: \.self) { provider in
-                            Text(provider.displayName)
-                                .font(.caption)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
-                                .background(Color.green.opacity(0.1))
-                                .foregroundStyle(.green)
-                                .cornerRadius(6)
-                        }
-                    }
-                }
-            }
-            .padding(.top, 4)
         }
         .padding()
         .background(Color.secondary.opacity(0.05))

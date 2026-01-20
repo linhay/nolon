@@ -4,8 +4,7 @@ import SwiftUI
 /// Shows all global skills with option to install to current provider
 @MainActor
 public struct GlobalSkillsPopover: View {
-    let currentProvider: SkillProvider?
-    let customProvider: CustomProvider?
+    let currentProvider: Provider?
     @ObservedObject var settings: ProviderSettings
     let onInstall: (Skill) async -> Void
     let onDismiss: () -> Void
@@ -19,23 +18,16 @@ public struct GlobalSkillsPopover: View {
     
     /// Current provider name for display
     private var currentProviderName: String? {
-        if let provider = currentProvider {
-            return provider.displayName
-        } else if let customProvider = customProvider {
-            return customProvider.displayName
-        }
-        return nil
+        currentProvider?.displayName
     }
     
     public init(
-        currentProvider: SkillProvider?,
-        customProvider: CustomProvider?,
+        currentProvider: Provider?,
         settings: ProviderSettings,
         onInstall: @escaping (Skill) async -> Void,
         onDismiss: @escaping () -> Void
     ) {
         self.currentProvider = currentProvider
-        self.customProvider = customProvider
         self.settings = settings
         self.onInstall = onInstall
         self.onDismiss = onDismiss
@@ -108,14 +100,14 @@ public struct GlobalSkillsPopover: View {
     }
     
     private func loadSkills() async {
+        guard let installer = installer else { return }
+        
         do {
             skills = try repository.listSkills()
             
-            // Determine installed skills based on provider type
+            // Determine installed skills based on current provider
             if let provider = currentProvider {
-                installedSkillIds = Set(skills.filter { $0.isInstalledFor(provider) }.map(\.id))
-            } else if let customProvider = customProvider, let installer = installer {
-                let states = try installer.scanCustomProvider(customProvider: customProvider)
+                let states = try installer.scanProvider(provider: provider)
                 installedSkillIds = Set(states.filter { $0.state == .installed }.map(\.skillName))
             } else {
                 installedSkillIds = []
@@ -152,27 +144,6 @@ struct GlobalSkillRowView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(2)
-                
-                // Show installed providers
-                if !skill.installedProviders.isEmpty {
-                    HStack(spacing: 4) {
-                        ForEach(Array(skill.installedProviders).prefix(3), id: \.self) { provider in
-                            Text(provider.displayName)
-                                .font(.caption2)
-                                .padding(.horizontal, 4)
-                                .padding(.vertical, 2)
-                                .background(Color.green.opacity(0.1))
-                                .foregroundStyle(.green)
-                                .cornerRadius(4)
-                        }
-                        
-                        if skill.installedProviders.count > 3 {
-                            Text("+\(skill.installedProviders.count - 3)")
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                }
             }
             
             Spacer()

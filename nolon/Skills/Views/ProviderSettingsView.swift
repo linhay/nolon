@@ -1,10 +1,9 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
+/// Provider Settings View - displays all configured providers
 public struct ProviderSettingsView: View {
     @ObservedObject var settings: ProviderSettings
-    @State private var showingFileImporter = false
-    @State private var selectedProviderForImport: SkillProvider?
 
     public init(settings: ProviderSettings) {
         self.settings = settings
@@ -15,46 +14,32 @@ public struct ProviderSettingsView: View {
             Section(
                 NSLocalizedString("settings.providers_config", comment: "Providers Configuration")
             ) {
-                ForEach(SkillProvider.allCases, id: \.self) { provider in
+                ForEach(settings.providers) { provider in
                     VStack(alignment: .leading, spacing: 12) {
                         HStack {
-                            Text(provider.displayName)
+                            Image(systemName: provider.iconName)
+                                .foregroundStyle(.secondary)
+                            Text(provider.name)
                                 .font(.headline)
                             Spacer()
-                            if let icon = providerIcon(for: provider) {
-                                Image(systemName: icon)
-                            }
                         }
 
                         Divider()
 
-                        // Path Configuration
+                        // Path Display
                         VStack(alignment: .leading) {
                             Text(NSLocalizedString("settings.skills_path", comment: "Skills Path"))
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
 
-                            HStack {
-                                Text(settings.path(for: provider).path)
-                                    .font(.system(.caption, design: .monospaced))
-                                    .lineLimit(1)
-                                    .truncationMode(.middle)
-                                    .help(settings.path(for: provider).path)
-
-                                Spacer()
-
-                                Button(
-                                    NSLocalizedString("settings.change_btn", comment: "Change...")
-                                ) {
-                                    selectedProviderForImport = provider
-                                    showingFileImporter = true
-                                }
-                                .buttonStyle(.bordered)
-                                .controlSize(.small)
-                            }
+                            Text(provider.path)
+                                .font(.system(.caption, design: .monospaced))
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                                .help(provider.path)
                         }
 
-                        // Installation Method
+                        // Installation Method Display
                         VStack(alignment: .leading) {
                             Text(
                                 NSLocalizedString(
@@ -63,19 +48,12 @@ public struct ProviderSettingsView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
 
-                            Picker(
-                                "",
-                                selection: Binding(
-                                    get: { settings.method(for: provider) },
-                                    set: { settings.updateMethod($0, for: provider) }
-                                )
-                            ) {
-                                ForEach(SkillInstallationMethod.allCases) { method in
-                                    Text(method.displayName).tag(method)
-                                }
-                            }
-                            .labelsHidden()
-                            .pickerStyle(.segmented)
+                            Text(provider.installMethod.displayName)
+                                .font(.caption)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(Color.secondary.opacity(0.1))
+                                .cornerRadius(4)
                         }
                     }
                     .padding(.vertical, 8)
@@ -91,35 +69,6 @@ public struct ProviderSettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .fileImporter(
-            isPresented: $showingFileImporter,
-            allowedContentTypes: [.folder],
-            allowsMultipleSelection: false
-        ) { result in
-            handleFileImport(result)
-        }
         .navigationTitle(NSLocalizedString("settings.title", comment: "Settings"))
-    }
-
-    private func handleFileImport(_ result: Result<[URL], Error>) {
-        switch result {
-        case .success(let urls):
-            guard let url = urls.first, let provider = selectedProviderForImport else { return }
-            settings.updatePath(url, for: provider)
-        case .failure(let error):
-            print("Import failed: \(error.localizedDescription)")
-        }
-        selectedProviderForImport = nil
-    }
-
-    private func providerIcon(for provider: SkillProvider) -> String? {
-        switch provider {
-        case .codex: return "terminal"
-        case .claude: return "bubble.left.and.bubble.right"
-        case .opencode: return "chevron.left.forwardslash.chevron.right"
-        case .copilot: return "airplane"
-        case .gemini: return "sparkles"
-        case .antigravity: return "arrow.up.circle"
-        }
     }
 }

@@ -4,7 +4,7 @@ import Foundation
 public enum SkillError: Error, LocalizedError {
     case parsingFailed(String)
     case symlinkFailed(String)
-    case conflictDetected(skillName: String, providers: [SkillProvider])
+    case conflictDetected(skillName: String, providers: [String])
     case brokenSymlink(path: String)
     case skillNotFound(id: String)
     case directoryCreationFailed(path: String)
@@ -17,7 +17,7 @@ public enum SkillError: Error, LocalizedError {
         case .symlinkFailed(let details):
             return "Failed to create symlink: \(details)"
         case .conflictDetected(let skillName, let providers):
-            let providerNames = providers.map { $0.displayName }.joined(separator: ", ")
+            let providerNames = providers.joined(separator: ", ")
             return
                 "Skill '\(skillName)' has different versions in: \(providerNames). Please choose which version to keep."
         case .brokenSymlink(let path):

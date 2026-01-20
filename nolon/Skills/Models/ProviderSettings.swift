@@ -2,7 +2,7 @@ import Combine
 import Foundation
 import SwiftUI
 
-public enum SkillInstallationMethod: String, CaseIterable, Codable, Identifiable {
+public enum SkillInstallationMethod: String, CaseIterable, Codable, Identifiable, Sendable {
     case symlink
     case copy
 
@@ -18,136 +18,143 @@ public enum SkillInstallationMethod: String, CaseIterable, Codable, Identifiable
 
 @MainActor
 public class ProviderSettings: ObservableObject {
-    @AppStorage("provider_paths") private var storedPathsData: Data = Data()
-    @AppStorage("provider_methods") private var storedMethodsData: Data = Data()
-    @AppStorage("custom_providers") private var storedCustomProvidersData: Data = Data()
-
-    @Published public var paths: [SkillProvider: String] = [:] {
-        didSet { savePaths() }
-    }
-
-    @Published public var installationMethods: [SkillProvider: SkillInstallationMethod] = [:] {
-        didSet { saveMethods() }
-    }
+    @AppStorage("unified_providers") private var storedProvidersData: Data = Data()
     
-    @Published public var customProviders: [CustomProvider] = [] {
-        didSet { saveCustomProviders() }
+    // Legacy storage keys for migration
+    @AppStorage("provider_paths") private var legacyPathsData: Data = Data()
+    @AppStorage("provider_methods") private var legacyMethodsData: Data = Data()
+    @AppStorage("custom_providers") private var legacyCustomProvidersData: Data = Data()
+
+    @Published public var providers: [Provider] = [] {
+        didSet { saveProviders() }
     }
 
     public init() {
         loadSettings()
     }
 
-    // MARK: - Built-in Provider Accessors
-
-    public func path(for provider: SkillProvider) -> URL {
-        if let pathString = paths[provider], !pathString.isEmpty {
-            return URL(fileURLWithPath: pathString)
-        }
-        return defaultPath(for: provider)
-    }
-
-    public func method(for provider: SkillProvider) -> SkillInstallationMethod {
-        installationMethods[provider] ?? .symlink
-    }
-
-    public func updatePath(_ path: URL, for provider: SkillProvider) {
-        paths[provider] = path.path
-    }
-
-    public func updateMethod(_ method: SkillInstallationMethod, for provider: SkillProvider) {
-        installationMethods[provider] = method
+    // MARK: - Provider Management
+    
+    public func addProvider(_ provider: Provider) {
+        providers.append(provider)
     }
     
-    // MARK: - Custom Provider Management
-    
-    public func addCustomProvider(name: String, path: String, iconName: String = "folder") {
-        let provider = CustomProvider(name: name, path: path, iconName: iconName)
-        customProviders.append(provider)
+    public func addProvider(name: String, path: String, iconName: String = "folder", installMethod: SkillInstallationMethod = .symlink, templateId: String? = nil) {
+        let provider = Provider(
+            name: name,
+            path: path,
+            iconName: iconName,
+            installMethod: installMethod,
+            templateId: templateId
+        )
+        providers.append(provider)
     }
     
-    public func updateCustomProvider(_ provider: CustomProvider) {
-        if let index = customProviders.firstIndex(where: { $0.id == provider.id }) {
-            customProviders[index] = provider
+    public func updateProvider(_ provider: Provider) {
+        if let index = providers.firstIndex(where: { $0.id == provider.id }) {
+            providers[index] = provider
         }
     }
     
-    public func removeCustomProvider(_ provider: CustomProvider) {
-        customProviders.removeAll { $0.id == provider.id }
+    public func removeProvider(_ provider: Provider) {
+        providers.removeAll { $0.id == provider.id }
     }
     
-    public func removeCustomProvider(at offsets: IndexSet) {
-        customProviders.remove(atOffsets: offsets)
+    public func removeProvider(at offsets: IndexSet) {
+        providers.remove(atOffsets: offsets)
     }
-
-    // MARK: - Defaults
-
-    private func defaultPath(for provider: SkillProvider) -> URL {
-        let home = FileManager.default.homeDirectoryForCurrentUser
-        switch provider {
-        case .codex:
-            return home.appendingPathComponent(".codex/skills/public")
-        case .claude:
-            return home.appendingPathComponent(".claude/skills")
-        case .opencode:
-            return home.appendingPathComponent(".config/opencode/skills")
-        case .copilot:
-            return home.appendingPathComponent(".copilot/skills")
-        case .gemini:
-            return home.appendingPathComponent(".gemini/skills")
-        case .antigravity:
-            return home.appendingPathComponent(".gemini/antigravity/skills")
-        }
+    
+    public func moveProvider(from source: IndexSet, to destination: Int) {
+        providers.move(fromOffsets: source, toOffset: destination)
+    }
+    
+    // MARK: - Provider Accessors
+    
+    public func path(for provider: Provider) -> URL {
+        URL(fileURLWithPath: provider.path)
+    }
+    
+    public func method(for provider: Provider) -> SkillInstallationMethod {
+        provider.installMethod
     }
 
     // MARK: - Persistence
 
     private func loadSettings() {
-        if let decodedPaths = try? JSONDecoder().decode(
-            [SkillProvider: String].self, from: storedPathsData)
-        {
-            self.paths = decodedPaths
-        } else {
-            // Initialize with defaults if empty
-            for provider in SkillProvider.allCases {
-                self.paths[provider] = defaultPath(for: provider).path
-            }
+        // Try to load unified format first
+        if let decodedProviders = try? JSONDecoder().decode([Provider].self, from: storedProvidersData),
+           !decodedProviders.isEmpty {
+            self.providers = decodedProviders
+            return
         }
-
-        if let decodedMethods = try? JSONDecoder().decode(
-            [SkillProvider: SkillInstallationMethod].self, from: storedMethodsData)
-        {
-            self.installationMethods = decodedMethods
+        
+        // Migration from legacy format
+        migrateFromLegacyFormat()
+    }
+    
+    private func migrateFromLegacyFormat() {
+        var migratedProviders: [Provider] = []
+        
+        // Migrate legacy built-in providers
+        if let legacyPaths = try? JSONDecoder().decode([String: String].self, from: legacyPathsData) {
+            let legacyMethods = (try? JSONDecoder().decode([String: SkillInstallationMethod].self, from: legacyMethodsData)) ?? [:]
+            
+            for template in ProviderTemplate.allCases {
+                let path = legacyPaths[template.rawValue] ?? template.defaultPath.path
+                let method = legacyMethods[template.rawValue] ?? .symlink
+                
+                let provider = Provider(
+                    name: template.displayName,
+                    path: path,
+                    iconName: template.iconName,
+                    installMethod: method,
+                    templateId: template.rawValue
+                )
+                migratedProviders.append(provider)
+            }
         } else {
-            // Default to symlink
-            for provider in SkillProvider.allCases {
-                self.installationMethods[provider] = .symlink
+            // No legacy data, create default providers from templates
+            for template in ProviderTemplate.allCases {
+                migratedProviders.append(template.createProvider())
             }
         }
         
-        if let decodedCustomProviders = try? JSONDecoder().decode(
-            [CustomProvider].self, from: storedCustomProvidersData)
-        {
-            self.customProviders = decodedCustomProviders
+        // Migrate legacy custom providers
+        if let legacyCustom = try? JSONDecoder().decode([LegacyCustomProvider].self, from: legacyCustomProvidersData) {
+            for custom in legacyCustom {
+                let provider = Provider(
+                    id: custom.id,
+                    name: custom.name,
+                    path: custom.path,
+                    iconName: custom.iconName,
+                    installMethod: .symlink,
+                    templateId: nil
+                )
+                migratedProviders.append(provider)
+            }
         }
-    }
-
-    private func savePaths() {
-        if let encoded = try? JSONEncoder().encode(paths) {
-            storedPathsData = encoded
-        }
-    }
-
-    private func saveMethods() {
-        if let encoded = try? JSONEncoder().encode(installationMethods) {
-            storedMethodsData = encoded
-        }
+        
+        self.providers = migratedProviders
+        saveProviders()
+        
+        // Clear legacy data after migration
+        legacyPathsData = Data()
+        legacyMethodsData = Data()
+        legacyCustomProvidersData = Data()
     }
     
-    private func saveCustomProviders() {
-        if let encoded = try? JSONEncoder().encode(customProviders) {
-            storedCustomProvidersData = encoded
+    private func saveProviders() {
+        if let encoded = try? JSONEncoder().encode(providers) {
+            storedProvidersData = encoded
         }
     }
 }
 
+// MARK: - Legacy Custom Provider for Migration
+
+private struct LegacyCustomProvider: Codable {
+    let id: String
+    var name: String
+    var path: String
+    var iconName: String
+}

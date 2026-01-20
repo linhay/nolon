@@ -33,7 +33,6 @@ public final class SkillRepository {
 
     /// List all skills in global storage
     public func listSkills() throws -> [Skill] {
-        let metadata = try loadMetadata()
         var skills: [Skill] = []
 
         guard let contents = try? fileManager.contentsOfDirectory(atPath: globalSkillsPath) else {
@@ -63,26 +62,20 @@ public final class SkillRepository {
             let scriptCount = countFiles(in: "\(skillPath)/scripts")
 
             // Parse skill
-            var skill = try SkillParser.parse(
+            let parsedSkill = try SkillParser.parse(
                 content: content,
                 id: item,
                 globalPath: skillPath
             )
 
-            // Apply metadata
-            if let meta = metadata.skills[item] {
-                skill = skill.withInstalledProviders(meta.installedProviders)
-            }
-
-            // Update counts
-            skill = Skill(
-                id: skill.id,
-                name: skill.name,
-                description: skill.description,
-                version: skill.version,
-                globalPath: skill.globalPath,
-                content: skill.content,
-                installedProviders: skill.installedProviders,
+            // Create skill with counts
+            let skill = Skill(
+                id: parsedSkill.id,
+                name: parsedSkill.name,
+                description: parsedSkill.description,
+                version: parsedSkill.version,
+                globalPath: parsedSkill.globalPath,
+                content: parsedSkill.content,
                 referenceCount: referenceCount,
                 scriptCount: scriptCount
             )
@@ -116,20 +109,19 @@ public final class SkillRepository {
         let referenceCount = countFiles(in: "\(targetPath)/references")
         let scriptCount = countFiles(in: "\(targetPath)/scripts")
 
-        let skill = try SkillParser.parse(
+        let parsedSkill = try SkillParser.parse(
             content: content,
             id: skillName,
             globalPath: targetPath
         )
 
         return Skill(
-            id: skill.id,
-            name: skill.name,
-            description: skill.description,
-            version: skill.version,
-            globalPath: skill.globalPath,
-            content: skill.content,
-            installedProviders: skill.installedProviders,
+            id: parsedSkill.id,
+            name: parsedSkill.name,
+            description: parsedSkill.description,
+            version: parsedSkill.version,
+            globalPath: parsedSkill.globalPath,
+            content: parsedSkill.content,
             referenceCount: referenceCount,
             scriptCount: scriptCount
         )
@@ -174,12 +166,12 @@ public final class SkillRepository {
     }
 
     /// Update metadata for a specific skill
-    public func updateMetadata(for skillId: String, installedProviders: Set<SkillProvider>) throws {
+    public func updateMetadata(for skillId: String, lastUpdated: Date = Date(), sourceURL: String? = nil) throws {
         var metadata = try loadMetadata()
         metadata.skills[skillId] = SkillMetadata(
             id: skillId,
-            installedProviders: installedProviders,
-            lastUpdated: Date()
+            lastUpdated: lastUpdated,
+            sourceURL: sourceURL
         )
         try saveMetadata(metadata)
     }

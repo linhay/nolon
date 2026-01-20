@@ -11,8 +11,7 @@ public struct MainSplitView: View {
     @State private var repository = SkillRepository()
     @State private var installer: SkillInstaller?
     
-    @State private var selectedProvider: SkillProvider?
-    @State private var selectedCustomProvider: CustomProvider?
+    @State private var selectedProvider: Provider?
     @State private var selectedSkill: Skill?
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
     
@@ -26,14 +25,12 @@ public struct MainSplitView: View {
             // Left 1: Provider sidebar
             ProviderSidebarView(
                 selectedProvider: $selectedProvider,
-                selectedCustomProvider: $selectedCustomProvider,
                 settings: settings
             )
         } content: {
             // Left 2: Skills list for current provider
             ProviderSkillsListView(
                 provider: selectedProvider,
-                customProvider: selectedCustomProvider,
                 selectedSkill: $selectedSkill,
                 settings: settings
             )
@@ -73,7 +70,6 @@ public struct MainSplitView: View {
         .sheet(isPresented: $showingGlobalSkills) {
             GlobalSkillsPopover(
                 currentProvider: selectedProvider,
-                customProvider: selectedCustomProvider,
                 settings: settings,
                 onInstall: { skill in
                     await installSkillToCurrentProvider(skill)
@@ -89,20 +85,12 @@ public struct MainSplitView: View {
     }
     
     private func installSkillToCurrentProvider(_ skill: Skill) async {
-        guard let installer = installer else { return }
+        guard let installer = installer, let provider = selectedProvider else { return }
         
-        if let provider = selectedProvider {
-            do {
-                try installer.install(skill: skill, to: provider)
-            } catch {
-                print("Failed to install skill: \(error)")
-            }
-        } else if let customProvider = selectedCustomProvider {
-            do {
-                try installer.installToCustomProvider(skill: skill, customProvider: customProvider)
-            } catch {
-                print("Failed to install skill to custom provider: \(error)")
-            }
+        do {
+            try installer.install(skill: skill, to: provider)
+        } catch {
+            print("Failed to install skill: \(error)")
         }
     }
 }

@@ -4,18 +4,17 @@
 Nolon is a macOS application designed to manage skills for AI coding assistants like Codex and Claude Code. It provides a centralized repository for your skills and installs them to specific providers using symbolic links, ensuring a clean and efficient management workflow.
 
 ## Features
-- **Global Skill Storage**: Manages a single source of truth for all skills in `~/.nolon/skills/`.
-- **Flexible Installation**: Supports multiple installation methods:
-    - **Symlink**: Creates symbolic links (recommended for live updates).
-    - **Copy**: Physically copies skill files to the provider directory.
-- **Provider Support**:
-    - Supports: **Codex**, **Claude Code**, **OpenCode**, **GitHub Copilot**, **Gemini CLI**, **Antigravity**, **Cursor**.
-    - **Customizable Paths**: Users can configure the skills directory path for each provider.
-- **Migration Assistant**: Detects "orphaned" skills (physical files) in provider directories and migrants them to global storage.
-- **Health Checks**: Automatically detects and repairs broken symlinks.
-- **Rich Metadata**: Supports parsing standard `SKILL.md` frontmatter and tracking installation state.
-- **Folder Support**: Manages skills as complete folders, preserving `scripts/`, `references/`, and other auxiliary files.
-- **Internationalization**: Supports English and Simplified Chinese (zh-Hans).
+*   **Centralized Repository**: Maintains a single source of truth for all your skills in `~/.nolon/skills/`.
+*   **Broad Provider Support**:
+    *   **Codex**, **Claude Code**, **OpenCode**, **GitHub Copilot**, **Gemini CLI**, **Antigravity**, **Cursor**.
+*   **Flexible Configuration**:
+    *   **Custom Paths**: Configure the skills directory used by each provider.
+    *   **Installation Methods**: Choose between **Symbolic Link** (Live Sync) or **Copy** (Standard) for installation.
+*   **Migration Assistant**: Automatically detects "orphaned" skills (physical files) in provider directories and helps you migrate them to Nolon's managed storage.
+*   **Health Checks**: Identifies and repairs broken symlinks to keep your environment healthy.
+*   **Rich Metadata Support**: Parses standard `SKILL.md` frontmatter to display version, description, and other details.
+*   **Complete Folder Support**: Manages skills as complete folders, preserving auxiliary files like `scripts/` and `references/`.
+*   **Internationalization**: Fully localized in **English** and **Chinese (Simplified)**.
 
 ## Project Structure
 - **App**: `nolon/nolonApp.swift` - SwiftUI App entry point.

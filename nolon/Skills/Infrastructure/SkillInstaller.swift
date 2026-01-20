@@ -33,8 +33,8 @@ public final class SkillInstaller {
     // MARK: - Installation
 
     /// Install a skill to a provider
-    public func install(skill: Skill, to provider: SkillProvider) throws {
-        let providerPath = settings.path(for: provider).path
+    public func install(skill: Skill, to provider: Provider) throws {
+        let providerPath = provider.path
         let targetPath = "\(providerPath)/\(skill.id)"
 
         // Check if already exists
@@ -46,7 +46,7 @@ public final class SkillInstaller {
         try createDirectory(at: providerPath)
 
         // Check installation method
-        let method = settings.method(for: provider)
+        let method = provider.installMethod
 
         switch method {
         case .symlink:
@@ -59,16 +59,11 @@ public final class SkillInstaller {
             // Copy directory
             try fileManager.copyItem(atPath: skill.globalPath, toPath: targetPath)
         }
-
-        // Update metadata
-        var installedProviders = skill.installedProviders
-        installedProviders.insert(provider)
-        try repository.updateMetadata(for: skill.id, installedProviders: installedProviders)
     }
 
     /// Uninstall a skill from a provider
-    public func uninstall(skill: Skill, from provider: SkillProvider) throws {
-        let providerPath = settings.path(for: provider).path
+    public func uninstall(skill: Skill, from provider: Provider) throws {
+        let providerPath = provider.path
         let targetPath = "\(providerPath)/\(skill.id)"
 
         guard fileManager.fileExists(atPath: targetPath) else {
@@ -76,84 +71,13 @@ public final class SkillInstaller {
         }
 
         try fileManager.removeItem(atPath: targetPath)
-
-        // Update metadata
-        var installedProviders = skill.installedProviders
-        installedProviders.remove(provider)
-        try repository.updateMetadata(for: skill.id, installedProviders: installedProviders)
-    }
-    
-    // MARK: - Custom Provider Installation
-    
-    /// Install a skill to a custom provider
-    public func installToCustomProvider(skill: Skill, customProvider: CustomProvider) throws {
-        let providerPath = customProvider.path
-        let targetPath = "\(providerPath)/\(skill.id)"
-
-        // Check if already exists
-        if fileManager.fileExists(atPath: targetPath) {
-            throw SkillError.symlinkFailed("Skill already exists at '\(targetPath)'")
-        }
-
-        // Ensure provider directory exists
-        try createDirectory(at: providerPath)
-
-        // Always use symlink for custom providers
-        try fileManager.createSymbolicLink(
-            atPath: targetPath,
-            withDestinationPath: skill.globalPath
-        )
-    }
-    
-    /// Uninstall a skill from a custom provider
-    public func uninstallFromCustomProvider(skill: Skill, customProvider: CustomProvider) throws {
-        let providerPath = customProvider.path
-        let targetPath = "\(providerPath)/\(skill.id)"
-
-        guard fileManager.fileExists(atPath: targetPath) else {
-            return  // Already uninstalled
-        }
-
-        try fileManager.removeItem(atPath: targetPath)
-    }
-    
-    /// Scan a custom provider directory and return skill states
-    public func scanCustomProvider(customProvider: CustomProvider) throws -> [ProviderSkillState] {
-        let providerPath = customProvider.path
-
-        guard fileManager.fileExists(atPath: providerPath) else {
-            return []
-        }
-
-        guard let contents = try? fileManager.contentsOfDirectory(atPath: providerPath) else {
-            return []
-        }
-
-        var states: [ProviderSkillState] = []
-
-        for item in contents {
-            // Skip hidden files
-            if item.hasPrefix(".") { continue }
-
-            let itemPath = "\(providerPath)/\(item)"
-            let state = determineSkillState(at: itemPath)
-
-            states.append(
-                ProviderSkillState(
-                    skillName: item,
-                    state: state,
-                    path: itemPath
-                ))
-        }
-
-        return states
     }
 
     // MARK: - Provider Scanning
 
     /// Scan a provider directory and return skill states
-    public func scanProvider(provider: SkillProvider) throws -> [ProviderSkillState] {
-        let providerPath = settings.path(for: provider).path
+    public func scanProvider(provider: Provider) throws -> [ProviderSkillState] {
+        let providerPath = provider.path
 
         guard fileManager.fileExists(atPath: providerPath) else {
             return []
@@ -206,10 +130,6 @@ public final class SkillInstaller {
         }
 
         // If it is a directory and not a symlink, it is 'orphaned' (unmanaged) or 'installed via copy'
-        // For scan purposes, we check if it matches a known global skill to decide?
-        // Current logic treats physical dirs as 'orphaned', which is correct for migration detection.
-        // It complicates 'installed' detection if we use Copy mode.
-        // For now, we leave it as orphaned/physical. Application layer checks if matches metadata.
         return .orphaned
     }
 
@@ -217,8 +137,8 @@ public final class SkillInstaller {
 
     /// Migrate a skill from provider directory to global storage
     /// Returns the imported skill
-    public func migrate(skillName: String, from provider: SkillProvider) throws -> Skill {
-        let providerPath = settings.path(for: provider).path
+    public func migrate(skillName: String, from provider: Provider) throws -> Skill {
+        let providerPath = provider.path
         let sourcePath = "\(providerPath)/\(skillName)"
 
         // Verify it's a physical directory (not a symlink)
@@ -233,14 +153,14 @@ public final class SkillInstaller {
             "\(fileManager.homeDirectoryForCurrentUser.path)/.nolon/skills/\(skillName)"
         if fileManager.fileExists(atPath: globalPath) {
             // Conflict detected - need user resolution
-            throw SkillError.conflictDetected(skillName: skillName, providers: [provider])
+            throw SkillError.conflictDetected(skillName: skillName, providers: [])
         }
 
         // Move to global storage
         try fileManager.moveItem(atPath: sourcePath, toPath: globalPath)
 
         // Install back to provider based on settings
-        let method = settings.method(for: provider)
+        let method = provider.installMethod
         switch method {
         case .symlink:
             try fileManager.createSymbolicLink(
@@ -257,21 +177,17 @@ public final class SkillInstaller {
             throw SkillError.parsingFailed("SKILL.md not found in '\(skillName)'")
         }
 
-        var skill = try SkillParser.parse(
+        let skill = try SkillParser.parse(
             content: content,
             id: skillName,
             globalPath: globalPath
         )
 
-        // Update metadata
-        skill = skill.installing(for: provider)
-        try repository.updateMetadata(for: skill.id, installedProviders: skill.installedProviders)
-
         return skill
     }
 
     /// Migrate all orphaned skills from a provider
-    public func migrateAll(from provider: SkillProvider) throws -> [Skill] {
+    public func migrateAll(from provider: Provider) throws -> [Skill] {
         let states = try scanProvider(provider: provider)
         let orphaned = states.filter { $0.state == .orphaned }
 
@@ -296,7 +212,7 @@ public final class SkillInstaller {
     public func validateSymlinks() throws -> [ProviderSkillState] {
         var brokenLinks: [ProviderSkillState] = []
 
-        for provider in SkillProvider.allCases {
+        for provider in settings.providers {
             let states = try scanProvider(provider: provider)
             let broken = states.filter { $0.state == .broken }
             brokenLinks.append(contentsOf: broken)
@@ -306,8 +222,8 @@ public final class SkillInstaller {
     }
 
     /// Repair a broken symlink by recreating it
-    public func repairSymlink(skillName: String, for provider: SkillProvider) throws {
-        let providerPath = settings.path(for: provider).path
+    public func repairSymlink(skillName: String, for provider: Provider) throws {
+        let providerPath = provider.path
         let targetPath = "\(providerPath)/\(skillName)"
         let globalPath =
             "\(fileManager.homeDirectoryForCurrentUser.path)/.nolon/skills/\(skillName)"
@@ -322,9 +238,8 @@ public final class SkillInstaller {
             throw SkillError.skillNotFound(id: skillName)
         }
 
-        // Recreate symlink (Always repair with symlink? Or respect settings?)
-        // Let's respect settings
-        let method = settings.method(for: provider)
+        // Recreate based on provider's install method
+        let method = provider.installMethod
         switch method {
         case .symlink:
             try fileManager.createSymbolicLink(

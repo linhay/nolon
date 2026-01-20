@@ -4,8 +4,7 @@ import SwiftUI
 /// Shows skills with install/uninstall actions
 @MainActor
 public struct ProviderSkillsListView: View {
-    let provider: SkillProvider?
-    let customProvider: CustomProvider?
+    let provider: Provider?
     @Binding var selectedSkill: Skill?
     @ObservedObject var settings: ProviderSettings
     
@@ -18,29 +17,22 @@ public struct ProviderSkillsListView: View {
     
     /// Current provider name for display
     private var providerName: String {
-        if let provider = provider {
-            return provider.displayName
-        } else if let customProvider = customProvider {
-            return customProvider.displayName
-        }
-        return NSLocalizedString("skills_list.no_provider", comment: "Select a Provider")
+        provider?.displayName ?? NSLocalizedString("skills_list.no_provider", comment: "Select a Provider")
     }
     
     public init(
-        provider: SkillProvider?,
-        customProvider: CustomProvider?,
+        provider: Provider?,
         selectedSkill: Binding<Skill?>,
         settings: ProviderSettings
     ) {
         self.provider = provider
-        self.customProvider = customProvider
         self._selectedSkill = selectedSkill
         self.settings = settings
     }
     
     public var body: some View {
         Group {
-            if provider != nil || customProvider != nil {
+            if provider != nil {
                 skillsListContent()
             } else {
                 ContentUnavailableView(
@@ -53,7 +45,7 @@ public struct ProviderSkillsListView: View {
         .onAppear {
             installer = SkillInstaller(repository: repository, settings: settings)
         }
-        .task(id: provider?.id ?? customProvider?.id ?? "") {
+        .task(id: provider?.id ?? "") {
             await loadSkills()
         }
         .refreshable {
@@ -142,19 +134,17 @@ public struct ProviderSkillsListView: View {
     }
     
     private func loadSkills() async {
+        guard let provider = provider, let installer = installer else {
+            installedSkillIds = []
+            return
+        }
+        
         do {
             allSkills = try repository.listSkills()
             
-            // Determine installed skills based on provider type
-            if let provider = provider {
-                installedSkillIds = Set(allSkills.filter { $0.isInstalledFor(provider) }.map(\.id))
-            } else if let customProvider = customProvider, let installer = installer {
-                // Scan custom provider directory
-                let states = try installer.scanCustomProvider(customProvider: customProvider)
-                installedSkillIds = Set(states.filter { $0.state == .installed }.map(\.skillName))
-            } else {
-                installedSkillIds = []
-            }
+            // Scan provider directory
+            let states = try installer.scanProvider(provider: provider)
+            installedSkillIds = Set(states.filter { $0.state == .installed }.map(\.skillName))
             
             // Auto-select first skill if none selected
             if selectedSkill == nil, let first = allSkills.first {
@@ -166,13 +156,9 @@ public struct ProviderSkillsListView: View {
     }
     
     private func installSkill(_ skill: Skill) async {
-        guard let installer = installer else { return }
+        guard let installer = installer, let provider = provider else { return }
         do {
-            if let provider = provider {
-                try installer.install(skill: skill, to: provider)
-            } else if let customProvider = customProvider {
-                try installer.installToCustomProvider(skill: skill, customProvider: customProvider)
-            }
+            try installer.install(skill: skill, to: provider)
             await loadSkills()
         } catch {
             errorMessage = error.localizedDescription
@@ -180,13 +166,9 @@ public struct ProviderSkillsListView: View {
     }
     
     private func uninstallSkill(_ skill: Skill) async {
-        guard let installer = installer else { return }
+        guard let installer = installer, let provider = provider else { return }
         do {
-            if let provider = provider {
-                try installer.uninstall(skill: skill, from: provider)
-            } else if let customProvider = customProvider {
-                try installer.uninstallFromCustomProvider(skill: skill, customProvider: customProvider)
-            }
+            try installer.uninstall(skill: skill, from: provider)
             await loadSkills()
         } catch {
             errorMessage = error.localizedDescription

@@ -5,9 +5,6 @@ public struct SkillMetadata: Codable, Sendable {
     /// Skill ID (folder name)
     public let id: String
 
-    /// Providers where this skill is installed
-    public var installedProviders: Set<SkillProvider>
-
     /// Last update timestamp
     public var lastUpdated: Date
 
@@ -16,12 +13,10 @@ public struct SkillMetadata: Codable, Sendable {
 
     public init(
         id: String,
-        installedProviders: Set<SkillProvider> = [],
         lastUpdated: Date = Date(),
         sourceURL: String? = nil
     ) {
         self.id = id
-        self.installedProviders = installedProviders
         self.lastUpdated = lastUpdated
         self.sourceURL = sourceURL
     }
