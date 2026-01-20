@@ -1,0 +1,74 @@
+/* Providers */
+"provider.codex" = "Codex";
+"provider.claude" = "Claude Code";
+"provider.opencode" = "OpenCode";
+"provider.copilot" = "GitHub Copilot";
+"provider.gemini" = "Gemini CLI";
+"provider.antigravity" = "Antigravity";
+
+/* Settings */
+"settings.title" = "设置";
+"settings.providers_config" = "Provider 配置";
+"settings.skills_path" = "Skills 路径";
+"settings.install_method" = "安装方式";
+"settings.change_btn" = "修改...";
+"settings.note" = "注意：修改路径仅影响后续操作。现有的 Skills 不会自动移动。";
+
+/* Installation Methods */
+"install_method.symlink" = "软链接 (推荐)";
+"install_method.copy" = "复制";
+
+/* Navigation */
+"nav.all_skills" = "所有 Skills";
+"nav.by_provider" = "按 Provider";
+"nav.search_placeholder" = "搜索 Skills";
+
+/* List */
+"list.title" = "全局 Skills";
+"list.import" = "导入 Skill";
+"list.empty_title" = "暂无管理的 Skill";
+"list.empty_desc_found" = "在 Provider 中发现现有的 Skills。";
+"list.empty_desc_action" = "导入 Skill 文件夹或迁移现有的。";
+"list.migrate_btn" = "迁移现有 Skills";
+"list.import_btn" = "从文件夹导入";
+
+/* Migration */
+"migration.title" = "迁移 Skills";
+"migration.action" = "迁移 (%d)";
+"migration.empty" = "未发现孤立 Skills";
+
+/* Actions */
+"action.install" = "安装";
+"action.uninstall" = "卸载";
+
+/* Status */
+"status.installed" = "已安装";
+"status.partial" = "部分安装";
+"status.available" = "可用";
+
+/* Generic */
+"generic.error" = "错误";
+"generic.cancel" = "取消";
+"generic.ok" = "确定";
+
+/* Detail */
+"detail.version" = "版本 %@";
+"detail.files" = "附加文件";
+"detail.ref_files" = "%d 个引用文件";
+"detail.script_files" = "%d 个脚本文件";
+"detail.install_title" = "安装状态";
+"detail.content" = "SKILL.md 内容";
+
+/* Provider Skills */
+"provider.title" = "Provider Skills";
+"provider_picker.label" = "Provider";
+"banner.orphaned_title" = "检测到孤立 Skills";
+"banner.orphaned_desc" = "部分 Skills 未受 Nolon 管理。迁移它们以实现集中管理。";
+"action.migrate_all" = "全部迁移";
+"action.migrate" = "迁移";
+"action.repair" = "修复";
+"action.delete" = "删除";
+"confirm.delete_broken_title" = "删除损坏的软链接？";
+"status.symlinked" = "软链接";
+"status.physical" = "物理文件";
+"status.broken" = "链接损坏";

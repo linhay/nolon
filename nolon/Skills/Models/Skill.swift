@@ -1,0 +1,163 @@
+import Foundation
+
+/// Installation state for a skill
+public enum SkillInstallationState: Sendable, Equatable {
+    case installed  // Properly symlinked
+    case orphaned  // Physical file in provider directory (needs migration)
+    case broken  // Symlink points to non-existent file
+}
+
+/// Represents a skill folder in the global storage
+public struct Skill: Sendable, Equatable, Identifiable, Hashable {
+
+    // MARK: - Identity
+
+    /// Skill ID (folder name)
+    public let id: String
+
+    /// Skill name from YAML frontmatter
+    public let name: String
+
+    /// Skill description from YAML frontmatter
+    public let description: String
+
+    /// Skill version from YAML frontmatter
+    public let version: String
+
+    /// Full path to skill folder in global storage (~/.nolon/skills/skill-id)
+    public let globalPath: String
+
+    // MARK: - Content
+
+    /// Full SKILL.md content
+    public let content: String
+
+    // MARK: - Installation Status
+
+    /// Providers where this skill is installed
+    public var installedProviders: Set<SkillProvider>
+
+    // MARK: - Metadata
+
+    /// Number of reference files in references/ directory
+    public let referenceCount: Int
+
+    /// Number of script files in scripts/ directory
+    public let scriptCount: Int
+
+    // MARK: - Init
+
+    public init(
+        id: String,
+        name: String,
+        description: String,
+        version: String,
+        globalPath: String,
+        content: String,
+        installedProviders: Set<SkillProvider> = [],
+        referenceCount: Int = 0,
+        scriptCount: Int = 0
+    ) {
+        self.id = id
+        self.name = name
+        self.description = description
+        self.version = version
+        self.globalPath = globalPath
+        self.content = content
+        self.installedProviders = installedProviders
+        self.referenceCount = referenceCount
+        self.scriptCount = scriptCount
+    }
+
+    // MARK: - Computed Properties
+
+    /// Whether this skill is installed for any provider
+    public var isInstalled: Bool {
+        !installedProviders.isEmpty
+    }
+
+    /// Whether this skill has reference files
+    public var hasReferences: Bool {
+        referenceCount > 0
+    }
+
+    /// Whether this skill has script files
+    public var hasScripts: Bool {
+        scriptCount > 0
+    }
+
+    /// Check if skill is installed for a specific provider
+    public func isInstalledFor(_ provider: SkillProvider) -> Bool {
+        installedProviders.contains(provider)
+    }
+
+    /// Providers where this skill can still be installed
+    public var availableProviders: Set<SkillProvider> {
+        Set(SkillProvider.allCases).subtracting(installedProviders)
+    }
+
+    /// Whether this skill is installed in all available providers
+    public var isFullyInstalled: Bool {
+        installedProviders.count == SkillProvider.allCases.count
+    }
+
+    /// Whether this skill can be installed to at least one more provider
+    public var canBeInstalled: Bool {
+        !availableProviders.isEmpty
+    }
+
+    // MARK: - Search
+
+    /// Check if skill matches a search query
+    public func matches(query: String) -> Bool {
+        guard !query.isEmpty else { return true }
+        return name.localizedCaseInsensitiveContains(query)
+            || description.localizedCaseInsensitiveContains(query)
+    }
+
+    // MARK: - Mutation Methods
+
+    /// Returns a copy with the provider added to installed providers
+    public func installing(for provider: SkillProvider) -> Skill {
+        var updated = self
+        updated.installedProviders.insert(provider)
+        return updated
+    }
+
+    /// Returns a copy with the provider removed from installed providers
+    public func uninstalling(from provider: SkillProvider) -> Skill {
+        var updated = self
+        updated.installedProviders.remove(provider)
+        return updated
+    }
+
+    /// Returns a copy with updated content
+    public func updating(content newContent: String) -> Skill {
+        Skill(
+            id: id,
+            name: name,
+            description: description,
+            version: version,
+            globalPath: globalPath,
+            content: newContent,
+            installedProviders: installedProviders,
+            referenceCount: referenceCount,
+            scriptCount: scriptCount
+        )
+    }
+
+    /// Returns a copy with the specified installed providers
+    public func withInstalledProviders(_ providers: Set<SkillProvider>) -> Skill {
+        Skill(
+            id: id,
+            name: name,
+            description: description,
+            version: version,
+            globalPath: globalPath,
+            content: content,
+            installedProviders: providers,
+            referenceCount: referenceCount,
+            scriptCount: scriptCount
+        )
+    }
+}
