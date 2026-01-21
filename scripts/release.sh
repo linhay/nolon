@@ -1,5 +1,5 @@
 #!/bin/bash
-# Create a GitHub release and upload DMG asset
+# Create a GitHub release and upload DMG assets for both architectures
 # Usage: ./scripts/release.sh [version]
 # Example: ./scripts/release.sh 1.0.0
 
@@ -14,7 +14,8 @@ NC='\033[0m'
 # Configuration
 APP_NAME="nolon"
 RELEASE_DIR="release"
-DMG_NAME="${RELEASE_DIR}/${APP_NAME}.dmg"
+DMG_ARM64="${RELEASE_DIR}/${APP_NAME}-arm64.dmg"
+DMG_X86_64="${RELEASE_DIR}/${APP_NAME}-x86_64.dmg"
 
 # Get version from argument or prompt
 VERSION="${1:-}"
@@ -57,13 +58,18 @@ sed -i '' "s/CURRENT_PROJECT_VERSION = [^;]*;/CURRENT_PROJECT_VERSION = ${BUILD_
 
 echo -e "${GREEN}✅ Version updated: ${VERSION} (build ${BUILD_NUMBER})${NC}"
 
-# Build DMG
-echo -e "${YELLOW}📦 Building DMG...${NC}"
-./scripts/build-dmg.sh
+# Build DMGs for both architectures
+echo -e "${YELLOW}📦 Building DMGs for all architectures...${NC}"
+./scripts/build-dmg.sh all
 
-# Verify DMG exists
-if [ ! -f "$DMG_NAME" ]; then
-    echo -e "${RED}❌ Failed to create DMG${NC}"
+# Verify DMGs exist
+if [ ! -f "$DMG_ARM64" ]; then
+    echo -e "${RED}❌ arm64 DMG not found: ${DMG_ARM64}${NC}"
+    exit 1
+fi
+
+if [ ! -f "$DMG_X86_64" ]; then
+    echo -e "${RED}❌ x86_64 DMG not found: ${DMG_X86_64}${NC}"
     exit 1
 fi
 
@@ -73,21 +79,31 @@ echo -e "${YELLOW}🚀 Creating release ${TAG}...${NC}"
 RELEASE_NOTES="## ${APP_NAME} ${VERSION}
 
 ### Downloads
-- **macOS**: \`${DMG_NAME}\`
+
+| Platform | Architecture | Download |
+|----------|--------------|----------|
+| macOS | Apple Silicon (M1/M2/M3) | \`${APP_NAME}-arm64.dmg\` |
+| macOS | Intel | \`${APP_NAME}-x86_64.dmg\` |
 
 ### Installation
-1. Download the DMG file
+1. Download the appropriate DMG for your Mac
+   - **Apple Silicon** (M1, M2, M3 chips): \`${APP_NAME}-arm64.dmg\`
+   - **Intel** (older Macs): \`${APP_NAME}-x86_64.dmg\`
 2. Open the DMG and drag ${APP_NAME} to Applications
 3. Launch ${APP_NAME} from Applications
+
+### System Requirements
+- macOS 14.0 or later
 
 ---
 *Built on $(date '+%Y-%m-%d')*"
 
-# Create release and upload asset
+# Create release and upload both DMGs
 gh release create "$TAG" \
     --title "${APP_NAME} ${VERSION}" \
     --notes "$RELEASE_NOTES" \
-    "$DMG_NAME"
+    "$DMG_ARM64" \
+    "$DMG_X86_64"
 
 echo -e "${GREEN}✅ Release ${TAG} created successfully!${NC}"
 echo -e "${GREEN}📍 View at: $(gh repo view --json url -q .url)/releases/tag/${TAG}${NC}"

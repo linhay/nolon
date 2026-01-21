@@ -64,3 +64,4 @@ fastlane/test_output
 .agent
 build
 release
+.env
