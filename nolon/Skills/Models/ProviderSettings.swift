@@ -19,7 +19,8 @@ public enum SkillInstallationMethod: String, CaseIterable, Codable, Identifiable
 @MainActor
 public class ProviderSettings: ObservableObject {
     @AppStorage("unified_providers") private var storedProvidersData: Data = Data()
-    
+    @AppStorage("remote_repositories") private var storedRemoteRepositoriesData: Data = Data()
+
     // Legacy storage keys for migration
     @AppStorage("provider_paths") private var legacyPathsData: Data = Data()
     @AppStorage("provider_methods") private var legacyMethodsData: Data = Data()
@@ -29,17 +30,24 @@ public class ProviderSettings: ObservableObject {
         didSet { saveProviders() }
     }
 
+    @Published public var remoteRepositories: [RemoteRepository] = [] {
+        didSet { saveRemoteRepositories() }
+    }
+
     public init() {
         loadSettings()
     }
 
     // MARK: - Provider Management
-    
+
     public func addProvider(_ provider: Provider) {
         providers.append(provider)
     }
-    
-    public func addProvider(name: String, path: String, iconName: String = "folder", installMethod: SkillInstallationMethod = .symlink, templateId: String? = nil) {
+
+    public func addProvider(
+        name: String, path: String, iconName: String = "folder",
+        installMethod: SkillInstallationMethod = .symlink, templateId: String? = nil
+    ) {
         let provider = Provider(
             name: name,
             path: path,
@@ -49,31 +57,49 @@ public class ProviderSettings: ObservableObject {
         )
         providers.append(provider)
     }
-    
+
     public func updateProvider(_ provider: Provider) {
         if let index = providers.firstIndex(where: { $0.id == provider.id }) {
             providers[index] = provider
         }
     }
-    
+
     public func removeProvider(_ provider: Provider) {
         providers.removeAll { $0.id == provider.id }
     }
-    
+
     public func removeProvider(at offsets: IndexSet) {
         providers.remove(atOffsets: offsets)
     }
-    
+
     public func moveProvider(from source: IndexSet, to destination: Int) {
         providers.move(fromOffsets: source, toOffset: destination)
     }
-    
+
+    // MARK: - Remote Repository Management
+
+    public func addRemoteRepository(_ repository: RemoteRepository) {
+        remoteRepositories.append(repository)
+    }
+
+    public func updateRemoteRepository(_ repository: RemoteRepository) {
+        if let index = remoteRepositories.firstIndex(where: { $0.id == repository.id }) {
+            remoteRepositories[index] = repository
+        }
+    }
+
+    public func removeRemoteRepository(_ repository: RemoteRepository) {
+        // Don't allow removing built-in repositories
+        guard !repository.isBuiltIn else { return }
+        remoteRepositories.removeAll { $0.id == repository.id }
+    }
+
     // MARK: - Provider Accessors
-    
+
     public func path(for provider: Provider) -> URL {
         URL(fileURLWithPath: provider.path)
     }
-    
+
     public func method(for provider: Provider) -> SkillInstallationMethod {
         provider.installMethod
     }
@@ -81,28 +107,43 @@ public class ProviderSettings: ObservableObject {
     // MARK: - Persistence
 
     private func loadSettings() {
-        // Try to load unified format first
-        if let decodedProviders = try? JSONDecoder().decode([Provider].self, from: storedProvidersData),
-           !decodedProviders.isEmpty {
+        // Load providers
+        if let decodedProviders = try? JSONDecoder().decode(
+            [Provider].self, from: storedProvidersData),
+            !decodedProviders.isEmpty
+        {
             self.providers = decodedProviders
-            return
+        } else {
+            // Migration from legacy format
+            migrateFromLegacyFormat()
         }
-        
-        // Migration from legacy format
-        migrateFromLegacyFormat()
+
+        // Load remote repositories
+        if let decodedRepos = try? JSONDecoder().decode(
+            [RemoteRepository].self, from: storedRemoteRepositoriesData),
+            !decodedRepos.isEmpty
+        {
+            self.remoteRepositories = decodedRepos
+        } else {
+            // Default with Clawdhub
+            self.remoteRepositories = [.clawdhub]
+        }
     }
-    
+
     private func migrateFromLegacyFormat() {
         var migratedProviders: [Provider] = []
-        
+
         // Migrate legacy built-in providers
-        if let legacyPaths = try? JSONDecoder().decode([String: String].self, from: legacyPathsData) {
-            let legacyMethods = (try? JSONDecoder().decode([String: SkillInstallationMethod].self, from: legacyMethodsData)) ?? [:]
-            
+        if let legacyPaths = try? JSONDecoder().decode([String: String].self, from: legacyPathsData)
+        {
+            let legacyMethods =
+                (try? JSONDecoder().decode(
+                    [String: SkillInstallationMethod].self, from: legacyMethodsData)) ?? [:]
+
             for template in ProviderTemplate.allCases {
                 let path = legacyPaths[template.rawValue] ?? template.defaultPath.path
                 let method = legacyMethods[template.rawValue] ?? .symlink
-                
+
                 let provider = Provider(
                     name: template.displayName,
                     path: path,
@@ -118,9 +159,11 @@ public class ProviderSettings: ObservableObject {
                 migratedProviders.append(template.createProvider())
             }
         }
-        
+
         // Migrate legacy custom providers
-        if let legacyCustom = try? JSONDecoder().decode([LegacyCustomProvider].self, from: legacyCustomProvidersData) {
+        if let legacyCustom = try? JSONDecoder().decode(
+            [LegacyCustomProvider].self, from: legacyCustomProvidersData)
+        {
             for custom in legacyCustom {
                 let provider = Provider(
                     id: custom.id,
@@ -133,19 +176,25 @@ public class ProviderSettings: ObservableObject {
                 migratedProviders.append(provider)
             }
         }
-        
+
         self.providers = migratedProviders
         saveProviders()
-        
+
         // Clear legacy data after migration
         legacyPathsData = Data()
         legacyMethodsData = Data()
         legacyCustomProvidersData = Data()
     }
-    
+
     private func saveProviders() {
         if let encoded = try? JSONEncoder().encode(providers) {
             storedProvidersData = encoded
+        }
+    }
+
+    private func saveRemoteRepositories() {
+        if let encoded = try? JSONEncoder().encode(remoteRepositories) {
+            storedRemoteRepositoriesData = encoded
         }
     }
 }

@@ -7,6 +7,7 @@ Nolon is a powerful macOS application designed to streamline the management of s
 ## 🚀 Key Features
 
 *   **Centralized Repository**: Maintains a single source of truth for all your skills in `~/.nolon/skills/`.
+*   **Clawdhub Integration** 🆕: Browse and install skills directly from [Clawdhub](https://clawdhub.com) remote repository.
 *   **Broad Provider Support**:
     *   **Codex**, **Claude Code**, **OpenCode**, **GitHub Copilot**, **Gemini CLI**, **Antigravity**, **Cursor**.
 *   **Flexible Configuration**:
@@ -20,17 +21,24 @@ Nolon is a powerful macOS application designed to streamline the management of s
 
 ## 🔄 Skills Management Workflow
 
+### Local Skills
 1.  **Import**: Import skills from local folders into Nolon's global storage.
 2.  **Install**: Select a skill and toggle installation for target providers (e.g., Codex, Claude).
 3.  **Migrate**: Use the "By Provider" view to find existing unmanaged skills and migrate them to Nolon's management.
+
+### Remote Skills (Clawdhub)
+1.  **Browse**: Click the cloud icon in toolbar to open Clawdhub browser.
+2.  **Search**: Search for skills by name or browse the latest skills.
+3.  **Install**: Select a skill and choose a provider to install to.
+4.  **Auto-Sync**: Skills are downloaded to global storage, then linked/copied to provider.
 
 ## 🛠 Project Structure
 
 The project follows a clean architecture:
 
-*   **Models**: Domain entities (`Skill`, `SkillProvider`, etc.) located in `Skills/Models`.
-*   **Infrastructure**: Storage and system operations (`SkillRepository`, `SkillInstaller`) located in `Skills/Infrastructure`.
-*   **Views**: SwiftUI user interface (`SkillManagerView`, `SkillListView`) located in `Skills/Views`.
+*   **Models**: Domain entities (`Skill`, `Provider`, `RemoteSkill`, etc.) located in `Skills/Models`.
+*   **Infrastructure**: Storage and system operations (`SkillRepository`, `SkillInstaller`, `ClawdhubService`) located in `Skills/Infrastructure`.
+*   **Views**: SwiftUI user interface (`MainSplitView`, `RemoteSkillsBrowserView`) located in `Skills/Views`.
 *   **App**: Entry point at `nolon/nolonApp.swift`.
 
 ## 🎨 Design System
@@ -79,3 +87,5 @@ This project is inspired by and references the following projects:
 
 *   **CodexSkillManager**: [https://github.com/Dimillian/CodexSkillManager](https://github.com/Dimillian/CodexSkillManager)
 *   **SkillsManager**: [https://github.com/tddworks/SkillsManager](https://github.com/tddworks/SkillsManager)
+*   **Clawdhub**: [https://clawdhub.com](https://clawdhub.com) - Remote skills repository
+

@@ -1,64 +1,82 @@
-# Nolon
+# PROJECT KNOWLEDGE BASE
 
-## What this app is
-Nolon is a macOS application designed to manage skills for AI coding assistants like Codex and Claude Code. It provides a centralized repository for your skills and installs them to specific providers using symbolic links, ensuring a clean and efficient management workflow.
+**Generated:** 2026-01-21
+**Project:** Nolon (macOS SwiftUI App)
 
-## Features
-*   **Centralized Repository**: Maintains a single source of truth for all your skills in `~/.nolon/skills/`.
-*   **Broad Provider Support**:
-    *   **Codex**, **Claude Code**, **OpenCode**, **GitHub Copilot**, **Gemini CLI**, **Antigravity**, **Cursor**.
-*   **Flexible Configuration**:
-    *   **Custom Paths**: Configure the skills directory used by each provider.
-    *   **Installation Methods**: Choose between **Symbolic Link** (Live Sync) or **Copy** (Standard) for installation.
-*   **Migration Assistant**: Automatically detects "orphaned" skills (physical files) in provider directories and helps you migrate them to Nolon's managed storage.
-*   **Health Checks**: Identifies and repairs broken symlinks to keep your environment healthy.
-*   **Rich Metadata Support**: Parses standard `SKILL.md` frontmatter to display version, description, and other details.
-*   **Complete Folder Support**: Manages skills as complete folders, preserving auxiliary files like `scripts/` and `references/`.
-*   **Internationalization**: Fully localized in **English** and **Chinese (Simplified)**.
+## OVERVIEW
+Nolon is a macOS skill manager for AI coding assistants (Codex, Claude, etc.). It centralizes skill management in `~/.nolon/skills` and installs them via symlinks or copying. Supports browsing and installing skills from **Clawdhub** remote repository. Built with SwiftUI and Clean Architecture.
 
-## Project Structure
-- **App**: `nolon/nolonApp.swift` - SwiftUI App entry point.
-- **Skills Management**:
-  - `Skills/Models`: Domain models (`Skill`, `SkillProvider`, `SkillMetadata`).
-  - `Skills/Infrastructure`: Logic for storage, parsing, and symlinking (`SkillRepository`, `SkillInstaller`).
-  - `Skills/Views`: SwiftUI views for browsing and managing skills.
-
-## Design System
-We use a code-based color system located in `nolon/DesignSystem/AppColors.swift`.
-
-**Rules:**
-- **Always** use `DesignSystem.Colors` instead of hardcoded `Color(...)` or system defaults.
-- **Do not** use `Color.blue`, `Color.white`, etc.
-- **Available Palette**:
-    - **Brand**: `DesignSystem.Colors.primary`, `secondary`
-    - **Backgrounds**: `DesignSystem.Colors.Background.canvas`, `surface`, `elevated`
-    - **Text**: `DesignSystem.Colors.Text.primary`, `secondary`, `tertiary`, `quaternary`
-    - **Status**: `DesignSystem.Colors.Status.info`, `success`, `warning`, `error`
-- **Dark Mode**: All colors automatically adapt to system appearance.
-
-## Build and run
-1. Open `nolon.xcodeproj` in Xcode.
-2. Ensure the build target is set to "My Mac".
-3. Run (Cmd+R).
-
-## Command Line Verification
-You can verify the build using the provided helper script:
-
-```bash
-./build.sh
+## STRUCTURE
+```
+.
+├── nolon/
+│   ├── DesignSystem/     # **MANDATORY** color system & reusable UI components
+│   ├── Skills/           # Core feature module (Clean Architecture)
+│   │   ├── Models/       # Domain entities (Immutable structs)
+│   │   │   ├── Skill.swift           # Local skill model
+│   │   │   ├── Provider.swift        # Unified provider model
+│   │   │   ├── RemoteSkill.swift     # Remote skill from Clawdhub
+│   │   │   └── RemoteRepository.swift # Remote repository config
+│   │   ├── Infrastructure/ # Side effects (Files, Parsing, Installation)
+│   │   │   ├── SkillRepository.swift  # Local skill storage
+│   │   │   ├── SkillInstaller.swift   # Install/Uninstall/Migrate
+│   │   │   └── ClawdhubService.swift  # Clawdhub API client
+│   │   └── Views/        # SwiftUI Views (SplitView pattern)
+│   │       ├── MainSplitView.swift           # Main 3-column layout
+│   │       ├── RemoteSkillsBrowserView.swift # Clawdhub browser (3-column)
+│   │       └── ...
+│   ├── Resources/        # Legacy localization (.lproj) - Deprecated
+│   └── nolonApp.swift    # Entry point (@main)
+├── Localizable.xcstrings # Modern localization source (En/Zh)
+└── build.sh              # Custom CLI build/verification script
 ```
 
-Or manually using `xcodebuild`:
+## WHERE TO LOOK
+| Task | Location | Notes |
+|------|----------|-------|
+| **UI Colors** | `nolon/DesignSystem/AppColors.swift` | **MANDATORY**: Use `DesignSystem.Colors` ONLY. |
+| **Domain Logic** | `nolon/Skills/Models/` | Pure Swift structs, `Sendable`, `Codable`. |
+| **File Ops** | `nolon/Skills/Infrastructure/` | `SkillRepository`, `SkillInstaller`. |
+| **Remote API** | `nolon/Skills/Infrastructure/ClawdhubService.swift` | Clawdhub API client. |
+| **Parsing** | `nolon/Skills/Infrastructure/SkillParser.swift` | Custom regex parser for SKILL.md. |
+| **Strings** | `Localizable.xcstrings` | Edit this for all text changes. |
 
+## KEY CONCEPTS
+
+### Installation Flow (Remote Skills)
+1. Download zip from Clawdhub
+2. Extract to `~/.nolon/skills/{slug}` (global storage)
+3. Parse SKILL.md to create Skill model
+4. Link/copy to provider directory based on `Provider.installMethod`
+
+### Provider Model
+- Unified `Provider` struct with configurable `installMethod` (`.symlink` or `.copy`)
+- `ProviderTemplate` enum for quick provider setup
+- `ProviderSettings` manages persistence via `@AppStorage`
+
+## CONVENTIONS
+- **Architecture**: Strict Clean Architecture (Models -> Infrastructure -> Views).
+- **Concurrency**: Use `async/await`, `Sendable`, and `@MainActor` for all UI/State updates.
+- **State**: `@StateObject` for view models, `@AppStorage` for simple settings.
+- **Localization**: All UI strings MUST be localized.
+
+## ANTI-PATTERNS (THIS PROJECT)
+- **Forbidden Colors**: `Color.blue`, `Color.white`, `Color.label`. **USE** `DesignSystem.Colors.Brand`, `DesignSystem.Colors.Background`, etc.
+- **Forbidden Logging**: `print()` in production code. Use `OSLog` or structured error handling.
+- **Implicit Dependencies**: Infrastructure layer should not import Views.
+- **Legacy Strings**: Do not add new files to `nolon/Resources/*.lproj`. Use `.xcstrings`.
+
+## COMMANDS
 ```bash
+# Verify Build
+./build.sh
+
+# Build Release
 xcodebuild -project nolon.xcodeproj -scheme nolon -configuration Release
 ```
 
+## NOTES
+- **Remote Skills**: Supports browsing and installing from Clawdhub (https://clawdhub.com).
+- **Migration**: The app includes a "Migration Assistant" to adopt orphaned skills found in provider directories.
+- **Symlinks**: The app relies heavily on symlinks. Broken links are detected/repaired automatically.
 
-## Skills Management Workflow
-1. **Import**: Import skills from local folders into Nolon's global storage.
-2. **Install**: Select a skill and toggle installation for Codex or Claude.
-3. **Migrate**: Use the "By Provider" view to find existing skills and migrate them to Nolon's management.
-
-## Contributing
-When adding new features, please follow the Clean Architecture principles used in the `Skills` module, separating Domain models from Infrastructure implementation and UI Views.

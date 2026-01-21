@@ -6,20 +6,24 @@ import SwiftUI
 /// Left 3: Skill detail view
 @MainActor
 public struct MainSplitView: View {
-    
+
     @StateObject private var settings = ProviderSettings()
     @State private var repository = SkillRepository()
     @State private var installer: SkillInstaller?
-    
+
     @State private var selectedProvider: Provider?
     @State private var selectedSkill: Skill?
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
-    
+
     @State private var showingSettings = false
     @State private var showingGlobalSkills = false
-    
+    @State private var showingClawdhub = false
+
+    /// Refresh trigger - increment to force skills list reload
+    @State private var refreshTrigger: Int = 0
+
     public init() {}
-    
+
     public var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
             // Left 1: Provider sidebar
@@ -32,7 +36,8 @@ public struct MainSplitView: View {
             ProviderSkillsListView(
                 provider: selectedProvider,
                 selectedSkill: $selectedSkill,
-                settings: settings
+                settings: settings,
+                refreshTrigger: refreshTrigger
             )
         } detail: {
             // Left 3: Skill detail
@@ -47,11 +52,24 @@ public struct MainSplitView: View {
                 } label: {
                     Label(
                         NSLocalizedString("toolbar.global_skills", comment: "Global Skills"),
-                        systemImage: "globe"
+                        systemImage: "square.grid.2x2"
                     )
                 }
-                .help(NSLocalizedString("toolbar.global_skills_help", comment: "View and install global skills"))
-                
+                .help(
+                    NSLocalizedString(
+                        "toolbar.global_skills_help", comment: "View and install global skills"))
+
+                // Clawdhub button
+                Button {
+                    showingClawdhub = true
+                } label: {
+                    Label(
+                        NSLocalizedString("toolbar.clawdhub", comment: "Clawdhub"),
+                        systemImage: "cloud"
+                    )
+                }
+                .help("Browse and install skills from Clawdhub")
+
                 // Settings button
                 Button {
                     showingSettings = true
@@ -67,30 +85,66 @@ public struct MainSplitView: View {
         .sheet(isPresented: $showingSettings) {
             SettingsSheet(settings: settings)
         }
-        .sheet(isPresented: $showingGlobalSkills) {
+        .popover(isPresented: $showingGlobalSkills) {
             GlobalSkillsPopover(
                 currentProvider: selectedProvider,
                 settings: settings,
                 onInstall: { skill in
                     await installSkillToCurrentProvider(skill)
+                    refreshTrigger += 1
                 },
                 onDismiss: {
                     showingGlobalSkills = false
                 }
             )
         }
+        .sheet(isPresented: $showingClawdhub) {
+            RemoteSkillsBrowserView(
+                settings: settings,
+                repository: repository,
+                onInstall: { skill, provider in
+                    Task {
+                        await installRemoteSkill(skill, to: provider)
+                    }
+                }
+            )
+            .frame(minWidth: 900, minHeight: 600)
+        }
+        .onChange(of: showingClawdhub) { _, isShowing in
+            // Refresh skills list when Clawdhub sheet is dismissed
+            if !isShowing {
+                refreshTrigger += 1
+            }
+        }
         .onAppear {
             installer = SkillInstaller(repository: repository, settings: settings)
         }
     }
-    
+
     private func installSkillToCurrentProvider(_ skill: Skill) async {
         guard let installer = installer, let provider = selectedProvider else { return }
-        
+
         do {
             try installer.install(skill: skill, to: provider)
         } catch {
             print("Failed to install skill: \(error)")
+        }
+    }
+
+    private func installRemoteSkill(_ skill: RemoteSkill, to provider: Provider) async {
+        guard let installer = installer else { return }
+
+        do {
+            // Using ClawdhubService to download
+            let zipURL = try await ClawdhubService.shared.downloadSkill(
+                slug: skill.slug, version: skill.latestVersion?.version)
+            try installer.installRemote(zipURL: zipURL, slug: skill.slug, to: provider)
+            print("Successfully installed \(skill.slug) to \(provider.name)")
+            // Trigger refresh immediately after install
+            refreshTrigger += 1
+        } catch {
+            print("Failed to install remote skill: \(error)")
+            // Ideally show an alert here
         }
     }
 }

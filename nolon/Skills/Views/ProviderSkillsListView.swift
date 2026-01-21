@@ -7,29 +7,35 @@ public struct ProviderSkillsListView: View {
     let provider: Provider?
     @Binding var selectedSkill: Skill?
     @ObservedObject var settings: ProviderSettings
-    
+
+    /// External trigger to force refresh (increment to reload)
+    var refreshTrigger: Int = 0
+
     @State private var repository = SkillRepository()
     @State private var installer: SkillInstaller?
     @State private var allSkills: [Skill] = []
     @State private var installedSkillIds: Set<String> = []
     @State private var searchText = ""
     @State private var errorMessage: String?
-    
+
     /// Current provider name for display
     private var providerName: String {
-        provider?.displayName ?? NSLocalizedString("skills_list.no_provider", comment: "Select a Provider")
+        provider?.displayName
+            ?? NSLocalizedString("skills_list.no_provider", comment: "Select a Provider")
     }
-    
+
     public init(
         provider: Provider?,
         selectedSkill: Binding<Skill?>,
-        settings: ProviderSettings
+        settings: ProviderSettings,
+        refreshTrigger: Int = 0
     ) {
         self.provider = provider
         self._selectedSkill = selectedSkill
         self.settings = settings
+        self.refreshTrigger = refreshTrigger
     }
-    
+
     public var body: some View {
         Group {
             if provider != nil {
@@ -38,21 +44,24 @@ public struct ProviderSkillsListView: View {
                 ContentUnavailableView(
                     NSLocalizedString("skills_list.no_provider", comment: "Select a Provider"),
                     systemImage: "sidebar.left",
-                    description: Text(NSLocalizedString("skills_list.no_provider_desc", comment: "Choose a provider from the sidebar"))
+                    description: Text(
+                        NSLocalizedString(
+                            "skills_list.no_provider_desc",
+                            comment: "Choose a provider from the sidebar"))
                 )
             }
         }
         .onAppear {
             installer = SkillInstaller(repository: repository, settings: settings)
         }
-        .task(id: provider?.id ?? "") {
+        .task(id: "\(provider?.id ?? "")-\(refreshTrigger)") {
             await loadSkills()
         }
         .refreshable {
             await loadSkills()
         }
     }
-    
+
     @ViewBuilder
     private func skillsListContent() -> some View {
         VStack(spacing: 0) {
@@ -77,7 +86,7 @@ public struct ProviderSkillsListView: View {
                         )
                     }
                 }
-                
+
                 // Available skills section
                 let available = availableSkills
                 if !available.isEmpty {
@@ -117,35 +126,35 @@ public struct ProviderSkillsListView: View {
             }
         }
     }
-    
+
     private var filteredSkills: [Skill] {
         if searchText.isEmpty {
             return allSkills
         }
         return allSkills.filter { $0.matches(query: searchText) }
     }
-    
+
     private var installedSkills: [Skill] {
         filteredSkills.filter { installedSkillIds.contains($0.id) }
     }
-    
+
     private var availableSkills: [Skill] {
         filteredSkills.filter { !installedSkillIds.contains($0.id) }
     }
-    
+
     private func loadSkills() async {
         guard let provider = provider, let installer = installer else {
             installedSkillIds = []
             return
         }
-        
+
         do {
             allSkills = try repository.listSkills()
-            
+
             // Scan provider directory
             let states = try installer.scanProvider(provider: provider)
             installedSkillIds = Set(states.filter { $0.state == .installed }.map(\.skillName))
-            
+
             // Auto-select first skill if none selected
             if selectedSkill == nil, let first = allSkills.first {
                 selectedSkill = first
@@ -154,7 +163,7 @@ public struct ProviderSkillsListView: View {
             errorMessage = error.localizedDescription
         }
     }
-    
+
     private func installSkill(_ skill: Skill) async {
         guard let installer = installer, let provider = provider else { return }
         do {
@@ -164,7 +173,7 @@ public struct ProviderSkillsListView: View {
             errorMessage = error.localizedDescription
         }
     }
-    
+
     private func uninstallSkill(_ skill: Skill) async {
         guard let installer = installer, let provider = provider else { return }
         do {
@@ -182,21 +191,21 @@ struct SkillListRowView: View {
     let isInstalled: Bool
     let onInstall: () async -> Void
     let onUninstall: () async -> Void
-    
+
     var body: some View {
         HStack {
             VStack(alignment: .leading, spacing: 4) {
                 Text(skill.name)
                     .font(.headline)
-                
+
                 Text(skill.description)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
-            
+
             Spacer()
-            
+
             if isInstalled {
                 Button {
                     Task { await onUninstall() }

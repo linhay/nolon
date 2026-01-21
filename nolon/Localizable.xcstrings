@@ -1,10 +1,22 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "%lld" : {
+
+    },
+    "%lld Downloads" : {
+
+    },
     "%lld refs" : {
 
     },
     "%lld scripts" : {
+
+    },
+    "%lld Stars" : {
+
+    },
+    "About this skill" : {
 
     },
     "action.delete" : {
@@ -78,6 +90,12 @@
           }
         }
       }
+    },
+    "Add" : {
+
+    },
+    "Add Repository" : {
+
     },
     "add_provider.choose" : {
       "comment" : "Choose...",
@@ -201,6 +219,30 @@
           }
         }
       }
+    },
+    "Base URL" : {
+
+    },
+    "Browse and install skills from Clawdhub" : {
+
+    },
+    "Built-in" : {
+
+    },
+    "Cancel" : {
+
+    },
+    "Choose a repository from the sidebar" : {
+
+    },
+    "Choose a skill from the list to view details and install" : {
+
+    },
+    "Clawdhub" : {
+
+    },
+    "Clawdhub is the official skill marketplace." : {
+
     },
     "confirm.delete_broken_title" : {
       "comment" : "Delete broken symlink?",
@@ -409,8 +451,20 @@
         }
       }
     },
+    "Details" : {
+
+    },
+    "Done" : {
+
+    },
     "edit_provider.title" : {
       "comment" : "Edit Provider"
+    },
+    "Enter the base URL of the skill repository API." : {
+
+    },
+    "Failed to load skills" : {
+
     },
     "generic.add" : {
       "comment" : "Add",
@@ -547,6 +601,15 @@
         }
       }
     },
+    "Install" : {
+
+    },
+    "Install %@" : {
+
+    },
+    "Install to" : {
+
+    },
     "install_method.copy" : {
       "comment" : "Copy",
       "localizations" : {
@@ -568,6 +631,12 @@
           }
         }
       }
+    },
+    "Installed" : {
+
+    },
+    "Latest Changes" : {
+
     },
     "list.empty_desc_action" : {
       "comment" : "Import a skill...",
@@ -717,6 +786,15 @@
         }
       }
     },
+    "No detailed description available." : {
+
+    },
+    "No providers available. Please create a local provider first." : {
+
+    },
+    "No Skills" : {
+
+    },
     "provider_picker.label" : {
       "comment" : "Provider",
       "localizations" : {
@@ -810,6 +888,42 @@
           }
         }
       }
+    },
+    "Refresh installed status" : {
+
+    },
+    "Remove" : {
+
+    },
+    "Repositories" : {
+
+    },
+    "Repository Name" : {
+
+    },
+    "Repository Type" : {
+
+    },
+    "Search %@" : {
+
+    },
+    "Search Clawdhub" : {
+
+    },
+    "Select a provider folder where this skill will be installed." : {
+
+    },
+    "Select a provider..." : {
+
+    },
+    "Select a Repository" : {
+
+    },
+    "Select a skill" : {
+
+    },
+    "Select a Skill" : {
+
     },
     "settings.change_btn" : {
       "comment" : "Change...",
@@ -974,6 +1088,9 @@
         }
       }
     },
+    "Sources" : {
+
+    },
     "status.available" : {
       "comment" : "Available",
       "extractionState" : "stale",
@@ -1042,6 +1159,12 @@
         }
       }
     },
+    "This repository has no skills yet" : {
+
+    },
+    "toolbar.clawdhub" : {
+      "comment" : "Clawdhub"
+    },
     "toolbar.global_skills" : {
       "comment" : "Global Skills",
       "localizations" : {
@@ -1085,6 +1208,9 @@
           }
         }
       }
+    },
+    "Type" : {
+
     },
     "v%@" : {
 

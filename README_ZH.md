@@ -1,18 +1,19 @@
 # Nolon
 
-English | [中文](README_ZH.md)
+[English](README.md) | 中文
 
 Nolon 是一款强大的 macOS 应用程序，专为简化 AI 编程助手（如 **Codex** 和 **Claude Code**）的 Skills 管理而设计。它作为一个中心化枢纽，让您可以高效地组织、安装和维护您的 Skills。
 
 ## 🚀 主要功能
 
 *   **中心化仓库**：在 `~/.nolon/skills/` 中维护所有 Skills 的单一事实来源。
+*   **Clawdhub 集成** 🆕：直接从 [Clawdhub](https://clawdhub.com) 远程仓库浏览和安装 Skills。
 *   **广泛的 Provider 支持**：
     *   **Codex**, **Claude Code**, **OpenCode**, **GitHub Copilot**, **Gemini CLI**, **Antigravity**, **Cursor**。
 *   **灵活配置**：
     *   **自定义路径**：为每个 Provider 配置使用的 Skills 目录。
     *   **安装方式**：选择 **软链接 (Symbolic Link)**（实时同步）或 **复制 (Copy)**（标准模式）进行安装。
-*   **迁移助手**：自动检测 Provider 目录中的“孤立” Skills（物理文件），并帮助您将其迁移到 Nolon 的托管存储中。
+*   **迁移助手**：自动检测 Provider 目录中的"孤立" Skills（物理文件），并帮助您将其迁移到 Nolon 的托管存储中。
 *   **健康检查**：识别并修复损坏的软链接，保持环境健康。
 *   **丰富的元数据支持**：解析标准 `SKILL.md` 的 frontmatter 以显示版本、描述和其他详细信息。
 *   **完整文件夹支持**：将 Skills 作为完整文件夹管理，保留 `scripts/` 和 `references/` 等辅助文件。
@@ -20,17 +21,24 @@ Nolon 是一款强大的 macOS 应用程序，专为简化 AI 编程助手（如
 
 ## 🔄 Skills 管理工作流
 
+### 本地 Skills
 1.  **导入**：将本地文件夹中的 Skills 导入到 Nolon 的全局存储中。
 2.  **安装**：选择一个 Skill 并切换其在目标 Provider（如 Codex, Claude）中的安装状态。
-3.  **迁移**：使用“按 Provider”视图查找现有的未托管 Skills，并将其迁移到 Nolon 的管理中。
+3.  **迁移**：使用"按 Provider"视图查找现有的未托管 Skills，并将其迁移到 Nolon 的管理中。
+
+### 远程 Skills (Clawdhub)
+1.  **浏览**：点击工具栏中的云图标打开 Clawdhub 浏览器。
+2.  **搜索**：按名称搜索 Skills 或浏览最新 Skills。
+3.  **安装**：选择一个 Skill 并选择要安装的 Provider。
+4.  **自动同步**：Skills 会下载到全局存储，然后链接/复制到 Provider。
 
 ## 🛠 项目结构
 
 本项目遵循整洁架构（Clean Architecture）：
 
-*   **Models**：领域实体（`Skill`, `SkillProvider` 等），位于 `Skills/Models`。
-*   **Infrastructure**：存储和系统操作（`SkillRepository`, `SkillInstaller`），位于 `Skills/Infrastructure`。
-*   **Views**：SwiftUI 用户界面（`SkillManagerView`, `SkillListView`），位于 `Skills/Views`。
+*   **Models**：领域实体（`Skill`, `Provider`, `RemoteSkill` 等），位于 `Skills/Models`。
+*   **Infrastructure**：存储和系统操作（`SkillRepository`, `SkillInstaller`, `ClawdhubService`），位于 `Skills/Infrastructure`。
+*   **Views**：SwiftUI 用户界面（`MainSplitView`, `RemoteSkillsBrowserView`），位于 `Skills/Views`。
 *   **App**：入口点位于 `nolon/nolonApp.swift`。
 
 ## 🎨 设计系统
@@ -79,3 +87,4 @@ xcodebuild -project nolon.xcodeproj -scheme nolon -configuration Release
 
 *   **CodexSkillManager**: [https://github.com/Dimillian/CodexSkillManager](https://github.com/Dimillian/CodexSkillManager)
 *   **SkillsManager**: [https://github.com/tddworks/SkillsManager](https://github.com/tddworks/SkillsManager)
+*   **Clawdhub**: [https://clawdhub.com](https://clawdhub.com) - 远程 Skills 仓库

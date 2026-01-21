@@ -61,6 +61,129 @@ public final class SkillInstaller {
         }
     }
 
+    /// Install a remote skill from a zip file
+    /// 1. Extract to global storage (~/.nolon/skills)
+    /// 2. Link/copy to provider directory based on provider settings
+    public func installRemote(zipURL: URL, slug: String, to provider: Provider) throws {
+        let globalSkillsPath = "\(fileManager.homeDirectoryForCurrentUser.path)/.nolon/skills"
+        let globalPath = "\(globalSkillsPath)/\(slug)"
+
+        // Check if already exists in global storage
+        let skillExistsInGlobal = fileManager.fileExists(atPath: globalPath)
+
+        // If not in global storage, extract there first
+        if !skillExistsInGlobal {
+            // Ensure global skills directory exists
+            try createDirectory(at: globalSkillsPath)
+
+            // Create temp directory for extraction
+            let tempDir = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+            try fileManager.createDirectory(at: tempDir, withIntermediateDirectories: true)
+
+            defer {
+                try? fileManager.removeItem(at: tempDir)
+                try? fileManager.removeItem(at: zipURL)
+            }
+
+            // Unzip
+            try unzip(zipURL, to: tempDir)
+
+            // Find skill root (the directory containing SKILL.md)
+            guard let skillRoot = findSkillRoot(in: tempDir) else {
+                throw SkillError.parsingFailed("No valid skill found in the downloaded package")
+            }
+
+            // Move to global storage
+            try fileManager.moveItem(at: skillRoot, to: URL(fileURLWithPath: globalPath))
+
+            // Write origin info
+            try writeClawdhubOrigin(at: URL(fileURLWithPath: globalPath), slug: slug)
+        }
+
+        // Now load the skill from global storage
+        let skillMdPath = "\(globalPath)/SKILL.md"
+        guard let content = try? String(contentsOfFile: skillMdPath, encoding: .utf8) else {
+            throw SkillError.parsingFailed("SKILL.md not found in '\(slug)'")
+        }
+
+        let parsedSkill = try SkillParser.parse(
+            content: content,
+            id: slug,
+            globalPath: globalPath
+        )
+
+        let skill = Skill(
+            id: parsedSkill.id,
+            name: parsedSkill.name,
+            description: parsedSkill.description,
+            version: parsedSkill.version,
+            globalPath: parsedSkill.globalPath,
+            content: parsedSkill.content,
+            referenceCount: 0,
+            scriptCount: 0
+        )
+
+        // Install to provider (symlink or copy based on provider settings)
+        try install(skill: skill, to: provider)
+    }
+
+    private func unzip(_ url: URL, to destination: URL) throws {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
+        process.arguments = ["-x", "-k", url.path, destination.path]
+        try process.run()
+        process.waitUntilExit()
+
+        if process.terminationStatus != 0 {
+            throw SkillError.fileOperationFailed("Failed to unzip skill package")
+        }
+    }
+
+    private func findSkillRoot(in rootURL: URL) -> URL? {
+        let directSkill = rootURL.appendingPathComponent("SKILL.md")
+        if fileManager.fileExists(atPath: directSkill.path) {
+            return rootURL
+        }
+
+        guard
+            let children = try? fileManager.contentsOfDirectory(
+                at: rootURL,
+                includingPropertiesForKeys: [.isDirectoryKey],
+                options: [.skipsHiddenFiles]
+            )
+        else {
+            return nil
+        }
+
+        let candidateDirs = children.compactMap { url -> URL? in
+            let values = try? url.resourceValues(forKeys: [.isDirectoryKey])
+            guard values?.isDirectory == true else { return nil }
+            let skillFile = url.appendingPathComponent("SKILL.md")
+            return fileManager.fileExists(atPath: skillFile.path) ? url : nil
+        }
+
+        if candidateDirs.count == 1 {
+            return candidateDirs[0]
+        }
+
+        return nil
+    }
+
+    private func writeClawdhubOrigin(at skillRoot: URL, slug: String) throws {
+        let originDir = skillRoot.appendingPathComponent(".clawdhub")
+        try createDirectory(at: originDir.path)
+
+        let originURL = originDir.appendingPathComponent("origin.json")
+        let payload: [String: Any] = [
+            "slug": slug,
+            "source": "clawdhub",
+            "installedAt": Int(Date().timeIntervalSince1970),
+        ]
+
+        let data = try JSONSerialization.data(withJSONObject: payload, options: [.prettyPrinted])
+        try data.write(to: originURL, options: [.atomic])
+    }
+
     /// Uninstall a skill from a provider
     public func uninstall(skill: Skill, from provider: Provider) throws {
         let providerPath = provider.path
