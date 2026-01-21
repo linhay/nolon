@@ -85,7 +85,7 @@ public struct MainSplitView: View {
         .sheet(isPresented: $showingSettings) {
             SettingsSheet(settings: settings)
         }
-        .popover(isPresented: $showingGlobalSkills) {
+        .sheet(isPresented: $showingGlobalSkills) {
             GlobalSkillsPopover(
                 currentProvider: selectedProvider,
                 settings: settings,
@@ -97,6 +97,7 @@ public struct MainSplitView: View {
                     showingGlobalSkills = false
                 }
             )
+            .frame(minWidth: 600, minHeight: 500)
         }
         .sheet(isPresented: $showingClawdhub) {
             RemoteSkillsBrowserView(

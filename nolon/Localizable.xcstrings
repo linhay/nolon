@@ -5,19 +5,54 @@
 
     },
     "%lld Downloads" : {
-
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 次下载"
+          }
+        }
+      }
     },
     "%lld refs" : {
-
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 个引用"
+          }
+        }
+      }
     },
     "%lld scripts" : {
-
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 个脚本"
+          }
+        }
+      }
     },
     "%lld Stars" : {
-
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 个星标"
+          }
+        }
+      }
     },
     "About this skill" : {
-
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "关于此 Skill"
+          }
+        }
+      }
     },
     "action.delete" : {
       "comment" : "Delete",
@@ -31,7 +66,15 @@
       }
     },
     "action.edit" : {
-      "comment" : "Edit"
+      "comment" : "Edit",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "编辑"
+          }
+        }
+      }
     },
     "action.install" : {
       "comment" : "Install",
@@ -66,6 +109,17 @@
         }
       }
     },
+    "action.overwrite" : {
+      "comment" : "Overwrite",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "覆盖"
+          }
+        }
+      }
+    },
     "action.repair" : {
       "comment" : "Repair",
       "localizations" : {
@@ -78,7 +132,15 @@
       }
     },
     "action.show_in_finder" : {
-      "comment" : "Show in Finder"
+      "comment" : "Show in Finder",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 Finder 中显示"
+          }
+        }
+      }
     },
     "action.uninstall" : {
       "comment" : "Uninstall",
@@ -92,10 +154,24 @@
       }
     },
     "Add" : {
-
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "添加"
+          }
+        }
+      }
     },
     "Add Repository" : {
-
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "添加仓库"
+          }
+        }
+      }
     },
     "add_provider.choose" : {
       "comment" : "Choose...",
@@ -104,18 +180,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "选择..."
-          }
-        }
-      }
-    },
-    "add_provider.folder_desc" : {
-      "comment" : "Select the folder where skills will be installed",
-      "extractionState" : "stale",
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "选择 Skills 安装目录"
           }
         }
       }
@@ -132,7 +196,15 @@
       }
     },
     "add_provider.install_method" : {
-      "comment" : "Installation Method"
+      "comment" : "Installation Method",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "安装方式"
+          }
+        }
+      }
     },
     "add_provider.name_label" : {
       "comment" : "Name",
@@ -168,13 +240,37 @@
       }
     },
     "add_provider.settings" : {
-      "comment" : "Settings"
+      "comment" : "Settings",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "设置"
+          }
+        }
+      }
     },
     "add_provider.templates" : {
-      "comment" : "Quick Templates"
+      "comment" : "Quick Templates",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "快速模板"
+          }
+        }
+      }
     },
     "add_provider.templates_desc" : {
-      "comment" : "Select a template to auto-fill, or customize below"
+      "comment" : "Select a template to auto-fill, or customize below",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选择一个模板以自动填充，或在下方自定义"
+          }
+        }
+      }
     },
     "add_provider.title" : {
       "comment" : "Add Provider",
@@ -221,28 +317,84 @@
       }
     },
     "Base URL" : {
-
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "基础 URL"
+          }
+        }
+      }
     },
     "Browse and install skills from Clawdhub" : {
-
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "浏览并安装来自 Clawdhub 的 Skills"
+          }
+        }
+      }
     },
     "Built-in" : {
-
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "内置"
+          }
+        }
+      }
     },
     "Cancel" : {
-
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "取消"
+          }
+        }
+      }
     },
     "Choose a repository from the sidebar" : {
-
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "从侧边栏选择一个仓库"
+          }
+        }
+      }
     },
     "Choose a skill from the list to view details and install" : {
-
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "从列表中选择一个 Skill 以查看详情并安装"
+          }
+        }
+      }
     },
     "Clawdhub" : {
-
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clawdhub"
+          }
+        }
+      }
     },
     "Clawdhub is the official skill marketplace." : {
-
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clawdhub 是官方 Skill 市场。"
+          }
+        }
+      }
     },
     "confirm.delete_broken_title" : {
       "comment" : "Delete broken symlink?",
@@ -255,8 +407,87 @@
         }
       }
     },
+    "confirm.delete_message" : {
+      "comment" : "Delete confirmation",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Are you sure you want to delete '%@'? This action cannot be undone."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "确定要删除“%@”吗？此操作无法撤销。"
+          }
+        }
+      }
+    },
+    "confirm.delete_title" : {
+      "comment" : "Delete Skill?",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Delete Skill?"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "删除 Skill？"
+          }
+        }
+      }
+    },
+    "confirm.migrate_conflict_message" : {
+      "comment" : "Migration conflict message",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "'%@' already exists in global storage with a different version. Overwrite with the provider version?"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%@”已存在于全局存储中且版本不同。是否使用 Provider 版本覆盖？"
+          }
+        }
+      }
+    },
+    "confirm.migrate_conflict_title" : {
+      "comment" : "Migration conflict title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Skill Already Exists"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Skill 已存在"
+          }
+        }
+      }
+    },
     "Design System Colors" : {
-
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "设计系统颜色"
+          }
+        }
+      }
     },
     "detail.content" : {
       "comment" : "SKILL.md Content",
@@ -291,32 +522,16 @@
         }
       }
     },
-    "detail.install_title" : {
-      "comment" : "Installation",
-      "extractionState" : "stale",
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "安装管理"
-          }
-        }
-      }
-    },
-    "detail.installed_providers" : {
-      "comment" : "Installed Providers",
-      "extractionState" : "stale",
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "已安装的 Providers"
-          }
-        }
-      }
-    },
     "detail.location" : {
-      "comment" : "Location"
+      "comment" : "Location",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "位置"
+          }
+        }
+      }
     },
     "detail.metadata" : {
       "comment" : "Metadata",
@@ -351,24 +566,19 @@
         }
       }
     },
-    "detail.not_installed" : {
-      "comment" : "Not installed anywhere",
-      "extractionState" : "stale",
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "未安装"
-          }
-        }
-      }
-    },
     "detail.open_folder" : {
       "comment" : "Open in Finder",
+      "extractionState" : "extracted_with_value",
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Reveal in Finder"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "在 Finder 中打开"
           }
         }
@@ -452,19 +662,55 @@
       }
     },
     "Details" : {
-
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "详情"
+          }
+        }
+      }
     },
     "Done" : {
-
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "完成"
+          }
+        }
+      }
     },
     "edit_provider.title" : {
-      "comment" : "Edit Provider"
+      "comment" : "Edit Provider",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "编辑 Provider"
+          }
+        }
+      }
     },
     "Enter the base URL of the skill repository API." : {
-
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "输入 Skill 仓库 API 的基础 URL。"
+          }
+        }
+      }
     },
     "Failed to load skills" : {
-
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "加载 Skills 失败"
+          }
+        }
+      }
     },
     "generic.add" : {
       "comment" : "Add",
@@ -533,7 +779,15 @@
       }
     },
     "generic.save" : {
-      "comment" : "Save"
+      "comment" : "Save",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存"
+          }
+        }
+      }
     },
     "global.empty" : {
       "comment" : "No Skills",
@@ -602,13 +856,34 @@
       }
     },
     "Install" : {
-
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "安装"
+          }
+        }
+      }
     },
     "Install %@" : {
-
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "安装 %@"
+          }
+        }
+      }
     },
     "Install to" : {
-
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "安装到"
+          }
+        }
+      }
     },
     "install_method.copy" : {
       "comment" : "Copy",
@@ -633,10 +908,24 @@
       }
     },
     "Installed" : {
-
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已安装"
+          }
+        }
+      }
     },
     "Latest Changes" : {
-
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最新更改"
+          }
+        }
+      }
     },
     "list.empty_desc_action" : {
       "comment" : "Import a skill...",
@@ -645,18 +934,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "导入 Skill..."
-          }
-        }
-      }
-    },
-    "list.empty_desc_found" : {
-      "comment" : "Found existing skills...",
-      "extractionState" : "stale",
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "发现现有的 Skills..."
           }
         }
       }
@@ -694,18 +971,6 @@
         }
       }
     },
-    "list.migrate_btn" : {
-      "comment" : "Migrate Existing Skills",
-      "extractionState" : "stale",
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "迁移现有 Skills"
-          }
-        }
-      }
-    },
     "list.title" : {
       "comment" : "Global Skills",
       "localizations" : {
@@ -713,42 +978,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "全局 Skills"
-          }
-        }
-      }
-    },
-    "migration.action" : {
-      "comment" : "Migrate (%d)",
-      "extractionState" : "stale",
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "迁移 (%d)"
-          }
-        }
-      }
-    },
-    "migration.empty" : {
-      "comment" : "No orphaned skills found",
-      "extractionState" : "stale",
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "未发现孤立 Skills"
-          }
-        }
-      }
-    },
-    "migration.title" : {
-      "comment" : "Migrate Skills",
-      "extractionState" : "stale",
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "迁移 Skills"
           }
         }
       }
@@ -787,13 +1016,34 @@
       }
     },
     "No detailed description available." : {
-
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暂无详细描述。"
+          }
+        }
+      }
     },
     "No providers available. Please create a local provider first." : {
-
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无可用 Provider。请先创建一个本地 Provider。"
+          }
+        }
+      }
     },
     "No Skills" : {
-
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没有 Skills"
+          }
+        }
+      }
     },
     "provider_picker.label" : {
       "comment" : "Provider",
@@ -851,10 +1101,26 @@
       }
     },
     "provider.empty" : {
-      "comment" : "No Skills"
+      "comment" : "No Skills",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没有 Skills"
+          }
+        }
+      }
     },
     "provider.empty_desc" : {
-      "comment" : "No skills found in this provider"
+      "comment" : "No skills found in this provider",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在此 Provider 中未找到 Skills"
+          }
+        }
+      }
     },
     "provider.gemini" : {
       "comment" : "Gemini CLI",
@@ -890,49 +1156,121 @@
       }
     },
     "Refresh installed status" : {
-
-    },
-    "Remove" : {
-
-    },
-    "Repositories" : {
-
-    },
-    "Repository Name" : {
-
-    },
-    "Repository Type" : {
-
-    },
-    "Search %@" : {
-
-    },
-    "Search Clawdhub" : {
-
-    },
-    "Select a provider folder where this skill will be installed." : {
-
-    },
-    "Select a provider..." : {
-
-    },
-    "Select a Repository" : {
-
-    },
-    "Select a skill" : {
-
-    },
-    "Select a Skill" : {
-
-    },
-    "settings.change_btn" : {
-      "comment" : "Change...",
-      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "更改..."
+            "value" : "刷新安装状态"
+          }
+        }
+      }
+    },
+    "Remove" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移除"
+          }
+        }
+      }
+    },
+    "Repositories" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "仓库"
+          }
+        }
+      }
+    },
+    "Repository Name" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "仓库名称"
+          }
+        }
+      }
+    },
+    "Repository Type" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "仓库类型"
+          }
+        }
+      }
+    },
+    "Search %@" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "搜索 %@"
+          }
+        }
+      }
+    },
+    "Search Clawdhub" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "搜索 Clawdhub"
+          }
+        }
+      }
+    },
+    "Select a provider folder where this skill will be installed." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选择此 Skill 的安装目录。"
+          }
+        }
+      }
+    },
+    "Select a provider..." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选择一个 Provider..."
+          }
+        }
+      }
+    },
+    "Select a Repository" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选择一个仓库"
+          }
+        }
+      }
+    },
+    "Select a skill" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选择一个 Skill"
+          }
+        }
+      }
+    },
+    "Select a Skill" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选择一个 Skill"
           }
         }
       }
@@ -1003,35 +1341,27 @@
         }
       }
     },
-    "sidebar.builtin_providers" : {
-      "comment" : "Built-in Providers",
-      "extractionState" : "stale",
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "内置 Providers"
-          }
-        }
-      }
-    },
-    "sidebar.custom_providers" : {
-      "comment" : "Custom Providers",
-      "extractionState" : "stale",
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "自定义 Providers"
-          }
-        }
-      }
-    },
     "sidebar.providers" : {
-      "comment" : "Providers"
+      "comment" : "Providers",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Providers"
+          }
+        }
+      }
     },
     "skill.path_label" : {
-      "comment" : "Path:"
+      "comment" : "Path:",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "路径："
+          }
+        }
+      }
     },
     "skills_list.available" : {
       "comment" : "Available",
@@ -1040,6 +1370,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "可安装"
+          }
+        }
+      }
+    },
+    "skills_list.existing" : {
+      "comment" : "Existing",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已存在"
+          }
+        }
+      }
+    },
+    "skills_list.existing_desc" : {
+      "comment" : "Not managed by nolon",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未被 nolon 管理"
           }
         }
       }
@@ -1089,16 +1441,11 @@
       }
     },
     "Sources" : {
-
-    },
-    "status.available" : {
-      "comment" : "Available",
-      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "可用"
+            "value" : "来源"
           }
         }
       }
@@ -1121,18 +1468,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已安装"
-          }
-        }
-      }
-    },
-    "status.partial" : {
-      "comment" : "Partial",
-      "extractionState" : "stale",
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "部分安装"
           }
         }
       }
@@ -1160,10 +1495,25 @@
       }
     },
     "This repository has no skills yet" : {
-
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此仓库暂无 Skills"
+          }
+        }
+      }
     },
     "toolbar.clawdhub" : {
-      "comment" : "Clawdhub"
+      "comment" : "Clawdhub",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clawdhub"
+          }
+        }
+      }
     },
     "toolbar.global_skills" : {
       "comment" : "Global Skills",
@@ -1210,10 +1560,24 @@
       }
     },
     "Type" : {
-
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "类型"
+          }
+        }
+      }
     },
     "v%@" : {
-
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "v%@"
+          }
+        }
+      }
     }
   },
   "version" : "1.1"

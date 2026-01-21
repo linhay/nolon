@@ -217,7 +217,7 @@ public final class SkillInstaller {
             if item.hasPrefix(".") { continue }
 
             let itemPath = "\(providerPath)/\(item)"
-            let state = determineSkillState(at: itemPath)
+            let state = determineSkillState(skillName: item, at: itemPath, for: provider)
 
             states.append(
                 ProviderSkillState(
@@ -230,17 +230,21 @@ public final class SkillInstaller {
         return states
     }
 
-    /// Determine the state of a skill at a given path
-    private func determineSkillState(at path: String) -> SkillInstallationState {
+    /// Determine the state of a skill at a given path based on provider's install method
+    private func determineSkillState(skillName: String, at path: String, for provider: Provider)
+        -> SkillInstallationState
+    {
         var isDirectory: ObjCBool = false
         guard fileManager.fileExists(atPath: path, isDirectory: &isDirectory) else {
             return .broken
         }
 
         // Check if it's a symlink
+        let isSymlink: Bool
         if let attributes = try? fileManager.attributesOfItem(atPath: path),
             attributes[.type] as? FileAttributeType == .typeSymbolicLink
         {
+            isSymlink = true
 
             // Check if symlink target exists
             guard let destination = try? fileManager.destinationOfSymbolicLink(atPath: path),
@@ -248,39 +252,136 @@ public final class SkillInstaller {
             else {
                 return .broken
             }
+        } else {
+            isSymlink = false
+        }
+
+        switch provider.installMethod {
+        case .symlink:
+            // For symlink mode: symlinks are installed, non-symlinks are orphaned
+            return isSymlink ? .installed : .orphaned
+
+        case .copy:
+            // For copy mode: compare with global storage
+            if isSymlink {
+                // Symlinks in copy mode are unexpected but treat as installed
+                return .installed
+            }
+
+            // Check if skill exists in global storage
+            let globalPath =
+                "\(fileManager.homeDirectoryForCurrentUser.path)/.nolon/skills/\(skillName)"
+            guard fileManager.fileExists(atPath: globalPath) else {
+                // Not in global storage -> orphaned
+                return .orphaned
+            }
+
+            // Compare versions
+            if skillsAreDifferent(providerPath: path, globalPath: globalPath) {
+                return .orphaned
+            }
 
             return .installed
         }
+    }
 
-        // If it is a directory and not a symlink, it is 'orphaned' (unmanaged) or 'installed via copy'
-        return .orphaned
+    /// Compare two skill folders to check if they are different (by version)
+    private func skillsAreDifferent(providerPath: String, globalPath: String) -> Bool {
+        let providerSkillMd = "\(providerPath)/SKILL.md"
+        let globalSkillMd = "\(globalPath)/SKILL.md"
+
+        // If either SKILL.md doesn't exist, consider them different
+        guard let providerContent = try? String(contentsOfFile: providerSkillMd, encoding: .utf8),
+            let globalContent = try? String(contentsOfFile: globalSkillMd, encoding: .utf8)
+        else {
+            return true
+        }
+
+        // Parse versions from both
+        let providerVersion = parseVersion(from: providerContent)
+        let globalVersion = parseVersion(from: globalContent)
+
+        // If versions differ, they're different
+        if providerVersion != globalVersion {
+            return true
+        }
+
+        // Also compare file modification dates as a fallback
+        let providerModDate =
+            (try? fileManager.attributesOfItem(atPath: providerSkillMd)[.modificationDate] as? Date)
+            ?? Date.distantPast
+        let globalModDate =
+            (try? fileManager.attributesOfItem(atPath: globalSkillMd)[.modificationDate] as? Date)
+            ?? Date.distantPast
+
+        // If provider is newer by more than a second, consider different
+        return providerModDate.timeIntervalSince(globalModDate) > 1.0
+    }
+
+    /// Parse version from SKILL.md content
+    private func parseVersion(from content: String) -> String {
+        // Look for version in YAML frontmatter
+        let lines = content.components(separatedBy: .newlines)
+        for line in lines {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if trimmed.hasPrefix("version:") {
+                return trimmed.replacingOccurrences(of: "version:", with: "").trimmingCharacters(
+                    in: .whitespaces)
+            }
+        }
+        return "unknown"
     }
 
     // MARK: - Migration
 
     /// Migrate a skill from provider directory to global storage
-    /// Returns the imported skill
-    public func migrate(skillName: String, from provider: Provider) throws -> Skill {
+    /// - Parameters:
+    ///   - skillName: Name of the skill to migrate
+    ///   - provider: The provider to migrate from
+    ///   - overwriteExisting: If true, overwrite existing skill in global storage when different
+    /// - Returns: The imported skill
+    ///
+    /// Migration scenarios:
+    /// 1. Skill identical to global → delete provider copy, reinstall from global
+    /// 2. Skill not in global → move to global, install back per provider settings
+    /// 3. Skill in global but different → if overwriteExisting, replace global; else throw conflict
+    public func migrate(skillName: String, from provider: Provider, overwriteExisting: Bool = false)
+        throws -> Skill
+    {
         let providerPath = provider.path
         let sourcePath = "\(providerPath)/\(skillName)"
 
-        // Verify it's a physical directory (not a symlink)
-        let state = determineSkillState(at: sourcePath)
+        // Verify it's a physical directory (not a symlink for symlink mode, or different for copy mode)
+        let state = determineSkillState(skillName: skillName, at: sourcePath, for: provider)
         guard state == .orphaned else {
             throw SkillError.fileOperationFailed(
                 "Skill '\(skillName)' is not an orphaned physical file")
         }
 
-        // Check for conflicts in global storage
         let globalPath =
             "\(fileManager.homeDirectoryForCurrentUser.path)/.nolon/skills/\(skillName)"
-        if fileManager.fileExists(atPath: globalPath) {
-            // Conflict detected - need user resolution
-            throw SkillError.conflictDetected(skillName: skillName, providers: [])
-        }
 
-        // Move to global storage
-        try fileManager.moveItem(atPath: sourcePath, toPath: globalPath)
+        let globalExists = fileManager.fileExists(atPath: globalPath)
+
+        if globalExists {
+            // Check if identical to global
+            if !skillsAreDifferent(providerPath: sourcePath, globalPath: globalPath) {
+                // Scenario 1: Identical content - just delete provider copy and reinstall from global
+                try fileManager.removeItem(atPath: sourcePath)
+            } else {
+                // Scenario 3: Different content - need user decision
+                if overwriteExisting {
+                    // Remove existing global skill and replace with provider version
+                    try fileManager.removeItem(atPath: globalPath)
+                    try fileManager.moveItem(atPath: sourcePath, toPath: globalPath)
+                } else {
+                    throw SkillError.conflictDetected(skillName: skillName, providers: [])
+                }
+            }
+        } else {
+            // Scenario 2: Not in global - move to global storage
+            try fileManager.moveItem(atPath: sourcePath, toPath: globalPath)
+        }
 
         // Install back to provider based on settings
         let method = provider.installMethod
