@@ -13,8 +13,8 @@ set -e
 APP_NAME="nolon"
 SCHEME="nolon"
 PROJECT="nolon.xcodeproj"
-BUILD_DIR="build"
 RELEASE_DIR="release"
+BUILD_DIR="${RELEASE_DIR}/build"
 
 # Colors for output
 RED='\033[0;31m'
@@ -25,7 +25,9 @@ NC='\033[0m' # No Color
 # Load .env if exists
 if [ -f ".env" ]; then
     echo -e "${YELLOW}📂 Loading .env configuration...${NC}"
-    export $(grep -v '^#' .env | xargs)
+    set -a
+    source .env
+    set +a
 fi
 
 # Get architecture argument
