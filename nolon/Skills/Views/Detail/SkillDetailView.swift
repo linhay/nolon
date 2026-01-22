@@ -22,13 +22,7 @@ public struct SkillDetailView: View {
                         .foregroundStyle(.secondary)
 
                     HStack {
-                        Label(
-                            String(
-                                format: NSLocalizedString("detail.version", comment: "Version %@"),
-                                skill.version), systemImage: "number"
-                        )
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        SkillVersionBadge(version: skill.version)
 
                         Spacer()
                     }
@@ -119,6 +113,7 @@ public struct SkillDetailView: View {
                 .cornerRadius(12)
             }
             .padding()
+            .textSelection(.enabled)
         }
         .navigationTitle(skill.name)
 

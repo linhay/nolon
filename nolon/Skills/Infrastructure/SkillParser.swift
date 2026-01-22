@@ -3,6 +3,35 @@ import Foundation
 /// Parses SKILL.md files to extract YAML frontmatter metadata
 public enum SkillParser {
 
+    /// Check if a directory is a valid skill directory (contains SKILL.md)
+    /// - Parameter path: Path to the directory to check
+    /// - Returns: true if the directory contains a valid SKILL.md file
+    public static func isSkillDirectory(at path: String) -> Bool {
+        let skillMdPath = (path as NSString).appendingPathComponent("SKILL.md")
+        return FileManager.default.fileExists(atPath: skillMdPath)
+    }
+    
+    /// Check if a directory is a valid skill directory and return skill name if valid
+    /// - Parameter path: Path to the directory to check
+    /// - Returns: The skill name (from frontmatter or directory name) if valid, nil otherwise
+    public static func skillName(at path: String) -> String? {
+        let skillMdPath = (path as NSString).appendingPathComponent("SKILL.md")
+        guard FileManager.default.fileExists(atPath: skillMdPath),
+              let content = try? String(contentsOfFile: skillMdPath, encoding: .utf8) else {
+            return nil
+        }
+        
+        let directoryName = (path as NSString).lastPathComponent
+        
+        // Try to extract name from frontmatter
+        if let frontmatter = extractFrontmatter(from: content) {
+            let metadata = parseYAMLFrontmatter(frontmatter)
+            return metadata["name"] ?? directoryName
+        }
+        
+        return directoryName
+    }
+
     /// Parse a SKILL.md file content
     /// - Parameters:
     ///   - content: The raw string content of the SKILL.md file

@@ -2,7 +2,14 @@
   "sourceLanguage" : "en",
   "strings" : {
     "%lld" : {
-
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld"
+          }
+        }
+      }
     },
     "%lld Downloads" : {
       "localizations" : {
@@ -15,6 +22,7 @@
       }
     },
     "%lld refs" : {
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -25,11 +33,22 @@
       }
     },
     "%lld scripts" : {
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld 个脚本"
+          }
+        }
+      }
+    },
+    "%lld skill%@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld skill%2$@"
           }
         }
       }
@@ -163,6 +182,9 @@
         }
       }
     },
+    "Add one or more paths containing skills (e.g., 'skills', 'python', '.agent/skills'). Use '.' for repository root." : {
+
+    },
     "Add Repository" : {
       "localizations" : {
         "zh-Hans" : {
@@ -283,6 +305,20 @@
         }
       }
     },
+    "Adding repository..." : {
+
+    },
+    "API Configuration" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "API 配置"
+          }
+        }
+      }
+    },
     "app.title" : {
       "comment" : "nolon",
       "localizations" : {
@@ -372,6 +408,19 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "从列表中选择一个 Skill 以查看详情并安装"
+          }
+        }
+      }
+    },
+    "Choose Skills Directories" : {
+
+    },
+    "Choose..." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选择..."
           }
         }
       }
@@ -578,7 +627,7 @@
         },
         "zh-Hans" : {
           "stringUnit" : {
-            "state" : "needs_review",
+            "state" : "translated",
             "value" : "在 Finder 中打开"
           }
         }
@@ -641,6 +690,7 @@
     },
     "detail.version" : {
       "comment" : "Version %@",
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -693,11 +743,117 @@
       }
     },
     "Enter the base URL of the skill repository API." : {
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "输入 Skill 仓库 API 的基础 URL。"
+          }
+        }
+      }
+    },
+    "Enter your token" : {
+
+    },
+    "error.cannot_read_directory" : {
+      "comment" : "Cannot read directory: (value)",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法读取目录："
+          }
+        }
+      }
+    },
+    "error.git.clone_failed" : {
+      "comment" : "Failed to clone repository: %@",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "克隆仓库失败：%@"
+          }
+        }
+      }
+    },
+    "error.git.invalid_url" : {
+      "comment" : "Invalid Git repository URL",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无效的 GitHub 仓库 URL"
+          }
+        }
+      }
+    },
+    "error.git.not_cloned" : {
+      "comment" : "Repository is not cloned yet",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "仓库尚未克隆"
+          }
+        }
+      }
+    },
+    "error.git.pull_failed" : {
+      "comment" : "Failed to update repository: %@",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更新仓库失败：%@"
+          }
+        }
+      }
+    },
+    "error.git.ssh_not_available" : {
+      "comment" : "SSH authentication not configured for %@. Please configure SSH key or provide a Personal Access Token."
+    },
+    "error.not_a_directory" : {
+      "comment" : "Not a directory: (value)",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不是一个文件夹："
+          }
+        }
+      }
+    },
+    "error.path_not_found" : {
+      "comment" : "Path not found: (value)",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "路径不存在："
+          }
+        }
+      }
+    },
+    "error.skill_parsing_failed" : {
+      "comment" : "Failed to parse skill: (value)",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "解析 Skill 失败："
+          }
+        }
+      }
+    },
+    "Example: https://github.com/owner/repo\nSkills path is the subdirectory containing skills (e.g., 'skills' or '.agent/skills')." : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "示例：https://github.com/owner/repo\nSkills 路径是包含 Skills 的子目录（例如 'skills' 或 '.agent/skills'）。"
           }
         }
       }
@@ -711,6 +867,9 @@
           }
         }
       }
+    },
+    "Generate a token from your Git provider's settings with 'read_repository' scope." : {
+
     },
     "generic.add" : {
       "comment" : "Add",
@@ -785,6 +944,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "保存"
+          }
+        }
+      }
+    },
+    "Git Repository" : {
+
+    },
+    "git.clone_success" : {
+      "comment" : "Repository cloned successfully",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "仓库克隆成功"
+          }
+        }
+      }
+    },
+    "git.pull_success" : {
+      "comment" : "Repository updated successfully",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "仓库更新成功"
+          }
+        }
+      }
+    },
+    "GitHub Repository" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "GitHub 仓库"
           }
         }
       }
@@ -982,6 +1177,16 @@
         }
       }
     },
+    "Name" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "名称"
+          }
+        }
+      }
+    },
     "nav.all_skills" : {
       "comment" : "All Skills",
       "localizations" : {
@@ -1044,6 +1249,22 @@
           }
         }
       }
+    },
+    "Not synced" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未同步"
+          }
+        }
+      }
+    },
+    "Path (e.g., skills, .agent)" : {
+
+    },
+    "Personal Access Token" : {
+
     },
     "provider_picker.label" : {
       "comment" : "Provider",
@@ -1175,6 +1396,32 @@
         }
       }
     },
+    "repo_type.custom" : {
+      "comment" : "Custom Repository",
+      "extractionState" : "stale",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自定义仓库"
+          }
+        }
+      }
+    },
+    "repo_type.global_skills" : {
+      "comment" : "Global Skills"
+    },
+    "repo_type.local_folder" : {
+      "comment" : "Local Folder",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本地文件夹"
+          }
+        }
+      }
+    },
     "Repositories" : {
       "localizations" : {
         "zh-Hans" : {
@@ -1195,6 +1442,9 @@
         }
       }
     },
+    "Repository name is automatically detected from the URL." : {
+
+    },
     "Repository Type" : {
       "localizations" : {
         "zh-Hans" : {
@@ -1204,6 +1454,29 @@
           }
         }
       }
+    },
+    "Repository URL" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "仓库 URL"
+          }
+        }
+      }
+    },
+    "Reveal in Finder" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 Finder 中显示"
+          }
+        }
+      }
+    },
+    "Save & Retry" : {
+
     },
     "Search %@" : {
       "localizations" : {
@@ -1221,6 +1494,37 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "搜索 Clawdhub"
+          }
+        }
+      }
+    },
+    "select" : {
+      "comment" : "Select",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选择"
+          }
+        }
+      }
+    },
+    "Select %lld director%@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Select %1$lld director%2$@"
+          }
+        }
+      }
+    },
+    "Select a folder containing skill directories (each with a SKILL.md file)." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选择一个包含 Skill 目录的文件夹（每个目录需包含 SKILL.md 文件）。"
           }
         }
       }
@@ -1271,6 +1575,20 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "选择一个 Skill"
+          }
+        }
+      }
+    },
+    "Select one or more directories containing skills:" : {
+
+    },
+    "select_skills_folder" : {
+      "comment" : "Select a folder containing skills",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选择包含 Skills 的文件夹"
           }
         }
       }
@@ -1363,6 +1681,30 @@
         }
       }
     },
+    "Skills Folder" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Skills 文件夹"
+          }
+        }
+      }
+    },
+    "Skills Path (optional)" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Skills 路径（可选）"
+          }
+        }
+      }
+    },
+    "Skills Paths" : {
+
+    },
     "skills_list.available" : {
       "comment" : "Available",
       "localizations" : {
@@ -1429,6 +1771,18 @@
         }
       }
     },
+    "skills_list.orphaned_badge" : {
+      "comment" : "Orphaned skill badge",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Unmanaged"
+          }
+        }
+      }
+    },
     "skills_list.search" : {
       "comment" : "Search skills",
       "localizations" : {
@@ -1449,6 +1803,12 @@
           }
         }
       }
+    },
+    "SSH Authentication Unavailable" : {
+
+    },
+    "SSH key is not configured for **%@**. Please provide a Personal Access Token to authenticate." : {
+
     },
     "status.broken" : {
       "comment" : "Broken Link",
@@ -1490,6 +1850,19 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "软链接"
+          }
+        }
+      }
+    },
+    "Supports GitHub, GitLab, Bitbucket and other Git hosting services." : {
+
+    },
+    "Sync" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同步"
           }
         }
       }

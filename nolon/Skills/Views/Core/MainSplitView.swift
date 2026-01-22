@@ -136,11 +136,19 @@ public struct MainSplitView: View {
         guard let installer = installer else { return }
 
         do {
-            // Using ClawdhubService to download
-            let zipURL = try await ClawdhubService.shared.downloadSkill(
-                slug: skill.slug, version: skill.latestVersion?.version)
-            try installer.installRemote(zipURL: zipURL, slug: skill.slug, to: provider)
-            print("Successfully installed \(skill.slug) to \(provider.name)")
+            if let localPath = skill.localPath {
+                // Install from local path (GitHub or Local Folder)
+                print("Installing from local path: \(localPath)")
+                try installer.installLocal(from: localPath, slug: skill.slug, to: provider)
+                print("Successfully installed \(skill.slug) from \(localPath)")
+            } else {
+                // Using ClawdhubService to download
+                let zipURL = try await ClawdhubService.shared.downloadSkill(
+                    slug: skill.slug, version: skill.latestVersion?.version)
+                try installer.installRemote(zipURL: zipURL, slug: skill.slug, to: provider)
+                print("Successfully installed \(skill.slug) from Clawdhub to \(provider.name)")
+            }
+
             // Trigger refresh immediately after install
             refreshTrigger += 1
         } catch {

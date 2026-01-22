@@ -139,6 +139,51 @@ public final class SkillInstaller {
         }
     }
 
+    /// Install a skill from a local path (e.g. cloned GitHub repo)
+    /// 1. Symlink to global storage (~/.nolon/skills) to register it
+    /// 2. Link/copy to provider directory based on provider settings
+    public func installLocal(from sourcePath: String, slug: String, to provider: Provider) throws {
+        let globalSkillsPath = "\(fileManager.homeDirectoryForCurrentUser.path)/.nolon/skills"
+        let globalPath = "\(globalSkillsPath)/\(slug)"
+
+        // Ensure global skills directory exists
+        try createDirectory(at: globalSkillsPath)
+
+        // Register in global storage (Symlink Global -> Source)
+        // If it already exists, replace it to ensure we are using the requested version
+        if fileManager.fileExists(atPath: globalPath) {
+            try fileManager.removeItem(atPath: globalPath)
+        }
+
+        try fileManager.createSymbolicLink(atPath: globalPath, withDestinationPath: sourcePath)
+
+        // Now load the skill from global storage
+        let skillMdPath = "\(globalPath)/SKILL.md"
+        guard let content = try? String(contentsOfFile: skillMdPath, encoding: .utf8) else {
+            throw SkillError.parsingFailed("SKILL.md not found in '\(slug)'")
+        }
+
+        let parsedSkill = try SkillParser.parse(
+            content: content,
+            id: slug,
+            globalPath: globalPath
+        )
+
+        let skill = Skill(
+            id: parsedSkill.id,
+            name: parsedSkill.name,
+            description: parsedSkill.description,
+            version: parsedSkill.version,
+            globalPath: parsedSkill.globalPath,
+            content: parsedSkill.content,
+            referenceCount: 0,
+            scriptCount: 0
+        )
+
+        // Install to provider
+        try install(skill: skill, to: provider)
+    }
+
     private func findSkillRoot(in rootURL: URL) -> URL? {
         let directSkill = rootURL.appendingPathComponent("SKILL.md")
         if fileManager.fileExists(atPath: directSkill.path) {
@@ -428,6 +473,25 @@ public final class SkillInstaller {
         }
 
         return migratedSkills
+    }
+
+    // MARK: - Query
+    
+    /// Find all installed skills across all providers
+    public func findAllInstalledSkills() -> Set<String> {
+        var installedSkills: Set<String> = []
+        
+        for provider in settings.providers {
+            if let states = try? scanProvider(provider: provider) {
+                for state in states {
+                    if state.state == .installed {
+                        installedSkills.insert(state.skillName)
+                    }
+                }
+            }
+        }
+        
+        return installedSkills
     }
 
     // MARK: - Health Checks

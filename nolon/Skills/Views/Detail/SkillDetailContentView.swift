@@ -15,6 +15,7 @@ public struct SkillDetailContentView: View {
         Group {
             if let skill = skill {
                 skillDetailContent(skill)
+                            .textSelection(.enabled)
             } else {
                 ContentUnavailableView(
                     NSLocalizedString("detail.no_selection", comment: "No Skill Selected"),
@@ -59,7 +60,6 @@ public struct SkillDetailContentView: View {
                     Text(skill.name)
                         .font(.title)
                         .bold()
-
                     Text(skill.description)
                         .font(.body)
                         .foregroundStyle(.secondary)

@@ -351,18 +351,40 @@ struct SkillListRowView: View {
     }
 
     var body: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(skill.name)
-                    .font(.headline)
+        HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text(skill.name)
+                        .font(.headline)
+                    if isInstalled {
+                        SkillInstalledBadge()
+                    }
+                }
 
                 Text(skill.description)
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            }
+                    .lineLimit(2)
 
-            Spacer()
+                HStack {
+                    if skill.hasReferences || skill.hasScripts {
+                        HStack(spacing: 12) {
+                            if skill.hasReferences {
+                                Label("\(skill.referenceCount)", systemImage: "doc.text")
+                            }
+                            if skill.hasScripts {
+                                Label("\(skill.scriptCount)", systemImage: "terminal")
+                            }
+                        }
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    }
+
+                    Spacer()
+
+                    SkillVersionBadge(version: skill.version)
+                }
+            }
 
             Menu {
                 // 1. Install / Uninstall
@@ -473,17 +495,31 @@ struct OrphanedSkillRowView: View {
     let onReveal: () -> Void
 
     var body: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(skillState.skillName)
-                    .font(.headline)
+        HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text(skillState.skillName)
+                        .font(.headline)
+
+                    Text(
+                        NSLocalizedString(
+                            "skills_list.orphaned_badge", value: "Unmanaged",
+                            comment: "Orphaned skill badge")
+                    )
+                    .font(.caption2)
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Color.orange)
+                    .cornerRadius(4)
+                }
 
                 Text(
                     NSLocalizedString("skills_list.existing_desc", comment: "Not managed by nolon")
                 )
                 .font(.caption)
                 .foregroundStyle(.secondary)
-                .lineLimit(1)
+                .lineLimit(2)
             }
 
             Spacer()

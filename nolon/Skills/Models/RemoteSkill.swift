@@ -8,6 +8,9 @@ public struct RemoteSkill: Decodable, Identifiable, Hashable, Sendable {
     public let updatedAt: TimeInterval
     public let latestVersion: LatestVersion?
     public let stats: Stats?
+    
+    /// Local path for skills from local folder or GitHub repositories
+    public let localPath: String?
 
     public struct Stats: Decodable, Hashable, Sendable {
         public let comments: Int?
@@ -46,7 +49,7 @@ public struct RemoteSkill: Decodable, Identifiable, Hashable, Sendable {
         }
     }
 
-    /// Memberwise initializer for creating RemoteSkill from API response
+    /// Memberwise initializer for creating RemoteSkill from API response or local scan
     public init(
         slug: String,
         displayName: String,
@@ -54,7 +57,8 @@ public struct RemoteSkill: Decodable, Identifiable, Hashable, Sendable {
         latestVersion: String?,
         updatedAt: Date?,
         downloads: Int?,
-        stars: Int?
+        stars: Int?,
+        localPath: String? = nil
     ) {
         self.slug = slug
         self.displayName = displayName
@@ -65,6 +69,7 @@ public struct RemoteSkill: Decodable, Identifiable, Hashable, Sendable {
             (downloads != nil || stars != nil)
             ? Stats(downloads: downloads, stars: stars)
             : nil
+        self.localPath = localPath
     }
 }
 

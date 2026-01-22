@@ -80,3 +80,9 @@ xcodebuild -project nolon.xcodeproj -scheme nolon -configuration Release
 - **Migration**: The app includes a "Migration Assistant" to adopt orphaned skills found in provider directories.
 - **Symlinks**: The app relies heavily on symlinks. Broken links are detected/repaired automatically.
 
+## LOCALIZATION WORKFLOW
+To translate new strings using an Agent:
+1. **Extract**: Run `python3 nolon/scripts/extract_missing_translations.py` to generate `missing_translations.json`.
+2. **Translate**: Provide the JSON content to an AI Agent to generate translations.
+3. **Save**: Save the agent's output to `nolon/scripts/translated_items.json`.
+4. **Import**: Run `python3 nolon/scripts/import_translations.py` to update `Localizable.xcstrings`.

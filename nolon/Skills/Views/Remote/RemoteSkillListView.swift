@@ -1,54 +1,84 @@
 import SwiftUI
+import Observation
+
+@MainActor
+@Observable
+class RemoteSkillListViewModel {
+    
+    var skills: [RemoteSkill] = []
+    var searchText = ""
+    var isLoading = false
+    var errorMessage: String?
+    var selectedSkill: RemoteSkill?
+    
+    private let service: ClawdhubService
+    
+    init(service: ClawdhubService = .shared) {
+        self.service = service
+    }
+    
+    func search() async {
+        isLoading = true
+        errorMessage = nil
+        do {
+            skills = try await service.fetchSkills(query: searchText)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+        isLoading = false
+    }
+}
 
 struct RemoteSkillListView: View {
-    @State private var skills: [RemoteSkill] = []
-    @State private var searchText = ""
-    @State private var isLoading = false
-    @State private var errorMessage: String?
-    @State private var selectedSkill: RemoteSkill?
-
+    @State private var viewModel: RemoteSkillListViewModel
+    
     // Injectable for preview or testing
-    var service: ClawdhubService = .shared
     let providers: [Provider]
     let onInstall: (RemoteSkill, Provider) -> Void
 
+    init(service: ClawdhubService = .shared, providers: [Provider], onInstall: @escaping (RemoteSkill, Provider) -> Void) {
+        self._viewModel = State(initialValue: RemoteSkillListViewModel(service: service))
+        self.providers = providers
+        self.onInstall = onInstall
+    }
+
     var body: some View {
         NavigationSplitView {
-            List(selection: $selectedSkill) {
-                if isLoading && skills.isEmpty {
+            List(selection: $viewModel.selectedSkill) {
+                if viewModel.isLoading && viewModel.skills.isEmpty {
                     ProgressView()
                         .frame(maxWidth: .infinity, alignment: .center)
-                } else if let error = errorMessage {
+                } else if let error = viewModel.errorMessage {
                     ContentUnavailableView(
                         "Failed to load skills",
                         systemImage: "exclamationmark.triangle",
                         description: Text(error)
                     )
-                } else if skills.isEmpty && !searchText.isEmpty {
-                    ContentUnavailableView.search(text: searchText)
+                } else if viewModel.skills.isEmpty && !viewModel.searchText.isEmpty {
+                    ContentUnavailableView.search(text: viewModel.searchText)
                 } else {
-                    ForEach(skills) { skill in
+                    ForEach(viewModel.skills) { skill in
                         NavigationLink(value: skill) {
                             RemoteSkillRowView(skill: skill)
                         }
                     }
                 }
             }
-            .searchable(text: $searchText, placement: .sidebar, prompt: "Search Clawdhub")
+            .searchable(text: $viewModel.searchText, placement: .sidebar, prompt: "Search Clawdhub")
             .navigationTitle("Clawdhub")
             .onSubmit(of: .search) {
-                Task { await search() }
+                Task { await viewModel.search() }
             }
-            .task(id: searchText) {
+            .task(id: viewModel.searchText) {
                 // Debounce simple implementation
                 try? await Task.sleep(nanoseconds: 500_000_000)
-                await search()
+                await viewModel.search()
             }
             .refreshable {
-                await search()
+                await viewModel.search()
             }
         } detail: {
-            if let skill = selectedSkill {
+            if let skill = viewModel.selectedSkill {
                 RemoteSkillDetailView(
                     skill: skill, providers: providers,
                     onInstall: { provider in
@@ -63,17 +93,6 @@ struct RemoteSkillListView: View {
             }
         }
     }
-
-    private func search() async {
-        isLoading = true
-        errorMessage = nil
-        do {
-            skills = try await service.fetchSkills(query: searchText)
-        } catch {
-            errorMessage = error.localizedDescription
-        }
-        isLoading = false
-    }
 }
 
 struct RemoteSkillRowView: View {
@@ -81,18 +100,12 @@ struct RemoteSkillRowView: View {
     var isInstalled: Bool = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Text(skill.displayName)
                     .font(.headline)
                 if isInstalled {
-                    Text("Installed")
-                        .font(.caption2)
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Color.green)
-                        .cornerRadius(4)
+                    SkillInstalledBadge()
                 }
             }
             if let summary = skill.summary {
@@ -111,17 +124,11 @@ struct RemoteSkillRowView: View {
                 }
                 Spacer()
                 if let version = skill.latestVersion?.version {
-                    Text("v\(version)")
-                        .font(.caption2)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Color.secondary.opacity(0.1))
-                        .cornerRadius(4)
+                    SkillVersionBadge(version: version)
                 }
             }
             .font(.caption2)
             .foregroundStyle(.secondary)
         }
-        .padding(.vertical, 4)
     }
 }

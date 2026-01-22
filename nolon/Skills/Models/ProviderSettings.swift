@@ -123,10 +123,19 @@ public class ProviderSettings: ObservableObject {
             [RemoteRepository].self, from: storedRemoteRepositoriesData),
             !decodedRepos.isEmpty
         {
-            self.remoteRepositories = decodedRepos
+            var repos = decodedRepos
+            // Ensure globalSkills is present
+            if !repos.contains(where: { $0.templateType == .globalSkills }) {
+                repos.insert(.globalSkills, at: 0)
+            }
+            // Ensure clawdhub is present
+             if !repos.contains(where: { $0.templateType == .clawdhub }) {
+                repos.insert(.clawdhub, at: 0)
+            }
+            self.remoteRepositories = repos
         } else {
-            // Default with Clawdhub
-            self.remoteRepositories = [.clawdhub]
+            // Default with Global Skills and Clawdhub
+            self.remoteRepositories = [.globalSkills, .clawdhub]
         }
     }
 

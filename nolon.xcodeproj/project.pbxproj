@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		CD447BF32F1F79890056366B /* MarkdownUI in Frameworks */ = {isa = PBXBuildFile; productRef = CD447BF22F1F79890056366B /* MarkdownUI */; };
+		CD9ECB202F21F6C0009248CB /* SwiftGit in Frameworks */ = {isa = PBXBuildFile; productRef = CD9ECB1F2F21F6C0009248CB /* SwiftGit */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -28,6 +29,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				CD447BF32F1F79890056366B /* MarkdownUI in Frameworks */,
+				CD9ECB202F21F6C0009248CB /* SwiftGit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -71,6 +73,7 @@
 			name = nolon;
 			packageProductDependencies = (
 				CD447BF22F1F79890056366B /* MarkdownUI */,
+				CD9ECB1F2F21F6C0009248CB /* SwiftGit */,
 			);
 			productName = nolon;
 			productReference = CD2B1A922F1F624900DF4A2B /* nolon.app */;
@@ -103,6 +106,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				CD447BF12F1F79890056366B /* XCRemoteSwiftPackageReference "swift-markdown-ui" */,
+				CD9ECB1E2F21F6C0009248CB /* XCLocalSwiftPackageReference "../../swift-git" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = CD2B1A932F1F624900DF4A2B /* Products */;
@@ -354,6 +358,13 @@
 		};
 /* End XCConfigurationList section */
 
+/* Begin XCLocalSwiftPackageReference section */
+		CD9ECB1E2F21F6C0009248CB /* XCLocalSwiftPackageReference "../../swift-git" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = "../../swift-git";
+		};
+/* End XCLocalSwiftPackageReference section */
+
 /* Begin XCRemoteSwiftPackageReference section */
 		CD447BF12F1F79890056366B /* XCRemoteSwiftPackageReference "swift-markdown-ui" */ = {
 			isa = XCRemoteSwiftPackageReference;
@@ -370,6 +381,10 @@
 			isa = XCSwiftPackageProductDependency;
 			package = CD447BF12F1F79890056366B /* XCRemoteSwiftPackageReference "swift-markdown-ui" */;
 			productName = MarkdownUI;
+		};
+		CD9ECB1F2F21F6C0009248CB /* SwiftGit */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = SwiftGit;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

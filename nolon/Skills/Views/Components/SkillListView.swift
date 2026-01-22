@@ -11,6 +11,7 @@ public struct SkillListView: View {
 
     @State private var showingImportSheet = false
     @State private var errorMessage: String?
+    @State private var installedSkills: Set<String> = []
 
     public var body: some View {
         NavigationStack {
@@ -21,7 +22,8 @@ public struct SkillListView: View {
                     List(skills) { skill in
                         SkillRow(
                             skill: skill,
-                            onUpdate: { await onRefresh() }
+                            isInstalled: installedSkills.contains(skill.id),
+                            onUpdate: { await refresh() }
                         )
                     }
                 }
@@ -57,7 +59,15 @@ public struct SkillListView: View {
                     Text(error)
                 }
             }
+            .task {
+                await refresh()
+            }
         }
+    }
+
+    private func refresh() async {
+        await onRefresh()
+        installedSkills = installer.findAllInstalledSkills()
     }
 
     private var emptyStateView: some View {
@@ -80,7 +90,7 @@ public struct SkillListView: View {
             guard let url = urls.first else { return }
 
             _ = try repository.importSkill(from: url)
-            await onRefresh()
+            await refresh()
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -90,6 +100,7 @@ public struct SkillListView: View {
 /// Row view for a single skill
 struct SkillRow: View {
     let skill: Skill
+    let isInstalled: Bool
     let onUpdate: () async -> Void
 
     @State private var isExpanded = false
@@ -97,52 +108,64 @@ struct SkillRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(skill.name)
-                        .font(.headline)
+                Text(skill.name)
+                    .font(.headline)
+                
+                if isInstalled {
+                    Text("Installed")
+                        .font(.caption2)
+                        .fontWeight(.medium)
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.green)
+                        .cornerRadius(4)
+                }
+            }
 
-                    Text(skill.description)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(2)
+            Text(skill.description)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+
+            HStack {
+                if skill.hasReferences || skill.hasScripts {
+                    HStack(spacing: 12) {
+                        if skill.hasReferences {
+                            Label("\(skill.referenceCount)", systemImage: "doc.text")
+                        }
+                        if skill.hasScripts {
+                            Label("\(skill.scriptCount)", systemImage: "terminal")
+                        }
+                    }
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
                 }
 
                 Spacer()
 
                 // Version badge
-                Text("v\(skill.version)")
-                    .font(.caption2)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(Color.secondary.opacity(0.1))
-                    .cornerRadius(4)
+                SkillVersionBadge(version: skill.version)
             }
 
             if isExpanded {
-                VStack(alignment: .leading, spacing: 8) {
-                    if skill.hasReferences || skill.hasScripts {
-                        HStack(spacing: 12) {
-                            if skill.hasReferences {
-                                Label("\(skill.referenceCount) refs", systemImage: "doc.text")
-                                    .font(.caption)
-                            }
-                            if skill.hasScripts {
-                                Label("\(skill.scriptCount) scripts", systemImage: "terminal")
-                                    .font(.caption)
-                            }
-                        }
-                        .foregroundStyle(.secondary)
-                    }
-                    
+                Divider()
+                VStack(alignment: .leading, spacing: 4) {
                     Text(NSLocalizedString("skill.path_label", comment: "Path:"))
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    
+
                     Text(skill.globalPath)
                         .font(.system(.caption2, design: .monospaced))
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                         .truncationMode(.middle)
+
+                    if skill.hasReferences || skill.hasScripts {
+                        // Expanded details if we want more verbose info,
+                        // but we moved counts to footer.
+                        // We can keep this simple or remove if redundant.
+                    }
                 }
                 .padding(.top, 4)
             }

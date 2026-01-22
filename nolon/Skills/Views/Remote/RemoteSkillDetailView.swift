@@ -1,4 +1,5 @@
 import SwiftUI
+import MarkdownUI
 
 struct RemoteSkillDetailView: View {
     let skill: RemoteSkill
@@ -32,7 +33,7 @@ struct RemoteSkillDetailView: View {
                             Label("\(downloads) Downloads", systemImage: "arrow.down.circle")
                         }
                         if let version = skill.latestVersion?.version {
-                            Label("v\(version)", systemImage: "tag")
+                            SkillVersionBadge(version: version)
                         }
                     }
                     .font(.subheadline)
@@ -53,16 +54,19 @@ struct RemoteSkillDetailView: View {
                         Text("Latest Changes")
                             .font(.subheadline)
                             .bold()
-                        Text(changelog)
-                            .font(.body)
+                        Markdown(changelog)
                     } else {
                         Text("No detailed description available.")
                             .foregroundStyle(.secondary)
                     }
                 }
                 .padding()
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.secondary.opacity(0.1))
+                .cornerRadius(12)
             }
             .padding()
+            .textSelection(.enabled)
         }
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
