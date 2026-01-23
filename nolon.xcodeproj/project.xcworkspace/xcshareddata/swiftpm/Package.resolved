@@ -1,5 +1,5 @@
 {
-  "originHash" : "832fce49649ec3551e06c11727f5534dca5b699d3dafe0e6af1628014c05b818",
+  "originHash" : "9745fb3e03c1bb7b82c532a06031a78a034a6efca68238da544ed47864fbe85c",
   "pins" : [
     {
       "identity" : "networkimage",
@@ -26,6 +26,15 @@
       "state" : {
         "revision" : "5d9bdaa4228b381639fff09403e39a04926e2dbe",
         "version" : "0.7.1"
+      }
+    },
+    {
+      "identity" : "swift-git",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/linhay/swift-git",
+      "state" : {
+        "revision" : "10ed0a35bc67b137fb2e11e7a80b0478a9f5656d",
+        "version" : "2.1.0"
       }
     },
     {

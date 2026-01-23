@@ -124,7 +124,7 @@ public struct ProviderSkillsListView: View {
                             SkillListRowView(
                                 skill: skill,
                                 isInstalled: true,
-                                providerPath: provider?.path,
+                                providerPath: provider?.skillsPath,
                                 canDelete: provider?.installMethod == .copy,
                                 onInstall: { await installSkill(skill) },
                                 onUninstall: { await uninstallSkill(skill) },

@@ -106,7 +106,6 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				CD447BF12F1F79890056366B /* XCRemoteSwiftPackageReference "swift-markdown-ui" */,
-				CD9ECB1E2F21F6C0009248CB /* XCLocalSwiftPackageReference "../../swift-git" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = CD2B1A932F1F624900DF4A2B /* Products */;
@@ -357,13 +356,6 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
-
-/* Begin XCLocalSwiftPackageReference section */
-		CD9ECB1E2F21F6C0009248CB /* XCLocalSwiftPackageReference "../../swift-git" */ = {
-			isa = XCLocalSwiftPackageReference;
-			relativePath = "../../swift-git";
-		};
-/* End XCLocalSwiftPackageReference section */
 
 /* Begin XCRemoteSwiftPackageReference section */
 		CD447BF12F1F79890056366B /* XCRemoteSwiftPackageReference "swift-markdown-ui" */ = {

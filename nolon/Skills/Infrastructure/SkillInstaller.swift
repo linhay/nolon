@@ -34,7 +34,7 @@ public final class SkillInstaller {
 
     /// Install a skill to a provider
     public func install(skill: Skill, to provider: Provider) throws {
-        let providerPath = provider.path
+        let providerPath = provider.skillsPath
         let targetPath = "\(providerPath)/\(skill.id)"
 
         // Check if already exists
@@ -231,7 +231,7 @@ public final class SkillInstaller {
 
     /// Uninstall a skill from a provider
     public func uninstall(skill: Skill, from provider: Provider) throws {
-        let providerPath = provider.path
+        let providerPath = provider.skillsPath
         let targetPath = "\(providerPath)/\(skill.id)"
 
         guard fileManager.fileExists(atPath: targetPath) else {
@@ -245,7 +245,7 @@ public final class SkillInstaller {
 
     /// Scan a provider directory and return skill states
     public func scanProvider(provider: Provider) throws -> [ProviderSkillState] {
-        let providerPath = provider.path
+        let providerPath = provider.skillsPath
 
         guard fileManager.fileExists(atPath: providerPath) else {
             return []
@@ -393,7 +393,7 @@ public final class SkillInstaller {
     public func migrate(skillName: String, from provider: Provider, overwriteExisting: Bool = false)
         throws -> Skill
     {
-        let providerPath = provider.path
+        let providerPath = provider.skillsPath
         let sourcePath = "\(providerPath)/\(skillName)"
 
         // Verify it's a physical directory (not a symlink for symlink mode, or different for copy mode)
@@ -511,7 +511,7 @@ public final class SkillInstaller {
 
     /// Repair a broken symlink by recreating it
     public func repairSymlink(skillName: String, for provider: Provider) throws {
-        let providerPath = provider.path
+        let providerPath = provider.skillsPath
         let targetPath = "\(providerPath)/\(skillName)"
         let globalPath =
             "\(fileManager.homeDirectoryForCurrentUser.path)/.nolon/skills/\(skillName)"

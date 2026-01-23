@@ -31,7 +31,7 @@ public struct ProviderSidebarView: View {
                     .contextMenu {
                         Button {
                             // 在 Finder 中打开
-                            let url = URL(fileURLWithPath: provider.path)
+                            let url = URL(fileURLWithPath: provider.skillsPath)
                             NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: url.path)
                         } label: {
                             Label(NSLocalizedString("action.show_in_finder", comment: "Show in Finder"), systemImage: "folder")
@@ -104,7 +104,7 @@ struct ProviderRowView: View {
         Label {
             VStack(alignment: .leading, spacing: 2) {
                 Text(provider.name)
-                Text(provider.path)
+                Text(provider.skillsPath)
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
@@ -125,6 +125,7 @@ struct AddProviderSheet: View {
     
     @State private var providerName = ""
     @State private var providerPath = ""
+    @State private var workflowPath = ""
     @State private var selectedIcon = "folder"
     @State private var installMethod: SkillInstallationMethod = .symlink
     @State private var showingFolderPicker = false
@@ -150,6 +151,7 @@ struct AddProviderSheet: View {
                                         selectedTemplate = template
                                         providerName = template.displayName
                                         providerPath = template.defaultPath.path
+                                        workflowPath = template.defaultWorkflowPath.path
                                         selectedIcon = template.iconName
                                     }
                                 )
@@ -197,6 +199,21 @@ struct AddProviderSheet: View {
                 } header: {
                     Text(NSLocalizedString("add_provider.folder_label", comment: "Skills Folder"))
                 }
+
+                Section {
+                    HStack {
+                        Text(workflowPath.isEmpty 
+                             ? "No workflow folder selected"
+                             : workflowPath)
+                            .foregroundStyle(workflowPath.isEmpty ? .secondary : .primary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                        
+                        Spacer()
+                    }
+                } header: {
+                    Text("Workflow Folder")
+                }
                 
                 Section {
                     Picker(NSLocalizedString("add_provider.install_method", comment: "Installation Method"), selection: $installMethod) {
@@ -220,7 +237,8 @@ struct AddProviderSheet: View {
                     Button(NSLocalizedString("generic.add", comment: "Add")) {
                         settings.addProvider(
                             name: providerName.trimmingCharacters(in: .whitespaces),
-                            path: providerPath,
+                            skillsPath: providerPath,
+                            workflowPath: workflowPath,
                             iconName: selectedIcon,
                             installMethod: installMethod,
                             templateId: selectedTemplate?.rawValue
@@ -284,6 +302,7 @@ struct EditProviderSheet: View {
     
     @State private var providerName: String
     @State private var providerPath: String
+    @State private var workflowPath: String
     @State private var installMethod: SkillInstallationMethod
     @State private var showingFolderPicker = false
     
@@ -291,8 +310,9 @@ struct EditProviderSheet: View {
         self.settings = settings
         self.provider = provider
         self._providerName = State(initialValue: provider.name)
-        self._providerPath = State(initialValue: provider.path)
+        self._providerPath = State(initialValue: provider.skillsPath)
         self._installMethod = State(initialValue: provider.installMethod)
+        self._workflowPath = State(initialValue: provider.workflowPath)
     }
     
     private var canSave: Bool {
@@ -331,6 +351,22 @@ struct EditProviderSheet: View {
                 } header: {
                     Text(NSLocalizedString("add_provider.folder_label", comment: "Skills Folder"))
                 }
+
+                Section {
+                    HStack {
+                        Text(workflowPath.isEmpty 
+                             ? "No workflow folder selected"
+                             : workflowPath)
+                            .foregroundStyle(workflowPath.isEmpty ? .secondary : .primary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                        
+                        Spacer()
+                         // No picker for now
+                    }
+                } header: {
+                    Text("Workflow Folder")
+                }
                 
                 Section {
                     Picker(NSLocalizedString("add_provider.install_method", comment: "Installation Method"), selection: $installMethod) {
@@ -354,7 +390,8 @@ struct EditProviderSheet: View {
                     Button(NSLocalizedString("generic.save", comment: "Save")) {
                         var updatedProvider = provider
                         updatedProvider.name = providerName.trimmingCharacters(in: .whitespaces)
-                        updatedProvider.path = providerPath
+                        updatedProvider.skillsPath = providerPath
+                        updatedProvider.workflowPath = workflowPath
                         updatedProvider.installMethod = installMethod
                         settings.updateProvider(updatedProvider)
                         dismiss()

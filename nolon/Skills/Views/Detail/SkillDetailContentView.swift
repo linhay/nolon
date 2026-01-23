@@ -6,16 +6,17 @@ import SwiftUI
 @MainActor
 public struct SkillDetailContentView: View {
     let skill: Skill?
+    @ObservedObject var settings: ProviderSettings
 
-    public init(skill: Skill?) {
+    public init(skill: Skill?, settings: ProviderSettings) {
         self.skill = skill
+        self.settings = settings
     }
 
     public var body: some View {
         Group {
             if let skill = skill {
-                skillDetailContent(skill)
-                            .textSelection(.enabled)
+                SkillDetailView(skill: skill, settings: settings)
             } else {
                 ContentUnavailableView(
                     NSLocalizedString("detail.no_selection", comment: "No Skill Selected"),
@@ -27,122 +28,6 @@ public struct SkillDetailContentView: View {
                 )
             }
         }
-    }
-
-    @ViewBuilder
-    private func skillDetailContent(_ skill: Skill) -> some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                // Header section
-                headerSection(skill)
-
-                Divider()
-
-                // Metadata section
-                metadataSection(skill)
-
-                Divider()
-
-                // Content section
-                contentSection(skill)
-            }
-            .padding()
-        }
-        .navigationTitle(skill.name)
-    }
-
-    @ViewBuilder
-    private func headerSection(_ skill: Skill) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // Name and version
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(skill.name)
-                        .font(.title)
-                        .bold()
-                    Text(skill.description)
-                        .font(.body)
-                        .foregroundStyle(.secondary)
-                }
-
-                Spacer()
-
-                // Version badge
-                Text("v\(skill.version)")
-                    .font(.caption)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(Color.blue.opacity(0.1))
-                    .foregroundStyle(.blue)
-                    .cornerRadius(6)
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func metadataSection(_ skill: Skill) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(NSLocalizedString("detail.metadata", comment: "Metadata"))
-                .font(.headline)
-
-            LazyVGrid(
-                columns: [
-                    GridItem(.flexible()),
-                    GridItem(.flexible()),
-                ], spacing: 12
-            ) {
-                // ID
-                MetadataItem(
-                    icon: "number",
-                    title: NSLocalizedString("detail.id", comment: "ID"),
-                    value: skill.id
-                )
-
-                // Version
-                MetadataItem(
-                    icon: "tag",
-                    title: NSLocalizedString("detail.version_label", comment: "Version"),
-                    value: skill.version
-                )
-
-                // References
-                MetadataItem(
-                    icon: "doc.text",
-                    title: NSLocalizedString("detail.references", comment: "References"),
-                    value:
-                        "\(skill.referenceCount) \(NSLocalizedString("detail.files", comment: "files"))"
-                )
-
-                // Scripts
-                MetadataItem(
-                    icon: "terminal",
-                    title: NSLocalizedString("detail.scripts", comment: "Scripts"),
-                    value:
-                        "\(skill.scriptCount) \(NSLocalizedString("detail.files", comment: "files"))"
-                )
-            }
-        }
-        .padding()
-        .background(Color.secondary.opacity(0.05))
-        .cornerRadius(12)
-    }
-
-    @ViewBuilder
-    private func contentSection(_ skill: Skill) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(NSLocalizedString("detail.skill_content", comment: "SKILL.md Content"))
-                .font(.headline)
-
-            Markdown(skill.content)
-                .padding()
-                .background(Color.secondary.opacity(0.05))
-                .cornerRadius(12)
-        }
-    }
-
-    private func openInFinder(_ skill: Skill) {
-        let url = URL(fileURLWithPath: skill.globalPath)
-        NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: url.path)
     }
 }
 

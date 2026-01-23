@@ -31,7 +31,7 @@ public struct ProviderSettingsView: View {
                             }
 
                             Button {
-                                let url = URL(fileURLWithPath: provider.path)
+                                let url = URL(fileURLWithPath: provider.skillsPath)
                                 NSWorkspace.shared.selectFile(
                                     nil, inFileViewerRootedAtPath: url.path)
                             } label: {
@@ -101,11 +101,11 @@ struct ProviderSettingsRowView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
-                Text(provider.path)
+                Text(provider.skillsPath)
                     .font(.system(.caption, design: .monospaced))
                     .lineLimit(1)
                     .truncationMode(.middle)
-                    .help(provider.path)
+                    .help(provider.skillsPath)
             }
 
             // Installation Method Display

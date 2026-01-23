@@ -55,11 +55,31 @@ public enum ProviderTemplate: String, CaseIterable, Sendable, Identifiable {
         }
     }
     
+    /// Default workflow path for this template
+    public var defaultWorkflowPath: URL {
+        let home = FileManager.default.homeDirectoryForCurrentUser
+        switch self {
+        case .codex:
+            return home.appendingPathComponent(".codex/workflows")
+        case .claude:
+            return home.appendingPathComponent(".claude/workflows")
+        case .opencode:
+            return home.appendingPathComponent(".config/opencode/workflows")
+        case .copilot:
+            return home.appendingPathComponent(".copilot/workflows")
+        case .gemini:
+            return home.appendingPathComponent(".gemini/workflows")
+        case .antigravity:
+            return home.appendingPathComponent(".gemini/antigravity/global_workflows")
+        }
+    }
+    
     /// Create a Provider instance from this template
     public func createProvider() -> Provider {
         Provider(
             name: displayName,
-            path: defaultPath.path,
+            skillsPath: defaultPath.path,
+            workflowPath: defaultWorkflowPath.path,
             iconName: iconName,
             installMethod: .symlink,
             templateId: rawValue

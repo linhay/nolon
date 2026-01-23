@@ -5,6 +5,12 @@ import SwiftUI
 @MainActor
 public struct SkillDetailView: View {
     let skill: Skill
+    @ObservedObject var settings: ProviderSettings
+
+    public init(skill: Skill, settings: ProviderSettings) {
+        self.skill = skill
+        self.settings = settings
+    }
 
     @State private var showingContent = false
 
@@ -30,6 +36,9 @@ public struct SkillDetailView: View {
                 .padding()
                 .background(Color.secondary.opacity(0.1))
                 .cornerRadius(12)
+
+                // Associated Area
+                associatedArea
 
                 // Additional files
                 if skill.hasReferences || skill.hasScripts {
@@ -116,6 +125,121 @@ public struct SkillDetailView: View {
             .textSelection(.enabled)
         }
         .navigationTitle(skill.name)
+    }
 
+    @ViewBuilder
+    private var associatedArea: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Associated Area")
+                .font(.headline)
+
+            // Providers List (Tags)
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Providers")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack {
+                        ForEach(settings.providers) { provider in
+                            if FileManager.default.fileExists(atPath: provider.skillsPath + "/" + skill.id) {
+                                Label(provider.name, systemImage: provider.iconName)
+                                    .font(.caption)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 4)
+                                    .background(Color.secondary.opacity(0.1))
+                                    .cornerRadius(8)
+                            }
+                        }
+                    }
+                }
+            }
+
+            Divider()
+
+            // Global Workflow Toggle
+            GlobalWorkflowToggle(skill: skill)
+        }
+        .padding()
+        .background(Color.secondary.opacity(0.05))
+        .cornerRadius(12)
+    }
+}
+
+struct GlobalWorkflowToggle: View {
+    let skill: Skill
+    
+    // Fixed path as requested
+    let globalWorkflowsPath = "/Users/linhey/.gemini/antigravity/global_workflows"
+    
+    var workflowPath: String {
+        globalWorkflowsPath + "/" + skill.id + ".md"
+    }
+
+    @State private var isEnabled: Bool = false
+
+    var body: some View {
+        Toggle(isOn: Binding(
+            get: { isEnabled },
+            set: { newValue in
+                if newValue {
+                    createWorkflow()
+                } else {
+                    deleteWorkflow()
+                }
+                isEnabled = newValue
+            }
+        )) {
+            VStack(alignment: .leading) {
+                Text("Workflow")
+                    .font(.subheadline)
+                Text(globalWorkflowsPath)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+        }
+        .toggleStyle(.switch)
+        .onAppear {
+            checkStatus()
+        }
+    }
+
+    private func checkStatus() {
+        isEnabled = FileManager.default.fileExists(atPath: workflowPath)
+    }
+
+    private func createWorkflow() {
+        do {
+            if !FileManager.default.fileExists(atPath: globalWorkflowsPath) {
+                try FileManager.default.createDirectory(atPath: globalWorkflowsPath, withIntermediateDirectories: true)
+            }
+            
+            // Create a simple workflow file referencing the skill
+            let content = """
+            ---
+            description: \(skill.description)
+            ---
+            
+            # \(skill.name)
+            
+            [Open Skill](nolon://skill/\(skill.id))
+            
+            """
+            try content.write(toFile: workflowPath, atomically: true, encoding: .utf8)
+        } catch {
+            print("Failed to create workflow: \(error)")
+        }
+    }
+
+    private func deleteWorkflow() {
+        do {
+            if FileManager.default.fileExists(atPath: workflowPath) {
+                try FileManager.default.removeItem(atPath: workflowPath)
+            }
+        } catch {
+            print("Failed to delete workflow: \(error)")
+        }
     }
 }

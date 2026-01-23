@@ -41,7 +41,7 @@ public struct MainSplitView: View {
             )
         } detail: {
             // Left 3: Skill detail
-            SkillDetailContentView(skill: selectedSkill)
+            SkillDetailContentView(skill: selectedSkill, settings: settings)
         }
         .navigationSplitViewStyle(.balanced)
         .toolbar {

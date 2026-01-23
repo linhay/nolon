@@ -330,6 +330,9 @@
         }
       }
     },
+    "Associated Area" : {
+
+    },
     "banner.orphaned_desc" : {
       "comment" : "Some skills are not managed...",
       "localizations" : {
@@ -550,7 +553,7 @@
       }
     },
     "detail.files" : {
-      "comment" : "Additional Files\nfiles",
+      "comment" : "Additional Files",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -562,6 +565,7 @@
     },
     "detail.id" : {
       "comment" : "ID",
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -584,6 +588,7 @@
     },
     "detail.metadata" : {
       "comment" : "Metadata",
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -646,6 +651,7 @@
     },
     "detail.references" : {
       "comment" : "References",
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -668,6 +674,7 @@
     },
     "detail.scripts" : {
       "comment" : "Scripts",
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -679,6 +686,7 @@
     },
     "detail.skill_content" : {
       "comment" : "SKILL.md Content",
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -702,6 +710,7 @@
     },
     "detail.version_label" : {
       "comment" : "Version",
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -1376,6 +1385,9 @@
         }
       }
     },
+    "Providers" : {
+
+    },
     "Refresh installed status" : {
       "localizations" : {
         "zh-Hans" : {
@@ -1479,6 +1491,7 @@
 
     },
     "Search %@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -1497,6 +1510,9 @@
           }
         }
       }
+    },
+    "Search Skills" : {
+
     },
     "select" : {
       "comment" : "Select",
@@ -1951,6 +1967,12 @@
           }
         }
       }
+    },
+    "Workflow" : {
+
+    },
+    "Workflow Folder" : {
+
     }
   },
   "version" : "1.1"

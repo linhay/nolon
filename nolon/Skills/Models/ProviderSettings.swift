@@ -18,7 +18,6 @@ public enum SkillInstallationMethod: String, CaseIterable, Codable, Identifiable
 
 @MainActor
 public class ProviderSettings: ObservableObject {
-    @AppStorage("unified_providers") private var storedProvidersData: Data = Data()
     @AppStorage("remote_repositories") private var storedRemoteRepositoriesData: Data = Data()
 
     // Legacy storage keys for migration
@@ -45,12 +44,13 @@ public class ProviderSettings: ObservableObject {
     }
 
     public func addProvider(
-        name: String, path: String, iconName: String = "folder",
+        name: String, skillsPath: String, workflowPath: String, iconName: String = "folder",
         installMethod: SkillInstallationMethod = .symlink, templateId: String? = nil
     ) {
         let provider = Provider(
             name: name,
-            path: path,
+            skillsPath: skillsPath,
+            workflowPath: workflowPath,
             iconName: iconName,
             installMethod: installMethod,
             templateId: templateId
@@ -97,7 +97,7 @@ public class ProviderSettings: ObservableObject {
     // MARK: - Provider Accessors
 
     public func path(for provider: Provider) -> URL {
-        URL(fileURLWithPath: provider.path)
+        URL(fileURLWithPath: provider.skillsPath)
     }
 
     public func method(for provider: Provider) -> SkillInstallationMethod {
@@ -106,16 +106,25 @@ public class ProviderSettings: ObservableObject {
 
     // MARK: - Persistence
 
+    private var providersFileURL: URL {
+        let home = FileManager.default.homeDirectoryForCurrentUser
+        let dir = home.appendingPathComponent(".nolon")
+        if !FileManager.default.fileExists(atPath: dir.path) {
+            try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        }
+        return dir.appendingPathComponent("providers.json")
+    }
+
     private func loadSettings() {
         // Load providers
-        if let decodedProviders = try? JSONDecoder().decode(
-            [Provider].self, from: storedProvidersData),
-            !decodedProviders.isEmpty
+        if FileManager.default.fileExists(atPath: providersFileURL.path),
+           let data = try? Data(contentsOf: providersFileURL),
+           let decodedProviders = try? JSONDecoder().decode([Provider].self, from: data),
+           !decodedProviders.isEmpty
         {
             self.providers = decodedProviders
         } else {
-            // Migration from legacy format
-            migrateFromLegacyFormat()
+             loadDefaultProviders()
         }
 
         // Load remote repositories
@@ -155,7 +164,8 @@ public class ProviderSettings: ObservableObject {
 
                 let provider = Provider(
                     name: template.displayName,
-                    path: path,
+                    skillsPath: path,
+                    workflowPath: template.defaultWorkflowPath.path,
                     iconName: template.iconName,
                     installMethod: method,
                     templateId: template.rawValue
@@ -177,7 +187,8 @@ public class ProviderSettings: ObservableObject {
                 let provider = Provider(
                     id: custom.id,
                     name: custom.name,
-                    path: custom.path,
+                    skillsPath: custom.path,
+                    workflowPath: "",
                     iconName: custom.iconName,
                     installMethod: .symlink,
                     templateId: nil
@@ -195,9 +206,15 @@ public class ProviderSettings: ObservableObject {
         legacyCustomProvidersData = Data()
     }
 
+    private func loadDefaultProviders() {
+        let defaults = ProviderTemplate.allCases.map { $0.createProvider() }
+        self.providers = defaults
+        saveProviders()
+    }
+
     private func saveProviders() {
         if let encoded = try? JSONEncoder().encode(providers) {
-            storedProvidersData = encoded
+            try? encoded.write(to: providersFileURL)
         }
     }
 
