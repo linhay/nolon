@@ -11,9 +11,13 @@ public struct MainSplitView: View {
     @State private var repository = SkillRepository()
     @State private var installer: SkillInstaller?
 
-    @State private var selectedProvider: Provider?
+    @State private var selectedProviderId: Provider.ID?
     @State private var selectedSkill: Skill?
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
+    
+    private var selectedProvider: Provider? {
+        settings.providers.first { $0.id == selectedProviderId }
+    }
 
     @State private var showingSettings = false
     @State private var showingGlobalSkills = false
@@ -28,7 +32,7 @@ public struct MainSplitView: View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
             // Left 1: Provider sidebar
             ProviderSidebarView(
-                selectedProvider: $selectedProvider,
+                selectedProviderId: $selectedProviderId,
                 settings: settings
             )
         } content: {

@@ -62,11 +62,13 @@ public final class SkillRepository {
             let scriptCount = countFiles(in: "\(skillPath)/scripts")
 
             // Parse skill
-            let parsedSkill = try SkillParser.parse(
+            guard let parsedSkill = try? SkillParser.parse(
                 content: content,
                 id: item,
                 globalPath: skillPath
-            )
+            ) else {
+                continue
+            }
 
             // Create skill with counts
             let skill = Skill(

@@ -3,31 +3,27 @@ import SwiftUI
 /// View for managing skills by provider (Legacy view - simplified)
 @MainActor
 public struct ProviderSkillsView: View {
-    let repository: SkillRepository
-    let installer: SkillInstaller
+    @State private var viewModel = ProviderSkillsViewModel()
     let onRefresh: () async -> Void
 
-    @State private var selectedProviderIndex = 0
-    @State private var providerStates: [ProviderSkillState] = []
-    @State private var errorMessage: String?
-    
-    @StateObject private var settings = ProviderSettings()
-    
-    private var selectedProvider: Provider? {
-        guard selectedProviderIndex < settings.providers.count else { return nil }
-        return settings.providers[selectedProviderIndex]
+    public init(
+        repository: SkillRepository,
+        installer: SkillInstaller,
+        onRefresh: @escaping () async -> Void
+    ) {
+        self.onRefresh = onRefresh
     }
 
     public var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
                 // Provider picker
-                if !settings.providers.isEmpty {
+                if !viewModel.settings.providers.isEmpty {
                     Picker(
                         NSLocalizedString("provider_picker.label", comment: "Provider"),
-                        selection: $selectedProviderIndex
+                        selection: $viewModel.selectedProviderIndex
                     ) {
-                        ForEach(Array(settings.providers.enumerated()), id: \.element.id) { index, provider in
+                        ForEach(Array(viewModel.settings.providers.enumerated()), id: \.element.id) { index, provider in
                             Text(provider.displayName).tag(index)
                         }
                     }
@@ -36,47 +32,45 @@ public struct ProviderSkillsView: View {
                 }
 
                 // Migration banner
-                if hasOrphanedSkills {
+                if viewModel.hasOrphanedSkills {
                     migrationBanner
                 }
 
                 // Skills list
-                if providerStates.isEmpty {
+                if viewModel.providerStates.isEmpty {
                     ContentUnavailableView(
                         NSLocalizedString("provider.empty", comment: "No Skills"),
                         systemImage: "folder.badge.questionmark",
                         description: Text(NSLocalizedString("provider.empty_desc", comment: "No skills found in this provider"))
                     )
                 } else {
-                    List(providerStates, id: \.skillName) { state in
+                    List(viewModel.providerStates, id: \.skillName) { state in
                         ProviderSkillRow(
                             state: state,
-                            provider: selectedProvider,
-                            installer: installer,
-                            onUpdate: { await loadProviderStates() }
+                            onUninstall: { await viewModel.uninstallSkill(at: state.path) },
+                            onMigrate: { await viewModel.migrateSkill(skillName: state.skillName) },
+                            onRepair: { await viewModel.repairSymlink(skillName: state.skillName) },
+                            onDelete: { await viewModel.deletePath(state.path) }
                         )
                     }
                 }
             }
             .navigationTitle(NSLocalizedString("provider.title", comment: "Provider Skills"))
-            .task(id: selectedProviderIndex) {
-                await loadProviderStates()
+            .task(id: viewModel.selectedProviderIndex) {
+                 viewModel.onRefreshHandler = onRefresh
+                 await viewModel.loadProviderStates()
             }
             .alert(
                 NSLocalizedString("generic.error", comment: "Error"),
-                isPresented: .constant(errorMessage != nil)
+                isPresented: .constant(viewModel.errorMessage != nil)
             ) {
-                Button(NSLocalizedString("generic.ok", comment: "OK")) { errorMessage = nil }
+                Button(NSLocalizedString("generic.ok", comment: "OK")) { viewModel.errorMessage = nil }
             } message: {
-                if let error = errorMessage {
+                if let error = viewModel.errorMessage {
                     Text(error)
                 }
             }
         }
-    }
-
-    private var hasOrphanedSkills: Bool {
-        providerStates.contains { $0.state == .orphaned }
     }
 
     private var migrationBanner: some View {
@@ -105,7 +99,7 @@ public struct ProviderSkillsView: View {
 
             Button(NSLocalizedString("action.migrate_all", comment: "Migrate All")) {
                 Task {
-                    await migrateAll()
+                    await viewModel.migrateAll()
                 }
             }
             .buttonStyle(.borderedProminent)
@@ -113,39 +107,15 @@ public struct ProviderSkillsView: View {
         .padding()
         .background(Color.orange.opacity(0.1))
     }
-
-    private func loadProviderStates() async {
-        guard let provider = selectedProvider else {
-            providerStates = []
-            return
-        }
-        
-        do {
-            providerStates = try installer.scanProvider(provider: provider)
-        } catch {
-            errorMessage = error.localizedDescription
-        }
-    }
-
-    private func migrateAll() async {
-        guard let provider = selectedProvider else { return }
-        
-        do {
-            _ = try installer.migrateAll(from: provider)
-            await loadProviderStates()
-            await onRefresh()
-        } catch {
-            errorMessage = error.localizedDescription
-        }
-    }
 }
 
 /// Row for a skill in provider directory
 struct ProviderSkillRow: View {
     let state: ProviderSkillState
-    let provider: Provider?
-    let installer: SkillInstaller
-    let onUpdate: () async -> Void
+    let onUninstall: () async -> Void
+    let onMigrate: () async -> Void
+    let onRepair: () async -> Void
+    let onDelete: () async -> Void
 
     @State private var showingDeleteConfirmation = false
 
@@ -161,13 +131,11 @@ struct ProviderSkillRow: View {
             Spacer()
 
             // Actions based on state
-            if let provider = provider {
                 switch state.state {
                 case .installed:
                     Button(NSLocalizedString("action.uninstall", comment: "Uninstall")) {
                         Task {
-                            try? FileManager.default.removeItem(atPath: state.path)
-                            await onUpdate()
+                            await onUninstall()
                         }
                     }
                     .buttonStyle(.bordered)
@@ -176,8 +144,7 @@ struct ProviderSkillRow: View {
                 case .orphaned:
                     Button(NSLocalizedString("action.migrate", comment: "Migrate")) {
                         Task {
-                            try? installer.migrate(skillName: state.skillName, from: provider)
-                            await onUpdate()
+                            await onMigrate()
                         }
                     }
                     .buttonStyle(.borderedProminent)
@@ -186,8 +153,7 @@ struct ProviderSkillRow: View {
                     HStack(spacing: 8) {
                         Button(NSLocalizedString("action.repair", comment: "Repair")) {
                             Task {
-                                try? installer.repairSymlink(skillName: state.skillName, for: provider)
-                                await onUpdate()
+                                await onRepair()
                             }
                         }
                         .buttonStyle(.bordered)
@@ -199,7 +165,6 @@ struct ProviderSkillRow: View {
                         .tint(.red)
                     }
                 }
-            }
         }
         .confirmationDialog(
             NSLocalizedString("confirm.delete_broken_title", comment: "Delete broken symlink?"),
@@ -207,8 +172,7 @@ struct ProviderSkillRow: View {
         ) {
             Button(NSLocalizedString("action.delete", comment: "Delete"), role: .destructive) {
                 Task {
-                    try? FileManager.default.removeItem(atPath: state.path)
-                    await onUpdate()
+                    await onDelete()
                 }
             }
         }

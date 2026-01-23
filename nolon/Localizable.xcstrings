@@ -139,12 +139,31 @@
         }
       }
     },
+    "action.remove_link" : {
+      "comment" : "Remove Link",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Remove Link"
+          }
+        }
+      }
+    },
     "action.repair" : {
       "comment" : "Repair",
+      "extractionState" : "extracted_with_value",
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Repair"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "修复"
           }
         }
@@ -621,7 +640,7 @@
       }
     },
     "detail.open_folder" : {
-      "comment" : "Open in Finder",
+      "comment" : "Open in Finder\nReveal",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
@@ -1385,9 +1404,6 @@
         }
       }
     },
-    "Providers" : {
-
-    },
     "Refresh installed status" : {
       "localizations" : {
         "zh-Hans" : {
@@ -1728,6 +1744,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "可安装"
+          }
+        }
+      }
+    },
+    "skills_list.broken" : {
+      "comment" : "Broken Links",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Broken Links"
+          }
+        }
+      }
+    },
+    "skills_list.broken_badge" : {
+      "comment" : "Broken",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Broken"
+          }
+        }
+      }
+    },
+    "skills_list.broken_desc" : {
+      "comment" : "Link broken",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Link destination not found"
           }
         }
       }

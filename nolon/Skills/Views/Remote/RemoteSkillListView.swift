@@ -97,17 +97,11 @@ struct RemoteSkillListView: View {
 
 struct RemoteSkillRowView: View {
     let skill: RemoteSkill
-    var isInstalled: Bool = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text(skill.displayName)
-                    .font(.headline)
-                if isInstalled {
-                    SkillInstalledBadge()
-                }
-            }
+            Text(skill.displayName)
+                .font(.headline)
             if let summary = skill.summary {
                 Text(summary)
                     .font(.caption)

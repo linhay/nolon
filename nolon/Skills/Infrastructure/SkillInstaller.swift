@@ -37,9 +37,9 @@ public final class SkillInstaller {
         let providerPath = provider.skillsPath
         let targetPath = "\(providerPath)/\(skill.id)"
 
-        // Check if already exists
+        // If already exists, remove it first to allow reinstall/update
         if fileManager.fileExists(atPath: targetPath) {
-            throw SkillError.symlinkFailed("Skill already exists at '\(targetPath)'")
+            try fileManager.removeItem(atPath: targetPath)
         }
 
         // Ensure provider directory exists
@@ -150,8 +150,11 @@ public final class SkillInstaller {
         try createDirectory(at: globalSkillsPath)
 
         // Register in global storage (Symlink Global -> Source)
-        // If it already exists, replace it to ensure we are using the requested version
-        if fileManager.fileExists(atPath: globalPath) {
+        // If it already exists (including broken symlinks), replace it
+        // Note: fileExists returns false for broken symlinks, so we use attributesOfItem
+        let globalURL = URL(fileURLWithPath: globalPath)
+        if (try? globalURL.checkResourceIsReachable()) == true || 
+           (try? fileManager.attributesOfItem(atPath: globalPath)) != nil {
             try fileManager.removeItem(atPath: globalPath)
         }
 

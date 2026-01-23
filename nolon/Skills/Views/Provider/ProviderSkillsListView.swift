@@ -4,33 +4,14 @@ import SwiftUI
 /// Shows skills with install/uninstall actions
 @MainActor
 public struct ProviderSkillsListView: View {
-    let provider: Provider?
+    @State private var viewModel: ProviderSkillsListViewModel
     @Binding var selectedSkill: Skill?
-    @ObservedObject var settings: ProviderSettings
-
+    
     /// External trigger to force refresh (increment to reload)
-    var refreshTrigger: Int = 0
-
-    @State private var repository = SkillRepository()
-    @State private var installer: SkillInstaller?
-    @State private var allSkills: [Skill] = []
-    @State private var installedSkillIds: Set<String> = []
-    @State private var orphanedSkillStates: [ProviderSkillState] = []
-    @State private var searchText = ""
-    @State private var errorMessage: String?
-
-    @State private var skillToDelete: Skill?
-    @State private var showingDeleteAlert = false
-
-    @State private var conflictingSkillState: ProviderSkillState?
-    @State private var showingConflictAlert = false
-
-    /// Current provider name for display
-    private var providerName: String {
-        provider?.displayName
-            ?? NSLocalizedString("skills_list.no_provider", comment: "Select a Provider")
-    }
-
+    var refreshTrigger: Int
+    
+    var provider: Provider?
+    
     public init(
         provider: Provider?,
         selectedSkill: Binding<Skill?>,
@@ -39,13 +20,14 @@ public struct ProviderSkillsListView: View {
     ) {
         self.provider = provider
         self._selectedSkill = selectedSkill
-        self.settings = settings
         self.refreshTrigger = refreshTrigger
+        let vm = ProviderSkillsListViewModel(provider: provider, settings: settings)
+        self._viewModel = State(initialValue: vm)
     }
-
+    
     public var body: some View {
         Group {
-            if provider != nil {
+            if viewModel.provider != nil {
                 skillsListContent()
             } else {
                 ContentUnavailableView(
@@ -58,23 +40,28 @@ public struct ProviderSkillsListView: View {
                 )
             }
         }
-        .onAppear {
-            installer = SkillInstaller(repository: repository, settings: settings)
+        .task(id: "\(viewModel.provider?.id ?? "")-\(refreshTrigger)") {
+            await viewModel.loadSkills()
+            if selectedSkill == nil, let first = viewModel.allSkills.first {
+                selectedSkill = first
+            }
         }
-        .task(id: "\(provider?.id ?? "")-\(refreshTrigger)") {
-            await loadSkills()
+        .onChange(of: provider) { _, newProvider in
+            Task {
+                await viewModel.updateProvider(newProvider)
+            }
         }
         .refreshable {
-            await loadSkills()
+            await viewModel.loadSkills()
         }
         .alert(
             NSLocalizedString(
                 "confirm.delete_title", value: "Delete Skill?", comment: "Delete Skill?"),
-            isPresented: $showingDeleteAlert,
-            presenting: skillToDelete
+            isPresented: $viewModel.showingDeleteAlert,
+            presenting: viewModel.skillToDelete
         ) { skill in
             Button(NSLocalizedString("action.delete", comment: "Delete"), role: .destructive) {
-                performDelete(skill)
+                viewModel.performDelete(skill)
             }
             Button(NSLocalizedString("generic.cancel", comment: "Cancel"), role: .cancel) {}
         } message: { skill in
@@ -90,14 +77,14 @@ public struct ProviderSkillsListView: View {
             NSLocalizedString(
                 "confirm.migrate_conflict_title", value: "Skill Already Exists",
                 comment: "Migration conflict title"),
-            isPresented: $showingConflictAlert,
-            presenting: conflictingSkillState
+            isPresented: $viewModel.showingConflictAlert,
+            presenting: viewModel.conflictingSkillState
         ) { skillState in
             Button(
                 NSLocalizedString("action.overwrite", comment: "Overwrite"), role: .destructive
             ) {
                 Task {
-                    await migrateSkillWithOverwrite(skillState)
+                    await viewModel.migrateSkillWithOverwrite(skillState)
                 }
             }
             Button(NSLocalizedString("generic.cancel", comment: "Cancel"), role: .cancel) {}
@@ -117,18 +104,18 @@ public struct ProviderSkillsListView: View {
         VStack(spacing: 0) {
             List(selection: $selectedSkill) {
                 // Installed skills section
-                let installed = installedSkills
+                let installed = viewModel.installedSkills
                 if !installed.isEmpty {
                     Section {
                         ForEach(installed) { skill in
                             SkillListRowView(
                                 skill: skill,
                                 isInstalled: true,
-                                providerPath: provider?.skillsPath,
-                                canDelete: provider?.installMethod == .copy,
-                                onInstall: { await installSkill(skill) },
-                                onUninstall: { await uninstallSkill(skill) },
-                                onDelete: { confirmDelete(skill) }
+                                providerPath: viewModel.provider?.skillsPath,
+                                canDelete: viewModel.provider?.installMethod == .copy,
+                                onInstall: { await viewModel.installSkill(skill) },
+                                onUninstall: { await viewModel.uninstallSkill(skill) },
+                                onDelete: { viewModel.confirmDelete(skill) }
                             )
                             .tag(skill)
                         }
@@ -141,7 +128,7 @@ public struct ProviderSkillsListView: View {
                 }
 
                 // Available skills section
-                let available = availableSkills
+                let available = viewModel.availableSkills
                 if !available.isEmpty {
                     Section {
                         ForEach(available) { skill in
@@ -150,9 +137,9 @@ public struct ProviderSkillsListView: View {
                                 isInstalled: false,
                                 providerPath: nil,
                                 canDelete: true,
-                                onInstall: { await installSkill(skill) },
-                                onUninstall: { await uninstallSkill(skill) },
-                                onDelete: { confirmDelete(skill) }
+                                onInstall: { await viewModel.installSkill(skill) },
+                                onUninstall: { await viewModel.uninstallSkill(skill) },
+                                onDelete: { viewModel.confirmDelete(skill) }
                             )
                             .tag(skill)
                         }
@@ -165,14 +152,14 @@ public struct ProviderSkillsListView: View {
                 }
 
                 // Existing (orphaned) skills section - skills in provider not managed by app
-                let orphaned = filteredOrphanedSkills
+                let orphaned = viewModel.filteredOrphanedSkills
                 if !orphaned.isEmpty {
                     Section {
                         ForEach(orphaned, id: \.skillName) { skillState in
                             OrphanedSkillRowView(
                                 skillState: skillState,
-                                onMigrate: { await migrateSkill(skillState) },
-                                onReveal: { revealInFinder(skillState.path) }
+                                onMigrate: { await viewModel.migrateSkill(skillState) },
+                                onReveal: { viewModel.revealInFinder(skillState.path) }
                             )
                         }
                     } header: {
@@ -182,154 +169,47 @@ public struct ProviderSkillsListView: View {
                         )
                     }
                 }
+                
+                // Broken skills section
+                let broken = viewModel.filteredBrokenSkills
+                if !broken.isEmpty {
+                    Section {
+                        ForEach(broken, id: \.skillName) { skillState in
+                            BrokenSkillRowView(
+                                skillState: skillState,
+                                onRepair: { await viewModel.repairSymlink(skillState) },
+                                onUninstall: { await viewModel.uninstallBrokenSkill(skillState) },
+                                onReveal: { viewModel.revealInFinder(skillState.path) }
+                            )
+                        }
+                    } header: {
+                        Label(
+                            NSLocalizedString("skills_list.broken", value: "Broken Links", comment: "Broken Links"),
+                            systemImage: "exclamationmark.triangle.fill"
+                        )
+                    }
+                }
             }
             .listStyle(.inset)
             .searchable(
-                text: $searchText,
+                text: $viewModel.searchText,
                 prompt: Text(NSLocalizedString("skills_list.search", comment: "Search skills"))
             )
         }
-        .navigationTitle(providerName)
+        .navigationTitle(viewModel.providerName)
         .alert(
             NSLocalizedString("generic.error", comment: "Error"),
-            isPresented: .constant(errorMessage != nil)
+            isPresented: .constant(viewModel.errorMessage != nil)
         ) {
-            Button(NSLocalizedString("generic.ok", comment: "OK")) { errorMessage = nil }
+            Button(NSLocalizedString("generic.ok", comment: "OK")) { viewModel.errorMessage = nil }
         } message: {
-            if let error = errorMessage {
+            if let error = viewModel.errorMessage {
                 Text(error)
             }
         }
     }
 
-    private var filteredSkills: [Skill] {
-        if searchText.isEmpty {
-            return allSkills
-        }
-        return allSkills.filter { $0.matches(query: searchText) }
-    }
 
-    private var installedSkills: [Skill] {
-        filteredSkills.filter { installedSkillIds.contains($0.id) }
-    }
-
-    private var availableSkills: [Skill] {
-        filteredSkills.filter { skill in
-            !installedSkillIds.contains(skill.id)
-                && !orphanedSkillStates.contains { $0.skillName == skill.id }
-        }
-    }
-
-    private var filteredOrphanedSkills: [ProviderSkillState] {
-        if searchText.isEmpty {
-            return orphanedSkillStates
-        }
-        return orphanedSkillStates.filter {
-            $0.skillName.localizedCaseInsensitiveContains(searchText)
-        }
-    }
-
-    private func loadSkills() async {
-        guard let provider = provider, let installer = installer else {
-            installedSkillIds = []
-            return
-        }
-
-        do {
-            allSkills = try repository.listSkills()
-
-            // Scan provider directory
-            let states = try installer.scanProvider(provider: provider)
-            installedSkillIds = Set(states.filter { $0.state == .installed }.map(\.skillName))
-            orphanedSkillStates = states.filter { $0.state == .orphaned }
-
-            // Auto-select first skill if none selected
-            if selectedSkill == nil, let first = allSkills.first {
-                selectedSkill = first
-            }
-        } catch {
-            errorMessage = error.localizedDescription
-        }
-    }
-
-    private func installSkill(_ skill: Skill) async {
-        guard let installer = installer, let provider = provider else { return }
-        do {
-            try installer.install(skill: skill, to: provider)
-            await loadSkills()
-        } catch {
-            errorMessage = error.localizedDescription
-        }
-    }
-
-    private func uninstallSkill(_ skill: Skill) async {
-        guard let installer = installer, let provider = provider else { return }
-        do {
-            try installer.uninstall(skill: skill, from: provider)
-            await loadSkills()
-        } catch {
-            errorMessage = error.localizedDescription
-        }
-    }
-
-    private func confirmDelete(_ skill: Skill) {
-        skillToDelete = skill
-        showingDeleteAlert = true
-    }
-
-    private func performDelete(_ skill: Skill) {
-        do {
-            if installedSkillIds.contains(skill.id) {
-                // Try to uninstall first if installed
-                // Note: We can't await here easily in a button callback, but removing the global source
-                // will break the symlink anyway. Ideally we should uninstall cleanly first.
-                // For now, let's just remove the global item which is the primary action.
-                // Ideally this should make the symlink broken.
-            }
-
-            try FileManager.default.removeItem(atPath: skill.globalPath)
-
-            // Refresh
-            Task {
-                await loadSkills()
-            }
-        } catch {
-            errorMessage = error.localizedDescription
-        }
-    }
-
-    private func migrateSkill(_ skillState: ProviderSkillState) async {
-        guard let installer = installer, let provider = provider else { return }
-        do {
-            _ = try installer.migrate(skillName: skillState.skillName, from: provider)
-            await loadSkills()
-        } catch let error as SkillError {
-            if case .conflictDetected = error {
-                // Show conflict alert for user decision
-                conflictingSkillState = skillState
-                showingConflictAlert = true
-            } else {
-                errorMessage = error.localizedDescription
-            }
-        } catch {
-            errorMessage = error.localizedDescription
-        }
-    }
-
-    private func migrateSkillWithOverwrite(_ skillState: ProviderSkillState) async {
-        guard let installer = installer, let provider = provider else { return }
-        do {
-            _ = try installer.migrate(
-                skillName: skillState.skillName, from: provider, overwriteExisting: true)
-            await loadSkills()
-        } catch {
-            errorMessage = error.localizedDescription
-        }
-    }
-
-    private func revealInFinder(_ path: String) {
-        NSWorkspace.shared.selectFile(path, inFileViewerRootedAtPath: "")
-    }
 }
 
 /// Row view for a skill in the list
@@ -574,6 +454,95 @@ struct OrphanedSkillRowView: View {
                     NSLocalizedString(
                         "detail.open_folder", value: "Reveal in Finder",
                         comment: "Open in Finder"), systemImage: "folder")
+            }
+        }
+    }
+}
+
+/// Row view for a broken skill link
+struct BrokenSkillRowView: View {
+    let skillState: ProviderSkillState
+    let onRepair: () async -> Void
+    let onUninstall: () async -> Void
+    let onReveal: () -> Void
+    
+    var body: some View {
+        HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text(skillState.skillName)
+                        .font(.headline)
+                        .foregroundStyle(.secondary)
+                    
+                    Text(NSLocalizedString("skills_list.broken_badge", value: "Broken", comment: "Broken"))
+                        .font(.caption2)
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.red)
+                        .cornerRadius(4)
+                }
+                
+                Text(NSLocalizedString("skills_list.broken_desc", value: "Link destination not found", comment: "Link broken"))
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .lineLimit(2)
+            }
+            
+            Spacer()
+            
+            Menu {
+                // 1. Repair
+                Button {
+                    Task { await onRepair() }
+                } label: {
+                    Label(NSLocalizedString("action.repair", value: "Repair", comment: "Repair"), systemImage: "wrench.and.screwdriver")
+                }
+                
+                // 2. Reveal in Finder
+                Button {
+                    onReveal()
+                } label: {
+                    Label(NSLocalizedString("detail.open_folder", value: "Reveal in Finder", comment: "Reveal"), systemImage: "folder")
+                }
+                
+                Divider()
+                
+                // 3. Uninstall (Remove Link)
+                Button(role: .destructive) {
+                    Task { await onUninstall() }
+                } label: {
+                    Label(NSLocalizedString("action.remove_link", value: "Remove Link", comment: "Remove Link"), systemImage: "trash")
+                }
+            } label: {
+                Image(systemName: "exclamationmark.circle")
+                    .font(.title2)
+                    .foregroundStyle(.red)
+                    .frame(width: 30, height: 30)
+                    .contentShape(Rectangle())
+            }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .fixedSize()
+        }
+        .contentShape(Rectangle())
+        .contextMenu {
+            Button {
+                Task { await onRepair() }
+            } label: {
+                Label(NSLocalizedString("action.repair", value: "Repair", comment: "Repair"), systemImage: "wrench.and.screwdriver")
+            }
+            
+            Button {
+                onReveal()
+            } label: {
+                Label(NSLocalizedString("detail.open_folder", value: "Reveal in Finder", comment: "Reveal"), systemImage: "folder")
+            }
+            
+            Button(role: .destructive) {
+                Task { await onUninstall() }
+            } label: {
+                Label(NSLocalizedString("action.remove_link", value: "Remove Link", comment: "Remove Link"), systemImage: "trash")
             }
         }
     }

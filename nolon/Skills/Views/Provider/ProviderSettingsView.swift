@@ -3,11 +3,10 @@ import UniformTypeIdentifiers
 
 /// Provider Settings View - displays all configured providers with editing support
 public struct ProviderSettingsView: View {
-    @ObservedObject var settings: ProviderSettings
-    @State private var editingProvider: Provider?
+    @State private var viewModel: ProviderSettingsViewModel
 
     public init(settings: ProviderSettings) {
-        self.settings = settings
+        _viewModel = State(initialValue: ProviderSettingsViewModel(settings: settings))
     }
 
     public var body: some View {
@@ -15,15 +14,15 @@ public struct ProviderSettingsView: View {
             Section(
                 NSLocalizedString("settings.providers_config", comment: "Providers Configuration")
             ) {
-                ForEach(settings.providers) { provider in
+                ForEach(viewModel.settings.providers) { provider in
                     ProviderSettingsRowView(provider: provider)
                         .contentShape(Rectangle())
                         .onTapGesture {
-                            editingProvider = provider
+                            viewModel.editingProvider = provider
                         }
                         .contextMenu {
                             Button {
-                                editingProvider = provider
+                                viewModel.editingProvider = provider
                             } label: {
                                 Label(
                                     NSLocalizedString("action.edit", comment: "Edit"),
@@ -31,9 +30,7 @@ public struct ProviderSettingsView: View {
                             }
 
                             Button {
-                                let url = URL(fileURLWithPath: provider.skillsPath)
-                                NSWorkspace.shared.selectFile(
-                                    nil, inFileViewerRootedAtPath: url.path)
+                                viewModel.selectFile(for: provider)
                             } label: {
                                 Label(
                                     NSLocalizedString(
@@ -44,7 +41,7 @@ public struct ProviderSettingsView: View {
                             Divider()
 
                             Button(role: .destructive) {
-                                settings.removeProvider(provider)
+                                viewModel.removeProvider(provider)
                             } label: {
                                 Label(
                                     NSLocalizedString("action.delete", comment: "Delete"),
@@ -53,10 +50,10 @@ public struct ProviderSettingsView: View {
                         }
                 }
                 .onDelete { offsets in
-                    settings.removeProvider(at: offsets)
+                    viewModel.removeProvider(at: offsets)
                 }
                 .onMove { source, destination in
-                    settings.moveProvider(from: source, to: destination)
+                    viewModel.moveProvider(from: source, to: destination)
                 }
             }
 
@@ -70,8 +67,8 @@ public struct ProviderSettingsView: View {
         }
         .formStyle(.grouped)
         .navigationTitle(NSLocalizedString("settings.title", comment: "Settings"))
-        .sheet(item: $editingProvider) { provider in
-            EditProviderSheet(settings: settings, provider: provider)
+        .sheet(item: $viewModel.editingProvider) { provider in
+            EditProviderSheet(settings: viewModel.settings, provider: provider)
         }
     }
 }

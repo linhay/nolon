@@ -124,24 +124,20 @@ struct RemoteSkillsContentView: View {
                     description: Text(error)
                 )
                 .listRowSeparator(.hidden)
-                if !searchText.isEmpty {
-                    ContentUnavailableView.search(text: searchText)
-                        .listRowSeparator(.hidden)
-                } else if viewModel.skills.isEmpty {
-                    ContentUnavailableView(
-                        "No Skills",
-                        systemImage: "tray",
-                        description: Text("This repository has no skills yet")
-                    )
+            } else if !searchText.isEmpty && viewModel.skills.isEmpty {
+                ContentUnavailableView.search(text: searchText)
                     .listRowSeparator(.hidden)
-                } else {
-                    ForEach(viewModel.skills) { skill in
-                        RemoteSkillRowView(
-                            skill: skill,
-                            isInstalled: installedSlugs.contains(skill.slug)
-                        )
-                        .tag(skill)
-                    }
+            } else if viewModel.skills.isEmpty {
+                ContentUnavailableView(
+                    "No Skills",
+                    systemImage: "tray",
+                    description: Text("This repository has no skills yet")
+                )
+                .listRowSeparator(.hidden)
+            } else {
+                ForEach(viewModel.skills) { skill in
+                    RemoteSkillRowView(skill: skill)
+                    .tag(skill)
                 }
             }
         }

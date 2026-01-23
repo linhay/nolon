@@ -1,66 +1,194 @@
 import SwiftUI
+import Observation
 import UniformTypeIdentifiers
+
+// MARK: - ViewModels
+
+@Observable
+final class ProviderSidebarViewModel {
+    var showingAddProvider = false
+    var editingProvider: Provider?
+    
+    var settings: ProviderSettings
+    
+    init(settings: ProviderSettings) {
+        self.settings = settings
+    }
+    
+    @MainActor
+    func deleteProvider(_ provider: Provider, currentSelection: Binding<Provider.ID?>) {
+        settings.removeProvider(provider)
+        if currentSelection.wrappedValue == provider.id {
+            currentSelection.wrappedValue = settings.providers.first?.id
+        }
+    }
+    
+    @MainActor
+    func deleteProviders(at offsets: IndexSet) {
+        settings.removeProvider(at: offsets)
+    }
+    
+    @MainActor
+    func moveProviders(from source: IndexSet, to destination: Int) {
+        settings.moveProvider(from: source, to: destination)
+    }
+    
+    @MainActor
+    func selectFirstProviderIfNone(selection: Binding<Provider.ID?>) {
+        if selection.wrappedValue == nil {
+            selection.wrappedValue = settings.providers.first?.id
+        }
+    }
+    
+    @MainActor
+    func showInFinder(_ provider: Provider) {
+        let url = URL(fileURLWithPath: provider.skillsPath)
+        NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: url.path)
+    }
+}
+
+// ... (AddProviderViewModel and EditProviderViewModel remain unchanged, keeping the ellipsis or just not including them in replacement if not needed. Since I need to replace the class block, I will target the ProviderSidebarViewModel class specifically)
+
+@Observable
+final class AddProviderViewModel {
+    var providerName = ""
+    var providerPath = ""
+    var workflowPath = ""
+    var selectedIcon = "folder"
+    var installMethod: SkillInstallationMethod = .symlink
+    var showingFolderPicker = false
+    var selectedTemplate: ProviderTemplate?
+    
+    var settings: ProviderSettings
+    
+    init(settings: ProviderSettings) {
+        self.settings = settings
+    }
+    
+    var canSave: Bool {
+        !providerName.trimmingCharacters(in: .whitespaces).isEmpty &&
+        !providerPath.isEmpty
+    }
+    
+    func selectTemplate(_ template: ProviderTemplate) {
+        selectedTemplate = template
+        providerName = template.displayName
+        providerPath = template.defaultPath.path
+        workflowPath = template.defaultWorkflowPath.path
+        selectedIcon = template.iconName
+    }
+    
+    func onNameChange() {
+        if providerName != selectedTemplate?.displayName {
+            selectedTemplate = nil
+        }
+    }
+    
+    func handleFolderSelection(_ result: Result<[URL], Error>) {
+        switch result {
+        case .success(let urls):
+            if let url = urls.first {
+                providerPath = url.path
+                selectedTemplate = nil
+            }
+        case .failure(let error):
+            print("Folder selection failed: \(error)")
+        }
+    }
+    
+    func addProvider() {
+        settings.addProvider(
+            name: providerName.trimmingCharacters(in: .whitespaces),
+            skillsPath: providerPath,
+            workflowPath: workflowPath,
+            iconName: selectedIcon,
+            installMethod: installMethod,
+            templateId: selectedTemplate?.rawValue
+        )
+    }
+}
+
+@Observable
+final class EditProviderViewModel {
+    var providerName: String
+    var providerPath: String
+    var workflowPath: String
+    var installMethod: SkillInstallationMethod
+    var showingFolderPicker = false
+    
+    var settings: ProviderSettings
+    var provider: Provider
+    
+    init(settings: ProviderSettings, provider: Provider) {
+        self.settings = settings
+        self.provider = provider
+        self.providerName = provider.name
+        self.providerPath = provider.skillsPath
+        self.workflowPath = provider.workflowPath
+        self.installMethod = provider.installMethod
+    }
+    
+    var canSave: Bool {
+        !providerName.trimmingCharacters(in: .whitespaces).isEmpty &&
+        !providerPath.isEmpty
+    }
+    
+    func handleFolderSelection(_ result: Result<[URL], Error>) {
+        switch result {
+        case .success(let urls):
+            if let url = urls.first {
+                providerPath = url.path
+            }
+        case .failure(let error):
+            print("Folder selection failed: \(error)")
+        }
+    }
+    
+    func saveProvider() {
+        var updatedProvider = provider
+        updatedProvider.name = providerName.trimmingCharacters(in: .whitespaces)
+        updatedProvider.skillsPath = providerPath
+        updatedProvider.workflowPath = workflowPath
+        updatedProvider.installMethod = installMethod
+        settings.updateProvider(updatedProvider)
+    }
+}
+
+// MARK: - Views
 
 /// Left column 1: Provider sidebar (collapsible)
 /// Displays the unified list of all providers with selection state
 @MainActor
 public struct ProviderSidebarView: View {
-    @Binding var selectedProvider: Provider?
-    @ObservedObject var settings: ProviderSettings
-    @State private var showingAddProvider = false
-    @State private var editingProvider: Provider?
+    @Binding var selectedProviderId: Provider.ID?
+    @State private var viewModel: ProviderSidebarViewModel
     
     public init(
-        selectedProvider: Binding<Provider?>,
+        selectedProviderId: Binding<Provider.ID?>,
         settings: ProviderSettings
     ) {
-        self._selectedProvider = selectedProvider
-        self.settings = settings
+        self._selectedProviderId = selectedProviderId
+        self._viewModel = State(initialValue: ProviderSidebarViewModel(settings: settings))
     }
     
     public var body: some View {
-        List(selection: $selectedProvider) {
+        List(selection: $selectedProviderId) {
             Section {
-                ForEach(settings.providers) { provider in
+                ForEach(viewModel.settings.providers) { provider in
                     ProviderRowView(
                         provider: provider,
-                        isSelected: selectedProvider?.id == provider.id
+                        isSelected: selectedProviderId == provider.id,
+                        onShowInFinder: { viewModel.showInFinder(provider) },
+                        onEdit: { viewModel.editingProvider = provider },
+                        onDelete: { viewModel.deleteProvider(provider, currentSelection: $selectedProviderId) }
                     )
-                    .tag(provider)
-                    .contentShape(Rectangle())
-                    .contextMenu {
-                        Button {
-                            // 在 Finder 中打开
-                            let url = URL(fileURLWithPath: provider.skillsPath)
-                            NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: url.path)
-                        } label: {
-                            Label(NSLocalizedString("action.show_in_finder", comment: "Show in Finder"), systemImage: "folder")
-                        }
-                        
-                        Button {
-                            // 编辑
-                            editingProvider = provider
-                        } label: {
-                            Label(NSLocalizedString("action.edit", comment: "Edit"), systemImage: "pencil")
-                        }
-                        
-                        Divider()
-                        
-                        Button(role: .destructive) {
-                            settings.removeProvider(provider)
-                            if selectedProvider?.id == provider.id {
-                                selectedProvider = settings.providers.first
-                            }
-                        } label: {
-                            Label(NSLocalizedString("action.delete", comment: "Delete"), systemImage: "trash")
-                        }
-                    }
+                    .tag(provider.id)
                 }
                 .onDelete { offsets in
-                    settings.removeProvider(at: offsets)
+                    viewModel.deleteProviders(at: offsets)
                 }
                 .onMove { source, destination in
-                    settings.moveProvider(from: source, to: destination)
+                    viewModel.moveProviders(from: source, to: destination)
                 }
             } header: {
                 Text(NSLocalizedString("sidebar.providers", comment: "Providers"))
@@ -71,7 +199,7 @@ public struct ProviderSidebarView: View {
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button {
-                    showingAddProvider = true
+                    viewModel.showingAddProvider = true
                 } label: {
                     Label(
                         NSLocalizedString("sidebar.add_provider", comment: "Add Provider"),
@@ -80,17 +208,14 @@ public struct ProviderSidebarView: View {
                 }
             }
         }
-        .sheet(isPresented: $showingAddProvider) {
-            AddProviderSheet(settings: settings)
+        .sheet(isPresented: $viewModel.showingAddProvider) {
+            AddProviderSheet(settings: viewModel.settings)
         }
-        .sheet(item: $editingProvider) { provider in
-            EditProviderSheet(settings: settings, provider: provider)
+        .sheet(item: $viewModel.editingProvider) { provider in
+            EditProviderSheet(settings: viewModel.settings, provider: provider)
         }
         .onAppear {
-            // Select first provider by default if none selected
-            if selectedProvider == nil {
-                selectedProvider = settings.providers.first
-            }
+            viewModel.selectFirstProviderIfNone(selection: $selectedProviderId)
         }
     }
 }
@@ -99,6 +224,9 @@ public struct ProviderSidebarView: View {
 struct ProviderRowView: View {
     let provider: Provider
     let isSelected: Bool
+    let onShowInFinder: () -> Void
+    let onEdit: () -> Void
+    let onDelete: () -> Void
     
     var body: some View {
         Label {
@@ -115,25 +243,38 @@ struct ProviderRowView: View {
                 .foregroundStyle(isSelected ? .blue : .secondary)
         }
         .padding(.vertical, 2)
+        .contentShape(Rectangle())
+        .contextMenu {
+            Button {
+                onShowInFinder()
+            } label: {
+                Label(NSLocalizedString("action.show_in_finder", comment: "Show in Finder"), systemImage: "folder")
+            }
+            
+            Button {
+                onEdit()
+            } label: {
+                Label(NSLocalizedString("action.edit", comment: "Edit"), systemImage: "pencil")
+            }
+            
+            Divider()
+            
+            Button(role: .destructive) {
+                onDelete()
+            } label: {
+                Label(NSLocalizedString("action.delete", comment: "Delete"), systemImage: "trash")
+            }
+        }
     }
 }
 
 /// Sheet for adding a new provider
 struct AddProviderSheet: View {
-    @ObservedObject var settings: ProviderSettings
+    @State private var viewModel: AddProviderViewModel
     @Environment(\.dismiss) private var dismiss
     
-    @State private var providerName = ""
-    @State private var providerPath = ""
-    @State private var workflowPath = ""
-    @State private var selectedIcon = "folder"
-    @State private var installMethod: SkillInstallationMethod = .symlink
-    @State private var showingFolderPicker = false
-    @State private var selectedTemplate: ProviderTemplate?
-    
-    private var canSave: Bool {
-        !providerName.trimmingCharacters(in: .whitespaces).isEmpty &&
-        !providerPath.isEmpty
+    init(settings: ProviderSettings) {
+        self._viewModel = State(initialValue: AddProviderViewModel(settings: settings))
     }
     
     var body: some View {
@@ -146,14 +287,8 @@ struct AddProviderSheet: View {
                             ForEach(ProviderTemplate.allCases) { template in
                                 TemplateButton(
                                     template: template,
-                                    isSelected: selectedTemplate == template,
-                                    action: {
-                                        selectedTemplate = template
-                                        providerName = template.displayName
-                                        providerPath = template.defaultPath.path
-                                        workflowPath = template.defaultWorkflowPath.path
-                                        selectedIcon = template.iconName
-                                    }
+                                    isSelected: viewModel.selectedTemplate == template,
+                                    action: { viewModel.selectTemplate(template) }
                                 )
                             }
                         }
@@ -168,13 +303,10 @@ struct AddProviderSheet: View {
                 Section {
                     TextField(
                         NSLocalizedString("add_provider.name_placeholder", comment: "Provider Name"),
-                        text: $providerName
+                        text: $viewModel.providerName
                     )
-                    .onChange(of: providerName) { _, _ in
-                        // If user modifies the name, clear template selection
-                        if providerName != selectedTemplate?.displayName {
-                            selectedTemplate = nil
-                        }
+                    .onChange(of: viewModel.providerName) { _, _ in
+                        viewModel.onNameChange()
                     }
                 } header: {
                     Text(NSLocalizedString("add_provider.name_label", comment: "Name"))
@@ -182,17 +314,17 @@ struct AddProviderSheet: View {
                 
                 Section {
                     HStack {
-                        Text(providerPath.isEmpty 
+                        Text(viewModel.providerPath.isEmpty
                              ? NSLocalizedString("add_provider.no_folder", comment: "No folder selected")
-                             : providerPath)
-                            .foregroundStyle(providerPath.isEmpty ? .secondary : .primary)
+                             : viewModel.providerPath)
+                            .foregroundStyle(viewModel.providerPath.isEmpty ? .secondary : .primary)
                             .lineLimit(1)
                             .truncationMode(.middle)
                         
                         Spacer()
                         
                         Button(NSLocalizedString("add_provider.choose", comment: "Choose...")) {
-                            showingFolderPicker = true
+                            viewModel.showingFolderPicker = true
                         }
                         .buttonStyle(.bordered)
                     }
@@ -202,10 +334,10 @@ struct AddProviderSheet: View {
 
                 Section {
                     HStack {
-                        Text(workflowPath.isEmpty 
+                        Text(viewModel.workflowPath.isEmpty
                              ? "No workflow folder selected"
-                             : workflowPath)
-                            .foregroundStyle(workflowPath.isEmpty ? .secondary : .primary)
+                             : viewModel.workflowPath)
+                            .foregroundStyle(viewModel.workflowPath.isEmpty ? .secondary : .primary)
                             .lineLimit(1)
                             .truncationMode(.middle)
                         
@@ -216,7 +348,7 @@ struct AddProviderSheet: View {
                 }
                 
                 Section {
-                    Picker(NSLocalizedString("add_provider.install_method", comment: "Installation Method"), selection: $installMethod) {
+                    Picker(NSLocalizedString("add_provider.install_method", comment: "Installation Method"), selection: $viewModel.installMethod) {
                         ForEach(SkillInstallationMethod.allCases) { method in
                             Text(method.displayName).tag(method)
                         }
@@ -235,34 +367,18 @@ struct AddProviderSheet: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(NSLocalizedString("generic.add", comment: "Add")) {
-                        settings.addProvider(
-                            name: providerName.trimmingCharacters(in: .whitespaces),
-                            skillsPath: providerPath,
-                            workflowPath: workflowPath,
-                            iconName: selectedIcon,
-                            installMethod: installMethod,
-                            templateId: selectedTemplate?.rawValue
-                        )
+                        viewModel.addProvider()
                         dismiss()
                     }
-                    .disabled(!canSave)
+                    .disabled(!viewModel.canSave)
                 }
             }
             .fileImporter(
-                isPresented: $showingFolderPicker,
+                isPresented: $viewModel.showingFolderPicker,
                 allowedContentTypes: [.folder],
-                allowsMultipleSelection: false
-            ) { result in
-                switch result {
-                case .success(let urls):
-                    if let url = urls.first {
-                        providerPath = url.path
-                        selectedTemplate = nil  // Clear template when custom path selected
-                    }
-                case .failure(let error):
-                    print("Folder selection failed: \(error)")
-                }
-            }
+                allowsMultipleSelection: false,
+                onCompletion: viewModel.handleFolderSelection
+            )
         }
         .frame(minWidth: 500, minHeight: 400)
     }
@@ -296,28 +412,11 @@ struct TemplateButton: View {
 
 /// Sheet for editing an existing provider
 struct EditProviderSheet: View {
-    @ObservedObject var settings: ProviderSettings
-    let provider: Provider
+    @State private var viewModel: EditProviderViewModel
     @Environment(\.dismiss) private var dismiss
     
-    @State private var providerName: String
-    @State private var providerPath: String
-    @State private var workflowPath: String
-    @State private var installMethod: SkillInstallationMethod
-    @State private var showingFolderPicker = false
-    
     init(settings: ProviderSettings, provider: Provider) {
-        self.settings = settings
-        self.provider = provider
-        self._providerName = State(initialValue: provider.name)
-        self._providerPath = State(initialValue: provider.skillsPath)
-        self._installMethod = State(initialValue: provider.installMethod)
-        self._workflowPath = State(initialValue: provider.workflowPath)
-    }
-    
-    private var canSave: Bool {
-        !providerName.trimmingCharacters(in: .whitespaces).isEmpty &&
-        !providerPath.isEmpty
+        self._viewModel = State(initialValue: EditProviderViewModel(settings: settings, provider: provider))
     }
     
     var body: some View {
@@ -326,7 +425,7 @@ struct EditProviderSheet: View {
                 Section {
                     TextField(
                         NSLocalizedString("add_provider.name_placeholder", comment: "Provider Name"),
-                        text: $providerName
+                        text: $viewModel.providerName
                     )
                 } header: {
                     Text(NSLocalizedString("add_provider.name_label", comment: "Name"))
@@ -334,17 +433,17 @@ struct EditProviderSheet: View {
                 
                 Section {
                     HStack {
-                        Text(providerPath.isEmpty 
+                        Text(viewModel.providerPath.isEmpty
                              ? NSLocalizedString("add_provider.no_folder", comment: "No folder selected")
-                             : providerPath)
-                            .foregroundStyle(providerPath.isEmpty ? .secondary : .primary)
+                             : viewModel.providerPath)
+                            .foregroundStyle(viewModel.providerPath.isEmpty ? .secondary : .primary)
                             .lineLimit(1)
                             .truncationMode(.middle)
                         
                         Spacer()
                         
                         Button(NSLocalizedString("add_provider.choose", comment: "Choose...")) {
-                            showingFolderPicker = true
+                            viewModel.showingFolderPicker = true
                         }
                         .buttonStyle(.bordered)
                     }
@@ -354,10 +453,10 @@ struct EditProviderSheet: View {
 
                 Section {
                     HStack {
-                        Text(workflowPath.isEmpty 
+                        Text(viewModel.workflowPath.isEmpty
                              ? "No workflow folder selected"
-                             : workflowPath)
-                            .foregroundStyle(workflowPath.isEmpty ? .secondary : .primary)
+                             : viewModel.workflowPath)
+                            .foregroundStyle(viewModel.workflowPath.isEmpty ? .secondary : .primary)
                             .lineLimit(1)
                             .truncationMode(.middle)
                         
@@ -369,7 +468,7 @@ struct EditProviderSheet: View {
                 }
                 
                 Section {
-                    Picker(NSLocalizedString("add_provider.install_method", comment: "Installation Method"), selection: $installMethod) {
+                    Picker(NSLocalizedString("add_provider.install_method", comment: "Installation Method"), selection: $viewModel.installMethod) {
                         ForEach(SkillInstallationMethod.allCases) { method in
                             Text(method.displayName).tag(method)
                         }
@@ -388,31 +487,18 @@ struct EditProviderSheet: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(NSLocalizedString("generic.save", comment: "Save")) {
-                        var updatedProvider = provider
-                        updatedProvider.name = providerName.trimmingCharacters(in: .whitespaces)
-                        updatedProvider.skillsPath = providerPath
-                        updatedProvider.workflowPath = workflowPath
-                        updatedProvider.installMethod = installMethod
-                        settings.updateProvider(updatedProvider)
+                        viewModel.saveProvider()
                         dismiss()
                     }
-                    .disabled(!canSave)
+                    .disabled(!viewModel.canSave)
                 }
             }
             .fileImporter(
-                isPresented: $showingFolderPicker,
+                isPresented: $viewModel.showingFolderPicker,
                 allowedContentTypes: [.folder],
-                allowsMultipleSelection: false
-            ) { result in
-                switch result {
-                case .success(let urls):
-                    if let url = urls.first {
-                        providerPath = url.path
-                    }
-                case .failure(let error):
-                    print("Folder selection failed: \(error)")
-                }
-            }
+                allowsMultipleSelection: false,
+                onCompletion: viewModel.handleFolderSelection
+            )
         }
         .frame(minWidth: 400, minHeight: 300)
     }
