@@ -218,7 +218,7 @@ struct ProviderDetailGridView: View {
             }
         }) { skill in
             SkillDetailView(skill: skill, provider: provider, settings: settings)
-                .frame(minWidth: 1080, minHeight: 600)
+                .frame(minWidth: 900, maxWidth: .infinity, minHeight: 600, maxHeight: .infinity)
         }
     }
     
@@ -230,6 +230,8 @@ struct ProviderDetailGridView: View {
                 skillsGrid
             case .workflows:
                 workflowsGrid
+            case .mcp:
+                mcpGrid
             case .none:
                 EmptyView()
             }
@@ -287,5 +289,130 @@ struct ProviderDetailGridView: View {
                 }
             }
         }
+    }
+    
+    @ViewBuilder
+    private var mcpGrid: some View {
+        if let provider = provider,
+           let templateId = provider.templateId,
+           let template = ProviderTemplate(rawValue: templateId) {
+            
+            let configPath = template.defaultMcpConfigPath
+            let exists = FileManager.default.fileExists(atPath: configPath.path)
+            
+            LazyVGrid(columns: columns, spacing: 16) {
+                McpServerCard(
+                    provider: provider,
+                    template: template,
+                    isConfigured: exists,
+                    onOpenConfig: {
+                        if exists {
+                            NSWorkspace.shared.selectFile(configPath.path, inFileViewerRootedAtPath: "")
+                        } else {
+                            // Create directory if needed
+                            try? FileManager.default.createDirectory(at: configPath.deletingLastPathComponent(), withIntermediateDirectories: true)
+                            // Create empty JSON
+                            try? "{}".write(to: configPath, atomically: true, encoding: .utf8)
+                            NSWorkspace.shared.selectFile(configPath.path, inFileViewerRootedAtPath: "")
+                            // Reload data
+                            Task { await viewModel.loadData() }
+                        }
+                    },
+                    onOpenDocs: {
+                        if let url = template.mcpDocumentationURL {
+                            NSWorkspace.shared.open(url)
+                        }
+                    }
+                )
+            }
+        } else {
+             ContentUnavailableView(
+                NSLocalizedString("mcp.not_supported", comment: "MCP Not Supported"),
+                systemImage: "exclamationmark.triangle",
+                description: Text(NSLocalizedString("mcp.not_supported_desc", comment: "This provider does not support MCP configuration"))
+            )
+        }
+    }
+}
+
+struct McpServerCard: View {
+    let provider: Provider
+    let template: ProviderTemplate
+    let isConfigured: Bool
+    let onOpenConfig: () -> Void
+    let onOpenDocs: () -> Void
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            // Header
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(provider.displayName)
+                        .font(.headline)
+                        .lineLimit(1)
+                    
+                    if isConfigured {
+                        Text("Configured")
+                            .font(.caption)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.green.opacity(0.1))
+                            .foregroundStyle(.green)
+                            .cornerRadius(4)
+                    } else {
+                         Text("Not Configured")
+                            .font(.caption)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.orange.opacity(0.1))
+                            .foregroundStyle(.orange)
+                            .cornerRadius(4)
+                    }
+                }
+                
+                Spacer()
+                
+                Image(systemName: "server.rack")
+                    .font(.title2)
+                    .foregroundStyle(.secondary)
+            }
+            
+            // Description
+            Text("Model Context Protocol (MCP) server configuration.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+            
+            Spacer(minLength: 0)
+            
+            // Actions
+            HStack(spacing: 8) {
+                Button(action: onOpenConfig) {
+                    Label(
+                        isConfigured ? "Edit Config" : "Create Config",
+                        systemImage: isConfigured ? "pencil" : "plus"
+                    )
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                
+                if template.mcpDocumentationURL != nil {
+                    Button(action: onOpenDocs) {
+                        Image(systemName: "doc.text")
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .help("Open Documentation")
+                }
+            }
+        }
+        .padding()
+        .frame(minHeight: 140)
+        .background(Color.secondary.opacity(0.08))
+        .cornerRadius(12)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color.secondary.opacity(0.1), lineWidth: 1)
+        )
     }
 }

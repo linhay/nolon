@@ -36,6 +36,18 @@ public enum ProviderTemplate: String, CaseIterable, Sendable, Identifiable {
         }
     }
     
+    /// Logo file name in lobe-icons library (without extension)
+    public var logoFile: String {
+        switch self {
+        case .codex: return "openai"
+        case .claude: return "claude"
+        case .opencode: return "opencode"
+        case .copilot: return "copilot"
+        case .gemini: return "gemini"
+        case .antigravity: return "antigravity"
+        }
+    }
+    
     /// Default path for this template
     public var defaultPath: URL {
         let home = FileManager.default.homeDirectoryForCurrentUser
@@ -71,6 +83,43 @@ public enum ProviderTemplate: String, CaseIterable, Sendable, Identifiable {
             return home.appendingPathComponent(".gemini/workflows")
         case .antigravity:
             return home.appendingPathComponent(".gemini/antigravity/global_workflows")
+        }
+    }
+    
+    /// MCP documentation URL for this template
+    public var mcpDocumentationURL: URL? {
+        switch self {
+        case .codex:
+            return URL(string: "https://developers.openai.com/codex/mcp/")
+        case .claude:
+            return URL(string: "https://code.claude.com/docs/en/mcp#option-1%3A-exclusive-control-with-managed-mcp-json")
+        case .opencode:
+            return URL(string: "https://opencode.ai/docs/mcp-servers/")
+        case .copilot:
+            return URL(string: "https://code.visualstudio.com/docs/copilot/customization/mcp-servers")
+        case .gemini:
+            return URL(string: "https://geminicli.com/docs/tools/mcp-server/")
+        case .antigravity:
+            return URL(string: "https://antigravity.google/docs/mcp")
+        }
+    }
+    
+    /// Default MCP configuration path for this template
+    public var defaultMcpConfigPath: URL {
+        let home = FileManager.default.homeDirectoryForCurrentUser
+        switch self {
+        case .codex:
+            return home.appendingPathComponent(".codex/mcp_settings.json")
+        case .claude:
+            return home.appendingPathComponent("Library/Application Support/Claude/mcp_settings.json")
+        case .opencode:
+            return home.appendingPathComponent(".config/opencode/mcp_settings.json")
+        case .copilot:
+            return home.appendingPathComponent(".copilot/mcp_settings.json")
+        case .gemini:
+            return home.appendingPathComponent(".gemini/mcp_settings.json")
+        case .antigravity:
+            return home.appendingPathComponent(".gemini/antigravity/mcp_settings.json")
         }
     }
     

@@ -4,6 +4,7 @@ import SwiftUI
 enum ProviderContentTabType: String, CaseIterable, Identifiable {
     case skills = "Skills"
     case workflows = "Workflows"
+    case mcp = "MCP"
     
     var id: String { rawValue }
     
@@ -11,6 +12,7 @@ enum ProviderContentTabType: String, CaseIterable, Identifiable {
         switch self {
         case .skills: return "square.grid.2x2"
         case .workflows: return "arrow.triangle.branch"
+        case .mcp: return "server.rack"
         }
     }
     
@@ -18,6 +20,7 @@ enum ProviderContentTabType: String, CaseIterable, Identifiable {
         switch self {
         case .skills: return NSLocalizedString("tab.skills", comment: "Skills")
         case .workflows: return NSLocalizedString("tab.workflows", comment: "Workflows")
+        case .mcp: return NSLocalizedString("tab.mcp", comment: "MCP Server")
         }
     }
 }
@@ -28,6 +31,7 @@ enum ProviderContentTabType: String, CaseIterable, Identifiable {
 final class ProviderContentTabViewModel {
     var skillsCount: Int = 0
     var workflowsCount: Int = 0
+    var mcpCount: Int = 0
     
     private let repository = SkillRepository()
     private let installer: SkillInstaller
@@ -40,6 +44,7 @@ final class ProviderContentTabViewModel {
         switch tab {
         case .skills: return skillsCount
         case .workflows: return workflowsCount
+        case .mcp: return mcpCount
         }
     }
     
@@ -47,6 +52,7 @@ final class ProviderContentTabViewModel {
         guard let provider = provider else {
             skillsCount = 0
             workflowsCount = 0
+            mcpCount = 0
             return
         }
         
@@ -71,6 +77,15 @@ final class ProviderContentTabViewModel {
             workflowsCount = contents.filter { $0.pathExtension == "md" }.count
         } catch {
             workflowsCount = 0
+        }
+        
+        // MCP count
+        if let templateId = provider.templateId,
+           let template = ProviderTemplate(rawValue: templateId) {
+            let configPath = template.defaultMcpConfigPath
+            mcpCount = FileManager.default.fileExists(atPath: configPath.path) ? 1 : 0
+        } else {
+            mcpCount = 0
         }
     }
 }

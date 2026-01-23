@@ -21,28 +21,6 @@
         }
       }
     },
-    "%lld refs" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld 个引用"
-          }
-        }
-      }
-    },
-    "%lld scripts" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld 个脚本"
-          }
-        }
-      }
-    },
     "%lld skill%@" : {
       "localizations" : {
         "en" : {
@@ -297,55 +275,8 @@
         }
       }
     },
-    "add_provider.templates" : {
-      "comment" : "Quick Templates",
-      "extractionState" : "stale",
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "快速模板"
-          }
-        }
-      }
-    },
-    "add_provider.templates_desc" : {
-      "comment" : "Select a template to auto-fill, or customize below",
-      "extractionState" : "stale",
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "选择一个模板以自动填充，或在下方自定义"
-          }
-        }
-      }
-    },
-    "add_provider.title" : {
-      "comment" : "Add Provider",
-      "extractionState" : "stale",
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "添加 Provider"
-          }
-        }
-      }
-    },
     "Adding repository..." : {
 
-    },
-    "API Configuration" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "API 配置"
-          }
-        }
-      }
     },
     "app.title" : {
       "comment" : "nolon",
@@ -476,6 +407,9 @@
         }
       }
     },
+    "Configured" : {
+
+    },
     "confirm.delete_broken_title" : {
       "comment" : "Delete broken symlink?",
       "localizations" : {
@@ -565,72 +499,15 @@
     "content.no_provider_desc" : {
       "comment" : "Choose a provider from the sidebar"
     },
+    "Create Config" : {
+
+    },
     "Design System Colors" : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "设计系统颜色"
-          }
-        }
-      }
-    },
-    "detail.content" : {
-      "comment" : "SKILL.md Content",
-      "extractionState" : "stale",
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "SKILL.md 内容"
-          }
-        }
-      }
-    },
-    "detail.files" : {
-      "comment" : "Additional Files",
-      "extractionState" : "stale",
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "附加文件"
-          }
-        }
-      }
-    },
-    "detail.id" : {
-      "comment" : "ID",
-      "extractionState" : "stale",
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ID"
-          }
-        }
-      }
-    },
-    "detail.location" : {
-      "comment" : "Location",
-      "extractionState" : "stale",
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "位置"
-          }
-        }
-      }
-    },
-    "detail.metadata" : {
-      "comment" : "Metadata",
-      "extractionState" : "stale",
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "元数据"
           }
         }
       }
@@ -678,92 +555,8 @@
         }
       }
     },
-    "detail.ref_files" : {
-      "comment" : "%d reference files",
-      "extractionState" : "stale",
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%d 个引用文件"
-          }
-        }
-      }
-    },
-    "detail.references" : {
-      "comment" : "References",
-      "extractionState" : "stale",
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "引用文件"
-          }
-        }
-      }
-    },
-    "detail.script_files" : {
-      "comment" : "%d script files",
-      "extractionState" : "stale",
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%d 个脚本文件"
-          }
-        }
-      }
-    },
-    "detail.scripts" : {
-      "comment" : "Scripts",
-      "extractionState" : "stale",
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "脚本"
-          }
-        }
-      }
-    },
     "detail.select_tab" : {
       "comment" : "Select a Tab"
-    },
-    "detail.skill_content" : {
-      "comment" : "SKILL.md Content",
-      "extractionState" : "stale",
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "SKILL.md 内容"
-          }
-        }
-      }
-    },
-    "detail.version" : {
-      "comment" : "Version %@",
-      "extractionState" : "stale",
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "版本 %@"
-          }
-        }
-      }
-    },
-    "detail.version_label" : {
-      "comment" : "Version",
-      "extractionState" : "stale",
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "版本"
-          }
-        }
-      }
     },
     "Details" : {
       "localizations" : {
@@ -785,6 +578,9 @@
         }
       }
     },
+    "Edit Config" : {
+
+    },
     "edit_provider.title" : {
       "comment" : "Edit Provider",
       "localizations" : {
@@ -798,17 +594,6 @@
     },
     "Enable Workflow" : {
 
-    },
-    "Enter the base URL of the skill repository API." : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "输入 Skill 仓库 API 的基础 URL。"
-          }
-        }
-      }
     },
     "Enter your token" : {
 
@@ -907,17 +692,6 @@
         }
       }
     },
-    "Example: https://github.com/owner/repo\nSkills path is the subdirectory containing skills (e.g., 'skills' or '.agent/skills')." : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "示例：https://github.com/owner/repo\nSkills 路径是包含 Skills 的子目录（例如 'skills' 或 '.agent/skills'）。"
-          }
-        }
-      }
-    },
     "Failed to load skills" : {
       "localizations" : {
         "zh-Hans" : {
@@ -931,18 +705,6 @@
     "Generate a token from your Git provider's settings with 'read_repository' scope." : {
 
     },
-    "generic.add" : {
-      "comment" : "Add",
-      "extractionState" : "stale",
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "添加"
-          }
-        }
-      }
-    },
     "generic.cancel" : {
       "comment" : "Cancel",
       "localizations" : {
@@ -950,18 +712,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "取消"
-          }
-        }
-      }
-    },
-    "generic.close" : {
-      "comment" : "Close",
-      "extractionState" : "stale",
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "关闭"
           }
         }
       }
@@ -1031,89 +781,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "仓库更新成功"
-          }
-        }
-      }
-    },
-    "GitHub Repository" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "GitHub 仓库"
-          }
-        }
-      }
-    },
-    "global.empty" : {
-      "comment" : "No Skills",
-      "extractionState" : "stale",
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "没有 Skills"
-          }
-        }
-      }
-    },
-    "global.empty_desc" : {
-      "comment" : "Import skills to get started",
-      "extractionState" : "stale",
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "导入 Skills 以开始使用"
-          }
-        }
-      }
-    },
-    "global.install_to" : {
-      "comment" : "Install to %@",
-      "extractionState" : "stale",
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "安装到 %@"
-          }
-        }
-      }
-    },
-    "global.search" : {
-      "comment" : "Search skills",
-      "extractionState" : "stale",
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "搜索 Skills"
-          }
-        }
-      }
-    },
-    "global.select_provider" : {
-      "comment" : "Select a provider first",
-      "extractionState" : "stale",
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "请先选择一个 Provider"
-          }
-        }
-      }
-    },
-    "global.title" : {
-      "comment" : "Global Skills",
-      "extractionState" : "stale",
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "全局 Skills"
           }
         }
       }
@@ -1248,7 +915,16 @@
         }
       }
     },
+    "mcp.not_supported" : {
+      "comment" : "MCP Not Supported"
+    },
+    "mcp.not_supported_desc" : {
+      "comment" : "This provider does not support MCP configuration"
+    },
     "Metadata" : {
+
+    },
+    "Model Context Protocol (MCP) server configuration." : {
 
     },
     "Name" : {
@@ -1327,6 +1003,9 @@
         }
       }
     },
+    "Not Configured" : {
+
+    },
     "Not synced" : {
       "localizations" : {
         "zh-Hans" : {
@@ -1336,6 +1015,9 @@
           }
         }
       }
+    },
+    "Open Documentation" : {
+
     },
     "Path (e.g., skills, .agent)" : {
 
@@ -1473,18 +1155,6 @@
         }
       }
     },
-    "repo_type.custom" : {
-      "comment" : "Custom Repository",
-      "extractionState" : "stale",
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "自定义仓库"
-          }
-        }
-      }
-    },
     "repo_type.global_skills" : {
       "comment" : "Global Skills"
     },
@@ -1554,17 +1224,6 @@
     },
     "Save & Retry" : {
 
-    },
-    "Search %@" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "搜索 %@"
-          }
-        }
-      }
     },
     "Search Clawdhub" : {
       "localizations" : {
@@ -1729,17 +1388,11 @@
         }
       }
     },
-    "sidebar.add_provider" : {
-      "comment" : "Add Provider",
-      "extractionState" : "stale",
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "添加 Provider"
-          }
-        }
-      }
+    "Show as Grid" : {
+
+    },
+    "Show as List" : {
+
     },
     "sidebar.providers" : {
       "comment" : "Providers",
@@ -1769,17 +1422,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Skills 文件夹"
-          }
-        }
-      }
-    },
-    "Skills Path (optional)" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Skills 路径（可选）"
           }
         }
       }
@@ -1945,18 +1587,6 @@
         }
       }
     },
-    "status.installed" : {
-      "comment" : "Installed",
-      "extractionState" : "stale",
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "已安装"
-          }
-        }
-      }
-    },
     "status.physical" : {
       "comment" : "Physical File",
       "localizations" : {
@@ -1992,6 +1622,9 @@
         }
       }
     },
+    "tab.mcp" : {
+      "comment" : "MCP Server"
+    },
     "tab.skills" : {
       "comment" : "Skills"
     },
@@ -2015,30 +1648,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Clawdhub"
-          }
-        }
-      }
-    },
-    "toolbar.global_skills" : {
-      "comment" : "Global Skills",
-      "extractionState" : "stale",
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "全局 Skills"
-          }
-        }
-      }
-    },
-    "toolbar.global_skills_help" : {
-      "comment" : "View and install global skills",
-      "extractionState" : "stale",
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "查看和安装全局 Skills"
           }
         }
       }
