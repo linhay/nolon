@@ -74,6 +74,20 @@ public enum SkillParser {
         )
     }
 
+    /// Parse metadata from content with YAML frontmatter
+    public static func parseMetadata(from content: String) -> [String: String] {
+        guard let frontmatter = extractFrontmatter(from: content) else { return [:] }
+        return parseYAMLFrontmatter(frontmatter)
+    }
+    
+    /// Remove YAML frontmatter from content
+    public static func stripFrontmatter(from content: String) -> String {
+        let pattern = "^---\\s*\\n([\\s\\S]*?)\\n---"
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else { return content }
+        let range = NSRange(content.startIndex..., in: content)
+        return regex.stringByReplacingMatches(in: content, options: [], range: range, withTemplate: "").trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     /// Extract frontmatter content between --- markers
     private static func extractFrontmatter(from content: String) -> String? {
         let pattern = "^---\\s*\\n([\\s\\S]*?)\\n---"

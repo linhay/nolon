@@ -5,138 +5,31 @@ import SwiftUI
 /// Left 2: Skills list for current provider
 /// Left 3: Skill detail view
 @MainActor
-public struct MainSplitView: View {
+@Observable
+final class MainSplitViewModel {
+    var settings = ProviderSettings()
+    var repository = SkillRepository()
+    private(set) var installer: SkillInstaller?
 
-    @StateObject private var settings = ProviderSettings()
-    @State private var repository = SkillRepository()
-    @State private var installer: SkillInstaller?
-
-    @State private var selectedProviderId: Provider.ID?
-    @State private var selectedSkill: Skill?
-    @State private var columnVisibility: NavigationSplitViewVisibility = .all
+    var selectedProviderId: Provider.ID?
+    var selectedTab: ProviderContentTabType? = .skills
+    var columnVisibility: NavigationSplitViewVisibility = .all
     
-    private var selectedProvider: Provider? {
+    var showingSettings = false
+    var showingClawdhub = false
+    var refreshTrigger: Int = 0
+    
+    var selectedProvider: Provider? {
         settings.providers.first { $0.id == selectedProviderId }
     }
-
-    @State private var showingSettings = false
-    @State private var showingGlobalSkills = false
-    @State private var showingClawdhub = false
-
-    /// Refresh trigger - increment to force skills list reload
-    @State private var refreshTrigger: Int = 0
-
-    public init() {}
-
-    public var body: some View {
-        NavigationSplitView(columnVisibility: $columnVisibility) {
-            // Left 1: Provider sidebar
-            ProviderSidebarView(
-                selectedProviderId: $selectedProviderId,
-                settings: settings
-            )
-        } content: {
-            // Left 2: Skills list for current provider
-            ProviderSkillsListView(
-                provider: selectedProvider,
-                selectedSkill: $selectedSkill,
-                settings: settings,
-                refreshTrigger: refreshTrigger
-            )
-        } detail: {
-            // Left 3: Skill detail
-            SkillDetailContentView(skill: selectedSkill, settings: settings)
-        }
-        .navigationSplitViewStyle(.balanced)
-        .toolbar {
-            ToolbarItemGroup(placement: .primaryAction) {
-                // Global skills button
-                Button {
-                    showingGlobalSkills = true
-                } label: {
-                    Label(
-                        NSLocalizedString("toolbar.global_skills", comment: "Global Skills"),
-                        systemImage: "square.grid.2x2"
-                    )
-                }
-                .help(
-                    NSLocalizedString(
-                        "toolbar.global_skills_help", comment: "View and install global skills"))
-
-                // Clawdhub button
-                Button {
-                    showingClawdhub = true
-                } label: {
-                    Label(
-                        NSLocalizedString("toolbar.clawdhub", comment: "Clawdhub"),
-                        systemImage: "cloud"
-                    )
-                }
-                .help("Browse and install skills from Clawdhub")
-
-                // Settings button
-                Button {
-                    showingSettings = true
-                } label: {
-                    Label(
-                        NSLocalizedString("toolbar.settings", comment: "Settings"),
-                        systemImage: "gear"
-                    )
-                }
-                .help(NSLocalizedString("toolbar.settings_help", comment: "Configure providers"))
-            }
-        }
-        .sheet(isPresented: $showingSettings) {
-            SettingsSheet(settings: settings)
-        }
-        .sheet(isPresented: $showingGlobalSkills) {
-            GlobalSkillsPopover(
-                currentProvider: selectedProvider,
-                settings: settings,
-                onInstall: { skill in
-                    await installSkillToCurrentProvider(skill)
-                    refreshTrigger += 1
-                },
-                onDismiss: {
-                    showingGlobalSkills = false
-                }
-            )
-            .frame(minWidth: 600, minHeight: 500)
-        }
-        .sheet(isPresented: $showingClawdhub) {
-            RemoteSkillsBrowserView(
-                settings: settings,
-                repository: repository,
-                onInstall: { skill, provider in
-                    Task {
-                        await installRemoteSkill(skill, to: provider)
-                    }
-                }
-            )
-            .frame(minWidth: 900, minHeight: 600)
-        }
-        .onChange(of: showingClawdhub) { _, isShowing in
-            // Refresh skills list when Clawdhub sheet is dismissed
-            if !isShowing {
-                refreshTrigger += 1
-            }
-        }
-        .onAppear {
-            installer = SkillInstaller(repository: repository, settings: settings)
-        }
+    
+    @MainActor
+    func setup() {
+        installer = SkillInstaller(repository: repository, settings: settings)
     }
 
-    private func installSkillToCurrentProvider(_ skill: Skill) async {
-        guard let installer = installer, let provider = selectedProvider else { return }
-
-        do {
-            try installer.install(skill: skill, to: provider)
-        } catch {
-            print("Failed to install skill: \(error)")
-        }
-    }
-
-    private func installRemoteSkill(_ skill: RemoteSkill, to provider: Provider) async {
+    @MainActor
+    func installRemoteSkill(_ skill: RemoteSkill, to provider: Provider) async {
         guard let installer = installer else { return }
 
         do {
@@ -158,6 +51,102 @@ public struct MainSplitView: View {
         } catch {
             print("Failed to install remote skill: \(error)")
             // Ideally show an alert here
+        }
+    }
+    
+    @MainActor
+    func onClawdhubDismissed() {
+        refreshTrigger += 1
+    }
+}
+
+/// Main three-column split view for the app
+/// Left 1: Provider sidebar (collapsible)
+/// Left 2: Skills list for current provider
+/// Left 3: Skill detail view
+@MainActor
+public struct MainSplitView: View {
+    
+    @State private var viewModel = MainSplitViewModel()
+
+    public init() {}
+
+    public var body: some View {
+        NavigationSplitView(columnVisibility: $viewModel.columnVisibility) {
+            // Left 1: Provider sidebar
+            ProviderSidebarView(
+                selectedProviderId: $viewModel.selectedProviderId,
+                settings: viewModel.settings
+            )
+        } content: {
+            // Left 2: Skills/Workflows tab navigation
+            ProviderContentTabView(
+                provider: viewModel.selectedProvider,
+                selectedTab: $viewModel.selectedTab,
+                settings: viewModel.settings,
+                refreshTrigger: viewModel.refreshTrigger
+            )
+        } detail: {
+            // Left 3: Grid cards (skills or workflows)
+            ProviderDetailGridView(
+                provider: viewModel.selectedProvider,
+                selectedTab: viewModel.selectedTab,
+                settings: viewModel.settings,
+                refreshTrigger: viewModel.refreshTrigger
+            )
+        }
+        .navigationSplitViewStyle(.balanced)
+        .toolbar {
+            ToolbarItemGroup(placement: .primaryAction) {
+
+
+                // Clawdhub button
+                Button {
+                    viewModel.showingClawdhub = true
+                } label: {
+                    Label(
+                        NSLocalizedString("toolbar.clawdhub", comment: "Clawdhub"),
+                        systemImage: "cloud"
+                    )
+                }
+                .help("Browse and install skills from Clawdhub")
+
+                // Settings button
+                Button {
+                    viewModel.showingSettings = true
+                } label: {
+                    Label(
+                        NSLocalizedString("toolbar.settings", comment: "Settings"),
+                        systemImage: "gear"
+                    )
+                }
+                .help(NSLocalizedString("toolbar.settings_help", comment: "Configure providers"))
+            }
+        }
+        .sheet(isPresented: $viewModel.showingSettings) {
+            SettingsSheet(settings: viewModel.settings)
+        }
+
+        .sheet(isPresented: $viewModel.showingClawdhub) {
+            RemoteSkillsBrowserView(
+                settings: viewModel.settings,
+                repository: viewModel.repository,
+                onInstall: { skill, provider in
+                    Task {
+                        await viewModel.installRemoteSkill(skill, to: provider)
+                    }
+                }
+            )
+            .frame(minWidth: 900, minHeight: 600)
+        }
+        .onChange(of: viewModel.showingClawdhub) { _, isShowing in
+            // Refresh skills list when Clawdhub sheet is dismissed
+            if !isShowing {
+                viewModel.onClawdhubDismissed()
+            }
+        }
+        .onAppear {
+            viewModel.setup()
         }
     }
 }

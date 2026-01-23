@@ -63,6 +63,9 @@
         }
       }
     },
+    "About" : {
+
+    },
     "About this skill" : {
       "localizations" : {
         "zh-Hans" : {
@@ -105,6 +108,9 @@
           }
         }
       }
+    },
+    "action.link_workflow" : {
+      "comment" : "Link to Workflow"
     },
     "action.migrate" : {
       "comment" : "Migrate",
@@ -293,6 +299,7 @@
     },
     "add_provider.templates" : {
       "comment" : "Quick Templates",
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -304,6 +311,7 @@
     },
     "add_provider.templates_desc" : {
       "comment" : "Select a template to auto-fill, or customize below",
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -315,6 +323,7 @@
     },
     "add_provider.title" : {
       "comment" : "Add Provider",
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -349,7 +358,7 @@
         }
       }
     },
-    "Associated Area" : {
+    "Associate this skill with a workflow in **%@**." : {
 
     },
     "banner.orphaned_desc" : {
@@ -550,6 +559,12 @@
         }
       }
     },
+    "content.no_provider" : {
+      "comment" : "Select a Provider"
+    },
+    "content.no_provider_desc" : {
+      "comment" : "Choose a provider from the sidebar"
+    },
     "Design System Colors" : {
       "localizations" : {
         "zh-Hans" : {
@@ -562,6 +577,7 @@
     },
     "detail.content" : {
       "comment" : "SKILL.md Content",
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -573,6 +589,7 @@
     },
     "detail.files" : {
       "comment" : "Additional Files",
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -596,6 +613,7 @@
     },
     "detail.location" : {
       "comment" : "Location",
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -616,6 +634,9 @@
           }
         }
       }
+    },
+    "detail.no_provider" : {
+      "comment" : "Select a Provider"
     },
     "detail.no_selection" : {
       "comment" : "No Skill Selected",
@@ -659,6 +680,7 @@
     },
     "detail.ref_files" : {
       "comment" : "%d reference files",
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -682,6 +704,7 @@
     },
     "detail.script_files" : {
       "comment" : "%d script files",
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -702,6 +725,9 @@
           }
         }
       }
+    },
+    "detail.select_tab" : {
+      "comment" : "Select a Tab"
     },
     "detail.skill_content" : {
       "comment" : "SKILL.md Content",
@@ -770,6 +796,9 @@
         }
       }
     },
+    "Enable Workflow" : {
+
+    },
     "Enter the base URL of the skill repository API." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -782,6 +811,9 @@
       }
     },
     "Enter your token" : {
+
+    },
+    "Error Loading Data" : {
 
     },
     "error.cannot_read_directory" : {
@@ -901,6 +933,7 @@
     },
     "generic.add" : {
       "comment" : "Add",
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -923,6 +956,7 @@
     },
     "generic.close" : {
       "comment" : "Close",
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -1014,6 +1048,7 @@
     },
     "global.empty" : {
       "comment" : "No Skills",
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -1025,6 +1060,7 @@
     },
     "global.empty_desc" : {
       "comment" : "Import skills to get started",
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -1036,6 +1072,7 @@
     },
     "global.install_to" : {
       "comment" : "Install to %@",
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -1047,6 +1084,7 @@
     },
     "global.search" : {
       "comment" : "Search skills",
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -1058,6 +1096,7 @@
     },
     "global.select_provider" : {
       "comment" : "Select a provider first",
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -1069,6 +1108,7 @@
     },
     "global.title" : {
       "comment" : "Global Skills",
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -1129,6 +1169,9 @@
           }
         }
       }
+    },
+    "Installations" : {
+
     },
     "Installed" : {
       "localizations" : {
@@ -1205,6 +1248,9 @@
         }
       }
     },
+    "Metadata" : {
+
+    },
     "Name" : {
       "localizations" : {
         "zh-Hans" : {
@@ -1257,6 +1303,9 @@
           }
         }
       }
+    },
+    "No file selected" : {
+
     },
     "No providers available. Please create a local provider first." : {
       "localizations" : {
@@ -1682,6 +1731,7 @@
     },
     "sidebar.add_provider" : {
       "comment" : "Add Provider",
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -1862,6 +1912,12 @@
         }
       }
     },
+    "skills.empty" : {
+      "comment" : "No Skills"
+    },
+    "skills.empty_desc" : {
+      "comment" : "No skills installed in this provider"
+    },
     "Sources" : {
       "localizations" : {
         "zh-Hans" : {
@@ -1891,6 +1947,7 @@
     },
     "status.installed" : {
       "comment" : "Installed",
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -1935,6 +1992,12 @@
         }
       }
     },
+    "tab.skills" : {
+      "comment" : "Skills"
+    },
+    "tab.workflows" : {
+      "comment" : "Workflows"
+    },
     "This repository has no skills yet" : {
       "localizations" : {
         "zh-Hans" : {
@@ -1958,6 +2021,7 @@
     },
     "toolbar.global_skills" : {
       "comment" : "Global Skills",
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -1969,6 +2033,7 @@
     },
     "toolbar.global_skills_help" : {
       "comment" : "View and install global skills",
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -2010,6 +2075,9 @@
         }
       }
     },
+    "Unable to read file" : {
+
+    },
     "v%@" : {
       "localizations" : {
         "zh-Hans" : {
@@ -2025,6 +2093,12 @@
     },
     "Workflow Folder" : {
 
+    },
+    "workflows.empty" : {
+      "comment" : "No Workflows"
+    },
+    "workflows.empty_desc" : {
+      "comment" : "No workflows in this provider"
     }
   },
   "version" : "1.1"

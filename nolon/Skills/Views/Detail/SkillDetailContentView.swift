@@ -16,7 +16,7 @@ public struct SkillDetailContentView: View {
     public var body: some View {
         Group {
             if let skill = skill {
-                SkillDetailView(skill: skill, settings: settings)
+                SkillDetailView(skill: skill, provider: nil, settings: settings)
             } else {
                 ContentUnavailableView(
                     NSLocalizedString("detail.no_selection", comment: "No Skill Selected"),

@@ -6,7 +6,6 @@ import UniformTypeIdentifiers
 
 @Observable
 final class ProviderSidebarViewModel {
-    var showingAddProvider = false
     var editingProvider: Provider?
     
     var settings: ProviderSettings
@@ -49,64 +48,6 @@ final class ProviderSidebarViewModel {
 
 // ... (AddProviderViewModel and EditProviderViewModel remain unchanged, keeping the ellipsis or just not including them in replacement if not needed. Since I need to replace the class block, I will target the ProviderSidebarViewModel class specifically)
 
-@Observable
-final class AddProviderViewModel {
-    var providerName = ""
-    var providerPath = ""
-    var workflowPath = ""
-    var selectedIcon = "folder"
-    var installMethod: SkillInstallationMethod = .symlink
-    var showingFolderPicker = false
-    var selectedTemplate: ProviderTemplate?
-    
-    var settings: ProviderSettings
-    
-    init(settings: ProviderSettings) {
-        self.settings = settings
-    }
-    
-    var canSave: Bool {
-        !providerName.trimmingCharacters(in: .whitespaces).isEmpty &&
-        !providerPath.isEmpty
-    }
-    
-    func selectTemplate(_ template: ProviderTemplate) {
-        selectedTemplate = template
-        providerName = template.displayName
-        providerPath = template.defaultPath.path
-        workflowPath = template.defaultWorkflowPath.path
-        selectedIcon = template.iconName
-    }
-    
-    func onNameChange() {
-        if providerName != selectedTemplate?.displayName {
-            selectedTemplate = nil
-        }
-    }
-    
-    func handleFolderSelection(_ result: Result<[URL], Error>) {
-        switch result {
-        case .success(let urls):
-            if let url = urls.first {
-                providerPath = url.path
-                selectedTemplate = nil
-            }
-        case .failure(let error):
-            print("Folder selection failed: \(error)")
-        }
-    }
-    
-    func addProvider() {
-        settings.addProvider(
-            name: providerName.trimmingCharacters(in: .whitespaces),
-            skillsPath: providerPath,
-            workflowPath: workflowPath,
-            iconName: selectedIcon,
-            installMethod: installMethod,
-            templateId: selectedTemplate?.rawValue
-        )
-    }
-}
 
 @Observable
 final class EditProviderViewModel {
@@ -196,21 +137,7 @@ public struct ProviderSidebarView: View {
         }
         .listStyle(.sidebar)
         .navigationTitle(NSLocalizedString("app.title", comment: "nolon"))
-        .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                Button {
-                    viewModel.showingAddProvider = true
-                } label: {
-                    Label(
-                        NSLocalizedString("sidebar.add_provider", comment: "Add Provider"),
-                        systemImage: "plus"
-                    )
-                }
-            }
-        }
-        .sheet(isPresented: $viewModel.showingAddProvider) {
-            AddProviderSheet(settings: viewModel.settings)
-        }
+
         .sheet(item: $viewModel.editingProvider) { provider in
             EditProviderSheet(settings: viewModel.settings, provider: provider)
         }
@@ -268,147 +195,7 @@ struct ProviderRowView: View {
     }
 }
 
-/// Sheet for adding a new provider
-struct AddProviderSheet: View {
-    @State private var viewModel: AddProviderViewModel
-    @Environment(\.dismiss) private var dismiss
-    
-    init(settings: ProviderSettings) {
-        self._viewModel = State(initialValue: AddProviderViewModel(settings: settings))
-    }
-    
-    var body: some View {
-        NavigationStack {
-            Form {
-                // Template selection section
-                Section {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 12) {
-                            ForEach(ProviderTemplate.allCases) { template in
-                                TemplateButton(
-                                    template: template,
-                                    isSelected: viewModel.selectedTemplate == template,
-                                    action: { viewModel.selectTemplate(template) }
-                                )
-                            }
-                        }
-                        .padding(.vertical, 4)
-                    }
-                } header: {
-                    Text(NSLocalizedString("add_provider.templates", comment: "Quick Templates"))
-                } footer: {
-                    Text(NSLocalizedString("add_provider.templates_desc", comment: "Select a template to auto-fill, or customize below"))
-                }
-                
-                Section {
-                    TextField(
-                        NSLocalizedString("add_provider.name_placeholder", comment: "Provider Name"),
-                        text: $viewModel.providerName
-                    )
-                    .onChange(of: viewModel.providerName) { _, _ in
-                        viewModel.onNameChange()
-                    }
-                } header: {
-                    Text(NSLocalizedString("add_provider.name_label", comment: "Name"))
-                }
-                
-                Section {
-                    HStack {
-                        Text(viewModel.providerPath.isEmpty
-                             ? NSLocalizedString("add_provider.no_folder", comment: "No folder selected")
-                             : viewModel.providerPath)
-                            .foregroundStyle(viewModel.providerPath.isEmpty ? .secondary : .primary)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                        
-                        Spacer()
-                        
-                        Button(NSLocalizedString("add_provider.choose", comment: "Choose...")) {
-                            viewModel.showingFolderPicker = true
-                        }
-                        .buttonStyle(.bordered)
-                    }
-                } header: {
-                    Text(NSLocalizedString("add_provider.folder_label", comment: "Skills Folder"))
-                }
 
-                Section {
-                    HStack {
-                        Text(viewModel.workflowPath.isEmpty
-                             ? "No workflow folder selected"
-                             : viewModel.workflowPath)
-                            .foregroundStyle(viewModel.workflowPath.isEmpty ? .secondary : .primary)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                        
-                        Spacer()
-                    }
-                } header: {
-                    Text("Workflow Folder")
-                }
-                
-                Section {
-                    Picker(NSLocalizedString("add_provider.install_method", comment: "Installation Method"), selection: $viewModel.installMethod) {
-                        ForEach(SkillInstallationMethod.allCases) { method in
-                            Text(method.displayName).tag(method)
-                        }
-                    }
-                } header: {
-                    Text(NSLocalizedString("add_provider.settings", comment: "Settings"))
-                }
-            }
-            .formStyle(.grouped)
-            .navigationTitle(NSLocalizedString("add_provider.title", comment: "Add Provider"))
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button(NSLocalizedString("generic.cancel", comment: "Cancel")) {
-                        dismiss()
-                    }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button(NSLocalizedString("generic.add", comment: "Add")) {
-                        viewModel.addProvider()
-                        dismiss()
-                    }
-                    .disabled(!viewModel.canSave)
-                }
-            }
-            .fileImporter(
-                isPresented: $viewModel.showingFolderPicker,
-                allowedContentTypes: [.folder],
-                allowsMultipleSelection: false,
-                onCompletion: viewModel.handleFolderSelection
-            )
-        }
-        .frame(minWidth: 500, minHeight: 400)
-    }
-}
-
-/// Template selection button
-struct TemplateButton: View {
-    let template: ProviderTemplate
-    let isSelected: Bool
-    let action: () -> Void
-    
-    var body: some View {
-        Button(action: action) {
-            VStack(spacing: 6) {
-                Image(systemName: template.iconName)
-                    .font(.title2)
-                Text(template.displayName)
-                    .font(.caption)
-            }
-            .frame(width: 80, height: 60)
-            .background(isSelected ? Color.accentColor.opacity(0.2) : Color.secondary.opacity(0.1))
-            .cornerRadius(8)
-            .overlay(
-                RoundedRectangle(cornerRadius: 8)
-                    .stroke(isSelected ? Color.accentColor : Color.clear, lineWidth: 2)
-            )
-        }
-        .buttonStyle(.plain)
-    }
-}
 
 /// Sheet for editing an existing provider
 struct EditProviderSheet: View {
