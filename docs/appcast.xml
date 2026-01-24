@@ -5,5 +5,35 @@
         <link>https://linhay.github.io/nolon/appcast.xml</link>
         <description>Most recent changes with links to updates.</description>
         <language>en</language>
+            <item>
+            <title>0.0.4</title>
+            <pubDate>Sun, 25 Jan 2026 01:31:20 +0800</pubDate>
+            <sparkle:version>0.0.4</sparkle:version>
+            <sparkle:shortVersionString>0.0.4</sparkle:shortVersionString>
+            <link>https://github.com/linhay/nolon/releases/download/v0.0.4/nolon-arm64.dmg</link>
+            <description><![CDATA[## nolon 0.0.4
+            
+### Downloads
+| Platform | Architecture | Download |
+|----------|--------------|----------|
+| macOS | Apple Silicon | [nolon-arm64.dmg](https://github.com/linhay/nolon/releases/download/v0.0.4/nolon-arm64.dmg) |
+| macOS | Intel | [nolon-x86_64.dmg](https://github.com/linhay/nolon/releases/download/v0.0.4/nolon-x86_64.dmg) |
+]]></description>
+            <enclosure url="https://github.com/linhay/nolon/releases/download/v0.0.4/nolon-arm64.dmg"
+                       sparkle:version="0.0.4"
+                       sparkle:shortVersionString="0.0.4"
+                       sparkle:edSignature="CGBYpbYJ2sm4JNEcdaUQH2JAWEQTykzYsnLSmMqBZvAP45U6DnJkTMjBoUNwvJD2tM9ACC79s2JO/n2t35XtBw=="
+                       length="44863817"
+                       type="application/x-apple-diskimage"
+                       sparkle:os="macos" />
+            <enclosure url="https://github.com/linhay/nolon/releases/download/v0.0.4/nolon-x86_64.dmg"
+                       sparkle:version="0.0.4"
+                       sparkle:shortVersionString="0.0.4"
+                       sparkle:edSignature="uNoIvIyPMXUMN8D97SBeu9hcisM63oBkSJbr0WCDbQe0pJArVr4spx4bMfOmE7z44rwCWZdUgRQjJphh3x7wDA=="
+                       length="44989752"
+                       type="application/x-apple-diskimage"
+                       sparkle:os="macos" />
+        </item>
+
     </channel>
 </rss>
