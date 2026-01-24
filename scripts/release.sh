@@ -136,14 +136,16 @@ NEW_ITEM="
                        sparkle:edSignature=\"${ED_SIG_ARM64}\"
                        length=\"${SIZE_ARM64}\"
                        type=\"application/x-apple-diskimage\"
-                       sparkle:os=\"macos\" />
+                       sparkle:os=\"macos\"
+                       xml:lang=\"en\" />
             <enclosure url=\"${DOWNLOAD_BASE_URL}/nolon-x86_64.dmg\"
                        sparkle:version=\"${VERSION}\"
                        sparkle:shortVersionString=\"${VERSION}\"
                        sparkle:edSignature=\"${ED_SIG_X86_64}\"
                        length=\"${SIZE_X86_64}\"
                        type=\"application/x-apple-diskimage\"
-                       sparkle:os=\"macos\" />
+                       sparkle:os=\"macos\"
+                       xml:lang=\"en\" />
         </item>"
 
 # Insert the new item before the closing </channel> tag
@@ -151,9 +153,37 @@ NEW_ITEM="
 # Note: simple sed might be deleting newlines, so we use perl or awk or just simple sed with caution.
 # Here's a safe sed approach for inserting before a match.
 
-sed -i '' "/<\/channel>/i\\
+# Use Python to insert the XML item reliably
+cat > new_item.xml <<EOF
 $NEW_ITEM
-" "$APPCAST_FILE"
+EOF
+
+python3 -c "
+import sys
+
+with open('$APPCAST_FILE', 'r') as f:
+    content = f.read()
+
+with open('new_item.xml', 'r') as f:
+    new_item = f.read()
+
+# Insert before </channel>
+if '</channel>' in content:
+    new_content = content.replace('</channel>', new_item + '\n    </channel>')
+    with open('$APPCAST_FILE', 'w') as f:
+        f.write(new_content)
+else:
+    print('Error: Could not find </channel> tag in appcast.xml')
+    sys.exit(1)
+"
+
+if [ $? -ne 0 ]; then
+    echo -e "${RED}❌ Failed to update appcast.xml${NC}"
+    rm new_item.xml
+    exit 1
+fi
+
+rm new_item.xml
 
 echo -e "${GREEN}✅ Appcast updated at ${APPCAST_FILE}${NC}"
 
@@ -181,7 +211,21 @@ fi
 echo -e "${YELLOW}🚀 Creating release ${TAG}...${NC}"
 
 # Generate release notes
+echo -e "${YELLOW}📝 Generating release notes...${NC}"
+
+PREV_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+
+if [ -z "$PREV_TAG" ]; then
+    CHANGELOG="- Initial release"
+else
+    echo -e "Comparing against previous tag: ${PREV_TAG}"
+    CHANGELOG=$(git log --pretty=format:"- %s" "${PREV_TAG}..HEAD")
+fi
+
 RELEASE_NOTES="## ${APP_NAME} ${VERSION}
+
+### Changes
+${CHANGELOG}
 
 ### Downloads
 

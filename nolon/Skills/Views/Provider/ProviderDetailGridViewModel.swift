@@ -104,6 +104,21 @@ final class ProviderDetailGridViewModel {
         isLoading = false
     }
     
+    private let homeDirectory = FileManager.default.homeDirectoryForCurrentUser.path
+    
+    func displayPath(for path: String) -> String {
+        guard let provider = provider else { return path }
+        
+        if path == provider.defaultSkillsPath {
+            return NSLocalizedString("skills.primary_path", value: "Primary Path", comment: "Primary installation path")
+        }
+        
+        if path.hasPrefix(homeDirectory) {
+            return "~" + path.dropFirst(homeDirectory.count)
+        }
+        return path
+    }
+    
     // MARK: - Filtered Data
     
     var filteredSkills: [Skill] {

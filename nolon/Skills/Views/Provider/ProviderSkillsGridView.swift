@@ -32,7 +32,7 @@ struct ProviderSkillsGridView: View {
                         }
                     } header: {
                         HStack {
-                            Text(displayPath(group.path))
+                            Text(viewModel.displayPath(for: group.path))
                                 .font(.headline)
                                 .foregroundStyle(.secondary)
                             Spacer()
@@ -43,18 +43,5 @@ struct ProviderSkillsGridView: View {
                 }
             }
         }
-    }
-    
-    /// Convert full path to display path with ~ prefix
-    private func displayPath(_ path: String) -> String {
-        if path == provider.defaultSkillsPath {
-            return NSLocalizedString("skills.primary_path", value: "Primary Path", comment: "Primary installation path")
-        }
-        
-        let homeDir = FileManager.default.homeDirectoryForCurrentUser.path
-        if path.hasPrefix(homeDir) {
-            return "~" + path.dropFirst(homeDir.count)
-        }
-        return path
     }
 }

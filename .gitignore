@@ -67,3 +67,4 @@ release
 .env
 build-arm64
 build.log
+temp_sparkle
