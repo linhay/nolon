@@ -35,5 +35,19 @@
 		<key>NSAllowsArbitraryLoads</key>
 		<false/>
 	</dict>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>com.linhey.nolon</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>nolon</string>
+			</array>
+		</dict>
+	</array>
 </dict>
+
 </plist>

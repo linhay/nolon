@@ -31,7 +31,32 @@ final class AddRepositoryViewModel {
     init(settings: ProviderSettings) {
         self.settings = settings
         resetAddForm()
+        
+        // Handle pending URL import
+        if let importURL = settings.pendingImportURL {
+            selectedTemplate = .git
+            
+            // Extract subpath if present before normalization might strip it
+            if let subpath = RemoteRepository.extractSubpath(from: importURL) {
+                newSkillsPaths = [subpath]
+            }
+            
+            let normalized = RemoteRepository.normalizeGitURL(importURL)
+            newGitURL = normalized
+            
+            // Manually trigger update logic since didSet not called in init
+            let extractedName = RemoteRepository.extractRepoName(from: normalized)
+            if !extractedName.isEmpty {
+                newRepoName = extractedName
+            }
+            
+            validateInput()
+            
+            // Consume the pending URL
+            settings.pendingImportURL = nil
+        }
     }
+
     
     // Templates available for user to add (exclude built-in globalSkills)
     var availableTemplates: [RepositoryTemplate] {

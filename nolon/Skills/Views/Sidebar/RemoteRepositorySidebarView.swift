@@ -193,7 +193,17 @@ struct RemoteRepositorySidebarView: View {
             if selectedRepository == nil {
                 selectedRepository = settings.remoteRepositories.first
             }
+            // Check for pending import immediately on appear
+            if settings.pendingImportURL != nil {
+                viewModel.showingAddRepository = true
+            }
         }
+        .onChange(of: settings.pendingImportURL) { _, newValue in
+            if newValue != nil {
+                viewModel.showingAddRepository = true
+            }
+        }
+
     }
     
     private func repositoryRow(_ repo: RemoteRepository) -> some View {

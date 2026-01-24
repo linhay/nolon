@@ -14,14 +14,30 @@
 		CD9EDB742F23D2BE009248CB /* STJSON in Frameworks */ = {isa = PBXBuildFile; productRef = CD9EDB732F23D2BE009248CB /* STJSON */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		CD9EDF402F24F31E009248CB /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = CD2B1A8A2F1F624900DF4A2B /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = CD2B1A912F1F624900DF4A2B;
+			remoteInfo = nolon;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
 		CD2B1A922F1F624900DF4A2B /* nolon.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = nolon.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		CD9EDF3C2F24F31E009248CB /* nolonTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = nolonTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		CD2B1A942F1F624900DF4A2B /* nolon */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = nolon;
+			sourceTree = "<group>";
+		};
+		CD9EDF3D2F24F31E009248CB /* nolonTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = nolonTests;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -39,6 +55,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		CD9EDF392F24F31E009248CB /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -46,6 +69,7 @@
 			isa = PBXGroup;
 			children = (
 				CD2B1A942F1F624900DF4A2B /* nolon */,
+				CD9EDF3D2F24F31E009248CB /* nolonTests */,
 				CD2B1A932F1F624900DF4A2B /* Products */,
 			);
 			sourceTree = "<group>";
@@ -54,6 +78,7 @@
 			isa = PBXGroup;
 			children = (
 				CD2B1A922F1F624900DF4A2B /* nolon.app */,
+				CD9EDF3C2F24F31E009248CB /* nolonTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -88,6 +113,29 @@
 			productReference = CD2B1A922F1F624900DF4A2B /* nolon.app */;
 			productType = "com.apple.product-type.application";
 		};
+		CD9EDF3B2F24F31E009248CB /* nolonTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = CD9EDF422F24F31F009248CB /* Build configuration list for PBXNativeTarget "nolonTests" */;
+			buildPhases = (
+				CD9EDF382F24F31E009248CB /* Sources */,
+				CD9EDF392F24F31E009248CB /* Frameworks */,
+				CD9EDF3A2F24F31E009248CB /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				CD9EDF412F24F31E009248CB /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				CD9EDF3D2F24F31E009248CB /* nolonTests */,
+			);
+			name = nolonTests;
+			packageProductDependencies = (
+			);
+			productName = nolonTests;
+			productReference = CD9EDF3C2F24F31E009248CB /* nolonTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -100,6 +148,10 @@
 				TargetAttributes = {
 					CD2B1A912F1F624900DF4A2B = {
 						CreatedOnToolsVersion = 26.2;
+					};
+					CD9EDF3B2F24F31E009248CB = {
+						CreatedOnToolsVersion = 26.2;
+						TestTargetID = CD2B1A912F1F624900DF4A2B;
 					};
 				};
 			};
@@ -125,12 +177,20 @@
 			projectRoot = "";
 			targets = (
 				CD2B1A912F1F624900DF4A2B /* nolon */,
+				CD9EDF3B2F24F31E009248CB /* nolonTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		CD2B1A902F1F624900DF4A2B /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		CD9EDF3A2F24F31E009248CB /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -147,7 +207,22 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		CD9EDF382F24F31E009248CB /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		CD9EDF412F24F31E009248CB /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = CD2B1A912F1F624900DF4A2B /* nolon */;
+			targetProxy = CD9EDF402F24F31E009248CB /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		CD2B1A9B2F1F624A00DF4A2B /* Debug */ = {
@@ -346,6 +421,46 @@
 			};
 			name = Release;
 		};
+		CD9EDF432F24F31F009248CB /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 3L8RM3MDLS;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = nolon.overloaded.com.nolonTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/nolon.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/nolon";
+			};
+			name = Debug;
+		};
+		CD9EDF442F24F31F009248CB /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 3L8RM3MDLS;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = nolon.overloaded.com.nolonTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/nolon.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/nolon";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -363,6 +478,15 @@
 			buildConfigurations = (
 				CD2B1A9E2F1F624A00DF4A2B /* Debug */,
 				CD2B1A9F2F1F624A00DF4A2B /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		CD9EDF422F24F31F009248CB /* Build configuration list for PBXNativeTarget "nolonTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				CD9EDF432F24F31F009248CB /* Debug */,
+				CD9EDF442F24F31F009248CB /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

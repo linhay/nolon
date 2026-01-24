@@ -364,9 +364,59 @@ public struct RemoteRepository: Identifiable, Codable, Hashable, Sendable {
         return nil
     }
 
+    /// 规范化 Git URL，支持 owner/repo 简写
+    /// - "owner/repo" → "https://github.com/owner/repo.git"
+    /// - "owner/repo/subpath" → "https://github.com/owner/repo.git" (subpath 需单独处理)
+    /// - 完整 URL → 原样返回
+    public static func normalizeGitURL(_ input: String) -> String {
+        let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        // 已经是完整 URL 或 SSH 格式
+        if trimmed.hasPrefix("https://") || trimmed.hasPrefix("http://") ||
+           trimmed.hasPrefix("git@") || trimmed.hasSuffix(".git") {
+            return trimmed
+        }
+        
+        // 本地路径 (以 . 或 / 或 ~ 开头)
+        if trimmed.hasPrefix(".") || trimmed.hasPrefix("/") || trimmed.hasPrefix("~") {
+            return trimmed
+        }
+        
+        // owner/repo 或 owner/repo/subpath 格式
+        let components = trimmed.split(separator: "/")
+        if components.count >= 2,
+           !trimmed.contains("://"),
+           !trimmed.contains("@") {
+            let owner = components[0]
+            let repo = components[1]
+            return "https://github.com/\(owner)/\(repo).git"
+        }
+        
+        return trimmed
+    }
+    
+    /// 从 owner/repo/subpath 格式中提取 subpath
+    public static func extractSubpath(from input: String) -> String? {
+        let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        // 只处理简写格式
+        if trimmed.contains("://") || trimmed.contains("@") ||
+           trimmed.hasPrefix(".") || trimmed.hasPrefix("/") || trimmed.hasPrefix("~") {
+            return nil
+        }
+        
+        let components = trimmed.split(separator: "/")
+        if components.count > 2 {
+            return components.dropFirst(2).joined(separator: "/")
+        }
+        
+        return nil
+    }
+
     /// Built-in Clawdhub repository
     public static let clawdhub = RepositoryTemplate.clawdhub.createRepository()
     
     /// Built-in Global Skills repository (~/.nolon/skills/)
     public static let globalSkills = RepositoryTemplate.globalSkills.createRepository()
 }
+

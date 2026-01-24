@@ -39,8 +39,47 @@ struct CheckForUpdatesView: View {
     }
 }
 
+// MARK: - URL Scheme Handler
+
+/// Singleton to share pending URL across app
+@MainActor
+final class URLSchemeHandler: ObservableObject {
+    static let shared = URLSchemeHandler()
+    
+    @Published var pendingURL: URL?
+    
+    private init() {}
+    
+    func handleURL(_ url: URL) {
+        guard url.scheme == "nolon" else { return }
+        
+        // Reconstruct the original URL
+        // nolon://github.com/owner/repo -> https://github.com/owner/repo
+        var components = URLComponents(url: url, resolvingAgainstBaseURL: true)
+        components?.scheme = "https"
+        
+        if let httpsURL = components?.url {
+            print("[URLSchemeHandler] Received nolon URL: \(httpsURL.absoluteString)")
+            pendingURL = httpsURL
+        }
+    }
+}
+
+/// AppDelegate to handle URL events on macOS
+class AppDelegate: NSObject, NSApplicationDelegate {
+    func application(_ application: NSApplication, open urls: [URL]) {
+        print("[AppDelegate] Received URLs: \(urls)")
+        for url in urls {
+            Task { @MainActor in
+                URLSchemeHandler.shared.handleURL(url)
+            }
+        }
+    }
+}
+
 @main
 struct nolonApp: App {
+    @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     private let updaterController: SPUStandardUpdaterController
 
     init() {
@@ -56,6 +95,7 @@ struct nolonApp: App {
         WindowGroup {
             ContentView()
         }
+        .handlesExternalEvents(matching: Set(arrayLiteral: "*"))
         .commands {
             CommandGroup(after: .appInfo) {
                 CheckForUpdatesView(updater: updaterController.updater)
@@ -63,3 +103,4 @@ struct nolonApp: App {
         }
     }
 }
+

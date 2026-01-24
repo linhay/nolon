@@ -184,6 +184,7 @@ final class EditProviderViewModel {
 @MainActor
 public struct ProviderSidebarView: View {
     @Binding var selectedProviderId: Provider.ID?
+    @ObservedObject var settings: ProviderSettings
     @State private var viewModel: ProviderSidebarViewModel
     @State private var showingAddSheet = false
     
@@ -192,13 +193,14 @@ public struct ProviderSidebarView: View {
         settings: ProviderSettings
     ) {
         self._selectedProviderId = selectedProviderId
+        self.settings = settings
         self._viewModel = State(initialValue: ProviderSidebarViewModel(settings: settings))
     }
     
     public var body: some View {
         List(selection: $selectedProviderId) {
             Section {
-                ForEach(viewModel.settings.providers) { provider in
+                ForEach(settings.providers) { provider in
                     ProviderRowView(
                         provider: provider,
                         isSelected: selectedProviderId == provider.id,

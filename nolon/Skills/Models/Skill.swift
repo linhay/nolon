@@ -75,15 +75,15 @@ public struct Skill: Sendable, Equatable, Identifiable, Hashable {
     }
     
     /// Content for the associated workflow file
+    /// Generates a lightweight declaration that tells CLI a skill exists,
+    /// allowing CLI to discover and load the full skill content itself.
     public var workflowContent: String {
         """
         ---
         description: \(description)
         ---
         
-        # \(name)
-        
-        \(description)
+        使用 `\(name)` skill 来\(description)。
         """
     }
 

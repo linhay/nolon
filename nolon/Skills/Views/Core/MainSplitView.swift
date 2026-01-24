@@ -145,9 +145,18 @@ public struct MainSplitView: View {
                 viewModel.onClawdhubDismissed()
             }
         }
+        .onReceive(URLSchemeHandler.shared.$pendingURL) { pendingURL in
+            guard let url = pendingURL else { return }
+            print("[MainSplitView] Received URL from URLSchemeHandler: \(url.absoluteString)")
+            viewModel.settings.pendingImportURL = url.absoluteString
+            viewModel.showingClawdhub = true
+            // Clear the pending URL after consuming
+            URLSchemeHandler.shared.pendingURL = nil
+        }
         .onAppear {
             viewModel.setup()
         }
+
     }
 }
 

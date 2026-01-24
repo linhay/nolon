@@ -32,6 +32,10 @@ public class ProviderSettings: ObservableObject {
     @Published public var remoteRepositories: [RemoteRepository] = [] {
         didSet { saveRemoteRepositories() }
     }
+    
+    /// URL to import from nolon:// scheme
+    @Published public var pendingImportURL: String?
+
 
     public init() {
         loadSettings()
