@@ -1,5 +1,5 @@
 {
-  "originHash" : "9745fb3e03c1bb7b82c532a06031a78a034a6efca68238da544ed47864fbe85c",
+  "originHash" : "a0a339e1ae2809bbda413d1c1003212e094b4b0c79368517cb6d43425d95ae08",
   "pins" : [
     {
       "identity" : "networkimage",
@@ -11,12 +11,30 @@
       }
     },
     {
+      "identity" : "sparkle",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/sparkle-project/Sparkle.git",
+      "state" : {
+        "branch" : "2.x",
+        "revision" : "90eff791ec690324b5f227b8d4fa09da8d890e07"
+      }
+    },
+    {
       "identity" : "stfilepath",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/linhay/STFilePath.git",
       "state" : {
         "revision" : "cb273a95cfbdbf6ddcaa060ae918a52eec42edce",
         "version" : "1.2.6"
+      }
+    },
+    {
+      "identity" : "stjson",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/linhay/STJSON",
+      "state" : {
+        "revision" : "21560e25f8e2042928253b74a31529295924a0cd",
+        "version" : "1.4.2"
       }
     },
     {

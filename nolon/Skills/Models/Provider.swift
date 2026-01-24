@@ -12,6 +12,14 @@ public struct Provider: Codable, Identifiable, Hashable, Sendable {
     /// Template ID if created from a built-in template
     public var templateId: String?
     
+    public var displayName: String { name }
+    
+    public var pathURL: URL {
+        URL(fileURLWithPath: skillsPath)
+    }
+    
+    public var documentationURL: URL?
+
     public init(
         id: String = UUID().uuidString,
         name: String,
@@ -19,7 +27,8 @@ public struct Provider: Codable, Identifiable, Hashable, Sendable {
         workflowPath: String,
         iconName: String = "folder",
         installMethod: SkillInstallationMethod = .symlink,
-        templateId: String? = nil
+        templateId: String? = nil,
+        documentationURL: URL? = nil
     ) {
         self.id = id
         self.name = name
@@ -28,11 +37,6 @@ public struct Provider: Codable, Identifiable, Hashable, Sendable {
         self.iconName = iconName
         self.installMethod = installMethod
         self.templateId = templateId
-    }
-    
-    public var displayName: String { name }
-    
-    public var pathURL: URL {
-        URL(fileURLWithPath: skillsPath)
+        self.documentationURL = documentationURL
     }
 }

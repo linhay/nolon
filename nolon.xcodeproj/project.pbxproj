@@ -8,8 +8,10 @@
 
 /* Begin PBXBuildFile section */
 		CD447BF32F1F79890056366B /* MarkdownUI in Frameworks */ = {isa = PBXBuildFile; productRef = CD447BF22F1F79890056366B /* MarkdownUI */; };
+		CD447BF62F1F79890056366B /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = CD447BF52F1F79890056366B /* Sparkle */; };
 		CD9ECB202F21F6C0009248CB /* SwiftGit in Frameworks */ = {isa = PBXBuildFile; productRef = CD9ECB1F2F21F6C0009248CB /* SwiftGit */; };
 		CD9EDAC52F2320BC009248CB /* SwiftGit in Frameworks */ = {isa = PBXBuildFile; productRef = CD9EDAC42F2320BC009248CB /* SwiftGit */; };
+		CD9EDB742F23D2BE009248CB /* STJSON in Frameworks */ = {isa = PBXBuildFile; productRef = CD9EDB732F23D2BE009248CB /* STJSON */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -32,6 +34,8 @@
 				CD9EDAC52F2320BC009248CB /* SwiftGit in Frameworks */,
 				CD447BF32F1F79890056366B /* MarkdownUI in Frameworks */,
 				CD9ECB202F21F6C0009248CB /* SwiftGit in Frameworks */,
+				CD9EDB742F23D2BE009248CB /* STJSON in Frameworks */,
+				CD447BF62F1F79890056366B /* Sparkle in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -77,6 +81,8 @@
 				CD447BF22F1F79890056366B /* MarkdownUI */,
 				CD9ECB1F2F21F6C0009248CB /* SwiftGit */,
 				CD9EDAC42F2320BC009248CB /* SwiftGit */,
+				CD9EDB732F23D2BE009248CB /* STJSON */,
+				CD447BF52F1F79890056366B /* Sparkle */,
 			);
 			productName = nolon;
 			productReference = CD2B1A922F1F624900DF4A2B /* nolon.app */;
@@ -110,6 +116,8 @@
 			packageReferences = (
 				CD447BF12F1F79890056366B /* XCRemoteSwiftPackageReference "swift-markdown-ui" */,
 				CD9EDAC32F2320BC009248CB /* XCRemoteSwiftPackageReference "swift-git" */,
+				CD9EDB722F23D2BE009248CB /* XCRemoteSwiftPackageReference "STJSON" */,
+				CD447BF42F1F79890056366B /* XCRemoteSwiftPackageReference "Sparkle" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = CD2B1A932F1F624900DF4A2B /* Products */;
@@ -370,12 +378,28 @@
 				minimumVersion = 2.4.1;
 			};
 		};
+		CD447BF42F1F79890056366B /* XCRemoteSwiftPackageReference "Sparkle" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sparkle-project/Sparkle.git";
+			requirement = {
+				branch = 2.x;
+				kind = branch;
+			};
+		};
 		CD9EDAC32F2320BC009248CB /* XCRemoteSwiftPackageReference "swift-git" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/linhay/swift-git";
 			requirement = {
 				kind = upToNextMajorVersion;
 				minimumVersion = 2.1.0;
+			};
+		};
+		CD9EDB722F23D2BE009248CB /* XCRemoteSwiftPackageReference "STJSON" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/linhay/STJSON";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.4.2;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */
@@ -386,6 +410,11 @@
 			package = CD447BF12F1F79890056366B /* XCRemoteSwiftPackageReference "swift-markdown-ui" */;
 			productName = MarkdownUI;
 		};
+		CD447BF52F1F79890056366B /* Sparkle */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = CD447BF42F1F79890056366B /* XCRemoteSwiftPackageReference "Sparkle" */;
+			productName = Sparkle;
+		};
 		CD9ECB1F2F21F6C0009248CB /* SwiftGit */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = SwiftGit;
@@ -394,6 +423,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = CD9EDAC32F2320BC009248CB /* XCRemoteSwiftPackageReference "swift-git" */;
 			productName = SwiftGit;
+		};
+		CD9EDB732F23D2BE009248CB /* STJSON */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = CD9EDB722F23D2BE009248CB /* XCRemoteSwiftPackageReference "STJSON" */;
+			productName = STJSON;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

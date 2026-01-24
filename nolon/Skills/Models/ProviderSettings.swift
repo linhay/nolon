@@ -107,12 +107,7 @@ public class ProviderSettings: ObservableObject {
     // MARK: - Persistence
 
     private var providersFileURL: URL {
-        let home = FileManager.default.homeDirectoryForCurrentUser
-        let dir = home.appendingPathComponent(".nolon")
-        if !FileManager.default.fileExists(atPath: dir.path) {
-            try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        }
-        return dir.appendingPathComponent("providers.json")
+        NolonManager.shared.providersConfigURL
     }
 
     private func loadSettings() {

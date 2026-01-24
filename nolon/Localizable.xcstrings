@@ -54,6 +54,18 @@
         }
       }
     },
+    "action.add_provider" : {
+      "comment" : "Add Provider",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Add Provider"
+          }
+        }
+      }
+    },
     "action.delete" : {
       "comment" : "Delete",
       "localizations" : {
@@ -188,6 +200,9 @@
     "Add one or more paths containing skills (e.g., 'skills', 'python', '.agent/skills'). Use '.' for repository root." : {
 
     },
+    "Add Provider" : {
+
+    },
     "Add Repository" : {
       "localizations" : {
         "zh-Hans" : {
@@ -205,6 +220,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "选择..."
+          }
+        }
+      }
+    },
+    "add_provider.error.exists" : {
+      "comment" : "Error message",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "This provider configuration already exists."
+          }
+        }
+      }
+    },
+    "add_provider.error.name_exists" : {
+      "comment" : "Error message",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "A provider with this name already exists."
+          }
+        }
+      }
+    },
+    "add_provider.error.path_exists" : {
+      "comment" : "Error message",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "A provider with this path already exists."
           }
         }
       }
@@ -354,6 +405,9 @@
         }
       }
     },
+    "Check for Updates…" : {
+
+    },
     "Choose a repository from the sidebar" : {
       "localizations" : {
         "zh-Hans" : {
@@ -406,9 +460,6 @@
           }
         }
       }
-    },
-    "Configured" : {
-
     },
     "confirm.delete_broken_title" : {
       "comment" : "Delete broken symlink?",
@@ -499,7 +550,13 @@
     "content.no_provider_desc" : {
       "comment" : "Choose a provider from the sidebar"
     },
-    "Create Config" : {
+    "Create Configuration" : {
+
+    },
+    "Delete" : {
+
+    },
+    "Delete Server" : {
 
     },
     "Design System Colors" : {
@@ -568,6 +625,9 @@
         }
       }
     },
+    "Documentation" : {
+
+    },
     "Done" : {
       "localizations" : {
         "zh-Hans" : {
@@ -578,7 +638,16 @@
         }
       }
     },
+    "Edit" : {
+
+    },
     "Edit Config" : {
+
+    },
+    "Edit Configuration" : {
+
+    },
+    "Edit Server" : {
 
     },
     "edit_provider.title" : {
@@ -704,6 +773,9 @@
     },
     "Generate a token from your Git provider's settings with 'read_repository' scope." : {
 
+    },
+    "generic.add" : {
+      "comment" : "Add"
     },
     "generic.cancel" : {
       "comment" : "Cancel",
@@ -915,6 +987,9 @@
         }
       }
     },
+    "MCP configuration file not found." : {
+
+    },
     "mcp.not_supported" : {
       "comment" : "MCP Not Supported"
     },
@@ -922,9 +997,6 @@
       "comment" : "This provider does not support MCP configuration"
     },
     "Metadata" : {
-
-    },
-    "Model Context Protocol (MCP) server configuration." : {
 
     },
     "Name" : {
@@ -970,6 +1042,12 @@
         }
       }
     },
+    "No command specified" : {
+
+    },
+    "No Configuration" : {
+
+    },
     "No detailed description available." : {
       "localizations" : {
         "zh-Hans" : {
@@ -983,6 +1061,9 @@
     "No file selected" : {
 
     },
+    "No MCP servers configured." : {
+
+    },
     "No providers available. Please create a local provider first." : {
       "localizations" : {
         "zh-Hans" : {
@@ -992,6 +1073,9 @@
           }
         }
       }
+    },
+    "No Servers" : {
+
     },
     "No Skills" : {
       "localizations" : {
@@ -1003,9 +1087,6 @@
         }
       }
     },
-    "Not Configured" : {
-
-    },
     "Not synced" : {
       "localizations" : {
         "zh-Hans" : {
@@ -1015,9 +1096,6 @@
           }
         }
       }
-    },
-    "Open Documentation" : {
-
     },
     "Path (e.g., skills, .agent)" : {
 
@@ -1038,10 +1116,17 @@
     },
     "provider.antigravity" : {
       "comment" : "Antigravity",
+      "extractionState" : "stale",
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Antigravity"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "Antigravity"
           }
         }
@@ -1049,10 +1134,17 @@
     },
     "provider.claude" : {
       "comment" : "Claude Code",
+      "extractionState" : "stale",
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Claude Code"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "Claude Code"
           }
         }
@@ -1060,10 +1152,17 @@
     },
     "provider.codex" : {
       "comment" : "Codex",
+      "extractionState" : "stale",
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Codex"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "Codex"
           }
         }
@@ -1071,10 +1170,17 @@
     },
     "provider.copilot" : {
       "comment" : "GitHub Copilot",
+      "extractionState" : "stale",
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "GitHub Copilot"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "GitHub Copilot"
           }
         }
@@ -1104,10 +1210,17 @@
     },
     "provider.gemini" : {
       "comment" : "Gemini CLI",
+      "extractionState" : "stale",
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Gemini CLI"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "Gemini CLI"
           }
         }
@@ -1115,10 +1228,17 @@
     },
     "provider.opencode" : {
       "comment" : "OpenCode",
+      "extractionState" : "stale",
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "OpenCode"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "OpenCode"
           }
         }
@@ -1630,6 +1750,9 @@
     },
     "tab.workflows" : {
       "comment" : "Workflows"
+    },
+    "Template" : {
+
     },
     "This repository has no skills yet" : {
       "localizations" : {

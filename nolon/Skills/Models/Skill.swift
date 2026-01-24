@@ -73,6 +73,19 @@ public struct Skill: Sendable, Equatable, Identifiable, Hashable {
     public var hasScripts: Bool {
         scriptCount > 0
     }
+    
+    /// Content for the associated workflow file
+    public var workflowContent: String {
+        """
+        ---
+        description: \(description)
+        ---
+        
+        # \(name)
+        
+        \(description)
+        """
+    }
 
     // MARK: - Search
 

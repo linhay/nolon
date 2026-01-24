@@ -62,6 +62,111 @@ echo -e "${GREEN}✅ Version updated: ${VERSION} (build ${BUILD_NUMBER})${NC}"
 echo -e "${YELLOW}📦 Building DMGs for all architectures...${NC}"
 ./scripts/build-dmg.sh all
 
+# ------------------------------------------------------------------------------
+# Sparkle Integration
+# ------------------------------------------------------------------------------
+
+SPARKLE_VERSION="2.6.4"
+SPARKLE_DIR="temp_sparkle"
+SPARKLE_BIN="${SPARKLE_DIR}/bin"
+
+# Download Sparkle tools if missing
+if [ ! -d "$SPARKLE_DIR" ]; then
+    echo -e "${YELLOW}⬇️  Downloading Sparkle ${SPARKLE_VERSION}...${NC}"
+    mkdir -p "$SPARKLE_DIR"
+    curl -L -s "https://github.com/sparkle-project/Sparkle/releases/download/${SPARKLE_VERSION}/Sparkle-${SPARKLE_VERSION}.tar.xz" | tar -xJ -C "$SPARKLE_DIR"
+fi
+
+# Sign DMGs
+echo -e "${YELLOW}✍️  Signing updates with Sparkle...${NC}"
+SIGNATURE_ARM64=$("$SPARKLE_BIN/sign_update" "$DMG_ARM64")
+SIGNATURE_X86_64=$("$SPARKLE_BIN/sign_update" "$DMG_X86_64")
+
+# Helper to extract EdDSA signature
+get_signature() {
+    echo "$1" | grep "sparkle:edSignature" | sed 's/.*sparkle:edSignature="//;s/".*//'
+}
+
+ED_SIG_ARM64=$(get_signature "$SIGNATURE_ARM64")
+ED_SIG_X86_64=$(get_signature "$SIGNATURE_X86_64")
+
+# Update Appcast
+APPCAST_FILE="docs/appcast.xml"
+APPCAST_URL="https://linhay.github.io/nolon/appcast.xml"
+DOWNLOAD_BASE_URL="https://github.com/linhay/nolon/releases/download/${TAG}"
+DATE_RFC2822=$(date "+%a, %d %b %Y %H:%M:%S %z")
+
+# Ensure docs directory exists
+mkdir -p docs
+
+# If appcast doesn't exist, create it
+if [ ! -f "$APPCAST_FILE" ]; then
+    cat > "$APPCAST_FILE" <<EOF
+<?xml version="1.0" standalone="yes"?>
+<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+    <channel>
+        <title>Nolon Changelog</title>
+        <link>${APPCAST_URL}</link>
+        <description>Most recent changes with links to updates.</description>
+        <language>en</language>
+    </channel>
+</rss>
+EOF
+fi
+
+# Generate the new item entry
+# Note: Sparkle supports multiple enclosures in one item for different architectures (sparkle:os="macos" and sparkle:cpu)
+# But here we add two Enclosures to one Item or use two Items?
+# Sparkle 2.x best practice: One item per version, multiple enclosures.
+
+SIZE_ARM64=$(stat -f%z "$DMG_ARM64")
+SIZE_X86_64=$(stat -f%z "$DMG_X86_64")
+
+NEW_ITEM="
+        <item>
+            <title>${VERSION}</title>
+            <pubDate>${DATE_RFC2822}</pubDate>
+            <sparkle:version>${VERSION}</sparkle:version>
+            <sparkle:shortVersionString>${VERSION}</sparkle:shortVersionString>
+            <link>${DOWNLOAD_BASE_URL}/nolon-arm64.dmg</link>
+            <description><![CDATA[${RELEASE_NOTES}]]></description>
+            <enclosure url=\"${DOWNLOAD_BASE_URL}/nolon-arm64.dmg\"
+                       sparkle:version=\"${VERSION}\"
+                       sparkle:shortVersionString=\"${VERSION}\"
+                       sparkle:edSignature=\"${ED_SIG_ARM64}\"
+                       length=\"${SIZE_ARM64}\"
+                       type=\"application/x-apple-diskimage\"
+                       sparkle:os=\"macos\" />
+            <enclosure url=\"${DOWNLOAD_BASE_URL}/nolon-x86_64.dmg\"
+                       sparkle:version=\"${VERSION}\"
+                       sparkle:shortVersionString=\"${VERSION}\"
+                       sparkle:edSignature=\"${ED_SIG_X86_64}\"
+                       length=\"${SIZE_X86_64}\"
+                       type=\"application/x-apple-diskimage\"
+                       sparkle:os=\"macos\" />
+        </item>"
+
+# Insert the new item before the closing </channel> tag
+# We use a temporary file to construct the new XML
+# Note: simple sed might be deleting newlines, so we use perl or awk or just simple sed with caution.
+# Here's a safe sed approach for inserting before a match.
+
+sed -i '' "/<\/channel>/i\\
+$NEW_ITEM
+" "$APPCAST_FILE"
+
+echo -e "${GREEN}✅ Appcast updated at ${APPCAST_FILE}${NC}"
+
+# Commit and Push Appcast
+echo -e "${YELLOW}GIT committing appcast...${NC}"
+git add "$APPCAST_FILE"
+git commit -m "Update appcast for ${VERSION}"
+git push origin HEAD
+
+# ------------------------------------------------------------------------------
+# End Sparkle Integration
+# ------------------------------------------------------------------------------
+
 # Verify DMGs exist
 if [ ! -f "$DMG_ARM64" ]; then
     echo -e "${RED}❌ arm64 DMG not found: ${DMG_ARM64}${NC}"
@@ -107,3 +212,8 @@ gh release create "$TAG" \
 
 echo -e "${GREEN}✅ Release ${TAG} created successfully!${NC}"
 echo -e "${GREEN}📍 View at: $(gh repo view --json url -q .url)/releases/tag/${TAG}${NC}"
+
+# Enable GitHub Pages if not already enabled
+echo -e "${YELLOW}⚙️  Check GitHub Pages...${NC}"
+gh api repos/:owner/:repo/pages -X POST -f source='{"branch":"main","path":"/docs"}' --silent || true
+echo -e "${GREEN}✅ GitHub Pages configured!${NC}"

@@ -65,7 +65,7 @@ public final class SkillInstaller {
     /// 1. Extract to global storage (~/.nolon/skills)
     /// 2. Link/copy to provider directory based on provider settings
     public func installRemote(zipURL: URL, slug: String, to provider: Provider) throws {
-        let globalSkillsPath = "\(fileManager.homeDirectoryForCurrentUser.path)/.nolon/skills"
+        let globalSkillsPath = NolonManager.shared.skillsPath
         let globalPath = "\(globalSkillsPath)/\(slug)"
 
         // Check if already exists in global storage
@@ -143,7 +143,7 @@ public final class SkillInstaller {
     /// 1. Symlink to global storage (~/.nolon/skills) to register it
     /// 2. Link/copy to provider directory based on provider settings
     public func installLocal(from sourcePath: String, slug: String, to provider: Provider) throws {
-        let globalSkillsPath = "\(fileManager.homeDirectoryForCurrentUser.path)/.nolon/skills"
+        let globalSkillsPath = NolonManager.shared.skillsPath
         let globalPath = "\(globalSkillsPath)/\(slug)"
 
         // Ensure global skills directory exists
@@ -243,6 +243,40 @@ public final class SkillInstaller {
 
         try fileManager.removeItem(atPath: targetPath)
     }
+    
+    // MARK: - Workflow Installation
+    
+    /// Install a workflow for a skill (symlink to global workflow)
+    public func installWorkflow(skill: Skill, to provider: Provider) throws {
+        let providerWorkflowPath = provider.workflowPath
+        let targetPath = "\(providerWorkflowPath)/\(skill.id).md"
+        
+        // Ensure provider workflow directory exists
+        try createDirectory(at: providerWorkflowPath)
+        
+        // Ensure global workflow exists
+        let globalWorkflowPath = try repository.createGlobalWorkflow(for: skill)
+        
+        // Remove existing link/file if present
+        if fileManager.fileExists(atPath: targetPath) {
+            try fileManager.removeItem(atPath: targetPath)
+        }
+        
+        // Create symlink
+        try fileManager.createSymbolicLink(atPath: targetPath, withDestinationPath: globalWorkflowPath)
+    }
+    
+    /// Uninstall a workflow for a skill
+    public func uninstallWorkflow(skill: Skill, from provider: Provider) throws {
+        let providerWorkflowPath = provider.workflowPath
+        let targetPath = "\(providerWorkflowPath)/\(skill.id).md"
+        
+        guard fileManager.fileExists(atPath: targetPath) else {
+            return
+        }
+        
+        try fileManager.removeItem(atPath: targetPath)
+    }
 
     // MARK: - Provider Scanning
 
@@ -317,8 +351,7 @@ public final class SkillInstaller {
             }
 
             // Check if skill exists in global storage
-            let globalPath =
-                "\(fileManager.homeDirectoryForCurrentUser.path)/.nolon/skills/\(skillName)"
+            let globalPath = "\(NolonManager.shared.skillsPath)/\(skillName)"
             guard fileManager.fileExists(atPath: globalPath) else {
                 // Not in global storage -> orphaned
                 return .orphaned
@@ -406,8 +439,7 @@ public final class SkillInstaller {
                 "Skill '\(skillName)' is not an orphaned physical file")
         }
 
-        let globalPath =
-            "\(fileManager.homeDirectoryForCurrentUser.path)/.nolon/skills/\(skillName)"
+        let globalPath = "\(NolonManager.shared.skillsPath)/\(skillName)"
 
         let globalExists = fileManager.fileExists(atPath: globalPath)
 
@@ -516,8 +548,7 @@ public final class SkillInstaller {
     public func repairSymlink(skillName: String, for provider: Provider) throws {
         let providerPath = provider.skillsPath
         let targetPath = "\(providerPath)/\(skillName)"
-        let globalPath =
-            "\(fileManager.homeDirectoryForCurrentUser.path)/.nolon/skills/\(skillName)"
+        let globalPath = "\(NolonManager.shared.skillsPath)/\(skillName)"
 
         // Remove broken symlink
         if fileManager.fileExists(atPath: targetPath) {

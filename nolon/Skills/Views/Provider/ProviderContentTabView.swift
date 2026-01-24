@@ -1,4 +1,5 @@
 import SwiftUI
+import STJSON
 
 /// Provider 内容 Tab 类型
 enum ProviderContentTabType: String, CaseIterable, Identifiable {
@@ -83,7 +84,14 @@ final class ProviderContentTabViewModel {
         if let templateId = provider.templateId,
            let template = ProviderTemplate(rawValue: templateId) {
             let configPath = template.defaultMcpConfigPath
-            mcpCount = FileManager.default.fileExists(atPath: configPath.path) ? 1 : 0
+            if FileManager.default.fileExists(atPath: configPath.path),
+               let data = try? Data(contentsOf: configPath),
+               let json = try? JSON(data: data),
+               let servers = json["mcpServers"].dictionary {
+                mcpCount = servers.count
+            } else {
+                mcpCount = 0
+            }
         } else {
             mcpCount = 0
         }

@@ -140,23 +140,7 @@ final class SkillDetailViewModel {
     
     private func createWorkflow(for provider: Provider) {
         do {
-            let workflowDir = provider.workflowPath
-            if !FileManager.default.fileExists(atPath: workflowDir) {
-                try FileManager.default.createDirectory(atPath: workflowDir, withIntermediateDirectories: true)
-            }
-            
-            let content = """
-            ---
-            description: \(skill.description)
-            ---
-            
-            # \(skill.name)
-            
-            [Open Skill](nolon://skill/\(skill.id))
-            
-            """
-            let path = provider.workflowPath + "/" + skill.id + ".md"
-            try content.write(toFile: path, atomically: true, encoding: .utf8)
+            try installer.installWorkflow(skill: skill, to: provider)
         } catch {
             print("Failed to create workflow: \(error)")
         }
@@ -164,10 +148,7 @@ final class SkillDetailViewModel {
     
     private func deleteWorkflow(for provider: Provider) {
         do {
-            let path = provider.workflowPath + "/" + skill.id + ".md"
-            if FileManager.default.fileExists(atPath: path) {
-                try FileManager.default.removeItem(atPath: path)
-            }
+            try installer.uninstallWorkflow(skill: skill, from: provider)
         } catch {
             print("Failed to delete workflow: \(error)")
         }

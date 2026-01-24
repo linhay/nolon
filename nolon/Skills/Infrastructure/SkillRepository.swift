@@ -4,29 +4,18 @@ import Foundation
 public final class SkillRepository {
 
     private let fileManager: FileManager
-    private let globalSkillsPath: String
-    private let metadataPath: String
+    private var globalSkillsPath: String { NolonManager.shared.skillsPath }
+    private var metadataPath: String { "\(globalSkillsPath)/.metadata.json" }
 
     public init(fileManager: FileManager = .default) {
         self.fileManager = fileManager
-        let homePath = fileManager.homeDirectoryForCurrentUser.path
-        self.globalSkillsPath = "\(homePath)/.nolon/skills"
-        self.metadataPath = "\(globalSkillsPath)/.metadata.json"
-
-        // Ensure global skills directory exists
-        try? createGlobalDirectory()
+        // Directories are ensured by NolonManager
     }
 
     // MARK: - Directory Management
 
     private func createGlobalDirectory() throws {
-        if !fileManager.fileExists(atPath: globalSkillsPath) {
-            try fileManager.createDirectory(
-                atPath: globalSkillsPath,
-                withIntermediateDirectories: true,
-                attributes: nil
-            )
-        }
+        // Handled by NolonManager
     }
 
     // MARK: - Skill Management
@@ -143,6 +132,24 @@ public final class SkillRepository {
         var metadata = try loadMetadata()
         metadata.skills.removeValue(forKey: id)
         try saveMetadata(metadata)
+        
+        // Remove global workflow if exists
+        let workflowPath = "\(NolonManager.shared.generatedWorkflowsPath)/\(id).md"
+        if fileManager.fileExists(atPath: workflowPath) {
+            try? fileManager.removeItem(atPath: workflowPath)
+        }
+    }
+    
+    // MARK: - Workflow Management
+    
+    /// Create a global workflow file for a skill
+    public func createGlobalWorkflow(for skill: Skill) throws -> String {
+        let path = "\(NolonManager.shared.generatedWorkflowsPath)/\(skill.id).md"
+        
+        // Always overwrite to ensure content is up to date with skill changes
+        try skill.workflowContent.write(toFile: path, atomically: true, encoding: .utf8)
+        
+        return path
     }
 
     // MARK: - Metadata Management
