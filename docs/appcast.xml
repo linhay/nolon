@@ -35,5 +35,31 @@
                        sparkle:os="macos" />
         </item>
 
+    
+        <item>
+            <title>0.0.6</title>
+            <pubDate>Sun, 25 Jan 2026 02:06:42 +0800</pubDate>
+            <sparkle:version>0.0.6</sparkle:version>
+            <sparkle:shortVersionString>0.0.6</sparkle:shortVersionString>
+            <link>https://github.com/linhay/nolon/releases/download/v0.0.6/nolon-arm64.dmg</link>
+            <description><![CDATA[]]></description>
+            <enclosure url="https://github.com/linhay/nolon/releases/download/v0.0.6/nolon-arm64.dmg"
+                       sparkle:version="0.0.6"
+                       sparkle:shortVersionString="0.0.6"
+                       sparkle:edSignature="9a+1YdGRHQMYW6pTX0D3LsMzuv65oHXka7Qk+HoTJOqFtQUdWHFJEjnAbTx5LUrNN00uEnVuP9FP8qHyaCKYAA=="
+                       length="44864620"
+                       type="application/x-apple-diskimage"
+                       sparkle:os="macos"
+                       xml:lang="en" />
+            <enclosure url="https://github.com/linhay/nolon/releases/download/v0.0.6/nolon-x86_64.dmg"
+                       sparkle:version="0.0.6"
+                       sparkle:shortVersionString="0.0.6"
+                       sparkle:edSignature="EOCsILzKUvAYNHy7xYryJNbB9gSEEc/yK1y0jYaAvc1UHAGgelfPBVKgqGB7nu/jG4SRepZOQB5gtHkvDIbqCQ=="
+                       length="44990372"
+                       type="application/x-apple-diskimage"
+                       sparkle:os="macos"
+                       xml:lang="en" />
+        </item>
+
     </channel>
 </rss>
