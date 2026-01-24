@@ -1,8 +1,9 @@
 import json
 import os
 
-XCSTRINGS_PATH = "../Localizable.xcstrings"
-OUTPUT_PATH = "missing_translations.json"
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+XCSTRINGS_PATH = os.path.join(SCRIPT_DIR, "../nolon/Localizable.xcstrings")
+OUTPUT_PATH = os.path.join(SCRIPT_DIR, "missing_translations.json")
 
 def main():
     if not os.path.exists(XCSTRINGS_PATH):

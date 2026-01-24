@@ -7,9 +7,29 @@ struct ProviderLogoView: View {
         case horizontal
     }
     
-    let provider: Provider
+    let name: String
+    let logoName: String?
     var style: Style = .iconOnly
     var iconSize: CGFloat? = nil
+    
+    init(provider: Provider, style: Style = .iconOnly, iconSize: CGFloat? = nil) {
+        self.name = provider.displayName
+        if let id = provider.templateId,
+           let template = ProviderTemplate(rawValue: id) {
+            self.logoName = template.logoFile
+        } else {
+            self.logoName = nil
+        }
+        self.style = style
+        self.iconSize = iconSize
+    }
+    
+    init(name: String, logoName: String?, style: Style = .iconOnly, iconSize: CGFloat? = nil) {
+        self.name = name
+        self.logoName = logoName
+        self.style = style
+        self.iconSize = iconSize
+    }
     
     var body: some View {
         switch style {
@@ -28,23 +48,57 @@ struct ProviderLogoView: View {
         }
     }
     
+    @Environment(\.colorScheme) var colorScheme
+    
     @ViewBuilder
     var iconView: some View {
-        if let logoName = lobeIconName {
-            Image(logoName)
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(width: iconSize, height: iconSize)
-                .help(provider.displayName)
+        if let logoName = logoName {
+            if NSImage(named: logoName) != nil {
+                // SwiftUI Image automatically handles Light/Dark appearances in XCAssets
+                Image(logoName)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: iconSize, height: iconSize)
+                    .help(name)
+            } else {
+                // Fallback to remote Lobe Icons CDN
+                let theme = colorScheme == .dark ? "dark" : "light"
+                // Using colored priority in remote fallback if possible? 
+                // Actually stick to the standard slug as it's more reliable via CDN
+                let urlString = "https://unpkg.com/@lobehub/icons-static-png@latest/\(theme)/\(logoName).png"
+                if let url = URL(string: urlString) {
+                    AsyncImage(url: url) { phase in
+                        switch phase {
+                        case .success(let image):
+                            image
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                        case .failure:
+                            fallbackView
+                        case .empty:
+                            ProgressView()
+                                .controlSize(.small)
+                        @unknown default:
+                            fallbackView
+                        }
+                    }
+                    .frame(width: iconSize, height: iconSize)
+                    .help(name)
+                } else {
+                    fallbackView
+                        .frame(width: iconSize, height: iconSize)
+                        .help(name)
+                }
+            }
         } else {
             fallbackView
                 .frame(width: iconSize, height: iconSize)
-                .help(provider.displayName)
+                .help(name)
         }
     }
     
     var nameView: some View {
-        Text(provider.displayName)
+        Text(name)
             .font(.caption)
             .lineLimit(1)
             .foregroundStyle(.primary)
@@ -59,17 +113,9 @@ struct ProviderLogoView: View {
             }
         }()
         
-        return Text(provider.pathURL.lastPathComponent.prefix(1).uppercased())
+        return Text(name.prefix(1).uppercased())
             .font(font)
             .fontWeight(.bold)
             .foregroundStyle(.secondary)
-    }
-    
-    var lobeIconName: String? {
-        if let id = provider.templateId,
-           let template = ProviderTemplate(rawValue: id) {
-            return template.logoFile
-        }
-        return nil
     }
 }

@@ -401,8 +401,12 @@ struct AddProviderSheet: View {
                 Section {
                     Picker("Template", selection: $viewModel.selectedTemplate) {
                         ForEach(ProviderTemplate.allCases) { template in
-                            Label(template.displayName, systemImage: template.iconName)
-                                .tag(template)
+                            Label {
+                                Text(template.displayName)
+                            } icon: {
+                                ProviderLogoView(name: template.displayName, logoName: template.logoFile, iconSize: 16)
+                            }
+                            .tag(template)
                         }
                     }
                     .onChange(of: viewModel.selectedTemplate) { _, newValue in

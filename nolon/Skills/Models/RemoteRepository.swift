@@ -17,10 +17,14 @@ public enum GitProvider: String, CaseIterable, Identifiable, Codable, Sendable {
     }
 
     public var iconName: String {
+        return "chevron.left.forwardslash.chevron.right"
+    }
+
+    public var logoName: String? {
         switch self {
-        case .github: return "chevron.left.forwardslash.chevron.right"
-        case .gitlab: return "chevron.left.forwardslash.chevron.right"
-        case .bitbucket: return "chevron.left.forwardslash.chevron.right"
+        case .github: return "github"
+        case .gitlab: return "gitlab"
+        case .bitbucket: return nil
         }
     }
 
@@ -106,6 +110,15 @@ public enum RepositoryTemplate: String, CaseIterable, Identifiable, Codable, Sen
         }
     }
 
+    public var logoName: String? {
+        switch self {
+        case .globalSkills: return nil
+        case .clawdhub: return "lobehub"
+        case .localFolder: return nil
+        case .git: return nil
+        }
+    }
+
     public var defaultBaseURL: String {
         switch self {
         case .clawdhub: return "https://clawdhub.com"
@@ -161,6 +174,7 @@ public enum RepositoryTemplate: String, CaseIterable, Identifiable, Codable, Sen
             name: name ?? defaultName,
             baseURL: baseURL ?? defaultBaseURL,
             iconName: iconName,
+            logoName: logoName,
             templateType: self,
             isBuiltIn: self == .clawdhub || self == .globalSkills,
             localPath: localPath,
@@ -177,6 +191,7 @@ public struct RemoteRepository: Identifiable, Codable, Hashable, Sendable {
     public var name: String
     public var baseURL: String
     public var iconName: String
+    public var logoName: String?
     public var templateType: RepositoryTemplate
     public var isBuiltIn: Bool
 
@@ -198,6 +213,7 @@ public struct RemoteRepository: Identifiable, Codable, Hashable, Sendable {
         name: String,
         baseURL: String = "",
         iconName: String = "cloud",
+        logoName: String? = nil,
         templateType: RepositoryTemplate = .git,
         isBuiltIn: Bool = false,
         localPath: String? = nil,
@@ -212,6 +228,7 @@ public struct RemoteRepository: Identifiable, Codable, Hashable, Sendable {
         self.name = name
         self.baseURL = baseURL
         self.iconName = iconName
+        self.logoName = logoName
         self.templateType = templateType
         self.isBuiltIn = isBuiltIn
         self.localPath = localPath

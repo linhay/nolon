@@ -208,7 +208,16 @@ struct RemoteRepositorySidebarView: View {
     
     private func repositoryRow(_ repo: RemoteRepository) -> some View {
         HStack {
-            Label(repo.name, systemImage: repo.iconName)
+            Label {
+                Text(repo.name)
+            } icon: {
+                if let logoName = repo.logoName ?? repo.provider.logoName {
+                    ProviderLogoView(name: repo.name, logoName: logoName, iconSize: 16)
+                } else {
+                    Image(systemName: repo.iconName)
+                        .foregroundStyle(.secondary)
+                }
+            }
             Spacer()
             
             // Show badges based on type

@@ -57,7 +57,7 @@
         "defaultWorkflowPath": ".gemini/antigravity/global_workflows",
         "documentationURL": "https://antigravity.google/docs/skills",
         "mcpDocumentationURL": "https://antigravity.google/docs/mcp",
-        "defaultMcpConfigPath": ".gemini/antigravity/mcp_settings.json"
+        "defaultMcpConfigPath": ".gemini/antigravity/mcp_config.json"
     },
     "amp": {
         "displayName": "Amp",
@@ -112,7 +112,7 @@
     "droid": {
         "displayName": "Droid",
         "iconName": "android",
-        "logoFile": "droid",
+        "logoFile": "factory",
         "defaultPath": ".factory/skills",
         "defaultWorkflowPath": ".factory/workflows",
         "documentationURL": null,
@@ -192,7 +192,7 @@
     "qwen": {
         "displayName": "Qwen Code",
         "iconName": "bubble.left",
-        "logoFile": "qwen",
+        "logoFile": "tongyi",
         "defaultPath": ".qwen/skills",
         "defaultWorkflowPath": ".qwen/workflows",
         "documentationURL": "https://qwenlm.github.io/qwen-code-docs/en/users/features/skills/",
@@ -202,7 +202,7 @@
     "roo": {
         "displayName": "Roo Code",
         "iconName": "r.circle",
-        "logoFile": "roo",
+        "logoFile": "roocode",
         "defaultPath": ".roo/skills",
         "defaultWorkflowPath": ".roo/workflows",
         "documentationURL": "https://docs.roocode.com/features/skills",
@@ -222,7 +222,7 @@
     "windsurf": {
         "displayName": "Windsurf",
         "iconName": "wind",
-        "logoFile": "windsurf",
+        "logoFile": "codeium",
         "defaultPath": ".codeium/windsurf/skills",
         "defaultWorkflowPath": ".codeium/windsurf/workflows",
         "documentationURL": null,

@@ -286,8 +286,17 @@ struct AddRepositorySheet: View {
         Section {
             Picker("Type", selection: $viewModel.selectedTemplate) {
                 ForEach(viewModel.availableTemplates) { template in
-                    Label(template.displayName, systemImage: template.iconName)
-                        .tag(template)
+                    Label {
+                        Text(template.displayName)
+                    } icon: {
+                        if let logoName = template.logoName {
+                            ProviderLogoView(name: template.displayName, logoName: logoName, iconSize: 16)
+                        } else {
+                            Image(systemName: template.iconName)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .tag(template)
                 }
             }
             .pickerStyle(.inline)
@@ -386,8 +395,17 @@ struct AddRepositorySheet: View {
     private var gitSection: some View {
         Group {
             Section {
-                TextField("Repository URL", text: $viewModel.newGitURL)
-                    .textContentType(.URL)
+                HStack {
+                    TextField("Repository URL", text: $viewModel.newGitURL)
+                        .textContentType(.URL)
+                    
+                    if !viewModel.newGitURL.isEmpty {
+                        let provider = RemoteRepository.detectProvider(from: viewModel.newGitURL) ?? .github
+                        if let logoName = provider.logoName {
+                            ProviderLogoView(name: provider.displayName, logoName: logoName, iconSize: 20)
+                        }
+                    }
+                }
             } header: {
                 Text("Git Repository")
             } footer: {

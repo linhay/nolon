@@ -85,10 +85,20 @@ final class ProviderDetailGridViewModel {
             return
         }
         
-        if let servers = json["mcpServers"].dictionary {
-            mcps = servers.map { key, value in
-                MCP(name: key, json: AnyCodable(value.object))
-            }.sorted { $0.name < $1.name }
+        // 1. Expand environment variables
+        let expandedJson = MCPConfigExpander.expand(json)
+        
+        // 2. Load enabled servers
+        if let servers = expandedJson["mcpServers"].dictionary {
+            mcps = servers
+                .filter { key, value in
+                    // Skip disabled servers
+                    !(value["disabled"].bool ?? false)
+                }
+                .map { key, value in
+                    MCP(name: key, json: AnyCodable(value.object))
+                }
+                .sorted { $0.name < $1.name }
         } else {
             mcps = []
         }

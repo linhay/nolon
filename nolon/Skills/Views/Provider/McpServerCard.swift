@@ -10,17 +10,15 @@ struct McpServerCard: View {
         VStack(alignment: .leading, spacing: 12) {
             // Header
             HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(mcp.name)
-                        .font(.headline)
-                        .lineLimit(1)
-                }
+                ProviderLogoView(name: mcp.name, logoName: mcpLogoName, iconSize: 24)
                 
                 Spacer()
                 
-                Image(systemName: "server.rack") // Or a specific icon for server
-                    .font(.title3)
-                    .foregroundStyle(.secondary)
+                if mcpLogoName == nil {
+                    Image(systemName: "server.rack")
+                        .font(.title3)
+                        .foregroundStyle(.secondary)
+                }
             }
             
             // Command details
@@ -76,5 +74,20 @@ struct McpServerCard: View {
                  Label("Delete", systemImage: "trash")
              }
         }
+    }
+    
+    private var mcpLogoName: String? {
+        let name = mcp.name.lowercased()
+        if name.contains("playwright") { return "playwright" }
+        if name.contains("github") { return "github" }
+        if name.contains("gitlab") { return "gitlab" }
+        if name.contains("google") { return "google" }
+        if name.contains("brave") { return "brave" }
+        if name.contains("exa") { return "exa" }
+        if name.contains("sqlite") { return "sqlite" }
+        if name.contains("postgres") { return "postgresql" }
+        if name.contains("docker") { return "docker" }
+        if name.contains("slack") { return "slack" }
+        return nil
     }
 }
