@@ -1,7 +1,7 @@
 {
   "images" : [
     {
-      "filename" : "claude-light.png",
+      "filename" : "codeium-light.png",
       "idiom" : "universal"
     },
     {
@@ -11,12 +11,12 @@
           "value" : "dark"
         }
       ],
-      "filename" : "claude-dark.png",
+      "filename" : "codeium-dark.png",
       "idiom" : "universal"
     }
   ],
   "info" : {
-    "author" : "xcode",
+    "author" : "antigravity",
     "version" : 1
   }
 }

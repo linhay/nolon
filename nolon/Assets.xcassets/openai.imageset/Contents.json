@@ -1,7 +1,7 @@
 {
   "images" : [
     {
-      "filename" : "openai_light.png",
+      "filename" : "openai-light.png",
       "idiom" : "universal"
     },
     {
@@ -11,7 +11,7 @@
           "value" : "dark"
         }
       ],
-      "filename" : "openai_dark.png",
+      "filename" : "openai-dark.png",
       "idiom" : "universal"
     }
   ],

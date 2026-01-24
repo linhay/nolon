@@ -1,7 +1,7 @@
 {
   "images" : [
     {
-      "filename" : "claude-light.png",
+      "filename" : "cursor-light.png",
       "idiom" : "universal"
     },
     {
@@ -11,7 +11,7 @@
           "value" : "dark"
         }
       ],
-      "filename" : "claude-dark.png",
+      "filename" : "cursor-dark.png",
       "idiom" : "universal"
     }
   ],

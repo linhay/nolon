@@ -1,7 +1,7 @@
 {
   "images" : [
     {
-      "filename" : "gemini-color 1.png",
+      "filename" : "gemini-light.png",
       "idiom" : "universal"
     },
     {
@@ -11,7 +11,7 @@
           "value" : "dark"
         }
       ],
-      "filename" : "gemini-color.png",
+      "filename" : "gemini-dark.png",
       "idiom" : "universal"
     }
   ],
