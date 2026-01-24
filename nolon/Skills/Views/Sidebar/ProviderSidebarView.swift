@@ -166,8 +166,7 @@ struct ProviderRowView: View {
                     .truncationMode(.middle)
             }
         } icon: {
-            Image(systemName: provider.iconName)
-                .foregroundStyle(isSelected ? .blue : .secondary)
+            ProviderLogoView(provider: provider, style: .iconOnly, iconSize: 18)
         }
         .padding(.vertical, 2)
         .contentShape(Rectangle())

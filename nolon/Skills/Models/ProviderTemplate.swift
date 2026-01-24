@@ -111,7 +111,7 @@ public enum ProviderTemplate: String, CaseIterable, Sendable, Identifiable {
         case .codex:
             return home.appendingPathComponent(".codex/mcp_settings.json")
         case .claude:
-            return home.appendingPathComponent("Library/Application Support/Claude/mcp_settings.json")
+            return home.appendingPathComponent(".claude.json")
         case .opencode:
             return home.appendingPathComponent(".config/opencode/mcp_settings.json")
         case .copilot:

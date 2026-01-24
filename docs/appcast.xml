@@ -1,0 +1,9 @@
+<?xml version="1.0" standalone="yes"?>
+<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+    <channel>
+        <title>Nolon Changelog</title>
+        <link>https://linhay.github.io/nolon/appcast.xml</link>
+        <description>Most recent changes with links to updates.</description>
+        <language>en</language>
+    </channel>
+</rss>
