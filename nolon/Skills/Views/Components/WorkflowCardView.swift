@@ -44,6 +44,7 @@ struct WorkflowInfo: Identifiable, Hashable {
 /// Workflow 卡片视图
 struct WorkflowCardView: View {
     let workflow: WorkflowInfo
+    let searchText: String
     let onReveal: () -> Void
     let onDelete: () async -> Void
     let onTap: () -> Void
@@ -53,7 +54,7 @@ struct WorkflowCardView: View {
             // Header: Name
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(workflow.name)
+                    HighlightedText(text: workflow.name, query: searchText)
                         .font(.headline)
                         .lineLimit(1)
                     
@@ -68,7 +69,7 @@ struct WorkflowCardView: View {
             }
             
             // Description
-            Text(workflow.description)
+            HighlightedText(text: workflow.description, query: searchText)
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .lineLimit(3)

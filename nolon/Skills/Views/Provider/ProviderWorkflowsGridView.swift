@@ -5,18 +5,19 @@ struct ProviderWorkflowsGridView: View {
     let columns: [GridItem]
     
     var body: some View {
-        if viewModel.workflows.isEmpty {
+        if viewModel.filteredWorkflows.isEmpty {
             ContentUnavailableView(
-                NSLocalizedString("workflows.empty", comment: "No Workflows"),
-                systemImage: "arrow.triangle.branch",
-                description: Text(NSLocalizedString("workflows.empty_desc", comment: "No workflows in this provider"))
+                viewModel.searchText.isEmpty ? NSLocalizedString("workflows.empty", comment: "No Workflows") : "No Results",
+                systemImage: viewModel.searchText.isEmpty ? "arrow.triangle.branch" : "magnifyingglass",
+                description: Text(viewModel.searchText.isEmpty ? NSLocalizedString("workflows.empty_desc", comment: "No workflows in this provider") : "No matching workflows found")
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             LazyVGrid(columns: columns, spacing: 16) {
-                ForEach(viewModel.workflows) { workflow in
+                ForEach(viewModel.filteredWorkflows) { workflow in
                     WorkflowCardView(
                         workflow: workflow,
+                        searchText: viewModel.searchText,
                         onReveal: { viewModel.revealWorkflowInFinder(workflow) },
                         onDelete: { await viewModel.deleteWorkflow(workflow) },
                         onTap: {

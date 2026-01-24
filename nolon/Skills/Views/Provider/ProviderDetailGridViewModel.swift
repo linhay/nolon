@@ -24,6 +24,7 @@ final class ProviderDetailGridViewModel {
     // State
     var isLoading = false
     var errorMessage: String?
+    var searchText: String = ""
     
     // Internals
     private var repository: SkillRepository
@@ -68,6 +69,31 @@ final class ProviderDetailGridViewModel {
         loadMCPs(for: provider)
         
         isLoading = false
+    }
+    
+    // MARK: - Filtered Data
+    
+    var filteredSkills: [Skill] {
+        guard !searchText.isEmpty else { return installedSkills }
+        return installedSkills.filter { skill in
+            skill.name.localizedCaseInsensitiveContains(searchText) ||
+            skill.description.localizedCaseInsensitiveContains(searchText)
+        }
+    }
+    
+    var filteredWorkflows: [WorkflowInfo] {
+        guard !searchText.isEmpty else { return workflows }
+        return workflows.filter { workflow in
+            workflow.name.localizedCaseInsensitiveContains(searchText) ||
+            workflow.description.localizedCaseInsensitiveContains(searchText)
+        }
+    }
+    
+    var filteredMcps: [MCP] {
+        guard !searchText.isEmpty else { return mcps }
+        return mcps.filter { mcp in
+            mcp.name.localizedCaseInsensitiveContains(searchText)
+        }
     }
     
     func loadMCPs(for provider: Provider) {

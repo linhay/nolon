@@ -5,6 +5,7 @@ struct SkillCardView: View {
     let skill: Skill
     let provider: Provider
     var hasWorkflow: Bool = false
+    let searchText: String
     let onReveal: () -> Void
     let onUninstall: () async -> Void
     let onLinkWorkflow: () -> Void
@@ -15,7 +16,7 @@ struct SkillCardView: View {
             // Header: Name + Version
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(skill.name)
+                    HighlightedText(text: skill.name, query: searchText)
                         .font(.headline)
                         .lineLimit(1)
                     
@@ -28,7 +29,7 @@ struct SkillCardView: View {
             }
             
             // Description
-            Text(skill.description)
+            HighlightedText(text: skill.description, query: searchText)
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .lineLimit(3)

@@ -3,11 +3,14 @@
         "displayName": "Codex",
         "iconName": "terminal",
         "logoFile": "openai",
-        "defaultPath": ".codex/skills/public",
+        "defaultPath": ".codex/skills",
         "defaultWorkflowPath": ".codex/workflows",
         "documentationURL": "https://developers.openai.com/codex/skills",
         "mcpDocumentationURL": "https://developers.openai.com/codex/mcp/",
-        "defaultMcpConfigPath": ".codex/mcp_settings.json"
+        "defaultMcpConfigPath": ".codex/config.toml",
+        "defaultSkillsPaths": [
+            ".codex/skills"
+        ]
     },
     "claude": {
         "displayName": "Claude Code",
@@ -15,8 +18,8 @@
         "logoFile": "claude",
         "defaultPath": ".claude/skills",
         "defaultWorkflowPath": ".claude/workflows",
-        "documentationURL": "https://code.claude.com/docs/en/skills",
-        "mcpDocumentationURL": "https://code.claude.com/docs/en/mcp#option-1%3A-exclusive-control-with-managed-mcp-json",
+        "documentationURL": "https://docs.claude.ai/docs/en/skills",
+        "mcpDocumentationURL": "https://docs.claude.ai/docs/en/mcp#option-1%3A-exclusive-control-with-managed-mcp-json",
         "defaultMcpConfigPath": ".claude.json"
     },
     "opencode": {
@@ -27,13 +30,17 @@
         "defaultWorkflowPath": ".config/opencode/workflows",
         "documentationURL": "https://opencode.ai/docs/skills",
         "mcpDocumentationURL": "https://opencode.ai/docs/mcp-servers/",
-        "defaultMcpConfigPath": ".config/opencode/mcp_settings.json"
+        "defaultMcpConfigPath": ".config/opencode/mcp_settings.json",
+        "defaultSkillsPaths": [
+            ".config/opencode/skills",
+            ".claude/skills"
+        ]
     },
     "copilot": {
         "displayName": "GitHub Copilot",
         "iconName": "airplane",
         "logoFile": "copilot",
-        "defaultPath": ".copilot/skills",
+        "defaultPath": ".copilot/agents",
         "defaultWorkflowPath": ".copilot/workflows",
         "documentationURL": "https://docs.github.com/en/copilot/concepts/agents/about-agent-skills",
         "mcpDocumentationURL": "https://code.visualstudio.com/docs/copilot/customization/mcp-servers",
@@ -57,7 +64,11 @@
         "defaultWorkflowPath": ".gemini/antigravity/global_workflows",
         "documentationURL": "https://antigravity.google/docs/skills",
         "mcpDocumentationURL": "https://antigravity.google/docs/mcp",
-        "defaultMcpConfigPath": ".gemini/antigravity/mcp_config.json"
+        "defaultMcpConfigPath": ".gemini/antigravity/mcp_config.json",
+        "defaultSkillsPaths": [
+            ".gemini/antigravity/skills",
+            ".gemini/skills"
+        ]
     },
     "amp": {
         "displayName": "Amp",
@@ -115,7 +126,7 @@
         "logoFile": "factory",
         "defaultPath": ".factory/skills",
         "defaultWorkflowPath": ".factory/workflows",
-        "documentationURL": null,
+        "documentationURL": "https://docs.factory.ai/docs/skills",
         "mcpDocumentationURL": null,
         "defaultMcpConfigPath": ".factory/mcp_settings.json"
     },
@@ -125,7 +136,7 @@
         "logoFile": "goose",
         "defaultPath": ".config/goose/skills",
         "defaultWorkflowPath": ".config/goose/workflows",
-        "documentationURL": null,
+        "documentationURL": "https://block.github.io/goose/docs/skills",
         "mcpDocumentationURL": null,
         "defaultMcpConfigPath": ".config/goose/mcp_settings.json"
     },
@@ -135,7 +146,7 @@
         "logoFile": "kilo",
         "defaultPath": ".kilocode/skills",
         "defaultWorkflowPath": ".kilocode/workflows",
-        "documentationURL": null,
+        "documentationURL": "https://kilo.ai/docs/agent-skills",
         "mcpDocumentationURL": null,
         "defaultMcpConfigPath": ".kilocode/mcp_settings.json"
     },
@@ -155,7 +166,7 @@
         "logoFile": "mcpjam",
         "defaultPath": ".mcpjam/skills",
         "defaultWorkflowPath": ".mcpjam/workflows",
-        "documentationURL": null,
+        "documentationURL": "https://mcpjam.com",
         "mcpDocumentationURL": null,
         "defaultMcpConfigPath": ".mcpjam/mcp_settings.json"
     },
@@ -207,7 +218,11 @@
         "defaultWorkflowPath": ".roo/workflows",
         "documentationURL": "https://docs.roocode.com/features/skills",
         "mcpDocumentationURL": null,
-        "defaultMcpConfigPath": ".roo/mcp_settings.json"
+        "defaultMcpConfigPath": ".roo/mcp_settings.json",
+        "defaultSkillsPaths": [
+            ".roo/skills",
+            ".roo/rules"
+        ]
     },
     "trae": {
         "displayName": "Trae",
@@ -225,7 +240,7 @@
         "logoFile": "codeium",
         "defaultPath": ".codeium/windsurf/skills",
         "defaultWorkflowPath": ".codeium/windsurf/workflows",
-        "documentationURL": null,
+        "documentationURL": "https://docs.codeium.com/windsurf/features/skills",
         "mcpDocumentationURL": null,
         "defaultMcpConfigPath": ".codeium/windsurf/mcp_settings.json"
     },
@@ -235,9 +250,13 @@
         "logoFile": "zencoder",
         "defaultPath": ".zencoder/skills",
         "defaultWorkflowPath": ".zencoder/workflows",
-        "documentationURL": "https://docs.zencoder.ai",
+        "documentationURL": "https://docs.zencoder.ai/skills",
         "mcpDocumentationURL": null,
-        "defaultMcpConfigPath": ".zencoder/mcp_settings.json"
+        "defaultMcpConfigPath": ".zencoder/mcp_settings.json",
+        "defaultSkillsPaths": [
+            ".zencoder/skills",
+            ".claude/skills"
+        ]
     },
     "neovate": {
         "displayName": "Neovate",
@@ -245,7 +264,7 @@
         "logoFile": "neovate",
         "defaultPath": ".neovate/skills",
         "defaultWorkflowPath": ".neovate/workflows",
-        "documentationURL": null,
+        "documentationURL": "https://neovateai.dev",
         "mcpDocumentationURL": null,
         "defaultMcpConfigPath": ".neovate/mcp_settings.json"
     }

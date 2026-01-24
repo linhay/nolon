@@ -3,6 +3,7 @@ internal import AnyCodable
 
 struct McpServerCard: View {
     let mcp: MCP
+    let searchText: String
     let onDelete: () -> Void
     let onEdit: () -> Void
     
@@ -10,7 +11,7 @@ struct McpServerCard: View {
         VStack(alignment: .leading, spacing: 12) {
             // Header
             HStack(alignment: .top) {
-                ProviderLogoView(name: mcp.name, logoName: mcpLogoName, iconSize: 24)
+                ProviderLogoView(name: mcp.name, logoName: mcpLogoName, highlightQuery: searchText, style: .horizontal, iconSize: 24)
                 
                 Spacer()
                 
@@ -24,7 +25,7 @@ struct McpServerCard: View {
             // Command details
             if let dict = mcp.json.value as? [String: Any],
                let command = dict["command"] as? String {
-                Text(command)
+                HighlightedText(text: command, query: searchText)
                     .font(.caption)
                     .fontDesign(.monospaced)
                     .foregroundStyle(.secondary)

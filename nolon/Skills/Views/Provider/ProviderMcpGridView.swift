@@ -29,7 +29,7 @@ struct ProviderMcpGridView: View {
                         Task { await viewModel.loadData() }
                     }
                 }
-            } else if viewModel.mcps.isEmpty {
+            } else if viewModel.filteredMcps.isEmpty && viewModel.searchText.isEmpty {
                 ContentUnavailableView {
                     Label("No Servers", systemImage: "server.rack")
                 } description: {
@@ -55,11 +55,19 @@ struct ProviderMcpGridView: View {
                          }
                      }
                 }
+            } else if viewModel.filteredMcps.isEmpty {
+                ContentUnavailableView(
+                    "No Results",
+                    systemImage: "magnifyingglass",
+                    description: Text("No matching MCP servers found")
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 LazyVGrid(columns: columns, spacing: 16) {
-                    ForEach(viewModel.mcps) { mcp in
+                    ForEach(viewModel.filteredMcps) { mcp in
                         McpServerCard(
                             mcp: mcp,
+                            searchText: viewModel.searchText,
                             onDelete: {
                                 Task { await viewModel.deleteMCP(named: mcp.name, for: provider) }
                             },

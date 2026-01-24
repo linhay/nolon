@@ -69,21 +69,24 @@ struct ProviderDetailGridView: View {
     
     @ViewBuilder
     private var gridContent: some View {
-        ScrollView {
-            switch selectedTab {
-            case .skills:
-                if let provider = provider {
-                    ProviderSkillsGridView(viewModel: viewModel, columns: columns, provider: provider)
+        NavigationStack {
+            ScrollView {
+                switch selectedTab {
+                case .skills:
+                    if let provider = provider {
+                        ProviderSkillsGridView(viewModel: viewModel, columns: columns, provider: provider)
+                    }
+                case .workflows:
+                    ProviderWorkflowsGridView(viewModel: viewModel, columns: columns)
+                case .mcp:
+                    mcpGrid
+                case .none:
+                    EmptyView()
                 }
-            case .workflows:
-                ProviderWorkflowsGridView(viewModel: viewModel, columns: columns)
-            case .mcp:
-                mcpGrid
-            case .none:
-                EmptyView()
             }
+            .padding()
+            .searchable(text: $viewModel.searchText)
         }
-        .padding()
     }
     
     @ViewBuilder

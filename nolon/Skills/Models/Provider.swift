@@ -12,10 +12,17 @@ public struct Provider: Codable, Identifiable, Hashable, Sendable {
     /// Template ID if created from a built-in template
     public var templateId: String?
     
+    /// Additional global paths to scan for skills (penetration reading)
+    public var additionalSkillsPaths: [String]?
+    
     public var displayName: String { name }
     
     public var pathURL: URL {
         URL(fileURLWithPath: skillsPath)
+    }
+    
+    public var additionalPathURLs: [URL] {
+        additionalSkillsPaths?.map { URL(fileURLWithPath: $0) } ?? []
     }
     
     public var documentationURL: URL?
@@ -28,6 +35,7 @@ public struct Provider: Codable, Identifiable, Hashable, Sendable {
         iconName: String = "folder",
         installMethod: SkillInstallationMethod = .symlink,
         templateId: String? = nil,
+        additionalSkillsPaths: [String]? = nil,
         documentationURL: URL? = nil
     ) {
         self.id = id
@@ -37,6 +45,7 @@ public struct Provider: Codable, Identifiable, Hashable, Sendable {
         self.iconName = iconName
         self.installMethod = installMethod
         self.templateId = templateId
+        self.additionalSkillsPaths = additionalSkillsPaths
         self.documentationURL = documentationURL
     }
 }

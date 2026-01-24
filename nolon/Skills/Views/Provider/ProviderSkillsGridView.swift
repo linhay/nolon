@@ -6,20 +6,21 @@ struct ProviderSkillsGridView: View {
     let provider: Provider
     
     var body: some View {
-        if viewModel.installedSkills.isEmpty {
+        if viewModel.filteredSkills.isEmpty {
             ContentUnavailableView(
-                NSLocalizedString("skills.empty", comment: "No Skills"),
-                systemImage: "square.grid.2x2",
-                description: Text(NSLocalizedString("skills.empty_desc", comment: "No skills installed in this provider"))
+                viewModel.searchText.isEmpty ? NSLocalizedString("skills.empty", comment: "No Skills") : "No Results",
+                systemImage: viewModel.searchText.isEmpty ? "square.grid.2x2" : "magnifyingglass",
+                description: Text(viewModel.searchText.isEmpty ? NSLocalizedString("skills.empty_desc", comment: "No skills installed in this provider") : "No matching skills found")
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             LazyVGrid(columns: columns, spacing: 16) {
-                ForEach(viewModel.installedSkills) { skill in
+                ForEach(viewModel.filteredSkills) { skill in
                     SkillCardView(
                         skill: skill,
                         provider: provider,
                         hasWorkflow: viewModel.workflowIds.contains(skill.id),
+                        searchText: viewModel.searchText,
                         onReveal: { viewModel.revealSkillInFinder(skill) },
                         onUninstall: { await viewModel.uninstallSkill(skill) },
                         onLinkWorkflow: { viewModel.linkSkillToWorkflow(skill) },

@@ -11,6 +11,7 @@ struct ProviderLogoView: View {
     let logoName: String?
     var style: Style = .iconOnly
     var iconSize: CGFloat? = nil
+    var highlightQuery: String = ""
     
     init(provider: Provider, style: Style = .iconOnly, iconSize: CGFloat? = nil) {
         self.name = provider.displayName
@@ -22,11 +23,13 @@ struct ProviderLogoView: View {
         }
         self.style = style
         self.iconSize = iconSize
+        self.highlightQuery = ""
     }
     
-    init(name: String, logoName: String?, style: Style = .iconOnly, iconSize: CGFloat? = nil) {
+    init(name: String, logoName: String?, highlightQuery: String = "", style: Style = .iconOnly, iconSize: CGFloat? = nil) {
         self.name = name
         self.logoName = logoName
+        self.highlightQuery = highlightQuery
         self.style = style
         self.iconSize = iconSize
     }
@@ -98,7 +101,7 @@ struct ProviderLogoView: View {
     }
     
     var nameView: some View {
-        Text(name)
+        HighlightedText(text: name, query: highlightQuery)
             .font(.caption)
             .lineLimit(1)
             .foregroundStyle(.primary)

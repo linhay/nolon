@@ -10,6 +10,7 @@ public struct ProviderTemplateConfig: Codable, Sendable {
     public let documentationURL: String?
     public let mcpDocumentationURL: String?
     public let defaultMcpConfigPath: String
+    public let defaultSkillsPaths: [String]?
 }
 
 /// Singleton loader for ProviderTemplate configurations from JSON

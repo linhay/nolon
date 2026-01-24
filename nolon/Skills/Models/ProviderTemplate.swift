@@ -96,6 +96,13 @@ public enum ProviderTemplate: String, CaseIterable, Sendable, Identifiable {
         return home.appendingPathComponent(relativePath)
     }
     
+    /// Additional default skills paths for this template (penetration reading)
+    @MainActor
+    public var defaultSkillsPaths: [URL] {
+        let home = FileManager.default.homeDirectoryForCurrentUser
+        return config?.defaultSkillsPaths?.map { home.appendingPathComponent($0) } ?? []
+    }
+    
     /// Create a Provider instance from this template
     @MainActor
     public func createProvider() -> Provider {
@@ -106,6 +113,7 @@ public enum ProviderTemplate: String, CaseIterable, Sendable, Identifiable {
             iconName: iconName,
             installMethod: .symlink,
             templateId: rawValue,
+            additionalSkillsPaths: defaultSkillsPaths.map { $0.path },
             documentationURL: documentationURL
         )
     }
