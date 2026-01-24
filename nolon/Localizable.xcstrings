@@ -86,11 +86,18 @@
       }
     },
     "action.delete" : {
-      "comment" : "Delete",
+      "comment" : "Delete\nDelete skill",
+      "extractionState" : "extracted_with_value",
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Delete"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "删除"
           }
         }
@@ -107,8 +114,33 @@
         }
       }
     },
+    "action.import" : {
+      "comment" : "Import to library",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Import"
+          }
+        }
+      }
+    },
+    "action.import_all" : {
+      "comment" : "Import All",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Import All"
+          }
+        }
+      }
+    },
     "action.install" : {
       "comment" : "Install",
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -130,11 +162,18 @@
       }
     },
     "action.migrate" : {
-      "comment" : "Migrate",
+      "comment" : "Migrate\nMigrate orphaned skill",
+      "extractionState" : "extracted_with_value",
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Migrate"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "迁移"
           }
         }
@@ -142,6 +181,7 @@
     },
     "action.migrate_all" : {
       "comment" : "Migrate All",
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -153,6 +193,7 @@
     },
     "action.overwrite" : {
       "comment" : "Overwrite",
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -164,7 +205,7 @@
     },
     "action.remove_link" : {
       "comment" : "Remove Link",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -182,17 +223,10 @@
     },
     "action.repair" : {
       "comment" : "Repair",
-      "extractionState" : "extracted_with_value",
       "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Repair"
-          }
-        },
         "zh-Hans" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "修复"
           }
         }
@@ -567,7 +601,7 @@
     },
     "confirm.delete_message" : {
       "comment" : "Delete confirmation",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -585,7 +619,7 @@
     },
     "confirm.delete_title" : {
       "comment" : "Delete Skill?",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -603,7 +637,7 @@
     },
     "confirm.migrate_conflict_message" : {
       "comment" : "Migration conflict message",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -621,7 +655,7 @@
     },
     "confirm.migrate_conflict_title" : {
       "comment" : "Migration conflict title",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -734,7 +768,7 @@
     },
     "detail.open_folder" : {
       "comment" : "Open in Finder\nReveal",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1280,6 +1314,7 @@
     },
     "nav.all_skills" : {
       "comment" : "All Skills",
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -1291,6 +1326,7 @@
     },
     "nav.by_provider" : {
       "comment" : "By Provider",
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -1302,6 +1338,7 @@
     },
     "nav.search_placeholder" : {
       "comment" : "Search skills",
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -1905,6 +1942,18 @@
         }
       }
     },
+    "skill.orphaned" : {
+      "comment" : "Orphaned skill badge",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Needs Migration"
+          }
+        }
+      }
+    },
     "skill.path_label" : {
       "comment" : "Path:",
       "localizations" : {
@@ -1938,6 +1987,7 @@
     },
     "skills_list.available" : {
       "comment" : "Available",
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -1949,7 +1999,7 @@
     },
     "skills_list.broken" : {
       "comment" : "Broken Links",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1967,7 +2017,7 @@
     },
     "skills_list.broken_badge" : {
       "comment" : "Broken",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1985,7 +2035,7 @@
     },
     "skills_list.broken_desc" : {
       "comment" : "Link broken",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2003,6 +2053,7 @@
     },
     "skills_list.existing" : {
       "comment" : "Existing",
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -2014,6 +2065,7 @@
     },
     "skills_list.existing_desc" : {
       "comment" : "Not managed by nolon",
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -2025,6 +2077,7 @@
     },
     "skills_list.installed" : {
       "comment" : "Installed",
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -2036,6 +2089,7 @@
     },
     "skills_list.no_provider" : {
       "comment" : "Select a Provider",
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -2047,6 +2101,7 @@
     },
     "skills_list.no_provider_desc" : {
       "comment" : "Choose a provider from the sidebar",
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -2058,7 +2113,7 @@
     },
     "skills_list.orphaned_badge" : {
       "comment" : "Orphaned skill badge",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2076,6 +2131,7 @@
     },
     "skills_list.search" : {
       "comment" : "Search skills",
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -2103,6 +2159,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "此 Provider 中未安装任何技能"
+          }
+        }
+      }
+    },
+    "skills.primary_path" : {
+      "comment" : "Primary installation path",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Primary Path"
           }
         }
       }
@@ -2148,6 +2216,42 @@
         }
       }
     },
+    "status.broken_desc" : {
+      "comment" : "Broken state description",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Link target missing. Repair or delete."
+          }
+        }
+      }
+    },
+    "status.local" : {
+      "comment" : "Local status",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Local"
+          }
+        }
+      }
+    },
+    "status.local_desc" : {
+      "comment" : "Orphaned state description",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Not managed. Migrate to enable syncing."
+          }
+        }
+      }
+    },
     "status.physical" : {
       "comment" : "Physical File",
       "localizations" : {
@@ -2166,6 +2270,30 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "软链接"
+          }
+        }
+      }
+    },
+    "status.synced" : {
+      "comment" : "Synced status",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Synced"
+          }
+        }
+      }
+    },
+    "status.synced_desc" : {
+      "comment" : "Synced state description",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Managed by Nolon. Changes sync automatically."
           }
         }
       }

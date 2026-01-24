@@ -20,10 +20,6 @@ public enum SkillInstallationMethod: String, CaseIterable, Codable, Identifiable
 public class ProviderSettings: ObservableObject {
     @AppStorage("remote_repositories") private var storedRemoteRepositoriesData: Data = Data()
 
-    // Legacy storage keys for migration
-    @AppStorage("provider_paths") private var legacyPathsData: Data = Data()
-    @AppStorage("provider_methods") private var legacyMethodsData: Data = Data()
-    @AppStorage("custom_providers") private var legacyCustomProvidersData: Data = Data()
 
     @Published public var providers: [Provider] = [] {
         didSet { saveProviders() }
@@ -48,12 +44,12 @@ public class ProviderSettings: ObservableObject {
     }
 
     public func addProvider(
-        name: String, skillsPath: String, workflowPath: String, iconName: String = "folder",
+        name: String, defaultSkillsPath: String, workflowPath: String, iconName: String = "folder",
         installMethod: SkillInstallationMethod = .symlink, templateId: String? = nil
     ) {
         let provider = Provider(
             name: name,
-            skillsPath: skillsPath,
+            defaultSkillsPath: defaultSkillsPath,
             workflowPath: workflowPath,
             iconName: iconName,
             installMethod: installMethod,
@@ -101,7 +97,7 @@ public class ProviderSettings: ObservableObject {
     // MARK: - Provider Accessors
 
     public func path(for provider: Provider) -> URL {
-        URL(fileURLWithPath: provider.skillsPath)
+        URL(fileURLWithPath: provider.defaultSkillsPath)
     }
 
     public func method(for provider: Provider) -> SkillInstallationMethod {
@@ -145,64 +141,38 @@ public class ProviderSettings: ObservableObject {
             // Default with Global Skills and Clawdhub
             self.remoteRepositories = [.globalSkills, .clawdhub]
         }
+        
+        // Sync with templates to ensure new fields (like additionalSkillsPaths) are populated
+        syncWithTemplates()
     }
-
-    private func migrateFromLegacyFormat() {
-        var migratedProviders: [Provider] = []
-
-        // Migrate legacy built-in providers
-        if let legacyPaths = try? JSONDecoder().decode([String: String].self, from: legacyPathsData)
-        {
-            let legacyMethods =
-                (try? JSONDecoder().decode(
-                    [String: SkillInstallationMethod].self, from: legacyMethodsData)) ?? [:]
-
-            for template in ProviderTemplate.allCases {
-                let path = legacyPaths[template.rawValue] ?? template.defaultPath.path
-                let method = legacyMethods[template.rawValue] ?? .symlink
-
-                let provider = Provider(
-                    name: template.displayName,
-                    skillsPath: path,
-                    workflowPath: template.defaultWorkflowPath.path,
-                    iconName: template.iconName,
-                    installMethod: method,
-                    templateId: template.rawValue
-                )
-                migratedProviders.append(provider)
+    
+    private func syncWithTemplates() {
+        var hasChanges = false
+        var updatedProviders = providers
+        
+        for (index, provider) in updatedProviders.enumerated() {
+            guard let templateId = provider.templateId,
+                  let template = ProviderTemplate(rawValue: templateId) else {
+                continue
             }
-        } else {
-            // No legacy data, create default providers from templates
-            for template in ProviderTemplate.allCases {
-                migratedProviders.append(template.createProvider())
+            
+            // Merge template paths with existing paths - ensure all template defaults are present
+            let templatePaths = Set(template.defaultSkillsPaths.map { $0.path })
+            guard !templatePaths.isEmpty else { continue }
+            
+            let currentPaths = Set(provider.additionalSkillsPaths ?? [])
+            let missingPaths = templatePaths.subtracting(currentPaths)
+            
+            if !missingPaths.isEmpty {
+                let mergedPaths = Array(currentPaths.union(templatePaths)).sorted()
+                updatedProviders[index].additionalSkillsPaths = mergedPaths
+                hasChanges = true
             }
         }
-
-        // Migrate legacy custom providers
-        if let legacyCustom = try? JSONDecoder().decode(
-            [LegacyCustomProvider].self, from: legacyCustomProvidersData)
-        {
-            for custom in legacyCustom {
-                let provider = Provider(
-                    id: custom.id,
-                    name: custom.name,
-                    skillsPath: custom.path,
-                    workflowPath: "",
-                    iconName: custom.iconName,
-                    installMethod: .symlink,
-                    templateId: nil
-                )
-                migratedProviders.append(provider)
-            }
+        
+        if hasChanges {
+            self.providers = updatedProviders
         }
-
-        self.providers = migratedProviders
-        saveProviders()
-
-        // Clear legacy data after migration
-        legacyPathsData = Data()
-        legacyMethodsData = Data()
-        legacyCustomProvidersData = Data()
     }
 
     private func loadDefaultProviders() {
@@ -222,13 +192,4 @@ public class ProviderSettings: ObservableObject {
             storedRemoteRepositoriesData = encoded
         }
     }
-}
-
-// MARK: - Legacy Custom Provider for Migration
-
-private struct LegacyCustomProvider: Codable {
-    let id: String
-    var name: String
-    var path: String
-    var iconName: String
 }

@@ -52,12 +52,45 @@ final class ProviderDetailGridViewModel {
         
         isLoading = true
         
-        // Load skills
+        // Load skills - scan all skills in provider directories (not just installed from global)
         do {
-            let allSkills = try repository.listSkills()
             let states = try installer.scanProvider(provider: provider)
-            let installedIds = Set(states.filter { $0.state == .installed }.map(\.skillName))
-            installedSkills = allSkills.filter { installedIds.contains($0.id) }
+            
+            // Parse all skills from provider directories (both installed and orphaned)
+            // This ensures we show all skills managed by the provider, not just those linked from global
+            var parsedSkills: [Skill] = []
+            
+            for state in states {
+                // Skip broken symlinks
+                guard state.state != .broken else { continue }
+                
+                // Try to parse skill from provider directory
+                let skillMdPath = "\(state.path)/SKILL.md"
+                guard let content = try? String(contentsOfFile: skillMdPath, encoding: .utf8),
+                      let skill = try? SkillParser.parse(
+                          content: content,
+                          id: state.skillName,
+                          globalPath: state.path
+                      ) else {
+                    continue
+                }
+                
+                var parsedSkill = Skill(
+                    id: skill.id,
+                    name: skill.name,
+                    description: skill.description,
+                    version: skill.version,
+                    globalPath: skill.globalPath,
+                    content: skill.content,
+                    referenceCount: 0,
+                    scriptCount: 0
+                )
+                parsedSkill.sourcePath = state.basePath
+                parsedSkill.installationState = state.state
+                parsedSkills.append(parsedSkill)
+            }
+            
+            installedSkills = parsedSkills
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -74,11 +107,51 @@ final class ProviderDetailGridViewModel {
     // MARK: - Filtered Data
     
     var filteredSkills: [Skill] {
-        guard !searchText.isEmpty else { return installedSkills }
-        return installedSkills.filter { skill in
-            skill.name.localizedCaseInsensitiveContains(searchText) ||
-            skill.description.localizedCaseInsensitiveContains(searchText)
+        let skills: [Skill]
+        if searchText.isEmpty {
+            skills = installedSkills
+        } else {
+            skills = installedSkills.filter { skill in
+                skill.name.localizedCaseInsensitiveContains(searchText) ||
+                skill.description.localizedCaseInsensitiveContains(searchText)
+            }
         }
+        
+        // Sort within each path, but we'll return a flat list if the view handles grouping,
+        // OR better return a structured dictionary.
+        // Given the request "support grouping by path", let's provide a grouped computed property.
+        return skills
+    }
+    
+    /// Grouped skills for the view, sorted by path (defaultSkillsPath first)
+    var groupedFilteredSkills: [(path: String, skills: [Skill])] {
+        let skills = filteredSkills
+        let grouped = Dictionary(grouping: skills) { $0.sourcePath ?? "" }
+        
+        guard let provider = provider else { return [] }
+        
+        let defaultPath = provider.defaultSkillsPath
+        let additionalPaths = provider.additionalSkillsPaths ?? []
+        
+        var result: [(path: String, skills: [Skill])] = []
+        
+        // 1. Primary path first
+        if let defaultSkills = grouped[defaultPath] {
+            result.append((path: defaultPath, skills: defaultSkills.sorted { $0.name < $1.name }))
+        } else if searchText.isEmpty {
+            // Keep an empty section for UI consistency if no search? 
+            // Better to only show if there are skills.
+        }
+        
+        // 2. Others sorted
+        let otherPaths = additionalPaths.filter { $0 != defaultPath }.sorted()
+        for path in otherPaths {
+            if let pathSkills = grouped[path] {
+                result.append((path: path, skills: pathSkills.sorted { $0.name < $1.name }))
+            }
+        }
+        
+        return result
     }
     
     var filteredWorkflows: [WorkflowInfo] {
@@ -224,7 +297,7 @@ final class ProviderDetailGridViewModel {
     
     func revealSkillInFinder(_ skill: Skill) {
         guard let provider = provider else { return }
-        let path = (provider.skillsPath as NSString).appendingPathComponent(skill.id)
+        let path = (provider.defaultSkillsPath as NSString).appendingPathComponent(skill.id)
         NSWorkspace.shared.selectFile(path, inFileViewerRootedAtPath: "")
     }
     
@@ -244,6 +317,17 @@ final class ProviderDetailGridViewModel {
         do {
             try installer.installWorkflow(skill: skill, to: provider)
             loadWorkflows(for: provider)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+    
+    func migrateSkill(_ skill: Skill) async {
+        guard let provider = provider else { return }
+        
+        do {
+            _ = try installer.migrate(skillName: skill.id, from: provider, overwriteExisting: false)
+            await loadData()
         } catch {
             errorMessage = error.localizedDescription
         }

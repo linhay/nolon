@@ -98,11 +98,11 @@ struct ProviderSettingsRowView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
-                Text(provider.skillsPath)
+                Text(provider.defaultSkillsPath)
                     .font(.system(.caption, design: .monospaced))
                     .lineLimit(1)
                     .truncationMode(.middle)
-                    .help(provider.skillsPath)
+                    .help(provider.defaultSkillsPath)
             }
 
             // Installation Method Display

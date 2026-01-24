@@ -26,6 +26,18 @@ struct SkillInstalledBadge: View {
     }
 }
 
+struct SkillOrphanedBadge: View {
+    var body: some View {
+        Text(NSLocalizedString("skill.orphaned", value: "Needs Migration", comment: "Orphaned skill badge"))
+            .font(.caption2)
+            .foregroundStyle(.white)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(Color.orange)
+            .cornerRadius(4)
+    }
+}
+
 #Preview {
     HStack {
         SkillVersionBadge(version: "1.0.0")

@@ -197,7 +197,7 @@ case "$ARCH" in
         ls -lh "${RELEASE_DIR}/"*.dmg
         ;;
     "")
-        # Default: build for current architecture only (legacy behavior)
+        # Default: build for current architecture only
         DMG_NAME="${RELEASE_DIR}/${APP_NAME}.dmg"
         echo -e "${YELLOW}🔨 Building ${APP_NAME} for Release...${NC}"
         

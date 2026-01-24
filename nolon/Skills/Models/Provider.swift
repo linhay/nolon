@@ -4,7 +4,7 @@ import Foundation
 public struct Provider: Codable, Identifiable, Hashable, Sendable {
     public let id: String
     public var name: String
-    public var skillsPath: String
+    public var defaultSkillsPath: String
     public var workflowPath: String
     public var iconName: String
     public var installMethod: SkillInstallationMethod
@@ -18,7 +18,7 @@ public struct Provider: Codable, Identifiable, Hashable, Sendable {
     public var displayName: String { name }
     
     public var pathURL: URL {
-        URL(fileURLWithPath: skillsPath)
+        URL(fileURLWithPath: defaultSkillsPath)
     }
     
     public var additionalPathURLs: [URL] {
@@ -30,7 +30,7 @@ public struct Provider: Codable, Identifiable, Hashable, Sendable {
     public init(
         id: String = UUID().uuidString,
         name: String,
-        skillsPath: String,
+        defaultSkillsPath: String,
         workflowPath: String,
         iconName: String = "folder",
         installMethod: SkillInstallationMethod = .symlink,
@@ -40,7 +40,7 @@ public struct Provider: Codable, Identifiable, Hashable, Sendable {
     ) {
         self.id = id
         self.name = name
-        self.skillsPath = skillsPath
+        self.defaultSkillsPath = defaultSkillsPath
         self.workflowPath = workflowPath
         self.iconName = iconName
         self.installMethod = installMethod

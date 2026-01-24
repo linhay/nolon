@@ -27,6 +27,12 @@ public struct Skill: Sendable, Equatable, Identifiable, Hashable {
     /// Full path to skill folder in global storage (~/.nolon/skills/skill-id)
     public let globalPath: String
 
+    /// Source path from which this skill was discovered in a provider (nil if global)
+    public var sourcePath: String?
+    
+    /// Installation state of this skill (installed, orphaned, broken)
+    public var installationState: SkillInstallationState = .installed
+
     // MARK: - Content
 
     /// Full SKILL.md content
@@ -50,7 +56,8 @@ public struct Skill: Sendable, Equatable, Identifiable, Hashable {
         globalPath: String,
         content: String,
         referenceCount: Int = 0,
-        scriptCount: Int = 0
+        scriptCount: Int = 0,
+        sourcePath: String? = nil
     ) {
         self.id = id
         self.name = name
@@ -60,6 +67,7 @@ public struct Skill: Sendable, Equatable, Identifiable, Hashable {
         self.content = content
         self.referenceCount = referenceCount
         self.scriptCount = scriptCount
+        self.sourcePath = sourcePath
     }
 
     // MARK: - Computed Properties
@@ -74,6 +82,14 @@ public struct Skill: Sendable, Equatable, Identifiable, Hashable {
         scriptCount > 0
     }
     
+    /// Unique identifier combining source path and skill ID for use in ForEach
+    public var uniqueId: String {
+        if let source = sourcePath {
+            return "\(source)/\(id)"
+        }
+        return id
+    }
+    
     /// Content for the associated workflow file
     /// Generates a lightweight declaration that tells CLI a skill exists,
     /// allowing CLI to discover and load the full skill content itself.
@@ -83,7 +99,7 @@ public struct Skill: Sendable, Equatable, Identifiable, Hashable {
         description: \(description)
         ---
         
-        使用 `\(name)` skill 来\(description)。
+        Use the `\(name)` skill to \(description).
         """
     }
 

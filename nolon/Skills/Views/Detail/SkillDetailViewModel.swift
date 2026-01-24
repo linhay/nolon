@@ -100,8 +100,10 @@ final class SkillDetailViewModel {
         // toggle -> updateOne
         
         for provider in providers {
-            let path = "\(provider.skillsPath)/\(skill.id)"
-            let exists = FileManager.default.fileExists(atPath: path)
+            let paths = [provider.defaultSkillsPath] + (provider.additionalSkillsPaths ?? [])
+            let exists = paths.contains { path in
+                FileManager.default.fileExists(atPath: "\(path)/\(skill.id)")
+            }
             providerInstallationStates[provider.id] = exists
         }
     }

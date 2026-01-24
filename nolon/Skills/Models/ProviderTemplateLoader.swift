@@ -5,7 +5,7 @@ public struct ProviderTemplateConfig: Codable, Sendable {
     public let displayName: String
     public let iconName: String
     public let logoFile: String
-    public let defaultPath: String
+    public let defaultSkillsPath: String
     public let defaultWorkflowPath: String
     public let documentationURL: String?
     public let mcpDocumentationURL: String?

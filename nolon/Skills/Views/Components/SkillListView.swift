@@ -1,7 +1,7 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
-/// View displaying all global skills (Legacy view - simplified)
+/// View displaying all global skills
 @MainActor
 public struct SkillListView: View {
     let skills: [Skill]

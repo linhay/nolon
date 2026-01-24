@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// View for managing skills by provider (Legacy view - simplified)
+/// View for managing skills by provider
 @MainActor
 public struct ProviderSkillsView: View {
     @State private var viewModel = ProviderSkillsViewModel()
@@ -36,22 +36,31 @@ public struct ProviderSkillsView: View {
                     migrationBanner
                 }
 
-                // Skills list
+                // Skills grid
                 if viewModel.providerStates.isEmpty {
                     ContentUnavailableView(
                         NSLocalizedString("provider.empty", comment: "No Skills"),
                         systemImage: "folder.badge.questionmark",
                         description: Text(NSLocalizedString("provider.empty_desc", comment: "No skills found in this provider"))
                     )
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
-                    List(viewModel.providerStates, id: \.skillName) { state in
-                        ProviderSkillRow(
-                            state: state,
-                            onUninstall: { await viewModel.uninstallSkill(at: state.path) },
-                            onMigrate: { await viewModel.migrateSkill(skillName: state.skillName) },
-                            onRepair: { await viewModel.repairSymlink(skillName: state.skillName) },
-                            onDelete: { await viewModel.deletePath(state.path) }
-                        )
+                    ScrollView {
+                        LazyVGrid(
+                            columns: [GridItem(.adaptive(minimum: 200, maximum: 280))],
+                            spacing: 16
+                        ) {
+                            ForEach(viewModel.providerStates, id: \.skillName) { state in
+                                ProviderSkillCard(
+                                    state: state,
+                                    onUninstall: { await viewModel.uninstallSkill(at: state.path) },
+                                    onMigrate: { await viewModel.migrateSkill(skillName: state.skillName) },
+                                    onRepair: { await viewModel.repairSymlink(skillName: state.skillName) },
+                                    onDelete: { await viewModel.deletePath(state.path) }
+                                )
+                            }
+                        }
+                        .padding()
                     }
                 }
             }
@@ -74,38 +83,44 @@ public struct ProviderSkillsView: View {
     }
 
     private var migrationBanner: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundStyle(.orange)
+        HStack(spacing: 12) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.title2)
+                .foregroundStyle(.orange)
 
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(
-                        NSLocalizedString(
-                            "banner.orphaned_title", comment: "Orphaned Skills Detected")
-                    )
-                    .font(.headline)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(
+                    NSLocalizedString(
+                        "banner.orphaned_title", comment: "Orphaned Skills Detected")
+                )
+                .font(.headline)
 
-                    Text(
-                        NSLocalizedString(
-                            "banner.orphaned_desc", comment: "Some skills are not managed...")
-                    )
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                }
-
-                Spacer()
+                Text(
+                    NSLocalizedString(
+                        "banner.orphaned_desc", comment: "Some skills are not managed...")
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
             }
 
-            Button(NSLocalizedString("action.migrate_all", comment: "Migrate All")) {
+            Spacer()
+
+            Button(NSLocalizedString("action.import_all", value: "Import All", comment: "Import All")) {
                 Task {
                     await viewModel.migrateAll()
                 }
             }
             .buttonStyle(.borderedProminent)
+            .controlSize(.small)
         }
         .padding()
         .background(Color.orange.opacity(0.1))
+        .cornerRadius(12)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .strokeBorder(Color.orange.opacity(0.3), lineWidth: 1)
+        )
+        .padding(.horizontal)
     }
 }
 

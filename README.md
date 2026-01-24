@@ -7,9 +7,10 @@ Nolon is a powerful macOS application designed to streamline the management of s
 ## 🚀 Key Features
 
 *   **Centralized Repository**: Maintains a single source of truth for all your skills in `~/.nolon/skills/`.
-*   **Clawdhub Integration** 🆕: Browse and install skills directly from [Clawdhub](https://clawdhub.com) remote repository.
-*   **Broad Provider Support**:
-    *   **Codex**, **Claude Code**, **OpenCode**, **GitHub Copilot**, **Gemini CLI**, **Antigravity**, **Cursor**.
+*   **Clawdhub Integration**: Browse and install skills directly from [Clawdhub](https://clawdhub.com) remote repository.
+*   **MCP Support** 🆕: Manage Model Context Protocol (MCP) configurations for each provider directly from Nolon.
+*   **Broad Provider Support** (25+):
+    *   **Codex**, **Claude Code**, **OpenCode**, **GitHub Copilot**, **Gemini CLI**, **Antigravity**, **Cursor**, **Amp**, **Clawdbot**, **Cline**, **Command Code**, **Droid**, **Goose**, **Kilo**, **Kiro**, **MCPJam**, **OpenHands**, **Pi**, **Qoder**, **Qwen**, **Roo**, **Trae**, **Windsurf**, **Zencoder**, **Neovate**.
 *   **Flexible Configuration**:
     *   **Custom Paths**: Configure the skills directory used by each provider.
     *   **Installation Methods**: Choose between **Symbolic Link** (Live Sync) or **Copy** (Standard) for installation.

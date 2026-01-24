@@ -7,9 +7,10 @@ Nolon 是一款强大的 macOS 应用程序，专为简化 AI 编程助手（如
 ## 🚀 主要功能
 
 *   **中心化仓库**：在 `~/.nolon/skills/` 中维护所有 Skills 的单一事实来源。
-*   **Clawdhub 集成** 🆕：直接从 [Clawdhub](https://clawdhub.com) 远程仓库浏览和安装 Skills。
-*   **广泛的 Provider 支持**：
-    *   **Codex**, **Claude Code**, **OpenCode**, **GitHub Copilot**, **Gemini CLI**, **Antigravity**, **Cursor**。
+*   **Clawdhub 集成**：直接从 [Clawdhub](https://clawdhub.com) 远程仓库浏览和安装 Skills。
+*   **MCP 支持** 🆕：直接在 Nolon 中管理每个 Provider 的 Model Context Protocol (MCP) 配置。
+*   **广泛的 Provider 支持** (25+)：
+    *   **Codex**, **Claude Code**, **OpenCode**, **GitHub Copilot**, **Gemini CLI**, **Antigravity**, **Cursor**, **Amp**, **Clawdbot**, **Cline**, **Command Code**, **Droid**, **Goose**, **Kilo**, **Kiro**, **MCPJam**, **OpenHands**, **Pi**, **Qoder**, **Qwen**, **Roo**, **Trae**, **Windsurf**, **Zencoder**, **Neovate**。
 *   **灵活配置**：
     *   **自定义路径**：为每个 Provider 配置使用的 Skills 目录。
     *   **安装方式**：选择 **软链接 (Symbolic Link)**（实时同步）或 **复制 (Copy)**（标准模式）进行安装。

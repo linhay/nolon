@@ -60,9 +60,9 @@ public enum ProviderTemplate: String, CaseIterable, Sendable, Identifiable {
     
     /// Default path for this template
     @MainActor
-    public var defaultPath: URL {
+    public var defaultSkillsPath: URL {
         let home = FileManager.default.homeDirectoryForCurrentUser
-        let relativePath = config?.defaultPath ?? ".\(rawValue)/skills"
+        let relativePath = config?.defaultSkillsPath ?? ".\(rawValue)/skills"
         return home.appendingPathComponent(relativePath)
     }
     
@@ -108,7 +108,7 @@ public enum ProviderTemplate: String, CaseIterable, Sendable, Identifiable {
     public func createProvider() -> Provider {
         Provider(
             name: displayName,
-            skillsPath: defaultPath.path,
+            defaultSkillsPath: defaultSkillsPath.path,
             workflowPath: defaultWorkflowPath.path,
             iconName: iconName,
             installMethod: .symlink,
@@ -118,9 +118,3 @@ public enum ProviderTemplate: String, CaseIterable, Sendable, Identifiable {
         )
     }
 }
-
-// MARK: - Legacy Compatibility
-
-/// Legacy type alias for migration
-@available(*, deprecated, renamed: "ProviderTemplate")
-public typealias SkillProvider = ProviderTemplate

@@ -9,18 +9,25 @@ struct SkillCardView: View {
     let onReveal: () -> Void
     let onUninstall: () async -> Void
     let onLinkWorkflow: () -> Void
+    var onMigrate: () async -> Void = {}
     let onTap: () -> Void
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            // Header: Name + Version
+            // Header: Name + Version + Status
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 4) {
                     HighlightedText(text: skill.name, query: searchText)
                         .font(.headline)
                         .lineLimit(1)
                     
-                    SkillVersionBadge(version: skill.version)
+                    HStack(spacing: 4) {
+                        SkillVersionBadge(version: skill.version)
+                        
+                        if skill.installationState == .orphaned {
+                            SkillOrphanedBadge()
+                        }
+                    }
                 }
                 
                 Spacer()
@@ -65,6 +72,7 @@ struct SkillCardView: View {
     
     private var moreMenu: some View {
         Menu {
+            // Common: Show in Finder
             Button {
                 onReveal()
             } label: {
@@ -74,24 +82,50 @@ struct SkillCardView: View {
                 )
             }
             
-            Button {
-                onLinkWorkflow()
-            } label: {
-                Label(
-                    NSLocalizedString("action.link_workflow", comment: "Link to Workflow"),
-                    systemImage: "link"
-                )
-            }
-            
-            Divider()
-            
-            Button(role: .destructive) {
-                Task { await onUninstall() }
-            } label: {
-                Label(
-                    NSLocalizedString("action.uninstall", comment: "Uninstall"),
-                    systemImage: "trash"
-                )
+            if skill.installationState == .orphaned {
+                // Orphaned: Migrate action
+                Button {
+                    Task { await onMigrate() }
+                } label: {
+                    Label(
+                        NSLocalizedString("action.migrate", value: "Migrate", comment: "Migrate orphaned skill"),
+                        systemImage: "arrow.right.arrow.left"
+                    )
+                }
+                
+                Divider()
+                
+                // Orphaned: Delete (not uninstall)
+                Button(role: .destructive) {
+                    Task { await onUninstall() }
+                } label: {
+                    Label(
+                        NSLocalizedString("action.delete", value: "Delete", comment: "Delete skill"),
+                        systemImage: "trash"
+                    )
+                }
+            } else {
+                // Installed: Link to Workflow
+                Button {
+                    onLinkWorkflow()
+                } label: {
+                    Label(
+                        NSLocalizedString("action.link_workflow", comment: "Link to Workflow"),
+                        systemImage: "link"
+                    )
+                }
+                
+                Divider()
+                
+                // Installed: Uninstall
+                Button(role: .destructive) {
+                    Task { await onUninstall() }
+                } label: {
+                    Label(
+                        NSLocalizedString("action.uninstall", comment: "Uninstall"),
+                        systemImage: "trash"
+                    )
+                }
             }
         } label: {
             Image(systemName: "ellipsis")

@@ -1,10 +1,10 @@
 # PROJECT KNOWLEDGE BASE
 
-**Generated:** 2026-01-21
+**Generated:** 2026-01-24
 **Project:** Nolon (macOS SwiftUI App)
 
 ## OVERVIEW
-Nolon is a macOS skill manager for AI coding assistants (Codex, Claude, etc.). It centralizes skill management in `~/.nolon/skills` and installs them via symlinks or copying. Supports browsing and installing skills from **Clawdhub** remote repository. Built with SwiftUI and Clean Architecture.
+Nolon is a macOS skill manager for AI coding assistants. It centralizes skill management in `~/.nolon/skills` and installs them via symlinks or copying. Supports browsing and installing skills from **Clawdhub** remote repository, and managing **MCP (Model Context Protocol)** configurations. Supports 25+ providers including Codex, Claude, OpenCode, Cursor, Windsurf, Cline, and more. Built with SwiftUI and Clean Architecture.
 
 ## STRUCTURE
 ```
@@ -25,7 +25,7 @@ Nolon is a macOS skill manager for AI coding assistants (Codex, Claude, etc.). I
 │   │       ├── MainSplitView.swift           # Main 3-column layout
 │   │       ├── RemoteSkillsBrowserView.swift # Clawdhub browser (3-column)
 │   │       └── ...
-│   ├── Resources/        # Legacy localization (.lproj) - Deprecated
+│   ├── Resources/        # Application resources
 │   └── nolonApp.swift    # Entry point (@main)
 ├── Localizable.xcstrings # Modern localization source (En/Zh)
 └── build.sh              # Custom CLI build/verification script
@@ -49,10 +49,16 @@ Nolon is a macOS skill manager for AI coding assistants (Codex, Claude, etc.). I
 3. Parse SKILL.md to create Skill model
 4. Link/copy to provider directory based on `Provider.installMethod`
 
+### MCP Configuration
+- Each provider can have a default MCP configuration path (`defaultMcpConfigPath`)
+- Nolon reads/writes provider-specific `mcp_settings.json` files
+- MCP documentation URLs are available per provider
+
 ### Provider Model
 - Unified `Provider` struct with configurable `installMethod` (`.symlink` or `.copy`)
-- `ProviderTemplate` enum for quick provider setup
+- `ProviderTemplate` enum for quick provider setup (25+ built-in templates)
 - `ProviderSettings` manages persistence via `@AppStorage`
+- Provider logos sourced from `lobe-icons` library
 
 ## CONVENTIONS
 - **Architecture**: Strict Clean Architecture (Models -> Infrastructure -> Views).
@@ -64,7 +70,7 @@ Nolon is a macOS skill manager for AI coding assistants (Codex, Claude, etc.). I
 - **Forbidden Colors**: `Color.blue`, `Color.white`, `Color.label`. **USE** `DesignSystem.Colors.Brand`, `DesignSystem.Colors.Background`, etc.
 - **Forbidden Logging**: `print()` in production code. Use `OSLog` or structured error handling.
 - **Implicit Dependencies**: Infrastructure layer should not import Views.
-- **Legacy Strings**: Do not add new files to `nolon/Resources/*.lproj`. Use `.xcstrings`.
+- **Old Strings**: Do not add new files to `nolon/Resources/*.lproj`. Use `.xcstrings`.
 
 ## COMMANDS
 ```bash

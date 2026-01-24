@@ -112,45 +112,17 @@ public actor GitRepositoryService {
     /// Check if repository exists locally
     public func isCloned(_ repository: RemoteRepository) -> Bool {
         let localPath = repository.localClonePath
-        if fileManager.fileExists(atPath: localPath.path) {
-            return true
-        }
-        if let legacyPath = legacyClonePath(for: repository),
-            fileManager.fileExists(atPath: legacyPath.path)
-        {
-            return true
-        }
-        return false
-    }
-
-    private func legacyClonePath(for repository: RemoteRepository) -> URL? {
-        guard let gitURL = repository.gitURL else { return nil }
-        let repoName = RemoteRepository.extractRepoName(from: gitURL)
-        return repositoriesPath.appendingPathComponent("github/\(repoName)")
+        return fileManager.fileExists(atPath: localPath.path)
     }
 
     public func resolveClonePath(for repository: RemoteRepository) -> URL {
-        let newPath = repository.localClonePath
-        if fileManager.fileExists(atPath: newPath.path) {
-            return newPath
-        }
-        if let legacyPath = legacyClonePath(for: repository),
-            fileManager.fileExists(atPath: legacyPath.path)
-        {
-            return legacyPath
-        }
-        return newPath
+        return repository.localClonePath
     }
 
     public func deleteRepository(_ repository: RemoteRepository) throws {
         let localPath = repository.localClonePath
         if fileManager.fileExists(atPath: localPath.path) {
             try fileManager.removeItem(at: localPath)
-        }
-        if let legacyPath = legacyClonePath(for: repository),
-            fileManager.fileExists(atPath: legacyPath.path)
-        {
-            try fileManager.removeItem(at: legacyPath)
         }
     }
 

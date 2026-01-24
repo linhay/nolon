@@ -5,11 +5,13 @@ public struct ProviderSkillState: Sendable {
     public let skillName: String
     public let state: SkillInstallationState
     public let path: String
+    public let basePath: String // Path from which this skill was found
 
-    public init(skillName: String, state: SkillInstallationState, path: String) {
+    public init(skillName: String, state: SkillInstallationState, path: String, basePath: String) {
         self.skillName = skillName
         self.state = state
         self.path = path
+        self.basePath = basePath
     }
 }
 
@@ -34,7 +36,7 @@ public final class SkillInstaller {
 
     /// Install a skill to a provider
     public func install(skill: Skill, to provider: Provider) throws {
-        let providerPath = provider.skillsPath
+        let providerPath = provider.defaultSkillsPath
         let targetPath = "\(providerPath)/\(skill.id)"
 
         // If already exists, remove it first to allow reinstall/update
@@ -234,7 +236,7 @@ public final class SkillInstaller {
 
     /// Uninstall a skill from a provider
     public func uninstall(skill: Skill, from provider: Provider) throws {
-        let providerPath = provider.skillsPath
+        let providerPath = provider.defaultSkillsPath
         let targetPath = "\(providerPath)/\(skill.id)"
 
         guard fileManager.fileExists(atPath: targetPath) else {
@@ -282,13 +284,28 @@ public final class SkillInstaller {
 
     /// Scan a provider directory and return skill states
     public func scanProvider(provider: Provider) throws -> [ProviderSkillState] {
-        let providerPath = provider.skillsPath
+        var allStates: [ProviderSkillState] = []
+        
+        // 1. Scan default path (primary)
+        let defaultPath = provider.defaultSkillsPath
+        allStates.append(contentsOf: try scanDirectory(at: defaultPath, for: provider))
+        
+        // 2. Scan additional paths (penetration), excluding defaultSkillsPath to avoid duplicates
+        if let additionals = provider.additionalSkillsPaths {
+            for path in additionals where path != defaultPath {
+                allStates.append(contentsOf: try scanDirectory(at: path, for: provider))
+            }
+        }
 
-        guard fileManager.fileExists(atPath: providerPath) else {
+        return allStates
+    }
+
+    private func scanDirectory(at directoryPath: String, for provider: Provider) throws -> [ProviderSkillState] {
+        guard fileManager.fileExists(atPath: directoryPath) else {
             return []
         }
 
-        guard let contents = try? fileManager.contentsOfDirectory(atPath: providerPath) else {
+        guard let contents = try? fileManager.contentsOfDirectory(atPath: directoryPath) else {
             return []
         }
 
@@ -298,14 +315,15 @@ public final class SkillInstaller {
             // Skip hidden files
             if item.hasPrefix(".") { continue }
 
-            let itemPath = "\(providerPath)/\(item)"
+            let itemPath = "\(directoryPath)/\(item)"
             let state = determineSkillState(skillName: item, at: itemPath, for: provider)
 
             states.append(
                 ProviderSkillState(
                     skillName: item,
                     state: state,
-                    path: itemPath
+                    path: itemPath,
+                    basePath: directoryPath
                 ))
         }
 
@@ -313,6 +331,8 @@ public final class SkillInstaller {
     }
 
     /// Determine the state of a skill at a given path based on provider's install method
+    /// - Symlink mode: Skills symlinked from .nolon/skills are "installed", others are "orphaned"
+    /// - Copy mode: Skills with same name in .nolon/skills are "installed", others are "orphaned"
     private func determineSkillState(skillName: String, at path: String, for provider: Provider)
         -> SkillInstallationState
     {
@@ -323,13 +343,15 @@ public final class SkillInstaller {
 
         // Check if it's a symlink
         let isSymlink: Bool
+        var symlinkDestination: String? = nil
         if let attributes = try? fileManager.attributesOfItem(atPath: path),
             attributes[.type] as? FileAttributeType == .typeSymbolicLink
         {
             isSymlink = true
+            symlinkDestination = try? fileManager.destinationOfSymbolicLink(atPath: path)
 
             // Check if symlink target exists
-            guard let destination = try? fileManager.destinationOfSymbolicLink(atPath: path),
+            guard let destination = symlinkDestination,
                 fileManager.fileExists(atPath: destination)
             else {
                 return .broken
@@ -340,11 +362,18 @@ public final class SkillInstaller {
 
         switch provider.installMethod {
         case .symlink:
-            // For symlink mode: symlinks are installed, non-symlinks are orphaned
-            return isSymlink ? .installed : .orphaned
+            // For symlink mode: symlinks FROM .nolon/skills are installed, others are orphaned
+            if isSymlink, let dest = symlinkDestination {
+                let globalSkillsPath = NolonManager.shared.skillsPath
+                // Check if symlink points to global skills
+                if dest.hasPrefix(globalSkillsPath) {
+                    return .installed
+                }
+            }
+            return .orphaned
 
         case .copy:
-            // For copy mode: compare with global storage
+            // For copy mode: compare with global storage by name
             if isSymlink {
                 // Symlinks in copy mode are unexpected but treat as installed
                 return .installed
@@ -429,7 +458,7 @@ public final class SkillInstaller {
     public func migrate(skillName: String, from provider: Provider, overwriteExisting: Bool = false)
         throws -> Skill
     {
-        let providerPath = provider.skillsPath
+        let providerPath = provider.defaultSkillsPath
         let sourcePath = "\(providerPath)/\(skillName)"
 
         // Verify it's a physical directory (not a symlink for symlink mode, or different for copy mode)
@@ -546,7 +575,7 @@ public final class SkillInstaller {
 
     /// Repair a broken symlink by recreating it
     public func repairSymlink(skillName: String, for provider: Provider) throws {
-        let providerPath = provider.skillsPath
+        let providerPath = provider.defaultSkillsPath
         let targetPath = "\(providerPath)/\(skillName)"
         let globalPath = "\(NolonManager.shared.skillsPath)/\(skillName)"
 

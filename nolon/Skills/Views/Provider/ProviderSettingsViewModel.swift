@@ -25,7 +25,7 @@ final class ProviderSettingsViewModel {
     }
     
     func selectFile(for provider: Provider) {
-        let url = URL(fileURLWithPath: provider.skillsPath)
+        let url = URL(fileURLWithPath: provider.defaultSkillsPath)
         NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: url.path)
     }
 }
