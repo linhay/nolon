@@ -4,11 +4,13 @@ import Foundation
 public final class SkillRepository {
 
     private let fileManager: FileManager
-    private var globalSkillsPath: String { NolonManager.shared.skillsPath }
+    private let nolonManager: NolonManager
+    private var globalSkillsPath: String { nolonManager.skillsPath }
     private var metadataPath: String { "\(globalSkillsPath)/.metadata.json" }
 
-    public init(fileManager: FileManager = .default) {
+    public init(fileManager: FileManager = .default, nolonManager: NolonManager = .shared) {
         self.fileManager = fileManager
+        self.nolonManager = nolonManager
         // Directories are ensured by NolonManager
     }
 
@@ -134,7 +136,7 @@ public final class SkillRepository {
         try saveMetadata(metadata)
         
         // Remove global workflow if exists
-        let workflowPath = "\(NolonManager.shared.generatedWorkflowsPath)/\(id).md"
+        let workflowPath = "\(nolonManager.generatedWorkflowsPath)/\(id).md"
         if fileManager.fileExists(atPath: workflowPath) {
             try? fileManager.removeItem(atPath: workflowPath)
         }
@@ -144,7 +146,7 @@ public final class SkillRepository {
     
     /// Create a global workflow file for a skill
     public func createGlobalWorkflow(for skill: Skill) throws -> String {
-        let path = "\(NolonManager.shared.generatedWorkflowsPath)/\(skill.id).md"
+        let path = "\(nolonManager.generatedWorkflowsPath)/\(skill.id).md"
         
         // Always overwrite to ensure content is up to date with skill changes
         try skill.workflowContent.write(toFile: path, atomically: true, encoding: .utf8)

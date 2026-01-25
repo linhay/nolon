@@ -22,16 +22,21 @@ public final class NolonManager: Sendable {
     public var repositoriesPath: String { repositoriesURL.path }
     public var providersConfigPath: String { providersConfigURL.path }
     
-    private init(fileManager: FileManager = .default) {
+    public init(fileManager: FileManager = .default, rootURL: URL? = nil) {
         self.fileManager = fileManager
-        let home = fileManager.homeDirectoryForCurrentUser
         
-        self.rootURL = home.appendingPathComponent(".nolon")
-        self.skillsURL = rootURL.appendingPathComponent("skills")
-        self.generatedWorkflowsURL = rootURL.appendingPathComponent("skills-workflows")
-        self.userWorkflowsURL = rootURL.appendingPathComponent("workflows")
-        self.repositoriesURL = rootURL.appendingPathComponent("repositories")
-        self.providersConfigURL = rootURL.appendingPathComponent("providers.json")
+        if let rootURL = rootURL {
+            self.rootURL = rootURL
+        } else {
+            let home = fileManager.homeDirectoryForCurrentUser
+            self.rootURL = home.appendingPathComponent(".nolon")
+        }
+        
+        self.skillsURL = self.rootURL.appendingPathComponent("skills")
+        self.generatedWorkflowsURL = self.rootURL.appendingPathComponent("skills-workflows")
+        self.userWorkflowsURL = self.rootURL.appendingPathComponent("workflows")
+        self.repositoriesURL = self.rootURL.appendingPathComponent("repositories")
+        self.providersConfigURL = self.rootURL.appendingPathComponent("providers.json")
         
         ensureDirectoriesExist()
     }

@@ -45,6 +45,7 @@
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>nolon</string>
+				<string>nln</string>
 			</array>
 		</dict>
 	</array>

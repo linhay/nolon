@@ -1,0 +1,2 @@
+- **Refactor**: Improved path display logic by moving it to the view model.
+- **Release Automation**: Enhanced release script to better handle appcast updates and changelog generation.

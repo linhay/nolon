@@ -21,15 +21,18 @@ public final class SkillInstaller {
     private let fileManager: FileManager
     private let repository: SkillRepository
     private let settings: ProviderSettings
+    private let nolonManager: NolonManager
 
     public init(
         fileManager: FileManager = .default,
         repository: SkillRepository,
-        settings: ProviderSettings
+        settings: ProviderSettings,
+        nolonManager: NolonManager = .shared
     ) {
         self.fileManager = fileManager
         self.repository = repository
         self.settings = settings
+        self.nolonManager = nolonManager
     }
 
     // MARK: - Installation
@@ -67,7 +70,7 @@ public final class SkillInstaller {
     /// 1. Extract to global storage (~/.nolon/skills)
     /// 2. Link/copy to provider directory based on provider settings
     public func installRemote(zipURL: URL, slug: String, to provider: Provider) throws {
-        let globalSkillsPath = NolonManager.shared.skillsPath
+        let globalSkillsPath = nolonManager.skillsPath
         let globalPath = "\(globalSkillsPath)/\(slug)"
 
         // Check if already exists in global storage
@@ -145,7 +148,7 @@ public final class SkillInstaller {
     /// 1. Symlink to global storage (~/.nolon/skills) to register it
     /// 2. Link/copy to provider directory based on provider settings
     public func installLocal(from sourcePath: String, slug: String, to provider: Provider) throws {
-        let globalSkillsPath = NolonManager.shared.skillsPath
+        let globalSkillsPath = nolonManager.skillsPath
         let globalPath = "\(globalSkillsPath)/\(slug)"
 
         // Ensure global skills directory exists
@@ -364,7 +367,7 @@ public final class SkillInstaller {
         case .symlink:
             // For symlink mode: symlinks FROM .nolon/skills are installed, others are orphaned
             if isSymlink, let dest = symlinkDestination {
-                let globalSkillsPath = NolonManager.shared.skillsPath
+                let globalSkillsPath = nolonManager.skillsPath
                 // Check if symlink points to global skills
                 if dest.hasPrefix(globalSkillsPath) {
                     return .installed
@@ -380,7 +383,7 @@ public final class SkillInstaller {
             }
 
             // Check if skill exists in global storage
-            let globalPath = "\(NolonManager.shared.skillsPath)/\(skillName)"
+            let globalPath = "\(nolonManager.skillsPath)/\(skillName)"
             guard fileManager.fileExists(atPath: globalPath) else {
                 // Not in global storage -> orphaned
                 return .orphaned
@@ -430,16 +433,7 @@ public final class SkillInstaller {
 
     /// Parse version from SKILL.md content
     private func parseVersion(from content: String) -> String {
-        // Look for version in YAML frontmatter
-        let lines = content.components(separatedBy: .newlines)
-        for line in lines {
-            let trimmed = line.trimmingCharacters(in: .whitespaces)
-            if trimmed.hasPrefix("version:") {
-                return trimmed.replacingOccurrences(of: "version:", with: "").trimmingCharacters(
-                    in: .whitespaces)
-            }
-        }
-        return "unknown"
+        return SkillParser.parseMetadata(from: content)["version"] ?? "unknown"
     }
 
     // MARK: - Migration
@@ -577,7 +571,7 @@ public final class SkillInstaller {
     public func repairSymlink(skillName: String, for provider: Provider) throws {
         let providerPath = provider.defaultSkillsPath
         let targetPath = "\(providerPath)/\(skillName)"
-        let globalPath = "\(NolonManager.shared.skillsPath)/\(skillName)"
+        let globalPath = "\(nolonManager.skillsPath)/\(skillName)"
 
         // Remove broken symlink
         if fileManager.fileExists(atPath: targetPath) {

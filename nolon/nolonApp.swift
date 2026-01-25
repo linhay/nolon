@@ -51,15 +51,16 @@ final class URLSchemeHandler: ObservableObject {
     private init() {}
     
     func handleURL(_ url: URL) {
-        guard url.scheme == "nolon" else { return }
+        guard url.scheme == "nolon" || url.scheme == "nln" else { return }
         
         // Reconstruct the original URL
         // nolon://github.com/owner/repo -> https://github.com/owner/repo
+        // nln://github.com/owner/repo -> https://github.com/owner/repo
         var components = URLComponents(url: url, resolvingAgainstBaseURL: true)
         components?.scheme = "https"
         
         if let httpsURL = components?.url {
-            print("[URLSchemeHandler] Received nolon URL: \(httpsURL.absoluteString)")
+            print("[URLSchemeHandler] Received \(url.scheme ?? "") URL: \(httpsURL.absoluteString)")
             pendingURL = httpsURL
         }
     }
@@ -80,15 +81,20 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 @main
 struct nolonApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
-    private let updaterController: SPUStandardUpdaterController
+    static var updaterController: SPUStandardUpdaterController?
 
     init() {
         // Load provider template configurations from JSON
         ProviderTemplateLoader.shared.load()
         
-        // If you want to start the updater manually, pass false to startingUpdater and call .startUpdater() later
-        // This is where you can also pass an updater delegate if you need one
-        updaterController = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
+        // Apply app settings (appearance, etc.)
+        AppSettings.shared.applyAllSettings()
+        
+        // Skip Sparkle in Previews to avoid launch timeout
+        if ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] != "1" {
+            let controller = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
+            Self.updaterController = controller
+        }
     }
 
     var body: some Scene {
@@ -96,9 +102,19 @@ struct nolonApp: App {
             ContentView()
         }
         .handlesExternalEvents(matching: Set(arrayLiteral: "*"))
+        
         .commands {
+            CommandGroup(replacing: .appSettings) {
+                Button(NSLocalizedString("settings.app", value: "Settings...", comment: "Menu item")) {
+                    AppCommandState.shared.showingSettings = true
+                }
+                .keyboardShortcut(",", modifiers: .command)
+            }
+            
             CommandGroup(after: .appInfo) {
-                CheckForUpdatesView(updater: updaterController.updater)
+                if let controller = Self.updaterController {
+                    CheckForUpdatesView(updater: controller.updater)
+                }
             }
         }
     }

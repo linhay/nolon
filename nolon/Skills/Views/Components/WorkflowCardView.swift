@@ -16,21 +16,8 @@ struct WorkflowInfo: Identifiable, Hashable {
         var description = ""
         
         // Parse YAML frontmatter for description
-        if content.hasPrefix("---") {
-            let parts = content.components(separatedBy: "---")
-            if parts.count >= 3 {
-                let frontmatter = parts[1]
-                for line in frontmatter.components(separatedBy: .newlines) {
-                    let trimmed = line.trimmingCharacters(in: .whitespaces)
-                    if trimmed.hasPrefix("description:") {
-                        description = trimmed
-                            .replacingOccurrences(of: "description:", with: "")
-                            .trimmingCharacters(in: .whitespaces)
-                        break
-                    }
-                }
-            }
-        }
+        let metadata = SkillParser.parseMetadata(from: content)
+        description = metadata["description"] ?? ""
         
         return WorkflowInfo(
             id: fileName,

@@ -1,7 +1,7 @@
 import Foundation
 
 public struct RemoteSkill: Decodable, Identifiable, Hashable, Sendable {
-    public var id: String { slug }
+    nonisolated public var id: String { slug }
     public let slug: String
     public let displayName: String
     public let summary: String?
@@ -50,7 +50,7 @@ public struct RemoteSkill: Decodable, Identifiable, Hashable, Sendable {
     }
 
     /// Memberwise initializer for creating RemoteSkill from API response or local scan
-    public init(
+    nonisolated public init(
         slug: String,
         displayName: String,
         summary: String?,
@@ -74,9 +74,9 @@ public struct RemoteSkill: Decodable, Identifiable, Hashable, Sendable {
 }
 
 public struct RemoteSkillDetail: Decodable, Sendable {
-    public let skill: RemoteSkill
-    public let latestVersion: RemoteSkill.LatestVersion?
-    public let owner: Owner?
+    nonisolated public let skill: RemoteSkill
+    nonisolated public let latestVersion: RemoteSkill.LatestVersion?
+    nonisolated public let owner: Owner?
 
     public struct Owner: Decodable, Sendable {
         public let handle: String?

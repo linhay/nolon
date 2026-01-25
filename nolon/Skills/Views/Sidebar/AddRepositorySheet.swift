@@ -3,9 +3,18 @@ import Observation
 
 @Observable
 final class AddRepositoryViewModel {
+    /// The repository being edited, if any
+    var repositoryToEdit: RemoteRepository?
+    
+    /// Whether we are in edit mode
+    var isEditing: Bool { repositoryToEdit != nil }
+    
     var selectedTemplate: RepositoryTemplate = .clawdhub {
         didSet {
-            handleTemplateChange(selectedTemplate)
+            // Only handle change if not in edit mode (template is locked during edit)
+            if !isEditing {
+                handleTemplateChange(selectedTemplate)
+            }
         }
     }
     var newRepoName = "" {
@@ -28,32 +37,43 @@ final class AddRepositoryViewModel {
     var onDirectoryCandidatesFound: ((RemoteRepository, [GitRepositoryService.SkillsDirectoryCandidate]) -> Void)?
     var onDismiss: (() -> Void)?
     
-    init(settings: ProviderSettings) {
+    init(settings: ProviderSettings, repositoryToEdit: RemoteRepository? = nil) {
         self.settings = settings
-        resetAddForm()
+        self.repositoryToEdit = repositoryToEdit
         
-        // Handle pending URL import
-        if let importURL = settings.pendingImportURL {
-            selectedTemplate = .git
+        if let repo = repositoryToEdit {
+            // Edit mode: populate fields from existing repository
+            selectedTemplate = repo.templateType
+            newRepoName = repo.name
+            newGitURL = repo.gitURL ?? ""
+            newLocalPath = repo.localPath ?? ""
+            newSkillsPaths = repo.skillsPaths
+        } else {
+            resetAddForm()
             
-            // Extract subpath if present before normalization might strip it
-            if let subpath = RemoteRepository.extractSubpath(from: importURL) {
-                newSkillsPaths = [subpath]
+            // Handle pending URL import
+            if let importURL = settings.pendingImportURL {
+                selectedTemplate = .git
+                
+                // Extract subpath if present before normalization might strip it
+                if let subpath = RemoteRepository.extractSubpath(from: importURL) {
+                    newSkillsPaths = [subpath]
+                }
+                
+                let normalized = RemoteRepository.normalizeGitURL(importURL)
+                newGitURL = normalized
+                
+                // Manually trigger update logic since didSet not called in init
+                let extractedName = RemoteRepository.extractRepoName(from: normalized)
+                if !extractedName.isEmpty {
+                    newRepoName = extractedName
+                }
+                
+                validateInput()
+                
+                // Consume the pending URL
+                settings.pendingImportURL = nil
             }
-            
-            let normalized = RemoteRepository.normalizeGitURL(importURL)
-            newGitURL = normalized
-            
-            // Manually trigger update logic since didSet not called in init
-            let extractedName = RemoteRepository.extractRepoName(from: normalized)
-            if !extractedName.isEmpty {
-                newRepoName = extractedName
-            }
-            
-            validateInput()
-            
-            // Consume the pending URL
-            settings.pendingImportURL = nil
         }
     }
 
@@ -113,9 +133,12 @@ final class AddRepositoryViewModel {
 
     func validateInput() {
         validationError = nil
+        
+        // Skip duplicate checks when editing the same repository
+        let editingId = repositoryToEdit?.id
 
         if !newRepoName.isEmpty {
-            if settings.remoteRepositories.contains(where: { $0.name == newRepoName }) {
+            if settings.remoteRepositories.contains(where: { $0.name == newRepoName && $0.id != editingId }) {
                 validationError = "A repository with this name already exists."
                 return
             }
@@ -125,7 +148,7 @@ final class AddRepositoryViewModel {
             let detectedProvider = RemoteRepository.detectProvider(from: newGitURL) ?? .github
             let normalizedURL = detectedProvider.normalizeURL(newGitURL)
             if settings.remoteRepositories.contains(where: { repo in
-                guard repo.templateType == .git, let existingURL = repo.gitURL else {
+                guard repo.id != editingId, repo.templateType == .git, let existingURL = repo.gitURL else {
                     return false
                 }
                 let existingProvider = RemoteRepository.detectProvider(from: existingURL) ?? .github
@@ -138,7 +161,7 @@ final class AddRepositoryViewModel {
 
         if selectedTemplate == .localFolder && !newLocalPath.isEmpty {
             if settings.remoteRepositories.contains(where: {
-                $0.templateType == .localFolder && $0.localPath == newLocalPath
+                $0.id != editingId && $0.templateType == .localFolder && $0.localPath == newLocalPath
             }) {
                 validationError = "This folder has already been added."
                 return
@@ -175,63 +198,100 @@ final class AddRepositoryViewModel {
     }
     
     @MainActor
-    func addRepository() async {
+    func saveRepository() async {
         isAddingRepository = true
         defer { isAddingRepository = false }
 
-        let repo: RemoteRepository
-
-        switch selectedTemplate {
-        case .clawdhub:
-            repo = selectedTemplate.createRepository()
-        case .localFolder:
-            repo = selectedTemplate.createRepository(
-                name: newRepoName,
-                localPath: newLocalPath
-            )
-        case .git:
-            let detectedProvider = RemoteRepository.detectProvider(from: newGitURL) ?? .github
-            repo = selectedTemplate.createRepository(
-                name: newRepoName,
-                gitURL: newGitURL,
-                provider: detectedProvider,
-                skillsPaths: newSkillsPaths
-            )
-
-            do {
-                let gitService = GitRepositoryService.shared
-                let result = try await gitService.syncRepository(repo)
-
-                if !result.success {
-                    validationError = "Failed to sync repository: \(result.message)"
-                    return
-                }
-
-                var updatedRepo = repo
-                updatedRepo.lastSyncDate = result.updatedAt
-
-                if !newSkillsPaths.isEmpty {
-                    settings.addRemoteRepository(updatedRepo)
-                    onDismiss?()
-                } else if result.detectedDirectories.isEmpty {
-                    settings.addRemoteRepository(updatedRepo)
-                    onDismiss?()
-                } else {
-                    updatedRepo.detectedDirectories = result.detectedDirectories.map { $0.path }
-                    onDirectoryCandidatesFound?(updatedRepo, result.detectedDirectories)
-                    onDismiss?()
-                }
-            } catch {
-                validationError = "Failed to sync repository: \(error.localizedDescription)"
+        var repo: RemoteRepository
+        
+        // In edit mode, start from existing repository to preserve ID and other properties
+        if let existingRepo = repositoryToEdit {
+            repo = existingRepo
+            repo.name = newRepoName
+            repo.localPath = newLocalPath.isEmpty ? nil : newLocalPath
+            repo.gitURL = newGitURL.isEmpty ? nil : newGitURL
+            repo.skillsPaths = newSkillsPaths
+            if !newGitURL.isEmpty {
+                repo.provider = RemoteRepository.detectProvider(from: newGitURL) ?? .github
+            }
+        } else {
+            // Create new repository based on template
+            switch selectedTemplate {
+            case .clawdhub:
+                repo = selectedTemplate.createRepository()
+            case .localFolder:
+                repo = selectedTemplate.createRepository(
+                    name: newRepoName,
+                    localPath: newLocalPath
+                )
+            case .git:
+                let detectedProvider = RemoteRepository.detectProvider(from: newGitURL) ?? .github
+                repo = selectedTemplate.createRepository(
+                    name: newRepoName,
+                    gitURL: newGitURL,
+                    provider: detectedProvider,
+                    skillsPaths: newSkillsPaths
+                )
+            case .globalSkills:
                 return
             }
-
-            return
-        case .globalSkills:
-            return
         }
 
-        settings.addRemoteRepository(repo)
+        // Handle Git repository sync for new repos or URL changes
+        if selectedTemplate == .git || repo.templateType == .git {
+            let needsSync = repositoryToEdit == nil || repositoryToEdit?.gitURL != newGitURL
+            
+            if needsSync {
+                do {
+                    let gitService = GitRepositoryService.shared
+                    let result = try await gitService.syncRepository(repo)
+
+                    if !result.success {
+                        validationError = "Failed to sync repository: \(result.message)"
+                        return
+                    }
+
+                    repo.lastSyncDate = result.updatedAt
+
+                    if !newSkillsPaths.isEmpty {
+                        if isEditing {
+                            settings.updateRemoteRepository(repo)
+                        } else {
+                            settings.addRemoteRepository(repo)
+                        }
+                        onDismiss?()
+                    } else if result.detectedDirectories.isEmpty {
+                        if isEditing {
+                            settings.updateRemoteRepository(repo)
+                        } else {
+                            settings.addRemoteRepository(repo)
+                        }
+                        onDismiss?()
+                    } else {
+                        repo.detectedDirectories = result.detectedDirectories.map { $0.path }
+                        onDirectoryCandidatesFound?(repo, result.detectedDirectories)
+                        onDismiss?()
+                    }
+                } catch {
+                    validationError = "Failed to sync repository: \(error.localizedDescription)"
+                    return
+                }
+                return
+            } else {
+                // URL unchanged in edit mode, just update metadata
+                if isEditing {
+                    settings.updateRemoteRepository(repo)
+                    onDismiss?()
+                    return
+                }
+            }
+        }
+
+        if isEditing {
+            settings.updateRemoteRepository(repo)
+        } else {
+            settings.addRemoteRepository(repo)
+        }
         onDismiss?()
     }
 }
@@ -240,19 +300,42 @@ struct AddRepositorySheet: View {
     @Binding var isPresented: Bool
     @State private var viewModel: AddRepositoryViewModel
 
-    init(isPresented: Binding<Bool>, settings: ProviderSettings, onDirectoryCandidatesFound: @escaping (RemoteRepository, [GitRepositoryService.SkillsDirectoryCandidate]) -> Void) {
+    init(isPresented: Binding<Bool>, settings: ProviderSettings, repositoryToEdit: RemoteRepository? = nil, onDirectoryCandidatesFound: @escaping (RemoteRepository, [GitRepositoryService.SkillsDirectoryCandidate]) -> Void) {
         self._isPresented = isPresented
         
-        let vm = AddRepositoryViewModel(settings: settings)
+        let vm = AddRepositoryViewModel(settings: settings, repositoryToEdit: repositoryToEdit)
         vm.onDirectoryCandidatesFound = onDirectoryCandidatesFound
         self._viewModel = State(initialValue: vm)
     }
 
     var body: some View {
-        NavigationStack {
-            formContent
+        VStack(spacing: 0) {
+            headerView
+            
+            ScrollView {
+                formContent
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 24)
+            }
+            
+            Divider()
+                .background(Color.white.opacity(0.1))
+            
+            footerView
         }
-        .frame(width: 450, height: 420)
+        .frame(width: 500, height: 480)
+        .background(.ultraThinMaterial)
+        .cornerRadius(24)
+        .overlay(
+            RoundedRectangle(cornerRadius: 24)
+                .stroke(Color.white.opacity(0.2), lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(0.2), radius: 30, x: 0, y: 15)
+        .overlay {
+            if viewModel.isAddingRepository {
+                loadingOverlay
+            }
+        }
         .onAppear {
             viewModel.onDismiss = {
                 isPresented = false
@@ -260,63 +343,144 @@ struct AddRepositorySheet: View {
         }
     }
 
+    // MARK: - Header View
+    
+    private var headerView: some View {
+        HStack {
+            Text(viewModel.isEditing ? "Edit Repository" : "Add Repository")
+                .font(.system(size: 20, weight: .bold))
+            
+            Spacer()
+            
+            Button {
+                isPresented = false
+            } label: {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.system(size: 24))
+                    .foregroundStyle(.secondary.opacity(0.5))
+            }
+            .buttonStyle(.plain)
+            .disabled(viewModel.isAddingRepository)
+        }
+        .padding(.horizontal, 24)
+        .padding(.top, 24)
+        .padding(.bottom, 16)
+    }
+    
+    // MARK: - Footer View
+    
+    private var footerView: some View {
+        HStack {
+            if let error = viewModel.validationError {
+                Text(error)
+                    .font(.system(size: 12))
+                    .foregroundStyle(.red.opacity(0.8))
+                    .lineLimit(2)
+            }
+            
+            Spacer()
+            
+            HStack(spacing: 12) {
+                Button("Cancel") {
+                    isPresented = false
+                }
+                .buttonStyle(.plain)
+                .font(.system(size: 13, weight: .medium))
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+                .background(Color.white.opacity(0.05))
+                .cornerRadius(16)
+                .disabled(viewModel.isAddingRepository)
+                
+                Button(viewModel.isEditing ? "Save" : "Add") {
+                    Task { await viewModel.saveRepository() }
+                }
+                .buttonStyle(.plain)
+                .font(.system(size: 13, weight: .bold))
+                .padding(.horizontal, 24)
+                .padding(.vertical, 8)
+                .background(viewModel.canAddRepository ? Color.accentColor : Color.gray.opacity(0.2))
+                .foregroundColor(viewModel.canAddRepository ? .white : .secondary)
+                .cornerRadius(16)
+                .disabled(!viewModel.canAddRepository || viewModel.isAddingRepository)
+            }
+        }
+        .padding(20)
+    }
+
     // MARK: - Form Content
 
     @ViewBuilder
     private var formContent: some View {
-        Form {
+        VStack(alignment: .leading, spacing: 24) {
+            // Repository Type Section
             templateSection
+            
+            // Name Section
             nameSection
+            
+            // Type-Specific Section
             typeSpecificSection
-            errorSection
-        }
-        .formStyle(.grouped)
-        .navigationTitle("Add Repository")
-        .toolbar {
-            toolbarContent
-        }
-        .overlay {
-            loadingOverlay
         }
     }
 
     // MARK: - Template Section
 
     private var templateSection: some View {
-        Section {
-            Picker("Type", selection: $viewModel.selectedTemplate) {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Repository Type")
+                .font(.system(size: 13, weight: .semibold))
+            
+            HStack(spacing: 10) {
                 ForEach(viewModel.availableTemplates) { template in
-                    Label {
-                        Text(template.displayName)
-                    } icon: {
-                        if let logoName = template.logoName {
-                            ProviderLogoView(name: template.displayName, logoName: logoName, iconSize: 16)
-                        } else {
-                            Image(systemName: template.iconName)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                    .tag(template)
+                    templateButton(for: template)
                 }
             }
-            .pickerStyle(.inline)
-            .labelsHidden()
-        } header: {
-            Text("Repository Type")
         }
+    }
+    
+    private func templateButton(for template: RepositoryTemplate) -> some View {
+        let isSelected = viewModel.selectedTemplate == template
+        
+        return Button {
+            if !viewModel.isEditing {
+                viewModel.selectedTemplate = template
+            }
+        } label: {
+            HStack(spacing: 8) {
+                if let logoName = template.logoName {
+                    ProviderLogoView(name: template.displayName, logoName: logoName, iconSize: 16)
+                } else {
+                    Image(systemName: template.iconName)
+                        .font(.system(size: 14))
+                        .foregroundStyle(isSelected ? .white : .secondary)
+                }
+                
+                Text(template.displayName)
+                    .font(.system(size: 12, weight: .medium))
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+            .background(isSelected ? Color.accentColor : Color.white.opacity(0.05))
+            .foregroundColor(isSelected ? .white : .primary)
+            .cornerRadius(16)
+            .overlay(
+                Capsule()
+                    .stroke(isSelected ? Color.accentColor : Color.white.opacity(0.1), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+        .disabled(viewModel.isEditing)
     }
 
     // MARK: - Name Section
 
     private var nameSection: some View {
-        Section {
-            nameContent
-        } header: {
+        VStack(alignment: .leading, spacing: 12) {
             Text("Name")
-        } footer: {
-            if viewModel.selectedTemplate == .git {
-                Text("Repository name is automatically detected from the URL.")
-            }
+                .font(.system(size: 13, weight: .semibold))
+            
+            nameContent
         }
     }
 
@@ -324,21 +488,11 @@ struct AddRepositorySheet: View {
     private var nameContent: some View {
         switch viewModel.selectedTemplate {
         case .clawdhub:
-            HStack {
-                Text("Name")
-                Spacer()
-                Text("Clawdhub")
-                    .foregroundStyle(.secondary)
-            }
+            readOnlyField(value: "Clawdhub")
         case .localFolder:
-            TextField("Repository Name", text: $viewModel.newRepoName)
+            textInputField(placeholder: "Repository Name", text: $viewModel.newRepoName)
         case .git, .globalSkills:
-            HStack {
-                Text("Name")
-                Spacer()
-                Text(viewModel.newRepoName.isEmpty ? "Auto-detected" : viewModel.newRepoName)
-                    .foregroundStyle(.secondary)
-            }
+            readOnlyField(value: viewModel.newRepoName.isEmpty ? "Auto-detected from URL" : viewModel.newRepoName)
         }
     }
 
@@ -359,65 +513,114 @@ struct AddRepositorySheet: View {
     }
 
     private var clawdhubSection: some View {
-        Section {
-            HStack {
-                Text("Base URL")
-                Spacer()
-                Text(viewModel.selectedTemplate.defaultBaseURL)
-                    .foregroundStyle(.secondary)
-            }
-        } header: {
+        VStack(alignment: .leading, spacing: 12) {
             Text("Details")
-        } footer: {
+                .font(.system(size: 13, weight: .semibold))
+            
+            readOnlyField(value: viewModel.selectedTemplate.defaultBaseURL)
+            
             Text("Clawdhub is the official skill marketplace.")
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary.opacity(0.8))
         }
     }
 
     private var localFolderSection: some View {
-        Section {
-            HStack {
-                Text(viewModel.newLocalPath.isEmpty ? "No folder selected" : viewModel.newLocalPath)
-                    .foregroundStyle(viewModel.newLocalPath.isEmpty ? .secondary : .primary)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                Spacer()
-                Button("Choose...") {
-                    viewModel.selectLocalFolder()
-                }
-            }
-        } header: {
+        VStack(alignment: .leading, spacing: 12) {
             Text("Skills Folder")
-        } footer: {
+                .font(.system(size: 13, weight: .semibold))
+            
+            HStack(spacing: 12) {
+                HStack {
+                    Text(viewModel.newLocalPath.isEmpty ? "No folder selected" : viewModel.newLocalPath)
+                        .font(.system(size: 13))
+                        .foregroundStyle(viewModel.newLocalPath.isEmpty ? .secondary : .primary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    
+                    Spacer()
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .background(Color.black.opacity(0.2))
+                .cornerRadius(10)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                )
+                
+                Button {
+                    viewModel.selectLocalFolder()
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "folder")
+                        Text("Choose...")
+                    }
+                    .font(.system(size: 13, weight: .medium))
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(Color.white.opacity(0.05))
+                    .cornerRadius(20)
+                    .overlay(
+                        Capsule()
+                            .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                    )
+                }
+                .buttonStyle(.plain)
+            }
+            
             Text("Select a folder containing skill directories (each with a SKILL.md file).")
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary.opacity(0.8))
         }
     }
 
     private var gitSection: some View {
-        Group {
-            Section {
-                HStack {
-                    TextField("Repository URL", text: $viewModel.newGitURL)
-                        .textContentType(.URL)
-                    
-                    if !viewModel.newGitURL.isEmpty {
-                        let provider = RemoteRepository.detectProvider(from: viewModel.newGitURL) ?? .github
-                        if let logoName = provider.logoName {
-                            ProviderLogoView(name: provider.displayName, logoName: logoName, iconSize: 20)
+        VStack(alignment: .leading, spacing: 20) {
+            // Git URL
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Git Repository")
+                    .font(.system(size: 13, weight: .semibold))
+                
+                HStack(spacing: 12) {
+                    HStack {
+                        TextField("https://github.com/...", text: $viewModel.newGitURL)
+                            .textFieldStyle(.plain)
+                            .font(.system(size: 13))
+                            .textContentType(.URL)
+                        
+                        if !viewModel.newGitURL.isEmpty {
+                            let provider = RemoteRepository.detectProvider(from: viewModel.newGitURL) ?? .github
+                            if let logoName = provider.logoName {
+                                ProviderLogoView(name: provider.displayName, logoName: logoName, iconSize: 18)
+                            }
                         }
                     }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+                    .background(Color.black.opacity(0.2))
+                    .cornerRadius(10)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                    )
                 }
-            } header: {
-                Text("Git Repository")
-            } footer: {
+                
                 Text("Supports GitHub, GitLab, Bitbucket and other Git hosting services.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary.opacity(0.8))
             }
-
-            Section {
-                skillsPathsSection
-            } header: {
+            
+            // Skills Paths
+            VStack(alignment: .leading, spacing: 12) {
                 Text("Skills Paths")
-            } footer: {
+                    .font(.system(size: 13, weight: .semibold))
+                
+                skillsPathsSection
+                
                 Text("Add one or more paths containing skills (e.g., 'skills', 'python', '.agent/skills'). Use '.' for repository root.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary.opacity(0.8))
             }
         }
     }
@@ -426,83 +629,112 @@ struct AddRepositorySheet: View {
 
     @ViewBuilder
     private var skillsPathsSection: some View {
-        ForEach(Array(viewModel.newSkillsPaths.enumerated()), id: \.offset) { index, path in
-            HStack {
-                Text(path)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                Spacer()
+        VStack(spacing: 8) {
+            ForEach(Array(viewModel.newSkillsPaths.enumerated()), id: \.offset) { index, path in
+                HStack {
+                    Text(path)
+                        .font(.system(size: 13))
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    
+                    Spacer()
+                    
+                    Button {
+                        viewModel.removeSkillsPath(at: index)
+                    } label: {
+                        Image(systemName: "minus.circle.fill")
+                            .foregroundStyle(.red.opacity(0.8))
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(Color.white.opacity(0.03))
+                .cornerRadius(8)
+            }
+            
+            HStack(spacing: 8) {
+                HStack {
+                    TextField("Path (e.g., skills, .agent)", text: $viewModel.newSkillsPathInput)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 13))
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(Color.black.opacity(0.2))
+                .cornerRadius(10)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                )
+                
                 Button {
-                    viewModel.removeSkillsPath(at: index)
+                    viewModel.addSkillsPath()
                 } label: {
-                    Image(systemName: "minus.circle.fill")
-                        .foregroundStyle(.red)
+                    Image(systemName: "plus.circle.fill")
+                        .font(.system(size: 20))
+                        .foregroundStyle(.green)
                 }
                 .buttonStyle(.plain)
+                .disabled(viewModel.newSkillsPathInput.isEmpty)
             }
         }
-
+    }
+    
+    // MARK: - Helper Views
+    
+    private func textInputField(placeholder: String, text: Binding<String>) -> some View {
         HStack {
-            TextField("Path (e.g., skills, .agent)", text: $viewModel.newSkillsPathInput)
-            Button {
-                viewModel.addSkillsPath()
-            } label: {
-                Image(systemName: "plus.circle.fill")
-                    .foregroundStyle(.green)
-            }
-            .buttonStyle(.plain)
-            .disabled(viewModel.newSkillsPathInput.isEmpty)
+            TextField(placeholder, text: text)
+                .textFieldStyle(.plain)
+                .font(.system(size: 13))
         }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(Color.black.opacity(0.2))
+        .cornerRadius(10)
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(Color.white.opacity(0.1), lineWidth: 1)
+        )
     }
-
-    // MARK: - Error Section
-
-    private var errorSection: some View {
-        Group {
-            if let error = viewModel.validationError {
-                Section {
-                    Text(error)
-                        .foregroundStyle(.red)
-                        .font(.caption)
-                }
-            }
+    
+    private func readOnlyField(value: String) -> some View {
+        HStack {
+            Text(value)
+                .font(.system(size: 13))
+                .foregroundStyle(.secondary)
+            Spacer()
         }
-    }
-
-    // MARK: - Toolbar
-
-    private var toolbarContent: some ToolbarContent {
-        Group {
-            ToolbarItem(placement: .cancellationAction) {
-                Button("Cancel") {
-                    isPresented = false
-                }
-                .disabled(viewModel.isAddingRepository)
-            }
-            ToolbarItem(placement: .confirmationAction) {
-                Button("Add") {
-                    Task { await viewModel.addRepository() }
-                }
-                .disabled(!viewModel.canAddRepository || viewModel.isAddingRepository)
-            }
-        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(Color.white.opacity(0.03))
+        .cornerRadius(10)
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(Color.white.opacity(0.05), lineWidth: 1)
+        )
     }
 
     // MARK: - Loading Overlay
 
     private var loadingOverlay: some View {
-        Group {
-            if viewModel.isAddingRepository {
-                ZStack {
-                    Color.black.opacity(0.3)
-                        .ignoresSafeArea()
-                    ProgressView("Adding repository...")
-                        .padding()
-                        .background(Color(nsColor: .windowBackgroundColor))
-                        .cornerRadius(8)
-                        .shadow(radius: 4)
-                }
+        ZStack {
+            Color.black.opacity(0.4)
+                .cornerRadius(24)
+            
+            VStack(spacing: 16) {
+                ProgressView()
+                    .scaleEffect(1.2)
+                
+                Text("Adding repository...")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(.secondary)
             }
+            .padding(32)
+            .background(.ultraThinMaterial)
+            .cornerRadius(16)
         }
     }
 }
+

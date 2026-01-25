@@ -65,28 +65,69 @@ struct ProviderDetailGridView: View {
             SkillDetailView(skill: skill, provider: provider, settings: settings)
                 .frame(minWidth: 900, maxWidth: .infinity, minHeight: 600, maxHeight: .infinity)
         }
+        .sheet(isPresented: $viewModel.showingRemoteBrowser) {
+            if let provider = provider {
+                RemoteSkillsBrowserView(
+                    settings: settings,
+                    repository: viewModel.repository,
+                    targetProvider: provider,
+                    onInstall: { skill, provider in
+                        Task {
+                            await viewModel.installRemoteSkill(skill, to: provider)
+                        }
+                    }
+                )
+                .frame(minWidth: 900, minHeight: 600)
+            }
+        }
     }
     
     @ViewBuilder
     private var gridContent: some View {
         NavigationStack {
-            ScrollView {
-                switch selectedTab {
-                case .skills:
-                    if let provider = provider {
-                        ProviderSkillsGridView(viewModel: viewModel, columns: columns, provider: provider)
+            ZStack(alignment: .bottomTrailing) {
+                ScrollView {
+                    switch selectedTab {
+                    case .skills:
+                        if let provider = provider {
+                            ProviderSkillsGridView(viewModel: viewModel, columns: columns, provider: provider)
+                        }
+                    case .workflows:
+                        ProviderWorkflowsGridView(viewModel: viewModel, columns: columns)
+                    case .mcp:
+                        mcpGrid
+                    case .none:
+                        EmptyView()
                     }
-                case .workflows:
-                    ProviderWorkflowsGridView(viewModel: viewModel, columns: columns)
-                case .mcp:
-                    mcpGrid
-                case .none:
-                    EmptyView()
+                }
+                .padding()
+                .searchable(text: $viewModel.searchText)
+                
+                // Floating Action Button
+                if selectedTab == .skills {
+                    quickInstallButton
                 }
             }
-            .padding()
-            .searchable(text: $viewModel.searchText)
         }
+    }
+    
+    private var quickInstallButton: some View {
+        Button {
+            viewModel.showingRemoteBrowser = true
+        } label: {
+            ZStack {
+                Circle()
+                    .fill(Color.accentColor)
+                    .frame(width: 56, height: 56)
+                    .shadow(color: Color.accentColor.opacity(0.4), radius: 10, x: 0, y: 5)
+                
+                Image(systemName: "plus")
+                    .font(.system(size: 24, weight: .bold))
+                    .foregroundColor(.white)
+            }
+        }
+        .buttonStyle(.plain)
+        .padding(32)
     }
     
     @ViewBuilder

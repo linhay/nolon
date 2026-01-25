@@ -19,6 +19,8 @@ DMG_X86_64="${RELEASE_DIR}/${APP_NAME}-x86_64.dmg"
 
 # Get version from argument or prompt
 VERSION="${1:-}"
+CHANGELOG_FILE="${2:-}"
+
 if [ -z "$VERSION" ]; then
     echo -e "${YELLOW}Enter version (e.g., 1.0.0):${NC}"
     read -r VERSION
@@ -218,8 +220,13 @@ PREV_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
 if [ -z "$PREV_TAG" ]; then
     CHANGELOG="- Initial release"
 else
-    echo -e "Comparing against previous tag: ${PREV_TAG}"
-    CHANGELOG=$(git log --pretty=format:"- %s" "${PREV_TAG}..HEAD")
+    if [ -n "$CHANGELOG_FILE" ] && [ -f "$CHANGELOG_FILE" ]; then
+        echo -e "${YELLOW}📄 Using custom changelog from ${CHANGELOG_FILE}...${NC}"
+        CHANGELOG=$(cat "$CHANGELOG_FILE")
+    else
+        echo -e "Comparing against previous tag: ${PREV_TAG}"
+        CHANGELOG=$(git log --pretty=format:"- %s" "${PREV_TAG}..HEAD")
+    fi
 fi
 
 RELEASE_NOTES="## ${APP_NAME} ${VERSION}

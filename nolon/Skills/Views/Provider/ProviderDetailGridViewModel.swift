@@ -25,10 +25,11 @@ final class ProviderDetailGridViewModel {
     var isLoading = false
     var errorMessage: String?
     var searchText: String = ""
+    var showingRemoteBrowser = false
     
     // Internals
-    private var repository: SkillRepository
-    private var installer: SkillInstaller
+    var repository: SkillRepository
+    var installer: SkillInstaller
     
     init(provider: Provider?, settings: ProviderSettings) {
         self.provider = provider
@@ -384,5 +385,20 @@ final class ProviderDetailGridViewModel {
         }
         
         loadWorkflows(for: provider)
+    }
+    
+    func installRemoteSkill(_ skill: RemoteSkill, to provider: Provider) async {
+        do {
+            if let localPath = skill.localPath {
+                try installer.installLocal(from: localPath, slug: skill.slug, to: provider)
+            } else {
+                let zipURL = try await ClawdhubService.shared.downloadSkill(
+                    slug: skill.slug, version: skill.latestVersion?.version)
+                try installer.installRemote(zipURL: zipURL, slug: skill.slug, to: provider)
+            }
+            await loadData()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
     }
 }

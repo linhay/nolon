@@ -187,7 +187,6 @@ public enum RepositoryTemplate: String, CaseIterable, Identifiable, Codable, Sen
 
 /// Represents a remote skill repository (e.g., Clawdhub, GitHub, GitLab)
 public struct RemoteRepository: Identifiable, Codable, Hashable, Sendable {
-    public let id: String
     public var name: String
     public var baseURL: String
     public var iconName: String
@@ -207,6 +206,16 @@ public struct RemoteRepository: Identifiable, Codable, Hashable, Sendable {
 
     // Auto-detected skills directories (from GitRepositoryService)
     public var detectedDirectories: [String]?
+    
+    nonisolated public var id: String { _id }
+    private let _id: String
+    
+    enum CodingKeys: String, CodingKey {
+        case _id = "id"
+        case name, baseURL, iconName, logoName, templateType, isBuiltIn
+        case localPath, gitURL, provider, skillsPaths, lastSyncDate, accessToken
+        case detectedDirectories
+    }
 
     public init(
         id: String = UUID().uuidString,
@@ -224,7 +233,7 @@ public struct RemoteRepository: Identifiable, Codable, Hashable, Sendable {
         accessToken: String? = nil,
         detectedDirectories: [String]? = nil
     ) {
-        self.id = id
+        self._id = id
         self.name = name
         self.baseURL = baseURL
         self.iconName = iconName
@@ -269,7 +278,7 @@ public struct RemoteRepository: Identifiable, Codable, Hashable, Sendable {
 
     /// Get the local clone path for this repository
     /// Format for git repos: ~/.nolon/repositories/{domain}/{owner}@{repo}
-    public var localClonePath: URL {
+    nonisolated public var localClonePath: URL {
         let repositoriesPath = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent(".nolon/repositories")
         switch templateType {

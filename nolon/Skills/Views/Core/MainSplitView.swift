@@ -7,7 +7,7 @@ import SwiftUI
 @MainActor
 @Observable
 final class MainSplitViewModel {
-    var settings = ProviderSettings()
+    var settings = ProviderSettings.shared
     var repository = SkillRepository()
     private(set) var installer: SkillInstaller?
 
@@ -111,33 +111,35 @@ public struct MainSplitView: View {
                 }
                 .help("Browse and install skills from Clawdhub")
 
-                // Settings button
+                // Clawdhub button
                 Button {
-                    viewModel.showingSettings = true
+                    viewModel.showingClawdhub = true
                 } label: {
                     Label(
-                        NSLocalizedString("toolbar.settings", comment: "Settings"),
-                        systemImage: "gear"
+                        NSLocalizedString("toolbar.clawdhub", comment: "Clawdhub"),
+                        systemImage: "cloud"
                     )
                 }
-                .help(NSLocalizedString("toolbar.settings_help", comment: "Configure providers"))
+                .help("Browse and install skills from Clawdhub")
             }
         }
-        .sheet(isPresented: $viewModel.showingSettings) {
-            SettingsSheet(settings: viewModel.settings)
-        }
 
+        .sheet(isPresented: Bindable(AppCommandState.shared).showingSettings) {
+            AppSettingsView()
+                .frame(minWidth: 720, minHeight: 480)
+        }
         .sheet(isPresented: $viewModel.showingClawdhub) {
             RemoteSkillsBrowserView(
                 settings: viewModel.settings,
                 repository: viewModel.repository,
+                targetProvider: viewModel.selectedProvider, // Pass current provider
                 onInstall: { skill, provider in
                     Task {
                         await viewModel.installRemoteSkill(skill, to: provider)
                     }
                 }
             )
-            .frame(minWidth: 900, minHeight: 600)
+            .frame(minHeight: 700, maxHeight: .infinity)
         }
         .onChange(of: viewModel.showingClawdhub) { _, isShowing in
             // Refresh skills list when Clawdhub sheet is dismissed
@@ -148,7 +150,21 @@ public struct MainSplitView: View {
         .onReceive(URLSchemeHandler.shared.$pendingURL) { pendingURL in
             guard let url = pendingURL else { return }
             print("[MainSplitView] Received URL from URLSchemeHandler: \(url.absoluteString)")
-            viewModel.settings.pendingImportURL = url.absoluteString
+            
+            // Remove the nolon:// or nln:// scheme prefix and get the actual URL
+            var urlString = url.absoluteString
+            if urlString.hasPrefix("nolon://") {
+                urlString = String(urlString.dropFirst("nolon://".count))
+            } else if urlString.hasPrefix("nln://") {
+                urlString = String(urlString.dropFirst("nln://".count))
+            }
+            
+            // Prepend https:// if needed
+            if !urlString.hasPrefix("http://") && !urlString.hasPrefix("https://") {
+                urlString = "https://" + urlString
+            }
+            
+            viewModel.settings.pendingImportURL = urlString
             viewModel.showingClawdhub = true
             // Clear the pending URL after consuming
             URLSchemeHandler.shared.pendingURL = nil

@@ -18,8 +18,10 @@ public enum SkillInstallationMethod: String, CaseIterable, Codable, Identifiable
 
 @MainActor
 public class ProviderSettings: ObservableObject {
-    @AppStorage("remote_repositories") private var storedRemoteRepositoriesData: Data = Data()
-
+    public static let shared = ProviderSettings()
+    
+    private let userDefaults: UserDefaults
+    private let nolonManager: NolonManager
 
     @Published public var providers: [Provider] = [] {
         didSet { saveProviders() }
@@ -33,7 +35,9 @@ public class ProviderSettings: ObservableObject {
     @Published public var pendingImportURL: String?
 
 
-    public init() {
+    public init(userDefaults: UserDefaults = .standard, nolonManager: NolonManager = .shared) {
+        self.userDefaults = userDefaults
+        self.nolonManager = nolonManager
         loadSettings()
     }
 
@@ -107,7 +111,7 @@ public class ProviderSettings: ObservableObject {
     // MARK: - Persistence
 
     private var providersFileURL: URL {
-        NolonManager.shared.providersConfigURL
+        nolonManager.providersConfigURL
     }
 
     private func loadSettings() {
@@ -123,8 +127,9 @@ public class ProviderSettings: ObservableObject {
         }
 
         // Load remote repositories
-        if let decodedRepos = try? JSONDecoder().decode(
-            [RemoteRepository].self, from: storedRemoteRepositoriesData),
+        if let data = userDefaults.data(forKey: "remote_repositories"),
+           let decodedRepos = try? JSONDecoder().decode(
+            [RemoteRepository].self, from: data),
             !decodedRepos.isEmpty
         {
             var repos = decodedRepos
@@ -189,7 +194,7 @@ public class ProviderSettings: ObservableObject {
 
     private func saveRemoteRepositories() {
         if let encoded = try? JSONEncoder().encode(remoteRepositories) {
-            storedRemoteRepositoriesData = encoded
+            userDefaults.set(encoded, forKey: "remote_repositories")
         }
     }
 }

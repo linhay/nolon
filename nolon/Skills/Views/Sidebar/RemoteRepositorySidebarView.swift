@@ -18,6 +18,7 @@ final class RemoteRepositorySidebarViewModel {
     
     // Repository management
     var showingAddRepository = false
+    var editingRepository: RemoteRepository?  // For edit mode
     var isSyncing = false
     var syncError: String?
     
@@ -189,6 +190,19 @@ struct RemoteRepositorySidebarView: View {
                 }
             )
         }
+        .sheet(item: $viewModel.editingRepository) { repo in
+            AddRepositorySheet(
+                isPresented: Binding(
+                    get: { viewModel.editingRepository != nil },
+                    set: { if !$0 { viewModel.editingRepository = nil } }
+                ),
+                settings: settings,
+                repositoryToEdit: repo,
+                onDirectoryCandidatesFound: { updatedRepo, candidates in
+                    viewModel.handleDirectoryCandidatesFound(repo: updatedRepo, candidates: candidates)
+                }
+            )
+        }
         .onAppear {
             if selectedRepository == nil {
                 selectedRepository = settings.remoteRepositories.first
@@ -257,6 +271,15 @@ struct RemoteRepositorySidebarView: View {
                     viewModel.revealInFinder(repo)
                 } label: {
                     Label("Reveal in Finder", systemImage: "folder")
+                }
+            }
+            
+            // Edit option for non-built-in repositories
+            if !repo.isBuiltIn {
+                Button {
+                    viewModel.editingRepository = repo
+                } label: {
+                    Label("Edit", systemImage: "pencil")
                 }
             }
             

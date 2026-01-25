@@ -12,6 +12,7 @@
 		CD9ECB202F21F6C0009248CB /* SwiftGit in Frameworks */ = {isa = PBXBuildFile; productRef = CD9ECB1F2F21F6C0009248CB /* SwiftGit */; };
 		CD9EDAC52F2320BC009248CB /* SwiftGit in Frameworks */ = {isa = PBXBuildFile; productRef = CD9EDAC42F2320BC009248CB /* SwiftGit */; };
 		CD9EDB742F23D2BE009248CB /* STJSON in Frameworks */ = {isa = PBXBuildFile; productRef = CD9EDB732F23D2BE009248CB /* STJSON */; };
+		CD9EE2702F2677A0009248CB /* Yams in Frameworks */ = {isa = PBXBuildFile; productRef = CD9EE26F2F2677A0009248CB /* Yams */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -51,6 +52,7 @@
 				CD447BF32F1F79890056366B /* MarkdownUI in Frameworks */,
 				CD9ECB202F21F6C0009248CB /* SwiftGit in Frameworks */,
 				CD9EDB742F23D2BE009248CB /* STJSON in Frameworks */,
+				CD9EE2702F2677A0009248CB /* Yams in Frameworks */,
 				CD447BF62F1F79890056366B /* Sparkle in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -108,6 +110,7 @@
 				CD9EDAC42F2320BC009248CB /* SwiftGit */,
 				CD9EDB732F23D2BE009248CB /* STJSON */,
 				CD447BF52F1F79890056366B /* Sparkle */,
+				CD9EE26F2F2677A0009248CB /* Yams */,
 			);
 			productName = nolon;
 			productReference = CD2B1A922F1F624900DF4A2B /* nolon.app */;
@@ -170,6 +173,7 @@
 				CD9EDAC32F2320BC009248CB /* XCRemoteSwiftPackageReference "swift-git" */,
 				CD9EDB722F23D2BE009248CB /* XCRemoteSwiftPackageReference "STJSON" */,
 				CD447BF42F1F79890056366B /* XCRemoteSwiftPackageReference "Sparkle" */,
+				CD9EE26E2F2677A0009248CB /* XCRemoteSwiftPackageReference "Yams" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = CD2B1A932F1F624900DF4A2B /* Products */;
@@ -360,7 +364,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 202601250120;
+				CURRENT_PROJECT_VERSION = 202601250157;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = 3L8RM3MDLS;
 				ENABLE_APP_SANDBOX = NO;
@@ -375,7 +379,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 0.0.4;
+				MARKETING_VERSION = 0.0.6;
 				PRODUCT_BUNDLE_IDENTIFIER = nolon.overloaded.com;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -395,7 +399,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 202601250120;
+				CURRENT_PROJECT_VERSION = 202601250157;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = 3L8RM3MDLS;
 				ENABLE_APP_SANDBOX = NO;
@@ -410,7 +414,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 0.0.4;
+				MARKETING_VERSION = 0.0.6;
 				PRODUCT_BUNDLE_IDENTIFIER = nolon.overloaded.com;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -428,10 +432,10 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 202601250120;
+				CURRENT_PROJECT_VERSION = 202601250157;
 				DEVELOPMENT_TEAM = 3L8RM3MDLS;
 				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 0.0.4;
+				MARKETING_VERSION = 0.0.6;
 				PRODUCT_BUNDLE_IDENTIFIER = nolon.overloaded.com.nolonTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
@@ -448,10 +452,10 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 202601250120;
+				CURRENT_PROJECT_VERSION = 202601250157;
 				DEVELOPMENT_TEAM = 3L8RM3MDLS;
 				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 0.0.4;
+				MARKETING_VERSION = 0.0.6;
 				PRODUCT_BUNDLE_IDENTIFIER = nolon.overloaded.com.nolonTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
@@ -528,6 +532,14 @@
 				minimumVersion = 1.4.2;
 			};
 		};
+		CD9EE26E2F2677A0009248CB /* XCRemoteSwiftPackageReference "Yams" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/jpsim/Yams";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 6.2.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -554,6 +566,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = CD9EDB722F23D2BE009248CB /* XCRemoteSwiftPackageReference "STJSON" */;
 			productName = STJSON;
+		};
+		CD9EE26F2F2677A0009248CB /* Yams */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = CD9EE26E2F2677A0009248CB /* XCRemoteSwiftPackageReference "Yams" */;
+			productName = Yams;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

@@ -1,318 +1,34 @@
 {
-  "%lld skill%@": {
-    "source": "%lld skill%@",
+  "": {
+    "source": "",
     "comment": ""
   },
-  "About": {
-    "source": "About",
+  " ": {
+    "source": " ",
     "comment": ""
   },
-  "action.add_provider": {
-    "source": "action.add_provider",
-    "comment": "Add Provider"
+  "action.installing": {
+    "source": "action.installing",
+    "comment": "Installing..."
   },
-  "action.link_workflow": {
-    "source": "action.link_workflow",
-    "comment": "Link to Workflow"
+  "error.invalid_url": {
+    "source": "error.invalid_url",
+    "comment": "Invalid URL error"
   },
-  "action.remove_link": {
-    "source": "action.remove_link",
-    "comment": "Remove Link"
-  },
-  "action.repair": {
-    "source": "action.repair",
-    "comment": "Repair"
-  },
-  "Add one or more paths containing skills (e.g., 'skills', 'python', '.agent/skills'). Use '.' for repository root.": {
-    "source": "Add one or more paths containing skills (e.g., 'skills', 'python', '.agent/skills'). Use '.' for repository root.",
+  "nolon://github.com/...": {
+    "source": "nolon://github.com/...",
     "comment": ""
   },
-  "Add Provider": {
-    "source": "Add Provider",
-    "comment": ""
-  },
-  "add_provider.error.exists": {
-    "source": "add_provider.error.exists",
-    "comment": "Error message"
-  },
-  "add_provider.error.name_exists": {
-    "source": "add_provider.error.name_exists",
-    "comment": "Error message"
-  },
-  "add_provider.error.path_exists": {
-    "source": "add_provider.error.path_exists",
-    "comment": "Error message"
-  },
-  "Adding repository...": {
-    "source": "Adding repository...",
-    "comment": ""
-  },
-  "Associate this skill with a workflow in **%@**.": {
-    "source": "Associate this skill with a workflow in **%@**.",
-    "comment": ""
-  },
-  "Check for Updates…": {
-    "source": "Check for Updates…",
-    "comment": ""
-  },
-  "Choose Skills Directories": {
-    "source": "Choose Skills Directories",
-    "comment": ""
-  },
-  "content.no_provider": {
-    "source": "content.no_provider",
-    "comment": "Select a Provider"
-  },
-  "content.no_provider_desc": {
-    "source": "content.no_provider_desc",
-    "comment": "Choose a provider from the sidebar"
-  },
-  "Create Configuration": {
-    "source": "Create Configuration",
-    "comment": ""
-  },
-  "Delete": {
-    "source": "Delete",
-    "comment": ""
-  },
-  "Delete Server": {
-    "source": "Delete Server",
-    "comment": ""
-  },
-  "detail.no_provider": {
-    "source": "detail.no_provider",
-    "comment": "Select a Provider"
-  },
-  "detail.select_tab": {
-    "source": "detail.select_tab",
-    "comment": "Select a Tab"
-  },
-  "Documentation": {
-    "source": "Documentation",
-    "comment": ""
-  },
-  "Edit": {
-    "source": "Edit",
-    "comment": ""
-  },
-  "Edit Config": {
-    "source": "Edit Config",
-    "comment": ""
-  },
-  "Edit Configuration": {
-    "source": "Edit Configuration",
-    "comment": ""
-  },
-  "Edit Server": {
-    "source": "Edit Server",
-    "comment": ""
-  },
-  "Enable Workflow": {
-    "source": "Enable Workflow",
-    "comment": ""
-  },
-  "Enter your token": {
-    "source": "Enter your token",
-    "comment": ""
-  },
-  "Error Loading Data": {
-    "source": "Error Loading Data",
-    "comment": ""
-  },
-  "error.git.ssh_not_available": {
-    "source": "error.git.ssh_not_available",
-    "comment": "SSH authentication not configured for %@. Please configure SSH key or provide a Personal Access Token."
-  },
-  "Generate a token from your Git provider's settings with 'read_repository' scope.": {
-    "source": "Generate a token from your Git provider's settings with 'read_repository' scope.",
-    "comment": ""
-  },
-  "generic.add": {
-    "source": "generic.add",
-    "comment": "Add"
-  },
-  "Git Repository": {
-    "source": "Git Repository",
-    "comment": ""
-  },
-  "Installations": {
-    "source": "Installations",
-    "comment": ""
-  },
-  "MCP configuration file not found.": {
-    "source": "MCP configuration file not found.",
-    "comment": ""
-  },
-  "mcp.not_supported": {
-    "source": "mcp.not_supported",
-    "comment": "MCP Not Supported"
-  },
-  "mcp.not_supported_desc": {
-    "source": "mcp.not_supported_desc",
-    "comment": "This provider does not support MCP configuration"
-  },
-  "Metadata": {
-    "source": "Metadata",
-    "comment": ""
-  },
-  "No command specified": {
-    "source": "No command specified",
-    "comment": ""
-  },
-  "No Configuration": {
-    "source": "No Configuration",
-    "comment": ""
-  },
-  "No file selected": {
-    "source": "No file selected",
-    "comment": ""
-  },
-  "No MCP servers configured.": {
-    "source": "No MCP servers configured.",
-    "comment": ""
-  },
-  "No Servers": {
-    "source": "No Servers",
-    "comment": ""
-  },
-  "Path (e.g., skills, .agent)": {
-    "source": "Path (e.g., skills, .agent)",
-    "comment": ""
-  },
-  "Personal Access Token": {
-    "source": "Personal Access Token",
-    "comment": ""
-  },
-  "provider.antigravity": {
-    "source": "provider.antigravity",
-    "comment": "Antigravity"
-  },
-  "provider.claude": {
-    "source": "provider.claude",
-    "comment": "Claude Code"
-  },
-  "provider.codex": {
-    "source": "provider.codex",
-    "comment": "Codex"
-  },
-  "provider.copilot": {
-    "source": "provider.copilot",
-    "comment": "GitHub Copilot"
-  },
-  "provider.gemini": {
-    "source": "provider.gemini",
-    "comment": "Gemini CLI"
-  },
-  "provider.opencode": {
-    "source": "provider.opencode",
-    "comment": "OpenCode"
-  },
-  "repo_type.global_skills": {
-    "source": "repo_type.global_skills",
-    "comment": "Global Skills"
-  },
-  "Repository name is automatically detected from the URL.": {
-    "source": "Repository name is automatically detected from the URL.",
-    "comment": ""
-  },
-  "Save & Retry": {
-    "source": "Save & Retry",
-    "comment": ""
-  },
-  "Search Skills": {
-    "source": "Search Skills",
-    "comment": ""
-  },
-  "Select %lld director%@": {
-    "source": "Select %lld director%@",
-    "comment": ""
-  },
-  "Select one or more directories containing skills:": {
-    "source": "Select one or more directories containing skills:",
-    "comment": ""
-  },
-  "Show as Grid": {
-    "source": "Show as Grid",
-    "comment": ""
-  },
-  "Show as List": {
-    "source": "Show as List",
-    "comment": ""
-  },
-  "Skills Paths": {
-    "source": "Skills Paths",
-    "comment": ""
-  },
-  "skills_list.broken": {
-    "source": "skills_list.broken",
-    "comment": "Broken Links"
-  },
-  "skills_list.broken_badge": {
-    "source": "skills_list.broken_badge",
-    "comment": "Broken"
-  },
-  "skills_list.broken_desc": {
-    "source": "skills_list.broken_desc",
-    "comment": "Link broken"
-  },
-  "skills_list.orphaned_badge": {
-    "source": "skills_list.orphaned_badge",
-    "comment": "Orphaned skill badge"
-  },
-  "skills.empty": {
-    "source": "skills.empty",
-    "comment": "No Skills"
-  },
-  "skills.empty_desc": {
-    "source": "skills.empty_desc",
-    "comment": "No skills installed in this provider"
-  },
-  "SSH Authentication Unavailable": {
-    "source": "SSH Authentication Unavailable",
-    "comment": ""
-  },
-  "SSH key is not configured for **%@**. Please provide a Personal Access Token to authenticate.": {
-    "source": "SSH key is not configured for **%@**. Please provide a Personal Access Token to authenticate.",
-    "comment": ""
-  },
-  "Supports GitHub, GitLab, Bitbucket and other Git hosting services.": {
-    "source": "Supports GitHub, GitLab, Bitbucket and other Git hosting services.",
-    "comment": ""
-  },
-  "tab.mcp": {
-    "source": "tab.mcp",
-    "comment": "MCP Server"
-  },
-  "tab.skills": {
-    "source": "tab.skills",
-    "comment": "Skills"
-  },
-  "tab.workflows": {
-    "source": "tab.workflows",
-    "comment": "Workflows"
-  },
-  "Template": {
-    "source": "Template",
-    "comment": ""
-  },
-  "Unable to read file": {
-    "source": "Unable to read file",
-    "comment": ""
-  },
-  "Workflow": {
-    "source": "Workflow",
-    "comment": ""
-  },
-  "Workflow Folder": {
-    "source": "Workflow Folder",
-    "comment": ""
-  },
-  "workflows.empty": {
-    "source": "workflows.empty",
-    "comment": "No Workflows"
-  },
-  "workflows.empty_desc": {
-    "source": "workflows.empty_desc",
-    "comment": "No workflows in this provider"
+  "quick_install.subtitle": {
+    "source": "quick_install.subtitle",
+    "comment": "Quick install subtitle"
+  },
+  "quick_install.title": {
+    "source": "quick_install.title",
+    "comment": "Quick Install title"
+  },
+  "quick_install.url_label": {
+    "source": "quick_install.url_label",
+    "comment": "Label for skill URL input"
   }
 }
