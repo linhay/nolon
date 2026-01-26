@@ -61,7 +61,6 @@ fastlane/Preview.html
 fastlane/screenshots/**/*.png
 fastlane/test_output
 .shared
-.agent
 build
 release
 .env
