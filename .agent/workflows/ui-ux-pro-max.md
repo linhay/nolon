@@ -1,231 +1,71 @@
 ---
-description: Plan and implement UI
-auto_execution_mode: 3
+description: Plan and implement UI using SwiftUI and modern macOS design patterns
 ---
 
-# UI/UX Pro Max - Design Intelligence
+# UI/UX Pro Max - SwiftUI & macOS 极值设计
 
-Searchable database of UI styles, color palettes, font pairings, chart types, product recommendations, UX guidelines, and stack-specific best practices.
+这是一个针对 SwiftUI 和 macOS 现代设计规范的 UI/UX 执行工作流。
 
-## Prerequisites
+## 核心设计哲学
 
-Check if Python is installed:
-
-```bash
-python3 --version || python --version
-```
-
-If Python is not installed, install it based on user's OS:
-
-**macOS:**
-```bash
-brew install python3
-```
-
-**Ubuntu/Debian:**
-```bash
-sudo apt update && sudo apt install python3
-```
-
-**Windows:**
-```powershell
-winget install Python.Python.3.12
-```
+1. **Glassmorphism (磨砂玻璃)**: 充分利用 macOS 的 `visualEffect`。
+2. **SF Symbols**: 优先使用苹果官方图标库，确保视觉的一致性。
+3. **微交互**: 使用 SwiftUI 的 `animation` 和 `transition` 提升用户体验。
+4. **SwiftUI 最佳实践**: 采用 `@Observable` 状态管理，保持视图的简洁和高性能。
 
 ---
 
-## How to Use This Workflow
+## 如何使用此工作流
 
-When user requests UI/UX work (design, build, create, implement, review, fix, improve), follow this workflow:
+当用户请求 UI/UX 相关工作（设计、构建、审查、优化、修复）时，请遵循以下步骤：
 
-### Step 1: Analyze User Requirements
+### 第一步：需求与审美分析
 
-Extract key information from user request:
-- **Product type**: SaaS, e-commerce, portfolio, dashboard, landing page, etc.
-- **Style keywords**: minimal, playful, professional, elegant, dark mode, etc.
-- **Industry**: healthcare, fintech, gaming, education, etc.
-- **Stack**: React, Vue, Next.js, or default to `html-tailwind`
+分析用户的产品类型并确定视觉基调：
+- **产品类型**: 工具类、内容类、管理端、还是桌面端小工具？
+- **关键词**: 极简 (Minimal)、优雅 (Elegant)、专业 (Professional)、磨砂玻璃 (Glassmorphism)。
+- **技术栈**: 默认使用 **SwiftUI**，并遵循 macOS 14.0+ 的最新特征。
 
-### Step 2: Search Relevant Domains
+### 第二步：设计系统整合
 
-Use `search.py` multiple times to gather comprehensive information. Search until you have enough context.
+在实现任何界面前，必须查阅项目现有的设计系统：
+- **颜色**: 参考 `nolon/DesignSystem/AppColors.swift`。
+- **预览**: 参考 `nolon/DesignSystem/ColorSystemPreview.swift`。
 
-```bash
-python3 .shared/ui-ux-pro-max/scripts/search.py "<keyword>" --domain <domain> [-n <max_results>]
-```
+### 第三步：SwiftUI 执行规范
 
-**Recommended search order:**
-
-1. **Product** - Get style recommendations for product type
-2. **Style** - Get detailed style guide (colors, effects, frameworks)
-3. **Typography** - Get font pairings with Google Fonts imports
-4. **Color** - Get color palette (Primary, Secondary, CTA, Background, Text, Border)
-5. **Landing** - Get page structure (if landing page)
-6. **Chart** - Get chart recommendations (if dashboard/analytics)
-7. **UX** - Get best practices and anti-patterns
-8. **Stack** - Get stack-specific guidelines (default: html-tailwind)
-
-### Step 3: Stack Guidelines (Default: html-tailwind)
-
-If user doesn't specify a stack, **default to `html-tailwind`**.
-
-```bash
-python3 .shared/ui-ux-pro-max/scripts/search.py "<keyword>" --stack html-tailwind
-```
-
-Available stacks: `html-tailwind`, `react`, `nextjs`, `vue`, `svelte`, `swiftui`, `react-native`, `flutter`
+1. **响应式布局**: 确保在不同窗口尺寸下的表现（使用 `NavigationSplitView` 或自适应容器）。
+2. **状态管理**: 统一使用 `Observation` 框架 (`@Observable`)。
+3. **视图解耦**: 每个视图文件尽量控制在 200 行以内，复杂的组件通过 `Extension` 或子视图 (`ViewBuilder`) 拆分。
+4. **原生组件优先**: 优先使用 SwiftUI 的原生组件进行封装，而不是从头造轮子。
 
 ---
 
-## Search Reference
+## 现代 UI 专业规范
 
-### Available Domains
+### 图标与视觉元素
 
-| Domain | Use For | Example Keywords |
-|--------|---------|------------------|
-| `product` | Product type recommendations | SaaS, e-commerce, portfolio, healthcare, beauty, service |
-| `style` | UI styles, colors, effects | glassmorphism, minimalism, dark mode, brutalism |
-| `typography` | Font pairings, Google Fonts | elegant, playful, professional, modern |
-| `color` | Color palettes by product type | saas, ecommerce, healthcare, beauty, fintech, service |
-| `landing` | Page structure, CTA strategies | hero, hero-centric, testimonial, pricing, social-proof |
-| `chart` | Chart types, library recommendations | trend, comparison, timeline, funnel, pie |
-| `ux` | Best practices, anti-patterns | animation, accessibility, z-index, loading |
-| `prompt` | AI prompts, CSS keywords | (style name) |
+| 规则 | 推荐 (Do) | 反对 (Don't) |
+|---|---|---|
+| **图标库** | 唯一指定 `Image(systemName:)` 配合 SF Symbols | 使用 Emoji 或 低质量位图图标 |
+| **悬停逻辑** | 使用 `.onHover { ... }` 改变外观，确保 `cursor(.pointingHand)` | 没用交互反馈或使用导致布局跳动的缩放 |
+| **品牌 Logo** | 使用高质量矢量图 (SVG/PDF) 导入 Assets | 低清 PNG 或手动临摹 |
 
-### Available Stacks
+### macOS 特色交互
 
-| Stack | Focus |
-|-------|-------|
-| `html-tailwind` | Tailwind utilities, responsive, a11y (DEFAULT) |
-| `react` | State, hooks, performance, patterns |
-| `nextjs` | SSR, routing, images, API routes |
-| `vue` | Composition API, Pinia, Vue Router |
-| `svelte` | Runes, stores, SvelteKit |
-| `swiftui` | Views, State, Navigation, Animation |
-| `react-native` | Components, Navigation, Lists |
-| `flutter` | Widgets, State, Layout, Theming |
+| 规则 | 推荐 (Do) | 反对 (Don't) |
+|---|---|---|
+| **背景模糊** | 使用 `.background(.ultraThinMaterial)` | 使用纯色但不带透明度的背景 |
+| **列表风格** | 使用 `.listStyle(.sidebar)` 配合 macOS 原生 Sidebar | 在桌面端模拟移动端的普通列表样式 |
+| **动画耗时** | 统一使用 `.spring()` 或 `duration` 在 0.2~0.3s 的动画 | 缺少过渡或动画过于拖沓 (>0.5s) |
 
 ---
 
-## Example Workflow
+## 交付前检查清单 (Pre-Delivery Checklist)
 
-**User request:** "Làm landing page cho dịch vụ chăm sóc da chuyên nghiệp"
-
-**AI should:**
-
-```bash
-# 1. Search product type
-python3 .shared/ui-ux-pro-max/scripts/search.py "beauty spa wellness service" --domain product
-
-# 2. Search style (based on industry: beauty, elegant)
-python3 .shared/ui-ux-pro-max/scripts/search.py "elegant minimal soft" --domain style
-
-# 3. Search typography
-python3 .shared/ui-ux-pro-max/scripts/search.py "elegant luxury" --domain typography
-
-# 4. Search color palette
-python3 .shared/ui-ux-pro-max/scripts/search.py "beauty spa wellness" --domain color
-
-# 5. Search landing page structure
-python3 .shared/ui-ux-pro-max/scripts/search.py "hero-centric social-proof" --domain landing
-
-# 6. Search UX guidelines
-python3 .shared/ui-ux-pro-max/scripts/search.py "animation" --domain ux
-python3 .shared/ui-ux-pro-max/scripts/search.py "accessibility" --domain ux
-
-# 7. Search stack guidelines (default: html-tailwind)
-python3 .shared/ui-ux-pro-max/scripts/search.py "layout responsive" --stack html-tailwind
-```
-
-**Then:** Synthesize all search results and implement the design.
-
----
-
-## Tips for Better Results
-
-1. **Be specific with keywords** - "healthcare SaaS dashboard" > "app"
-2. **Search multiple times** - Different keywords reveal different insights
-3. **Combine domains** - Style + Typography + Color = Complete design system
-4. **Always check UX** - Search "animation", "z-index", "accessibility" for common issues
-5. **Use stack flag** - Get implementation-specific best practices
-6. **Iterate** - If first search doesn't match, try different keywords
-7. **Split Into Multiple Files** - For better maintainability:
-   - Separate components into individual files (e.g., `Header.tsx`, `Footer.tsx`)
-   - Extract reusable styles into dedicated files
-   - Keep each file focused and under 200-300 lines
-
----
-
-## Common Rules for Professional UI
-
-These are frequently overlooked issues that make UI look unprofessional:
-
-### Icons & Visual Elements
-
-| Rule | Do | Don't |
-|------|----|----- |
-| **No emoji icons** | Use SVG icons (Heroicons, Lucide, Simple Icons) | Use emojis like 🎨 🚀 ⚙️ as UI icons |
-| **Stable hover states** | Use color/opacity transitions on hover | Use scale transforms that shift layout |
-| **Correct brand logos** | Research official SVG from Simple Icons | Guess or use incorrect logo paths |
-| **Consistent icon sizing** | Use fixed viewBox (24x24) with w-6 h-6 | Mix different icon sizes randomly |
-
-### Interaction & Cursor
-
-| Rule | Do | Don't |
-|------|----|----- |
-| **Cursor pointer** | Add `cursor-pointer` to all clickable/hoverable cards | Leave default cursor on interactive elements |
-| **Hover feedback** | Provide visual feedback (color, shadow, border) | No indication element is interactive |
-| **Smooth transitions** | Use `transition-colors duration-200` | Instant state changes or too slow (>500ms) |
-
-### Light/Dark Mode Contrast
-
-| Rule | Do | Don't |
-|------|----|----- |
-| **Glass card light mode** | Use `bg-white/80` or higher opacity | Use `bg-white/10` (too transparent) |
-| **Text contrast light** | Use `#0F172A` (slate-900) for text | Use `#94A3B8` (slate-400) for body text |
-| **Muted text light** | Use `#475569` (slate-600) minimum | Use gray-400 or lighter |
-| **Border visibility** | Use `border-gray-200` in light mode | Use `border-white/10` (invisible) |
-
-### Layout & Spacing
-
-| Rule | Do | Don't |
-|------|----|----- |
-| **Floating navbar** | Add `top-4 left-4 right-4` spacing | Stick navbar to `top-0 left-0 right-0` |
-| **Content padding** | Account for fixed navbar height | Let content hide behind fixed elements |
-| **Consistent max-width** | Use same `max-w-6xl` or `max-w-7xl` | Mix different container widths |
-
----
-
-## Pre-Delivery Checklist
-
-Before delivering UI code, verify these items:
-
-### Visual Quality
-- [ ] No emojis used as icons (use SVG instead)
-- [ ] All icons from consistent icon set (Heroicons/Lucide)
-- [ ] Brand logos are correct (verified from Simple Icons)
-- [ ] Hover states don't cause layout shift
-
-### Interaction
-- [ ] All clickable elements have `cursor-pointer`
-- [ ] Hover states provide clear visual feedback
-- [ ] Transitions are smooth (150-300ms)
-- [ ] Focus states visible for keyboard navigation
-
-### Light/Dark Mode
-- [ ] Light mode text has sufficient contrast (4.5:1 minimum)
-- [ ] Glass/transparent elements visible in light mode
-- [ ] Borders visible in both modes
-- [ ] Test both modes before delivery
-
-### Layout
-- [ ] Floating elements have proper spacing from edges
-- [ ] No content hidden behind fixed navbars
-- [ ] Responsive at 320px, 768px, 1024px, 1440px
-- [ ] No horizontal scroll on mobile
-
-### Accessibility
-- [ ] All images have alt text
-- [ ] Form inputs have labels
-- [ ] Color is not the only indicator
-- [ ] `prefers-reduced-motion` respected
+- [ ] **视觉一致性**: 所有图标是否都来自 SF Symbols？悬停时是否有交互反馈？
+- [ ] **磨砂透明度**: 在 Light/Dark 模式下视觉对比度是否足够？
+- [ ] **状态安全**: 是否使用了 `@Observable`？是否避免了不必要的视图重绘？
+- [ ] **性能检查**: 进入/退出或窗口缩放时是否有掉帧？
+- [ ] **交互闭环**: 点击、悬停、右键菜单（如有）是否都已实现？
+- [ ] **辅助功能**: 图片是否有 `accessibilityLabel`？文字对比度是否达标？
