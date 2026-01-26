@@ -49,7 +49,7 @@ struct ProviderDetailGridView: View {
                 }
             }
         }
-        .task(id: "\(provider?.id ?? "")-\(refreshTrigger)") {
+        .task(id: "\(provider?.id ?? "")-\(selectedTab?.rawValue ?? "")-\(refreshTrigger)") {
             await viewModel.loadData()
         }
         .onChange(of: provider) { _, newProvider in

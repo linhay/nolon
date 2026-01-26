@@ -136,7 +136,7 @@ public final class SkillRepository {
         try saveMetadata(metadata)
         
         // Remove global workflow if exists
-        let workflowPath = "\(nolonManager.generatedWorkflowsPath)/\(id).md"
+        let workflowPath = "\(nolonManager.skillsWorkflowsPath)/\(id).md"
         if fileManager.fileExists(atPath: workflowPath) {
             try? fileManager.removeItem(atPath: workflowPath)
         }
@@ -146,10 +146,20 @@ public final class SkillRepository {
     
     /// Create a global workflow file for a skill
     public func createGlobalWorkflow(for skill: Skill) throws -> String {
-        let path = "\(nolonManager.generatedWorkflowsPath)/\(skill.id).md"
+        let path = "\(nolonManager.skillsWorkflowsPath)/\(skill.id).md"
         
         // Always overwrite to ensure content is up to date with skill changes
         try skill.workflowContent.write(toFile: path, atomically: true, encoding: .utf8)
+        
+        return path
+    }
+    
+    /// Create a global workflow file for an MCP server
+    public func createGlobalMcpWorkflow(for mcp: MCP) throws -> String {
+        let path = "\(nolonManager.mcpWorkflowsPath)/\(mcp.name).md"
+        
+        // Always overwrite to ensure content is up to date
+        try mcp.workflowContent.write(toFile: path, atomically: true, encoding: .utf8)
         
         return path
     }

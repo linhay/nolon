@@ -21,7 +21,7 @@ enum ProviderContentTabType: String, CaseIterable, Identifiable {
         switch self {
         case .skills: return NSLocalizedString("tab.skills", comment: "Skills")
         case .workflows: return NSLocalizedString("tab.workflows", comment: "Workflows")
-        case .mcp: return NSLocalizedString("tab.mcp", comment: "MCP Server")
+        case .mcp: return NSLocalizedString("tab.mcp", comment: "MCPs")
         }
     }
 }
@@ -144,7 +144,7 @@ struct ProviderContentTabView: View {
                 selectedTab = .skills
             }
         }
-        .task(id: "\(provider?.id ?? "")-\(refreshTrigger)") {
+        .task(id: "\(provider?.id ?? "")-\(selectedTab?.rawValue ?? "")-\(refreshTrigger)") {
             await viewModel.loadCounts(for: provider)
         }
         .navigationSplitViewColumnWidth(min: 160, ideal: 180, max: 200)

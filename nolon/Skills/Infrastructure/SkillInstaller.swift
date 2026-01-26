@@ -266,6 +266,38 @@ public final class SkillInstaller {
         
         try fileManager.removeItem(atPath: targetPath)
     }
+    
+    /// Install a workflow for an MCP server (symlink to global mcp workflow)
+    public func installMcpWorkflow(mcp: MCP, to provider: Provider) throws {
+        let providerWorkflowPath = provider.workflowPath
+        let targetPath = "\(providerWorkflowPath)/\(mcp.name).md"
+        
+        // Ensure provider workflow directory exists
+        try createDirectory(at: providerWorkflowPath)
+        
+        // Ensure global mcp workflow exists
+        let globalWorkflowPath = try repository.createGlobalMcpWorkflow(for: mcp)
+        
+        // Remove existing link/file if present
+        if fileManager.fileExists(atPath: targetPath) {
+            try fileManager.removeItem(atPath: targetPath)
+        }
+        
+        // Create symlink
+        try fileManager.createSymbolicLink(atPath: targetPath, withDestinationPath: globalWorkflowPath)
+    }
+    
+    /// Uninstall a workflow for an MCP server
+    public func uninstallMcpWorkflow(mcp: MCP, from provider: Provider) throws {
+        let providerWorkflowPath = provider.workflowPath
+        let targetPath = "\(providerWorkflowPath)/\(mcp.name).md"
+        
+        guard fileManager.fileExists(atPath: targetPath) else {
+            return
+        }
+        
+        try fileManager.removeItem(atPath: targetPath)
+    }
 
     // MARK: - Provider Scanning
 

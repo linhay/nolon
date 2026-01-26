@@ -35,10 +35,23 @@ public class ProviderSettings: ObservableObject {
     @Published public var pendingImportURL: String?
 
 
-    public init(userDefaults: UserDefaults = .standard, nolonManager: NolonManager = .shared) {
+    public init(userDefaults: UserDefaults = .standard, nolonManager: NolonManager = .shared, skipLoading: Bool = false) {
         self.userDefaults = userDefaults
         self.nolonManager = nolonManager
-        loadSettings()
+        if !skipLoading {
+            loadSettings()
+        }
+    }
+
+    /// Preview instance for Xcode Previews
+    public static var preview: ProviderSettings {
+        let settings = ProviderSettings(skipLoading: true)
+        // Add dummy data for preview
+        settings.providers = [
+            Provider(name: "GitHub", defaultSkillsPath: "/tmp/github", workflowPath: "/tmp/workflows", iconName: "folder"),
+            Provider(name: "Local", defaultSkillsPath: "/tmp/local", workflowPath: "/tmp/workflows", iconName: "folder")
+        ]
+        return settings
     }
 
     // MARK: - Provider Management
@@ -115,6 +128,15 @@ public class ProviderSettings: ObservableObject {
     }
 
     private func loadSettings() {
+        // FAILSAFE: Skip loading in Xcode Previews to prevent blocking main thread
+        // This protects against implicit singleton access (e.g. from MainSplitView)
+        if ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1" {
+            // Initialize with empty/safe default data for previews if needed
+             self.providers = []
+             self.remoteRepositories = []
+             return
+        }
+
         // Load providers
         if FileManager.default.fileExists(atPath: providersFileURL.path),
            let data = try? Data(contentsOf: providersFileURL),

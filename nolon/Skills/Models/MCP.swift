@@ -8,10 +8,26 @@
 import Foundation
 import STJSON
 
-struct MCP: Identifiable {
+public struct MCP: Identifiable {
     
-    var id: String { name }
+    public var id: String { name }
     let name: String
     let json: AnyCodable
+    public let disabled: Bool?
     
+    init(name: String, json: AnyCodable, disabled: Bool? = nil) {
+        self.name = name
+        self.json = json
+        self.disabled = disabled
+    }
+    
+    var workflowContent: String {
+        """
+        ---
+        description: \(name)
+        ---
+        
+        Use the `\(name)` mcp tool.
+        """
+    }
 }

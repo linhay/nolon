@@ -9,16 +9,18 @@ public final class NolonManager: Sendable {
     // MARK: - Paths
     public let rootURL: URL
     public let skillsURL: URL
-    public let generatedWorkflowsURL: URL
+    public let skillsWorkflowsURL: URL
     public let userWorkflowsURL: URL
+    public let mcpWorkflowsURL: URL
     public let repositoriesURL: URL
     public let providersConfigURL: URL
     
     // MARK: - Path Strings
     public var rootPath: String { rootURL.path }
     public var skillsPath: String { skillsURL.path }
-    public var generatedWorkflowsPath: String { generatedWorkflowsURL.path }
+    public var skillsWorkflowsPath: String { skillsWorkflowsURL.path }
     public var userWorkflowsPath: String { userWorkflowsURL.path }
+    public var mcpWorkflowsPath: String { mcpWorkflowsURL.path }
     public var repositoriesPath: String { repositoriesURL.path }
     public var providersConfigPath: String { providersConfigURL.path }
     
@@ -33,8 +35,9 @@ public final class NolonManager: Sendable {
         }
         
         self.skillsURL = self.rootURL.appendingPathComponent("skills")
-        self.generatedWorkflowsURL = self.rootURL.appendingPathComponent("skills-workflows")
+        self.skillsWorkflowsURL = self.rootURL.appendingPathComponent("skills-workflows")
         self.userWorkflowsURL = self.rootURL.appendingPathComponent("workflows")
+        self.mcpWorkflowsURL = self.rootURL.appendingPathComponent("mcp-workflows")
         self.repositoriesURL = self.rootURL.appendingPathComponent("repositories")
         self.providersConfigURL = self.rootURL.appendingPathComponent("providers.json")
         
@@ -42,11 +45,15 @@ public final class NolonManager: Sendable {
     }
     
     private func ensureDirectoriesExist() {
+        // Skip directory creation in Previews
+        guard ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] != "1" else { return }
+
         let directories = [
             rootURL,
             skillsURL,
-            generatedWorkflowsURL,
+            skillsWorkflowsURL,
             userWorkflowsURL,
+            mcpWorkflowsURL,
             repositoriesURL
         ]
         

@@ -84,17 +84,20 @@ struct nolonApp: App {
     static var updaterController: SPUStandardUpdaterController?
 
     init() {
+        // FAST PATH: Skip all initialization for Xcode Previews
+        // This prevents AppLaunchTimeoutError by avoiding heavy file/network ops
+        if ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1" {
+            return
+        }
+
         // Load provider template configurations from JSON
         ProviderTemplateLoader.shared.load()
         
         // Apply app settings (appearance, etc.)
         AppSettings.shared.applyAllSettings()
         
-        // Skip Sparkle in Previews to avoid launch timeout
-        if ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] != "1" {
-            let controller = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
-            Self.updaterController = controller
-        }
+        let controller = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
+        Self.updaterController = controller
     }
 
     var body: some Scene {

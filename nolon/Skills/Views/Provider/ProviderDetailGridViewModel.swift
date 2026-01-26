@@ -204,18 +204,41 @@ final class ProviderDetailGridViewModel {
         let expandedJson = MCPConfigExpander.expand(json)
         
         // 2. Load enabled servers
+        
         if let servers = expandedJson["mcpServers"].dictionary {
             mcps = servers
-                .filter { key, value in
-                    // Skip disabled servers
-                    !(value["disabled"].bool ?? false)
-                }
                 .map { key, value in
-                    MCP(name: key, json: AnyCodable(value.object))
+                    MCP(name: key, json: AnyCodable(value.object), disabled: value["disabled"].bool ?? false)
                 }
                 .sorted { $0.name < $1.name }
         } else {
             mcps = []
+        }
+    }
+    
+    func toggleMcpEnabled(_ mcp: MCP, for provider: Provider) async {
+        guard let templateId = provider.templateId,
+              let template = ProviderTemplate(rawValue: templateId) else {
+            return
+        }
+        
+        let configPath = template.defaultMcpConfigPath
+        guard FileManager.default.fileExists(atPath: configPath.path),
+              let data = try? Data(contentsOf: configPath),
+              var json = try? JSON(data: data) else { return }
+        
+        var servers = json["mcpServers"].dictionaryValue
+        if var server = servers[mcp.name]?.dictionaryValue {
+            let currentDisabled = server["disabled"]?.bool ?? false
+            server["disabled"] = JSON(!currentDisabled)
+            servers[mcp.name] = JSON(server)
+            json["mcpServers"] = JSON(servers)
+            
+            if let str = json.rawString() {
+                try? str.write(to: configPath, atomically: true, encoding: .utf8)
+            }
+            
+            loadMCPs(for: provider)
         }
     }
     
@@ -344,6 +367,28 @@ final class ProviderDetailGridViewModel {
         do {
             _ = try installer.migrate(skillName: skill.id, from: provider, overwriteExisting: false)
             await loadData()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+    
+    func linkMcpToWorkflow(_ mcp: MCP) {
+        guard let provider = provider else { return }
+        
+        do {
+            try installer.installMcpWorkflow(mcp: mcp, to: provider)
+            loadWorkflows(for: provider)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+    
+    func unlinkMcpFromWorkflow(_ mcp: MCP) {
+        guard let provider = provider else { return }
+        
+        do {
+            try installer.uninstallMcpWorkflow(mcp: mcp, from: provider)
+            loadWorkflows(for: provider)
         } catch {
             errorMessage = error.localizedDescription
         }

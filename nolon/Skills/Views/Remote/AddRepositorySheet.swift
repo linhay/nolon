@@ -429,7 +429,7 @@ struct AddRepositorySheet: View {
 #Preview {
     AddRepositorySheet(
         isPresented: .constant(true),
-        settings: ProviderSettings(),
+        settings: .preview,
         onDirectoryCandidatesFound: { _, _ in }
     )
 }
