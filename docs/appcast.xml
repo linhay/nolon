@@ -87,5 +87,31 @@
                        xml:lang="en" />
         </item>
 
+    
+        <item>
+            <title>0.0.8</title>
+            <pubDate>Mon, 26 Jan 2026 11:32:47 +0800</pubDate>
+            <sparkle:version>202601261120</sparkle:version>
+            <sparkle:shortVersionString>0.0.8</sparkle:shortVersionString>
+            <link>https://github.com/linhay/nolon/releases/download/v0.0.8/nolon-arm64.dmg</link>
+            <description><![CDATA[]]></description>
+            <enclosure url="https://github.com/linhay/nolon/releases/download/v0.0.8/nolon-arm64.dmg"
+                       sparkle:version="202601261120"
+                       sparkle:shortVersionString="0.0.8"
+                       sparkle:edSignature="PdFBYEXEGpp1xH38ATol1VVR6sB5nIRipElje4hffAfQGkGcarl3/OdGH73y/wfZpomOzG6JnkkCDDnocyljAg=="
+                       length="45619045"
+                       type="application/x-apple-diskimage"
+                       sparkle:os="macos"
+                       xml:lang="en" />
+            <enclosure url="https://github.com/linhay/nolon/releases/download/v0.0.8/nolon-x86_64.dmg"
+                       sparkle:version="202601261120"
+                       sparkle:shortVersionString="0.0.8"
+                       sparkle:edSignature="ftatWJlf0USbsPWRD8MAvYez7EtjlpM3x8tY7uUZIzj0A7vyOa84ltY4/iRrqc2F2o/zs4fG2cGgl9z195upCQ=="
+                       length="45785444"
+                       type="application/x-apple-diskimage"
+                       sparkle:os="macos"
+                       xml:lang="en" />
+        </item>
+
     </channel>
 </rss>
