@@ -11,14 +11,14 @@
             <sparkle:version>0.0.4</sparkle:version>
             <sparkle:shortVersionString>0.0.4</sparkle:shortVersionString>
             <link>https://github.com/linhay/nolon/releases/download/v0.0.4/nolon-arm64.dmg</link>
-            <description><![CDATA[## nolon 0.0.4
+            <description><![CDATA[<div style="white-space: pre-wrap; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;">## nolon 0.0.4
             
 ### Downloads
 | Platform | Architecture | Download |
 |----------|--------------|----------|
 | macOS | Apple Silicon | [nolon-arm64.dmg](https://github.com/linhay/nolon/releases/download/v0.0.4/nolon-arm64.dmg) |
 | macOS | Intel | [nolon-x86_64.dmg](https://github.com/linhay/nolon/releases/download/v0.0.4/nolon-x86_64.dmg) |
-]]></description>
+</div>]]></description>
             <enclosure url="https://github.com/linhay/nolon/releases/download/v0.0.4/nolon-arm64.dmg"
                        sparkle:version="0.0.4"
                        sparkle:shortVersionString="0.0.4"
@@ -42,7 +42,7 @@
             <sparkle:version>202601250206</sparkle:version>
             <sparkle:shortVersionString>0.0.6</sparkle:shortVersionString>
             <link>https://github.com/linhay/nolon/releases/download/v0.0.6/nolon-arm64.dmg</link>
-            <description><![CDATA[]]></description>
+            <description><![CDATA[<div style="white-space: pre-wrap; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;"></div>]]></description>
             <enclosure url="https://github.com/linhay/nolon/releases/download/v0.0.6/nolon-arm64.dmg"
                        sparkle:version="202601250206"
                        sparkle:shortVersionString="0.0.6"
@@ -68,7 +68,7 @@
             <sparkle:version>202601260114</sparkle:version>
             <sparkle:shortVersionString>0.0.7</sparkle:shortVersionString>
             <link>https://github.com/linhay/nolon/releases/download/v0.0.7/nolon-arm64.dmg</link>
-            <description><![CDATA[]]></description>
+            <description><![CDATA[<div style="white-space: pre-wrap; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;"></div>]]></description>
             <enclosure url="https://github.com/linhay/nolon/releases/download/v0.0.7/nolon-arm64.dmg"
                        sparkle:version="202601260114"
                        sparkle:shortVersionString="0.0.7"
@@ -94,7 +94,7 @@
             <sparkle:version>202601261120</sparkle:version>
             <sparkle:shortVersionString>0.0.8</sparkle:shortVersionString>
             <link>https://github.com/linhay/nolon/releases/download/v0.0.8/nolon-arm64.dmg</link>
-            <description><![CDATA[]]></description>
+            <description><![CDATA[<div style="white-space: pre-wrap; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;"></div>]]></description>
             <enclosure url="https://github.com/linhay/nolon/releases/download/v0.0.8/nolon-arm64.dmg"
                        sparkle:version="202601261120"
                        sparkle:shortVersionString="0.0.8"
@@ -120,7 +120,7 @@
             <sparkle:version>202601261153</sparkle:version>
             <sparkle:shortVersionString>0.0.9</sparkle:shortVersionString>
             <link>https://github.com/linhay/nolon/releases/download/v0.0.9/nolon-arm64.dmg</link>
-            <description><![CDATA[## nolon 0.0.9
+            <description><![CDATA[<div style="white-space: pre-wrap; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;">## nolon 0.0.9
 
 ### Changes
 
@@ -143,7 +143,7 @@
 - macOS 14.0 or later
 
 ---
-*Built on 2026-01-26*]]></description>
+*Built on 2026-01-26*</div>]]></description>
             <enclosure url="https://github.com/linhay/nolon/releases/download/v0.0.9/nolon-arm64.dmg"
                        sparkle:version="202601261153"
                        sparkle:shortVersionString="0.0.9"
@@ -169,7 +169,7 @@
             <sparkle:version>202601261237</sparkle:version>
             <sparkle:shortVersionString>0.1.0</sparkle:shortVersionString>
             <link>https://github.com/linhay/nolon/releases/download/v0.1.0/nolon-arm64.dmg</link>
-            <description><![CDATA[## nolon 0.1.0
+            <description><![CDATA[<div style="white-space: pre-wrap; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;">## nolon 0.1.0
 
 ### Changes
 ## nolon 0.0.9
@@ -203,7 +203,7 @@
 - macOS 14.0 or later
 
 ---
-*Built on 2026-01-26*]]></description>
+*Built on 2026-01-26*</div>]]></description>
             <enclosure url="https://github.com/linhay/nolon/releases/download/v0.1.0/nolon-arm64.dmg"
                        sparkle:version="202601261237"
                        sparkle:shortVersionString="0.1.0"
