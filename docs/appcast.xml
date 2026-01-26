@@ -113,5 +113,54 @@
                        xml:lang="en" />
         </item>
 
+    
+        <item>
+            <title>0.0.9</title>
+            <pubDate>Mon, 26 Jan 2026 12:05:31 +0800</pubDate>
+            <sparkle:version>202601261153</sparkle:version>
+            <sparkle:shortVersionString>0.0.9</sparkle:shortVersionString>
+            <link>https://github.com/linhay/nolon/releases/download/v0.0.9/nolon-arm64.dmg</link>
+            <description><![CDATA[## nolon 0.0.9
+
+### Changes
+
+
+### Downloads
+
+| Platform | Architecture | Download |
+|----------|--------------|----------|
+| macOS | Apple Silicon (M1/M2/M3) | `nolon-arm64.dmg` |
+| macOS | Intel | `nolon-x86_64.dmg` |
+
+### Installation
+1. Download the appropriate DMG for your Mac
+   - **Apple Silicon** (M1, M2, M3 chips): `nolon-arm64.dmg`
+   - **Intel** (older Macs): `nolon-x86_64.dmg`
+2. Open the DMG and drag nolon to Applications
+3. Launch nolon from Applications
+
+### System Requirements
+- macOS 14.0 or later
+
+---
+*Built on 2026-01-26*]]></description>
+            <enclosure url="https://github.com/linhay/nolon/releases/download/v0.0.9/nolon-arm64.dmg"
+                       sparkle:version="202601261153"
+                       sparkle:shortVersionString="0.0.9"
+                       sparkle:edSignature="ABYva4ahuasnWmHZyiWZVLDKyf0mD5pU6lGmuVBfpELOAbRK9KvLv+6BjBoAsCJUnXYcgyVD6tsbkGKqO2MhAQ=="
+                       length="45619095"
+                       type="application/x-apple-diskimage"
+                       sparkle:os="macos"
+                       xml:lang="en" />
+            <enclosure url="https://github.com/linhay/nolon/releases/download/v0.0.9/nolon-x86_64.dmg"
+                       sparkle:version="202601261153"
+                       sparkle:shortVersionString="0.0.9"
+                       sparkle:edSignature="98kmgec5Sri411qVXBOV+Nomcr6aPUPHrdFXHos1idDY4X7LXrD5fp8OREpnSkOg6QuiJrQd9Vx4S52JpYMSAQ=="
+                       length="45785324"
+                       type="application/x-apple-diskimage"
+                       sparkle:os="macos"
+                       xml:lang="en" />
+        </item>
+
     </channel>
 </rss>
