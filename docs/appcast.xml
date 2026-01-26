@@ -162,5 +162,65 @@
                        xml:lang="en" />
         </item>
 
+    
+        <item>
+            <title>0.1.0</title>
+            <pubDate>Mon, 26 Jan 2026 12:47:58 +0800</pubDate>
+            <sparkle:version>202601261237</sparkle:version>
+            <sparkle:shortVersionString>0.1.0</sparkle:shortVersionString>
+            <link>https://github.com/linhay/nolon/releases/download/v0.1.0/nolon-arm64.dmg</link>
+            <description><![CDATA[## nolon 0.1.0
+
+### Changes
+## nolon 0.0.9
+
+### ✨ New Features
+- **智能发布流程**: 现在支持自动从 `docs/RELEASE_NOTES_{version}.md` 读取更新说明。
+- **状态跟踪**: 优化了发布过程中的状态实时反馈。
+
+### 🐞 Bug Fixes
+- 修复了 Sparkle 更新日志描述为空的问题。
+- 修复了 GitHub Release Notes 中的换行符转义问题。
+
+---
+感谢您的支持！
+
+### Downloads
+
+| Platform | Architecture | Download |
+|----------|--------------|----------|
+| macOS | Apple Silicon (M1/M2/M3) | `nolon-arm64.dmg` |
+| macOS | Intel | `nolon-x86_64.dmg` |
+
+### Installation
+1. Download the appropriate DMG for your Mac
+   - **Apple Silicon** (M1, M2, M3 chips): `nolon-arm64.dmg`
+   - **Intel** (older Macs): `nolon-x86_64.dmg`
+2. Open the DMG and drag nolon to Applications
+3. Launch nolon from Applications
+
+### System Requirements
+- macOS 14.0 or later
+
+---
+*Built on 2026-01-26*]]></description>
+            <enclosure url="https://github.com/linhay/nolon/releases/download/v0.1.0/nolon-arm64.dmg"
+                       sparkle:version="202601261237"
+                       sparkle:shortVersionString="0.1.0"
+                       sparkle:edSignature="CPdXAJwKJJJ4hv268qFnqumIbcu4z5s+v1ApsuXOlPgLt5QVEKUgVONVrAv9iaxF7h4U17AWlAQh/pBQBO/nCw=="
+                       length="45619065"
+                       type="application/x-apple-diskimage"
+                       sparkle:os="macos"
+                       xml:lang="en" />
+            <enclosure url="https://github.com/linhay/nolon/releases/download/v0.1.0/nolon-x86_64.dmg"
+                       sparkle:version="202601261237"
+                       sparkle:shortVersionString="0.1.0"
+                       sparkle:edSignature="n2g6m4iPeF3OqT1Yad0MseIA27PpFv/oyVmR046dQJFpLIePqLGjeR0+jRLWY8q3HHGJYTSEvVkj1U/ucAztAg=="
+                       length="45785400"
+                       type="application/x-apple-diskimage"
+                       sparkle:os="macos"
+                       xml:lang="en" />
+        </item>
+
     </channel>
 </rss>
