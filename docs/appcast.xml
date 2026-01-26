@@ -39,12 +39,12 @@
         <item>
             <title>0.0.6</title>
             <pubDate>Sun, 25 Jan 2026 02:06:42 +0800</pubDate>
-            <sparkle:version>0.0.6</sparkle:version>
+            <sparkle:version>202601250206</sparkle:version>
             <sparkle:shortVersionString>0.0.6</sparkle:shortVersionString>
             <link>https://github.com/linhay/nolon/releases/download/v0.0.6/nolon-arm64.dmg</link>
             <description><![CDATA[]]></description>
             <enclosure url="https://github.com/linhay/nolon/releases/download/v0.0.6/nolon-arm64.dmg"
-                       sparkle:version="0.0.6"
+                       sparkle:version="202601250206"
                        sparkle:shortVersionString="0.0.6"
                        sparkle:edSignature="9a+1YdGRHQMYW6pTX0D3LsMzuv65oHXka7Qk+HoTJOqFtQUdWHFJEjnAbTx5LUrNN00uEnVuP9FP8qHyaCKYAA=="
                        length="44864620"
@@ -52,7 +52,7 @@
                        sparkle:os="macos"
                        xml:lang="en" />
             <enclosure url="https://github.com/linhay/nolon/releases/download/v0.0.6/nolon-x86_64.dmg"
-                       sparkle:version="0.0.6"
+                       sparkle:version="202601250206"
                        sparkle:shortVersionString="0.0.6"
                        sparkle:edSignature="EOCsILzKUvAYNHy7xYryJNbB9gSEEc/yK1y0jYaAvc1UHAGgelfPBVKgqGB7nu/jG4SRepZOQB5gtHkvDIbqCQ=="
                        length="44990372"
@@ -65,12 +65,12 @@
         <item>
             <title>0.0.7</title>
             <pubDate>Mon, 26 Jan 2026 01:22:18 +0800</pubDate>
-            <sparkle:version>0.0.7</sparkle:version>
+            <sparkle:version>202601260114</sparkle:version>
             <sparkle:shortVersionString>0.0.7</sparkle:shortVersionString>
             <link>https://github.com/linhay/nolon/releases/download/v0.0.7/nolon-arm64.dmg</link>
             <description><![CDATA[]]></description>
             <enclosure url="https://github.com/linhay/nolon/releases/download/v0.0.7/nolon-arm64.dmg"
-                       sparkle:version="0.0.7"
+                       sparkle:version="202601260114"
                        sparkle:shortVersionString="0.0.7"
                        sparkle:edSignature="opoC4XZghZXPaa9ylLpOx7wIJNeI9ffc1MiESb/WK9mAfzCsVI260t6cYtpL3I/RcXjcd/WKL/5J3Qx1bDLGBw=="
                        length="45619157"
@@ -78,7 +78,7 @@
                        sparkle:os="macos"
                        xml:lang="en" />
             <enclosure url="https://github.com/linhay/nolon/releases/download/v0.0.7/nolon-x86_64.dmg"
-                       sparkle:version="0.0.7"
+                       sparkle:version="202601260114"
                        sparkle:shortVersionString="0.0.7"
                        sparkle:edSignature="umAi7m33kp+Zn+FRBkYSQ70/6CSNz/M3sSsM73DiDkSiVlV2vG07USFmfTJl5c2oCNpZjmVKU7hoFBaMupdiAQ=="
                        length="45785372"

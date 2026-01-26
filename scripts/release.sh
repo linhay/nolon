@@ -128,12 +128,12 @@ NEW_ITEM="
         <item>
             <title>${VERSION}</title>
             <pubDate>${DATE_RFC2822}</pubDate>
-            <sparkle:version>${VERSION}</sparkle:version>
+            <sparkle:version>${BUILD_NUMBER}</sparkle:version>
             <sparkle:shortVersionString>${VERSION}</sparkle:shortVersionString>
             <link>${DOWNLOAD_BASE_URL}/nolon-arm64.dmg</link>
             <description><![CDATA[${RELEASE_NOTES}]]></description>
             <enclosure url=\"${DOWNLOAD_BASE_URL}/nolon-arm64.dmg\"
-                       sparkle:version=\"${VERSION}\"
+                       sparkle:version=\"${BUILD_NUMBER}\"
                        sparkle:shortVersionString=\"${VERSION}\"
                        sparkle:edSignature=\"${ED_SIG_ARM64}\"
                        length=\"${SIZE_ARM64}\"
@@ -141,7 +141,7 @@ NEW_ITEM="
                        sparkle:os=\"macos\"
                        xml:lang=\"en\" />
             <enclosure url=\"${DOWNLOAD_BASE_URL}/nolon-x86_64.dmg\"
-                       sparkle:version=\"${VERSION}\"
+                       sparkle:version=\"${BUILD_NUMBER}\"
                        sparkle:shortVersionString=\"${VERSION}\"
                        sparkle:edSignature=\"${ED_SIG_X86_64}\"
                        length=\"${SIZE_X86_64}\"
