@@ -101,8 +101,6 @@ public final class SkillInstaller {
             // Move to global storage
             try fileManager.moveItem(at: skillRoot, to: URL(fileURLWithPath: globalPath))
 
-            // Write origin info
-            try writeClawdhubOrigin(at: URL(fileURLWithPath: globalPath), slug: slug)
         }
 
         // Now load the skill from global storage
@@ -222,20 +220,6 @@ public final class SkillInstaller {
         return nil
     }
 
-    private func writeClawdhubOrigin(at skillRoot: URL, slug: String) throws {
-        let originDir = skillRoot.appendingPathComponent(".clawdhub")
-        try createDirectory(at: originDir.path)
-
-        let originURL = originDir.appendingPathComponent("origin.json")
-        let payload: [String: Any] = [
-            "slug": slug,
-            "source": "clawdhub",
-            "installedAt": Int(Date().timeIntervalSince1970),
-        ]
-
-        let data = try JSONSerialization.data(withJSONObject: payload, options: [.prettyPrinted])
-        try data.write(to: originURL, options: [.atomic])
-    }
 
     /// Uninstall a skill from a provider
     public func uninstall(skill: Skill, from provider: Provider) throws {

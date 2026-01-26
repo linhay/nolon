@@ -48,7 +48,7 @@ struct RemoteSkillDetailView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 12))
 
                 // Content (Placeholder for README)
-                // In a real app we would load the README from ClawdhubService.fetchSkillDetail
+                // In a real app we would load the README from the remote service
                 VStack(alignment: .leading, spacing: 12) {
                     Text("About this skill")
                         .font(.headline)

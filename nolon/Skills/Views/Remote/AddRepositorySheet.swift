@@ -1,300 +1,6 @@
 import SwiftUI
 import Observation
 
-@Observable
-final class AddRepositoryViewModel {
-    /// The repository being edited, if any
-    var repositoryToEdit: RemoteRepository?
-    
-    /// Whether we are in edit mode
-    var isEditing: Bool { repositoryToEdit != nil }
-    
-    var selectedTemplate: RepositoryTemplate = .clawdhub {
-        didSet {
-            // Only handle change if not in edit mode (template is locked during edit)
-            if !isEditing {
-                handleTemplateChange(selectedTemplate)
-            }
-        }
-    }
-    var newRepoName = "" {
-        didSet { validateInput() }
-    }
-    var newGitURL = "" {
-        didSet { handleGitURLChange(newGitURL) }
-    }
-    var newLocalPath = "" {
-        didSet { validateInput() }
-    }
-    var newSkillsPaths: [String] = []
-    var newSkillsPathInput = ""
-    
-    var validationError: String?
-    var isAddingRepository = false
-    
-    var settings: ProviderSettings
-    
-    var onDirectoryCandidatesFound: ((RemoteRepository, [GitRepositoryService.SkillsDirectoryCandidate]) -> Void)?
-    var onDismiss: (() -> Void)?
-    
-    init(settings: ProviderSettings, repositoryToEdit: RemoteRepository? = nil) {
-        self.settings = settings
-        self.repositoryToEdit = repositoryToEdit
-        
-        if let repo = repositoryToEdit {
-            // Edit mode: populate fields from existing repository
-            selectedTemplate = repo.templateType
-            newRepoName = repo.name
-            newGitURL = repo.gitURL ?? ""
-            newLocalPath = repo.localPath ?? ""
-            newSkillsPaths = repo.skillsPaths
-        } else {
-            resetAddForm()
-            
-            // Handle pending URL import
-            if let importURL = settings.pendingImportURL {
-                selectedTemplate = .git
-                
-                // Extract subpath if present before normalization might strip it
-                if let subpath = RemoteRepository.extractSubpath(from: importURL) {
-                    newSkillsPaths = [subpath]
-                }
-                
-                let normalized = RemoteRepository.normalizeGitURL(importURL)
-                newGitURL = normalized
-                
-                // Manually trigger update logic since didSet not called in init
-                let extractedName = RemoteRepository.extractRepoName(from: normalized)
-                if !extractedName.isEmpty {
-                    newRepoName = extractedName
-                }
-                
-                validateInput()
-                
-                // Consume the pending URL
-                settings.pendingImportURL = nil
-            }
-        }
-    }
-
-    
-    // Templates available for user to add (exclude built-in globalSkills)
-    var availableTemplates: [RepositoryTemplate] {
-        RepositoryTemplate.allCases.filter { $0 != .globalSkills }
-    }
-    
-    var canAddRepository: Bool {
-        if validationError != nil { return false }
-
-        switch selectedTemplate {
-        case .clawdhub:
-            return !settings.remoteRepositories.contains { $0.templateType == .clawdhub }
-        case .localFolder:
-            return !newRepoName.isEmpty && !newLocalPath.isEmpty
-        case .git:
-            return !newRepoName.isEmpty && !newGitURL.isEmpty
-        case .globalSkills:
-            return false
-        }
-    }
-    
-    func handleTemplateChange(_ newTemplate: RepositoryTemplate) {
-        newRepoName = newTemplate.defaultName
-        newLocalPath = ""
-        newGitURL = ""
-        newSkillsPaths = []
-        newSkillsPathInput = ""
-        validationError = nil
-    }
-
-    func handleGitURLChange(_ newURL: String) {
-        if selectedTemplate == .git && !newURL.isEmpty {
-            let extractedName = RemoteRepository.extractRepoName(from: newURL)
-            if !extractedName.isEmpty {
-                newRepoName = extractedName
-            }
-        }
-        validateInput()
-    }
-
-    func addSkillsPath() {
-        let trimmed = newSkillsPathInput.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
-        if !newSkillsPaths.contains(trimmed) {
-            newSkillsPaths.append(trimmed)
-        }
-        newSkillsPathInput = ""
-    }
-    
-    func removeSkillsPath(at index: Int) {
-        guard index >= 0 && index < newSkillsPaths.count else { return }
-        newSkillsPaths.remove(at: index)
-    }
-
-    func validateInput() {
-        validationError = nil
-        
-        // Skip duplicate checks when editing the same repository
-        let editingId = repositoryToEdit?.id
-
-        if !newRepoName.isEmpty {
-            if settings.remoteRepositories.contains(where: { $0.name == newRepoName && $0.id != editingId }) {
-                validationError = "A repository with this name already exists."
-                return
-            }
-        }
-
-        if selectedTemplate == .git && !newGitURL.isEmpty {
-            let detectedProvider = RemoteRepository.detectProvider(from: newGitURL) ?? .github
-            let normalizedURL = detectedProvider.normalizeURL(newGitURL)
-            if settings.remoteRepositories.contains(where: { repo in
-                guard repo.id != editingId, repo.templateType == .git, let existingURL = repo.gitURL else {
-                    return false
-                }
-                let existingProvider = RemoteRepository.detectProvider(from: existingURL) ?? .github
-                return existingProvider.normalizeURL(existingURL) == normalizedURL
-            }) {
-                validationError = "This Git repository has already been added."
-                return
-            }
-        }
-
-        if selectedTemplate == .localFolder && !newLocalPath.isEmpty {
-            if settings.remoteRepositories.contains(where: {
-                $0.id != editingId && $0.templateType == .localFolder && $0.localPath == newLocalPath
-            }) {
-                validationError = "This folder has already been added."
-                return
-            }
-        }
-    }
-    
-    func resetAddForm() {
-        if settings.remoteRepositories.contains(where: { $0.templateType == .clawdhub }) {
-            selectedTemplate = .git
-        } else {
-            selectedTemplate = .clawdhub
-        }
-        // Force update fields based on new template
-        handleTemplateChange(selectedTemplate)
-    }
-    
-    @MainActor
-    func selectLocalFolder() {
-        let panel = NSOpenPanel()
-        panel.canChooseFiles = false
-        panel.canChooseDirectories = true
-        panel.allowsMultipleSelection = false
-        panel.message = NSLocalizedString(
-            "select_skills_folder", comment: "Select a folder containing skills")
-        panel.prompt = NSLocalizedString("select", comment: "Select")
-
-        if panel.runModal() == .OK, let url = panel.url {
-            newLocalPath = url.path
-            if newRepoName.isEmpty {
-                newRepoName = url.lastPathComponent
-            }
-        }
-    }
-    
-    @MainActor
-    func saveRepository() async {
-        isAddingRepository = true
-        defer { isAddingRepository = false }
-
-        var repo: RemoteRepository
-        
-        // In edit mode, start from existing repository to preserve ID and other properties
-        if let existingRepo = repositoryToEdit {
-            repo = existingRepo
-            repo.name = newRepoName
-            repo.localPath = newLocalPath.isEmpty ? nil : newLocalPath
-            repo.gitURL = newGitURL.isEmpty ? nil : newGitURL
-            repo.skillsPaths = newSkillsPaths
-            if !newGitURL.isEmpty {
-                repo.provider = RemoteRepository.detectProvider(from: newGitURL) ?? .github
-            }
-        } else {
-            // Create new repository based on template
-            switch selectedTemplate {
-            case .clawdhub:
-                repo = selectedTemplate.createRepository()
-            case .localFolder:
-                repo = selectedTemplate.createRepository(
-                    name: newRepoName,
-                    localPath: newLocalPath
-                )
-            case .git:
-                let detectedProvider = RemoteRepository.detectProvider(from: newGitURL) ?? .github
-                repo = selectedTemplate.createRepository(
-                    name: newRepoName,
-                    gitURL: newGitURL,
-                    provider: detectedProvider,
-                    skillsPaths: newSkillsPaths
-                )
-            case .globalSkills:
-                return
-            }
-        }
-
-        // Handle Git repository sync for new repos or URL changes
-        if selectedTemplate == .git || repo.templateType == .git {
-            let needsSync = repositoryToEdit == nil || repositoryToEdit?.gitURL != newGitURL
-            
-            if needsSync {
-                do {
-                    let gitService = GitRepositoryService.shared
-                    let result = try await gitService.syncRepository(repo)
-
-                    if !result.success {
-                        validationError = "Failed to sync repository: \(result.message)"
-                        return
-                    }
-
-                    repo.lastSyncDate = result.updatedAt
-
-                    if !newSkillsPaths.isEmpty {
-                        if isEditing {
-                            settings.updateRemoteRepository(repo)
-                        } else {
-                            settings.addRemoteRepository(repo)
-                        }
-                        onDismiss?()
-                    } else if result.detectedDirectories.isEmpty {
-                        if isEditing {
-                            settings.updateRemoteRepository(repo)
-                        } else {
-                            settings.addRemoteRepository(repo)
-                        }
-                        onDismiss?()
-                    } else {
-                        repo.detectedDirectories = result.detectedDirectories.map { $0.path }
-                        onDirectoryCandidatesFound?(repo, result.detectedDirectories)
-                        onDismiss?()
-                    }
-                } catch {
-                    validationError = "Failed to sync repository: \(error.localizedDescription)"
-                    return
-                }
-                return
-            } else {
-                // URL unchanged in edit mode, just update metadata
-                if isEditing {
-                    settings.updateRemoteRepository(repo)
-                    onDismiss?()
-                    return
-                }
-            }
-        }
-
-        if isEditing {
-            settings.updateRemoteRepository(repo)
-        } else {
-            settings.addRemoteRepository(repo)
-        }
-        onDismiss?()
-    }
-}
 
 struct AddRepositorySheet: View {
     @Binding var isPresented: Bool
@@ -312,10 +18,17 @@ struct AddRepositorySheet: View {
         VStack(spacing: 0) {
             headerView
             
+            templateSection
+                .padding(.horizontal, 24)
+                .padding(.bottom, 16)
+            
+            Divider()
+                .background(Color.white.opacity(0.1))
+            
             ScrollView {
                 formContent
                     .padding(.horizontal, 24)
-                    .padding(.bottom, 24)
+                    .padding(.vertical, 24)
             }
             
             Divider()
@@ -413,9 +126,6 @@ struct AddRepositorySheet: View {
     @ViewBuilder
     private var formContent: some View {
         VStack(alignment: .leading, spacing: 24) {
-            // Repository Type Section
-            templateSection
-            
             // Name Section
             nameSection
             
@@ -430,6 +140,7 @@ struct AddRepositorySheet: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Repository Type")
                 .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(.secondary)
             
             HStack(spacing: 10) {
                 ForEach(viewModel.availableTemplates) { template in
@@ -476,19 +187,21 @@ struct AddRepositorySheet: View {
     // MARK: - Name Section
 
     private var nameSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Name")
-                .font(.system(size: 13, weight: .semibold))
-            
-            nameContent
+        Group {
+            if viewModel.selectedTemplate != .git && viewModel.selectedTemplate != .localFolder {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Name")
+                        .font(.system(size: 13, weight: .semibold))
+                    
+                    nameContent
+                }
+            }
         }
     }
 
     @ViewBuilder
     private var nameContent: some View {
         switch viewModel.selectedTemplate {
-        case .clawdhub:
-            readOnlyField(value: "Clawdhub")
         case .localFolder:
             textInputField(placeholder: "Repository Name", text: $viewModel.newRepoName)
         case .git, .globalSkills:
@@ -501,8 +214,6 @@ struct AddRepositorySheet: View {
     @ViewBuilder
     private var typeSpecificSection: some View {
         switch viewModel.selectedTemplate {
-        case .clawdhub:
-            clawdhubSection
         case .localFolder:
             localFolderSection
         case .git:
@@ -512,18 +223,6 @@ struct AddRepositorySheet: View {
         }
     }
 
-    private var clawdhubSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Details")
-                .font(.system(size: 13, weight: .semibold))
-            
-            readOnlyField(value: viewModel.selectedTemplate.defaultBaseURL)
-            
-            Text("Clawdhub is the official skill marketplace.")
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary.opacity(0.8))
-        }
-    }
 
     private var localFolderSection: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -607,18 +306,6 @@ struct AddRepositorySheet: View {
                 }
                 
                 Text("Supports GitHub, GitLab, Bitbucket and other Git hosting services.")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary.opacity(0.8))
-            }
-            
-            // Skills Paths
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Skills Paths")
-                    .font(.system(size: 13, weight: .semibold))
-                
-                skillsPathsSection
-                
-                Text("Add one or more paths containing skills (e.g., 'skills', 'python', '.agent/skills'). Use '.' for repository root.")
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary.opacity(0.8))
             }
@@ -738,3 +425,11 @@ struct AddRepositorySheet: View {
     }
 }
 
+
+#Preview {
+    AddRepositorySheet(
+        isPresented: .constant(true),
+        settings: ProviderSettings(),
+        onDirectoryCandidatesFound: { _, _ in }
+    )
+}

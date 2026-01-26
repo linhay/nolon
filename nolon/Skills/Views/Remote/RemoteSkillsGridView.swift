@@ -32,12 +32,6 @@ final class RemoteSkillsGridViewModel {
         errorMessage = nil
         
         do {
-            switch repository.templateType {
-            case .clawdhub:
-                let service = ClawdhubService(baseURL: repository.baseURL)
-                skills = try await service.fetchSkills(query: nil)
-                
-            case .localFolder, .git, .globalSkills:
                 let paths = repository.effectiveSkillsPaths
                 guard !paths.isEmpty else {
                     throw LocalFolderError.pathNotFound("No path configured")
@@ -55,7 +49,6 @@ final class RemoteSkillsGridViewModel {
                 
                 let localService = LocalFolderService()
                 skills = try await localService.fetchSkills(fromPaths: paths)
-            }
         } catch {
             errorMessage = error.localizedDescription
         }

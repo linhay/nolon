@@ -52,9 +52,9 @@ struct OnboardingWelcomeView: View {
                 )
                 
                 FeatureCard(
-                    icon: "cloud.fill",
-                    title: "onboarding.feature.clawdhub.title",
-                    description: "onboarding.feature.clawdhub.description",
+                    icon: "folder.fill",
+                    title: "onboarding.feature.local.title",
+                    description: "onboarding.feature.local.description",
                     color: .primary
                 )
             }

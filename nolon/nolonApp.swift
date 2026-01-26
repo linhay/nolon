@@ -100,6 +100,11 @@ struct nolonApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .onOpenURL { url in
+                    Task { @MainActor in
+                        URLSchemeHandler.shared.handleURL(url)
+                    }
+                }
         }
         .handlesExternalEvents(matching: Set(arrayLiteral: "*"))
         

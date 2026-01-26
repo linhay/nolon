@@ -16,7 +16,7 @@ final class MainSplitViewModel {
     var columnVisibility: NavigationSplitViewVisibility = .all
     
     var showingSettings = false
-    var showingClawdhub = false
+    var showingRemoteBrowser = false
     var refreshTrigger: Int = 0
     
     var selectedProvider: Provider? {
@@ -38,13 +38,7 @@ final class MainSplitViewModel {
                 print("Installing from local path: \(localPath)")
                 try installer.installLocal(from: localPath, slug: skill.slug, to: provider)
                 print("Successfully installed \(skill.slug) from \(localPath)")
-            } else {
-                // Using ClawdhubService to download
-                let zipURL = try await ClawdhubService.shared.downloadSkill(
-                    slug: skill.slug, version: skill.latestVersion?.version)
-                try installer.installRemote(zipURL: zipURL, slug: skill.slug, to: provider)
-                print("Successfully installed \(skill.slug) from Clawdhub to \(provider.name)")
-            }
+            } 
 
             // Trigger refresh immediately after install
             refreshTrigger += 1
@@ -55,7 +49,7 @@ final class MainSplitViewModel {
     }
     
     @MainActor
-    func onClawdhubDismissed() {
+    func onRemoteBrowserDismissed() {
         refreshTrigger += 1
     }
 }
@@ -100,27 +94,16 @@ public struct MainSplitView: View {
             ToolbarItemGroup(placement: .primaryAction) {
 
 
-                // Clawdhub button
+                // Remote Browser button
                 Button {
-                    viewModel.showingClawdhub = true
+                    viewModel.showingRemoteBrowser = true
                 } label: {
                     Label(
-                        NSLocalizedString("toolbar.clawdhub", comment: "Clawdhub"),
-                        systemImage: "cloud"
+                        NSLocalizedString("toolbar.remote_browser", comment: "Remote Browser"),
+                        systemImage: "network"
                     )
                 }
-                .help("Browse and install skills from Clawdhub")
-
-                // Clawdhub button
-                Button {
-                    viewModel.showingClawdhub = true
-                } label: {
-                    Label(
-                        NSLocalizedString("toolbar.clawdhub", comment: "Clawdhub"),
-                        systemImage: "cloud"
-                    )
-                }
-                .help("Browse and install skills from Clawdhub")
+                .help("Browse and install skills from remote repositories")
             }
         }
 
@@ -128,7 +111,7 @@ public struct MainSplitView: View {
             AppSettingsView()
                 .frame(minWidth: 720, minHeight: 480)
         }
-        .sheet(isPresented: $viewModel.showingClawdhub) {
+        .sheet(isPresented: $viewModel.showingRemoteBrowser) {
             RemoteSkillsBrowserView(
                 settings: viewModel.settings,
                 repository: viewModel.repository,
@@ -141,10 +124,10 @@ public struct MainSplitView: View {
             )
             .frame(minHeight: 700, maxHeight: .infinity)
         }
-        .onChange(of: viewModel.showingClawdhub) { _, isShowing in
-            // Refresh skills list when Clawdhub sheet is dismissed
+        .onChange(of: viewModel.showingRemoteBrowser) { _, isShowing in
+            // Refresh skills list when sheet is dismissed
             if !isShowing {
-                viewModel.onClawdhubDismissed()
+                viewModel.onRemoteBrowserDismissed()
             }
         }
         .onReceive(URLSchemeHandler.shared.$pendingURL) { pendingURL in
@@ -165,7 +148,7 @@ public struct MainSplitView: View {
             }
             
             viewModel.settings.pendingImportURL = urlString
-            viewModel.showingClawdhub = true
+            viewModel.showingRemoteBrowser = true
             // Clear the pending URL after consuming
             URLSchemeHandler.shared.pendingURL = nil
         }

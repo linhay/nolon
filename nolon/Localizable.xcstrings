@@ -334,6 +334,7 @@
       }
     },
     "Add one or more paths containing skills (e.g., 'skills', 'python', '.agent/skills'). Use '.' for repository root." : {
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -592,6 +593,7 @@
       }
     },
     "Browse and install skills from Clawdhub" : {
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -600,6 +602,9 @@
           }
         }
       }
+    },
+    "Browse and install skills from remote repositories" : {
+
     },
     "Built-in" : {
       "localizations" : {
@@ -685,6 +690,7 @@
       }
     },
     "Clawdhub is the official skill marketplace." : {
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -911,6 +917,7 @@
       }
     },
     "Details" : {
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -1869,6 +1876,7 @@
       }
     },
     "onboarding.feature.clawdhub.description" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1885,6 +1893,7 @@
       }
     },
     "onboarding.feature.clawdhub.title" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1931,6 +1940,12 @@
           }
         }
       }
+    },
+    "onboarding.feature.local.description" : {
+
+    },
+    "onboarding.feature.local.title" : {
+
     },
     "onboarding.feature.unified.description" : {
       "localizations" : {
@@ -3286,6 +3301,7 @@
       }
     },
     "Skills Paths" : {
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -3720,6 +3736,7 @@
     },
     "toolbar.clawdhub" : {
       "comment" : "Clawdhub",
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -3728,6 +3745,9 @@
           }
         }
       }
+    },
+    "toolbar.remote_browser" : {
+      "comment" : "Remote Browser"
     },
     "toolbar.settings" : {
       "comment" : "Settings",

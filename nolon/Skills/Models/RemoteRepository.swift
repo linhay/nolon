@@ -84,7 +84,6 @@ public enum GitProvider: String, CaseIterable, Identifiable, Codable, Sendable {
 /// Template types for remote repositories
 public enum RepositoryTemplate: String, CaseIterable, Identifiable, Codable, Sendable {
     case globalSkills
-    case clawdhub
     case localFolder
     case git
 
@@ -94,7 +93,6 @@ public enum RepositoryTemplate: String, CaseIterable, Identifiable, Codable, Sen
         switch self {
         case .globalSkills:
             return NSLocalizedString("repo_type.global_skills", comment: "Global Skills")
-        case .clawdhub: return "Clawdhub"
         case .localFolder:
             return NSLocalizedString("repo_type.local_folder", comment: "Local Folder")
         case .git: return "Git Repository"
@@ -104,7 +102,6 @@ public enum RepositoryTemplate: String, CaseIterable, Identifiable, Codable, Sen
     public var iconName: String {
         switch self {
         case .globalSkills: return "star.fill"
-        case .clawdhub: return "cloud"
         case .localFolder: return "folder"
         case .git: return "chevron.left.forwardslash.chevron.right"
         }
@@ -113,7 +110,6 @@ public enum RepositoryTemplate: String, CaseIterable, Identifiable, Codable, Sen
     public var logoName: String? {
         switch self {
         case .globalSkills: return nil
-        case .clawdhub: return "lobehub"
         case .localFolder: return nil
         case .git: return nil
         }
@@ -121,7 +117,6 @@ public enum RepositoryTemplate: String, CaseIterable, Identifiable, Codable, Sen
 
     public var defaultBaseURL: String {
         switch self {
-        case .clawdhub: return "https://clawdhub.com"
         case .globalSkills, .localFolder, .git: return ""
         }
     }
@@ -130,14 +125,12 @@ public enum RepositoryTemplate: String, CaseIterable, Identifiable, Codable, Sen
         switch self {
         case .globalSkills:
             return NSLocalizedString("repo_type.global_skills", comment: "Global Skills")
-        case .clawdhub: return "Clawdhub"
         case .localFolder, .git: return ""
         }
     }
 
     public var isAPIBased: Bool {
         switch self {
-        case .clawdhub: return true
         case .globalSkills, .localFolder, .git: return false
         }
     }
@@ -149,14 +142,14 @@ public enum RepositoryTemplate: String, CaseIterable, Identifiable, Codable, Sen
     public var requiresLocalPath: Bool {
         switch self {
         case .localFolder: return true
-        case .globalSkills, .clawdhub, .git: return false
+        case .globalSkills, .git: return false
         }
     }
 
     /// Supported Git providers for this template
     public var supportedProviders: [GitProvider] {
         switch self {
-        case .globalSkills, .clawdhub, .localFolder: return []
+        case .globalSkills, .localFolder: return []
         case .git: return GitProvider.allCases
         }
     }
@@ -176,7 +169,7 @@ public enum RepositoryTemplate: String, CaseIterable, Identifiable, Codable, Sen
             iconName: iconName,
             logoName: logoName,
             templateType: self,
-            isBuiltIn: self == .clawdhub || self == .globalSkills,
+            isBuiltIn: self == .globalSkills,
             localPath: localPath,
             gitURL: gitURL,
             provider: provider,
@@ -185,7 +178,7 @@ public enum RepositoryTemplate: String, CaseIterable, Identifiable, Codable, Sen
     }
 }
 
-/// Represents a remote skill repository (e.g., Clawdhub, GitHub, GitLab)
+/// Represents a remote skill repository (e.g., GitHub, GitLab)
 public struct RemoteRepository: Identifiable, Codable, Hashable, Sendable {
     public var name: String
     public var baseURL: String
@@ -267,8 +260,6 @@ public struct RemoteRepository: Identifiable, Codable, Hashable, Sendable {
             }
 
             return [basePath.path]
-        case .clawdhub:
-            return []
         case .globalSkills:
             let globalPath = FileManager.default.homeDirectoryForCurrentUser
                 .appendingPathComponent(".nolon/skills").path
@@ -305,8 +296,6 @@ public struct RemoteRepository: Identifiable, Codable, Hashable, Sendable {
                 repositoriesPath
                 .appendingPathComponent(provider.directoryName)
                 .appendingPathComponent(repoFullName)
-        case .clawdhub:
-            return repositoriesPath.appendingPathComponent("clawdhub")
         case .globalSkills:
             return repositoriesPath.appendingPathComponent("skills")
         }
@@ -439,9 +428,6 @@ public struct RemoteRepository: Identifiable, Codable, Hashable, Sendable {
         return nil
     }
 
-    /// Built-in Clawdhub repository
-    public static let clawdhub = RepositoryTemplate.clawdhub.createRepository()
-    
     /// Built-in Global Skills repository (~/.nolon/skills/)
     public static let globalSkills = RepositoryTemplate.globalSkills.createRepository()
 }

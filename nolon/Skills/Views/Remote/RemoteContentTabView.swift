@@ -43,13 +43,6 @@ final class RemoteContentTabViewModel {
         
         // 加载技能数量
         do {
-            switch repository.templateType {
-            case .clawdhub:
-                let service = ClawdhubService(baseURL: repository.baseURL)
-                let skills = try await service.fetchSkills(query: nil)
-                skillsCount = skills.count
-                
-            case .localFolder, .git, .globalSkills:
                 let paths = repository.effectiveSkillsPaths
                 guard !paths.isEmpty else {
                     skillsCount = 0
@@ -70,7 +63,6 @@ final class RemoteContentTabViewModel {
                 let localService = LocalFolderService()
                 let skills = try await localService.fetchSkills(fromPaths: paths)
                 skillsCount = skills.count
-            }
         } catch {
             print("Failed to count skills: \(error)")
             skillsCount = 0
