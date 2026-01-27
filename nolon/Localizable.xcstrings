@@ -323,6 +323,18 @@
         }
       }
     },
+    "action.unlink_workflow" : {
+      "comment" : "Unlink from Workflow",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Unlink Workflow"
+          }
+        }
+      }
+    },
     "Add" : {
       "localizations" : {
         "zh-Hans" : {

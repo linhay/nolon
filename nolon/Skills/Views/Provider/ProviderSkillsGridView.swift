@@ -26,6 +26,7 @@ struct ProviderSkillsGridView: View {
                                 onReveal: { viewModel.revealSkillInFinder(skill) },
                                 onUninstall: { await viewModel.uninstallSkill(skill) },
                                 onLinkWorkflow: { viewModel.linkSkillToWorkflow(skill) },
+                                onUnlinkWorkflow: { viewModel.unlinkSkillFromWorkflow(skill) },
                                 onMigrate: { await viewModel.migrateSkill(skill) },
                                 onTap: { viewModel.selectedSkillForDetail = skill }
                             )

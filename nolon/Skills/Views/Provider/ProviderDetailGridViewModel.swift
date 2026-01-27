@@ -338,6 +338,17 @@ final class ProviderDetailGridViewModel {
         }
     }
     
+    func unlinkSkillFromWorkflow(_ skill: Skill) {
+        guard let provider = provider else { return }
+        
+        do {
+            try installer.uninstallWorkflow(skill: skill, from: provider)
+            loadWorkflows(for: provider)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+    
     func migrateSkill(_ skill: Skill) async {
         guard let provider = provider else { return }
         
