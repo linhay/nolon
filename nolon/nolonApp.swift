@@ -98,10 +98,13 @@ struct nolonApp: App {
     }
 
     var body: some Scene {
-        WindowGroup {
+        Window("nolon", id: "main") {
             ContentView()
+                .onOpenURL { url in
+                    URLSchemeHandler.shared.handleURL(url)
+                }
         }
-        .handlesExternalEvents(matching: Set(arrayLiteral: "*"))
+        .handlesExternalEvents(matching: [])  // Prevent new windows from URL events
         
         .commands {
             CommandGroup(replacing: .appSettings) {

@@ -208,12 +208,16 @@ struct RemoteRepositorySidebarView: View {
                 selectedRepository = settings.remoteRepositories.first
             }
             // Check for pending import immediately on appear
+            print("[RemoteRepositorySidebarView] onAppear - pendingImportURL: \(settings.pendingImportURL ?? "nil")")
             if settings.pendingImportURL != nil {
+                print("[RemoteRepositorySidebarView] Opening AddRepositorySheet from onAppear")
                 viewModel.showingAddRepository = true
             }
         }
         .onChange(of: settings.pendingImportURL) { _, newValue in
+            print("[RemoteRepositorySidebarView] onChange - pendingImportURL: \(newValue ?? "nil")")
             if newValue != nil {
+                print("[RemoteRepositorySidebarView] Opening AddRepositorySheet from onChange")
                 viewModel.showingAddRepository = true
             }
         }

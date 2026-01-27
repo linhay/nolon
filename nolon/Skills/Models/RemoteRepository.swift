@@ -394,46 +394,88 @@ public struct RemoteRepository: Identifiable, Codable, Hashable, Sendable {
     /// - "owner/repo" → "https://github.com/owner/repo.git"
     /// - "owner/repo/subpath" → "https://github.com/owner/repo.git" (subpath 需单独处理)
     /// - 完整 URL → 原样返回
+    /// 规范化 Git URL，支持 owner/repo 简写以及完整 URL 中的 subpath 分离
+    /// - "owner/repo" -> "https://github.com/owner/repo.git"
+    /// - "owner/repo/subpath" -> "https://github.com/owner/repo.git"
+    /// - "https://github.com/owner/repo/subpath" -> "https://github.com/owner/repo.git"
     public static func normalizeGitURL(_ input: String) -> String {
         let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
         
-        // 已经是完整 URL 或 SSH 格式
-        if trimmed.hasPrefix("https://") || trimmed.hasPrefix("http://") ||
-           trimmed.hasPrefix("git@") || trimmed.hasSuffix(".git") {
-            return trimmed
-        }
-        
-        // 本地路径 (以 . 或 / 或 ~ 开头)
+        // 如果是本地路径，原样返回
         if trimmed.hasPrefix(".") || trimmed.hasPrefix("/") || trimmed.hasPrefix("~") {
             return trimmed
         }
         
-        // owner/repo 或 owner/repo/subpath 格式
-        let components = trimmed.split(separator: "/")
-        if components.count >= 2,
-           !trimmed.contains("://"),
-           !trimmed.contains("@") {
-            let owner = components[0]
-            let repo = components[1]
-            return "https://github.com/\(owner)/\(repo).git"
+        // 如果是 SSH 格式且包含 .git
+        if trimmed.hasPrefix("git@") && trimmed.contains(":") {
+            if trimmed.hasSuffix(".git") {
+                return trimmed
+            }
+            // 尝试移除潜在的 subpath（SSH 格式通常不带 subpath，但为了健壮性处理一下）
+            let components = trimmed.split(separator: "/")
+            if components.count > 1 {
+                return trimmed // 暂时不处理 SSH subpath
+            }
+        }
+        
+        // 处理 HTTPS/HTTP 或 简写格式
+        var urlString = trimmed
+        if !urlString.contains("://") && !urlString.contains("@") {
+            // 处理简写格式 owner/repo...
+            let components = urlString.split(separator: "/")
+            if components.count >= 2 {
+                let owner = components[0]
+                let repo = components[1]
+                urlString = "https://github.com/\(owner)/\(repo)"
+            } else {
+                return trimmed
+            }
+        }
+        
+        // 现在我们有一个类似 https://host/owner/repo/subpath 的字符串
+        if let url = URL(string: urlString), let host = url.host {
+            let pathComponents = url.path.trimmingCharacters(in: CharacterSet(charactersIn: "/")).split(separator: "/")
+            if pathComponents.count >= 2 {
+                let owner = pathComponents[0]
+                var repo = String(pathComponents[1])
+                if repo.hasSuffix(".git") {
+                    repo = String(repo.dropLast(4))
+                }
+                
+                let scheme = url.scheme ?? "https"
+                return "\(scheme)://\(host)/\(owner)/\(repo).git"
+            }
         }
         
         return trimmed
     }
     
-    /// 从 owner/repo/subpath 格式中提取 subpath
+    /// 从各种格式的输入中提取 subpath
     public static func extractSubpath(from input: String) -> String? {
         let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
         
-        // 只处理简写格式
-        if trimmed.contains("://") || trimmed.contains("@") ||
-           trimmed.hasPrefix(".") || trimmed.hasPrefix("/") || trimmed.hasPrefix("~") {
+        // 本地路径不提取 subpath
+        if trimmed.hasPrefix(".") || trimmed.hasPrefix("/") || trimmed.hasPrefix("~") {
             return nil
         }
         
-        let components = trimmed.split(separator: "/")
-        if components.count > 2 {
-            return components.dropFirst(2).joined(separator: "/")
+        var urlString = trimmed
+        var isShorthand = false
+        if !trimmed.contains("://") && !trimmed.contains("@") {
+            isShorthand = true
+            let components = trimmed.split(separator: "/")
+            if components.count > 2 {
+                return components.dropFirst(2).joined(separator: "/")
+            }
+            return nil
+        }
+        
+        // 处理完整的 URL
+        if let url = URL(string: urlString) {
+            let pathComponents = url.path.trimmingCharacters(in: CharacterSet(charactersIn: "/")).split(separator: "/")
+            if pathComponents.count > 2 {
+                return pathComponents.dropFirst(2).joined(separator: "/")
+            }
         }
         
         return nil

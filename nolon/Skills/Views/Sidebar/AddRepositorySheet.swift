@@ -53,11 +53,13 @@ final class AddRepositoryViewModel {
             
             // Handle pending URL import
             if let importURL = settings.pendingImportURL {
+                print("[AddRepositoryViewModel] Handling pending import URL: \(importURL)")
                 selectedTemplate = .git
                 
                 // Extract subpath if present before normalization might strip it
                 if let subpath = RemoteRepository.extractSubpath(from: importURL) {
                     newSkillsPaths = [subpath]
+                    print("[AddRepositoryViewModel] Extracted subpath: \(subpath)")
                 }
                 
                 let normalized = RemoteRepository.normalizeGitURL(importURL)
@@ -69,10 +71,14 @@ final class AddRepositoryViewModel {
                     newRepoName = extractedName
                 }
                 
+                print("[AddRepositoryViewModel] Normalized URL: \(normalized), Name: \(newRepoName)")
+                
                 validateInput()
                 
-                // Consume the pending URL
-                settings.pendingImportURL = nil
+                // Consume the pending URL asynchronously to avoid "Publishing changes from within view updates"
+                Task { @MainActor in
+                    settings.pendingImportURL = nil
+                }
             }
         }
     }
@@ -166,6 +172,38 @@ final class AddRepositoryViewModel {
                 validationError = "This folder has already been added."
                 return
             }
+        }
+    }
+    
+    /// Check and load pending import URL (called on appear to handle @State caching)
+    func checkPendingImportURL() {
+        guard !isEditing else { return }
+        guard let importURL = settings.pendingImportURL else { return }
+        
+        print("[AddRepositoryViewModel] checkPendingImportURL: \(importURL)")
+        selectedTemplate = .git
+        
+        // Extract subpath if present
+        if let subpath = RemoteRepository.extractSubpath(from: importURL) {
+            newSkillsPaths = [subpath]
+            print("[AddRepositoryViewModel] Extracted subpath: \(subpath)")
+        }
+        
+        let normalized = RemoteRepository.normalizeGitURL(importURL)
+        newGitURL = normalized
+        
+        let extractedName = RemoteRepository.extractRepoName(from: normalized)
+        if !extractedName.isEmpty {
+            newRepoName = extractedName
+        }
+        
+        print("[AddRepositoryViewModel] Loaded URL: \(normalized), Name: \(newRepoName)")
+        
+        validateInput()
+        
+        // Consume the pending URL asynchronously
+        Task { @MainActor in
+            settings.pendingImportURL = nil
         }
     }
     
@@ -340,6 +378,8 @@ struct AddRepositorySheet: View {
             viewModel.onDismiss = {
                 isPresented = false
             }
+            // Check for pending URL on appear (handles @State caching issue)
+            viewModel.checkPendingImportURL()
         }
     }
 

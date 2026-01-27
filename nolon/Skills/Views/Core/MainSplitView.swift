@@ -110,17 +110,6 @@ public struct MainSplitView: View {
                     )
                 }
                 .help("Browse and install skills from Clawdhub")
-
-                // Clawdhub button
-                Button {
-                    viewModel.showingClawdhub = true
-                } label: {
-                    Label(
-                        NSLocalizedString("toolbar.clawdhub", comment: "Clawdhub"),
-                        systemImage: "cloud"
-                    )
-                }
-                .help("Browse and install skills from Clawdhub")
             }
         }
 
@@ -151,21 +140,15 @@ public struct MainSplitView: View {
             guard let url = pendingURL else { return }
             print("[MainSplitView] Received URL from URLSchemeHandler: \(url.absoluteString)")
             
-            // Remove the nolon:// or nln:// scheme prefix and get the actual URL
-            var urlString = url.absoluteString
-            if urlString.hasPrefix("nolon://") {
-                urlString = String(urlString.dropFirst("nolon://".count))
-            } else if urlString.hasPrefix("nln://") {
-                urlString = String(urlString.dropFirst("nln://".count))
-            }
-            
-            // Prepend https:// if needed
-            if !urlString.hasPrefix("http://") && !urlString.hasPrefix("https://") {
-                urlString = "https://" + urlString
-            }
-            
+            // URLSchemeHandler already converted nln:// or nolon:// to https://
+            let urlString = url.absoluteString
+            print("[MainSplitView] Setting pendingImportURL to: \(urlString)")
             viewModel.settings.pendingImportURL = urlString
+            print("[MainSplitView] pendingImportURL after set: \(viewModel.settings.pendingImportURL ?? "nil")")
+            
+            print("[MainSplitView] Opening RemoteSkillsBrowserView sheet")
             viewModel.showingClawdhub = true
+            
             // Clear the pending URL after consuming
             URLSchemeHandler.shared.pendingURL = nil
         }
