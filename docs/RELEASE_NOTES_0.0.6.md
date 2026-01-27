@@ -1,2 +1,15 @@
-- **Refactor**: Improved path display logic by moving it to the view model.
-- **Release Automation**: Enhanced release script to better handle appcast updates and changelog generation.
+# Nolon v0.0.6 Release Notes
+
+## 细节优化与稳定性提升
+
+本版本继续在架构解耦和发布流程自动化上发力，提升了代码质量与开发效率。
+
+- **重构与代码质量**:
+  - **路径显示逻辑优化**: 成功将复杂的路径显示逻辑从 View 层迁移至专用的 `ViewModel` 中，提升了 UI 的响应速度。
+  - **Swift 语法规范**: 修复了由于 Swift 6 并发模型演变带来的语法警告，确保项目的长期可维护性。
+- **发布流程自动化**:
+  - 增强了发布脚本，实现了更精准的 `appcast.xml` 更新策略。
+  - 优化了更新日志（Changelog）的自动生成逻辑，确保描述内容的准确性。
+- **维护**:
+  - 更新了项目版本号与 Build 号。
+  - 优化了对本地 Git 实例的调用稳定性。

@@ -92,6 +92,62 @@ get_signature() {
 ED_SIG_ARM64=$(get_signature "$SIGNATURE_ARM64")
 ED_SIG_X86_64=$(get_signature "$SIGNATURE_X86_64")
 
+# ------------------------------------------------------------------------------
+# Generate release notes
+# ------------------------------------------------------------------------------
+
+echo -e "${YELLOW}📝 Generating release notes...${NC}"
+
+PREV_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+
+if [ -z "$PREV_TAG" ]; then
+    CHANGELOG="- Initial release"
+else
+    if [ -n "$CHANGELOG_FILE" ] && [ -f "$CHANGELOG_FILE" ]; then
+        echo -e "${YELLOW}📄 Using custom changelog from ${CHANGELOG_FILE}...${NC}"
+        CHANGELOG=$(cat "$CHANGELOG_FILE")
+    elif [ -f "docs/RELEASE_NOTES_${VERSION}.md" ]; then
+        echo -e "${YELLOW}📄 Using release notes from docs/RELEASE_NOTES_${VERSION}.md...${NC}"
+        CHANGELOG=$(cat "docs/RELEASE_NOTES_${VERSION}.md")
+    else
+        echo -e "Comparing against previous tag: ${PREV_TAG}"
+        CHANGELOG=$(git log --pretty=format:"- %s" "${PREV_TAG}..HEAD")
+    fi
+fi
+
+# If CHANGELOG contains a title starting with '## ', don't add another one
+if [[ "$CHANGELOG" == "## "* ]]; then
+    RELEASE_NOTES="${CHANGELOG}"
+else
+    RELEASE_NOTES="## ${APP_NAME} ${VERSION}
+
+### Changes
+${CHANGELOG}"
+fi
+
+# Add Downloads and Installation info
+RELEASE_NOTES="${RELEASE_NOTES}
+
+### Downloads
+
+| Platform | Architecture | Download |
+|----------|--------------|----------|
+| macOS | Apple Silicon (M1/M2/M3) | \`${APP_NAME}-arm64.dmg\` |
+| macOS | Intel | \`${APP_NAME}-x86_64.dmg\` |
+
+### Installation
+1. Download the appropriate DMG for your Mac
+   - **Apple Silicon** (M1, M2, M3 chips): \`${APP_NAME}-arm64.dmg\`
+   - **Intel** (older Macs): \`${APP_NAME}-x86_64.dmg\`
+2. Open the DMG and drag ${APP_NAME} to Applications
+3. Launch ${APP_NAME} from Applications
+
+### System Requirements
+- macOS 14.0 or later
+
+---
+*Built on $(date '+%Y-%m-%d')*"
+
 # Update Appcast
 APPCAST_FILE="docs/appcast.xml"
 APPCAST_URL="https://linhay.github.io/nolon/appcast.xml"
@@ -131,7 +187,7 @@ NEW_ITEM="
             <sparkle:version>${BUILD_NUMBER}</sparkle:version>
             <sparkle:shortVersionString>${VERSION}</sparkle:shortVersionString>
             <link>${DOWNLOAD_BASE_URL}/nolon-arm64.dmg</link>
-            <description><![CDATA[${RELEASE_NOTES}]]></description>
+            <description><![CDATA[<div style=\"white-space: pre-wrap; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;\">${RELEASE_NOTES}</div>]]></description>
             <enclosure url=\"${DOWNLOAD_BASE_URL}/nolon-arm64.dmg\"
                        sparkle:version=\"${BUILD_NUMBER}\"
                        sparkle:shortVersionString=\"${VERSION}\"
@@ -212,47 +268,6 @@ fi
 
 echo -e "${YELLOW}🚀 Creating release ${TAG}...${NC}"
 
-# Generate release notes
-echo -e "${YELLOW}📝 Generating release notes...${NC}"
-
-PREV_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
-
-if [ -z "$PREV_TAG" ]; then
-    CHANGELOG="- Initial release"
-else
-    if [ -n "$CHANGELOG_FILE" ] && [ -f "$CHANGELOG_FILE" ]; then
-        echo -e "${YELLOW}📄 Using custom changelog from ${CHANGELOG_FILE}...${NC}"
-        CHANGELOG=$(cat "$CHANGELOG_FILE")
-    else
-        echo -e "Comparing against previous tag: ${PREV_TAG}"
-        CHANGELOG=$(git log --pretty=format:"- %s" "${PREV_TAG}..HEAD")
-    fi
-fi
-
-RELEASE_NOTES="## ${APP_NAME} ${VERSION}
-
-### Changes
-${CHANGELOG}
-
-### Downloads
-
-| Platform | Architecture | Download |
-|----------|--------------|----------|
-| macOS | Apple Silicon (M1/M2/M3) | \`${APP_NAME}-arm64.dmg\` |
-| macOS | Intel | \`${APP_NAME}-x86_64.dmg\` |
-
-### Installation
-1. Download the appropriate DMG for your Mac
-   - **Apple Silicon** (M1, M2, M3 chips): \`${APP_NAME}-arm64.dmg\`
-   - **Intel** (older Macs): \`${APP_NAME}-x86_64.dmg\`
-2. Open the DMG and drag ${APP_NAME} to Applications
-3. Launch ${APP_NAME} from Applications
-
-### System Requirements
-- macOS 14.0 or later
-
----
-*Built on $(date '+%Y-%m-%d')*"
 
 # Create release and upload both DMGs
 gh release create "$TAG" \
