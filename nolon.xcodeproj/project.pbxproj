@@ -231,6 +231,8 @@
 /* Begin XCBuildConfiguration section */
 		CD2B1A9B2F1F624A00DF4A2B /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReferenceAnchor = CD2B1A942F1F624900DF4A2B /* nolon */;
+			baseConfigurationReferenceRelativePath = Configuration/Debug.xcconfig;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
@@ -299,6 +301,8 @@
 		};
 		CD2B1A9C2F1F624A00DF4A2B /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReferenceAnchor = CD2B1A942F1F624900DF4A2B /* nolon */;
+			baseConfigurationReferenceRelativePath = Configuration/Release.xcconfig;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;

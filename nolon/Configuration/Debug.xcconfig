@@ -1,0 +1,7 @@
+#include "Shared.xcconfig"
+
+// Auto-move Debug builds to Applications/Dev Builds
+// This is required for App Intents to be recognized by Shortcuts
+DEPLOYMENT_LOCATION = YES
+DSTROOT = $(HOME)/Applications/Dev Builds
+INSTALL_PATH = /
