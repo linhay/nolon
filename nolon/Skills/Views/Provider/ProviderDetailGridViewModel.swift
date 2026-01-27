@@ -20,6 +20,7 @@ final class ProviderDetailGridViewModel {
 
     // MCPs
     var mcps: [MCP] = []
+    var mcpWorkflowIds: Set<String> = []
     
     // State
     var isLoading = false
@@ -219,6 +220,30 @@ final class ProviderDetailGridViewModel {
         }
     }
     
+    private func loadMcpWorkflows() {
+        let path = NolonManager.shared.mcpsWorkflowsPath
+        let url = URL(fileURLWithPath: path)
+        
+        guard FileManager.default.fileExists(atPath: path) else {
+            mcpWorkflowIds = []
+            return
+        }
+        
+        do {
+            let contents = try FileManager.default.contentsOfDirectory(
+                at: url,
+                includingPropertiesForKeys: nil,
+                options: [.skipsHiddenFiles]
+            )
+            
+            mcpWorkflowIds = Set(contents
+                .filter { $0.pathExtension == "md" }
+                .map { $0.deletingPathExtension().lastPathComponent })
+        } catch {
+            mcpWorkflowIds = []
+        }
+    }
+    
     func updateMCP(_ mcp: MCP?, for provider: Provider) async {
         guard let templateId = provider.templateId,
               let template = ProviderTemplate(rawValue: templateId) else {
@@ -288,6 +313,8 @@ final class ProviderDetailGridViewModel {
         
         guard FileManager.default.fileExists(atPath: workflowPath) else {
             workflows = []
+            mcpWorkflowIds = []
+            workflowIds = []
             return
         }
         
@@ -303,9 +330,12 @@ final class ProviderDetailGridViewModel {
                 .compactMap { WorkflowInfo.parse(from: $0) }
                 .sorted { $0.name < $1.name }
             
-            workflowIds = Set(workflows.map(\.id))
+            workflowIds = Set(workflows.filter { $0.source == .skill }.map(\.id))
+            mcpWorkflowIds = Set(workflows.filter { $0.source == .mcp }.map(\.id))
         } catch {
             workflows = []
+            mcpWorkflowIds = []
+            workflowIds = []
         }
     }
     
@@ -343,6 +373,28 @@ final class ProviderDetailGridViewModel {
         
         do {
             try installer.uninstallWorkflow(skill: skill, from: provider)
+            loadWorkflows(for: provider)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+    
+    func linkMcpToWorkflow(_ mcp: MCP) {
+        guard let provider = provider else { return }
+        
+        do {
+            try installer.installMcpWorkflow(mcp: mcp, to: provider)
+            loadWorkflows(for: provider)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+    
+    func unlinkMcpFromWorkflow(_ mcp: MCP) {
+        guard let provider = provider else { return }
+        
+        do {
+            try installer.uninstallMcpWorkflow(mcp: mcp, from: provider)
             loadWorkflows(for: provider)
         } catch {
             errorMessage = error.localizedDescription

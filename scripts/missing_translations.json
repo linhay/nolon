@@ -1,34 +1,142 @@
 {
-  "": {
-    "source": "",
+  "%lld downloads": {
+    "source": "%lld downloads",
     "comment": ""
   },
-  " ": {
-    "source": " ",
+  "%lld stars": {
+    "source": "%lld stars",
     "comment": ""
   },
-  "action.installing": {
-    "source": "action.installing",
-    "comment": "Installing..."
-  },
-  "error.invalid_url": {
-    "source": "error.invalid_url",
-    "comment": "Invalid URL error"
-  },
-  "nolon://github.com/...": {
-    "source": "nolon://github.com/...",
+  "+%lld": {
+    "source": "+%lld",
     "comment": ""
+  },
+  "action.cancel": {
+    "source": "action.cancel",
+    "comment": "Cancel action"
+  },
+  "action.delete_confirm_message": {
+    "source": "action.delete_confirm_message",
+    "comment": "Delete confirmation message"
+  },
+  "action.delete_confirm_message_mcp": {
+    "source": "action.delete_confirm_message_mcp",
+    "comment": "MCP Delete confirmation message"
+  },
+  "action.delete_confirm_title": {
+    "source": "action.delete_confirm_title",
+    "comment": "Delete confirmation title"
+  },
+  "action.delete_confirm_title_mcp": {
+    "source": "action.delete_confirm_title_mcp",
+    "comment": "MCP Delete confirmation title"
+  },
+  "action.edit": {
+    "source": "action.edit",
+    "comment": "Edit\nEdit action"
+  },
+  "action.uninstall_confirm_message": {
+    "source": "action.uninstall_confirm_message",
+    "comment": "Uninstall confirmation message"
+  },
+  "action.uninstall_confirm_title": {
+    "source": "action.uninstall_confirm_title",
+    "comment": "Uninstall confirmation title"
+  },
+  "action.unlink_workflow": {
+    "source": "action.unlink_workflow",
+    "comment": "Unlink from Workflow"
+  },
+  "content.no_repository": {
+    "source": "content.no_repository",
+    "comment": "Select a Repository"
+  },
+  "content.no_repository_desc": {
+    "source": "content.no_repository_desc",
+    "comment": "Choose a repository from the sidebar"
+  },
+  "detail.no_repository": {
+    "source": "detail.no_repository",
+    "comment": "Select a Repository"
+  },
+  "generic.done": {
+    "source": "generic.done",
+    "comment": "Done"
+  },
+  "https://github.com/...": {
+    "source": "https://github.com/...",
+    "comment": ""
+  },
+  "Install to %@": {
+    "source": "Install to %@",
+    "comment": ""
+  },
+  "nolon": {
+    "source": "nolon",
+    "comment": ""
+  },
+  "onboarding.completion.providers_configured %d": {
+    "source": "onboarding.completion.providers_configured %d",
+    "comment": "Configured count"
+  },
+  "quick_install.fetching": {
+    "source": "quick_install.fetching",
+    "comment": "Fetching message"
   },
   "quick_install.subtitle": {
     "source": "quick_install.subtitle",
     "comment": "Quick install subtitle"
   },
+  "quick_install.success": {
+    "source": "quick_install.success",
+    "comment": "Success message"
+  },
   "quick_install.title": {
     "source": "quick_install.title",
     "comment": "Quick Install title"
   },
-  "quick_install.url_label": {
-    "source": "quick_install.url_label",
-    "comment": "Label for skill URL input"
+  "Search": {
+    "source": "Search",
+    "comment": ""
+  },
+  "settings.app": {
+    "source": "settings.app",
+    "comment": "Menu item"
+  },
+  "settings.appearance": {
+    "source": "settings.appearance",
+    "comment": "Section title"
+  },
+  "settings.importing.title": {
+    "source": "settings.importing.title",
+    "comment": "Section title"
+  },
+  "settings.language": {
+    "source": "settings.language",
+    "comment": "Section title"
+  },
+  "settings.project_configuration.title": {
+    "source": "settings.project_configuration.title",
+    "comment": "Section title"
+  },
+  "settings.title": {
+    "source": "settings.title",
+    "comment": "Title"
+  },
+  "workflow.source.mcp": {
+    "source": "workflow.source.mcp",
+    "comment": "Source: MCP"
+  },
+  "workflow.source.skill": {
+    "source": "workflow.source.skill",
+    "comment": "Source: Skill"
+  },
+  "workflow.source.unknown": {
+    "source": "workflow.source.unknown",
+    "comment": "Source: Unknown"
+  },
+  "workflow.source.user": {
+    "source": "workflow.source.user",
+    "comment": "Source: User"
   }
 }

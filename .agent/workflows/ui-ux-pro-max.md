@@ -58,6 +58,9 @@ description: Plan and implement UI using SwiftUI and modern macOS design pattern
 | **背景模糊** | 使用 `.background(.ultraThinMaterial)` | 使用纯色但不带透明度的背景 |
 | **列表风格** | 使用 `.listStyle(.sidebar)` 配合 macOS 原生 Sidebar | 在桌面端模拟移动端的普通列表样式 |
 | **动画耗时** | 统一使用 `.spring()` 或 `duration` 在 0.2~0.3s 的动画 | 缺少过渡或动画过于拖沓 (>0.5s) |
+| **布局一致性** | 统一使用 16pt 内边距 (Padding) 和 12pt 元素间距 (Spacing) | 随意使用硬编码的 ad-hoc 间距值 |
+| **交互安全性** | 删除/卸载等破坏性操作必须收纳进菜单并配套 `confirmationDialog` | 直接在主界面放置删除按钮或缺少确认步骤 |
+| **组件契约** | 修改公共组件构造函数时，必须同步更新所有调用点 | 仅修改定义而遗留编译错误 |
 
 ---
 

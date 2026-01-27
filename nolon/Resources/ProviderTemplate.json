@@ -54,7 +54,7 @@
         "defaultWorkflowPath": ".gemini/workflows",
         "documentationURL": "https://geminicli.com/docs/cli/skills/",
         "mcpDocumentationURL": "https://geminicli.com/docs/tools/mcp-server/",
-        "defaultMcpConfigPath": ".gemini/mcp_settings.json"
+        "defaultMcpConfigPath": ".gemini/settings.json"
     },
     "antigravity": {
         "displayName": "Antigravity",

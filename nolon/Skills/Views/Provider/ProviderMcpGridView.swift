@@ -67,13 +67,16 @@ struct ProviderMcpGridView: View {
                     ForEach(viewModel.filteredMcps) { mcp in
                         McpServerCard(
                             mcp: mcp,
+                            hasWorkflow: viewModel.mcpWorkflowIds.contains(mcp.name),
                             searchText: viewModel.searchText,
-                            onDelete: {
-                                Task { await viewModel.deleteMCP(named: mcp.name, for: provider) }
-                            },
+                            onLinkWorkflow: { viewModel.linkMcpToWorkflow(mcp) },
+                            onUnlinkWorkflow: { viewModel.unlinkMcpFromWorkflow(mcp) },
                             onEdit: {
                                 // Open config file for now
                                 NSWorkspace.shared.selectFile(configPath.path, inFileViewerRootedAtPath: "")
+                            },
+                            onDelete: {
+                                Task { await viewModel.deleteMCP(named: mcp.name, for: provider) }
                             }
                         )
                     }

@@ -13,6 +13,8 @@ struct SkillCardView: View {
     var onMigrate: () async -> Void = {}
     let onTap: () -> Void
     
+    @State private var showingUninstallConfirmation = false
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             // 1. 标题 | 菜单
@@ -107,6 +109,18 @@ struct SkillCardView: View {
         .contextMenu {
             contextMenuItems
         }
+        .confirmationDialog(
+            NSLocalizedString("action.uninstall_confirm_title", value: "Confirm Uninstall", comment: "Uninstall confirmation title"),
+            isPresented: $showingUninstallConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button(NSLocalizedString("action.uninstall", comment: "Uninstall"), role: .destructive) {
+                Task { await onUninstall() }
+            }
+            Button(NSLocalizedString("action.cancel", value: "Cancel", comment: "Cancel action"), role: .cancel) {}
+        } message: {
+            Text(NSLocalizedString("action.uninstall_confirm_message", value: "Are you sure you want to uninstall this skill? This action cannot be undone.", comment: "Uninstall confirmation message"))
+        }
     }
     
     @ViewBuilder
@@ -169,7 +183,7 @@ struct SkillCardView: View {
             
             // Installed: Uninstall
             Button(role: .destructive) {
-                Task { await onUninstall() }
+                showingUninstallConfirmation = true
             } label: {
                 Label(
                     NSLocalizedString("action.uninstall", comment: "Uninstall"),

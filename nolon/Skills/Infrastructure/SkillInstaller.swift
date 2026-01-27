@@ -282,6 +282,43 @@ public final class SkillInstaller {
         
         try fileManager.removeItem(atPath: targetPath)
     }
+    
+    /// Install a workflow for an MCP (symlink to mcps-workflows)
+    public func installMcpWorkflow(mcp: MCP, to provider: Provider) throws {
+        let providerWorkflowPath = provider.workflowPath
+        let globalMcpWorkflowPath = "\(nolonManager.mcpsWorkflowsPath)/\(mcp.name).md"
+        let targetPath = "\(providerWorkflowPath)/\(mcp.name).md"
+        
+        // 1. Ensure provider workflow directory exists
+        try createDirectory(at: providerWorkflowPath)
+        
+        // 2. Ensure global MCP workflow exists in ~/.nolon/mcps-workflows
+        if !fileManager.fileExists(atPath: globalMcpWorkflowPath) {
+            try createDirectory(at: nolonManager.mcpsWorkflowsPath)
+            let initialContent = "# \(mcp.name) Workflow\n\nThis is a workflow for \(mcp.name) MCP server.\n"
+            try initialContent.write(toFile: globalMcpWorkflowPath, atomically: true, encoding: .utf8)
+        }
+        
+        // 3. Remove existing link/file if present in provider directory
+        if fileManager.fileExists(atPath: targetPath) {
+            try fileManager.removeItem(atPath: targetPath)
+        }
+        
+        // 4. Create symlink from provider to global
+        try fileManager.createSymbolicLink(atPath: targetPath, withDestinationPath: globalMcpWorkflowPath)
+    }
+    
+    /// Uninstall a workflow for an MCP
+    public func uninstallMcpWorkflow(mcp: MCP, from provider: Provider) throws {
+        let providerWorkflowPath = provider.workflowPath
+        let targetPath = "\(providerWorkflowPath)/\(mcp.name).md"
+        
+        guard fileManager.fileExists(atPath: targetPath) else {
+            return
+        }
+        
+        try fileManager.removeItem(atPath: targetPath)
+    }
 
     // MARK: - Provider Scanning
 

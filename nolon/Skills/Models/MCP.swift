@@ -8,10 +8,14 @@
 import Foundation
 import STJSON
 
-struct MCP: Identifiable {
+public struct MCP: Identifiable, Sendable {
     
-    var id: String { name }
-    let name: String
-    let json: AnyCodable
+    public var id: String { name }
+    public let name: String
+    public let json: AnyCodable
     
+    public init(name: String, json: AnyCodable) {
+        self.name = name
+        self.json = json
+    }
 }
