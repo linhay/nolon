@@ -13,6 +13,7 @@ public final class NolonManager: Sendable {
     public let userWorkflowsURL: URL
     public let repositoriesURL: URL
     public let providersConfigURL: URL
+    public let mcpsURL: URL
     public let mcpsWorkflowsURL: URL
     
     // MARK: - Path Strings
@@ -22,6 +23,7 @@ public final class NolonManager: Sendable {
     public var userWorkflowsPath: String { userWorkflowsURL.path }
     public var repositoriesPath: String { repositoriesURL.path }
     public var providersConfigPath: String { providersConfigURL.path }
+    public var mcpsPath: String { mcpsURL.path }
     public var mcpsWorkflowsPath: String { mcpsWorkflowsURL.path }
     
     public init(fileManager: FileManager = .default, rootURL: URL? = nil) {
@@ -39,6 +41,7 @@ public final class NolonManager: Sendable {
         self.userWorkflowsURL = self.rootURL.appendingPathComponent("workflows")
         self.repositoriesURL = self.rootURL.appendingPathComponent("repositories")
         self.providersConfigURL = self.rootURL.appendingPathComponent("providers.json")
+        self.mcpsURL = self.rootURL.appendingPathComponent("mcps")
         self.mcpsWorkflowsURL = self.rootURL.appendingPathComponent("mcps-workflows")
         
         ensureDirectoriesExist()
@@ -51,6 +54,7 @@ public final class NolonManager: Sendable {
             generatedWorkflowsURL,
             userWorkflowsURL,
             repositoriesURL,
+            mcpsURL,
             mcpsWorkflowsURL
         ]
         

@@ -1,4 +1,5 @@
 import Foundation
+import STJSON
 
 /// Skill state in a provider directory
 public struct ProviderSkillState: Sendable {
@@ -150,6 +151,8 @@ public final class SkillInstaller {
     public func installLocal(from sourcePath: String, slug: String, to provider: Provider) throws {
         let globalSkillsPath = nolonManager.skillsPath
         let globalPath = "\(globalSkillsPath)/\(slug)"
+        let sourceURL = URL(fileURLWithPath: sourcePath).standardizedFileURL
+        let globalURL = URL(fileURLWithPath: globalPath).standardizedFileURL
 
         // Ensure global skills directory exists
         try createDirectory(at: globalSkillsPath)
@@ -157,13 +160,19 @@ public final class SkillInstaller {
         // Register in global storage (Symlink Global -> Source)
         // If it already exists (including broken symlinks), replace it
         // Note: fileExists returns false for broken symlinks, so we use attributesOfItem
-        let globalURL = URL(fileURLWithPath: globalPath)
-        if (try? globalURL.checkResourceIsReachable()) == true || 
-           (try? fileManager.attributesOfItem(atPath: globalPath)) != nil {
-            try fileManager.removeItem(atPath: globalPath)
-        }
+        if sourceURL != globalURL {
+            if (try? globalURL.checkResourceIsReachable()) == true ||
+                (try? fileManager.attributesOfItem(atPath: globalPath)) != nil {
+                try fileManager.removeItem(atPath: globalPath)
+            }
 
-        try fileManager.createSymbolicLink(atPath: globalPath, withDestinationPath: sourcePath)
+            try fileManager.copyItem(atPath: sourcePath, toPath: globalPath)
+        } else {
+            // Source is already in global storage; nothing to copy
+            guard (try? globalURL.checkResourceIsReachable()) == true else {
+                throw SkillError.fileOperationFailed("Global skill path missing at \(globalPath)")
+            }
+        }
 
         // Now load the skill from global storage
         let skillMdPath = "\(globalPath)/SKILL.md"
@@ -630,6 +639,148 @@ public final class SkillInstaller {
             )
         case .copy:
             try fileManager.copyItem(atPath: globalPath, toPath: targetPath)
+        }
+    }
+
+    // MARK: - Workflow Installation
+
+    /// Install a remote workflow from a markdown file
+    public func installRemoteWorkflow(fileURL: URL, slug: String, to provider: Provider) throws {
+        let workflowPath = provider.workflowPath
+        let targetPath = "\(workflowPath)/\(slug).md"
+        
+        // Ensure workflow directory exists
+        try createDirectory(at: workflowPath)
+        
+        // If already exists, remove it first
+        if fileManager.fileExists(atPath: targetPath) {
+            try fileManager.removeItem(atPath: targetPath)
+        }
+        
+        // Copy workflow file
+        try fileManager.copyItem(at: fileURL, to: URL(fileURLWithPath: targetPath))
+        
+        // Write origin metadata
+        try writeClawdhubWorkflowOrigin(at: URL(fileURLWithPath: workflowPath), slug: slug)
+    }
+
+    /// Install a workflow from a local markdown file without writing Clawdhub metadata
+    public func installLocalWorkflow(fileURL: URL, slug: String, to provider: Provider) throws {
+        let workflowPath = provider.workflowPath
+        let targetPath = "\(workflowPath)/\(slug).md"
+
+        // Ensure workflow directory exists
+        try createDirectory(at: workflowPath)
+
+        // If already exists, remove it first
+        if fileManager.fileExists(atPath: targetPath) {
+            try fileManager.removeItem(atPath: targetPath)
+        }
+
+        switch provider.installMethod {
+        case .symlink:
+            try fileManager.createSymbolicLink(
+                atPath: targetPath,
+                withDestinationPath: fileURL.path
+            )
+        case .copy:
+            try fileManager.copyItem(at: fileURL, to: URL(fileURLWithPath: targetPath))
+        }
+    }
+
+    private func writeClawdhubWorkflowOrigin(at workflowDir: URL, slug: String) throws {
+        let originFile = workflowDir.appendingPathComponent(".clawdhub_workflows")
+        
+        var origins: [String] = []
+        if let existingData = try? Data(contentsOf: originFile),
+           let existingOrigins = try? JSONDecoder().decode([String].self, from: existingData) {
+            origins = existingOrigins
+        }
+        
+        if !origins.contains(slug) {
+            origins.append(slug)
+            let data = try JSONEncoder().encode(origins)
+            try data.write(to: originFile)
+        }
+    }
+
+    // MARK: - MCP Installation
+
+    /// Install a remote MCP from configuration
+    @MainActor
+    public func installRemoteMCP(_ remoteMCP: RemoteMCP, to provider: Provider) throws {
+        guard let templateId = provider.templateId,
+              let template = ProviderTemplate(rawValue: templateId) else {
+            throw SkillError.fileOperationFailed("Invalid provider template")
+        }
+        
+        let configPath = template.defaultMcpConfigPath
+        
+        // Read existing config or create new
+        var json: JSON
+        if fileManager.fileExists(atPath: configPath.path),
+           let data = try? Data(contentsOf: configPath),
+           let fileJson = try? JSON(data: data) {
+            json = fileJson
+        } else {
+            json = JSON([:])
+        }
+        
+        // Ensure mcpServers object exists
+        if json["mcpServers"].dictionary == nil {
+            json["mcpServers"] = JSON([:])
+        }
+        
+        // Add MCP configuration
+        var servers = json["mcpServers"].dictionaryValue
+        
+        if let config = remoteMCP.configuration {
+            var mcpConfig: [String: Any] = [:]
+            
+            if let command = config.command {
+                mcpConfig["command"] = command
+            }
+            if let args = config.args {
+                mcpConfig["args"] = args
+            }
+            if let env = config.env {
+                mcpConfig["env"] = env
+            }
+            
+            servers[remoteMCP.slug] = JSON(mcpConfig)
+        }
+        
+        json["mcpServers"] = JSON(servers)
+        
+        // Write back
+        if let str = json.rawString() {
+            try str.write(to: configPath, atomically: true, encoding: .utf8)
+        }
+        
+        // Write origin metadata
+        try writeClawdhubMCPOrigin(for: provider, slug: remoteMCP.slug)
+    }
+
+    @MainActor
+    private func writeClawdhubMCPOrigin(for provider: Provider, slug: String) throws {
+        guard let templateId = provider.templateId,
+              let template = ProviderTemplate(rawValue: templateId) else {
+            return
+        }
+        
+        let configDir = template.defaultMcpConfigPath.deletingLastPathComponent()
+        let originFile = configDir.appendingPathComponent(".clawdhub_mcp_origins")
+        
+        var origins: [String] = []
+        if let existingData = try? Data(contentsOf: originFile),
+           let existingOrigins = try? JSONDecoder().decode([String].self, from: existingData) {
+            origins = existingOrigins
+        }
+        
+        if !origins.contains(slug) {
+            origins.append(slug)
+            let data = try JSONEncoder().encode(origins)
+            try data.write(to: originFile)
         }
     }
 

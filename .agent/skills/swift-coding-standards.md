@@ -15,6 +15,8 @@
     - 修改构造函数签名后，立即使用全局搜索功能同步更新所有调用点。
 - **并发安全**: 
     - 模型结构体（Models）优先支持 `Sendable` 协议。
+- **显式类型检查**:
+    - 在通过 `TargetContent` 或 `ReplacementContent` 调用 Model 属性前，必须先 `view_file` 该 Model 的定义，确认字段类型（如 `latestVersion` 是 `String` 还是自定义微结构体），禁止盲目使用强制类型转换。
 - **构建验证**:
     - 在完成逻辑修改后，必须运行 `/verify-build` 工作流以确保没有遗留的语法错误。
 

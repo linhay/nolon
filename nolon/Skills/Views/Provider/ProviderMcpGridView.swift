@@ -22,8 +22,17 @@ struct ProviderMcpGridView: View {
                     Button("Create Configuration") {
                         // Create directory if needed
                         try? FileManager.default.createDirectory(at: configPath.deletingLastPathComponent(), withIntermediateDirectories: true)
-                        // Create empty JSON
-                        try? "{}".write(to: configPath, atomically: true, encoding: .utf8)
+                        // Create minimal config based on extension
+                        if configPath.pathExtension.lowercased() == "toml" {
+                            let template = """
+                            model = ""
+                            
+                            [mcp_servers]
+                            """
+                            try? template.write(to: configPath, atomically: true, encoding: .utf8)
+                        } else {
+                            try? "{}".write(to: configPath, atomically: true, encoding: .utf8)
+                        }
                         NSWorkspace.shared.selectFile(configPath.path, inFileViewerRootedAtPath: "")
                         // Reload data
                         Task { await viewModel.loadData() }

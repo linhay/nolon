@@ -65,15 +65,27 @@ struct ProviderDetailGridView: View {
             SkillDetailView(skill: skill, provider: provider, settings: settings)
                 .frame(minWidth: 900, maxWidth: .infinity, minHeight: 600, maxHeight: .infinity)
         }
-        .sheet(isPresented: $viewModel.showingRemoteBrowser) {
+        .sheet(item: $viewModel.showingRemoteBrowser) { browserType in
             if let provider = provider {
+                let tabType: RemoteContentTabType = browserType == .skill ? .skills : (browserType == .workflow ? .workflows : .mcps)
                 RemoteSkillsBrowserView(
                     settings: settings,
                     repository: viewModel.repository,
                     targetProvider: provider,
+                    selectedTab: tabType,
                     onInstall: { skill, provider in
                         Task {
                             await viewModel.installRemoteSkill(skill, to: provider)
+                        }
+                    },
+                    onInstallWorkflow: { workflow, provider in
+                        Task {
+                            await viewModel.installRemoteWorkflow(workflow, to: provider)
+                        }
+                    },
+                    onInstallMCP: { mcp, provider in
+                        Task {
+                            await viewModel.installRemoteMCP(mcp, to: provider)
                         }
                     }
                 )
@@ -103,8 +115,8 @@ struct ProviderDetailGridView: View {
                 .padding()
                 .searchable(text: $viewModel.searchText)
                 
-                // Floating Action Button
-                if selectedTab == .skills {
+                // Floating Action Button - 根据当前 tab 显示
+                if selectedTab != nil {
                     quickInstallButton
                 }
             }
@@ -113,7 +125,16 @@ struct ProviderDetailGridView: View {
     
     private var quickInstallButton: some View {
         Button {
-            viewModel.showingRemoteBrowser = true
+            switch selectedTab {
+            case .skills:
+                viewModel.showingRemoteBrowser = .skill
+            case .workflows:
+                viewModel.showingRemoteBrowser = .workflow
+            case .mcp:
+                viewModel.showingRemoteBrowser = .mcp
+            case .none:
+                break
+            }
         } label: {
             ZStack {
                 Circle()

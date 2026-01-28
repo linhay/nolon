@@ -109,4 +109,25 @@ final class SkillInstallerTests: XCTestCase {
         let orphanedState = states.first { $0.skillName == "orphaned-skill" }
         XCTAssertEqual(orphanedState?.state, .orphaned)
     }
+
+    func testInstallLocal_WhenSourceIsGlobalPath() throws {
+        // Prepare a skill already located in global path
+        let sourceURL = try fixture.createSampleSkill(id: "global-skill", name: "Global Skill")
+        let skill = try repository.importSkill(from: sourceURL)
+
+        // localPath points to the same global location
+        let provider = fixture.createProvider(name: "Cursor", method: .symlink)
+
+        // Should not delete the source before copy; should simply reuse it
+        XCTAssertNoThrow(try installer.installLocal(from: skill.globalPath, slug: skill.id, to: provider))
+
+        let targetPath = "\(provider.defaultSkillsPath)/\(skill.id)"
+        XCTAssertTrue(fixture.fileManager.fileExists(atPath: targetPath))
+
+        // Verify symlink points to the global path
+        let attributes = try fixture.fileManager.attributesOfItem(atPath: targetPath)
+        XCTAssertEqual(attributes[.type] as? FileAttributeType, .typeSymbolicLink)
+        let destination = try fixture.fileManager.destinationOfSymbolicLink(atPath: targetPath)
+        XCTAssertEqual(destination, skill.globalPath)
+    }
 }

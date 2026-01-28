@@ -1,8 +1,8 @@
 import SwiftUI
 
-/// 远程技能卡片视图 - Grid 布局中的卡片
-struct RemoteSkillCardView: View {
-    let skill: RemoteSkill
+/// 远程 MCP 卡片视图 - Grid 布局中的卡片
+struct RemoteMCPCardView: View {
+    let mcp: RemoteMCP
     let isInstalled: Bool
     let targetProvider: Provider?
     let providers: [Provider]
@@ -17,17 +17,17 @@ struct RemoteSkillCardView: View {
             // 1. Header: Name + Version Badge | More Menu
             HStack(alignment: .center) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(skill.displayName)
+                    Text(mcp.displayName)
                         .font(.headline)
                         .lineLimit(1)
                     
-                    if let version = skill.latestVersion {
+                    if let version = mcp.latestVersion {
                         Text(version.version)
                             .font(.system(size: 10, weight: .bold))
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
-                            .background(Color.accentColor.opacity(0.15))
-                            .foregroundStyle(Color.accentColor)
+                            .background(Color.purple.opacity(0.15))
+                            .foregroundStyle(Color.purple)
                             .clipShape(Capsule())
                     }
                 }
@@ -38,7 +38,7 @@ struct RemoteSkillCardView: View {
             }
             
             // 2. Description 区
-            if let summary = skill.summary {
+            if let summary = mcp.summary {
                 Text(summary)
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -48,15 +48,34 @@ struct RemoteSkillCardView: View {
                 Spacer()
             }
             
-            // 3. Footer: Stats & Actions
+            // 3. Configuration Info (if available)
+            if let config = mcp.configuration, let command = config.command {
+                HStack(spacing: 4) {
+                    Image(systemName: "terminal")
+                        .font(.caption2)
+                    Text(command)
+                        .font(.system(size: 10, design: .monospaced))
+                        .lineLimit(1)
+                }
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 3)
+                .background(Color.secondary.opacity(0.1))
+                .cornerRadius(4)
+            }
+            
+            // 4. Footer: Stats & Actions
             HStack(alignment: .center) {
                 // Left: Stats
                 HStack(spacing: 8) {
-                    if let stars = skill.stats?.stars {
+                    if let stars = mcp.stats?.stars {
                         Label("\(stars)", systemImage: "star.fill")
                             .foregroundStyle(.yellow)
                     }
-                    if let downloads = skill.stats?.downloads {
+                    if let installs = mcp.stats?.installs {
+                        Label("\(installs)", systemImage: "server.rack")
+                    }
+                    if let downloads = mcp.stats?.downloads {
                         Label("\(downloads)", systemImage: "arrow.down.circle")
                     }
                 }
@@ -70,7 +89,7 @@ struct RemoteSkillCardView: View {
             }
         }
         .padding(16)
-        .frame(minHeight: 140)
+        .frame(minHeight: 160)
         .background(Color.secondary.opacity(0.08))
         .cornerRadius(12)
         .contentShape(Rectangle())
@@ -87,7 +106,7 @@ struct RemoteSkillCardView: View {
             contextMenuItems
         }
         .sheet(isPresented: $showingInstallSheet) {
-            SkillInstallSheet(providers: providers, skillName: skill.displayName) { provider in
+            MCPInstallSheet(providers: providers, mcpName: mcp.displayName) { provider in
                 onInstall(provider)
             }
         }
@@ -121,8 +140,8 @@ struct RemoteSkillCardView: View {
                 .fontWeight(.bold)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 6)
-                .background(Color.accentColor.opacity(0.1))
-                .foregroundStyle(Color.accentColor)
+                .background(Color.purple.opacity(0.1))
+                .foregroundStyle(Color.purple)
                 .clipShape(RoundedRectangle(cornerRadius: 8))
             }
             .buttonStyle(.plain)
@@ -144,6 +163,19 @@ struct RemoteSkillCardView: View {
                 handleInstall()
             } label: {
                 Label("Install", systemImage: "arrow.down.circle")
+            }
+        }
+        
+        if let config = mcp.configuration {
+            Divider()
+            
+            if let command = config.command {
+                Button {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(command, forType: .string)
+                } label: {
+                    Label("Copy Command", systemImage: "doc.on.doc")
+                }
             }
         }
     }
@@ -172,3 +204,49 @@ struct RemoteSkillCardView: View {
     }
 }
 
+/// MCP 安装选择 Sheet
+private struct MCPInstallSheet: View {
+    let providers: [Provider]
+    let mcpName: String
+    let onInstall: (Provider) -> Void
+    
+    @Environment(\.dismiss) private var dismiss
+    
+    var body: some View {
+        VStack(spacing: 20) {
+            Text("Install '\(mcpName)' to...")
+                .font(.headline)
+            
+            List {
+                ForEach(providers) { provider in
+                    Button {
+                        onInstall(provider)
+                        dismiss()
+                    } label: {
+                        HStack {
+                            if !provider.iconName.isEmpty {
+                                Image(provider.iconName)
+                                    .resizable()
+                                    .frame(width: 24, height: 24)
+                            } else {
+                                Image(systemName: "folder")
+                                    .frame(width: 24, height: 24)
+                            }
+                            
+                            Text(provider.name)
+                            Spacer()
+                        }
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            
+            Button("Cancel") {
+                dismiss()
+            }
+            .keyboardShortcut(.cancelAction)
+        }
+        .padding()
+        .frame(width: 400, height: 500)
+    }
+}

@@ -1,6 +1,59 @@
 import SwiftUI
 import Observation
 import STJSON
+import TOML
+
+// MARK: - Codex MCP Config Models (shared)
+struct CodexMCPConfig: Codable {
+    var model: String?
+    var modelReasoningEffort: String?
+    var projects: [String: CodexProject]?
+    var notice: CodexNotice?
+    var mcpServers: [String: CodexMCPServer]?
+    
+    enum CodingKeys: String, CodingKey {
+        case model
+        case modelReasoningEffort = "model_reasoning_effort"
+        case projects
+        case notice
+        case mcpServers = "mcp_servers"
+    }
+}
+
+struct CodexProject: Codable {
+    var trustLevel: String?
+    
+    enum CodingKeys: String, CodingKey {
+        case trustLevel = "trust_level"
+    }
+}
+
+struct CodexNotice: Codable {
+    var modelMigrations: [String: String]?
+    
+    enum CodingKeys: String, CodingKey {
+        case modelMigrations = "model_migrations"
+    }
+}
+
+struct CodexMCPServer: Codable {
+    var url: String?
+    var command: String?
+    var args: [String]?
+    var env: [String: String]?
+    var enabled: Bool?
+}
+
+extension CodexMCPServer {
+    init(from mcp: MCP) {
+        let dict = mcp.json.value as? [String: Any] ?? [:]
+        url = dict["url"] as? String
+        command = dict["command"] as? String
+        args = dict["args"] as? [String]
+        env = dict["env"] as? [String: String]
+        enabled = dict["enabled"] as? Bool
+    }
+}
 
 /// Detail 区域 Grid 视图的 ViewModel
 @MainActor
@@ -26,7 +79,13 @@ final class ProviderDetailGridViewModel {
     var isLoading = false
     var errorMessage: String?
     var searchText: String = ""
-    var showingRemoteBrowser = false
+    var showingRemoteBrowser: RemoteBrowserType? = nil
+    
+    enum RemoteBrowserType: Identifiable {
+        case skill, workflow, mcp
+        
+        var id: Self { self }
+    }
     
     // Internals
     var repository: SkillRepository
@@ -123,21 +182,26 @@ final class ProviderDetailGridViewModel {
     
     // MARK: - Filtered Data
     
-    var filteredSkills: [Skill] {
-        let skills: [Skill]
-        if searchText.isEmpty {
-            skills = installedSkills
-        } else {
-            skills = installedSkills.filter { skill in
-                skill.name.localizedCaseInsensitiveContains(searchText) ||
-                skill.description.localizedCaseInsensitiveContains(searchText)
+    /// Generic filter helper using KeyPath
+    private func filtered<T>(_ items: [T], searchIn keyPaths: KeyPath<T, String>...) -> [T] {
+        guard !searchText.isEmpty else { return items }
+        return items.filter { item in
+            keyPaths.contains { keyPath in
+                item[keyPath: keyPath].localizedCaseInsensitiveContains(searchText)
             }
         }
-        
-        // Sort within each path, but we'll return a flat list if the view handles grouping,
-        // OR better return a structured dictionary.
-        // Given the request "support grouping by path", let's provide a grouped computed property.
-        return skills
+    }
+    
+    var filteredSkills: [Skill] {
+        filtered(installedSkills, searchIn: \.name, \.description)
+    }
+    
+    var filteredWorkflows: [WorkflowInfo] {
+        filtered(workflows, searchIn: \.name, \.description)
+    }
+    
+    var filteredMcps: [MCP] {
+        filtered(mcps, searchIn: \.name)
     }
     
     /// Grouped skills for the view, sorted by path (defaultSkillsPath first)
@@ -171,18 +235,15 @@ final class ProviderDetailGridViewModel {
         return result
     }
     
-    var filteredWorkflows: [WorkflowInfo] {
-        guard !searchText.isEmpty else { return workflows }
-        return workflows.filter { workflow in
-            workflow.name.localizedCaseInsensitiveContains(searchText) ||
-            workflow.description.localizedCaseInsensitiveContains(searchText)
-        }
-    }
+    // MARK: - Async Error Handling Helper
     
-    var filteredMcps: [MCP] {
-        guard !searchText.isEmpty else { return mcps }
-        return mcps.filter { mcp in
-            mcp.name.localizedCaseInsensitiveContains(searchText)
+    /// Generic async operation wrapper with automatic error handling and data reload
+    private func performAsync(_ operation: () async throws -> Void) async {
+        do {
+            try await operation()
+            await loadData()
+        } catch {
+            errorMessage = error.localizedDescription
         }
     }
     
@@ -194,29 +255,64 @@ final class ProviderDetailGridViewModel {
         }
         
         let configPath = template.defaultMcpConfigPath
-        guard FileManager.default.fileExists(atPath: configPath.path),
-              let data = try? Data(contentsOf: configPath),
-              let json = try? JSON(data: data) else {
+        guard FileManager.default.fileExists(atPath: configPath.path) else {
             mcps = []
             return
         }
         
-        // 1. Expand environment variables
-        let expandedJson = MCPConfigExpander.expand(json)
-        
-        // 2. Load enabled servers
-        if let servers = expandedJson["mcpServers"].dictionary {
+        if configPath.pathExtension.lowercased() == "toml" {
+            // Codex uses TOML config
+            guard let data = try? Data(contentsOf: configPath) else { mcps = []; return }
+            
+            // Empty file -> no servers
+            if data.isEmpty {
+                mcps = []
+                return
+            }
+            
+            guard let config = try? TOMLDecoder().decode(CodexMCPConfig.self, from: data),
+                  let servers = config.mcpServers else {
+                mcps = []
+                return
+            }
+            
             mcps = servers
-                .filter { key, value in
-                    // Skip disabled servers
-                    !(value["disabled"].bool ?? false)
-                }
-                .map { key, value in
-                    MCP(name: key, json: AnyCodable(value.object))
+                .filter { _, server in server.enabled ?? true }
+                .map { key, server in
+                    var dict: [String: Any] = [:]
+                    if let url = server.url { dict["url"] = url }
+                    if let command = server.command { dict["command"] = command }
+                    if let args = server.args { dict["args"] = args }
+                    if let env = server.env { dict["env"] = env }
+                    if let enabled = server.enabled { dict["enabled"] = enabled }
+                    return MCP(name: key, json: AnyCodable(dict))
                 }
                 .sorted { $0.name < $1.name }
         } else {
-            mcps = []
+            // Existing JSON workflow
+            guard let data = try? Data(contentsOf: configPath),
+                  let json = try? JSON(data: data) else {
+                mcps = []
+                return
+            }
+            
+            // 1. Expand environment variables
+            let expandedJson = MCPConfigExpander.expand(json)
+            
+            // 2. Load enabled servers
+            if let servers = expandedJson["mcpServers"].dictionary {
+                mcps = servers
+                    .filter { key, value in
+                        // Skip disabled servers
+                        !(value["disabled"].bool ?? false)
+                    }
+                    .map { key, value in
+                        MCP(name: key, json: AnyCodable(value.object))
+                    }
+                    .sorted { $0.name < $1.name }
+            } else {
+                mcps = []
+            }
         }
     }
     
@@ -252,34 +348,53 @@ final class ProviderDetailGridViewModel {
         
         let configPath = template.defaultMcpConfigPath
         
-        var json: JSON
-        if FileManager.default.fileExists(atPath: configPath.path),
-           let data = try? Data(contentsOf: configPath),
-           let fileJson = try? JSON(data: data) {
-            json = fileJson
+        if configPath.pathExtension.lowercased() == "toml" {
+            // For TOML config, we only support updating enabled flag and basic fields
+            guard FileManager.default.fileExists(atPath: configPath.path),
+                  let data = try? Data(contentsOf: configPath),
+                  var config = try? TOMLDecoder().decode(CodexMCPConfig.self, from: data)
+            else {
+                return
+            }
+            
+            if config.mcpServers == nil { config.mcpServers = [:] }
+            if let mcp = mcp {
+                config.mcpServers?[mcp.name] = CodexMCPServer(from: mcp)
+            }
+            
+            if let tomlData = try? TOMLEncoder().encode(config) {
+                try? tomlData.write(to: configPath)
+            }
         } else {
-            json = JSON([:])
-        }
-        
-        // 2. Ensure mcpServers object exists
-        if json["mcpServers"].dictionary == nil {
-            json["mcpServers"] = JSON([:])
-        }
-        
-        // 3. Update or delete
-        if let mcp = mcp {
-            // Add or Update
-            // Get mutable dictionary
-            var servers = json["mcpServers"].dictionaryValue
-            servers[mcp.name] = JSON(mcp.json.value)
-            json["mcpServers"] = JSON(servers)
-        } else {
-             // Handle delete logic here if extended
-        }
-        
-        // 4. Write back
-        if let str = json.rawString() {
-            try? str.write(to: configPath, atomically: true, encoding: .utf8)
+            var json: JSON
+            if FileManager.default.fileExists(atPath: configPath.path),
+               let data = try? Data(contentsOf: configPath),
+               let fileJson = try? JSON(data: data) {
+                json = fileJson
+            } else {
+                json = JSON([:])
+            }
+            
+            // 2. Ensure mcpServers object exists
+            if json["mcpServers"].dictionary == nil {
+                json["mcpServers"] = JSON([:])
+            }
+            
+            // 3. Update or delete
+            if let mcp = mcp {
+                // Add or Update
+                // Get mutable dictionary
+                var servers = json["mcpServers"].dictionaryValue
+                servers[mcp.name] = JSON(mcp.json.value)
+                json["mcpServers"] = JSON(servers)
+            } else {
+                 // Handle delete logic here if extended
+            }
+            
+            // 4. Write back
+            if let str = json.rawString() {
+                try? str.write(to: configPath, atomically: true, encoding: .utf8)
+            }
         }
         
         // 5. Reload
@@ -293,15 +408,31 @@ final class ProviderDetailGridViewModel {
          }
          
          let configPath = template.defaultMcpConfigPath
-         guard let data = try? Data(contentsOf: configPath),
-               var json = try? JSON(data: data) else { return }
          
-         var servers = json["mcpServers"].dictionaryValue
-         servers[name] = nil
-         json["mcpServers"] = JSON(servers)
-         
-         if let str = json.rawString() {
-             try? str.write(to: configPath, atomically: true, encoding: .utf8)
+         if configPath.pathExtension.lowercased() == "toml" {
+             guard
+                 let data = try? Data(contentsOf: configPath),
+                 var config = try? TOMLDecoder().decode(CodexMCPConfig.self, from: data),
+                 var servers = config.mcpServers
+             else { return }
+             
+             servers[name] = nil
+             config.mcpServers = servers
+             
+             if let tomlData = try? TOMLEncoder().encode(config) {
+                 try? tomlData.write(to: configPath)
+             }
+         } else {
+             guard let data = try? Data(contentsOf: configPath),
+                   var json = try? JSON(data: data) else { return }
+             
+             var servers = json["mcpServers"].dictionaryValue
+             servers[name] = nil
+             json["mcpServers"] = JSON(servers)
+             
+             if let str = json.rawString() {
+                 try? str.write(to: configPath, atomically: true, encoding: .utf8)
+             }
          }
          
          loadMCPs(for: provider)
@@ -349,11 +480,8 @@ final class ProviderDetailGridViewModel {
     
     func uninstallSkill(_ skill: Skill) async {
         guard let provider = provider else { return }
-        do {
+        await performAsync {
             try installer.uninstall(skill: skill, from: provider)
-            await loadData()
-        } catch {
-            errorMessage = error.localizedDescription
         }
     }
     
@@ -403,12 +531,8 @@ final class ProviderDetailGridViewModel {
     
     func migrateSkill(_ skill: Skill) async {
         guard let provider = provider else { return }
-        
-        do {
+        await performAsync {
             _ = try installer.migrate(skillName: skill.id, from: provider, overwriteExisting: false)
-            await loadData()
-        } catch {
-            errorMessage = error.localizedDescription
         }
     }
     
@@ -451,7 +575,7 @@ final class ProviderDetailGridViewModel {
     }
     
     func installRemoteSkill(_ skill: RemoteSkill, to provider: Provider) async {
-        do {
+        await performAsync {
             if let localPath = skill.localPath {
                 try installer.installLocal(from: localPath, slug: skill.slug, to: provider)
             } else {
@@ -459,9 +583,30 @@ final class ProviderDetailGridViewModel {
                     slug: skill.slug, version: skill.latestVersion?.version)
                 try installer.installRemote(zipURL: zipURL, slug: skill.slug, to: provider)
             }
-            await loadData()
-        } catch {
-            errorMessage = error.localizedDescription
+        }
+    }
+    
+    func installRemoteWorkflow(_ workflow: RemoteWorkflow, to provider: Provider) async {
+        await performAsync {
+            if let localPath = workflow.localPath {
+                try installer.installLocalWorkflow(
+                    fileURL: URL(fileURLWithPath: localPath),
+                    slug: workflow.slug,
+                    to: provider
+                )
+            } else {
+                let fileURL = try await ClawdhubService.shared.downloadWorkflow(
+                    slug: workflow.slug,
+                    version: workflow.latestVersion?.version
+                )
+                try installer.installRemoteWorkflow(fileURL: fileURL, slug: workflow.slug, to: provider)
+            }
+        }
+    }
+    
+    func installRemoteMCP(_ mcp: RemoteMCP, to provider: Provider) async {
+        await performAsync {
+            try installer.installRemoteMCP(mcp, to: provider)
         }
     }
 }

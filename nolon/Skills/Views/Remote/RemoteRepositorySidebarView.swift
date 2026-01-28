@@ -145,13 +145,16 @@ struct RemoteRepositorySidebarView: View {
     @State private var viewModel = RemoteRepositorySidebarViewModel()
     
     var body: some View {
+        let repos = sortedRepositories(settings.remoteRepositories)
         List(selection: $selectedRepository) {
             Section {
-                ForEach(settings.remoteRepositories) { repo in
+                ForEach(repos) { repo in
                     repositoryRow(repo)
                         .tag(repo)
                 }
-                .onDelete(perform: deleteRepository)
+                .onDelete { offsets in
+                    deleteRepositories(offsets, in: repos)
+                }
             } header: {
                 Text("Repositories")
             }
@@ -205,7 +208,7 @@ struct RemoteRepositorySidebarView: View {
         }
         .onAppear {
             if selectedRepository == nil {
-                selectedRepository = settings.remoteRepositories.first
+                selectedRepository = repos.first
             }
             // Check for pending import immediately on appear
             print("[RemoteRepositorySidebarView] onAppear - pendingImportURL: \(settings.pendingImportURL ?? "nil")")
@@ -312,9 +315,10 @@ struct RemoteRepositorySidebarView: View {
         .background(Color(nsColor: .controlBackgroundColor))
     }
     
-    private func deleteRepository(at offsets: IndexSet) {
+    private func deleteRepositories(_ offsets: IndexSet, in repos: [RemoteRepository]) {
         for index in offsets {
-            let repo = settings.remoteRepositories[index]
+            guard index < repos.count else { continue }
+            let repo = repos[index]
             if !repo.isBuiltIn {
                 settings.removeRemoteRepository(repo)
             }
@@ -323,6 +327,18 @@ struct RemoteRepositorySidebarView: View {
 }
 
 // MARK: - Token Input Sheet
+
+/// 排序规则：全局技能仓库放在最前，其余保持原有顺序
+private func sortedRepositories(_ repos: [RemoteRepository]) -> [RemoteRepository] {
+    repos.enumerated()
+        .sorted { lhs, rhs in
+            let lKey = lhs.element.templateType == .globalSkills ? 0 : 1
+            let rKey = rhs.element.templateType == .globalSkills ? 0 : 1
+            if lKey != rKey { return lKey < rKey }
+            return lhs.offset < rhs.offset
+        }
+        .map { $0.element }
+}
 
 struct TokenInputSheet: View {
     @Binding var isPresented: Bool

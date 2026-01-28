@@ -1,8 +1,8 @@
 import SwiftUI
 
-/// 远程技能卡片视图 - Grid 布局中的卡片
-struct RemoteSkillCardView: View {
-    let skill: RemoteSkill
+/// 远程 Workflow 卡片视图 - Grid 布局中的卡片
+struct RemoteWorkflowCardView: View {
+    let workflow: RemoteWorkflow
     let isInstalled: Bool
     let targetProvider: Provider?
     let providers: [Provider]
@@ -17,17 +17,17 @@ struct RemoteSkillCardView: View {
             // 1. Header: Name + Version Badge | More Menu
             HStack(alignment: .center) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(skill.displayName)
+                    Text(workflow.displayName)
                         .font(.headline)
                         .lineLimit(1)
                     
-                    if let version = skill.latestVersion {
+                    if let version = workflow.latestVersion {
                         Text(version.version)
                             .font(.system(size: 10, weight: .bold))
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
-                            .background(Color.accentColor.opacity(0.15))
-                            .foregroundStyle(Color.accentColor)
+                            .background(Color.orange.opacity(0.15))
+                            .foregroundStyle(Color.orange)
                             .clipShape(Capsule())
                     }
                 }
@@ -38,7 +38,7 @@ struct RemoteSkillCardView: View {
             }
             
             // 2. Description 区
-            if let summary = skill.summary {
+            if let summary = workflow.summary {
                 Text(summary)
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -52,11 +52,14 @@ struct RemoteSkillCardView: View {
             HStack(alignment: .center) {
                 // Left: Stats
                 HStack(spacing: 8) {
-                    if let stars = skill.stats?.stars {
+                    if let stars = workflow.stats?.stars {
                         Label("\(stars)", systemImage: "star.fill")
                             .foregroundStyle(.yellow)
                     }
-                    if let downloads = skill.stats?.downloads {
+                    if let usages = workflow.stats?.usages {
+                        Label("\(usages)", systemImage: "arrow.triangle.branch")
+                    }
+                    if let downloads = workflow.stats?.downloads {
                         Label("\(downloads)", systemImage: "arrow.down.circle")
                     }
                 }
@@ -87,7 +90,7 @@ struct RemoteSkillCardView: View {
             contextMenuItems
         }
         .sheet(isPresented: $showingInstallSheet) {
-            SkillInstallSheet(providers: providers, skillName: skill.displayName) { provider in
+            WorkflowInstallSheet(providers: providers, workflowName: workflow.displayName) { provider in
                 onInstall(provider)
             }
         }
@@ -121,8 +124,8 @@ struct RemoteSkillCardView: View {
                 .fontWeight(.bold)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 6)
-                .background(Color.accentColor.opacity(0.1))
-                .foregroundStyle(Color.accentColor)
+                .background(Color.orange.opacity(0.1))
+                .foregroundStyle(Color.orange)
                 .clipShape(RoundedRectangle(cornerRadius: 8))
             }
             .buttonStyle(.plain)
@@ -172,3 +175,49 @@ struct RemoteSkillCardView: View {
     }
 }
 
+/// Workflow 安装选择 Sheet
+private struct WorkflowInstallSheet: View {
+    let providers: [Provider]
+    let workflowName: String
+    let onInstall: (Provider) -> Void
+    
+    @Environment(\.dismiss) private var dismiss
+    
+    var body: some View {
+        VStack(spacing: 20) {
+            Text("Install '\(workflowName)' to...")
+                .font(.headline)
+            
+            List {
+                ForEach(providers) { provider in
+                    Button {
+                        onInstall(provider)
+                        dismiss()
+                    } label: {
+                        HStack {
+                            if !provider.iconName.isEmpty {
+                                Image(provider.iconName)
+                                    .resizable()
+                                    .frame(width: 24, height: 24)
+                            } else {
+                                Image(systemName: "folder")
+                                    .frame(width: 24, height: 24)
+                            }
+                            
+                            Text(provider.name)
+                            Spacer()
+                        }
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            
+            Button("Cancel") {
+                dismiss()
+            }
+            .keyboardShortcut(.cancelAction)
+        }
+        .padding()
+        .frame(width: 400, height: 500)
+    }
+}

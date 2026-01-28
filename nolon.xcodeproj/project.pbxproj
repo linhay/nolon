@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		CD447BF32F1F79890056366B /* MarkdownUI in Frameworks */ = {isa = PBXBuildFile; productRef = CD447BF22F1F79890056366B /* MarkdownUI */; };
 		CD447BF62F1F79890056366B /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = CD447BF52F1F79890056366B /* Sparkle */; };
+		CD702B9F2F29FBC700E22535 /* TOML in Frameworks */ = {isa = PBXBuildFile; productRef = CD702B9E2F29FBC700E22535 /* TOML */; };
 		CD9ECB202F21F6C0009248CB /* SwiftGit in Frameworks */ = {isa = PBXBuildFile; productRef = CD9ECB1F2F21F6C0009248CB /* SwiftGit */; };
 		CD9EDAC52F2320BC009248CB /* SwiftGit in Frameworks */ = {isa = PBXBuildFile; productRef = CD9EDAC42F2320BC009248CB /* SwiftGit */; };
 		CD9EDB742F23D2BE009248CB /* STJSON in Frameworks */ = {isa = PBXBuildFile; productRef = CD9EDB732F23D2BE009248CB /* STJSON */; };
@@ -52,6 +53,7 @@
 				CD447BF32F1F79890056366B /* MarkdownUI in Frameworks */,
 				CD9ECB202F21F6C0009248CB /* SwiftGit in Frameworks */,
 				CD9EDB742F23D2BE009248CB /* STJSON in Frameworks */,
+				CD702B9F2F29FBC700E22535 /* TOML in Frameworks */,
 				CD9EE2702F2677A0009248CB /* Yams in Frameworks */,
 				CD447BF62F1F79890056366B /* Sparkle in Frameworks */,
 			);
@@ -111,6 +113,7 @@
 				CD9EDB732F23D2BE009248CB /* STJSON */,
 				CD447BF52F1F79890056366B /* Sparkle */,
 				CD9EE26F2F2677A0009248CB /* Yams */,
+				CD702B9E2F29FBC700E22535 /* TOML */,
 			);
 			productName = nolon;
 			productReference = CD2B1A922F1F624900DF4A2B /* nolon.app */;
@@ -174,6 +177,7 @@
 				CD9EDB722F23D2BE009248CB /* XCRemoteSwiftPackageReference "STJSON" */,
 				CD447BF42F1F79890056366B /* XCRemoteSwiftPackageReference "Sparkle" */,
 				CD9EE26E2F2677A0009248CB /* XCRemoteSwiftPackageReference "Yams" */,
+				CD702B9D2F29FBC700E22535 /* XCRemoteSwiftPackageReference "swift-toml" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = CD2B1A932F1F624900DF4A2B /* Products */;
@@ -520,6 +524,14 @@
 				kind = branch;
 			};
 		};
+		CD702B9D2F29FBC700E22535 /* XCRemoteSwiftPackageReference "swift-toml" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "git@github.com:alexey1312/swift-toml.git";
+			requirement = {
+				branch = "feat/pure-c-bridge-v2";
+				kind = branch;
+			};
+		};
 		CD9EDAC32F2320BC009248CB /* XCRemoteSwiftPackageReference "swift-git" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/linhay/swift-git";
@@ -556,6 +568,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = CD447BF42F1F79890056366B /* XCRemoteSwiftPackageReference "Sparkle" */;
 			productName = Sparkle;
+		};
+		CD702B9E2F29FBC700E22535 /* TOML */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = CD702B9D2F29FBC700E22535 /* XCRemoteSwiftPackageReference "swift-toml" */;
+			productName = TOML;
 		};
 		CD9ECB1F2F21F6C0009248CB /* SwiftGit */ = {
 			isa = XCSwiftPackageProductDependency;

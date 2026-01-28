@@ -1,6 +1,6 @@
 import Foundation
 
-nonisolated public struct RemoteSkill: Decodable, Identifiable, Hashable, Sendable, RemoteItem {
+nonisolated public struct RemoteWorkflow: Decodable, Identifiable, Hashable, Sendable, RemoteItem {
     nonisolated public var id: String { slug }
     public let slug: String
     public let displayName: String
@@ -8,35 +8,24 @@ nonisolated public struct RemoteSkill: Decodable, Identifiable, Hashable, Sendab
     public let updatedAt: TimeInterval
     public let latestVersion: LatestVersion?
     public let stats: Stats?
-    
-    /// Local path for skills from local folder or GitHub repositories
     public let localPath: String?
-
+    
     public struct Stats: Decodable, Hashable, Sendable {
-        public let comments: Int?
         public let downloads: Int?
-        public let installsAllTime: Int?
-        public let installsCurrent: Int?
         public let stars: Int?
-        public let versions: Int?
+        public let usages: Int?
 
         nonisolated public init(
-            comments: Int? = nil,
             downloads: Int? = nil,
-            installsAllTime: Int? = nil,
-            installsCurrent: Int? = nil,
             stars: Int? = nil,
-            versions: Int? = nil
+            usages: Int? = nil
         ) {
-            self.comments = comments
             self.downloads = downloads
-            self.installsAllTime = installsAllTime
-            self.installsCurrent = installsCurrent
             self.stars = stars
-            self.versions = versions
+            self.usages = usages
         }
     }
-
+    
     public struct LatestVersion: Decodable, Hashable, Sendable {
         public let version: String
         public let createdAt: TimeInterval
@@ -48,8 +37,7 @@ nonisolated public struct RemoteSkill: Decodable, Identifiable, Hashable, Sendab
             self.changelog = changelog
         }
     }
-
-    /// Memberwise initializer for creating RemoteSkill from API response or local scan
+    
     nonisolated public init(
         slug: String,
         displayName: String,
@@ -58,6 +46,7 @@ nonisolated public struct RemoteSkill: Decodable, Identifiable, Hashable, Sendab
         updatedAt: Date?,
         downloads: Int?,
         stars: Int?,
+        usages: Int? = nil,
         localPath: String? = nil
     ) {
         self.slug = slug
@@ -65,22 +54,9 @@ nonisolated public struct RemoteSkill: Decodable, Identifiable, Hashable, Sendab
         self.summary = summary
         self.updatedAt = updatedAt?.timeIntervalSince1970 ?? Date().timeIntervalSince1970
         self.latestVersion = latestVersion.map { LatestVersion(version: $0) }
-        self.stats =
-            (downloads != nil || stars != nil)
-            ? Stats(downloads: downloads, stars: stars)
+        self.stats = (downloads != nil || stars != nil || usages != nil)
+            ? Stats(downloads: downloads, stars: stars, usages: usages)
             : nil
         self.localPath = localPath
-    }
-}
-
-public struct RemoteSkillDetail: Decodable, Sendable {
-    nonisolated public let skill: RemoteSkill
-    nonisolated public let latestVersion: RemoteSkill.LatestVersion?
-    nonisolated public let owner: Owner?
-
-    public struct Owner: Decodable, Sendable {
-        public let handle: String?
-        public let displayName: String?
-        public let image: String?
     }
 }

@@ -8,6 +8,7 @@ final class RemoteSkillsBrowserViewModel {
     var searchText = ""
     var columnVisibility: NavigationSplitViewVisibility = .all
     var installedSlugs: Set<String> = []
+    var installedWorkflowSlugs: Set<String> = []
     var refreshTrigger: Int = 0
     
     /// 刷新已安装技能列表
@@ -42,6 +43,39 @@ final class RemoteSkillsBrowserViewModel {
         }
     }
 
+    /// 刷新已安装 workflow 列表（仅针对目标 Provider）
+    @MainActor
+    func refreshInstalledWorkflows(targetProvider: Provider?) {
+        guard let provider = targetProvider else {
+            installedWorkflowSlugs = []
+            return
+        }
+
+        let path = provider.workflowPath
+        let url = URL(fileURLWithPath: path)
+
+        guard FileManager.default.fileExists(atPath: path) else {
+            installedWorkflowSlugs = []
+            return
+        }
+
+        do {
+            let contents = try FileManager.default.contentsOfDirectory(
+                at: url,
+                includingPropertiesForKeys: nil,
+                options: [.skipsHiddenFiles]
+            )
+
+            installedWorkflowSlugs = Set(
+                contents
+                    .filter { $0.pathExtension == "md" }
+                    .map { $0.deletingPathExtension().lastPathComponent }
+            )
+        } catch {
+            installedWorkflowSlugs = []
+        }
+    }
+
     /// 根据搜索文本过滤技能
     func filterSkills(_ skills: [RemoteSkill]) -> [RemoteSkill] {
         if searchText.isEmpty {
@@ -65,15 +99,32 @@ struct RemoteSkillsBrowserView: View {
     let repository: SkillRepository
     let targetProvider: Provider?
     let onInstall: (RemoteSkill, Provider) -> Void
+    let onInstallWorkflow: ((RemoteWorkflow, Provider) -> Void)?
+    let onInstallMCP: ((RemoteMCP, Provider) -> Void)?
     
     @State private var viewModel = RemoteSkillsBrowserViewModel()
     @Environment(\.dismiss) private var dismiss
     
-    init(settings: ProviderSettings, repository: SkillRepository, targetProvider: Provider? = nil, onInstall: @escaping (RemoteSkill, Provider) -> Void) {
+    init(
+        settings: ProviderSettings,
+        repository: SkillRepository,
+        targetProvider: Provider? = nil,
+        selectedTab: RemoteContentTabType? = .skills,
+        onInstall: @escaping (RemoteSkill, Provider) -> Void,
+        onInstallWorkflow: ((RemoteWorkflow, Provider) -> Void)? = nil,
+        onInstallMCP: ((RemoteMCP, Provider) -> Void)? = nil
+    ) {
         self.settings = settings
         self.repository = repository
         self.targetProvider = targetProvider
         self.onInstall = onInstall
+        self.onInstallWorkflow = onInstallWorkflow
+        self.onInstallMCP = onInstallMCP
+        self._viewModel = State(initialValue: {
+            var vm = RemoteSkillsBrowserViewModel()
+            vm.selectedTab = selectedTab
+            return vm
+        }())
     }
     
     var body: some View {
@@ -98,6 +149,7 @@ struct RemoteSkillsBrowserView: View {
                 selectedTab: viewModel.selectedTab,
                 searchText: viewModel.searchText, // 传入搜索文本
                 installedSlugs: viewModel.installedSlugs,
+                installedWorkflowSlugs: viewModel.installedWorkflowSlugs,
                 providers: settings.providers,
                 refreshTrigger: viewModel.refreshTrigger,
                 targetProvider: targetProvider,
@@ -106,6 +158,21 @@ struct RemoteSkillsBrowserView: View {
                     // Refresh after install attempt
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                         viewModel.refreshInstalledSkills(repository: repository, targetProvider: targetProvider, settings: settings)
+                        viewModel.refreshTrigger += 1
+                    }
+                },
+                onInstallWorkflow: { workflow, provider in
+                    onInstallWorkflow?(workflow, provider)
+                    // Refresh after install attempt
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                        viewModel.refreshInstalledWorkflows(targetProvider: targetProvider)
+                        viewModel.refreshTrigger += 1
+                    }
+                },
+                onInstallMCP: { mcp, provider in
+                    onInstallMCP?(mcp, provider)
+                    // Refresh after install attempt
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                         viewModel.refreshTrigger += 1
                     }
                 }
@@ -122,6 +189,7 @@ struct RemoteSkillsBrowserView: View {
             ToolbarItem(placement: .automatic) {
                 Button {
                     viewModel.refreshInstalledSkills(repository: repository, targetProvider: targetProvider, settings: settings)
+                    viewModel.refreshInstalledWorkflows(targetProvider: targetProvider)
                     viewModel.refreshTrigger += 1
                 } label: {
                     Image(systemName: "arrow.clockwise")
@@ -131,6 +199,7 @@ struct RemoteSkillsBrowserView: View {
         }
         .onAppear {
             viewModel.refreshInstalledSkills(repository: repository, targetProvider: targetProvider, settings: settings)
+            viewModel.refreshInstalledWorkflows(targetProvider: targetProvider)
         }
         .frame(minHeight: 700, maxHeight: .infinity)
     }
@@ -140,10 +209,10 @@ struct RemoteSkillsBrowserView: View {
     RemoteSkillsBrowserView(
         settings: ProviderSettings(),
         repository: SkillRepository(),
+        selectedTab: .skills,
         onInstall: { skill, provider in
             print("Install \(skill.displayName) to \(provider.name)")
         }
     )
     .frame(width: 900, height: 600)
 }
-

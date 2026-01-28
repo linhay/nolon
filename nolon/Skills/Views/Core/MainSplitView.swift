@@ -55,6 +55,83 @@ final class MainSplitViewModel {
     }
     
     @MainActor
+    func installRemoteWorkflow(_ workflow: RemoteWorkflow, to provider: Provider) async {
+        do {
+            let resourceInstaller = ResourceInstaller(globalCache: GlobalCacheRepository())
+
+            if let localPath = workflow.localPath {
+                guard let installer else { return }
+                print("Installing workflow from local path: \(localPath)")
+                try installer.installLocalWorkflow(
+                    fileURL: URL(fileURLWithPath: localPath),
+                    slug: workflow.slug,
+                    to: provider
+                )
+                print("Successfully installed workflow \(workflow.slug) from local path")
+            } else {
+                // Download from remote repository and install
+                let clawdhubRepo = ClawdhubRepository(
+                    repository: settings.remoteRepositories.first { $0.templateType == .clawdhub }
+                        ?? RepositoryTemplate.clawdhub.createRepository()
+                )
+                
+                try await resourceInstaller.installFromRemote(
+                    repository: clawdhubRepo,
+                    resourceSlug: workflow.slug,
+                    resourceType: .workflow,
+                    to: provider
+                )
+                print("Successfully installed workflow \(workflow.slug) to \(provider.name)")
+            }
+            
+            // Trigger refresh immediately after install
+            refreshTrigger += 1
+        } catch {
+            print("Failed to install workflow: \(error)")
+            // Ideally show an alert here
+        }
+    }
+    
+    @MainActor
+    func installRemoteMCP(_ mcp: RemoteMCP, to provider: Provider) async {
+        do {
+            let resourceInstaller = ResourceInstaller(globalCache: GlobalCacheRepository())
+            
+            if let localPath = mcp.localPath {
+                // Install from local path (GitHub or Local Folder)
+                print("Installing MCP from local path: \(localPath)")
+                try await resourceInstaller.installFromLocal(
+                    resourceURL: URL(fileURLWithPath: localPath),
+                    resourceSlug: mcp.slug,
+                    resourceType: .mcp,
+                    to: provider
+                )
+                print("Successfully installed MCP \(mcp.slug) from local path")
+            } else {
+                // Download from remote repository and install
+                let clawdhubRepo = ClawdhubRepository(
+                    repository: settings.remoteRepositories.first { $0.templateType == .clawdhub }
+                        ?? RepositoryTemplate.clawdhub.createRepository()
+                )
+                
+                try await resourceInstaller.installFromRemote(
+                    repository: clawdhubRepo,
+                    resourceSlug: mcp.slug,
+                    resourceType: .mcp,
+                    to: provider
+                )
+                print("Successfully installed MCP \(mcp.slug) to \(provider.name)")
+            }
+            
+            // Trigger refresh immediately after install
+            refreshTrigger += 1
+        } catch {
+            print("Failed to install MCP: \(error)")
+            // Ideally show an alert here
+        }
+    }
+    
+    @MainActor
     func onClawdhubDismissed() {
         refreshTrigger += 1
     }
@@ -121,10 +198,21 @@ public struct MainSplitView: View {
             RemoteSkillsBrowserView(
                 settings: viewModel.settings,
                 repository: viewModel.repository,
-                targetProvider: viewModel.selectedProvider, // Pass current provider
+                targetProvider: viewModel.selectedProvider,
+                selectedTab: .skills,
                 onInstall: { skill, provider in
                     Task {
                         await viewModel.installRemoteSkill(skill, to: provider)
+                    }
+                },
+                onInstallWorkflow: { workflow, provider in
+                    Task {
+                        await viewModel.installRemoteWorkflow(workflow, to: provider)
+                    }
+                },
+                onInstallMCP: { mcp, provider in
+                    Task {
+                        await viewModel.installRemoteMCP(mcp, to: provider)
                     }
                 }
             )

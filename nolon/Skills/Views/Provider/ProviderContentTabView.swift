@@ -1,5 +1,19 @@
 import SwiftUI
 import STJSON
+import TOML
+
+// Minimal TOML model for Codex-style config.toml
+private struct CodexMCPConfigLite: Codable {
+    var mcpServers: [String: CodexMCPServerLite]?
+    
+    enum CodingKeys: String, CodingKey {
+        case mcpServers = "mcp_servers"
+    }
+}
+
+private struct CodexMCPServerLite: Codable {
+    var enabled: Bool?
+}
 
 /// Provider 内容 Tab 类型
 enum ProviderContentTabType: String, CaseIterable, Identifiable {
@@ -84,13 +98,33 @@ final class ProviderContentTabViewModel {
         if let templateId = provider.templateId,
            let template = ProviderTemplate(rawValue: templateId) {
             let configPath = template.defaultMcpConfigPath
-            if FileManager.default.fileExists(atPath: configPath.path),
-               let data = try? Data(contentsOf: configPath),
-               let json = try? JSON(data: data),
-               let servers = json["mcpServers"].dictionary {
-                mcpCount = servers.count
-            } else {
+            guard FileManager.default.fileExists(atPath: configPath.path) else {
                 mcpCount = 0
+                return
+            }
+            
+            if configPath.pathExtension.lowercased() == "toml" {
+                guard let data = try? Data(contentsOf: configPath),
+                      !data.isEmpty,
+                      let decoded = try? TOMLDecoder().decode(CodexMCPConfigLite.self, from: data),
+                      let servers = decoded.mcpServers
+                else {
+                    mcpCount = 0
+                    return
+                }
+                // Treat missing `enabled` as enabled (Codex default behavior)
+                mcpCount = servers.values.filter { $0.enabled ?? true }.count
+            } else {
+                guard let data = try? Data(contentsOf: configPath),
+                      let json = try? JSON(data: data),
+                      let servers = json["mcpServers"].dictionary
+                else {
+                    mcpCount = 0
+                    return
+                }
+                
+                // Keep consistent with ProviderDetailGridViewModel: skip disabled servers
+                mcpCount = servers.values.filter { !($0["disabled"].bool ?? false) }.count
             }
         } else {
             mcpCount = 0
@@ -146,6 +180,12 @@ struct ProviderContentTabView: View {
         }
         .task(id: "\(provider?.id ?? "")-\(refreshTrigger)") {
             await viewModel.loadCounts(for: provider)
+        }
+        .onChange(of: selectedTab) { _, _ in
+            Task { await viewModel.loadCounts(for: provider) }
+        }
+        .onChange(of: refreshTrigger) { _, _ in
+            Task { await viewModel.loadCounts(for: provider) }
         }
         .navigationSplitViewColumnWidth(min: 160, ideal: 180, max: 200)
     }

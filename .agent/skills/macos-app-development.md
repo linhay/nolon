@@ -24,7 +24,17 @@
 ### 3. UI 状态同步
 - **防止 @State 缓存**: 
     - SwiftUI 内部的 `@State` 在视图重用或场景重绘时可能保留旧值。
-    - 在 Sheet 或弹窗中，务必在 `.onAppear` 中显式调用 ViewModel 的刷新方法，确保读取到最新的全局状态（如刚刚接收到的 `pendingImportURL`）。
+    - 在 Sheet 或弹窗中，务必在 `.onAppear` 中显式调用 ViewModel 的刷新方法，确保读取到最新的全局状态。
+
+### 4. 异步任务与错误处理
+- **使用 `.task(id:)` 处理重载**: 依赖某个状态（如 `repository`）加载数据时，优先使用 `.task(id: someState)`。它会自动管理任务生命周期（取消旧任务，启动新任务）。
+- **忽略取消错误**: 在异步加载函数中，务必捕获并静默忽略 `CancellationError` 和码为 `.cancelled` 的 `URLError`。禁止将这类错误显示在 UI 上。
+
+### 5. UI 模式一致性 (Premium UX)
+- **卡片风格统一**: 所有的 Grid 卡片（如 `WorkflowCardView`, `McpServerCard`）应遵循统一规范：
+    - `VStack(alignment: .leading, spacing: 12)` 布局，`padding(16)`。
+    - 交互：添加 `@State private var isHovered = false`，实现 `scaleEffect` (1.02) 和阴影增强。
+    - 结构：Header (标题+Badge)、Description (最大高度占据剩余空间)、Footer (状态信息+操作按钮)。
 
 ## 禁令 (Don't)
 - 禁止在 `WindowGroup` 上匹配通配符 `"*"`，这在 macOS 上极易导致重复窗口。

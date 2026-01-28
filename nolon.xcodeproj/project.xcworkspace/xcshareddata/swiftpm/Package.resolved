@@ -1,5 +1,5 @@
 {
-  "originHash" : "4bbde5aca0763a4d3d6de8c3acdcb446996e4f116404c5c5a971fb8327276066",
+  "originHash" : "153efd61f3da90d0d85305e321b39ce47cb4a5d64d4726fdc2f893a215f46b18",
   "pins" : [
     {
       "identity" : "networkimage",
@@ -62,6 +62,15 @@
       "state" : {
         "revision" : "5f613358148239d0292c0cef674a3c2314737f9e",
         "version" : "2.4.1"
+      }
+    },
+    {
+      "identity" : "swift-toml",
+      "kind" : "remoteSourceControl",
+      "location" : "git@github.com:alexey1312/swift-toml.git",
+      "state" : {
+        "branch" : "feat/pure-c-bridge-v2",
+        "revision" : "6629ace8131fc81a32cf001fa4b05ebde4cc33ce"
       }
     },
     {
