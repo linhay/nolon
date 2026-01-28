@@ -1,5 +1,5 @@
 {
-  "originHash" : "153efd61f3da90d0d85305e321b39ce47cb4a5d64d4726fdc2f893a215f46b18",
+  "originHash" : "2df77640a549bea7b52299653eb02838d8da6b05fe09b513619216147bd9f5f9",
   "pins" : [
     {
       "identity" : "networkimage",
@@ -24,8 +24,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/linhay/STFilePath.git",
       "state" : {
-        "revision" : "cb273a95cfbdbf6ddcaa060ae918a52eec42edce",
-        "version" : "1.2.6"
+        "revision" : "3e3fc12e3e8b4efe0dde3e771a8f119ec1f49f50",
+        "version" : "1.3.0"
       }
     },
     {

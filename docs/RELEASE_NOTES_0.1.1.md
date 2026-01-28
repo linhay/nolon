@@ -1,4 +1,4 @@
-# Nolon v0.2.0 Release Notes
+## Nolon v0.2.0 Release Notes
 
 ## 🎯 重大架构重构
 
@@ -129,7 +129,7 @@
 
 ---
 
-# Nolon v0.1.1 Release Notes
+## Nolon v0.1.1 Release Notes
 
 ## 核心改进与修复
 

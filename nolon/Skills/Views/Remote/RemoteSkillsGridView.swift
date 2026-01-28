@@ -13,6 +13,22 @@ final class RemoteSkillsGridViewModel {
     var selectedSkillForDetail: RemoteSkill?
     var selectedWorkflowForDetail: RemoteWorkflow?
     var selectedMCPForDetail: RemoteMCP?
+
+    private struct CacheKey: Hashable {
+        let repositoryID: String
+        let tab: RemoteContentTabType
+    }
+
+    private struct CacheEntry {
+        var skills: [RemoteSkill] = []
+        var workflows: [RemoteWorkflow] = []
+        var mcps: [RemoteMCP] = []
+        var errorMessage: String?
+        var cacheBuster: String
+    }
+
+    private var cache: [CacheKey: CacheEntry] = [:]
+    private var currentLoadID: UUID?
     
     // 过滤逻辑现在在这里
     func filteredSkills(searchText: String) -> [RemoteSkill] {
@@ -48,17 +64,41 @@ final class RemoteSkillsGridViewModel {
         }
     }
     
-    func loadContent(for repository: RemoteRepository?, tab: RemoteContentTabType?) async {
+    func loadContent(for repository: RemoteRepository?, tab: RemoteContentTabType?, cacheBuster: String) async {
         guard let repository = repository, let tab = tab else {
             skills = []
             workflows = []
             mcps = []
+            errorMessage = nil
+            isLoading = false
+            currentLoadID = nil
             return
         }
-        
-        // 切换仓库时立即清空旧数据，确保每个仓库显示独立的数据
-        isLoading = true
+
+        let cacheKey = CacheKey(repositoryID: repository.id, tab: tab)
+        let loadID = UUID()
+        currentLoadID = loadID
+
+        if let cached = cache[cacheKey] {
+            applyCached(cached, for: tab)
+            // cacheBuster 相同 → 直接使用缓存，不再重复加载
+            if cached.cacheBuster == cacheBuster {
+                return
+            }
+        } else {
+            clearAllContent()
+        }
+
+        // 切换仓库/Tab 或手动刷新时：清空旧错误，避免展示上一个仓库的错误
         errorMessage = nil
+        isLoading = true
+
+        defer {
+            // 仅当本次任务仍然是最新请求时才落地 isLoading，避免竞态覆盖
+            if currentLoadID == loadID {
+                isLoading = false
+            }
+        }
         
         do {
             switch repository.templateType {
@@ -66,11 +106,20 @@ final class RemoteSkillsGridViewModel {
                 let repo = ClawdhubRepository(repository: repository)
                 switch tab {
                 case .skills:
-                    skills = try await repo.fetchSkills(query: nil, limit: 20)
+                    let result = try await repo.fetchSkills(query: nil, limit: 20)
+                    guard currentLoadID == loadID else { return }
+                    skills = result
+                    cache[cacheKey] = CacheEntry(skills: result, workflows: [], mcps: [], errorMessage: nil, cacheBuster: cacheBuster)
                 case .workflows:
-                    workflows = try await repo.fetchWorkflows(query: nil, limit: 20)
+                    let result = try await repo.fetchWorkflows(query: nil, limit: 20)
+                    guard currentLoadID == loadID else { return }
+                    workflows = result
+                    cache[cacheKey] = CacheEntry(skills: [], workflows: result, mcps: [], errorMessage: nil, cacheBuster: cacheBuster)
                 case .mcps:
-                    mcps = try await repo.fetchMCPs(query: nil, limit: 20)
+                    let result = try await repo.fetchMCPs(query: nil, limit: 20)
+                    guard currentLoadID == loadID else { return }
+                    mcps = result
+                    cache[cacheKey] = CacheEntry(skills: [], workflows: [], mcps: result, errorMessage: nil, cacheBuster: cacheBuster)
                 }
                 
             case .globalSkills:
@@ -79,11 +128,20 @@ final class RemoteSkillsGridViewModel {
                 
                 switch tab {
                 case .skills:
-                    skills = try await cacheRepo.fetchSkills(query: nil, limit: 100)
+                    let result = try await cacheRepo.fetchSkills(query: nil, limit: 100)
+                    guard currentLoadID == loadID else { return }
+                    skills = result
+                    cache[cacheKey] = CacheEntry(skills: result, workflows: [], mcps: [], errorMessage: nil, cacheBuster: cacheBuster)
                 case .workflows:
-                    workflows = try await cacheRepo.fetchWorkflows(query: nil, limit: 100)
+                    let result = try await cacheRepo.fetchWorkflows(query: nil, limit: 100)
+                    guard currentLoadID == loadID else { return }
+                    workflows = result
+                    cache[cacheKey] = CacheEntry(skills: [], workflows: result, mcps: [], errorMessage: nil, cacheBuster: cacheBuster)
                 case .mcps:
-                    mcps = try await cacheRepo.fetchMCPs(query: nil, limit: 100)
+                    let result = try await cacheRepo.fetchMCPs(query: nil, limit: 100)
+                    guard currentLoadID == loadID else { return }
+                    mcps = result
+                    cache[cacheKey] = CacheEntry(skills: [], workflows: [], mcps: result, errorMessage: nil, cacheBuster: cacheBuster)
                 }
                 
             case .localFolder, .git:
@@ -94,18 +152,23 @@ final class RemoteSkillsGridViewModel {
                 
                 if repository.templateType == .git {
                     let gitRepo = try GitRepository(repository: repository)
-                    // Sync if needed
-                    if await !(gitRepo.lastSyncDate != nil) {
-                        _ = try await gitRepo.sync()
-                    }
                     
                     switch tab {
                     case .skills:
-                        skills = try await gitRepo.fetchSkills(query: nil, limit: 100)
+                        let result = try await gitRepo.fetchSkills(query: nil, limit: 100)
+                        guard currentLoadID == loadID else { return }
+                        skills = result
+                        cache[cacheKey] = CacheEntry(skills: result, workflows: [], mcps: [], errorMessage: nil, cacheBuster: cacheBuster)
                     case .workflows:
-                        workflows = try await gitRepo.fetchWorkflows(query: nil, limit: 100)
+                        let result = try await gitRepo.fetchWorkflows(query: nil, limit: 100)
+                        guard currentLoadID == loadID else { return }
+                        workflows = result
+                        cache[cacheKey] = CacheEntry(skills: [], workflows: result, mcps: [], errorMessage: nil, cacheBuster: cacheBuster)
                     case .mcps:
-                        mcps = try await gitRepo.fetchMCPs(query: nil, limit: 100)
+                        let result = try await gitRepo.fetchMCPs(query: nil, limit: 100)
+                        guard currentLoadID == loadID else { return }
+                        mcps = result
+                        cache[cacheKey] = CacheEntry(skills: [], workflows: [], mcps: result, errorMessage: nil, cacheBuster: cacheBuster)
                     }
                 } else {
                     // Local folder repository
@@ -117,11 +180,20 @@ final class RemoteSkillsGridViewModel {
                     
                     switch tab {
                     case .skills:
-                        skills = try await localRepo.fetchSkills(query: nil, limit: 100)
+                        let result = try await localRepo.fetchSkills(query: nil, limit: 100)
+                        guard currentLoadID == loadID else { return }
+                        skills = result
+                        cache[cacheKey] = CacheEntry(skills: result, workflows: [], mcps: [], errorMessage: nil, cacheBuster: cacheBuster)
                     case .workflows:
-                        workflows = try await localRepo.fetchWorkflows(query: nil, limit: 100)
+                        let result = try await localRepo.fetchWorkflows(query: nil, limit: 100)
+                        guard currentLoadID == loadID else { return }
+                        workflows = result
+                        cache[cacheKey] = CacheEntry(skills: [], workflows: result, mcps: [], errorMessage: nil, cacheBuster: cacheBuster)
                     case .mcps:
-                        mcps = try await localRepo.fetchMCPs(query: nil, limit: 100)
+                        let result = try await localRepo.fetchMCPs(query: nil, limit: 100)
+                        guard currentLoadID == loadID else { return }
+                        mcps = result
+                        cache[cacheKey] = CacheEntry(skills: [], workflows: [], mcps: result, errorMessage: nil, cacheBuster: cacheBuster)
                     }
                 }
             }
@@ -132,10 +204,37 @@ final class RemoteSkillsGridViewModel {
             // 网络请求被取消，静默忽略，不显示错误
             return
         } catch {
+            guard currentLoadID == loadID else { return }
+            clearAllContent()
             errorMessage = error.localizedDescription
+            cache[cacheKey] = CacheEntry(skills: [], workflows: [], mcps: [], errorMessage: error.localizedDescription, cacheBuster: cacheBuster)
         }
-        
+    }
+
+    private func applyCached(_ cached: CacheEntry, for tab: RemoteContentTabType) {
+        switch tab {
+        case .skills:
+            skills = cached.skills
+            workflows = []
+            mcps = []
+        case .workflows:
+            skills = []
+            workflows = cached.workflows
+            mcps = []
+        case .mcps:
+            skills = []
+            workflows = []
+            mcps = cached.mcps
+        }
+
+        errorMessage = cached.errorMessage
         isLoading = false
+    }
+
+    private func clearAllContent() {
+        skills = []
+        workflows = []
+        mcps = []
     }
 }
 
@@ -186,6 +285,8 @@ struct RemoteSkillsGridView: View {
     ]
     
     var body: some View {
+        let repoSyncToken = String(Int(repository?.lastSyncDate?.timeIntervalSince1970 ?? 0))
+        let cacheBuster = "\(refreshTrigger)-\(repoSyncToken)"
         Group {
             if repository == nil {
                 ContentUnavailableView(
@@ -214,8 +315,8 @@ struct RemoteSkillsGridView: View {
         }
         // 使用 .task(id:) 处理仓库切换，它会自动取消旧任务并启动新任务
         // 不需要 .onChange，避免重复触发导致请求被取消
-        .task(id: "\(repository?.id ?? "")-\(selectedTab?.rawValue ?? "")-\(refreshTrigger)") {
-            await viewModel.loadContent(for: repository, tab: selectedTab)
+        .task(id: "\(repository?.id ?? "")-\(selectedTab?.rawValue ?? "")-\(cacheBuster)") {
+            await viewModel.loadContent(for: repository, tab: selectedTab, cacheBuster: cacheBuster)
         }
         .sheet(item: $viewModel.selectedSkillForDetail) { skill in
             RemoteSkillDetailView(

@@ -14,6 +14,7 @@
 		CD9EDAC52F2320BC009248CB /* SwiftGit in Frameworks */ = {isa = PBXBuildFile; productRef = CD9EDAC42F2320BC009248CB /* SwiftGit */; };
 		CD9EDB742F23D2BE009248CB /* STJSON in Frameworks */ = {isa = PBXBuildFile; productRef = CD9EDB732F23D2BE009248CB /* STJSON */; };
 		CD9EE2702F2677A0009248CB /* Yams in Frameworks */ = {isa = PBXBuildFile; productRef = CD9EE26F2F2677A0009248CB /* Yams */; };
+		CDD096262F2A1262009326DD /* STFilePath in Frameworks */ = {isa = PBXBuildFile; productRef = CDD096252F2A1262009326DD /* STFilePath */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -55,6 +56,7 @@
 				CD9EDB742F23D2BE009248CB /* STJSON in Frameworks */,
 				CD702B9F2F29FBC700E22535 /* TOML in Frameworks */,
 				CD9EE2702F2677A0009248CB /* Yams in Frameworks */,
+				CDD096262F2A1262009326DD /* STFilePath in Frameworks */,
 				CD447BF62F1F79890056366B /* Sparkle in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -114,6 +116,7 @@
 				CD447BF52F1F79890056366B /* Sparkle */,
 				CD9EE26F2F2677A0009248CB /* Yams */,
 				CD702B9E2F29FBC700E22535 /* TOML */,
+				CDD096252F2A1262009326DD /* STFilePath */,
 			);
 			productName = nolon;
 			productReference = CD2B1A922F1F624900DF4A2B /* nolon.app */;
@@ -178,6 +181,7 @@
 				CD447BF42F1F79890056366B /* XCRemoteSwiftPackageReference "Sparkle" */,
 				CD9EE26E2F2677A0009248CB /* XCRemoteSwiftPackageReference "Yams" */,
 				CD702B9D2F29FBC700E22535 /* XCRemoteSwiftPackageReference "swift-toml" */,
+				CDD096242F2A1262009326DD /* XCRemoteSwiftPackageReference "STFilePath" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = CD2B1A932F1F624900DF4A2B /* Products */;
@@ -372,7 +376,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 202601250157;
+				CURRENT_PROJECT_VERSION = 202601281815;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = 3L8RM3MDLS;
 				ENABLE_APP_SANDBOX = NO;
@@ -387,7 +391,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 0.0.6;
+				MARKETING_VERSION = 0.1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = nolon.overloaded.com;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -407,7 +411,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 202601250157;
+				CURRENT_PROJECT_VERSION = 202601281815;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = 3L8RM3MDLS;
 				ENABLE_APP_SANDBOX = NO;
@@ -422,7 +426,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 0.0.6;
+				MARKETING_VERSION = 0.1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = nolon.overloaded.com;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -440,10 +444,10 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 202601250157;
+				CURRENT_PROJECT_VERSION = 202601281815;
 				DEVELOPMENT_TEAM = 3L8RM3MDLS;
 				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 0.0.6;
+				MARKETING_VERSION = 0.1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = nolon.overloaded.com.nolonTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
@@ -460,10 +464,10 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 202601250157;
+				CURRENT_PROJECT_VERSION = 202601281815;
 				DEVELOPMENT_TEAM = 3L8RM3MDLS;
 				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 0.0.6;
+				MARKETING_VERSION = 0.1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = nolon.overloaded.com.nolonTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
@@ -556,6 +560,14 @@
 				minimumVersion = 6.2.0;
 			};
 		};
+		CDD096242F2A1262009326DD /* XCRemoteSwiftPackageReference "STFilePath" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/linhay/STFilePath";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.3.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -592,6 +604,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = CD9EE26E2F2677A0009248CB /* XCRemoteSwiftPackageReference "Yams" */;
 			productName = Yams;
+		};
+		CDD096252F2A1262009326DD /* STFilePath */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = CDD096242F2A1262009326DD /* XCRemoteSwiftPackageReference "STFilePath" */;
+			productName = STFilePath;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

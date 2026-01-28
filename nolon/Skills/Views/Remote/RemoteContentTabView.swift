@@ -86,9 +86,6 @@ final class RemoteContentTabViewModel {
                 
                 if repository.templateType == .git {
                     let gitRepo = try GitRepository(repository: repository)
-                    if await !(gitRepo.lastSyncDate != nil) {
-                        _ = try await gitRepo.sync()
-                    }
                     
                     let skills = try await gitRepo.fetchSkills(query: nil, limit: 100)
                     skillsCount = skills.count
@@ -133,6 +130,8 @@ struct RemoteContentTabView: View {
     @State private var viewModel = RemoteContentTabViewModel()
     
     var body: some View {
+        let repoSyncToken = String(Int(repository?.lastSyncDate?.timeIntervalSince1970 ?? 0))
+        let cacheBuster = "\(refreshTrigger)-\(repoSyncToken)"
         Group {
             if let repository = repository {
                 List(selection: $selectedTab) {
@@ -161,7 +160,7 @@ struct RemoteContentTabView: View {
                 selectedTab = .skills
             }
         }
-        .task(id: "\(repository?.id ?? "")-\(refreshTrigger)") {
+        .task(id: "\(repository?.id ?? "")-\(cacheBuster)") {
             await viewModel.loadCounts(for: repository)
         }
         .navigationSplitViewColumnWidth(min: 160, ideal: 180, max: 200)

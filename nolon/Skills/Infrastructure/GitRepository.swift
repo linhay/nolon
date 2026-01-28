@@ -46,6 +46,15 @@ public actor GitRepository: RemoteResourceRepository {
         self.accessToken = accessToken
         self.fileManager = fileManager
         self.git = try Git.shared
+
+        // If the repository already exists locally, initialize the scanner without pulling.
+        if fileManager.fileExists(atPath: localClonePath.path) {
+            localFolderRepo = LocalFolderRepository(
+                id: id,
+                name: name,
+                basePaths: resolveBasePaths(from: skillsPaths)
+            )
+        }
     }
     
     public init(repository: RemoteRepository) throws {
@@ -57,10 +66,21 @@ public actor GitRepository: RemoteResourceRepository {
         self.name = repository.name
         self.gitURL = gitURL
         self.localClonePath = repository.localClonePath
-        self.skillsPaths = repository.effectiveSkillsPaths
+        // `skillsPaths` stores paths relative to repository root (e.g. ".", "skills", "subdir/skills").
+        // Do NOT use `effectiveSkillsPaths` here because it expands to absolute paths and breaks path joining.
+        self.skillsPaths = repository.skillsPaths.isEmpty ? ["."] : repository.skillsPaths
         self.accessToken = repository.accessToken
         self.fileManager = .default
         self.git = try Git.shared
+
+        // If the repository already exists locally, initialize the scanner without pulling.
+        if fileManager.fileExists(atPath: localClonePath.path) {
+            localFolderRepo = LocalFolderRepository(
+                id: id,
+                name: name,
+                basePaths: resolveBasePaths(from: skillsPaths)
+            )
+        }
     }
     
     // MARK: - Sync Operations
@@ -86,9 +106,7 @@ public actor GitRepository: RemoteResourceRepository {
         localFolderRepo = LocalFolderRepository(
             id: id,
             name: name,
-            basePaths: skillsPaths.map { path in
-                path == "." ? localClonePath.path : localClonePath.appendingPathComponent(path).path
-            }
+            basePaths: resolveBasePaths(from: skillsPaths)
         )
         
         return true
@@ -97,7 +115,7 @@ public actor GitRepository: RemoteResourceRepository {
     // MARK: - Resource Fetching
     
     public func fetchSkills(query: String? = nil, limit: Int = 100) async throws -> [RemoteSkill] {
-        try await ensureSynced()
+        try await ensureLocalRepoInitialized()
         guard let repo = localFolderRepo else {
             throw RepositoryError.gitOperationFailed("Repository not initialized")
         }
@@ -105,7 +123,7 @@ public actor GitRepository: RemoteResourceRepository {
     }
     
     public func fetchWorkflows(query: String? = nil, limit: Int = 100) async throws -> [RemoteWorkflow] {
-        try await ensureSynced()
+        try await ensureLocalRepoInitialized()
         guard let repo = localFolderRepo else {
             throw RepositoryError.gitOperationFailed("Repository not initialized")
         }
@@ -113,7 +131,7 @@ public actor GitRepository: RemoteResourceRepository {
     }
     
     public func fetchMCPs(query: String? = nil, limit: Int = 100) async throws -> [RemoteMCP] {
-        try await ensureSynced()
+        try await ensureLocalRepoInitialized()
         guard let repo = localFolderRepo else {
             throw RepositoryError.gitOperationFailed("Repository not initialized")
         }
@@ -121,7 +139,7 @@ public actor GitRepository: RemoteResourceRepository {
     }
     
     public func downloadSkill(slug: String) async throws -> URL {
-        try await ensureSynced()
+        try await ensureLocalRepoInitialized()
         guard let repo = localFolderRepo else {
             throw RepositoryError.gitOperationFailed("Repository not initialized")
         }
@@ -129,7 +147,7 @@ public actor GitRepository: RemoteResourceRepository {
     }
     
     public func downloadWorkflow(slug: String) async throws -> URL {
-        try await ensureSynced()
+        try await ensureLocalRepoInitialized()
         guard let repo = localFolderRepo else {
             throw RepositoryError.gitOperationFailed("Repository not initialized")
         }
@@ -137,7 +155,7 @@ public actor GitRepository: RemoteResourceRepository {
     }
     
     public func downloadMCP(slug: String) async throws -> URL {
-        try await ensureSynced()
+        try await ensureLocalRepoInitialized()
         guard let repo = localFolderRepo else {
             throw RepositoryError.gitOperationFailed("Repository not initialized")
         }
@@ -146,9 +164,32 @@ public actor GitRepository: RemoteResourceRepository {
     
     // MARK: - Private Helpers
     
-    private func ensureSynced() async throws {
-        if localFolderRepo == nil {
-            _ = try await sync()
+    private func ensureLocalRepoInitialized() async throws {
+        if localFolderRepo != nil {
+            return
+        }
+
+        // Do not auto-sync on browse. Only allow reading if a local clone already exists.
+        guard fileManager.fileExists(atPath: localClonePath.path) else {
+            throw RepositoryError.gitOperationFailed(
+                NSLocalizedString("error.git.not_cloned", comment: "Repository is not cloned yet")
+            )
+        }
+
+        localFolderRepo = LocalFolderRepository(
+            id: id,
+            name: name,
+            basePaths: resolveBasePaths(from: skillsPaths)
+        )
+    }
+
+    private func resolveBasePaths(from skillsPaths: [String]) -> [String] {
+        skillsPaths.map { path in
+            // Backward-compatible: if settings already store absolute paths, use as-is.
+            if path.hasPrefix("/") {
+                return path
+            }
+            return path == "." ? localClonePath.path : localClonePath.appendingPathComponent(path).path
         }
     }
     
