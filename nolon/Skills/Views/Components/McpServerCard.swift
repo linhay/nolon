@@ -8,6 +8,7 @@ struct McpServerCard: View {
     let searchText: String
     let onLinkWorkflow: () -> Void
     let onUnlinkWorkflow: () -> Void
+    let onSetEnabled: (Bool) -> Void
     let onEdit: () -> Void
     let onDelete: () -> Void
     
@@ -87,11 +88,32 @@ struct McpServerCard: View {
                     .buttonStyle(.plain)
                 }
                 
+                Button {
+                    onSetEnabled(!mcp.isEnabled)
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: mcp.isEnabled ? "pause.circle" : "play.circle")
+                        Text(
+                            mcp.isEnabled
+                                ? NSLocalizedString("mcp.action.disable", value: "Disable", comment: "Disable MCP")
+                                : NSLocalizedString("mcp.action.enable", value: "Enable", comment: "Enable MCP")
+                        )
+                    }
+                    .font(.caption2)
+                    .fontWeight(.semibold)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(mcp.isEnabled ? Color.secondary.opacity(0.12) : Color.blue.opacity(0.1))
+                    .foregroundStyle(mcp.isEnabled ? AnyShapeStyle(.secondary) : AnyShapeStyle(.blue))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                }
+                .buttonStyle(.plain)
+
                 Spacer()
             }
         }
         .padding(16)
-        .frame(minHeight: 140)
+        .frame(maxWidth: .infinity, minHeight: 140, alignment: .leading)
         .background(Color.secondary.opacity(0.08))
         .cornerRadius(12)
         .contentShape(Rectangle())
@@ -114,6 +136,19 @@ struct McpServerCard: View {
     
     @ViewBuilder
     private var contextMenuItems: some View {
+        Button {
+            onSetEnabled(!mcp.isEnabled)
+        } label: {
+            Label(
+                mcp.isEnabled
+                    ? NSLocalizedString("mcp.action.disable", value: "Disable", comment: "Disable MCP")
+                    : NSLocalizedString("mcp.action.enable", value: "Enable", comment: "Enable MCP"),
+                systemImage: mcp.isEnabled ? "pause.circle" : "play.circle"
+            )
+        }
+
+        Divider()
+
         if hasWorkflow {
             Button {
                 onUnlinkWorkflow()

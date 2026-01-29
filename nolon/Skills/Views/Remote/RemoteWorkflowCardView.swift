@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 /// 远程 Workflow 卡片视图 - Grid 布局中的卡片
 struct RemoteWorkflowCardView: View {
@@ -139,10 +140,17 @@ struct RemoteWorkflowCardView: View {
         } label: {
             Label("View Details", systemImage: "info.circle")
         }
-        
-        Divider()
-        
+
+        if let revealURL = revealInFinderURL {
+            Button {
+                NSWorkspace.shared.activateFileViewerSelecting([revealURL])
+            } label: {
+                Label(NSLocalizedString("action.show_in_finder", comment: "Show in Finder"), systemImage: "folder")
+            }
+        }
+
         if !isInstalled {
+            Divider()
             Button {
                 handleInstall()
             } label: {
@@ -172,6 +180,28 @@ struct RemoteWorkflowCardView: View {
         } else {
             showingInstallSheet = true
         }
+    }
+
+    private var revealInFinderURL: URL? {
+        var candidates: [URL] = []
+
+        if isInstalled, let provider = targetProvider {
+            let providerWorkflowPath = (provider.workflowPath as NSString).expandingTildeInPath
+            let mdPath = (providerWorkflowPath as NSString).appendingPathComponent("\(workflow.slug).md")
+            candidates.append(URL(fileURLWithPath: mdPath))
+            let legacyPath = (providerWorkflowPath as NSString).appendingPathComponent(workflow.slug)
+            candidates.append(URL(fileURLWithPath: legacyPath))
+        }
+
+        if let localPath = workflow.localPath {
+            candidates.append(URL(fileURLWithPath: (localPath as NSString).expandingTildeInPath))
+        }
+
+        let globalWorkflowPath = NolonManager.shared.userWorkflowsURL.appendingPathComponent("\(workflow.slug).md")
+        candidates.append(globalWorkflowPath)
+        candidates.append(NolonManager.shared.userWorkflowsURL.appendingPathComponent(workflow.slug))
+
+        return candidates.first(where: { FileManager.default.fileExists(atPath: $0.path) })
     }
 }
 

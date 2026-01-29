@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 /// 远程 MCP 卡片视图 - Grid 布局中的卡片
 struct RemoteMCPCardView: View {
@@ -155,27 +156,32 @@ struct RemoteMCPCardView: View {
         } label: {
             Label("View Details", systemImage: "info.circle")
         }
-        
-        Divider()
-        
+
+        if let revealURL = revealInFinderURL {
+            Button {
+                NSWorkspace.shared.activateFileViewerSelecting([revealURL])
+            } label: {
+                Label(NSLocalizedString("action.show_in_finder", comment: "Show in Finder"), systemImage: "folder")
+            }
+        }
+
         if !isInstalled {
+            Divider()
             Button {
                 handleInstall()
             } label: {
                 Label("Install", systemImage: "arrow.down.circle")
             }
         }
-        
-        if let config = mcp.configuration {
+
+        if let config = mcp.configuration, let command = config.command {
             Divider()
-            
-            if let command = config.command {
-                Button {
-                    NSPasteboard.general.clearContents()
-                    NSPasteboard.general.setString(command, forType: .string)
-                } label: {
-                    Label("Copy Command", systemImage: "doc.on.doc")
-                }
+
+            Button {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(command, forType: .string)
+            } label: {
+                Label("Copy Command", systemImage: "doc.on.doc")
             }
         }
     }
@@ -201,6 +207,26 @@ struct RemoteMCPCardView: View {
         } else {
             showingInstallSheet = true
         }
+    }
+
+    private var revealInFinderURL: URL? {
+        var candidates: [URL] = []
+
+        if let localPath = mcp.localPath {
+            candidates.append(URL(fileURLWithPath: (localPath as NSString).expandingTildeInPath))
+        }
+
+        if let provider = targetProvider,
+           let templateId = provider.templateId,
+           let template = ProviderTemplate(rawValue: templateId) {
+            let configPath = template.defaultMcpConfigPath
+            candidates.append(configPath)
+        }
+
+        candidates.append(NolonManager.shared.mcpsURL.appendingPathComponent("\(mcp.slug).json"))
+        candidates.append(NolonManager.shared.mcpsURL.appendingPathComponent(mcp.slug))
+
+        return candidates.first(where: { FileManager.default.fileExists(atPath: $0.path) })
     }
 }
 

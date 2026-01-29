@@ -94,9 +94,18 @@ public struct Skill: Sendable, Equatable, Identifiable, Hashable {
     /// Generates a lightweight declaration that tells CLI a skill exists,
     /// allowing CLI to discover and load the full skill content itself.
     public var workflowContent: String {
-        """
+        func yamlQuoted(_ value: String) -> String {
+            var v = value
+            v = v.replacingOccurrences(of: "\\", with: "\\\\")
+            v = v.replacingOccurrences(of: "\"", with: "\\\"")
+            v = v.replacingOccurrences(of: "\n", with: "\\n")
+            return "\"\(v)\""
+        }
+
+        return """
         ---
-        description: \(description)
+        name: \(yamlQuoted(id))
+        description: \(yamlQuoted(description))
         ---
         
         Use the `\(name)` skill to \(description).

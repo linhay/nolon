@@ -5,6 +5,8 @@ struct ProviderMcpGridView: View {
     let provider: Provider?
     let viewModel: ProviderDetailGridViewModel
     let columns: [GridItem]
+
+    @State private var editingMcp: MCP?
     
     var body: some View {
         if let provider = provider,
@@ -12,6 +14,7 @@ struct ProviderMcpGridView: View {
            let template = ProviderTemplate(rawValue: templateId) {
             
             let configPath = template.defaultMcpConfigPath
+            let isToml = configPath.pathExtension.lowercased() == "toml"
             let exists = STFile(configPath).isExists
             
             if !exists {
@@ -81,14 +84,21 @@ struct ProviderMcpGridView: View {
                             searchText: viewModel.searchText,
                             onLinkWorkflow: { viewModel.linkMcpToWorkflow(mcp) },
                             onUnlinkWorkflow: { viewModel.unlinkMcpFromWorkflow(mcp) },
+                            onSetEnabled: { enabled in
+                                Task { await viewModel.setMCPEnabled(mcp, enabled: enabled, for: provider) }
+                            },
                             onEdit: {
-                                // Open config file for now
-                                NSWorkspace.shared.selectFile(configPath.path, inFileViewerRootedAtPath: "")
+                                editingMcp = mcp
                             },
                             onDelete: {
                                 Task { await viewModel.deleteMCP(named: mcp.name, for: provider) }
                             }
                         )
+                    }
+                }
+                .sheet(item: $editingMcp) { mcp in
+                    McpEditorView(mcp: mcp, isToml: isToml) { updated in
+                        Task { await viewModel.updateMCP(updated, for: provider) }
                     }
                 }
                 .toolbar {
@@ -116,4 +126,8 @@ struct ProviderMcpGridView: View {
             )
         }
     }
+}
+
+#Preview {
+    ProviderMcpGridView(provider: nil, viewModel: ProviderDetailGridViewModel(provider: nil, settings: .shared), columns: [GridItem(.flexible())])
 }

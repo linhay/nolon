@@ -18,4 +18,23 @@ public struct MCP: Identifiable, Sendable {
         self.name = name
         self.json = json
     }
+
+    public var dictionaryValue: [String: Any] {
+        json.value as? [String: Any] ?? [:]
+    }
+
+    public var isEnabled: Bool {
+        let dict = dictionaryValue
+        if let enabled = dict["enabled"] as? Bool {
+            return enabled
+        }
+        if let disabled = dict["disabled"] as? Bool {
+            return !disabled
+        }
+        return true
+    }
+
+    public func withDictionary(_ dict: [String: Any]) -> MCP {
+        MCP(name: name, json: AnyCodable(dict))
+    }
 }

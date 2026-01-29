@@ -35,6 +35,12 @@
     - `VStack(alignment: .leading, spacing: 12)` 布局，`padding(16)`。
     - 交互：添加 `@State private var isHovered = false`，实现 `scaleEffect` (1.02) 和阴影增强。
     - 结构：Header (标题+Badge)、Description (最大高度占据剩余空间)、Footer (状态信息+操作按钮)。
+- **状态切换按钮放置**：
+    - 对 “Enable/Disable” 这类状态切换，优先作为常驻按钮放在 Footer 的主要操作区（例如放在 Workflow 按钮右侧），不要只放在右上角 `Menu`。
+    - 按钮外观优先复用既有按钮风格（`caption2`、`padding`、`RoundedRectangle(cornerRadius: 8)`、背景/前景色策略一致），避免出现同屏不一致。
+- **状态切换不应触发重排**：
+    - 如果列表/网格的排序规则包含 `isEnabled` 等可变状态，切换后会导致重排；默认应避免这种排序。
+    - 推荐排序：按名称（稳定）或保持文件内顺序；切换 enable/disable 只改变状态表现，不改变列表位置。
 
 ## 禁令 (Don't)
 - 禁止在 `WindowGroup` 上匹配通配符 `"*"`，这在 macOS 上极易导致重复窗口。

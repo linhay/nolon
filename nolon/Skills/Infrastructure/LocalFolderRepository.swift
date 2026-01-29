@@ -224,13 +224,14 @@ public struct LocalFolderRepository: RemoteResourceRepository {
     private func parseWorkflow(at path: String) throws -> RemoteWorkflow {
         let content = try STFile(path).read()
         let slug = (path as NSString).deletingPathExtension.components(separatedBy: "/").last ?? "unknown"
-        
-        // Extract display name from first line or filename
-        let lines = content.components(separatedBy: .newlines)
-        let displayName = lines.first?.trimmingCharacters(in: CharacterSet(charactersIn: "# ")) ?? slug
-        
-        // Get first paragraph as summary
-        let summary = lines.dropFirst().first(where: { !$0.isEmpty })
+
+        // Workflows require YAML frontmatter (see SkillParser); prefer that for name/description.
+        let metadata = FrontmatterParser.parseMetadata(from: content)
+        guard let displayName = metadata["name"], !displayName.isEmpty,
+              let summary = metadata["description"], !summary.isEmpty
+        else {
+            throw RepositoryError.parsingFailed("Invalid workflow: missing frontmatter name/description")
+        }
         
         // Get file modification date
         let modificationDate: Date? = STFile(path).isExists ? STFile(path).attributes.modificationDate : nil

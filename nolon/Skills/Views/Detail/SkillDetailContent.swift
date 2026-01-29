@@ -13,7 +13,7 @@ struct SkillDetailContent: View {
                         ScrollView {
                             VStack(alignment: .leading, spacing: 20) {
                                 // Metadata
-                                let metadata = SkillParser.parseMetadata(from: content)
+                                let metadata = FrontmatterParser.parseMetadata(from: content)
                                 if !metadata.isEmpty {
                                     VStack(alignment: .leading, spacing: 12) {
                                         Text("Metadata")
@@ -44,7 +44,7 @@ struct SkillDetailContent: View {
                                 Divider()
                                 
                                 // Content
-                                let body = SkillParser.stripFrontmatter(from: content)
+                                let body = FrontmatterParser.stripFrontmatter(from: content)
                                 Markdown(body)
                                     .textSelection(.enabled)
                             }

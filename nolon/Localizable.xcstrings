@@ -138,7 +138,7 @@
       }
     },
     "action.cancel" : {
-      "comment" : "Cancel action",
+      "comment" : "Cancel\nCancel action",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
@@ -441,9 +441,27 @@
         }
       }
     },
+    "action.save" : {
+      "comment" : "Save",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Save"
+          }
+        }
+      }
+    },
     "action.show_in_finder" : {
       "comment" : "Show in Finder",
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show in Finder"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1784,6 +1802,114 @@
         }
       }
     },
+    "mcp.action.disable" : {
+      "comment" : "Disable MCP",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Disable"
+          }
+        }
+      }
+    },
+    "mcp.action.enable" : {
+      "comment" : "Enable MCP",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Enable"
+          }
+        }
+      }
+    },
+    "mcp.editor.title" : {
+      "comment" : "MCP editor title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Edit MCP"
+          }
+        }
+      }
+    },
+    "mcp.field.args" : {
+      "comment" : "MCP args",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Args (one per line)"
+          }
+        }
+      }
+    },
+    "mcp.field.command" : {
+      "comment" : "MCP command",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Command"
+          }
+        }
+      }
+    },
+    "mcp.field.enabled" : {
+      "comment" : "MCP enabled",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Enabled"
+          }
+        }
+      }
+    },
+    "mcp.field.env" : {
+      "comment" : "MCP env",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Env (KEY=VALUE, one per line)"
+          }
+        }
+      }
+    },
+    "mcp.field.name" : {
+      "comment" : "MCP field name",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Name"
+          }
+        }
+      }
+    },
+    "mcp.field.url" : {
+      "comment" : "MCP URL",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "URL"
+          }
+        }
+      }
+    },
     "mcp.not_supported" : {
       "comment" : "MCP Not Supported",
       "localizations" : {
@@ -1802,6 +1928,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "此 Provider 不支持 MCP 配置"
+          }
+        }
+      }
+    },
+    "mcp.section.command" : {
+      "comment" : "MCP command section",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Command"
+          }
+        }
+      }
+    },
+    "mcp.section.connection" : {
+      "comment" : "MCP connection section",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Connection"
+          }
+        }
+      }
+    },
+    "mcp.section.env" : {
+      "comment" : "MCP env section",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Environment"
           }
         }
       }

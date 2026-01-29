@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 /// 远程技能卡片视图 - Grid 布局中的卡片
 struct RemoteSkillCardView: View {
@@ -136,10 +137,17 @@ struct RemoteSkillCardView: View {
         } label: {
             Label("View Details", systemImage: "info.circle")
         }
-        
-        Divider()
-        
+
+        if let revealURL = revealInFinderURL {
+            Button {
+                NSWorkspace.shared.activateFileViewerSelecting([revealURL])
+            } label: {
+                Label(NSLocalizedString("action.show_in_finder", comment: "Show in Finder"), systemImage: "folder")
+            }
+        }
+
         if !isInstalled {
+            Divider()
             Button {
                 handleInstall()
             } label: {
@@ -170,5 +178,24 @@ struct RemoteSkillCardView: View {
             showingInstallSheet = true
         }
     }
-}
 
+    private var revealInFinderURL: URL? {
+        var candidates: [URL] = []
+
+        if isInstalled, let provider = targetProvider {
+            let providerSkillsPath = (provider.defaultSkillsPath as NSString).expandingTildeInPath
+            let path = (providerSkillsPath as NSString).appendingPathComponent(skill.slug)
+            candidates.append(URL(fileURLWithPath: path))
+        }
+
+        if let localPath = skill.localPath {
+            candidates.append(URL(fileURLWithPath: (localPath as NSString).expandingTildeInPath))
+        }
+
+        if isInstalled {
+            candidates.append(NolonManager.shared.skillsURL.appendingPathComponent(skill.slug))
+        }
+
+        return candidates.first(where: { FileManager.default.fileExists(atPath: $0.path) })
+    }
+}

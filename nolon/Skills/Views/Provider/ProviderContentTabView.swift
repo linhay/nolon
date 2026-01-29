@@ -108,8 +108,7 @@ final class ProviderContentTabViewModel {
                     mcpCount = 0
                     return
                 }
-                // Treat missing `enabled` as enabled (Codex default behavior)
-                mcpCount = servers.values.filter { $0.enabled ?? true }.count
+                mcpCount = servers.count
             } else {
                 guard let data = try? Data(contentsOf: configPath),
                       let json = try? JSON(data: data),
@@ -118,9 +117,7 @@ final class ProviderContentTabViewModel {
                     mcpCount = 0
                     return
                 }
-                
-                // Keep consistent with ProviderDetailGridViewModel: skip disabled servers
-                mcpCount = servers.values.filter { !($0["disabled"].bool ?? false) }.count
+                mcpCount = servers.count
             }
         } else {
             mcpCount = 0

@@ -11,27 +11,6 @@ public enum ProviderTemplate: String, CaseIterable, Sendable, Identifiable {
     case gemini
     case antigravity
     
-    // New
-    case amp
-    case clawdbot
-    case cline
-    case commandCode
-    case cursor
-    case droid
-    case goose
-    case kilo
-    case kiro
-    case mcpjam
-    case openhands
-    case pi
-    case qoder
-    case qwen
-    case roo
-    case trae
-    case windsurf
-    case zencoder
-    case neovate
-
     public var id: String { rawValue }
     
     /// Configuration loaded from JSON

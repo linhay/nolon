@@ -437,7 +437,7 @@ public final class SkillInstaller {
 
     /// Parse version from SKILL.md content
     private func parseVersion(from content: String) -> String {
-        return SkillParser.parseMetadata(from: content)["version"] ?? "unknown"
+        return FrontmatterParser.parseMetadata(from: content)["version"] ?? "unknown"
     }
 
     // MARK: - Migration

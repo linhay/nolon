@@ -60,14 +60,18 @@ struct WorkflowInfo: Identifiable, Hashable {
             source = .unknown
         }
         
-        // Parse YAML frontmatter for description
-        let metadata = SkillParser.parseMetadata(from: content)
-        description = metadata["description"] ?? ""
+        // Parse YAML frontmatter for required workflow metadata (name/description).
+        let metadata = FrontmatterParser.parseMetadata(from: content)
+        guard let parsedDescription = metadata["description"], !parsedDescription.isEmpty else {
+            return nil
+        }
+        let displayName = (metadata["name"]?.isEmpty == false) ? (metadata["name"] ?? fileName) : fileName
+        description = parsedDescription
         
         return WorkflowInfo(
             id: fileName,
-            name: fileName,
-            description: description.isEmpty ? "No description" : description,
+            name: displayName,
+            description: description,
             path: path,
             source: source
         )

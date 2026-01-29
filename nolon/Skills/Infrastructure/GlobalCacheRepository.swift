@@ -331,29 +331,13 @@ public actor GlobalCacheRepository: RemoteResourceRepository {
             
             let modifiedDate: Date? = STFile(workflowPath).isExists ? STFile(workflowPath).attributes.modificationDate : nil
             
-            // Read first few lines for display name and summary
+            // Workflows require YAML frontmatter (see SkillParser); prefer that for name/description.
             let content = try? STFile(workflowPath).read()
-            let lines = content?.components(separatedBy: .newlines) ?? []
-            
-            var displayName = slug
-            var summary: String?
-            
-            // Try to extract title from first # heading
-            for line in lines.prefix(10) {
-                let trimmed = line.trimmingCharacters(in: .whitespaces)
-                if trimmed.hasPrefix("# ") {
-                    displayName = String(trimmed.dropFirst(2))
-                    break
-                }
-            }
-            
-            // Try to find first paragraph as summary
-            for line in lines.prefix(20) {
-                let trimmed = line.trimmingCharacters(in: .whitespaces)
-                if !trimmed.isEmpty && !trimmed.hasPrefix("#") {
-                    summary = trimmed
-                    break
-                }
+            let metadata = content.map { FrontmatterParser.parseMetadata(from: $0) } ?? [:]
+            guard let displayName = metadata["name"], !displayName.isEmpty,
+                  let summary = metadata["description"], !summary.isEmpty
+            else {
+                continue
             }
             
             let workflow = RemoteWorkflow(

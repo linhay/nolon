@@ -278,7 +278,6 @@ final class ProviderDetailGridViewModel {
             }
             
             mcps = servers
-                .filter { _, server in server.enabled ?? true }
                 .map { key, server in
                     var dict: [String: Any] = [:]
                     if let url = server.url { dict["url"] = url }
@@ -303,10 +302,6 @@ final class ProviderDetailGridViewModel {
             // 2. Load enabled servers
             if let servers = expandedJson["mcpServers"].dictionary {
                 mcps = servers
-                    .filter { key, value in
-                        // Skip disabled servers
-                        !(value["disabled"].bool ?? false)
-                    }
                     .map { key, value in
                         MCP(name: key, json: AnyCodable(value.object))
                     }
@@ -315,6 +310,70 @@ final class ProviderDetailGridViewModel {
                 mcps = []
             }
         }
+    }
+
+    func setMCPEnabled(_ mcp: MCP, enabled: Bool, for provider: Provider) async {
+        await performAsync {
+            try await updateMCPEnabled(mcp, enabled: enabled, for: provider)
+        }
+    }
+
+    private func updateMCPEnabled(_ mcp: MCP, enabled: Bool, for provider: Provider) async throws {
+        guard let templateId = provider.templateId,
+              let template = ProviderTemplate(rawValue: templateId) else {
+            return
+        }
+
+        let configPath = template.defaultMcpConfigPath
+
+        if configPath.pathExtension.lowercased() == "toml" {
+            guard
+                STFile(configPath).isExists,
+                let data = try? Data(contentsOf: configPath),
+                var config = try? TOMLDecoder().decode(CodexMCPConfig.self, from: data)
+            else {
+                return
+            }
+
+            if config.mcpServers == nil { config.mcpServers = [:] }
+            var server = config.mcpServers?[mcp.name] ?? .init(url: nil, command: nil, args: nil, env: nil, enabled: nil)
+            server.enabled = enabled
+            config.mcpServers?[mcp.name] = server
+
+            let tomlData = try TOMLEncoder().encode(config)
+            try tomlData.write(to: configPath)
+        } else {
+            var json: JSON
+            if STFile(configPath).isExists,
+               let data = try? Data(contentsOf: configPath),
+               let fileJson = try? JSON(data: data) {
+                json = fileJson
+            } else {
+                json = JSON([:])
+            }
+
+            if json["mcpServers"].dictionary == nil {
+                json["mcpServers"] = JSON([:])
+            }
+
+            var servers = json["mcpServers"].dictionaryValue
+            var server = servers[mcp.name]?.dictionaryObject ?? [:]
+
+            if enabled {
+                server["disabled"] = nil
+            } else {
+                server["disabled"] = true
+            }
+
+            servers[mcp.name] = JSON(server)
+            json["mcpServers"] = JSON(servers)
+
+            if let str = json.rawString() {
+                try str.write(to: configPath, atomically: true, encoding: .utf8)
+            }
+        }
+
+        loadMCPs(for: provider)
     }
     
     private func loadMcpWorkflows() {
