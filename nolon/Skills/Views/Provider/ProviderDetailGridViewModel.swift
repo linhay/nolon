@@ -579,8 +579,15 @@ final class ProviderDetailGridViewModel {
             if let localPath = skill.localPath {
                 try installer.installLocal(from: localPath, slug: skill.slug, to: provider)
             } else {
-                let zipURL = try await ClawdhubService.shared.downloadSkill(
-                    slug: skill.slug, version: skill.latestVersion?.version)
+                let clawdhubRepo = ClawdhubRepository(
+                    repository: settings.remoteRepositories.first { $0.templateType == .clawdhub }
+                        ?? RepositoryTemplate.clawdhub.createRepository()
+                )
+
+                let zipURL = try await clawdhubRepo.downloadSkill(
+                    slug: skill.slug,
+                    version: skill.latestVersion?.version
+                )
                 try installer.installRemote(zipURL: zipURL, slug: skill.slug, to: provider)
             }
         }
@@ -595,7 +602,12 @@ final class ProviderDetailGridViewModel {
                     to: provider
                 )
             } else {
-                let fileURL = try await ClawdhubService.shared.downloadWorkflow(
+                let clawdhubRepo = ClawdhubRepository(
+                    repository: settings.remoteRepositories.first { $0.templateType == .clawdhub }
+                        ?? RepositoryTemplate.clawdhub.createRepository()
+                )
+
+                let fileURL = try await clawdhubRepo.downloadWorkflow(
                     slug: workflow.slug,
                     version: workflow.latestVersion?.version
                 )

@@ -54,14 +54,14 @@ final class RemoteContentTabViewModel {
         do {
             switch repository.templateType {
             case .clawdhub:
-                let service = ClawdhubService(baseURL: repository.baseURL)
-                let skills = try await service.fetchSkills(query: nil)
+                let repo = ClawdhubRepository(repository: repository)
+                let skills = try await repo.fetchSkills(query: nil, limit: 100)
                 skillsCount = skills.count
                 
-                let workflows = try await service.fetchWorkflows(query: nil)
+                let workflows = try await repo.fetchWorkflows(query: nil, limit: 100)
                 workflowsCount = workflows.count
                 
-                let mcps = try await service.fetchMCPs(query: nil)
+                let mcps = try await repo.fetchMCPs(query: nil, limit: 100)
                 mcpsCount = mcps.count
                 
             case .globalSkills:

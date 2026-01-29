@@ -1275,6 +1275,7 @@
     },
     "error.cannot_read_directory" : {
       "comment" : "Cannot read directory: (value)",
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -1359,6 +1360,7 @@
     },
     "error.not_a_directory" : {
       "comment" : "Not a directory: (value)",
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -1370,6 +1372,7 @@
     },
     "error.path_not_found" : {
       "comment" : "Path not found: (value)",
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -1420,6 +1423,7 @@
     },
     "error.skill_parsing_failed" : {
       "comment" : "Failed to parse skill: (value)",
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {

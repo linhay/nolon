@@ -34,7 +34,7 @@ final class AddRepositoryViewModel {
     
     var settings: ProviderSettings
     
-    var onDirectoryCandidatesFound: ((RemoteRepository, [GitRepositoryService.SkillsDirectoryCandidate]) -> Void)?
+    var onDirectoryCandidatesFound: ((RemoteRepository, [GitRepository.SkillsDirectoryCandidate]) -> Void)?
     var onDismiss: (() -> Void)?
     
     init(settings: ProviderSettings, repositoryToEdit: RemoteRepository? = nil) {
@@ -281,8 +281,7 @@ final class AddRepositoryViewModel {
             
             if needsSync {
                 do {
-                    let gitService = GitRepositoryService.shared
-                    let result = try await gitService.syncRepository(repo)
+                    let result = try await GitRepository.syncRepository(repo)
 
                     if !result.success {
                         validationError = "Failed to sync repository: \(result.message)"
@@ -338,7 +337,7 @@ struct AddRepositorySheet: View {
     @Binding var isPresented: Bool
     @State private var viewModel: AddRepositoryViewModel
 
-    init(isPresented: Binding<Bool>, settings: ProviderSettings, repositoryToEdit: RemoteRepository? = nil, onDirectoryCandidatesFound: @escaping (RemoteRepository, [GitRepositoryService.SkillsDirectoryCandidate]) -> Void) {
+    init(isPresented: Binding<Bool>, settings: ProviderSettings, repositoryToEdit: RemoteRepository? = nil, onDirectoryCandidatesFound: @escaping (RemoteRepository, [GitRepository.SkillsDirectoryCandidate]) -> Void) {
         self._isPresented = isPresented
         
         let vm = AddRepositoryViewModel(settings: settings, repositoryToEdit: repositoryToEdit)
@@ -777,4 +776,3 @@ struct AddRepositorySheet: View {
         }
     }
 }
-

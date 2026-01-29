@@ -6,6 +6,87 @@ import os.log
 /// Supports GitHub, GitLab, and other Git hosting services
 /// Replaces GitHubRepositoryService.swift
 public actor GitRepository: RemoteResourceRepository {
+
+    // MARK: - Types (replacing GitRepositoryService)
+
+    public enum SyncError: LocalizedError, Sendable {
+        case invalidURL
+        case sshNotAvailable(host: String)
+        case cloneFailed(String)
+        case pullFailed(String)
+        case fileOperationFailed(String)
+
+        public var errorDescription: String? {
+            switch self {
+            case .invalidURL:
+                return NSLocalizedString("error.git.invalid_url", comment: "Invalid Git repository URL")
+            case .sshNotAvailable(let host):
+                return String(
+                    format: NSLocalizedString(
+                        "error.git.ssh_not_available",
+                        comment: "SSH authentication not configured for %@. Please configure SSH key or provide a Personal Access Token."
+                    ),
+                    host
+                )
+            case .cloneFailed(let message):
+                return String(
+                    format: NSLocalizedString("error.git.clone_failed", comment: "Failed to clone repository: %@"),
+                    message
+                )
+            case .pullFailed(let message):
+                return String(
+                    format: NSLocalizedString("error.git.pull_failed", comment: "Failed to update repository: %@"),
+                    message
+                )
+            case .fileOperationFailed(let message):
+                return message
+            }
+        }
+    }
+
+    public struct SkillsDirectoryCandidate: Sendable, Identifiable {
+        public let id: String
+        public let path: String
+        public let skillCount: Int
+        public let skillNames: [String]
+
+        public init(path: String, skillCount: Int, skillNames: [String]) {
+            self.id = path
+            self.path = path
+            self.skillCount = skillCount
+            self.skillNames = skillNames
+        }
+    }
+
+    public struct SyncResult: Sendable {
+        public let success: Bool
+        public let message: String
+        public let isNewClone: Bool
+        public let updatedAt: Date
+        public let detectedDirectories: [SkillsDirectoryCandidate]
+
+        public static func success(isNewClone: Bool, detectedDirectories: [SkillsDirectoryCandidate] = []) -> SyncResult {
+            SyncResult(
+                success: true,
+                message: isNewClone
+                    ? NSLocalizedString("git.clone_success", comment: "Repository cloned successfully")
+                    : NSLocalizedString("git.pull_success", comment: "Repository updated successfully"),
+                isNewClone: isNewClone,
+                updatedAt: Date(),
+                detectedDirectories: detectedDirectories
+            )
+        }
+
+        public static func failure(_ message: String) -> SyncResult {
+            SyncResult(
+                success: false,
+                message: message,
+                isNewClone: false,
+                updatedAt: Date(),
+                detectedDirectories: []
+            )
+        }
+    }
     
     // MARK: - RemoteResourceRepository Protocol
     
@@ -49,11 +130,7 @@ public actor GitRepository: RemoteResourceRepository {
 
         // If the repository already exists locally, initialize the scanner without pulling.
         if fileManager.fileExists(atPath: localClonePath.path) {
-            localFolderRepo = LocalFolderRepository(
-                id: id,
-                name: name,
-                basePaths: resolveBasePaths(from: skillsPaths)
-            )
+            localFolderRepo = makeLocalFolderRepository()
         }
     }
     
@@ -75,11 +152,7 @@ public actor GitRepository: RemoteResourceRepository {
 
         // If the repository already exists locally, initialize the scanner without pulling.
         if fileManager.fileExists(atPath: localClonePath.path) {
-            localFolderRepo = LocalFolderRepository(
-                id: id,
-                name: name,
-                basePaths: resolveBasePaths(from: skillsPaths)
-            )
+            localFolderRepo = makeLocalFolderRepository()
         }
     }
     
@@ -103,13 +176,49 @@ public actor GitRepository: RemoteResourceRepository {
         lastSyncDate = Date()
         
         // Initialize local folder repository after sync
-        localFolderRepo = LocalFolderRepository(
-            id: id,
-            name: name,
-            basePaths: resolveBasePaths(from: skillsPaths)
-        )
+        localFolderRepo = makeLocalFolderRepository()
         
         return true
+    }
+
+    /// Clone or pull a Git repository (used by UI "Sync" actions), returning detected skill directories.
+    public static func syncRepository(_ repository: RemoteRepository) async throws -> SyncResult {
+        guard repository.templateType == .git else {
+            return .failure("Not a Git repository")
+        }
+
+        let fileManager = FileManager.default
+        let resolvedPath = repository.localClonePath
+        let existedBefore = fileManager.fileExists(atPath: resolvedPath.path)
+
+        do {
+            let gitRepo = try GitRepository(repository: repository)
+            _ = try await gitRepo.sync()
+
+            let detected = detectSkillsDirectories(at: resolvedPath)
+            return .success(isNewClone: !existedBefore, detectedDirectories: detected)
+        } catch let error as SyncError {
+            switch error {
+            case .sshNotAvailable:
+                throw error
+            default:
+                return .failure(error.localizedDescription)
+            }
+        } catch {
+            return .failure(error.localizedDescription)
+        }
+    }
+
+    /// Delete local clone directory for a Git repository.
+    public static func deleteRepository(_ repository: RemoteRepository) throws {
+        let localPath = repository.localClonePath
+        if FileManager.default.fileExists(atPath: localPath.path) {
+            do {
+                try FileManager.default.removeItem(at: localPath)
+            } catch {
+                throw SyncError.fileOperationFailed(error.localizedDescription)
+            }
+        }
     }
     
     // MARK: - Resource Fetching
@@ -176,11 +285,7 @@ public actor GitRepository: RemoteResourceRepository {
             )
         }
 
-        localFolderRepo = LocalFolderRepository(
-            id: id,
-            name: name,
-            basePaths: resolveBasePaths(from: skillsPaths)
-        )
+        localFolderRepo = makeLocalFolderRepository()
     }
 
     private func resolveBasePaths(from skillsPaths: [String]) -> [String] {
@@ -192,13 +297,21 @@ public actor GitRepository: RemoteResourceRepository {
             return path == "." ? localClonePath.path : localClonePath.appendingPathComponent(path).path
         }
     }
+
+    private func makeLocalFolderRepository() -> LocalFolderRepository {
+        LocalFolderRepository(
+            id: id,
+            name: name,
+            basePaths: resolveBasePaths(from: skillsPaths)
+        )
+    }
     
     private func cloneRepository() async throws {
         logger.info("🔧 Cloning repository")
         
         guard let components = Self.extractURLComponents(from: gitURL) else {
             logger.error("❌ Failed to parse URL: \(self.gitURL)")
-            throw RepositoryError.invalidURL
+            throw SyncError.invalidURL
         }
         
         let host = components.host
@@ -226,23 +339,26 @@ public actor GitRepository: RemoteResourceRepository {
                     }
                 } else {
                     logger.warning("⚠️ SSH not available for host: \(host)")
-                    throw RepositoryError.gitOperationFailed("SSH not available and no access token provided")
+                    throw SyncError.sshNotAvailable(host: host)
                 }
             }
         }
         
         guard let repositoryURL = URL(string: cloneURL) else {
             logger.error("❌ Failed to create URL object from string: \(cloneURL)")
-            throw RepositoryError.invalidURL
+            throw SyncError.invalidURL
         }
         
         do {
+            let parent = localClonePath.deletingLastPathComponent()
+            try? fileManager.createDirectory(at: parent, withIntermediateDirectories: true, attributes: nil)
+
             logger.info("⏳ Starting git clone with depth=1...")
             try await git.clone([.depth(1)], repository: repositoryURL, directory: localClonePath.path)
             logger.info("✅ Clone completed successfully")
         } catch {
             logger.error("❌ Clone failed with error: \(error.localizedDescription)")
-            throw RepositoryError.gitOperationFailed("Clone failed: \(error.localizedDescription)")
+            throw SyncError.cloneFailed(error.localizedDescription)
         }
     }
     
@@ -256,7 +372,7 @@ public actor GitRepository: RemoteResourceRepository {
             logger.info("✅ Pull completed successfully")
         } catch {
             logger.error("❌ Pull failed with error: \(error.localizedDescription)")
-            throw RepositoryError.gitOperationFailed("Pull failed: \(error.localizedDescription)")
+            throw SyncError.pullFailed(error.localizedDescription)
         }
     }
     
@@ -344,5 +460,115 @@ public actor GitRepository: RemoteResourceRepository {
             logger.error("❌ SSH test failed: \(error.localizedDescription)")
             return false
         }
+    }
+
+    // MARK: - Skills Directory Detection (replacing GitRepositoryService)
+
+    /// Detect all directories containing skills.
+    /// Supports three repository structures:
+    /// 1. Root directory is a single skill (contains SKILL.md)
+    /// 2. Root directory is a skill list (subdirectories are skills)
+    /// 3. Multiple subdirectories contain skill lists
+    public static func detectSkillsDirectories(at repoPath: URL) -> [SkillsDirectoryCandidate] {
+        var candidates: [SkillsDirectoryCandidate] = []
+
+        if SkillParser.isSkillDirectory(at: repoPath.path) {
+            let skillName = SkillParser.skillName(at: repoPath.path) ?? repoPath.lastPathComponent
+            candidates.append(
+                SkillsDirectoryCandidate(
+                    path: ".",
+                    skillCount: 1,
+                    skillNames: [skillName]
+                )
+            )
+            return candidates
+        }
+
+        searchForSkillsDirectories(
+            at: repoPath.path,
+            relativePath: "",
+            currentDepth: 0,
+            maxDepth: 5,
+            candidates: &candidates
+        )
+
+        return candidates.sorted { a, b in
+            if a.path == "." { return true }
+            if b.path == "." { return false }
+            return a.skillCount > b.skillCount
+        }
+    }
+
+    private static func searchForSkillsDirectories(
+        at absolutePath: String,
+        relativePath: String,
+        currentDepth: Int,
+        maxDepth: Int,
+        candidates: inout [SkillsDirectoryCandidate]
+    ) {
+        guard currentDepth <= maxDepth else { return }
+
+        let skillsInCurrentDir = findSkillsInDirectory(absolutePath)
+        if !skillsInCurrentDir.isEmpty {
+            candidates.append(
+                SkillsDirectoryCandidate(
+                    path: relativePath.isEmpty ? "." : relativePath,
+                    skillCount: skillsInCurrentDir.count,
+                    skillNames: Array(skillsInCurrentDir.prefix(5))
+                )
+            )
+        }
+
+        guard let contents = try? FileManager.default.contentsOfDirectory(atPath: absolutePath) else {
+            return
+        }
+
+        for item in contents {
+            guard ![".git", "node_modules", "build", "dist", ".build"].contains(item) else { continue }
+
+            let itemAbsolutePath = (absolutePath as NSString).appendingPathComponent(item)
+            var isDirectory: ObjCBool = false
+
+            guard FileManager.default.fileExists(atPath: itemAbsolutePath, isDirectory: &isDirectory),
+                  isDirectory.boolValue
+            else { continue }
+
+            if SkillParser.isSkillDirectory(at: itemAbsolutePath) {
+                continue
+            }
+
+            let itemRelativePath = relativePath.isEmpty ? item : "\(relativePath)/\(item)"
+            searchForSkillsDirectories(
+                at: itemAbsolutePath,
+                relativePath: itemRelativePath,
+                currentDepth: currentDepth + 1,
+                maxDepth: maxDepth,
+                candidates: &candidates
+            )
+        }
+    }
+
+    private static func findSkillsInDirectory(_ path: String) -> [String] {
+        guard let contents = try? FileManager.default.contentsOfDirectory(atPath: path) else {
+            return []
+        }
+
+        var skillNames: [String] = []
+        for item in contents {
+            if item.hasPrefix(".") && item != ".agent" { continue }
+
+            let itemPath = (path as NSString).appendingPathComponent(item)
+            var isDirectory: ObjCBool = false
+
+            guard FileManager.default.fileExists(atPath: itemPath, isDirectory: &isDirectory),
+                  isDirectory.boolValue
+            else { continue }
+
+            if let skillName = SkillParser.skillName(at: itemPath) {
+                skillNames.append(skillName)
+            }
+        }
+
+        return skillNames
     }
 }

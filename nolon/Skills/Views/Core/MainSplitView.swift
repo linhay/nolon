@@ -39,9 +39,15 @@ final class MainSplitViewModel {
                 try installer.installLocal(from: localPath, slug: skill.slug, to: provider)
                 print("Successfully installed \(skill.slug) from \(localPath)")
             } else {
-                // Using ClawdhubService to download
-                let zipURL = try await ClawdhubService.shared.downloadSkill(
-                    slug: skill.slug, version: skill.latestVersion?.version)
+                let clawdhubRepo = ClawdhubRepository(
+                    repository: settings.remoteRepositories.first { $0.templateType == .clawdhub }
+                        ?? RepositoryTemplate.clawdhub.createRepository()
+                )
+
+                let zipURL = try await clawdhubRepo.downloadSkill(
+                    slug: skill.slug,
+                    version: skill.latestVersion?.version
+                )
                 try installer.installRemote(zipURL: zipURL, slug: skill.slug, to: provider)
                 print("Successfully installed \(skill.slug) from Clawdhub to \(provider.name)")
             }

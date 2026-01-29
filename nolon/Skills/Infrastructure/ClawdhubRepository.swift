@@ -3,8 +3,6 @@ import Foundation
 /// Clawdhub remote repository implementation
 /// Replaces ClawdhubService.swift
 public actor ClawdhubRepository: RemoteResourceRepository {
-    public static let shared = ClawdhubRepository()
-    
     // MARK: - RemoteResourceRepository Protocol
     
     public let id: String
@@ -121,32 +119,17 @@ public actor ClawdhubRepository: RemoteResourceRepository {
         }
     }
     
-    /// Fetches skill detail including owner information
-    /// Endpoint: GET /api/skill?slug=SLUG
-    public func fetchSkillDetail(slug: String) async throws -> RemoteSkillDetail {
-        var components = URLComponents(
-            url: baseURL.appendingPathComponent("/api/skill"),
-            resolvingAgainstBaseURL: false
-        )
-        components?.queryItems = [
-            URLQueryItem(name: "slug", value: slug)
-        ]
-        
-        guard let url = components?.url else {
-            throw RepositoryError.invalidURL
-        }
-        
-        let (data, _) = try await URLSession.shared.data(from: url)
-        return try jsonDecoder.decode(RemoteSkillDetail.self, from: data)
-    }
-    
     public func downloadSkill(slug: String) async throws -> URL {
-        return try await downloadSkill(slug: slug, version: nil)
+        return try await downloadSkillZip(slug: slug, version: nil)
+    }
+
+    public func downloadSkill(slug: String, version: String?) async throws -> URL {
+        return try await downloadSkillZip(slug: slug, version: version)
     }
     
     /// Downloads a skill zip file
     /// Endpoint: GET /api/v1/download?slug=SLUG&version=VERSION (or tag=latest)
-    private func downloadSkill(slug: String, version: String?) async throws -> URL {
+    private func downloadSkillZip(slug: String, version: String?) async throws -> URL {
         var components = URLComponents(
             url: baseURL.appendingPathComponent("/api/v1/download"),
             resolvingAgainstBaseURL: false
@@ -259,12 +242,16 @@ public actor ClawdhubRepository: RemoteResourceRepository {
     }
     
     public func downloadWorkflow(slug: String) async throws -> URL {
-        return try await downloadWorkflow(slug: slug, version: nil)
+        return try await downloadWorkflowFile(slug: slug, version: nil)
+    }
+
+    public func downloadWorkflow(slug: String, version: String?) async throws -> URL {
+        return try await downloadWorkflowFile(slug: slug, version: version)
     }
     
     /// Downloads a workflow markdown file
     /// Endpoint: GET /api/v1/download/workflow?slug=SLUG&version=VERSION (or tag=latest)
-    private func downloadWorkflow(slug: String, version: String?) async throws -> URL {
+    private func downloadWorkflowFile(slug: String, version: String?) async throws -> URL {
         var components = URLComponents(
             url: baseURL.appendingPathComponent("/api/v1/download/workflow"),
             resolvingAgainstBaseURL: false

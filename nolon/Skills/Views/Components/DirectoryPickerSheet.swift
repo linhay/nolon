@@ -3,7 +3,7 @@ import SwiftUI
 /// Directory picker sheet for selecting skills directories (supports multiple selection)
 struct DirectoryPickerSheet: View {
     @Binding var isPresented: Bool
-    let candidates: [GitRepositoryService.SkillsDirectoryCandidate]
+    let candidates: [GitRepository.SkillsDirectoryCandidate]
     @Binding var selectedIndices: Set<Int>
     let onConfirm: () -> Void
 
@@ -28,7 +28,7 @@ struct DirectoryPickerSheet: View {
                                 VStack(alignment: .leading, spacing: 4) {
                                     HStack {
                                         Image(systemName: selectedIndices.contains(index) ? "checkmark.circle.fill" : "circle")
-                                            .foregroundStyle(selectedIndices.contains(index) ? .blue : .secondary)
+                                            .foregroundStyle(selectedIndices.contains(index) ? DesignSystem.Colors.primary : .secondary)
                                         Text(candidate.path == "." ? "Repository Root" : candidate.path)
                                             .font(.body)
                                         Spacer()

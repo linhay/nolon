@@ -204,7 +204,7 @@ public struct RemoteRepository: Identifiable, Codable, Hashable, Sendable {
     public var lastSyncDate: Date?
     public var accessToken: String?  // Personal Access Token for private repos
 
-    // Auto-detected skills directories (from GitRepositoryService)
+    // Auto-detected skills directories (from GitRepository)
     public var detectedDirectories: [String]?
     
     nonisolated public var id: String { _id }
@@ -487,4 +487,3 @@ public struct RemoteRepository: Identifiable, Codable, Hashable, Sendable {
     /// Built-in Global Skills repository (~/.nolon/skills/)
     public static let globalSkills = RepositoryTemplate.globalSkills.createRepository()
 }
-

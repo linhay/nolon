@@ -1,13 +1,16 @@
 import SwiftUI
 import Observation
+import os.log
 
 @Observable
 final class RemoteRepositorySidebarViewModel {
+
+    private let logger = Logger(subsystem: "com.nolon", category: "RemoteRepositorySidebarViewModel")
     
     // Directory selection for Git repos
     var showingDirectoryPicker = false
     var pendingRepository: RemoteRepository?
-    var detectedCandidates: [GitRepositoryService.SkillsDirectoryCandidate] = []
+    var detectedCandidates: [GitRepository.SkillsDirectoryCandidate] = []
     var selectedDirectoryIndices: Set<Int> = []
     
     // Token input for SSH-unavailable repos
@@ -23,7 +26,7 @@ final class RemoteRepositorySidebarViewModel {
     var syncError: String?
     
     @MainActor
-    func handleDirectoryCandidatesFound(repo: RemoteRepository, candidates: [GitRepositoryService.SkillsDirectoryCandidate]) {
+    func handleDirectoryCandidatesFound(repo: RemoteRepository, candidates: [GitRepository.SkillsDirectoryCandidate]) {
         pendingRepository = repo
         detectedCandidates = candidates
         selectedDirectoryIndices = Set(0..<candidates.count)
@@ -40,8 +43,7 @@ final class RemoteRepositorySidebarViewModel {
         defer { isSyncing = false }
         
         do {
-            let gitService = GitRepositoryService.shared
-            let result = try await gitService.syncRepository(repo)
+            let result = try await GitRepository.syncRepository(repo)
             
             if result.success {
                 var updatedRepo = repo
@@ -58,7 +60,7 @@ final class RemoteRepositorySidebarViewModel {
                     // Rescan to detect skills at root level
                     let clonePath = repo.localClonePath
                     if FileManager.default.fileExists(atPath: clonePath.path) {
-                        let detected = await gitService.detectSkillsDirectories(at: clonePath)
+                        let detected = GitRepository.detectSkillsDirectories(at: clonePath)
                         if !detected.isEmpty {
                             updatedRepo.detectedDirectories = detected.map { $0.path }
                             pendingRepository = updatedRepo
@@ -73,7 +75,7 @@ final class RemoteRepositorySidebarViewModel {
             } else {
                 syncError = result.message
             }
-        } catch GitRepositoryError.sshNotAvailable(let host) {
+        } catch GitRepository.SyncError.sshNotAvailable(let host) {
             // SSH not available, prompt for token
             tokenInputRepository = repo
             tokenInputHost = host
@@ -89,10 +91,9 @@ final class RemoteRepositorySidebarViewModel {
         // For Git repos, also delete the cloned directory
         if repo.templateType == .git {
             do {
-                let gitService = GitRepositoryService.shared
-                try await gitService.deleteRepository(repo)
+                try GitRepository.deleteRepository(repo)
             } catch {
-                print("Failed to delete cloned repository: \(error)")
+                logger.error("Failed to delete cloned repository: \(error.localizedDescription)")
             }
         }
         
@@ -211,16 +212,12 @@ struct RemoteRepositorySidebarView: View {
                 selectedRepository = repos.first
             }
             // Check for pending import immediately on appear
-            print("[RemoteRepositorySidebarView] onAppear - pendingImportURL: \(settings.pendingImportURL ?? "nil")")
             if settings.pendingImportURL != nil {
-                print("[RemoteRepositorySidebarView] Opening AddRepositorySheet from onAppear")
                 viewModel.showingAddRepository = true
             }
         }
         .onChange(of: settings.pendingImportURL) { _, newValue in
-            print("[RemoteRepositorySidebarView] onChange - pendingImportURL: \(newValue ?? "nil")")
             if newValue != nil {
-                print("[RemoteRepositorySidebarView] Opening AddRepositorySheet from onChange")
                 viewModel.showingAddRepository = true
             }
         }
