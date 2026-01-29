@@ -61,7 +61,7 @@ public enum ProviderTemplate: String, CaseIterable, Sendable, Identifiable {
     /// Default path for this template
     @MainActor
     public var defaultSkillsPath: URL {
-        let home = FileManager.default.homeDirectoryForCurrentUser
+        let home = URL(fileURLWithPath: NSHomeDirectory())
         let relativePath = config?.defaultSkillsPath ?? ".\(rawValue)/skills"
         return home.appendingPathComponent(relativePath)
     }
@@ -69,7 +69,7 @@ public enum ProviderTemplate: String, CaseIterable, Sendable, Identifiable {
     /// Default workflow path for this template
     @MainActor
     public var defaultWorkflowPath: URL {
-        let home = FileManager.default.homeDirectoryForCurrentUser
+        let home = URL(fileURLWithPath: NSHomeDirectory())
         let relativePath = config?.defaultWorkflowPath ?? ".\(rawValue)/workflows"
         return home.appendingPathComponent(relativePath)
     }
@@ -91,7 +91,7 @@ public enum ProviderTemplate: String, CaseIterable, Sendable, Identifiable {
     /// Default MCP configuration path for this template
     @MainActor
     public var defaultMcpConfigPath: URL {
-        let home = FileManager.default.homeDirectoryForCurrentUser
+        let home = URL(fileURLWithPath: NSHomeDirectory())
         let relativePath = config?.defaultMcpConfigPath ?? ".\(rawValue)/mcp_settings.json"
         return home.appendingPathComponent(relativePath)
     }
@@ -99,7 +99,7 @@ public enum ProviderTemplate: String, CaseIterable, Sendable, Identifiable {
     /// Additional default skills paths for this template (penetration reading)
     @MainActor
     public var defaultSkillsPaths: [URL] {
-        let home = FileManager.default.homeDirectoryForCurrentUser
+        let home = URL(fileURLWithPath: NSHomeDirectory())
         return config?.defaultSkillsPaths?.map { home.appendingPathComponent($0) } ?? []
     }
     

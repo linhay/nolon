@@ -1,4 +1,5 @@
 import SwiftUI
+import STFilePath
 
 struct ProviderMcpGridView: View {
     let provider: Provider?
@@ -11,7 +12,7 @@ struct ProviderMcpGridView: View {
            let template = ProviderTemplate(rawValue: templateId) {
             
             let configPath = template.defaultMcpConfigPath
-            let exists = FileManager.default.fileExists(atPath: configPath.path)
+            let exists = STFile(configPath).isExists
             
             if !exists {
                 ContentUnavailableView {
@@ -21,7 +22,7 @@ struct ProviderMcpGridView: View {
                 } actions: {
                     Button("Create Configuration") {
                         // Create directory if needed
-                        try? FileManager.default.createDirectory(at: configPath.deletingLastPathComponent(), withIntermediateDirectories: true)
+                        STFolder(configPath.deletingLastPathComponent()).createIfNotExists()
                         // Create minimal config based on extension
                         if configPath.pathExtension.lowercased() == "toml" {
                             let template = """
@@ -29,9 +30,9 @@ struct ProviderMcpGridView: View {
                             
                             [mcp_servers]
                             """
-                            try? template.write(to: configPath, atomically: true, encoding: .utf8)
+                            try? STFile(configPath).overlay(with: template)
                         } else {
-                            try? "{}".write(to: configPath, atomically: true, encoding: .utf8)
+                            try? STFile(configPath).overlay(with: "{}")
                         }
                         NSWorkspace.shared.selectFile(configPath.path, inFileViewerRootedAtPath: "")
                         // Reload data

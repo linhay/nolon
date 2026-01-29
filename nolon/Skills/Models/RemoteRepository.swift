@@ -270,7 +270,7 @@ public struct RemoteRepository: Identifiable, Codable, Hashable, Sendable {
         case .clawdhub:
             return []
         case .globalSkills:
-            let globalPath = FileManager.default.homeDirectoryForCurrentUser
+            let globalPath = URL(fileURLWithPath: NSHomeDirectory())
                 .appendingPathComponent(".nolon/skills").path
             return [globalPath]
         }
@@ -279,7 +279,7 @@ public struct RemoteRepository: Identifiable, Codable, Hashable, Sendable {
     /// Get the local clone path for this repository
     /// Format for git repos: ~/.nolon/repositories/{domain}/{owner}@{repo}
     nonisolated public var localClonePath: URL {
-        let repositoriesPath = FileManager.default.homeDirectoryForCurrentUser
+        let repositoriesPath = URL(fileURLWithPath: NSHomeDirectory())
             .appendingPathComponent(".nolon/repositories")
         switch templateType {
         case .localFolder:

@@ -2,6 +2,7 @@ import SwiftUI
 import Observation
 import STJSON
 import TOML
+import STFilePath
 
 // MARK: - Codex MCP Config Models (shared)
 struct CodexMCPConfig: Codable {
@@ -165,7 +166,7 @@ final class ProviderDetailGridViewModel {
         isLoading = false
     }
     
-    private let homeDirectory = FileManager.default.homeDirectoryForCurrentUser.path
+    private let homeDirectory = NSHomeDirectory()
     
     func displayPath(for path: String) -> String {
         guard let provider = provider else { return path }
@@ -255,7 +256,7 @@ final class ProviderDetailGridViewModel {
         }
         
         let configPath = template.defaultMcpConfigPath
-        guard FileManager.default.fileExists(atPath: configPath.path) else {
+        guard STFile(configPath).isExists else {
             mcps = []
             return
         }
@@ -318,23 +319,19 @@ final class ProviderDetailGridViewModel {
     
     private func loadMcpWorkflows() {
         let path = NolonManager.shared.mcpsWorkflowsPath
-        let url = URL(fileURLWithPath: path)
-        
-        guard FileManager.default.fileExists(atPath: path) else {
+        let folder = STFolder(path)
+        guard folder.isExists else {
             mcpWorkflowIds = []
             return
         }
         
         do {
-            let contents = try FileManager.default.contentsOfDirectory(
-                at: url,
-                includingPropertiesForKeys: nil,
-                options: [.skipsHiddenFiles]
+            let contents = try folder.files()
+            mcpWorkflowIds = Set(
+                contents
+                    .filter { $0.url.pathExtension == "md" }
+                    .map { $0.url.deletingPathExtension().lastPathComponent }
             )
-            
-            mcpWorkflowIds = Set(contents
-                .filter { $0.pathExtension == "md" }
-                .map { $0.deletingPathExtension().lastPathComponent })
         } catch {
             mcpWorkflowIds = []
         }
@@ -350,7 +347,7 @@ final class ProviderDetailGridViewModel {
         
         if configPath.pathExtension.lowercased() == "toml" {
             // For TOML config, we only support updating enabled flag and basic fields
-            guard FileManager.default.fileExists(atPath: configPath.path),
+            guard STFile(configPath).isExists,
                   let data = try? Data(contentsOf: configPath),
                   var config = try? TOMLDecoder().decode(CodexMCPConfig.self, from: data)
             else {
@@ -367,7 +364,7 @@ final class ProviderDetailGridViewModel {
             }
         } else {
             var json: JSON
-            if FileManager.default.fileExists(atPath: configPath.path),
+            if STFile(configPath).isExists,
                let data = try? Data(contentsOf: configPath),
                let fileJson = try? JSON(data: data) {
                 json = fileJson
@@ -440,9 +437,8 @@ final class ProviderDetailGridViewModel {
     
     private func loadWorkflows(for provider: Provider) {
         let workflowPath = provider.workflowPath
-        let url = URL(fileURLWithPath: workflowPath)
-        
-        guard FileManager.default.fileExists(atPath: workflowPath) else {
+        let folder = STFolder(workflowPath)
+        guard folder.isExists else {
             workflows = []
             mcpWorkflowIds = []
             workflowIds = []
@@ -450,15 +446,10 @@ final class ProviderDetailGridViewModel {
         }
         
         do {
-            let contents = try FileManager.default.contentsOfDirectory(
-                at: url,
-                includingPropertiesForKeys: nil,
-                options: [.skipsHiddenFiles]
-            )
-            
+            let contents = try folder.files()
             workflows = contents
-                .filter { $0.pathExtension == "md" }
-                .compactMap { WorkflowInfo.parse(from: $0) }
+                .filter { $0.url.pathExtension == "md" }
+                .compactMap { WorkflowInfo.parse(from: $0.url) }
                 .sorted { $0.name < $1.name }
             
             workflowIds = Set(workflows.filter { $0.source == .skill }.map(\.id))
@@ -568,7 +559,7 @@ final class ProviderDetailGridViewModel {
             try? installer.uninstallWorkflow(skill: skill, from: provider)
         } else {
              // Fallback: Manually remove file if skill not found (orphan workflow)
-            try? FileManager.default.removeItem(atPath: workflow.path)
+            try? STPath(workflow.path).deleteIncludingBrokenSymlink()
         }
         
         loadWorkflows(for: provider)

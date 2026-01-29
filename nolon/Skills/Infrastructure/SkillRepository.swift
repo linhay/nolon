@@ -1,15 +1,14 @@
 import Foundation
+import STFilePath
 
 /// Manages the global skills repository at ~/.nolon/skills/
 public final class SkillRepository {
 
-    private let fileManager: FileManager
     private let nolonManager: NolonManager
     private var globalSkillsPath: String { nolonManager.skillsPath }
     private var metadataPath: String { "\(globalSkillsPath)/.metadata.json" }
 
-    public init(fileManager: FileManager = .default, nolonManager: NolonManager = .shared) {
-        self.fileManager = fileManager
+    public init(nolonManager: NolonManager = .shared) {
         self.nolonManager = nolonManager
         // Directories are ensured by NolonManager
     }
@@ -26,31 +25,25 @@ public final class SkillRepository {
     public func listSkills() throws -> [Skill] {
         var skills: [Skill] = []
 
-        guard let contents = try? fileManager.contentsOfDirectory(atPath: globalSkillsPath) else {
+        let globalFolder = STFolder(globalSkillsPath)
+        guard let folders = try? globalFolder.folders() else {
             return []
         }
 
-        for item in contents {
-            // Skip hidden files and metadata
+        for folder in folders {
+            let item = folder.url.lastPathComponent
             if item.hasPrefix(".") { continue }
 
-            let skillPath = "\(globalSkillsPath)/\(item)"
-            var isDirectory: ObjCBool = false
-            guard fileManager.fileExists(atPath: skillPath, isDirectory: &isDirectory),
-                isDirectory.boolValue
-            else {
-                continue
-            }
+            let skillPath = folder.url.path
 
-            // Try to parse SKILL.md
-            let skillMdPath = "\(skillPath)/SKILL.md"
-            guard let content = try? String(contentsOfFile: skillMdPath, encoding: .utf8) else {
+            let skillMdFile = folder.file("SKILL.md")
+            guard let content = try? skillMdFile.read() else {
                 continue
             }
 
             // Count additional files
-            let referenceCount = countFiles(in: "\(skillPath)/references")
-            let scriptCount = countFiles(in: "\(skillPath)/scripts")
+            let referenceCount = countFiles(in: folder.folder("references"))
+            let scriptCount = countFiles(in: folder.folder("scripts"))
 
             // Parse skill
             guard let parsedSkill = try? SkillParser.parse(
@@ -85,22 +78,23 @@ public final class SkillRepository {
         let targetPath = "\(globalSkillsPath)/\(skillName)"
 
         // Check if skill already exists
-        if fileManager.fileExists(atPath: targetPath) {
+        if STPath(targetPath).isExists {
             throw SkillError.fileOperationFailed(
                 "Skill '\(skillName)' already exists in global storage")
         }
 
         // Copy skill folder to global storage
-        try fileManager.copyItem(atPath: sourceURL.path, toPath: targetPath)
+        try STPath(sourceURL).copy(to: STPath(targetPath))
 
         // Parse the imported skill
         let skillMdPath = "\(targetPath)/SKILL.md"
-        guard let content = try? String(contentsOfFile: skillMdPath, encoding: .utf8) else {
+        guard let content = try? STFile(skillMdPath).read() else {
             throw SkillError.parsingFailed("SKILL.md not found in '\(skillName)'")
         }
 
-        let referenceCount = countFiles(in: "\(targetPath)/references")
-        let scriptCount = countFiles(in: "\(targetPath)/scripts")
+        let importedFolder = STFolder(targetPath)
+        let referenceCount = countFiles(in: importedFolder.folder("references"))
+        let scriptCount = countFiles(in: importedFolder.folder("scripts"))
 
         let parsedSkill = try SkillParser.parse(
             content: content,
@@ -124,11 +118,11 @@ public final class SkillRepository {
     public func deleteSkill(id: String) throws {
         let skillPath = "\(globalSkillsPath)/\(id)"
 
-        guard fileManager.fileExists(atPath: skillPath) else {
+        guard STPath(skillPath).isExists else {
             throw SkillError.skillNotFound(id: id)
         }
 
-        try fileManager.removeItem(atPath: skillPath)
+        try STPath(skillPath).deleteIncludingBrokenSymlink()
 
         // Remove from metadata
         var metadata = try loadMetadata()
@@ -137,8 +131,8 @@ public final class SkillRepository {
         
         // Remove global workflow if exists
         let workflowPath = "\(nolonManager.generatedWorkflowsPath)/\(id).md"
-        if fileManager.fileExists(atPath: workflowPath) {
-            try? fileManager.removeItem(atPath: workflowPath)
+        if STPath(workflowPath).isExists {
+            try? STPath(workflowPath).deleteIncludingBrokenSymlink()
         }
     }
     
@@ -149,7 +143,7 @@ public final class SkillRepository {
         let path = "\(nolonManager.generatedWorkflowsPath)/\(skill.id).md"
         
         // Always overwrite to ensure content is up to date with skill changes
-        try skill.workflowContent.write(toFile: path, atomically: true, encoding: .utf8)
+        try STFile(path).overlay(with: skill.workflowContent)
         
         return path
     }
@@ -158,8 +152,9 @@ public final class SkillRepository {
 
     /// Load metadata from disk
     public func loadMetadata() throws -> SkillMetadataStore {
-        guard fileManager.fileExists(atPath: metadataPath),
-            let data = try? Data(contentsOf: URL(fileURLWithPath: metadataPath))
+        let metadataFile = STFile(metadataPath)
+        guard metadataFile.isExists,
+            let data = try? metadataFile.data()
         else {
             return SkillMetadataStore()
         }
@@ -173,7 +168,7 @@ public final class SkillRepository {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         let data = try encoder.encode(metadata)
-        try data.write(to: URL(fileURLWithPath: metadataPath))
+        try STFile(metadataPath).overlay(with: data)
     }
 
     /// Update metadata for a specific skill
@@ -189,10 +184,10 @@ public final class SkillRepository {
 
     // MARK: - Helpers
 
-    private func countFiles(in directory: String) -> Int {
-        guard let contents = try? fileManager.contentsOfDirectory(atPath: directory) else {
+    private func countFiles(in directory: STFolder) -> Int {
+        guard let contents = try? directory.subFilePaths() else {
             return 0
         }
-        return contents.filter { !$0.hasPrefix(".") }.count
+        return contents.filter { !$0.url.lastPathComponent.hasPrefix(".") }.count
     }
 }

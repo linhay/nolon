@@ -1,6 +1,7 @@
 import SwiftUI
 import Observation
 import os.log
+import STFilePath
 
 @Observable
 final class RemoteRepositorySidebarViewModel {
@@ -59,7 +60,7 @@ final class RemoteRepositorySidebarViewModel {
                     // No paths specified and no directories detected - use repository root
                     // Rescan to detect skills at root level
                     let clonePath = repo.localClonePath
-                    if FileManager.default.fileExists(atPath: clonePath.path) {
+                    if STPath(clonePath).isExists {
                         let detected = GitRepository.detectSkillsDirectories(at: clonePath)
                         if !detected.isEmpty {
                             updatedRepo.detectedDirectories = detected.map { $0.path }

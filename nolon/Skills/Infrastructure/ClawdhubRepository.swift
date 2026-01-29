@@ -1,4 +1,5 @@
 import Foundation
+import STFilePath
 
 /// Clawdhub remote repository implementation
 /// Replaces ClawdhubService.swift
@@ -156,11 +157,11 @@ public actor ClawdhubRepository: RemoteResourceRepository {
         }
         
         // Move to a temporary location with correct name
-        let destinationURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("\(slug)-\(version ?? "latest")-\(UUID().uuidString).zip")
+        let tempFolder = try STFolder(sanbox: .temporary)
+        let destinationFile = tempFolder.file("\(slug)-\(version ?? "latest")-\(UUID().uuidString).zip")
         
-        try FileManager.default.moveItem(at: tempURL, to: destinationURL)
-        return destinationURL
+        try STFile(tempURL).move(to: destinationFile)
+        return destinationFile.url
     }
     
     // MARK: - Workflows API
@@ -278,11 +279,11 @@ public actor ClawdhubRepository: RemoteResourceRepository {
         }
         
         // Move to a temporary location with correct name
-        let destinationURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("\(slug)-\(version ?? "latest")-\(UUID().uuidString).md")
+        let tempFolder = try STFolder(sanbox: .temporary)
+        let destinationFile = tempFolder.file("\(slug)-\(version ?? "latest")-\(UUID().uuidString).md")
         
-        try FileManager.default.moveItem(at: tempURL, to: destinationURL)
-        return destinationURL
+        try STFile(tempURL).move(to: destinationFile)
+        return destinationFile.url
     }
     
     // MARK: - MCPs API
@@ -369,13 +370,13 @@ public actor ClawdhubRepository: RemoteResourceRepository {
         let config = try await downloadMCPConfig(slug: slug, version: nil)
         
         // Save configuration to temporary file
-        let destinationURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("\(slug)-\(UUID().uuidString).json")
+        let tempFolder = try STFolder(sanbox: .temporary)
+        let destinationURL = tempFolder.file("\(slug)-\(UUID().uuidString).json").url
         
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         let data = try encoder.encode(config)
-        try data.write(to: destinationURL)
+        try STFile(destinationURL).overlay(with: data)
         
         return destinationURL
     }

@@ -1,6 +1,7 @@
 import Foundation
 import Observation
 import SwiftUI
+import STFilePath
 
 @MainActor
 @Observable
@@ -76,7 +77,7 @@ final class ProviderSkillsViewModel {
     // Actions for Row
     func uninstallSkill(at path: String) async {
         do {
-            try FileManager.default.removeItem(atPath: path)
+            try STPath(path).deleteIncludingBrokenSymlink()
             await loadProviderStates()
         } catch {
             // handle error
@@ -105,7 +106,7 @@ final class ProviderSkillsViewModel {
     
     func deletePath(_ path: String) async {
         do {
-            try FileManager.default.removeItem(atPath: path)
+            try STPath(path).deleteIncludingBrokenSymlink()
             await loadProviderStates()
         } catch {
              // handle error

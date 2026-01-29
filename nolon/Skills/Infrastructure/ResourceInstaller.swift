@@ -1,22 +1,20 @@
 import Foundation
 import STJSON
 import TOML
+import STFilePath
 
 /// Unified resource installer for Skills, Workflows, and MCPs
 /// Replaces and extends SkillInstaller.swift functionality
 public actor ResourceInstaller {
     
     private let globalCache: GlobalCacheRepository
-    private let fileManager: FileManager
     private let nolonManager: NolonManager
     
     public init(
         globalCache: GlobalCacheRepository,
-        fileManager: FileManager = .default,
         nolonManager: NolonManager = .shared
     ) {
         self.globalCache = globalCache
-        self.fileManager = fileManager
         self.nolonManager = nolonManager
     }
     
@@ -44,7 +42,7 @@ public actor ResourceInstaller {
         }
         
         defer {
-            try? fileManager.removeItem(at: downloadURL)
+            try? STPath(downloadURL).deleteIncludingBrokenSymlink()
         }
         
         // 2. Cache to global storage
@@ -72,13 +70,13 @@ public actor ResourceInstaller {
         let resourcePath = cacheResourcePath(for: resourceSlug, type: resourceType)
         var resolvedPath = resourcePath
         
-        if !fileManager.fileExists(atPath: resolvedPath.path),
+        if !STPath(resolvedPath).isExists,
            let legacyPath = legacyCacheResourcePath(for: resourceSlug, type: resourceType),
-           fileManager.fileExists(atPath: legacyPath.path) {
+           STPath(legacyPath).isExists {
             resolvedPath = legacyPath
         }
         
-        guard fileManager.fileExists(atPath: resolvedPath.path) else {
+        guard STPath(resolvedPath).isExists else {
             throw RepositoryError.resourceNotFound(resourceSlug)
         }
         
@@ -148,22 +146,17 @@ public actor ResourceInstaller {
         let targetPath = "\(providerPath)/\(slug)"
         
         // Remove existing if present
-        if fileManager.fileExists(atPath: targetPath) {
-            try fileManager.removeItem(atPath: targetPath)
-        }
+        try STPath(targetPath).deleteIncludingBrokenSymlink()
         
         // Ensure provider directory exists
-        try createDirectory(at: providerPath)
+        STFolder(providerPath).createIfNotExists()
         
         // Install based on provider method
         switch provider.installMethod {
         case .symlink:
-            try fileManager.createSymbolicLink(
-                atPath: targetPath,
-                withDestinationPath: skillPath.path
-            )
+            try STPath(targetPath).createSymbolicLink(to: STPath(skillPath))
         case .copy:
-            try fileManager.copyItem(atPath: skillPath.path, toPath: targetPath)
+            try STPath(skillPath).copy(to: STPath(targetPath), isOverlay: true)
         }
     }
     
@@ -178,22 +171,17 @@ public actor ResourceInstaller {
         let targetPath = "\(providerWorkflowPath)/\(slug).md"
         
         // Remove existing if present
-        if fileManager.fileExists(atPath: targetPath) {
-            try fileManager.removeItem(atPath: targetPath)
-        }
+        try STPath(targetPath).deleteIncludingBrokenSymlink()
         
         // Ensure provider workflow directory exists
-        try createDirectory(at: providerWorkflowPath)
+        STFolder(providerWorkflowPath).createIfNotExists()
         
         // Install based on provider method
         switch provider.installMethod {
         case .symlink:
-            try fileManager.createSymbolicLink(
-                atPath: targetPath,
-                withDestinationPath: workflowPath.path
-            )
+            try STPath(targetPath).createSymbolicLink(to: STPath(workflowPath))
         case .copy:
-            try fileManager.copyItem(atPath: workflowPath.path, toPath: targetPath)
+            try STPath(workflowPath).copy(to: STPath(targetPath), isOverlay: true)
         }
     }
     
@@ -213,14 +201,14 @@ public actor ResourceInstaller {
         let mcpConfigPath = await template.defaultMcpConfigPath.path
         
         // Read MCP configuration
-        let data = try Data(contentsOf: mcpPath)
+        let data = try STFile(mcpPath).data()
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
         let config = try decoder.decode(RemoteMCP.MCPConfiguration.self, from: data)
         
         // Ensure MCP config directory exists
         let configDir = (mcpConfigPath as NSString).deletingLastPathComponent
-        try createDirectory(at: configDir)
+        STFolder(configDir).createIfNotExists()
         
         if mcpConfigPath.lowercased().hasSuffix(".toml") {
             var configTable: CodexMCPConfig
@@ -246,7 +234,7 @@ public actor ResourceInstaller {
         } else {
             // Read existing mcp_settings.json or create new
             var existingConfig: [String: Any] = [:]
-            if fileManager.fileExists(atPath: mcpConfigPath) {
+            if STFile(mcpConfigPath).isExists {
                 let existingData = try Data(contentsOf: URL(fileURLWithPath: mcpConfigPath))
                 if let json = try? JSONSerialization.jsonObject(with: existingData) as? [String: Any] {
                     existingConfig = json
@@ -305,9 +293,7 @@ public actor ResourceInstaller {
         // Remove from provider
         let providerPath = provider.defaultSkillsPath
         let targetPath = "\(providerPath)/\(slug)"
-        if fileManager.fileExists(atPath: targetPath) {
-            try fileManager.removeItem(atPath: targetPath)
-        }
+        try STPath(targetPath).deleteIncludingBrokenSymlink()
         
         // Optionally remove from cache
         if removeFromCache {
@@ -318,9 +304,7 @@ public actor ResourceInstaller {
     private func uninstallWorkflow(slug: String, from provider: Provider, removeFromCache: Bool) async throws {
         let providerWorkflowPath = provider.workflowPath
         let targetPath = "\(providerWorkflowPath)/\(slug).md"
-        if fileManager.fileExists(atPath: targetPath) {
-            try fileManager.removeItem(atPath: targetPath)
-        }
+        try STPath(targetPath).deleteIncludingBrokenSymlink()
         
         if removeFromCache {
             try await globalCache.removeFromCache(slug: slug, type: .workflow)
@@ -336,7 +320,7 @@ public actor ResourceInstaller {
         
         let mcpConfigPath = await template.defaultMcpConfigPath.path
         
-        guard fileManager.fileExists(atPath: mcpConfigPath) else {
+        guard STFile(mcpConfigPath).isExists else {
             return
         }
         
@@ -406,16 +390,6 @@ public actor ResourceInstaller {
             return nil
         case .workflow, .mcp:
             return getCachePath(for: type).appendingPathComponent(slug)
-        }
-    }
-    
-    private func createDirectory(at path: String) throws {
-        if !fileManager.fileExists(atPath: path) {
-            try fileManager.createDirectory(
-                atPath: path,
-                withIntermediateDirectories: true,
-                attributes: nil
-            )
         }
     }
 }

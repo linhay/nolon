@@ -1,6 +1,7 @@
 import Foundation
 import SwiftGit
 import os.log
+import STFilePath
 
 /// Git repository implementation using SwiftGit
 /// Supports GitHub, GitLab, and other Git hosting services
@@ -101,7 +102,6 @@ public actor GitRepository: RemoteResourceRepository {
     private let localClonePath: URL
     private let skillsPaths: [String]
     private let accessToken: String?
-    private let fileManager: FileManager
     private let git: Git
     private let logger = Logger(subsystem: "com.nolon", category: "GitRepository")
     
@@ -116,8 +116,7 @@ public actor GitRepository: RemoteResourceRepository {
         gitURL: String,
         localClonePath: URL,
         skillsPaths: [String] = ["."],
-        accessToken: String? = nil,
-        fileManager: FileManager = .default
+        accessToken: String? = nil
     ) throws {
         self.id = id
         self.name = name
@@ -125,11 +124,10 @@ public actor GitRepository: RemoteResourceRepository {
         self.localClonePath = localClonePath
         self.skillsPaths = skillsPaths
         self.accessToken = accessToken
-        self.fileManager = fileManager
         self.git = try Git.shared
 
         // If the repository already exists locally, initialize the scanner without pulling.
-        if fileManager.fileExists(atPath: localClonePath.path) {
+        if STPath(localClonePath).isExists {
             localFolderRepo = makeLocalFolderRepository()
         }
     }
@@ -147,11 +145,10 @@ public actor GitRepository: RemoteResourceRepository {
         // Do NOT use `effectiveSkillsPaths` here because it expands to absolute paths and breaks path joining.
         self.skillsPaths = repository.skillsPaths.isEmpty ? ["."] : repository.skillsPaths
         self.accessToken = repository.accessToken
-        self.fileManager = .default
         self.git = try Git.shared
 
         // If the repository already exists locally, initialize the scanner without pulling.
-        if fileManager.fileExists(atPath: localClonePath.path) {
+        if STPath(localClonePath).isExists {
             localFolderRepo = makeLocalFolderRepository()
         }
     }
@@ -163,7 +160,7 @@ public actor GitRepository: RemoteResourceRepository {
         logger.info("  - Git URL: \(self.gitURL)")
         logger.info("  - Local path: \(self.localClonePath.path)")
         
-        let repoExists = fileManager.fileExists(atPath: localClonePath.path)
+        let repoExists = STPath(localClonePath).isExists
         
         if repoExists {
             logger.info("📥 Repository exists, performing pull...")
@@ -187,9 +184,8 @@ public actor GitRepository: RemoteResourceRepository {
             return .failure("Not a Git repository")
         }
 
-        let fileManager = FileManager.default
         let resolvedPath = repository.localClonePath
-        let existedBefore = fileManager.fileExists(atPath: resolvedPath.path)
+        let existedBefore = STPath(resolvedPath).isExists
 
         do {
             let gitRepo = try GitRepository(repository: repository)
@@ -212,12 +208,10 @@ public actor GitRepository: RemoteResourceRepository {
     /// Delete local clone directory for a Git repository.
     public static func deleteRepository(_ repository: RemoteRepository) throws {
         let localPath = repository.localClonePath
-        if FileManager.default.fileExists(atPath: localPath.path) {
-            do {
-                try FileManager.default.removeItem(at: localPath)
-            } catch {
-                throw SyncError.fileOperationFailed(error.localizedDescription)
-            }
+        do {
+            try STPath(localPath).deleteIncludingBrokenSymlink()
+        } catch {
+            throw SyncError.fileOperationFailed(error.localizedDescription)
         }
     }
     
@@ -279,7 +273,7 @@ public actor GitRepository: RemoteResourceRepository {
         }
 
         // Do not auto-sync on browse. Only allow reading if a local clone already exists.
-        guard fileManager.fileExists(atPath: localClonePath.path) else {
+        guard STPath(localClonePath).isExists else {
             throw RepositoryError.gitOperationFailed(
                 NSLocalizedString("error.git.not_cloned", comment: "Repository is not cloned yet")
             )
@@ -351,7 +345,7 @@ public actor GitRepository: RemoteResourceRepository {
         
         do {
             let parent = localClonePath.deletingLastPathComponent()
-            try? fileManager.createDirectory(at: parent, withIntermediateDirectories: true, attributes: nil)
+            STFolder(parent).createIfNotExists()
 
             logger.info("⏳ Starting git clone with depth=1...")
             try await git.clone([.depth(1)], repository: repositoryURL, directory: localClonePath.path)
@@ -519,19 +513,12 @@ public actor GitRepository: RemoteResourceRepository {
             )
         }
 
-        guard let contents = try? FileManager.default.contentsOfDirectory(atPath: absolutePath) else {
-            return
-        }
+        guard let folders = try? STFolder(absolutePath).folders() else { return }
 
-        for item in contents {
+        for folder in folders {
+            let item = folder.url.lastPathComponent
             guard ![".git", "node_modules", "build", "dist", ".build"].contains(item) else { continue }
-
-            let itemAbsolutePath = (absolutePath as NSString).appendingPathComponent(item)
-            var isDirectory: ObjCBool = false
-
-            guard FileManager.default.fileExists(atPath: itemAbsolutePath, isDirectory: &isDirectory),
-                  isDirectory.boolValue
-            else { continue }
+            let itemAbsolutePath = folder.url.path
 
             if SkillParser.isSkillDirectory(at: itemAbsolutePath) {
                 continue
@@ -549,21 +536,16 @@ public actor GitRepository: RemoteResourceRepository {
     }
 
     private static func findSkillsInDirectory(_ path: String) -> [String] {
-        guard let contents = try? FileManager.default.contentsOfDirectory(atPath: path) else {
+        guard let folders = try? STFolder(path).folders() else {
             return []
         }
 
         var skillNames: [String] = []
-        for item in contents {
+        for folder in folders {
+            let item = folder.url.lastPathComponent
             if item.hasPrefix(".") && item != ".agent" { continue }
 
-            let itemPath = (path as NSString).appendingPathComponent(item)
-            var isDirectory: ObjCBool = false
-
-            guard FileManager.default.fileExists(atPath: itemPath, isDirectory: &isDirectory),
-                  isDirectory.boolValue
-            else { continue }
-
+            let itemPath = folder.url.path
             if let skillName = SkillParser.skillName(at: itemPath) {
                 skillNames.append(skillName)
             }

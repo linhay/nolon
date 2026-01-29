@@ -1,5 +1,6 @@
 import Foundation
 import STJSON
+import STFilePath
 
 /// Skill state in a provider directory
 public struct ProviderSkillState: Sendable {
@@ -19,18 +20,15 @@ public struct ProviderSkillState: Sendable {
 /// Handles skill installation via symlinks, migration, and health checks
 public final class SkillInstaller {
 
-    private let fileManager: FileManager
     private let repository: SkillRepository
     private let settings: ProviderSettings
     private let nolonManager: NolonManager
 
     public init(
-        fileManager: FileManager = .default,
         repository: SkillRepository,
         settings: ProviderSettings,
         nolonManager: NolonManager = .shared
     ) {
-        self.fileManager = fileManager
         self.repository = repository
         self.settings = settings
         self.nolonManager = nolonManager
@@ -44,26 +42,19 @@ public final class SkillInstaller {
         let targetPath = "\(providerPath)/\(skill.id)"
 
         // If already exists, remove it first to allow reinstall/update
-        if fileManager.fileExists(atPath: targetPath) {
-            try fileManager.removeItem(atPath: targetPath)
-        }
+        try STPath(targetPath).deleteIncludingBrokenSymlink()
 
         // Ensure provider directory exists
-        try createDirectory(at: providerPath)
+        STFolder(providerPath).createIfNotExists()
 
         // Check installation method
         let method = provider.installMethod
 
         switch method {
         case .symlink:
-            // Create symlink
-            try fileManager.createSymbolicLink(
-                atPath: targetPath,
-                withDestinationPath: skill.globalPath
-            )
+            try STPath(targetPath).createSymbolicLink(to: STPath(skill.globalPath))
         case .copy:
-            // Copy directory
-            try fileManager.copyItem(atPath: skill.globalPath, toPath: targetPath)
+            try STPath(skill.globalPath).copy(to: STPath(targetPath), isOverlay: true)
         }
     }
 
@@ -75,32 +66,31 @@ public final class SkillInstaller {
         let globalPath = "\(globalSkillsPath)/\(slug)"
 
         // Check if already exists in global storage
-        let skillExistsInGlobal = fileManager.fileExists(atPath: globalPath)
+        let skillExistsInGlobal = STPath(globalPath).isExists
 
         // If not in global storage, extract there first
         if !skillExistsInGlobal {
             // Ensure global skills directory exists
-            try createDirectory(at: globalSkillsPath)
+            STFolder(globalSkillsPath).createIfNotExists()
 
             // Create temp directory for extraction
-            let tempDir = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-            try fileManager.createDirectory(at: tempDir, withIntermediateDirectories: true)
+            let tempDir = try STFolder(sanbox: .temporary).folder(UUID().uuidString).create()
 
             defer {
-                try? fileManager.removeItem(at: tempDir)
-                try? fileManager.removeItem(at: zipURL)
+                try? tempDir.deleteIncludingBrokenSymlink()
+                try? STPath(zipURL).deleteIncludingBrokenSymlink()
             }
 
             // Unzip
-            try unzip(zipURL, to: tempDir)
+            try unzip(zipURL, to: tempDir.url)
 
             // Find skill root (the directory containing SKILL.md)
-            guard let skillRoot = findSkillRoot(in: tempDir) else {
+            guard let skillRoot = findSkillRoot(in: tempDir.url) else {
                 throw SkillError.parsingFailed("No valid skill found in the downloaded package")
             }
 
             // Move to global storage
-            try fileManager.moveItem(at: skillRoot, to: URL(fileURLWithPath: globalPath))
+            try STPath(skillRoot).move(to: STPath(globalPath), isOverlay: true)
 
             // Write origin info
             try writeClawdhubOrigin(at: URL(fileURLWithPath: globalPath), slug: slug)
@@ -108,7 +98,7 @@ public final class SkillInstaller {
 
         // Now load the skill from global storage
         let skillMdPath = "\(globalPath)/SKILL.md"
-        guard let content = try? String(contentsOfFile: skillMdPath, encoding: .utf8) else {
+        guard let content = try? STFile(skillMdPath).read() else {
             throw SkillError.parsingFailed("SKILL.md not found in '\(slug)'")
         }
 
@@ -155,28 +145,25 @@ public final class SkillInstaller {
         let globalURL = URL(fileURLWithPath: globalPath).standardizedFileURL
 
         // Ensure global skills directory exists
-        try createDirectory(at: globalSkillsPath)
+        STFolder(globalSkillsPath).createIfNotExists()
 
-        // Register in global storage (Symlink Global -> Source)
-        // If it already exists (including broken symlinks), replace it
-        // Note: fileExists returns false for broken symlinks, so we use attributesOfItem
+        // Register in global storage (copy to ~/.nolon/skills).
+        // If it already exists (including broken symlinks), replace it.
         if sourceURL != globalURL {
-            if (try? globalURL.checkResourceIsReachable()) == true ||
-                (try? fileManager.attributesOfItem(atPath: globalPath)) != nil {
-                try fileManager.removeItem(atPath: globalPath)
-            }
-
-            try fileManager.copyItem(atPath: sourcePath, toPath: globalPath)
+            let globalPathRef = STPath(globalURL)
+            try globalPathRef.deleteIncludingBrokenSymlink()
+            try STPath(sourceURL).copy(to: STPath(globalURL), isOverlay: true)
         } else {
             // Source is already in global storage; nothing to copy
-            guard (try? globalURL.checkResourceIsReachable()) == true else {
+            let globalPathRef = STPath(globalURL)
+            guard globalPathRef.isExists || globalPathRef.isSymbolicLink else {
                 throw SkillError.fileOperationFailed("Global skill path missing at \(globalPath)")
             }
         }
 
         // Now load the skill from global storage
         let skillMdPath = "\(globalPath)/SKILL.md"
-        guard let content = try? String(contentsOfFile: skillMdPath, encoding: .utf8) else {
+        guard let content = try? STFile(skillMdPath).read() else {
             throw SkillError.parsingFailed("SKILL.md not found in '\(slug)'")
         }
 
@@ -203,26 +190,18 @@ public final class SkillInstaller {
 
     private func findSkillRoot(in rootURL: URL) -> URL? {
         let directSkill = rootURL.appendingPathComponent("SKILL.md")
-        if fileManager.fileExists(atPath: directSkill.path) {
+        if STFile(directSkill).isExists {
             return rootURL
         }
 
-        guard
-            let children = try? fileManager.contentsOfDirectory(
-                at: rootURL,
-                includingPropertiesForKeys: [.isDirectoryKey],
-                options: [.skipsHiddenFiles]
-            )
-        else {
-            return nil
-        }
+        let rootFolder = STFolder(rootURL)
+        guard let children = try? rootFolder.folders() else { return nil }
 
-        let candidateDirs = children.compactMap { url -> URL? in
-            let values = try? url.resourceValues(forKeys: [.isDirectoryKey])
-            guard values?.isDirectory == true else { return nil }
-            let skillFile = url.appendingPathComponent("SKILL.md")
-            return fileManager.fileExists(atPath: skillFile.path) ? url : nil
-        }
+        let candidateDirs = children
+            .filter { !$0.url.lastPathComponent.hasPrefix(".") }
+            .compactMap { folder -> URL? in
+                folder.fileIfExist(name: "SKILL.md") == nil ? nil : folder.url
+            }
 
         if candidateDirs.count == 1 {
             return candidateDirs[0]
@@ -233,7 +212,7 @@ public final class SkillInstaller {
 
     private func writeClawdhubOrigin(at skillRoot: URL, slug: String) throws {
         let originDir = skillRoot.appendingPathComponent(".clawdhub")
-        try createDirectory(at: originDir.path)
+        STFolder(originDir).createIfNotExists()
 
         let originURL = originDir.appendingPathComponent("origin.json")
         let payload: [String: Any] = [
@@ -243,7 +222,7 @@ public final class SkillInstaller {
         ]
 
         let data = try JSONSerialization.data(withJSONObject: payload, options: [.prettyPrinted])
-        try data.write(to: originURL, options: [.atomic])
+        try STFile(originURL).overlay(with: data)
     }
 
     /// Uninstall a skill from a provider
@@ -251,11 +230,7 @@ public final class SkillInstaller {
         let providerPath = provider.defaultSkillsPath
         let targetPath = "\(providerPath)/\(skill.id)"
 
-        guard fileManager.fileExists(atPath: targetPath) else {
-            return  // Already uninstalled
-        }
-
-        try fileManager.removeItem(atPath: targetPath)
+        try STPath(targetPath).deleteIncludingBrokenSymlink()
     }
     
     // MARK: - Workflow Installation
@@ -266,18 +241,16 @@ public final class SkillInstaller {
         let targetPath = "\(providerWorkflowPath)/\(skill.id).md"
         
         // Ensure provider workflow directory exists
-        try createDirectory(at: providerWorkflowPath)
+        STFolder(providerWorkflowPath).createIfNotExists()
         
         // Ensure global workflow exists
         let globalWorkflowPath = try repository.createGlobalWorkflow(for: skill)
         
         // Remove existing link/file if present
-        if fileManager.fileExists(atPath: targetPath) {
-            try fileManager.removeItem(atPath: targetPath)
-        }
+        try STPath(targetPath).deleteIncludingBrokenSymlink()
         
         // Create symlink
-        try fileManager.createSymbolicLink(atPath: targetPath, withDestinationPath: globalWorkflowPath)
+        try STPath(targetPath).createSymbolicLink(to: STPath(globalWorkflowPath))
     }
     
     /// Uninstall a workflow for a skill
@@ -285,11 +258,7 @@ public final class SkillInstaller {
         let providerWorkflowPath = provider.workflowPath
         let targetPath = "\(providerWorkflowPath)/\(skill.id).md"
         
-        guard fileManager.fileExists(atPath: targetPath) else {
-            return
-        }
-        
-        try fileManager.removeItem(atPath: targetPath)
+        try STPath(targetPath).deleteIncludingBrokenSymlink()
     }
     
     /// Install a workflow for an MCP (symlink to mcps-workflows)
@@ -299,22 +268,20 @@ public final class SkillInstaller {
         let targetPath = "\(providerWorkflowPath)/\(mcp.name).md"
         
         // 1. Ensure provider workflow directory exists
-        try createDirectory(at: providerWorkflowPath)
+        STFolder(providerWorkflowPath).createIfNotExists()
         
         // 2. Ensure global MCP workflow exists in ~/.nolon/mcps-workflows
-        if !fileManager.fileExists(atPath: globalMcpWorkflowPath) {
-            try createDirectory(at: nolonManager.mcpsWorkflowsPath)
+        if !STPath(globalMcpWorkflowPath).isExists {
+            STFolder(nolonManager.mcpsWorkflowsPath).createIfNotExists()
             let initialContent = "# \(mcp.name) Workflow\n\nThis is a workflow for \(mcp.name) MCP server.\n"
-            try initialContent.write(toFile: globalMcpWorkflowPath, atomically: true, encoding: .utf8)
+            try STFile(globalMcpWorkflowPath).overlay(with: initialContent)
         }
         
         // 3. Remove existing link/file if present in provider directory
-        if fileManager.fileExists(atPath: targetPath) {
-            try fileManager.removeItem(atPath: targetPath)
-        }
+        try STPath(targetPath).deleteIncludingBrokenSymlink()
         
         // 4. Create symlink from provider to global
-        try fileManager.createSymbolicLink(atPath: targetPath, withDestinationPath: globalMcpWorkflowPath)
+        try STPath(targetPath).createSymbolicLink(to: STPath(globalMcpWorkflowPath))
     }
     
     /// Uninstall a workflow for an MCP
@@ -322,11 +289,7 @@ public final class SkillInstaller {
         let providerWorkflowPath = provider.workflowPath
         let targetPath = "\(providerWorkflowPath)/\(mcp.name).md"
         
-        guard fileManager.fileExists(atPath: targetPath) else {
-            return
-        }
-        
-        try fileManager.removeItem(atPath: targetPath)
+        try STPath(targetPath).deleteIncludingBrokenSymlink()
     }
 
     // MARK: - Provider Scanning
@@ -350,11 +313,11 @@ public final class SkillInstaller {
     }
 
     private func scanDirectory(at directoryPath: String, for provider: Provider) throws -> [ProviderSkillState] {
-        guard fileManager.fileExists(atPath: directoryPath) else {
+        guard STPath(directoryPath).isFolderExists else {
             return []
         }
 
-        guard let contents = try? fileManager.contentsOfDirectory(atPath: directoryPath) else {
+        guard let contents = try? STFolder(directoryPath).subFilePaths() else {
             return []
         }
 
@@ -362,14 +325,15 @@ public final class SkillInstaller {
 
         for item in contents {
             // Skip hidden files
-            if item.hasPrefix(".") { continue }
+            let name = item.url.lastPathComponent
+            if name.hasPrefix(".") { continue }
 
-            let itemPath = "\(directoryPath)/\(item)"
-            let state = determineSkillState(skillName: item, at: itemPath, for: provider)
+            let itemPath = item.url.path
+            let state = determineSkillState(skillName: name, at: itemPath, for: provider)
 
             states.append(
                 ProviderSkillState(
-                    skillName: item,
+                    skillName: name,
                     state: state,
                     path: itemPath,
                     basePath: directoryPath
@@ -385,23 +349,21 @@ public final class SkillInstaller {
     private func determineSkillState(skillName: String, at path: String, for provider: Provider)
         -> SkillInstallationState
     {
-        var isDirectory: ObjCBool = false
-        guard fileManager.fileExists(atPath: path, isDirectory: &isDirectory) else {
+        let skillPath = STPath(path)
+        guard skillPath.isExists || skillPath.isSymbolicLink else {
             return .broken
         }
 
         // Check if it's a symlink
         let isSymlink: Bool
         var symlinkDestination: String? = nil
-        if let attributes = try? fileManager.attributesOfItem(atPath: path),
-            attributes[.type] as? FileAttributeType == .typeSymbolicLink
-        {
+        if skillPath.isSymbolicLink {
             isSymlink = true
-            symlinkDestination = try? fileManager.destinationOfSymbolicLink(atPath: path)
+            symlinkDestination = try? skillPath.destinationOfSymbolicLink().url.path
 
             // Check if symlink target exists
             guard let destination = symlinkDestination,
-                fileManager.fileExists(atPath: destination)
+                STPath(destination).isExists
             else {
                 return .broken
             }
@@ -430,7 +392,7 @@ public final class SkillInstaller {
 
             // Check if skill exists in global storage
             let globalPath = "\(nolonManager.skillsPath)/\(skillName)"
-            guard fileManager.fileExists(atPath: globalPath) else {
+            guard STPath(globalPath).isExists else {
                 // Not in global storage -> orphaned
                 return .orphaned
             }
@@ -466,12 +428,8 @@ public final class SkillInstaller {
         }
 
         // Also compare file modification dates as a fallback
-        let providerModDate =
-            (try? fileManager.attributesOfItem(atPath: providerSkillMd)[.modificationDate] as? Date)
-            ?? Date.distantPast
-        let globalModDate =
-            (try? fileManager.attributesOfItem(atPath: globalSkillMd)[.modificationDate] as? Date)
-            ?? Date.distantPast
+        let providerModDate = STFile(providerSkillMd).attributes.modificationDate
+        let globalModDate = STFile(globalSkillMd).attributes.modificationDate
 
         // If provider is newer by more than a second, consider different
         return providerModDate.timeIntervalSince(globalModDate) > 1.0
@@ -510,43 +468,40 @@ public final class SkillInstaller {
 
         let globalPath = "\(NolonManager.shared.skillsPath)/\(skillName)"
 
-        let globalExists = fileManager.fileExists(atPath: globalPath)
+        let globalExists = STPath(globalPath).isExists
 
         if globalExists {
             // Check if identical to global
             if !skillsAreDifferent(providerPath: sourcePath, globalPath: globalPath) {
                 // Scenario 1: Identical content - just delete provider copy and reinstall from global
-                try fileManager.removeItem(atPath: sourcePath)
+                try STPath(sourcePath).deleteIncludingBrokenSymlink()
             } else {
                 // Scenario 3: Different content - need user decision
                 if overwriteExisting {
                     // Remove existing global skill and replace with provider version
-                    try fileManager.removeItem(atPath: globalPath)
-                    try fileManager.moveItem(atPath: sourcePath, toPath: globalPath)
+                    try STPath(globalPath).deleteIncludingBrokenSymlink()
+                    try STPath(sourcePath).move(to: STPath(globalPath), isOverlay: true)
                 } else {
                     throw SkillError.conflictDetected(skillName: skillName, providers: [])
                 }
             }
         } else {
             // Scenario 2: Not in global - move to global storage
-            try fileManager.moveItem(atPath: sourcePath, toPath: globalPath)
+            try STPath(sourcePath).move(to: STPath(globalPath), isOverlay: true)
         }
 
         // Install back to provider based on settings
         let method = provider.installMethod
         switch method {
         case .symlink:
-            try fileManager.createSymbolicLink(
-                atPath: sourcePath,
-                withDestinationPath: globalPath
-            )
+            try STPath(sourcePath).createSymbolicLink(to: STPath(globalPath))
         case .copy:
-            try fileManager.copyItem(atPath: globalPath, toPath: sourcePath)
+            try STPath(globalPath).copy(to: STPath(sourcePath), isOverlay: true)
         }
 
         // Parse and return the skill
         let skillMdPath = "\(globalPath)/SKILL.md"
-        guard let content = try? String(contentsOfFile: skillMdPath, encoding: .utf8) else {
+        guard let content = try? STFile(skillMdPath).read() else {
             throw SkillError.parsingFailed("SKILL.md not found in '\(skillName)'")
         }
 
@@ -620,12 +575,10 @@ public final class SkillInstaller {
         let globalPath = "\(nolonManager.skillsPath)/\(skillName)"
 
         // Remove broken symlink
-        if fileManager.fileExists(atPath: targetPath) {
-            try fileManager.removeItem(atPath: targetPath)
-        }
+        try STPath(targetPath).deleteIncludingBrokenSymlink()
 
         // Verify global skill exists
-        guard fileManager.fileExists(atPath: globalPath) else {
+        guard STPath(globalPath).isExists else {
             throw SkillError.skillNotFound(id: skillName)
         }
 
@@ -633,12 +586,9 @@ public final class SkillInstaller {
         let method = provider.installMethod
         switch method {
         case .symlink:
-            try fileManager.createSymbolicLink(
-                atPath: targetPath,
-                withDestinationPath: globalPath
-            )
+            try STPath(targetPath).createSymbolicLink(to: STPath(globalPath))
         case .copy:
-            try fileManager.copyItem(atPath: globalPath, toPath: targetPath)
+            try STPath(globalPath).copy(to: STPath(targetPath), isOverlay: true)
         }
     }
 
@@ -650,15 +600,13 @@ public final class SkillInstaller {
         let targetPath = "\(workflowPath)/\(slug).md"
         
         // Ensure workflow directory exists
-        try createDirectory(at: workflowPath)
+        STFolder(workflowPath).createIfNotExists()
         
         // If already exists, remove it first
-        if fileManager.fileExists(atPath: targetPath) {
-            try fileManager.removeItem(atPath: targetPath)
-        }
+        try STPath(targetPath).deleteIncludingBrokenSymlink()
         
         // Copy workflow file
-        try fileManager.copyItem(at: fileURL, to: URL(fileURLWithPath: targetPath))
+        try STPath(fileURL).copy(to: STPath(targetPath), isOverlay: true)
         
         // Write origin metadata
         try writeClawdhubWorkflowOrigin(at: URL(fileURLWithPath: workflowPath), slug: slug)
@@ -670,21 +618,16 @@ public final class SkillInstaller {
         let targetPath = "\(workflowPath)/\(slug).md"
 
         // Ensure workflow directory exists
-        try createDirectory(at: workflowPath)
+        STFolder(workflowPath).createIfNotExists()
 
         // If already exists, remove it first
-        if fileManager.fileExists(atPath: targetPath) {
-            try fileManager.removeItem(atPath: targetPath)
-        }
+        try STPath(targetPath).deleteIncludingBrokenSymlink()
 
         switch provider.installMethod {
         case .symlink:
-            try fileManager.createSymbolicLink(
-                atPath: targetPath,
-                withDestinationPath: fileURL.path
-            )
+            try STPath(targetPath).createSymbolicLink(to: STPath(fileURL))
         case .copy:
-            try fileManager.copyItem(at: fileURL, to: URL(fileURLWithPath: targetPath))
+            try STPath(fileURL).copy(to: STPath(targetPath), isOverlay: true)
         }
     }
 
@@ -718,7 +661,7 @@ public final class SkillInstaller {
         
         // Read existing config or create new
         var json: JSON
-        if fileManager.fileExists(atPath: configPath.path),
+        if STFile(configPath).isExists,
            let data = try? Data(contentsOf: configPath),
            let fileJson = try? JSON(data: data) {
             json = fileJson
@@ -786,13 +729,4 @@ public final class SkillInstaller {
 
     // MARK: - Helpers
 
-    private func createDirectory(at path: String) throws {
-        if !fileManager.fileExists(atPath: path) {
-            try fileManager.createDirectory(
-                atPath: path,
-                withIntermediateDirectories: true,
-                attributes: nil
-            )
-        }
-    }
 }

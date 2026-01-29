@@ -1,6 +1,7 @@
 import SwiftUI
 import STJSON
 import TOML
+import STFilePath
 
 // Minimal TOML model for Codex-style config.toml
 private struct CodexMCPConfigLite: Codable {
@@ -82,23 +83,18 @@ final class ProviderContentTabViewModel {
         
         // Workflows count
         let workflowPath = provider.workflowPath
-        let url = URL(fileURLWithPath: workflowPath)
-        do {
-            let contents = try FileManager.default.contentsOfDirectory(
-                at: url,
-                includingPropertiesForKeys: nil,
-                options: [.skipsHiddenFiles]
-            )
-            workflowsCount = contents.filter { $0.pathExtension == "md" }.count
-        } catch {
+        let workflowFolder = STFolder(workflowPath)
+        if let contents = try? workflowFolder.files() {
+            workflowsCount = contents.filter { $0.url.pathExtension == "md" }.count
+        } else {
             workflowsCount = 0
         }
         
         // MCP count
         if let templateId = provider.templateId,
            let template = ProviderTemplate(rawValue: templateId) {
-            let configPath = template.defaultMcpConfigPath
-            guard FileManager.default.fileExists(atPath: configPath.path) else {
+           let configPath = template.defaultMcpConfigPath
+            guard STFile(configPath).isExists else {
                 mcpCount = 0
                 return
             }

@@ -1,5 +1,6 @@
 import Yams
 import Foundation
+import STFilePath
 
 /// Parses SKILL.md files to extract YAML frontmatter metadata
 public enum SkillParser: Sendable {
@@ -9,7 +10,7 @@ public enum SkillParser: Sendable {
     /// - Returns: true if the directory contains a valid SKILL.md file
     public static func isSkillDirectory(at path: String) -> Bool {
         let skillMdPath = (path as NSString).appendingPathComponent("SKILL.md")
-        return FileManager.default.fileExists(atPath: skillMdPath)
+        return STFile(skillMdPath).isExists
     }
     
     /// Check if a directory is a valid skill directory and return skill name if valid
@@ -17,8 +18,8 @@ public enum SkillParser: Sendable {
     /// - Returns: The skill name (from frontmatter or directory name) if valid, nil otherwise
     public static func skillName(at path: String) -> String? {
         let skillMdPath = (path as NSString).appendingPathComponent("SKILL.md")
-        guard FileManager.default.fileExists(atPath: skillMdPath),
-              let content = try? String(contentsOfFile: skillMdPath, encoding: .utf8) else {
+        guard STFile(skillMdPath).isExists,
+              let content = try? STFile(skillMdPath).read() else {
             return nil
         }
         

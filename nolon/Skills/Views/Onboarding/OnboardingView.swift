@@ -1,4 +1,5 @@
 import SwiftUI
+import STFilePath
 
 /// 引导页主容器视图
 struct OnboardingView: View {
@@ -71,15 +72,14 @@ struct OnboardingView: View {
     @MainActor
     private func detectInstalledProviders() {
         var detected: Set<ProviderTemplate> = []
-        let fileManager = FileManager.default
         
         for template in ProviderTemplate.allCases {
             let skillsPath = template.defaultSkillsPath
             let workflowPath = template.defaultWorkflowPath
             
             // 检查是否存在 skills 或 workflow 目录
-            if fileManager.fileExists(atPath: skillsPath.path) ||
-               fileManager.fileExists(atPath: workflowPath.path) {
+            if STPath(skillsPath).isExists ||
+               STPath(workflowPath).isExists {
                 detected.insert(template)
             }
         }

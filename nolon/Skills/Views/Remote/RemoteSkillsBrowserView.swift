@@ -1,5 +1,6 @@
 import SwiftUI
 import Observation
+import STFilePath
 
 @Observable
 final class RemoteSkillsBrowserViewModel {
@@ -52,24 +53,19 @@ final class RemoteSkillsBrowserViewModel {
         }
 
         let path = provider.workflowPath
-        let url = URL(fileURLWithPath: path)
-
-        guard FileManager.default.fileExists(atPath: path) else {
+        let folder = STFolder(path)
+        
+        guard folder.isExists else {
             installedWorkflowSlugs = []
             return
         }
 
         do {
-            let contents = try FileManager.default.contentsOfDirectory(
-                at: url,
-                includingPropertiesForKeys: nil,
-                options: [.skipsHiddenFiles]
-            )
-
+            let contents = try folder.files()
             installedWorkflowSlugs = Set(
                 contents
-                    .filter { $0.pathExtension == "md" }
-                    .map { $0.deletingPathExtension().lastPathComponent }
+                    .filter { $0.url.pathExtension == "md" }
+                    .map { $0.url.deletingPathExtension().lastPathComponent }
             )
         } catch {
             installedWorkflowSlugs = []

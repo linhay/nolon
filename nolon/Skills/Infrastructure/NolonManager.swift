@@ -1,10 +1,9 @@
 import Foundation
+import STFilePath
 
 /// Central manager for .nolon directory structure
 public final class NolonManager: Sendable {
     public static let shared = NolonManager()
-    
-    public let fileManager: FileManager
     
     // MARK: - Paths
     public let rootURL: URL
@@ -26,42 +25,37 @@ public final class NolonManager: Sendable {
     public var mcpsPath: String { mcpsURL.path }
     public var mcpsWorkflowsPath: String { mcpsWorkflowsURL.path }
     
-    public init(fileManager: FileManager = .default, rootURL: URL? = nil) {
-        self.fileManager = fileManager
-        
-        if let rootURL = rootURL {
-            self.rootURL = rootURL
+    public init(rootURL: URL? = nil) {
+        let rootFolder: STFolder
+        if let rootURL {
+            rootFolder = STFolder(rootURL)
         } else {
-            let home = fileManager.homeDirectoryForCurrentUser
-            self.rootURL = home.appendingPathComponent(".nolon")
+            rootFolder = STFolder("~").folder(".nolon")
         }
         
-        self.skillsURL = self.rootURL.appendingPathComponent("skills")
-        self.generatedWorkflowsURL = self.rootURL.appendingPathComponent("skills-workflows")
-        self.userWorkflowsURL = self.rootURL.appendingPathComponent("workflows")
-        self.repositoriesURL = self.rootURL.appendingPathComponent("repositories")
-        self.providersConfigURL = self.rootURL.appendingPathComponent("providers.json")
-        self.mcpsURL = self.rootURL.appendingPathComponent("mcps")
-        self.mcpsWorkflowsURL = self.rootURL.appendingPathComponent("mcps-workflows")
+        self.rootURL = rootFolder.url
+        self.skillsURL = rootFolder.folder("skills").url
+        self.generatedWorkflowsURL = rootFolder.folder("skills-workflows").url
+        self.userWorkflowsURL = rootFolder.folder("workflows").url
+        self.repositoriesURL = rootFolder.folder("repositories").url
+        self.providersConfigURL = rootFolder.file("providers.json").url
+        self.mcpsURL = rootFolder.folder("mcps").url
+        self.mcpsWorkflowsURL = rootFolder.folder("mcps-workflows").url
         
         ensureDirectoriesExist()
     }
     
     private func ensureDirectoriesExist() {
-        let directories = [
-            rootURL,
-            skillsURL,
-            generatedWorkflowsURL,
-            userWorkflowsURL,
-            repositoriesURL,
-            mcpsURL,
-            mcpsWorkflowsURL
+        let folders: [STFolder] = [
+            STFolder(rootURL),
+            STFolder(skillsURL),
+            STFolder(generatedWorkflowsURL),
+            STFolder(userWorkflowsURL),
+            STFolder(repositoriesURL),
+            STFolder(mcpsURL),
+            STFolder(mcpsWorkflowsURL),
         ]
-        
-        for dir in directories {
-            if !fileManager.fileExists(atPath: dir.path) {
-                try? fileManager.createDirectory(at: dir, withIntermediateDirectories: true)
-            }
-        }
+
+        folders.forEach { $0.createIfNotExists() }
     }
 }

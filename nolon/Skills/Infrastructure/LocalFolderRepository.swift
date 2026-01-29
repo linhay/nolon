@@ -1,4 +1,5 @@
 import Foundation
+import STFilePath
 
 /// Local folder repository implementation
 /// Scans local directories for skills, workflows, and MCPs
@@ -15,22 +16,19 @@ public struct LocalFolderRepository: RemoteResourceRepository {
     // MARK: - Private Properties
     
     private let basePaths: [String]
-    private let fileManager: FileManager
     
     // MARK: - Initialization
     
-    public init(id: String, name: String, basePaths: [String], fileManager: FileManager = .default) {
+    public init(id: String, name: String, basePaths: [String]) {
         self.id = id
         self.name = name
         self.basePaths = basePaths
-        self.fileManager = fileManager
     }
     
-    public init(id: String, name: String, basePath: String, fileManager: FileManager = .default) {
+    public init(id: String, name: String, basePath: String) {
         self.id = id
         self.name = name
         self.basePaths = [basePath]
-        self.fileManager = fileManager
     }
     
     // MARK: - Skills
@@ -73,17 +71,16 @@ public struct LocalFolderRepository: RemoteResourceRepository {
     
     /// Scans a directory for skill folders (directories containing SKILL.md)
     private func scanSkills(from path: String) async throws -> [RemoteSkill] {
-        guard fileManager.fileExists(atPath: path) else {
+        guard STPath(path).isExists else {
             throw RepositoryError.resourceNotFound(path)
         }
         
-        var isDirectory: ObjCBool = false
-        guard fileManager.fileExists(atPath: path, isDirectory: &isDirectory),
-              isDirectory.boolValue else {
+        guard STPath(path).isFolderExists else {
             throw RepositoryError.fileOperationFailed("Not a directory: \(path)")
         }
         
-        guard let contents = try? fileManager.contentsOfDirectory(atPath: path) else {
+        let rootFolder = STFolder(path)
+        guard let folders = try? rootFolder.folders() else {
             throw RepositoryError.fileOperationFailed("Cannot read directory: \(path)")
         }
         
@@ -91,7 +88,7 @@ public struct LocalFolderRepository: RemoteResourceRepository {
         
         // Check for SKILL.md in the root path
         let rootSkillMdPath = (path as NSString).appendingPathComponent("SKILL.md")
-        if fileManager.fileExists(atPath: rootSkillMdPath) {
+        if STFile(rootSkillMdPath).isExists {
             let rootSlug = (path as NSString).lastPathComponent
             if let skill = try? parseSkill(at: path, skillMdPath: rootSkillMdPath, slug: rootSlug) {
                 // If the directory itself is a skill, do not scan subdirectories
@@ -99,18 +96,13 @@ public struct LocalFolderRepository: RemoteResourceRepository {
             }
         }
         
-        for item in contents {
-            let itemPath = (path as NSString).appendingPathComponent(item)
-            var itemIsDirectory: ObjCBool = false
-            
-            guard fileManager.fileExists(atPath: itemPath, isDirectory: &itemIsDirectory),
-                  itemIsDirectory.boolValue else {
-                continue
-            }
+        for folder in folders {
+            let item = folder.url.lastPathComponent
+            let itemPath = folder.url.path
             
             // Check if this directory contains SKILL.md
             let skillMdPath = (itemPath as NSString).appendingPathComponent("SKILL.md")
-            guard fileManager.fileExists(atPath: skillMdPath) else {
+            guard STFile(skillMdPath).isExists else {
                 continue
             }
             
@@ -125,12 +117,11 @@ public struct LocalFolderRepository: RemoteResourceRepository {
     
     /// Parses a skill from its SKILL.md file
     private func parseSkill(at path: String, skillMdPath: String, slug: String) throws -> RemoteSkill {
-        let content = try String(contentsOfFile: skillMdPath, encoding: .utf8)
+        let content = try STFile(skillMdPath).read()
         let parsed = try SkillParser.parse(content: content, id: slug, globalPath: path)
         
         // Get file modification date
-        let attributes = try? fileManager.attributesOfItem(atPath: skillMdPath)
-        let modificationDate = attributes?[.modificationDate] as? Date
+        let modificationDate: Date? = STFile(skillMdPath).isExists ? STFile(skillMdPath).attributes.modificationDate : nil
         
         return RemoteSkill(
             slug: slug,
@@ -150,7 +141,7 @@ public struct LocalFolderRepository: RemoteResourceRepository {
             let skillPath = (path as NSString).appendingPathComponent(slug)
             let skillMdPath = (skillPath as NSString).appendingPathComponent("SKILL.md")
             
-            if fileManager.fileExists(atPath: skillMdPath) {
+            if STFile(skillMdPath).isExists {
                 return URL(fileURLWithPath: skillPath)
             }
         }
@@ -198,24 +189,23 @@ public struct LocalFolderRepository: RemoteResourceRepository {
     
     /// Scans a directory for workflow markdown files
     private func scanWorkflows(from path: String) async throws -> [RemoteWorkflow] {
-        guard fileManager.fileExists(atPath: path) else {
+        guard STPath(path).isExists else {
             throw RepositoryError.resourceNotFound(path)
         }
         
-        var isDirectory: ObjCBool = false
-        guard fileManager.fileExists(atPath: path, isDirectory: &isDirectory),
-              isDirectory.boolValue else {
+        guard STPath(path).isFolderExists else {
             throw RepositoryError.fileOperationFailed("Not a directory: \(path)")
         }
         
-        guard let contents = try? fileManager.contentsOfDirectory(atPath: path) else {
+        guard let files = try? STFolder(path).files() else {
             throw RepositoryError.fileOperationFailed("Cannot read directory: \(path)")
         }
         
         var workflows: [RemoteWorkflow] = []
         
-        for item in contents {
-            let itemPath = (path as NSString).appendingPathComponent(item)
+        for file in files {
+            let itemPath = file.url.path
+            let item = file.url.lastPathComponent
             
             // Check if this is a markdown file
             guard item.hasSuffix(".md") else {
@@ -232,7 +222,7 @@ public struct LocalFolderRepository: RemoteResourceRepository {
     
     /// Parses a workflow from markdown file
     private func parseWorkflow(at path: String) throws -> RemoteWorkflow {
-        let content = try String(contentsOfFile: path, encoding: .utf8)
+        let content = try STFile(path).read()
         let slug = (path as NSString).deletingPathExtension.components(separatedBy: "/").last ?? "unknown"
         
         // Extract display name from first line or filename
@@ -243,8 +233,7 @@ public struct LocalFolderRepository: RemoteResourceRepository {
         let summary = lines.dropFirst().first(where: { !$0.isEmpty })
         
         // Get file modification date
-        let attributes = try? fileManager.attributesOfItem(atPath: path)
-        let modificationDate = attributes?[.modificationDate] as? Date
+        let modificationDate: Date? = STFile(path).isExists ? STFile(path).attributes.modificationDate : nil
         
         return RemoteWorkflow(
             slug: slug,
@@ -264,7 +253,7 @@ public struct LocalFolderRepository: RemoteResourceRepository {
         for path in basePaths {
             let workflowPath = (path as NSString).appendingPathComponent("\(slug).md")
             
-            if fileManager.fileExists(atPath: workflowPath) {
+            if STFile(workflowPath).isExists {
                 return URL(fileURLWithPath: workflowPath)
             }
         }
@@ -312,24 +301,23 @@ public struct LocalFolderRepository: RemoteResourceRepository {
     
     /// Scans a directory for MCP configuration files
     private func scanMCPs(from path: String) async throws -> [RemoteMCP] {
-        guard fileManager.fileExists(atPath: path) else {
+        guard STPath(path).isExists else {
             throw RepositoryError.resourceNotFound(path)
         }
         
-        var isDirectory: ObjCBool = false
-        guard fileManager.fileExists(atPath: path, isDirectory: &isDirectory),
-              isDirectory.boolValue else {
+        guard STPath(path).isFolderExists else {
             throw RepositoryError.fileOperationFailed("Not a directory: \(path)")
         }
         
-        guard let contents = try? fileManager.contentsOfDirectory(atPath: path) else {
+        guard let files = try? STFolder(path).files() else {
             throw RepositoryError.fileOperationFailed("Cannot read directory: \(path)")
         }
         
         var mcps: [RemoteMCP] = []
         
-        for item in contents {
-            let itemPath = (path as NSString).appendingPathComponent(item)
+        for file in files {
+            let itemPath = file.url.path
+            let item = file.url.lastPathComponent
             
             // Check if this is a JSON file
             guard item.hasSuffix(".json") else {
@@ -354,8 +342,7 @@ public struct LocalFolderRepository: RemoteResourceRepository {
         let slug = (path as NSString).deletingPathExtension.components(separatedBy: "/").last ?? "unknown"
         
         // Get file modification date
-        let attributes = try? fileManager.attributesOfItem(atPath: path)
-        let modificationDate = attributes?[.modificationDate] as? Date
+        let modificationDate: Date? = STFile(path).isExists ? STFile(path).attributes.modificationDate : nil
         
         return RemoteMCP(
             slug: slug,
@@ -376,7 +363,7 @@ public struct LocalFolderRepository: RemoteResourceRepository {
         for path in basePaths {
             let mcpPath = (path as NSString).appendingPathComponent("\(slug).json")
             
-            if fileManager.fileExists(atPath: mcpPath) {
+            if STFile(mcpPath).isExists {
                 return URL(fileURLWithPath: mcpPath)
             }
         }

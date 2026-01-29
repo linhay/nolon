@@ -1,6 +1,7 @@
 import Combine
 import Foundation
 import SwiftUI
+import STFilePath
 
 public enum SkillInstallationMethod: String, CaseIterable, Codable, Identifiable, Sendable {
     case symlink
@@ -116,7 +117,7 @@ public class ProviderSettings: ObservableObject {
 
     private func loadSettings() {
         // Load providers
-        if FileManager.default.fileExists(atPath: providersFileURL.path),
+        if STFile(providersFileURL).isExists,
            let data = try? Data(contentsOf: providersFileURL),
            let decodedProviders = try? JSONDecoder().decode([Provider].self, from: data),
            !decodedProviders.isEmpty

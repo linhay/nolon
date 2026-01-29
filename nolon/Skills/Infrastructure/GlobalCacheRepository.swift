@@ -1,4 +1,5 @@
 import Foundation
+import STFilePath
 
 /// Global cache repository for managing downloaded resources
 /// Manages ~/.nolon/skills, ~/.nolon/workflows, ~/.nolon/mcps
@@ -15,14 +16,11 @@ public actor GlobalCacheRepository: RemoteResourceRepository {
     // MARK: - Private Properties
     
     private let nolonManager: NolonManager
-    private let fileManager: FileManager
     
     public init(
-        nolonManager: NolonManager = .shared,
-        fileManager: FileManager = .default
+        nolonManager: NolonManager = .shared
     ) {
         self.nolonManager = nolonManager
-        self.fileManager = fileManager
     }
     
     // MARK: - Cache Management
@@ -41,12 +39,10 @@ public actor GlobalCacheRepository: RemoteResourceRepository {
         let targetPath = cacheResourcePath(for: slug, type: type)
         
         // Remove existing if present
-        if fileManager.fileExists(atPath: targetPath.path) {
-            try fileManager.removeItem(at: targetPath)
-        }
+        try STPath(targetPath).deleteIncludingBrokenSymlink()
         if let legacyPath = legacyCacheResourcePath(for: slug, type: type),
-           fileManager.fileExists(atPath: legacyPath.path) {
-            try fileManager.removeItem(at: legacyPath)
+           STPath(legacyPath).isExists || STPath(legacyPath).isSymbolicLink {
+            try STPath(legacyPath).deleteIncludingBrokenSymlink()
         }
         
         switch type {
@@ -56,11 +52,11 @@ public actor GlobalCacheRepository: RemoteResourceRepository {
             
         case .workflow:
             // Workflows are markdown files
-            try fileManager.copyItem(at: downloadURL, to: targetPath)
+            try STPath(downloadURL).copy(to: STPath(targetPath), isOverlay: true)
             
         case .mcp:
             // MCPs are JSON configuration files
-            try fileManager.copyItem(at: downloadURL, to: targetPath)
+            try STPath(downloadURL).copy(to: STPath(targetPath), isOverlay: true)
         }
         
         return targetPath
@@ -69,11 +65,11 @@ public actor GlobalCacheRepository: RemoteResourceRepository {
     /// Check if resource exists in cache
     public func isCached(slug: String, type: RemoteContentType) -> Bool {
         let resourcePath = cacheResourcePath(for: slug, type: type)
-        if fileManager.fileExists(atPath: resourcePath.path) {
+        if STPath(resourcePath).isExists {
             return true
         }
         if let legacyPath = legacyCacheResourcePath(for: slug, type: type) {
-            return fileManager.fileExists(atPath: legacyPath.path)
+            return STPath(legacyPath).isExists
         }
         return false
     }
@@ -82,13 +78,11 @@ public actor GlobalCacheRepository: RemoteResourceRepository {
     public func removeFromCache(slug: String, type: RemoteContentType) throws {
         let resourcePath = cacheResourcePath(for: slug, type: type)
         
-        if fileManager.fileExists(atPath: resourcePath.path) {
-            try fileManager.removeItem(at: resourcePath)
-        }
+        try STPath(resourcePath).deleteIncludingBrokenSymlink()
         
         if let legacyPath = legacyCacheResourcePath(for: slug, type: type),
-           fileManager.fileExists(atPath: legacyPath.path) {
-            try fileManager.removeItem(at: legacyPath)
+           STPath(legacyPath).isExists || STPath(legacyPath).isSymbolicLink {
+            try STPath(legacyPath).deleteIncludingBrokenSymlink()
         }
     }
     
@@ -96,7 +90,7 @@ public actor GlobalCacheRepository: RemoteResourceRepository {
     public func listCachedResources(type: RemoteContentType) async throws -> [String] {
         let cachePath = getCachePath(for: type)
         
-        guard let contents = try? fileManager.contentsOfDirectory(atPath: cachePath.path) else {
+        guard let contents = try? STFolder(cachePath).subFilePaths().map({ $0.url.lastPathComponent }) else {
             return []
         }
         
@@ -183,7 +177,7 @@ public actor GlobalCacheRepository: RemoteResourceRepository {
     /// Download skill - returns existing cached path
     public func downloadSkill(slug: String) async throws -> URL {
         let skillPath = nolonManager.skillsURL.appendingPathComponent(slug)
-        guard fileManager.fileExists(atPath: skillPath.path) else {
+        guard STPath(skillPath).isExists else {
             throw RepositoryError.resourceNotFound(slug)
         }
         return skillPath
@@ -192,11 +186,11 @@ public actor GlobalCacheRepository: RemoteResourceRepository {
     /// Download workflow - returns existing cached path
     public func downloadWorkflow(slug: String) async throws -> URL {
         let workflowPath = cacheResourcePath(for: slug, type: .workflow)
-        if fileManager.fileExists(atPath: workflowPath.path) {
+        if STPath(workflowPath).isExists {
             return workflowPath
         }
         if let legacyPath = legacyCacheResourcePath(for: slug, type: .workflow),
-           fileManager.fileExists(atPath: legacyPath.path) {
+           STPath(legacyPath).isExists {
             return legacyPath
         }
         throw RepositoryError.resourceNotFound(slug)
@@ -205,11 +199,11 @@ public actor GlobalCacheRepository: RemoteResourceRepository {
     /// Download MCP - returns existing cached path
     public func downloadMCP(slug: String) async throws -> URL {
         let mcpPath = cacheResourcePath(for: slug, type: .mcp)
-        if fileManager.fileExists(atPath: mcpPath.path) {
+        if STPath(mcpPath).isExists {
             return mcpPath
         }
         if let legacyPath = legacyCacheResourcePath(for: slug, type: .mcp),
-           fileManager.fileExists(atPath: legacyPath.path) {
+           STPath(legacyPath).isExists {
             return legacyPath
         }
         throw RepositoryError.resourceNotFound(slug)
@@ -221,23 +215,18 @@ public actor GlobalCacheRepository: RemoteResourceRepository {
     public func listCachedSkills() async throws -> [Skill] {
         var skills: [Skill] = []
         
-        guard let contents = try? fileManager.contentsOfDirectory(atPath: nolonManager.skillsPath) else {
+        guard let folders = try? STFolder(nolonManager.skillsPath).folders() else {
             return []
         }
         
-        for item in contents {
+        for folder in folders {
+            let item = folder.url.lastPathComponent
             if item.hasPrefix(".") { continue }
             
-            let skillPath = "\(nolonManager.skillsPath)/\(item)"
-            var isDirectory: ObjCBool = false
-            guard fileManager.fileExists(atPath: skillPath, isDirectory: &isDirectory),
-                  isDirectory.boolValue
-            else {
-                continue
-            }
+            let skillPath = folder.url.path
             
             let skillMdPath = "\(skillPath)/SKILL.md"
-            guard let content = try? String(contentsOfFile: skillMdPath, encoding: .utf8) else {
+            guard let content = try? STFile(skillMdPath).read() else {
                 continue
             }
             
@@ -274,11 +263,11 @@ public actor GlobalCacheRepository: RemoteResourceRepository {
         let skillPath = "\(nolonManager.skillsPath)/\(slug)"
         let skillMdPath = "\(skillPath)/SKILL.md"
         
-        guard fileManager.fileExists(atPath: skillMdPath) else {
+        guard STFile(skillMdPath).isExists else {
             throw RepositoryError.resourceNotFound(slug)
         }
         
-        let content = try String(contentsOfFile: skillMdPath, encoding: .utf8)
+        let content = try STFile(skillMdPath).read()
         let referenceCount = countFiles(in: "\(skillPath)/references")
         let scriptCount = countFiles(in: "\(skillPath)/scripts")
         
@@ -309,35 +298,29 @@ public actor GlobalCacheRepository: RemoteResourceRepository {
         var workflows: [RemoteWorkflow] = []
         var seenSlugs = Set<String>()
         
-        guard let contents = try? fileManager.contentsOfDirectory(atPath: nolonManager.userWorkflowsPath) else {
+        guard let contents = try? STFolder(nolonManager.userWorkflowsPath).subFilePaths() else {
             return []
         }
         
         for item in contents {
-            if item.hasPrefix(".") { continue }
+            let name = item.url.lastPathComponent
+            if name.hasPrefix(".") { continue }
+            guard !item.isFolderExists else { continue }
             
-            let itemPath = "\(nolonManager.userWorkflowsPath)/\(item)"
-            var isDirectory: ObjCBool = false
-            guard fileManager.fileExists(atPath: itemPath, isDirectory: &isDirectory),
-                  !isDirectory.boolValue
-            else {
-                continue
-            }
-            
-            let pathExtension = (item as NSString).pathExtension
-            var workflowPath = itemPath
+            let pathExtension = (name as NSString).pathExtension
+            var workflowPath = item.url.path
             let slug: String
             
             if pathExtension == "md" {
-                slug = (item as NSString).deletingPathExtension
+                slug = (name as NSString).deletingPathExtension
             } else if pathExtension.isEmpty {
                 // Migrate legacy cache files without extensions
-                slug = item
+                slug = name
                 let migratedPath = "\(nolonManager.userWorkflowsPath)/\(slug).md"
-                if fileManager.fileExists(atPath: migratedPath) {
+                if STPath(migratedPath).isExists {
                     continue
                 }
-                try? fileManager.moveItem(atPath: workflowPath, toPath: migratedPath)
+                try? STPath(workflowPath).move(to: STPath(migratedPath), isOverlay: false)
                 workflowPath = migratedPath
             } else {
                 continue
@@ -346,11 +329,10 @@ public actor GlobalCacheRepository: RemoteResourceRepository {
             guard !seenSlugs.contains(slug) else { continue }
             seenSlugs.insert(slug)
             
-            let attributes = try? fileManager.attributesOfItem(atPath: workflowPath)
-            let modifiedDate = attributes?[.modificationDate] as? Date
+            let modifiedDate: Date? = STFile(workflowPath).isExists ? STFile(workflowPath).attributes.modificationDate : nil
             
             // Read first few lines for display name and summary
-            let content = try? String(contentsOfFile: workflowPath, encoding: .utf8)
+            let content = try? STFile(workflowPath).read()
             let lines = content?.components(separatedBy: .newlines) ?? []
             
             var displayName = slug
@@ -398,35 +380,29 @@ public actor GlobalCacheRepository: RemoteResourceRepository {
         var mcps: [RemoteMCP] = []
         var seenSlugs = Set<String>()
         
-        guard let contents = try? fileManager.contentsOfDirectory(atPath: nolonManager.mcpsPath) else {
+        guard let contents = try? STFolder(nolonManager.mcpsPath).subFilePaths() else {
             return []
         }
         
         for item in contents {
-            if item.hasPrefix(".") { continue }
+            let name = item.url.lastPathComponent
+            if name.hasPrefix(".") { continue }
+            guard !item.isFolderExists else { continue }
             
-            let itemPath = "\(nolonManager.mcpsPath)/\(item)"
-            var isDirectory: ObjCBool = false
-            guard fileManager.fileExists(atPath: itemPath, isDirectory: &isDirectory),
-                  !isDirectory.boolValue
-            else {
-                continue
-            }
-            
-            let pathExtension = (item as NSString).pathExtension
-            var mcpPath = itemPath
+            let pathExtension = (name as NSString).pathExtension
+            var mcpPath = item.url.path
             let slug: String
             
             if pathExtension == "json" {
-                slug = (item as NSString).deletingPathExtension
+                slug = (name as NSString).deletingPathExtension
             } else if pathExtension.isEmpty {
                 // Migrate legacy cache files without extensions
-                slug = item
+                slug = name
                 let migratedPath = "\(nolonManager.mcpsPath)/\(slug).json"
-                if fileManager.fileExists(atPath: migratedPath) {
+                if STPath(migratedPath).isExists {
                     continue
                 }
-                try? fileManager.moveItem(atPath: mcpPath, toPath: migratedPath)
+                try? STPath(mcpPath).move(to: STPath(migratedPath), isOverlay: false)
                 mcpPath = migratedPath
             } else {
                 continue
@@ -435,8 +411,7 @@ public actor GlobalCacheRepository: RemoteResourceRepository {
             guard !seenSlugs.contains(slug) else { continue }
             seenSlugs.insert(slug)
             
-            let attributes = try? fileManager.attributesOfItem(atPath: mcpPath)
-            let modifiedDate = attributes?[.modificationDate] as? Date
+            let modifiedDate: Date? = STFile(mcpPath).isExists ? STFile(mcpPath).attributes.modificationDate : nil
             
             // Try to parse MCP configuration
             var configuration: RemoteMCP.MCPConfiguration?
@@ -511,17 +486,16 @@ public actor GlobalCacheRepository: RemoteResourceRepository {
     
     private func extractSkill(from zipURL: URL, to destination: URL) async throws {
         // Create temporary directory
-        let tempDir = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        try fileManager.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        let tempDir = try STFolder(sanbox: .temporary).folder(UUID().uuidString).create()
         
         defer {
-            try? fileManager.removeItem(at: tempDir)
+            try? tempDir.deleteIncludingBrokenSymlink()
         }
         
         // Extract using ditto
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
-        process.arguments = ["-x", "-k", zipURL.path, tempDir.path]
+        process.arguments = ["-x", "-k", zipURL.path, tempDir.url.path]
         
         try process.run()
         process.waitUntilExit()
@@ -531,44 +505,34 @@ public actor GlobalCacheRepository: RemoteResourceRepository {
         }
         
         // Find skill root (directory containing SKILL.md)
-        guard let skillRoot = findSkillRoot(in: tempDir) else {
+        guard let skillRoot = findSkillRoot(in: tempDir.url) else {
             throw RepositoryError.invalidPackage
         }
         
         // Move to destination
-        try fileManager.moveItem(at: skillRoot, to: destination)
+        try STPath(skillRoot).move(to: STPath(destination), isOverlay: true)
     }
     
     private func findSkillRoot(in directory: URL) -> URL? {
         // Check if SKILL.md is in root
         let directSkill = directory.appendingPathComponent("SKILL.md")
-        if fileManager.fileExists(atPath: directSkill.path) {
+        if STFile(directSkill).isExists {
             return directory
         }
         
         // Search in subdirectories
-        guard let contents = try? fileManager.contentsOfDirectory(
-            at: directory,
-            includingPropertiesForKeys: [.isDirectoryKey],
-            options: [.skipsHiddenFiles]
-        ) else {
-            return nil
-        }
-        
-        let candidateDirs = contents.compactMap { url -> URL? in
-            let values = try? url.resourceValues(forKeys: [.isDirectoryKey])
-            guard values?.isDirectory == true else { return nil }
-            let skillFile = url.appendingPathComponent("SKILL.md")
-            return fileManager.fileExists(atPath: skillFile.path) ? url : nil
+        guard let folders = try? STFolder(directory).folders() else { return nil }
+        let candidateDirs = folders.compactMap { folder -> URL? in
+            folder.fileIfExist(name: "SKILL.md") == nil ? nil : folder.url
         }
         
         return candidateDirs.count == 1 ? candidateDirs[0] : nil
     }
     
     private func countFiles(in directory: String) -> Int {
-        guard let contents = try? fileManager.contentsOfDirectory(atPath: directory) else {
+        guard let contents = try? STFolder(directory).subFilePaths() else {
             return 0
         }
-        return contents.filter { !$0.hasPrefix(".") }.count
+        return contents.filter { !$0.url.lastPathComponent.hasPrefix(".") }.count
     }
 }

@@ -1,6 +1,7 @@
 import SwiftUI
 import MarkdownUI
 import Observation
+import STFilePath
 
 /// Model representing a file in the skill directory
 struct SkillFile: Identifiable, Hashable {
@@ -56,17 +57,19 @@ final class SkillDetailViewModel {
         
         // 1. SKILL.md
         let skillMdURL = rootURL.appendingPathComponent("SKILL.md")
-        if FileManager.default.fileExists(atPath: skillMdURL.path) {
+        if STFile(skillMdURL).isExists {
             loadedFiles.append(SkillFile(name: "SKILL.md", url: skillMdURL, type: .markdown))
         }
         
         // 2. Scan subdirectory
         func scanSubdir(_ name: String) {
             let dirURL = rootURL.appendingPathComponent(name)
-            guard let contents = try? FileManager.default.contentsOfDirectory(at: dirURL, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]) else { return }
+            let folder = STFolder(dirURL)
+            guard let contents = try? folder.files() else { return }
             
-            for url in contents {
-                if url.hasDirectoryPath { continue }
+            for file in contents {
+                let url = file.url
+                if url.lastPathComponent.hasPrefix(".") { continue }
                 loadedFiles.append(SkillFile(name: "\(name)/\(url.lastPathComponent)", url: url, type: determineType(url)))
             }
         }
@@ -102,7 +105,7 @@ final class SkillDetailViewModel {
         for provider in providers {
             let paths = [provider.defaultSkillsPath] + (provider.additionalSkillsPaths ?? [])
             let exists = paths.contains { path in
-                FileManager.default.fileExists(atPath: "\(path)/\(skill.id)")
+                STPath("\(path)/\(skill.id)").isExists || STPath("\(path)/\(skill.id)").isSymbolicLink
             }
             providerInstallationStates[provider.id] = exists
         }
@@ -128,7 +131,7 @@ final class SkillDetailViewModel {
     
     func checkWorkflowStatus(for provider: Provider) {
         let workflowPath = provider.workflowPath + "/" + skill.id + ".md"
-        isWorkflowLinked = FileManager.default.fileExists(atPath: workflowPath)
+        isWorkflowLinked = STFile(workflowPath).isExists
     }
     
     func toggleWorkflow(for provider: Provider) {
