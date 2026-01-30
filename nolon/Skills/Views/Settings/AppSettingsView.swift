@@ -150,6 +150,11 @@ private struct GeneralSettingsView: View {
 private struct DisplaySettingsView: View {
     let settings: AppSettingsStore
     
+    private let supportedLanguages: [AppLanguage] = [
+        .simplifiedChinese,
+        .english,
+    ]
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
             settingsSection(title: NSLocalizedString("settings.appearance", value: "Appearance", comment: "Section title")) {
@@ -164,12 +169,22 @@ private struct DisplaySettingsView: View {
             
             settingsSection(title: NSLocalizedString("settings.language", value: "Language", comment: "Section title")) {
                 VStack(spacing: 0) {
-                    ForEach(AppLanguage.allCases) { language in
+                    ForEach(supportedLanguages) { language in
                         languageRow(language: language)
                     }
                 }
                 .background(Color.primary.opacity(0.05))
                 .cornerRadius(12)
+            }
+        }
+        .onAppear {
+            guard !supportedLanguages.contains(settings.language) else { return }
+            
+            let preferred = Locale.preferredLanguages.first ?? ""
+            if preferred.hasPrefix("zh") {
+                settings.language = .simplifiedChinese
+            } else {
+                settings.language = .english
             }
         }
     }
