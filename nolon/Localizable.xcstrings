@@ -90,6 +90,7 @@
 
     },
     "+%lld" : {
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -2244,7 +2245,6 @@
       }
     },
     "onboarding.completion.more_providers %lld" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2262,7 +2262,14 @@
     },
     "onboarding.completion.providers_configured %d" : {
       "comment" : "Configured count",
+      "extractionState" : "stale",
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%d Providers Configured"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2272,7 +2279,6 @@
       }
     },
     "onboarding.completion.providers_configured %lld" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2305,7 +2311,6 @@
       }
     },
     "onboarding.completion.tip_add_provider" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2322,7 +2327,6 @@
       }
     },
     "onboarding.completion.tip_clawdhub" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2339,7 +2343,6 @@
       }
     },
     "onboarding.completion.tips_title" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {

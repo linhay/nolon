@@ -3,7 +3,6 @@ import SwiftUI
 /// 引导页 - 完成页面
 struct OnboardingCompletionView: View {
     let selectedProviders: [ProviderTemplate]
-    let onStart: () -> Void
     
     @State private var showCheckmark = false
     
@@ -15,14 +14,14 @@ struct OnboardingCompletionView: View {
             VStack(spacing: 32) {
                 ZStack {
                     Circle()
-                        .fill(Color.green.opacity(0.1))
+                        .fill(DesignSystem.Colors.Status.success.opacity(0.12))
                         .frame(width: 120, height: 120)
                         .scaleEffect(showCheckmark ? 1 : 0.5)
                         .opacity(showCheckmark ? 1 : 0)
                     
                     Image(systemName: "checkmark.circle.fill")
                         .font(.system(size: 60))
-                        .foregroundStyle(.green)
+                        .foregroundStyle(DesignSystem.Colors.Status.success)
                         .scaleEffect(showCheckmark ? 1 : 0.5)
                         .opacity(showCheckmark ? 1 : 0)
                 }
@@ -31,10 +30,11 @@ struct OnboardingCompletionView: View {
                 VStack(spacing: 12) {
                     Text("onboarding.completion.title")
                         .font(.system(size: 40, weight: .bold, design: .rounded))
+                        .foregroundStyle(DesignSystem.Colors.Text.primary)
                     
                     Text("onboarding.completion.subtitle")
                         .font(.system(size: 16))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(DesignSystem.Colors.Text.secondary)
                 }
             }
             .padding(.bottom, 48)
@@ -42,9 +42,9 @@ struct OnboardingCompletionView: View {
             // Summary List
             VStack(alignment: .leading, spacing: 20) {
                 HStack {
-                    Text(String(format: NSLocalizedString("onboarding.completion.providers_configured %d", comment: "Configured count"), selectedProviders.count))
+                    Text("onboarding.completion.providers_configured \(selectedProviders.count)")
                         .font(.system(size: 14, weight: .bold))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(DesignSystem.Colors.Text.secondary)
                     Spacer()
                 }
                 
@@ -58,50 +58,46 @@ struct OnboardingCompletionView: View {
                         .padding(8)
                         .background(
                             Circle()
-                                .fill(Color.primary.opacity(0.05))
-                                .overlay(Circle().stroke(Color.white.opacity(0.1), lineWidth: 2))
+                                .fill(DesignSystem.Colors.Background.elevated.opacity(0.8))
+                                .overlay(Circle().stroke(DesignSystem.Colors.Component.border.opacity(0.20), lineWidth: 2))
                         )
                     }
                     
                     if selectedProviders.count > 8 {
                         ZStack {
                             Circle()
-                                .fill(.ultraThinMaterial)
+                                .fill(DesignSystem.Colors.Background.elevated.opacity(0.8))
                                 .frame(width: 40, height: 40)
-                                .overlay(Circle().stroke(Color.white.opacity(0.1), lineWidth: 2))
+                                .overlay(Circle().stroke(DesignSystem.Colors.Component.border.opacity(0.20), lineWidth: 2))
                             
-                            Text("+\(selectedProviders.count - 8)")
+                            Text("onboarding.completion.more_providers \(selectedProviders.count - 8)")
                                 .font(.system(size: 10, weight: .bold))
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(DesignSystem.Colors.Text.secondary)
                         }
                     }
+                }
+                
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("onboarding.completion.tips_title")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(DesignSystem.Colors.Text.primary)
+                    
+                    TipRow(icon: "plus", text: "onboarding.completion.tip_add_provider")
+                    TipRow(icon: "cloud", text: "onboarding.completion.tip_clawdhub")
                 }
             }
             .padding(24)
             .frame(width: 400)
             .background(
                 RoundedRectangle(cornerRadius: 20)
-                    .fill(Color.primary.opacity(0.03))
+                    .fill(DesignSystem.Colors.Background.surface.opacity(0.55))
                     .overlay(
                         RoundedRectangle(cornerRadius: 20)
-                            .stroke(Color.primary.opacity(0.05), lineWidth: 1)
+                            .stroke(DesignSystem.Colors.Component.border.opacity(0.20), lineWidth: 1)
                     )
             )
             
             Spacer()
-            
-            // Start Button
-            Button(action: onStart) {
-                Text("onboarding.button.start")
-                    .font(.system(size: 15, weight: .bold))
-                    .foregroundStyle(.white)
-                    .frame(width: 320, height: 50)
-                    .background(Color.accentColor)
-                    .cornerRadius(12)
-                    .shadow(color: Color.accentColor.opacity(0.2), radius: 10, y: 5)
-            }
-            .buttonStyle(.plain)
-            .padding(.bottom, 60)
         }
         .onAppear {
             withAnimation(.spring(response: 0.5, dampingFraction: 0.7).delay(0.2)) {
@@ -118,19 +114,21 @@ private struct TipRow: View {
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: icon)
-                .foregroundStyle(Color.accentColor)
+                .foregroundStyle(DesignSystem.Colors.primary)
                 .frame(width: 20)
             
             Text(text)
-                .font(.subheadline)
+                .font(.system(size: 12))
+                .foregroundStyle(DesignSystem.Colors.Text.secondary)
+            
+            Spacer()
         }
     }
 }
 
 #Preview {
     OnboardingCompletionView(
-        selectedProviders: [.claude, .gemini, .opencode],
-        onStart: {}
+        selectedProviders: [.claudeCode, .gemini, .opencode]
     )
     .frame(width: 800, height: 600)
 }

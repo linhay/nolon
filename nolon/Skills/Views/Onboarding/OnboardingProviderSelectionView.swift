@@ -4,8 +4,6 @@ import SwiftUI
 struct OnboardingProviderSelectionView: View {
     @Binding var selectedProviders: Set<ProviderTemplate>
     let detectedProviders: Set<ProviderTemplate>
-    let onBack: () -> Void
-    let onContinue: () -> Void
     
     private let columns = [
         GridItem(.adaptive(minimum: 100, maximum: 120), spacing: 16)
@@ -17,12 +15,13 @@ struct OnboardingProviderSelectionView: View {
             VStack(spacing: 12) {
                 Text("onboarding.provider.title")
                     .font(.system(size: 32, weight: .bold, design: .rounded))
+                    .foregroundStyle(DesignSystem.Colors.Text.primary)
                 
                 Text(detectedProviders.isEmpty 
                      ? "onboarding.provider.subtitle"
                      : "onboarding.provider.subtitle_detected")
                     .font(.system(size: 14))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(DesignSystem.Colors.Text.secondary)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 40)
             }
@@ -51,56 +50,6 @@ struct OnboardingProviderSelectionView: View {
                 }
                 .padding(.horizontal, 40)
             }
-            
-            Spacer(minLength: 20)
-            
-            Divider()
-                .background(Color.primary.opacity(0.05))
-            
-            // Bottom Bar
-            HStack {
-                Button(action: onBack) {
-                    HStack(spacing: 8) {
-                        Image(systemName: "chevron.left")
-                        Text("onboarding.button.back")
-                    }
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(.secondary)
-                    .frame(height: 40)
-                    .padding(.horizontal, 16)
-                    .background(Color.primary.opacity(0.05))
-                    .cornerRadius(10)
-                }
-                .buttonStyle(.plain)
-                
-                Spacer()
-                
-                Text("onboarding.provider.selected_count \(selectedProviders.count)")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(selectedProviders.isEmpty ? .secondary : Color.accentColor)
-                
-                Spacer()
-                
-                Button(action: onContinue) {
-                    HStack(spacing: 8) {
-                        Text("onboarding.button.continue")
-                        Image(systemName: "chevron.right")
-                    }
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundStyle(.white)
-                    .frame(width: 140, height: 40)
-                    .background(
-                        selectedProviders.isEmpty 
-                        ? Color.primary.opacity(0.1)
-                        : Color.accentColor
-                    )
-                    .cornerRadius(10)
-                }
-                .buttonStyle(.plain)
-                .disabled(selectedProviders.isEmpty)
-            }
-            .padding(24)
-            .background(.ultraThinMaterial)
         }
     }
 }
@@ -127,7 +76,7 @@ private struct ProviderSelectionCard: View {
                 VStack(spacing: 4) {
                     Text(template.displayName)
                         .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(isSelected ? .primary : .secondary)
+                        .foregroundStyle(isSelected ? DesignSystem.Colors.Text.primary : DesignSystem.Colors.Text.secondary)
                         .lineLimit(1)
                     
                     if isDetected {
@@ -135,8 +84,8 @@ private struct ProviderSelectionCard: View {
                             .font(.system(size: 8, weight: .bold))
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
-                            .background(Color.accentColor.opacity(0.1))
-                            .foregroundStyle(Color.accentColor)
+                            .background(DesignSystem.Colors.primary.opacity(0.12))
+                            .foregroundStyle(DesignSystem.Colors.primary)
                             .cornerRadius(4)
                     }
                 }
@@ -145,10 +94,10 @@ private struct ProviderSelectionCard: View {
             .frame(height: 100)
             .background(
                 RoundedRectangle(cornerRadius: 16)
-                    .fill(isSelected ? Color.accentColor.opacity(0.05) : Color.primary.opacity(0.03))
+                    .fill(isSelected ? DesignSystem.Colors.primary.opacity(0.10) : DesignSystem.Colors.Background.surface.opacity(0.45))
                     .overlay(
                         RoundedRectangle(cornerRadius: 16)
-                            .stroke(isSelected ? Color.accentColor.opacity(0.3) : Color.primary.opacity(0.1), lineWidth: 1)
+                            .stroke(isSelected ? DesignSystem.Colors.primary.opacity(0.35) : DesignSystem.Colors.Component.border.opacity(0.22), lineWidth: 1)
                     )
             )
             .scaleEffect(isSelected ? 1.02 : 1.0)
@@ -159,10 +108,8 @@ private struct ProviderSelectionCard: View {
 
 #Preview {
     OnboardingProviderSelectionView(
-        selectedProviders: .constant([.claude, .gemini]),
-        detectedProviders: [.claude, .gemini, .opencode],
-        onBack: {},
-        onContinue: {}
+        selectedProviders: .constant([.claudeCode, .gemini]),
+        detectedProviders: [.claudeCode, .gemini, .opencode]
     )
     .frame(width: 600, height: 500)
 }

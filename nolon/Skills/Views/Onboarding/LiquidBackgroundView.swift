@@ -7,32 +7,31 @@ struct LiquidBackgroundView: View {
     
     var body: some View {
         ZStack {
-            // Subtle Material-like background
-            Color(NSColor.windowBackgroundColor)
+            DesignSystem.Colors.Background.canvas
             
             // Subtle animated organic shapes with very low opacity and blur
             // This provides "Liquid" feel without being a "Gradient"
             ZStack {
                 Circle()
-                    .fill(Color.primary.opacity(0.03))
+                    .fill(DesignSystem.Colors.primary.opacity(0.10))
                     .frame(width: 600, height: 600)
                     .offset(x: appear ? -150 : 150, y: appear ? -100 : 100)
                     .blur(radius: 100)
                 
                 Circle()
-                    .fill(Color.primary.opacity(0.02))
+                    .fill(DesignSystem.Colors.secondary.opacity(0.08))
                     .frame(width: 800, height: 800)
                     .offset(x: appear ? 200 : -200, y: appear ? 150 : -150)
                     .blur(radius: 120)
             }
-            .opacity(0.5)
+            .opacity(0.35)
             
             // Texture overlay
             Canvas { context, size in
                 for _ in 0...1000 {
                     let x = CGFloat.random(in: 0...size.width)
                     let y = CGFloat.random(in: 0...size.height)
-                    context.fill(Path(CGRect(x: x, y: y, width: 1, height: 1)), with: .color(Color.primary.opacity(0.03)))
+                    context.fill(Path(CGRect(x: x, y: y, width: 1, height: 1)), with: .color(DesignSystem.Colors.Text.quaternary))
                 }
             }
             .blendMode(.overlay)

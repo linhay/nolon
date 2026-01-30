@@ -5,7 +5,7 @@ import Foundation
 public enum ProviderTemplate: String, CaseIterable, Sendable, Identifiable {
     // Existing
     case codex
-    case claude
+    case claudeCode
     case opencode
     case copilot
     case gemini
