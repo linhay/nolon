@@ -128,9 +128,10 @@ struct RemoteContentTabView: View {
     var refreshTrigger: Int
     
     @State private var viewModel = RemoteContentTabViewModel()
+    @ObservedObject private var watchCenter = RemoteRepositoryWatchCenter.shared
     
     var body: some View {
-        let repoSyncToken = String(Int(repository?.lastSyncDate?.timeIntervalSince1970 ?? 0))
+        let repoSyncToken = watchCenter.token(for: repository)
         let cacheBuster = "\(refreshTrigger)-\(repoSyncToken)"
         Group {
             if let repository = repository {
@@ -161,6 +162,9 @@ struct RemoteContentTabView: View {
             }
         }
         .task(id: "\(repository?.id ?? "")-\(cacheBuster)") {
+            if let repository {
+                watchCenter.ensureWatching(repository: repository)
+            }
             await viewModel.loadCounts(for: repository)
         }
         .navigationSplitViewColumnWidth(min: 160, ideal: 180, max: 200)

@@ -9,9 +9,8 @@ final class SkillInstallerTests: XCTestCase {
     
     override func setUpWithError() throws {
         fixture = try TestFixture()
-        repository = SkillRepository(fileManager: fixture.fileManager, nolonManager: fixture.nolonManager)
+        repository = SkillRepository(nolonManager: fixture.nolonManager)
         installer = SkillInstaller(
-            fileManager: fixture.fileManager,
             repository: repository,
             settings: fixture.providerSettings,
             nolonManager: fixture.nolonManager

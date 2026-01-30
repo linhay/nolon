@@ -24,7 +24,7 @@ final class TestFixture {
         self.testUserDefaults = UserDefaults(suiteName: suiteName)!
         
         // Setup NolonManager and ProviderSettings for testing
-        self.nolonManager = NolonManager(fileManager: fileManager, rootURL: tempRoot)
+        self.nolonManager = NolonManager(rootURL: tempRoot)
         self.providerSettings = ProviderSettings(userDefaults: testUserDefaults, nolonManager: nolonManager)
     }
     

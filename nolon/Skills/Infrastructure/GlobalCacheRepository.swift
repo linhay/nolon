@@ -36,6 +36,7 @@ public actor GlobalCacheRepository: RemoteResourceRepository {
         slug: String,
         type: RemoteContentType
     ) async throws -> URL {
+        await RemoteRepositoryWatchCenter.shared.ensureWatchingGlobalCache()
         let targetPath = cacheResourcePath(for: slug, type: type)
         
         // Remove existing if present
@@ -88,6 +89,7 @@ public actor GlobalCacheRepository: RemoteResourceRepository {
     
     /// List all cached resources of a type
     public func listCachedResources(type: RemoteContentType) async throws -> [String] {
+        await RemoteRepositoryWatchCenter.shared.ensureWatchingGlobalCache()
         let cachePath = getCachePath(for: type)
         
         guard let contents = try? STFolder(cachePath).subFilePaths().map({ $0.url.lastPathComponent }) else {
@@ -118,6 +120,7 @@ public actor GlobalCacheRepository: RemoteResourceRepository {
     
     /// Fetch skills from cache
     public func fetchSkills(query: String? = nil, limit: Int = 100) async throws -> [RemoteSkill] {
+        await RemoteRepositoryWatchCenter.shared.ensureWatchingGlobalCache()
         let skills = try await listCachedSkills()
         
         var results = skills.map { skill -> RemoteSkill in
@@ -146,6 +149,7 @@ public actor GlobalCacheRepository: RemoteResourceRepository {
     
     /// Fetch workflows from cache
     public func fetchWorkflows(query: String? = nil, limit: Int = 100) async throws -> [RemoteWorkflow] {
+        await RemoteRepositoryWatchCenter.shared.ensureWatchingGlobalCache()
         var results = try await listCachedWorkflows()
         
         // Filter by query if provided
@@ -161,6 +165,7 @@ public actor GlobalCacheRepository: RemoteResourceRepository {
     
     /// Fetch MCPs from cache
     public func fetchMCPs(query: String? = nil, limit: Int = 100) async throws -> [RemoteMCP] {
+        await RemoteRepositoryWatchCenter.shared.ensureWatchingGlobalCache()
         var results = try await listCachedMCPs()
         
         // Filter by query if provided
@@ -176,6 +181,7 @@ public actor GlobalCacheRepository: RemoteResourceRepository {
     
     /// Download skill - returns existing cached path
     public func downloadSkill(slug: String) async throws -> URL {
+        await RemoteRepositoryWatchCenter.shared.ensureWatchingGlobalCache()
         let skillPath = nolonManager.skillsURL.appendingPathComponent(slug)
         guard STPath(skillPath).isExists else {
             throw RepositoryError.resourceNotFound(slug)
@@ -185,6 +191,7 @@ public actor GlobalCacheRepository: RemoteResourceRepository {
     
     /// Download workflow - returns existing cached path
     public func downloadWorkflow(slug: String) async throws -> URL {
+        await RemoteRepositoryWatchCenter.shared.ensureWatchingGlobalCache()
         let workflowPath = cacheResourcePath(for: slug, type: .workflow)
         if STPath(workflowPath).isExists {
             return workflowPath
@@ -198,6 +205,7 @@ public actor GlobalCacheRepository: RemoteResourceRepository {
     
     /// Download MCP - returns existing cached path
     public func downloadMCP(slug: String) async throws -> URL {
+        await RemoteRepositoryWatchCenter.shared.ensureWatchingGlobalCache()
         let mcpPath = cacheResourcePath(for: slug, type: .mcp)
         if STPath(mcpPath).isExists {
             return mcpPath
@@ -213,6 +221,7 @@ public actor GlobalCacheRepository: RemoteResourceRepository {
     
     /// List all skills in global cache
     public func listCachedSkills() async throws -> [Skill] {
+        await RemoteRepositoryWatchCenter.shared.ensureWatchingGlobalCache()
         var skills: [Skill] = []
         
         guard let folders = try? STFolder(nolonManager.skillsPath).folders() else {

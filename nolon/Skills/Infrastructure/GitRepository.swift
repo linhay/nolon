@@ -130,6 +130,15 @@ public actor GitRepository: RemoteResourceRepository {
         if STPath(localClonePath).isExists {
             localFolderRepo = makeLocalFolderRepository()
         }
+
+        let watchPaths = Self.resolveBasePaths(localClonePath: localClonePath, skillsPaths: skillsPaths)
+        Task { @MainActor in
+            RemoteRepositoryWatchCenter.shared.ensureWatchingGit(
+                repoId: id,
+                clonePath: localClonePath.path,
+                effectiveSkillsPaths: watchPaths
+            )
+        }
     }
     
     public init(repository: RemoteRepository) throws {
@@ -280,11 +289,29 @@ public actor GitRepository: RemoteResourceRepository {
         }
 
         localFolderRepo = makeLocalFolderRepository()
+
+        let watchPaths = resolveBasePaths(from: skillsPaths)
+        await MainActor.run {
+            RemoteRepositoryWatchCenter.shared.ensureWatchingGit(
+                repoId: id,
+                clonePath: localClonePath.path,
+                effectiveSkillsPaths: watchPaths
+            )
+        }
     }
 
     private func resolveBasePaths(from skillsPaths: [String]) -> [String] {
         skillsPaths.map { path in
             // Backward-compatible: if settings already store absolute paths, use as-is.
+            if path.hasPrefix("/") {
+                return path
+            }
+            return path == "." ? localClonePath.path : localClonePath.appendingPathComponent(path).path
+        }
+    }
+
+    private static func resolveBasePaths(localClonePath: URL, skillsPaths: [String]) -> [String] {
+        skillsPaths.map { path in
             if path.hasPrefix("/") {
                 return path
             }

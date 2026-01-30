@@ -1,4 +1,5 @@
 import XCTest
+import STJSON
 @testable import nolon
 
 @MainActor
@@ -10,9 +11,8 @@ final class WorkflowInstallationTests: XCTestCase {
     
     override func setUpWithError() throws {
         fixture = try TestFixture()
-        repository = SkillRepository(fileManager: fixture.fileManager, nolonManager: fixture.nolonManager)
+        repository = SkillRepository(nolonManager: fixture.nolonManager)
         installer = SkillInstaller(
-            fileManager: fixture.fileManager,
             repository: repository,
             settings: fixture.providerSettings,
             nolonManager: fixture.nolonManager
@@ -103,6 +103,31 @@ final class WorkflowInstallationTests: XCTestCase {
         let installedContent = try String(contentsOfFile: installedPath, encoding: .utf8)
         XCTAssertEqual(installedContent, v2Content)
     }
+
+    func testInstallMcpWorkflow_GeneratesValidWorkflowFormat() throws {
+        let provider = fixture.createProvider(name: "Cursor", method: .symlink)
+
+        let mcp = MCP(
+            name: "test-mcp",
+            json: AnyCodable([
+                "command": "node",
+                "args": ["server.js"]
+            ])
+        )
+
+        try installer.installMcpWorkflow(mcp: mcp, to: provider)
+
+        // Provider workflow should exist and parse.
+        let workflowPath = "\(provider.workflowPath)/\(mcp.name).md"
+        XCTAssertTrue(fixture.fileManager.fileExists(atPath: workflowPath))
+        XCTAssertNotNil(WorkflowInfo.parse(from: URL(fileURLWithPath: workflowPath)))
+
+        // Global workflow should include required YAML frontmatter.
+        let globalPath = "\(fixture.nolonManager.mcpsWorkflowsPath)/\(mcp.name).md"
+        let globalContent = try String(contentsOfFile: globalPath, encoding: .utf8)
+        let metadata = FrontmatterParser.parseMetadata(from: globalContent)
+        XCTAssertFalse((metadata["description"] ?? "").isEmpty)
+    }
     
     func testViewModel_LoadWorkflows() async throws {
         let provider = fixture.createProvider(name: "Cursor", method: .symlink)
@@ -125,7 +150,15 @@ final class WorkflowInstallationTests: XCTestCase {
         let tempDir = fixture.tempRoot.appendingPathComponent("remote")
         try fixture.fileManager.createDirectory(at: tempDir, withIntermediateDirectories: true)
         let workflowFile = tempDir.appendingPathComponent("remote.md")
-        try "# Remote".write(to: workflowFile, atomically: true, encoding: .utf8)
+        let content = """
+        ---
+        name: Remote
+        description: Remote workflow for testing
+        ---
+        
+        # Remote
+        """
+        try content.write(to: workflowFile, atomically: true, encoding: .utf8)
         
         let provider = fixture.createProvider(name: "Cursor", method: .symlink)
         viewModel = ProviderDetailGridViewModel(provider: provider, settings: fixture.providerSettings)

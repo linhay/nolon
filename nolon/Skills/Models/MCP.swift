@@ -37,4 +37,28 @@ public struct MCP: Identifiable, Sendable {
     public func withDictionary(_ dict: [String: Any]) -> MCP {
         MCP(name: name, json: AnyCodable(dict))
     }
+
+    /// Content for the associated workflow file.
+    /// Workflows must include YAML frontmatter with a non-empty `description`
+    /// so they can be discovered and rendered in Nolon.
+    public var workflowContent: String {
+        func yamlQuoted(_ value: String) -> String {
+            var v = value
+            v = v.replacingOccurrences(of: "\\", with: "\\\\")
+            v = v.replacingOccurrences(of: "\"", with: "\\\"")
+            v = v.replacingOccurrences(of: "\n", with: "\\n")
+            return "\"\(v)\""
+        }
+
+        let description = "Workflow for MCP server \(name)."
+
+        return """
+        ---
+        name: \(yamlQuoted(name))
+        description: \(yamlQuoted(description))
+        ---
+        
+        Use the `\(name)` MCP server in your agent workflows.
+        """
+    }
 }

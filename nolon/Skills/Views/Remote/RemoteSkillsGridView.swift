@@ -253,6 +253,7 @@ struct RemoteSkillsGridView: View {
     let onInstallMCP: ((RemoteMCP, Provider) -> Void)?
     
     @State private var viewModel = RemoteSkillsGridViewModel()
+    @ObservedObject private var watchCenter = RemoteRepositoryWatchCenter.shared
     
     init(
         repository: RemoteRepository?,
@@ -285,7 +286,7 @@ struct RemoteSkillsGridView: View {
     ]
     
     var body: some View {
-        let repoSyncToken = String(Int(repository?.lastSyncDate?.timeIntervalSince1970 ?? 0))
+        let repoSyncToken = watchCenter.token(for: repository)
         let cacheBuster = "\(refreshTrigger)-\(repoSyncToken)"
         Group {
             if repository == nil {
@@ -316,6 +317,9 @@ struct RemoteSkillsGridView: View {
         // 使用 .task(id:) 处理仓库切换，它会自动取消旧任务并启动新任务
         // 不需要 .onChange，避免重复触发导致请求被取消
         .task(id: "\(repository?.id ?? "")-\(selectedTab?.rawValue ?? "")-\(cacheBuster)") {
+            if let repository {
+                watchCenter.ensureWatching(repository: repository)
+            }
             await viewModel.loadContent(for: repository, tab: selectedTab, cacheBuster: cacheBuster)
         }
         .sheet(item: $viewModel.selectedSkillForDetail) { skill in

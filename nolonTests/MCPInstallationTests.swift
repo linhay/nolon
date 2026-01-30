@@ -11,9 +11,8 @@ final class MCPInstallationTests: XCTestCase {
     
     override func setUpWithError() throws {
         fixture = try TestFixture()
-        repository = SkillRepository(fileManager: fixture.fileManager, nolonManager: fixture.nolonManager)
+        repository = SkillRepository(nolonManager: fixture.nolonManager)
         installer = SkillInstaller(
-            fileManager: fixture.fileManager,
             repository: repository,
             settings: fixture.providerSettings,
             nolonManager: fixture.nolonManager
@@ -111,6 +110,9 @@ final class MCPInstallationTests: XCTestCase {
         
         let workflowPath = "\(provider.workflowPath)/\(mcp.name).md"
         XCTAssertTrue(fixture.fileManager.fileExists(atPath: workflowPath))
+
+        let info = WorkflowInfo.parse(from: URL(fileURLWithPath: workflowPath))
+        XCTAssertNotNil(info)
     }
     
     func testMcpWorkflow_Uninstall() throws {

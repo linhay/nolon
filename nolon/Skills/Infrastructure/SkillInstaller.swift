@@ -271,10 +271,19 @@ public final class SkillInstaller {
         STFolder(providerWorkflowPath).createIfNotExists()
         
         // 2. Ensure global MCP workflow exists in ~/.nolon/mcps-workflows
-        if !STPath(globalMcpWorkflowPath).isExists {
-            STFolder(nolonManager.mcpsWorkflowsPath).createIfNotExists()
-            let initialContent = "# \(mcp.name) Workflow\n\nThis is a workflow for \(mcp.name) MCP server.\n"
-            try STFile(globalMcpWorkflowPath).overlay(with: initialContent)
+        STFolder(nolonManager.mcpsWorkflowsPath).createIfNotExists()
+        if STPath(globalMcpWorkflowPath).isExists {
+            // Repair legacy/invalid workflow format (missing required YAML frontmatter).
+            if let content = try? STFile(globalMcpWorkflowPath).read() {
+                let metadata = FrontmatterParser.parseMetadata(from: content)
+                if (metadata["description"] ?? "").isEmpty {
+                    try STFile(globalMcpWorkflowPath).overlay(with: mcp.workflowContent)
+                }
+            } else {
+                try STFile(globalMcpWorkflowPath).overlay(with: mcp.workflowContent)
+            }
+        } else {
+            try STFile(globalMcpWorkflowPath).overlay(with: mcp.workflowContent)
         }
         
         // 3. Remove existing link/file if present in provider directory

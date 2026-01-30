@@ -34,6 +34,7 @@ public struct LocalFolderRepository: RemoteResourceRepository {
     // MARK: - Skills
     
     public func fetchSkills(query: String? = nil, limit: Int = 100) async throws -> [RemoteSkill] {
+        await RemoteRepositoryWatchCenter.shared.ensureWatchingLocalFolder(repoId: id, basePaths: basePaths)
         var allSkills: [RemoteSkill] = []
         
         for path in basePaths {
@@ -136,6 +137,7 @@ public struct LocalFolderRepository: RemoteResourceRepository {
     }
     
     public func downloadSkill(slug: String) async throws -> URL {
+        await RemoteRepositoryWatchCenter.shared.ensureWatchingLocalFolder(repoId: id, basePaths: basePaths)
         // For local folders, "download" means returning the existing path
         for path in basePaths {
             let skillPath = (path as NSString).appendingPathComponent(slug)
@@ -152,6 +154,7 @@ public struct LocalFolderRepository: RemoteResourceRepository {
     // MARK: - Workflows
     
     public func fetchWorkflows(query: String? = nil, limit: Int = 100) async throws -> [RemoteWorkflow] {
+        await RemoteRepositoryWatchCenter.shared.ensureWatchingLocalFolder(repoId: id, basePaths: basePaths)
         var allWorkflows: [RemoteWorkflow] = []
         
         for path in basePaths {
@@ -250,6 +253,7 @@ public struct LocalFolderRepository: RemoteResourceRepository {
     }
     
     public func downloadWorkflow(slug: String) async throws -> URL {
+        await RemoteRepositoryWatchCenter.shared.ensureWatchingLocalFolder(repoId: id, basePaths: basePaths)
         // For local folders, "download" means returning the existing path
         for path in basePaths {
             let workflowPath = (path as NSString).appendingPathComponent("\(slug).md")
@@ -265,6 +269,7 @@ public struct LocalFolderRepository: RemoteResourceRepository {
     // MARK: - MCPs
     
     public func fetchMCPs(query: String? = nil, limit: Int = 100) async throws -> [RemoteMCP] {
+        await RemoteRepositoryWatchCenter.shared.ensureWatchingLocalFolder(repoId: id, basePaths: basePaths)
         var allMCPs: [RemoteMCP] = []
         
         for path in basePaths {
@@ -360,6 +365,7 @@ public struct LocalFolderRepository: RemoteResourceRepository {
     }
     
     public func downloadMCP(slug: String) async throws -> URL {
+        await RemoteRepositoryWatchCenter.shared.ensureWatchingLocalFolder(repoId: id, basePaths: basePaths)
         // For local folders, "download" means returning the existing path
         for path in basePaths {
             let mcpPath = (path as NSString).appendingPathComponent("\(slug).json")

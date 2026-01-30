@@ -8,7 +8,7 @@ final class SkillRepositoryTests: XCTestCase {
     
     override func setUpWithError() throws {
         fixture = try TestFixture()
-        repository = SkillRepository(fileManager: fixture.fileManager, nolonManager: fixture.nolonManager)
+        repository = SkillRepository(nolonManager: fixture.nolonManager)
     }
     
     override func tearDownWithError() throws {
