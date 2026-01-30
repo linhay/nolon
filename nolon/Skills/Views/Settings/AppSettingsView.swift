@@ -18,7 +18,7 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
 }
 
 struct AppSettingsView: View {
-    @State private var appSettings = AppSettings.shared
+    @State private var settingsStore = AppSettingsStore.shared
     @State private var selectedCategory: SettingsCategory = .general
     
     var body: some View {
@@ -84,9 +84,9 @@ struct AppSettingsView: View {
     private var contentForSelectedCategory: some View {
         switch selectedCategory {
         case .general:
-            GeneralSettingsView(settings: $appSettings)
+            GeneralSettingsView(settings: settingsStore)
         case .display:
-            DisplaySettingsView(settings: $appSettings)
+            DisplaySettingsView(settings: settingsStore)
         case .about:
             AboutSettingsView()
         }
@@ -96,7 +96,7 @@ struct AppSettingsView: View {
 // MARK: - Subviews
 
 private struct GeneralSettingsView: View {
-    @Binding var settings: AppSettings
+    let settings: AppSettingsStore
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = true
     
     var body: some View {
@@ -148,13 +148,13 @@ private struct GeneralSettingsView: View {
 }
 
 private struct DisplaySettingsView: View {
-    @Binding var settings: AppSettings
+    let settings: AppSettingsStore
     
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
             settingsSection(title: NSLocalizedString("settings.appearance", value: "Appearance", comment: "Section title")) {
                 VStack(spacing: 0) {
-                    ForEach(AppSettings.Appearance.allCases) { appearance in
+                    ForEach(AppAppearance.allCases) { appearance in
                         appearanceRow(appearance: appearance)
                     }
                 }
@@ -164,7 +164,7 @@ private struct DisplaySettingsView: View {
             
             settingsSection(title: NSLocalizedString("settings.language", value: "Language", comment: "Section title")) {
                 VStack(spacing: 0) {
-                    ForEach(AppSettings.Language.allCases) { language in
+                    ForEach(AppLanguage.allCases) { language in
                         languageRow(language: language)
                     }
                 }
@@ -174,7 +174,7 @@ private struct DisplaySettingsView: View {
         }
     }
     
-    private func appearanceRow(appearance: AppSettings.Appearance) -> some View {
+    private func appearanceRow(appearance: AppAppearance) -> some View {
         let isSelected = settings.appearance == appearance
         let icon: String = {
             switch appearance {
@@ -217,7 +217,7 @@ private struct DisplaySettingsView: View {
         .buttonStyle(.plain)
     }
     
-    private func languageRow(language: AppSettings.Language) -> some View {
+    private func languageRow(language: AppLanguage) -> some View {
         let isSelected = settings.language == language
         
         return Button(action: { settings.language = language }) {

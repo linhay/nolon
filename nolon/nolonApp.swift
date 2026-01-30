@@ -88,7 +88,7 @@ struct nolonApp: App {
         ProviderTemplateLoader.shared.load()
         
         // Apply app settings (appearance, etc.)
-        AppSettings.shared.applyAllSettings()
+        AppSettingsStore.shared.applyAllSettings()
         
         // Skip Sparkle in Previews to avoid launch timeout
         if ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] != "1" {
@@ -122,4 +122,3 @@ struct nolonApp: App {
         }
     }
 }
-
