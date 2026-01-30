@@ -1,4 +1,5 @@
 import SwiftUI
+import Combine
 
 /// Main three-column split view for the app
 /// Left 1: Provider sidebar (collapsible)
@@ -10,6 +11,7 @@ final class MainSplitViewModel {
     var settings = ProviderSettings.shared
     var repository = SkillRepository()
     private(set) var installer: SkillInstaller?
+    private var resourceMonitor: ProviderResourceMonitor?
 
     var selectedProviderId: Provider.ID?
     var selectedTab: ProviderContentTabType? = .skills
@@ -26,6 +28,19 @@ final class MainSplitViewModel {
     @MainActor
     func setup() {
         installer = SkillInstaller(repository: repository, settings: settings)
+        resourceMonitor = ProviderResourceMonitor { [weak self] in
+            self?.refreshTrigger += 1
+        }
+        updateResourceMonitoring()
+    }
+
+    @MainActor
+    func updateResourceMonitoring() {
+        guard let provider = selectedProvider else {
+            resourceMonitor?.stop()
+            return
+        }
+        resourceMonitor?.startWatching(provider: provider)
     }
 
     @MainActor
@@ -248,6 +263,12 @@ public struct MainSplitView: View {
         }
         .onAppear {
             viewModel.setup()
+        }
+        .onChange(of: viewModel.selectedProviderId) { _, _ in
+            viewModel.updateResourceMonitoring()
+        }
+        .onReceive(viewModel.settings.$providers) { _ in
+            viewModel.updateResourceMonitoring()
         }
 
     }
