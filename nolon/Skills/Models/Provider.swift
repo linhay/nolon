@@ -6,6 +6,9 @@ public struct Provider: Codable, Identifiable, Hashable, Sendable {
     public var name: String
     public var defaultSkillsPath: String
     public var workflowPath: String
+    /// OpenCode uses "command files" instead of "workflows".
+    /// For backward compatibility, `workflowPath` may still point to the commands directory.
+    public var commandPath: String?
     public var iconName: String
     public var installMethod: SkillInstallationMethod
     
@@ -32,6 +35,7 @@ public struct Provider: Codable, Identifiable, Hashable, Sendable {
         name: String,
         defaultSkillsPath: String,
         workflowPath: String,
+        commandPath: String? = nil,
         iconName: String = "folder",
         installMethod: SkillInstallationMethod = .symlink,
         templateId: String? = nil,
@@ -42,6 +46,7 @@ public struct Provider: Codable, Identifiable, Hashable, Sendable {
         self.name = name
         self.defaultSkillsPath = defaultSkillsPath
         self.workflowPath = workflowPath
+        self.commandPath = commandPath
         self.iconName = iconName
         self.installMethod = installMethod
         self.templateId = templateId

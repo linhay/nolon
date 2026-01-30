@@ -53,10 +53,16 @@ public struct ProviderSkillsView: View {
                             ForEach(viewModel.providerStates, id: \.skillName) { state in
                                 ProviderSkillCard(
                                     state: state,
+                                    hasUpdate: viewModel.skillHasUpdate(state.skillName),
                                     onUninstall: { await viewModel.uninstallSkill(at: state.path) },
                                     onMigrate: { await viewModel.migrateSkill(skillName: state.skillName) },
                                     onRepair: { await viewModel.repairSymlink(skillName: state.skillName) },
-                                    onDelete: { await viewModel.deletePath(state.path) }
+                                    onDelete: { await viewModel.deletePath(state.path) },
+                                    onUpdate: { 
+                                        if let update = viewModel.availableUpdates.first(where: { $0.id == state.skillName }) {
+                                            await viewModel.performUpdate(update)
+                                        }
+                                    }
                                 )
                             }
                         }
@@ -68,6 +74,7 @@ public struct ProviderSkillsView: View {
             .task(id: viewModel.selectedProviderIndex) {
                  viewModel.onRefreshHandler = onRefresh
                  await viewModel.loadProviderStates()
+                 await viewModel.checkForUpdates()
             }
             .alert(
                 NSLocalizedString("generic.error", comment: "Error"),

@@ -28,10 +28,12 @@ struct OnboardingView: View {
         for template in ProviderTemplate.allCases {
             let skillsPath = template.defaultSkillsPath
             let workflowPath = template.defaultWorkflowPath
+            let commandPath = template.defaultCommandPath
             
             // 检查是否存在 skills 或 workflow 目录
             if STPath(skillsPath).isExists ||
-               STPath(workflowPath).isExists {
+               STPath(workflowPath).isExists ||
+               (commandPath.map { STPath($0).isExists } ?? false) {
                 detected.insert(template)
             }
         }

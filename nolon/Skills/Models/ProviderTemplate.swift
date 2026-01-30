@@ -18,7 +18,7 @@ public enum ProviderTemplate: String, CaseIterable, Sendable, Identifiable {
     public var config: ProviderTemplateConfig? {
         ProviderTemplateLoader.shared.config(for: rawValue)
     }
-
+    
     /// Human-readable display name
     @MainActor
     public var displayName: String {
@@ -53,6 +53,19 @@ public enum ProviderTemplate: String, CaseIterable, Sendable, Identifiable {
         return home.appendingPathComponent(relativePath)
     }
     
+    /// Default command path for this template (OpenCode).
+    @MainActor
+    public var defaultCommandPath: URL? {
+        let home = URL(fileURLWithPath: NSHomeDirectory())
+        guard let relativePath = config?.defaultCommandPath else { return nil }
+        return home.appendingPathComponent(relativePath)
+    }
+    
+    @MainActor
+    public var usesCommandFiles: Bool {
+        defaultCommandPath != nil || rawValue == "opencode"
+    }
+    
     /// Documentation URL for this template
     @MainActor
     public var documentationURL: URL? {
@@ -85,10 +98,13 @@ public enum ProviderTemplate: String, CaseIterable, Sendable, Identifiable {
     /// Create a Provider instance from this template
     @MainActor
     public func createProvider() -> Provider {
-        Provider(
+        let commandPath = defaultCommandPath?.path
+        let effectiveWorkflowPath = commandPath ?? defaultWorkflowPath.path
+        return Provider(
             name: displayName,
             defaultSkillsPath: defaultSkillsPath.path,
-            workflowPath: defaultWorkflowPath.path,
+            workflowPath: effectiveWorkflowPath,
+            commandPath: commandPath,
             iconName: iconName,
             installMethod: .symlink,
             templateId: rawValue,

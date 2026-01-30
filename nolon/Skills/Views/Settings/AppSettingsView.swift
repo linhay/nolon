@@ -1,9 +1,11 @@
+import Foundation
 import SwiftUI
 import Sparkle
 
 private enum SettingsCategory: String, CaseIterable, Identifiable {
     case general = "General"
     case display = "Display"
+    case advanced = "Advanced"
     case about = "About"
     
     var id: String { rawValue }
@@ -12,6 +14,7 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
         switch self {
         case .general: NSLocalizedString("settings.category.general", value: "General", comment: "Category")
         case .display: NSLocalizedString("settings.category.display", value: "Display", comment: "Category")
+        case .advanced: NSLocalizedString("settings.category.advanced", value: "Advanced", comment: "Category")
         case .about: NSLocalizedString("settings.category.about", value: "About", comment: "Category")
         }
     }
@@ -87,6 +90,8 @@ struct AppSettingsView: View {
             GeneralSettingsView(settings: settingsStore)
         case .display:
             DisplaySettingsView(settings: settingsStore)
+        case .advanced:
+            AdvancedSettingsView()
         case .about:
             AboutSettingsView()
         }
@@ -261,6 +266,192 @@ private struct DisplaySettingsView: View {
             )
         }
         .buttonStyle(.plain)
+    }
+}
+
+private struct AdvancedSettingsView: View {
+    @State private var overwriteExisting = false
+    @State private var isRebuildingSkillLock = false
+    @State private var rebuildResultMessage: String?
+    @State private var rebuildErrorMessage: String?
+    @State private var showingRebuildConfirmation = false
+    @State private var showingUpdatesSheet = false
+    @State private var updateCount: Int = 0
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 24) {
+            settingsSection(
+                title: NSLocalizedString(
+                    "settings.advanced.skill_lock.title",
+                    value: "Skill Lock",
+                    comment: "Section title"
+                )
+            ) {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text(
+                        NSLocalizedString(
+                            "settings.advanced.skill_lock.description",
+                            value: "Rebuild the .skill-lock.json file by scanning ~/.nolon/skills. This helps update checking work for existing installations.",
+                            comment: "Description"
+                        )
+                    )
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    
+                    Toggle(
+                        NSLocalizedString(
+                            "settings.advanced.skill_lock.overwrite",
+                            value: "Overwrite existing entries",
+                            comment: "Overwrite toggle"
+                        ),
+                        isOn: $overwriteExisting
+                    )
+                    
+                    Button {
+                        showingRebuildConfirmation = true
+                    } label: {
+                        HStack {
+                            if isRebuildingSkillLock {
+                                ProgressView()
+                                    .controlSize(.small)
+                            } else {
+                                Image(systemName: "arrow.triangle.2.circlepath")
+                            }
+                            Text(
+                                NSLocalizedString(
+                                    "settings.advanced.skill_lock.rebuild",
+                                    value: "Rebuild .skill-lock.json",
+                                    comment: "Rebuild action"
+                                )
+                            )
+                            Spacer()
+                        }
+                        .padding(16)
+                        .background(Color.primary.opacity(0.05))
+                        .cornerRadius(12)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isRebuildingSkillLock)
+                    .confirmationDialog(
+                        NSLocalizedString(
+                            "settings.advanced.skill_lock.confirm_title",
+                            value: "Rebuild Skill Lock?",
+                            comment: "Confirm title"
+                        ),
+                        isPresented: $showingRebuildConfirmation
+                    ) {
+                        Button(
+                            NSLocalizedString(
+                                "settings.advanced.skill_lock.confirm_action",
+                                value: "Rebuild",
+                                comment: "Confirm action"
+                            )
+                        ) {
+                            Task { await rebuildSkillLock() }
+                        }
+                        Button(NSLocalizedString("action.cancel", comment: "Cancel"), role: .cancel) {}
+                    } message: {
+                        Text(
+                            NSLocalizedString(
+                                "settings.advanced.skill_lock.confirm_message",
+                                value: "This will scan your global skills folder and write .skill-lock.json. You can keep existing entries or overwrite them.",
+                                comment: "Confirm message"
+                            )
+                        )
+                    }
+                    
+                    if let message = rebuildResultMessage {
+                        Text(message)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    
+                    if let error = rebuildErrorMessage {
+                        Text(error)
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                    }
+                }
+            }
+            
+            settingsSection(
+                title: NSLocalizedString(
+                    "settings.advanced.updates.title",
+                    value: "Updates",
+                    comment: "Section title"
+                )
+            ) {
+                Button {
+                    showingUpdatesSheet = true
+                } label: {
+                    HStack {
+                        Image(systemName: updateCount > 0 ? "arrow.down.circle.fill" : "arrow.down.circle")
+                        Text(
+                            NSLocalizedString(
+                                "settings.advanced.updates.open",
+                                value: "Manage skill updates",
+                                comment: "Open updates"
+                            )
+                        )
+                        Spacer()
+                        if updateCount > 0 {
+                            Text("\(updateCount)")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(DesignSystem.Colors.Status.warning)
+                        }
+                    }
+                    .padding(16)
+                    .background(Color.primary.opacity(0.05))
+                    .cornerRadius(12)
+                }
+                .buttonStyle(.plain)
+                .sheet(isPresented: $showingUpdatesSheet) {
+                    UpdatesView()
+                }
+                .task {
+                    let checker = SkillUpdateChecker()
+                    updateCount = await checker.getUpdatableSkillsCount()
+                }
+            }
+        }
+    }
+    
+    @MainActor
+    private func rebuildSkillLock() async {
+        isRebuildingSkillLock = true
+        rebuildResultMessage = NSLocalizedString(
+            "settings.advanced.skill_lock.running",
+            value: "Rebuilding .skill-lock.json...",
+            comment: "Running"
+        )
+        rebuildErrorMessage = nil
+        defer { isRebuildingSkillLock = false }
+        
+        do {
+            let manager = SkillLockFileManager()
+            let result = try await manager.rebuildFromGlobalSkills(overwriteExisting: overwriteExisting)
+            rebuildResultMessage = String(
+                format: NSLocalizedString(
+                    "settings.advanced.skill_lock.success",
+                    value: "Done. Processed %d, added %d, updated %d, skipped %d.",
+                    comment: "Success"
+                ),
+                result.processedCount,
+                result.addedCount,
+                result.updatedCount,
+                result.skippedCount
+            )
+        } catch {
+            rebuildResultMessage = nil
+            rebuildErrorMessage = String(
+                format: NSLocalizedString(
+                    "settings.advanced.skill_lock.failed",
+                    value: "Failed to rebuild: %@",
+                    comment: "Failure"
+                ),
+                error.localizedDescription
+            )
+        }
     }
 }
 

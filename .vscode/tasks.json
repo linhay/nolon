@@ -1,0 +1,35 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Build Debug (install)",
+            "type": "shell",
+            "command": "zsh",
+            "args": [
+                "-lc",
+                "xcodebuild -project nolon.xcodeproj -scheme nolon -configuration Debug install"
+            ],
+            "problemMatcher": [],
+            "group": "build"
+        },
+        {
+            "label": "Open Debug App",
+            "type": "shell",
+            "command": "zsh",
+            "args": [
+                "-lc",
+                "open \"$HOME/Applications/Dev Builds/nolon.app\""
+            ],
+            "problemMatcher": []
+        },
+        {
+            "label": "Build & Launch Debug",
+            "dependsOn": [
+                "Build Debug (install)",
+                "Open Debug App"
+            ],
+            "dependsOrder": "sequence",
+            "problemMatcher": []
+        }
+    ]
+}

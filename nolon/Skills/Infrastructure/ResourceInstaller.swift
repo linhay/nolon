@@ -169,6 +169,7 @@ public actor ResourceInstaller {
     ) async throws {
         let providerWorkflowPath = provider.workflowPath
         let targetPath = "\(providerWorkflowPath)/\(slug).md"
+        let isOpenCode = provider.templateId == "opencode"
         
         // Remove existing if present
         try STPath(targetPath).deleteIncludingBrokenSymlink()
@@ -178,11 +179,79 @@ public actor ResourceInstaller {
         
         // Install based on provider method
         switch provider.installMethod {
-        case .symlink:
+        case .symlink where !isOpenCode:
             try STPath(targetPath).createSymbolicLink(to: STPath(workflowPath))
-        case .copy:
+        case .symlink, .copy:
             try STPath(workflowPath).copy(to: STPath(targetPath), isOverlay: true)
         }
+
+        if isOpenCode {
+            try ensureOpenCodeCommandFrontmatter(at: targetPath, slug: slug)
+        }
+    }
+
+    private func ensureOpenCodeCommandFrontmatter(at path: String, slug: String) throws {
+        guard let content = try? STFile(path).read() else { return }
+        let metadata = FrontmatterParser.parseMetadata(from: content)
+        let existingAgent = (metadata["agent"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        if !existingAgent.isEmpty { return }
+
+        func yamlQuoted(_ value: String) -> String {
+            var v = value
+            v = v.replacingOccurrences(of: "\\", with: "\\\\")
+            v = v.replacingOccurrences(of: "\"", with: "\\\"")
+            v = v.replacingOccurrences(of: "\n", with: "\\n")
+            return "\"\(v)\""
+        }
+
+        let agentLine = "agent: \(yamlQuoted("default"))\n"
+
+        if content.hasPrefix("---") {
+            let pattern = "^---\\s*\\r?\\n([\\s\\S]*?)\\r?\\n---"
+            if let regex = try? NSRegularExpression(pattern: pattern, options: []),
+               let match = regex.firstMatch(
+                in: content,
+                options: [],
+                range: NSRange(content.startIndex..., in: content)
+               ),
+               let frontmatterRange = Range(match.range(at: 1), in: content),
+               let fullRange = Range(match.range(at: 0), in: content) {
+                let frontmatter = String(content[frontmatterRange])
+                let hasAgentKey = frontmatter.range(
+                    of: #"(?m)^\s*agent\s*:"#,
+                    options: .regularExpression
+                ) != nil
+
+                var updatedFrontmatter = frontmatter
+                if hasAgentKey {
+                    updatedFrontmatter = frontmatter.replacingOccurrences(
+                        of: #"(?m)^\s*agent\s*:\s*.*$"#,
+                        with: agentLine.trimmingCharacters(in: .newlines),
+                        options: .regularExpression
+                    )
+                } else {
+                    updatedFrontmatter = agentLine + frontmatter
+                }
+
+                let updated = """
+                ---
+                \(updatedFrontmatter)
+                ---
+                """ + String(content[fullRange.upperBound...])
+
+                try STFile(path).overlay(with: updated)
+                return
+            }
+        }
+
+        let header = """
+        ---
+        name: \(yamlQuoted(slug))
+        description: \(yamlQuoted("OpenCode command installed by Nolon."))
+        \(agentLine)---
+        
+        """
+        try STFile(path).overlay(with: header + content)
     }
     
     // MARK: - MCP Installation

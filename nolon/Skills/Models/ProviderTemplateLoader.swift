@@ -7,6 +7,8 @@ public struct ProviderTemplateConfig: Codable, Sendable {
     public let logoFile: String
     public let defaultSkillsPath: String
     public let defaultWorkflowPath: String
+    /// OpenCode uses command files instead of workflows.
+    public let defaultCommandPath: String?
     public let documentationURL: String?
     public let mcpDocumentationURL: String?
     public let defaultMcpConfigPath: String

@@ -49,13 +49,18 @@ public class ProviderSettings: ObservableObject {
     }
 
     public func addProvider(
-        name: String, defaultSkillsPath: String, workflowPath: String, iconName: String = "folder",
+        name: String,
+        defaultSkillsPath: String,
+        workflowPath: String,
+        commandPath: String? = nil,
+        iconName: String = "folder",
         installMethod: SkillInstallationMethod = .symlink, templateId: String? = nil
     ) {
         let provider = Provider(
             name: name,
             defaultSkillsPath: defaultSkillsPath,
             workflowPath: workflowPath,
+            commandPath: commandPath,
             iconName: iconName,
             installMethod: installMethod,
             templateId: templateId
@@ -142,6 +147,14 @@ public class ProviderSettings: ObservableObject {
              if !repos.contains(where: { $0.templateType == .clawdhub }) {
                 repos.insert(.clawdhub, at: 0)
             }
+            
+            // Keep built-in Clawdhub logo in sync with asset catalog name (clawhub.imageset)
+            if let index = repos.firstIndex(where: { $0.templateType == .clawdhub }) {
+                let desiredLogoName = RepositoryTemplate.clawdhub.logoName
+                if repos[index].logoName != desiredLogoName {
+                    repos[index].logoName = desiredLogoName
+                }
+            }
             self.remoteRepositories = repos
         } else {
             // Default with Global Skills and Clawdhub
@@ -160,6 +173,18 @@ public class ProviderSettings: ObservableObject {
             guard let templateId = provider.templateId,
                   let template = ProviderTemplate(rawValue: templateId) else {
                 continue
+            }
+
+            // OpenCode migration: keep `commandPath` populated and `workflowPath` pointing to commands for legacy callers.
+            if template.usesCommandFiles {
+                let commandPath = provider.commandPath?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                if commandPath.isEmpty {
+                    updatedProviders[index].commandPath = provider.workflowPath
+                    hasChanges = true
+                } else if provider.workflowPath != commandPath {
+                    updatedProviders[index].workflowPath = commandPath
+                    hasChanges = true
+                }
             }
             
             // Merge template paths with existing paths - ensure all template defaults are present

@@ -28,6 +28,7 @@
         "logoFile": "opencode",
         "defaultSkillsPath": ".config/opencode/skills",
         "defaultWorkflowPath": ".config/opencode/commands",
+        "defaultCommandPath": ".config/opencode/commands",
         "documentationURL": "https://opencode.ai/docs/skills",
         "mcpDocumentationURL": "https://opencode.ai/docs/mcp-servers/",
         "defaultMcpConfigPath": ".config/opencode/mcp_settings.json",

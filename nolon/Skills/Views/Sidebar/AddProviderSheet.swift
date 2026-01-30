@@ -7,9 +7,11 @@ final class AddProviderViewModel {
     var name: String = ""
     var path: String = ""
     var workflowPath: String = ""
+    var commandPath: String = ""
     var selectedTemplate: ProviderTemplate = .antigravity
     var showingFolderPicker = false
     var showingWorkflowFolderPicker = false
+    var showingCommandFolderPicker = false
     var validationError: String?
     
     var settings: ProviderSettings
@@ -24,6 +26,7 @@ final class AddProviderViewModel {
         name = template.displayName
         path = template.defaultSkillsPath.path
         workflowPath = template.defaultWorkflowPath.path
+        commandPath = template.defaultCommandPath?.path ?? ""
         validationError = nil
     }
     
@@ -48,9 +51,24 @@ final class AddProviderViewModel {
             print("Workflow folder selection failed: \(error)")
         }
     }
+
+    func handleCommandFolderSelection(_ result: Result<[URL], Error>) {
+        switch result {
+        case .success(let urls):
+            if let url = urls.first {
+                commandPath = url.path
+            }
+        case .failure(let error):
+            print("Command folder selection failed: \(error)")
+        }
+    }
     
     var canSave: Bool {
-        !name.trimmingCharacters(in: .whitespaces).isEmpty && !path.isEmpty
+        let hasBasics = !name.trimmingCharacters(in: .whitespaces).isEmpty && !path.isEmpty
+        if selectedTemplate.usesCommandFiles {
+            return hasBasics && !commandPath.isEmpty
+        }
+        return hasBasics && !workflowPath.isEmpty
     }
     
     func save() {
@@ -73,10 +91,13 @@ final class AddProviderViewModel {
              return
         }
         
+        let isOpenCode = selectedTemplate.usesCommandFiles
+        let effectiveWorkflowPath = isOpenCode ? commandPath : workflowPath
         let provider = Provider(
             name: trimmedName,
             defaultSkillsPath: path,
-            workflowPath: workflowPath,
+            workflowPath: effectiveWorkflowPath,
+            commandPath: isOpenCode ? commandPath : nil,
             iconName: selectedTemplate.iconName,
             installMethod: .symlink,
             templateId: selectedTemplate.rawValue,
@@ -145,23 +166,45 @@ struct AddProviderSheet: View {
                 }
 
                 Section {
-                    HStack {
-                        Text(viewModel.workflowPath.isEmpty
-                             ? "No workflow folder selected"
-                             : viewModel.workflowPath)
-                            .foregroundStyle(viewModel.workflowPath.isEmpty ? .secondary : .primary)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                        
-                        Spacer()
-                        
-                        Button("Choose...") {
-                            viewModel.showingWorkflowFolderPicker = true
+                    if viewModel.selectedTemplate.usesCommandFiles {
+                        HStack {
+                            Text(viewModel.commandPath.isEmpty
+                                 ? NSLocalizedString("add_provider.no_command_folder", value: "No command folder selected", comment: "No command folder selected")
+                                 : viewModel.commandPath)
+                                .foregroundStyle(viewModel.commandPath.isEmpty ? .secondary : .primary)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                            
+                            Spacer()
+                            
+                            Button(NSLocalizedString("add_provider.choose", comment: "Choose...")) {
+                                viewModel.showingCommandFolderPicker = true
+                            }
+                            .buttonStyle(.bordered)
                         }
-                        .buttonStyle(.bordered)
+                    } else {
+                        HStack {
+                            Text(viewModel.workflowPath.isEmpty
+                                 ? NSLocalizedString("add_provider.no_workflow_folder", value: "No workflow folder selected", comment: "No workflow folder selected")
+                                 : viewModel.workflowPath)
+                                .foregroundStyle(viewModel.workflowPath.isEmpty ? .secondary : .primary)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                            
+                            Spacer()
+                            
+                            Button(NSLocalizedString("add_provider.choose", comment: "Choose...")) {
+                                viewModel.showingWorkflowFolderPicker = true
+                            }
+                            .buttonStyle(.bordered)
+                        }
                     }
                 } header: {
-                    Text("Workflow Folder")
+                    Text(
+                        viewModel.selectedTemplate.usesCommandFiles
+                            ? NSLocalizedString("add_provider.command_folder_label", value: "Command Folder", comment: "Command Folder")
+                            : NSLocalizedString("add_provider.workflow_folder_label", value: "Workflow Folder", comment: "Workflow Folder")
+                    )
                 }
                 
                 if let error = viewModel.validationError {
@@ -199,6 +242,12 @@ struct AddProviderSheet: View {
                 allowedContentTypes: [.folder],
                 allowsMultipleSelection: false,
                 onCompletion: viewModel.handleWorkflowFolderSelection
+            )
+            .fileImporter(
+                isPresented: $viewModel.showingCommandFolderPicker,
+                allowedContentTypes: [.folder],
+                allowsMultipleSelection: false,
+                onCompletion: viewModel.handleCommandFolderSelection
             )
         }
         .frame(minWidth: 450, minHeight: 400)

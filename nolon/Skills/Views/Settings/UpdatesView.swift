@@ -1,0 +1,174 @@
+import SwiftUI
+
+struct UpdatesView: View {
+    @State private var viewModel = UpdatesViewModel()
+    @State private var selectedUpdate: SkillUpdateInfo?
+    @State private var showUpdateConfirmation = false
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            headerView
+            
+            if viewModel.isChecking {
+                ProgressView()
+                    .padding()
+            } else if viewModel.availableUpdates.isEmpty {
+                emptyStateView
+            } else {
+                updatesListView
+            }
+        }
+        .frame(minWidth: 600, minHeight: 400)
+        .task {
+            await viewModel.checkForUpdates()
+        }
+    }
+    
+    private var headerView: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(NSLocalizedString("updates.title", comment: "Updates view title"))
+                    .font(.title2)
+                    .fontWeight(.semibold)
+                
+                if let lastCheck = viewModel.lastCheckDate {
+                    Text("Last checked: \(Int(Date().timeIntervalSince(lastCheck) / 60)) minutes ago")
+                        .font(.caption)
+                        .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                }
+            }
+            
+            Spacer()
+            
+            if viewModel.hasUpdates {
+                Label(String(format: NSLocalizedString("updates.available_count", comment: "Number of updates available"), viewModel.updatableCount), systemImage: "arrow.down.circle")
+                    .font(.subheadline)
+                    .foregroundStyle(DesignSystem.Colors.Status.info)
+            }
+            
+            Button(action: {
+                Task {
+                    await viewModel.checkForUpdates()
+                }
+            }) {
+                Image(systemName: "arrow.clockwise")
+            }
+            .disabled(viewModel.isChecking)
+            .help(NSLocalizedString("updates.check_for_updates", comment: "Check for updates button help"))
+        }
+        .padding()
+        .background(DesignSystem.Colors.Background.surface)
+    }
+    
+    private var emptyStateView: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 48))
+                .foregroundStyle(DesignSystem.Colors.Status.success)
+            
+            Text(NSLocalizedString("updates.empty_title", comment: "All skills up to date"))
+                .font(.headline)
+            
+            Text(NSLocalizedString("updates.empty_desc", comment: "No updates available description"))
+                .font(.subheadline)
+                .foregroundStyle(DesignSystem.Colors.Text.secondary)
+        }
+        .padding()
+        .frame(maxHeight: .infinity)
+    }
+    
+    private var updatesListView: some View {
+        List(viewModel.availableUpdates) { update in
+            UpdateRowView(update: update) {
+                selectedUpdate = update
+                showUpdateConfirmation = true
+            }
+        }
+        .alert(NSLocalizedString("action.edit", comment: "Edit"), isPresented: $showUpdateConfirmation) {
+            Button(NSLocalizedString("generic.cancel", comment: "Cancel"), role: .cancel) { }
+            Button(NSLocalizedString("generic.save", comment: "Save")) {
+                if let update = selectedUpdate {
+                    Task {
+                        await viewModel.performUpdate(update)
+                    }
+                }
+            }
+        } message: {
+            if let update = selectedUpdate {
+                Text("Update \(update.skillName) to \(update.latestVersion ?? "latest")?")
+            }
+        }
+    }
+}
+
+struct UpdateRowView: View {
+    let update: SkillUpdateInfo
+    let onUpdate: () -> Void
+    
+    var body: some View {
+        HStack(spacing: 16) {
+            statusIndicator
+            
+            VStack(alignment: .leading, spacing: 4) {
+                Text(update.skillName)
+                    .font(.headline)
+                
+                HStack(spacing: 8) {
+                    Label(update.updateSource.rawValue, systemImage: sourceIcon)
+                        .font(.caption)
+                        .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                    
+                    if let current = update.currentVersion {
+                        Text("Current: \(current)")
+                            .font(.caption)
+                            .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                    }
+                    
+                    if let latest = update.latestVersion {
+                        Text("Latest: \(latest)")
+                            .font(.caption)
+                            .foregroundStyle(DesignSystem.Colors.Status.success)
+                    }
+                }
+            }
+            
+            Spacer()
+            
+            if update.hasUpdate {
+                Button(NSLocalizedString("action.save", comment: "Save")) {
+                    onUpdate()
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+            } else {
+                Label(NSLocalizedString("updates.empty_title", comment: "All skills up to date"), systemImage: "checkmark")
+                    .font(.caption)
+                    .foregroundStyle(DesignSystem.Colors.Status.success)
+            }
+        }
+        .padding(.vertical, 4)
+    }
+    
+    private var statusIndicator: some View {
+        Circle()
+            .fill(update.hasUpdate ? DesignSystem.Colors.Status.warning : DesignSystem.Colors.Status.success)
+            .frame(width: 8, height: 8)
+    }
+    
+    private var sourceIcon: String {
+        switch update.updateSource {
+        case .clawdhub:
+            return "cloud"
+        case .github:
+            return "chevron.left.forwardslash.chevron.right"
+        case .gitlab:
+            return "chevron.left.forwardslash.chevron.right"
+        case .local:
+            return "folder"
+        }
+    }
+}
+
+#Preview {
+    UpdatesView()
+}

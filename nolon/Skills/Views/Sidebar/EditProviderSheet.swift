@@ -7,8 +7,11 @@ final class EditProviderViewModel {
     var providerName: String
     var providerPath: String
     var workflowPath: String
+    var commandPath: String
     var installMethod: SkillInstallationMethod
     var showingFolderPicker = false
+    var showingWorkflowFolderPicker = false
+    var showingCommandFolderPicker = false
     
     var settings: ProviderSettings
     var provider: Provider
@@ -19,7 +22,12 @@ final class EditProviderViewModel {
         self.providerName = provider.name
         self.providerPath = provider.defaultSkillsPath
         self.workflowPath = provider.workflowPath
+        self.commandPath = provider.commandPath ?? ""
         self.installMethod = provider.installMethod
+    }
+
+    var usesCommandFiles: Bool {
+        provider.templateId == "opencode"
     }
     
     var canSave: Bool {
@@ -42,7 +50,13 @@ final class EditProviderViewModel {
         var updatedProvider = provider
         updatedProvider.name = providerName.trimmingCharacters(in: .whitespaces)
         updatedProvider.defaultSkillsPath = providerPath
-        updatedProvider.workflowPath = workflowPath
+        if usesCommandFiles {
+            updatedProvider.commandPath = commandPath
+            updatedProvider.workflowPath = commandPath
+        } else {
+            updatedProvider.workflowPath = workflowPath
+            updatedProvider.commandPath = nil
+        }
         updatedProvider.installMethod = installMethod
         settings.updateProvider(updatedProvider)
     }
@@ -91,18 +105,42 @@ struct EditProviderSheet: View {
 
                 Section {
                     HStack {
-                        Text(viewModel.workflowPath.isEmpty
-                             ? "No workflow folder selected"
-                             : viewModel.workflowPath)
-                            .foregroundStyle(viewModel.workflowPath.isEmpty ? .secondary : .primary)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                        
-                        Spacer()
-                         // No picker for now
+                        if viewModel.usesCommandFiles {
+                            Text(viewModel.commandPath.isEmpty
+                                 ? NSLocalizedString("edit_provider.no_command_folder", value: "No command folder selected", comment: "No command folder selected")
+                                 : viewModel.commandPath)
+                                .foregroundStyle(viewModel.commandPath.isEmpty ? .secondary : .primary)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                            
+                            Spacer()
+                            
+                            Button(NSLocalizedString("add_provider.choose", comment: "Choose...")) {
+                                viewModel.showingCommandFolderPicker = true
+                            }
+                            .buttonStyle(.bordered)
+                        } else {
+                            Text(viewModel.workflowPath.isEmpty
+                                 ? NSLocalizedString("edit_provider.no_workflow_folder", value: "No workflow folder selected", comment: "No workflow folder selected")
+                                 : viewModel.workflowPath)
+                                .foregroundStyle(viewModel.workflowPath.isEmpty ? .secondary : .primary)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                            
+                            Spacer()
+                            
+                            Button(NSLocalizedString("add_provider.choose", comment: "Choose...")) {
+                                viewModel.showingWorkflowFolderPicker = true
+                            }
+                            .buttonStyle(.bordered)
+                        }
                     }
                 } header: {
-                    Text("Workflow Folder")
+                    Text(
+                        viewModel.usesCommandFiles
+                            ? NSLocalizedString("edit_provider.command_folder_label", value: "Command Folder", comment: "Command Folder")
+                            : NSLocalizedString("edit_provider.workflow_folder_label", value: "Workflow Folder", comment: "Workflow Folder")
+                    )
                 }
                 
                 Section {
@@ -136,6 +174,36 @@ struct EditProviderSheet: View {
                 allowedContentTypes: [.folder],
                 allowsMultipleSelection: false,
                 onCompletion: viewModel.handleFolderSelection
+            )
+            .fileImporter(
+                isPresented: $viewModel.showingWorkflowFolderPicker,
+                allowedContentTypes: [.folder],
+                allowsMultipleSelection: false,
+                onCompletion: { result in
+                    switch result {
+                    case .success(let urls):
+                        if let url = urls.first {
+                            viewModel.workflowPath = url.path
+                        }
+                    case .failure(let error):
+                        print("Workflow folder selection failed: \(error)")
+                    }
+                }
+            )
+            .fileImporter(
+                isPresented: $viewModel.showingCommandFolderPicker,
+                allowedContentTypes: [.folder],
+                allowsMultipleSelection: false,
+                onCompletion: { result in
+                    switch result {
+                    case .success(let urls):
+                        if let url = urls.first {
+                            viewModel.commandPath = url.path
+                        }
+                    case .failure(let error):
+                        print("Command folder selection failed: \(error)")
+                    }
+                }
             )
         }
         .frame(minWidth: 400, minHeight: 300)

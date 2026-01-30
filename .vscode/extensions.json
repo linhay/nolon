@@ -1,5 +1,6 @@
 {
     "recommendations": [
-        "openai.chatgpt"
+        "openai.chatgpt",
+        "vadimcn.vscode-lldb"
     ]
 }

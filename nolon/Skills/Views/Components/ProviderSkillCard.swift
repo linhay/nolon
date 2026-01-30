@@ -1,12 +1,13 @@
 import SwiftUI
 
-/// Card view for displaying provider skill status (for ProviderSkillsView)
 struct ProviderSkillCard: View {
     let state: ProviderSkillState
+    let hasUpdate: Bool
     let onUninstall: () async -> Void
     let onMigrate: () async -> Void
     let onRepair: () async -> Void
     let onDelete: () async -> Void
+    let onUpdate: () async -> Void
     
     @State private var showingDeleteConfirmation = false
     @State private var isHovered = false
@@ -132,6 +133,18 @@ struct ProviderSkillCard: View {
     @ViewBuilder
     private var actionButtons: some View {
         HStack(spacing: 8) {
+            if hasUpdate && state.state == .installed {
+                Button {
+                    Task { await onUpdate() }
+                } label: {
+                    Label(NSLocalizedString("action.update", value: "Update", comment: "Update"), systemImage: "arrow.down.circle")
+                        .font(.caption.weight(.medium))
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+                .tint(DesignSystem.Colors.primary)
+            }
+            
             switch state.state {
             case .installed:
                 Menu {

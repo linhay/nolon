@@ -1,6 +1,7 @@
 import Foundation
 import STJSON
 import STFilePath
+import OSLog
 
 /// Skill state in a provider directory
 public struct ProviderSkillState: Sendable {
@@ -19,19 +20,23 @@ public struct ProviderSkillState: Sendable {
 
 /// Handles skill installation via symlinks, migration, and health checks
 public final class SkillInstaller {
+    private static let logger = Logger(subsystem: "com.nolon", category: "SkillInstaller")
 
     private let repository: SkillRepository
     private let settings: ProviderSettings
     private let nolonManager: NolonManager
+    private let lockFileManager: SkillLockFileManager
 
     public init(
         repository: SkillRepository,
         settings: ProviderSettings,
-        nolonManager: NolonManager = .shared
+        nolonManager: NolonManager = .shared,
+        lockFileManager: SkillLockFileManager = SkillLockFileManager()
     ) {
         self.repository = repository
         self.settings = settings
         self.nolonManager = nolonManager
+        self.lockFileManager = lockFileManager
     }
 
     // MARK: - Installation
@@ -121,6 +126,23 @@ public final class SkillInstaller {
 
         // Install to provider (symlink or copy based on provider settings)
         try install(skill: skill, to: provider)
+        
+        Task {
+            do {
+                try await lockFileManager.addOrUpdateSkill(
+                    slug: slug,
+                    source: "clawdhub/\(slug)",
+                    sourceType: "clawdhub",
+                    sourceUrl: "https://clawdhub.com/skills/\(slug)",
+                    skillPath: nil,
+                    skillFolderHash: nil,
+                    version: skill.version,
+                    displayName: skill.name
+                )
+            } catch {
+                Self.logger.error("Failed to record skill \(slug, privacy: .public) in lock file: \(error.localizedDescription, privacy: .public)")
+            }
+        }
     }
 
     private func unzip(_ url: URL, to destination: URL) throws {
@@ -134,15 +156,86 @@ public final class SkillInstaller {
             throw SkillError.fileOperationFailed("Failed to unzip skill package")
         }
     }
+    
+    public func updateSkill(slug: String, to provider: Provider, zipURL: URL) throws {
+        let updatedSkill = try updateSkillGlobal(slug: slug, zipURL: zipURL)
+        try install(skill: updatedSkill, to: provider)
+    }
+    
+    /// Update a skill in global storage (~/.nolon/skills/{slug}) from a downloaded zip.
+    /// - Note: The caller owns `zipURL` cleanup.
+    public func updateSkillGlobal(slug: String, zipURL: URL) throws -> Skill {
+        let globalSkillsPath = nolonManager.skillsPath
+        let globalPath = "\(globalSkillsPath)/\(slug)"
+        
+        try STPath(globalPath).deleteIncludingBrokenSymlink()
+        
+        STFolder(globalSkillsPath).createIfNotExists()
+        
+        let tempDir = try STFolder(sanbox: .temporary).folder(UUID().uuidString).create()
+        
+        defer {
+            try? tempDir.deleteIncludingBrokenSymlink()
+        }
+        
+        try unzip(zipURL, to: tempDir.url)
+        
+        guard let skillRoot = findSkillRoot(in: tempDir.url) else {
+            throw SkillError.parsingFailed("No valid skill found in the downloaded package")
+        }
+        
+        try STPath(skillRoot).move(to: STPath(globalPath), isOverlay: true)
+        
+        let skillMdPath = "\(globalPath)/SKILL.md"
+        guard let content = try? STFile(skillMdPath).read() else {
+            throw SkillError.parsingFailed("SKILL.md not found in '\(slug)'")
+        }
+        
+        let parsedSkill = try SkillParser.parse(
+            content: content,
+            id: slug,
+            globalPath: globalPath
+        )
+        
+        let skill = Skill(
+            id: parsedSkill.id,
+            name: parsedSkill.name,
+            description: parsedSkill.description,
+            version: parsedSkill.version,
+            globalPath: parsedSkill.globalPath,
+            content: parsedSkill.content,
+            referenceCount: 0,
+            scriptCount: 0
+        )
+        
+        Task {
+            do {
+                try await lockFileManager.addOrUpdateSkill(
+                    slug: slug,
+                    source: "clawdhub/\(slug)",
+                    sourceType: "clawdhub",
+                    sourceUrl: "https://clawdhub.com/skills/\(slug)",
+                    skillPath: nil,
+                    skillFolderHash: nil,
+                    version: skill.version,
+                    displayName: skill.name
+                )
+            } catch {
+                Self.logger.error("Failed to record skill \(slug, privacy: .public) in lock file: \(error.localizedDescription, privacy: .public)")
+            }
+        }
+        
+        return skill
+    }
 
     /// Install a skill from a local path (e.g. cloned GitHub repo)
-    /// 1. Symlink to global storage (~/.nolon/skills) to register it
     /// 2. Link/copy to provider directory based on provider settings
     public func installLocal(from sourcePath: String, slug: String, to provider: Provider) throws {
         let globalSkillsPath = nolonManager.skillsPath
         let globalPath = "\(globalSkillsPath)/\(slug)"
         let sourceURL = URL(fileURLWithPath: sourcePath).standardizedFileURL
         let globalURL = URL(fileURLWithPath: globalPath).standardizedFileURL
+        let lockSource = inferLockSourceInfo(sourceURL: sourceURL, slug: slug)
 
         // Ensure global skills directory exists
         STFolder(globalSkillsPath).createIfNotExists()
@@ -186,8 +279,86 @@ public final class SkillInstaller {
 
         // Install to provider
         try install(skill: skill, to: provider)
+        
+        Task {
+            await recordInstalledSkillInLockFile(skill: skill, lockSource: lockSource)
+        }
     }
 
+    private struct LockSourceInfo: Sendable {
+        let source: String
+        let sourceType: String
+        let sourceUrl: String
+        let skillPath: String?
+    }
+    
+    private func inferLockSourceInfo(sourceURL: URL, slug: String) -> LockSourceInfo {
+        let sourcePath = sourceURL.standardizedFileURL.path
+        
+        // Prefer mapping to a known Git repository (so we can support update checking).
+        for repo in settings.remoteRepositories where repo.templateType == .git {
+            let clonePath = repo.localClonePath.standardizedFileURL.path
+            guard sourcePath == clonePath || sourcePath.hasPrefix(clonePath + "/") else { continue }
+            
+            let sourceUrl = (repo.gitURL ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !sourceUrl.isEmpty else { break }
+            
+            let skillPath: String?
+            if sourcePath == clonePath {
+                skillPath = nil
+            } else if sourcePath.count > clonePath.count {
+                var relative = String(sourcePath.dropFirst(clonePath.count))
+                if relative.hasPrefix("/") { relative.removeFirst() }
+                skillPath = relative.isEmpty ? nil : relative
+            } else {
+                skillPath = nil
+            }
+
+            let sourceType = RemoteRepository.detectProvider(from: sourceUrl)?.rawValue ?? repo.provider.rawValue
+            let source = repo.provider.normalizeURL(sourceUrl)
+            
+            return LockSourceInfo(source: source, sourceType: sourceType, sourceUrl: sourceUrl, skillPath: skillPath)
+        }
+        
+        // Fallback to local install source.
+        return LockSourceInfo(
+            source: "local/\(slug)",
+            sourceType: "local",
+            sourceUrl: sourceURL.absoluteString,
+            skillPath: nil
+        )
+    }
+    
+    private func recordInstalledSkillInLockFile(skill: Skill, lockSource: LockSourceInfo) async {
+        do {
+            var skillFolderHash: String? = nil
+            
+            if lockSource.sourceType == "github" {
+                let gitHubAPI = GitHubAPIService()
+                if let ownerRepo = await gitHubAPI.extractOwnerRepo(from: lockSource.sourceUrl) {
+                    skillFolderHash = try await gitHubAPI.fetchSkillFolderHash(
+                        owner: ownerRepo.owner,
+                        repo: ownerRepo.repo,
+                        skillPath: lockSource.skillPath
+                    )
+                }
+            }
+            
+            try await lockFileManager.addOrUpdateSkill(
+                slug: skill.id,
+                source: lockSource.source,
+                sourceType: lockSource.sourceType,
+                sourceUrl: lockSource.sourceUrl,
+                skillPath: lockSource.skillPath,
+                skillFolderHash: skillFolderHash,
+                version: skill.version,
+                displayName: skill.name
+            )
+        } catch {
+            Self.logger.error("Failed to record skill \(skill.id, privacy: .public) in lock file: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+    
     private func findSkillRoot(in rootURL: URL) -> URL? {
         let directSkill = rootURL.appendingPathComponent("SKILL.md")
         if STFile(directSkill).isExists {
@@ -276,7 +447,10 @@ public final class SkillInstaller {
             // Repair legacy/invalid workflow format (missing required YAML frontmatter).
             if let content = try? STFile(globalMcpWorkflowPath).read() {
                 let metadata = FrontmatterParser.parseMetadata(from: content)
-                if (metadata["description"] ?? "").isEmpty {
+                let isDescriptionMissing = (metadata["description"] ?? "").isEmpty
+                let isAgentMissingForOpenCode = provider.templateId == "opencode"
+                    && (metadata["agent"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                if isDescriptionMissing || isAgentMissingForOpenCode {
                     try STFile(globalMcpWorkflowPath).overlay(with: mcp.workflowContent)
                 }
             } else {
@@ -520,6 +694,16 @@ public final class SkillInstaller {
             globalPath: globalPath
         )
 
+        Task {
+            let lockSource = LockSourceInfo(
+                source: "local/\(skillName)",
+                sourceType: "local",
+                sourceUrl: URL(fileURLWithPath: globalPath).standardizedFileURL.absoluteString,
+                skillPath: nil
+            )
+            await recordInstalledSkillInLockFile(skill: skill, lockSource: lockSource)
+        }
+        
         return skill
     }
 
@@ -536,7 +720,7 @@ public final class SkillInstaller {
                 migratedSkills.append(skill)
             } catch {
                 // Log error but continue with other skills
-                print("Failed to migrate '\(orphanedSkill.skillName)': \(error)")
+                Self.logger.error("Failed to migrate '\(orphanedSkill.skillName, privacy: .public)': \(error.localizedDescription, privacy: .public)")
             }
         }
 
@@ -616,6 +800,10 @@ public final class SkillInstaller {
         
         // Copy workflow file
         try STPath(fileURL).copy(to: STPath(targetPath), isOverlay: true)
+
+        if provider.templateId == "opencode" {
+            try ensureOpenCodeCommandFrontmatter(at: targetPath, slug: slug)
+        }
         
         // Write origin metadata
         try writeClawdhubWorkflowOrigin(at: URL(fileURLWithPath: workflowPath), slug: slug)
@@ -632,12 +820,85 @@ public final class SkillInstaller {
         // If already exists, remove it first
         try STPath(targetPath).deleteIncludingBrokenSymlink()
 
+        let isOpenCode = provider.templateId == "opencode"
         switch provider.installMethod {
-        case .symlink:
+        case .symlink where !isOpenCode:
             try STPath(targetPath).createSymbolicLink(to: STPath(fileURL))
-        case .copy:
+        case .symlink, .copy:
+            // For OpenCode, avoid symlinking the user's source file because we may need
+            // to add required YAML frontmatter fields (e.g., `agent`) to the installed copy.
             try STPath(fileURL).copy(to: STPath(targetPath), isOverlay: true)
         }
+
+        if isOpenCode {
+            try ensureOpenCodeCommandFrontmatter(at: targetPath, slug: slug)
+        }
+    }
+
+    private func ensureOpenCodeCommandFrontmatter(at path: String, slug: String) throws {
+        guard let content = try? STFile(path).read() else { return }
+        let metadata = FrontmatterParser.parseMetadata(from: content)
+        let existingAgent = (metadata["agent"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        if !existingAgent.isEmpty { return }
+
+        func yamlQuoted(_ value: String) -> String {
+            var v = value
+            v = v.replacingOccurrences(of: "\\", with: "\\\\")
+            v = v.replacingOccurrences(of: "\"", with: "\\\"")
+            v = v.replacingOccurrences(of: "\n", with: "\\n")
+            return "\"\(v)\""
+        }
+
+        let agentLine = "agent: \(yamlQuoted("default"))\n"
+
+        // If frontmatter exists, inject (or repair) `agent` while preserving formatting.
+        if content.hasPrefix("---") {
+            let pattern = "^---\\s*\\r?\\n([\\s\\S]*?)\\r?\\n---"
+            if let regex = try? NSRegularExpression(pattern: pattern, options: []),
+               let match = regex.firstMatch(
+                in: content,
+                options: [],
+                range: NSRange(content.startIndex..., in: content)
+               ),
+               let frontmatterRange = Range(match.range(at: 1), in: content),
+               let fullRange = Range(match.range(at: 0), in: content) {
+                let frontmatter = String(content[frontmatterRange])
+                let hasAgentKey = frontmatter.range(
+                    of: #"(?m)^\s*agent\s*:"#,
+                    options: .regularExpression
+                ) != nil
+
+                var updatedFrontmatter = frontmatter
+                if hasAgentKey {
+                    updatedFrontmatter = frontmatter.replacingOccurrences(
+                        of: #"(?m)^\s*agent\s*:\s*.*$"#,
+                        with: agentLine.trimmingCharacters(in: .newlines),
+                        options: .regularExpression
+                    )
+                } else {
+                    updatedFrontmatter = agentLine + frontmatter
+                }
+
+                let updated = """
+                ---
+                \(updatedFrontmatter)
+                ---
+                """ + String(content[fullRange.upperBound...])
+
+                try STFile(path).overlay(with: updated)
+                return
+            }
+        }
+
+        // No frontmatter: prepend a minimal one so OpenCode can load it and Nolon can discover it.
+        let header = """
+        ---
+        name: \(yamlQuoted(slug))
+        description: \(yamlQuoted("OpenCode command installed by Nolon."))
+        \(agentLine)---
+        
+        """
+        try STFile(path).overlay(with: header + content)
     }
 
     private func writeClawdhubWorkflowOrigin(at workflowDir: URL, slug: String) throws {

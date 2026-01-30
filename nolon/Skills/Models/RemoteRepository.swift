@@ -113,7 +113,7 @@ public enum RepositoryTemplate: String, CaseIterable, Identifiable, Codable, Sen
     public var logoName: String? {
         switch self {
         case .globalSkills: return nil
-        case .clawdhub: return "lobehub"
+        case .clawdhub: return "clawhub"
         case .localFolder: return nil
         case .git: return nil
         }

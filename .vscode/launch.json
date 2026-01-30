@@ -5,19 +5,11 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Python Debugger: Current File",
-            "type": "debugpy",
+            "name": "nolon: Debug (launch)",
+            "type": "lldb",
             "request": "launch",
-            "program": "${file}",
-            "console": "integratedTerminal"
-        },
-        {
-            "type": "lldb-dap",
-            "request": "launch",
-            "name": "Debug",
-            "program": "${workspaceFolder}/<your program>",
-            "args": [],
-            "env": [],
+            "preLaunchTask": "Build Debug (install)",
+            "program": "${env:HOME}/Applications/Dev Builds/nolon.app/Contents/MacOS/nolon",
             "cwd": "${workspaceFolder}"
         }
     ]

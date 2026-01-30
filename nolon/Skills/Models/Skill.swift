@@ -106,6 +106,7 @@ public struct Skill: Sendable, Equatable, Identifiable, Hashable {
         ---
         name: \(yamlQuoted(id))
         description: \(yamlQuoted(description))
+        agent: \(yamlQuoted("default"))
         ---
         
         Use the `\(name)` skill to \(description).

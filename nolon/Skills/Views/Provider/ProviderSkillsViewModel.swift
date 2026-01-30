@@ -9,16 +9,12 @@ final class ProviderSkillsViewModel {
     var selectedProviderIndex = 0
     var providerStates: [ProviderSkillState] = []
     var errorMessage: String?
+    var availableUpdates: [SkillUpdateInfo] = []
+    var isCheckingUpdates = false
     
-    // Dependencies
     private var repository: SkillRepository
     private var installer: SkillInstaller
-    // We keep settings here. If ProviderSettings is ObservableObject, we might lose reactivity 
-    // unless we treat it carefully. But since the original View had @StateObject var settings = ProviderSettings(), 
-    // it owned a local copy. We will convert this to a property here.
-    // Ideally ProviderSettings should be shared, but we respect the original View's behavior or fix it.
-    // The original view init didn't take settings, so it created a fresh one.
-    // We'll create one here too.
+    private var updateChecker: SkillUpdateChecker
     var settings: ProviderSettings
 
     init() {
@@ -27,6 +23,7 @@ final class ProviderSkillsViewModel {
         self.repository = repo
         self.settings = sett
         self.installer = SkillInstaller(repository: repo, settings: sett)
+        self.updateChecker = SkillUpdateChecker()
     }
     
     var selectedProvider: Provider? {
@@ -109,7 +106,40 @@ final class ProviderSkillsViewModel {
             try STPath(path).deleteIncludingBrokenSymlink()
             await loadProviderStates()
         } catch {
-             // handle error
+        }
+    }
+    
+    func checkForUpdates() async {
+        isCheckingUpdates = true
+        defer { isCheckingUpdates = false }
+        
+        availableUpdates = await updateChecker.checkForUpdates()
+    }
+    
+    func skillHasUpdate(_ skillName: String) -> Bool {
+        availableUpdates.first { $0.id == skillName }?.hasUpdate ?? false
+    }
+    
+    func performUpdate(_ update: SkillUpdateInfo) async {
+        guard let provider = selectedProvider else { return }
+        
+        do {
+            switch update.updateSource {
+            case .clawdhub:
+                let clawdhubRepo = ClawdhubRepository()
+                let zipURL = try await clawdhubRepo.downloadSkill(slug: update.id)
+                defer {
+                    try? STPath(zipURL).deleteIncludingBrokenSymlink()
+                }
+                try installer.updateSkill(slug: update.id, to: provider, zipURL: zipURL)
+            default:
+                break
+            }
+            
+            await loadProviderStates()
+            await checkForUpdates()
+        } catch {
+            errorMessage = error.localizedDescription
         }
     }
 }

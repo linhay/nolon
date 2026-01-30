@@ -56,6 +56,7 @@ public struct MCP: Identifiable, Sendable {
         ---
         name: \(yamlQuoted(name))
         description: \(yamlQuoted(description))
+        agent: \(yamlQuoted("default"))
         ---
         
         Use the `\(name)` MCP server in your agent workflows.
