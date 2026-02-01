@@ -3,13 +3,18 @@
         "displayName": "Codex",
         "iconName": "terminal",
         "logoFile": "openai",
-        "defaultSkillsPath": ".codex/skills",
-        "defaultWorkflowPath": ".codex/prompts",
+        "vendorHomeRelativePath": ".codex",
+        "defaultSkillsPath": "skills",
+        "defaultWorkflowPath": "prompts",
         "documentationURL": "https://developers.openai.com/codex/skills",
         "mcpDocumentationURL": "https://developers.openai.com/codex/mcp/",
-        "defaultMcpConfigPath": ".codex/config.toml",
+        "defaultMcpConfigPath": "config.toml",
+        "vendorTabs": [
+            "accounts",
+            "usage"
+        ],
         "defaultSkillsPaths": [
-            ".codex/skills"
+            "skills"
         ]
     },
     "claude": {
@@ -26,14 +31,15 @@
         "displayName": "OpenCode",
         "iconName": "chevron.left.forwardslash.chevron.right",
         "logoFile": "opencode",
-        "defaultSkillsPath": ".config/opencode/skills",
-        "defaultWorkflowPath": ".config/opencode/commands",
-        "defaultCommandPath": ".config/opencode/commands",
+        "vendorHomeRelativePath": ".config/opencode",
+        "defaultSkillsPath": "skills",
+        "defaultWorkflowPath": "commands",
+        "defaultCommandPath": "commands",
         "documentationURL": "https://opencode.ai/docs/skills",
         "mcpDocumentationURL": "https://opencode.ai/docs/mcp-servers/",
-        "defaultMcpConfigPath": ".config/opencode/mcp_settings.json",
+        "defaultMcpConfigPath": "mcp_settings.json",
         "defaultSkillsPaths": [
-            ".config/opencode/skills",
+            "skills",
             ".claude/skills"
         ]
     },
@@ -41,33 +47,36 @@
         "displayName": "GitHub Copilot",
         "iconName": "airplane",
         "logoFile": "copilot",
-        "defaultSkillsPath": ".copilot/agents",
-        "defaultWorkflowPath": ".copilot/workflows",
+        "vendorHomeRelativePath": ".copilot",
+        "defaultSkillsPath": "agents",
+        "defaultWorkflowPath": "workflows",
         "documentationURL": "https://docs.github.com/en/copilot/concepts/agents/about-agent-skills",
         "mcpDocumentationURL": "https://code.visualstudio.com/docs/copilot/customization/mcp-servers",
-        "defaultMcpConfigPath": ".copilot/mcp_settings.json"
+        "defaultMcpConfigPath": "mcp_settings.json"
     },
     "gemini": {
         "displayName": "Gemini CLI",
         "iconName": "sparkles",
         "logoFile": "gemini",
-        "defaultSkillsPath": ".gemini/skills",
-        "defaultWorkflowPath": ".gemini/workflows",
+        "vendorHomeRelativePath": ".gemini",
+        "defaultSkillsPath": "skills",
+        "defaultWorkflowPath": "workflows",
         "documentationURL": "https://geminicli.com/docs/cli/skills/",
         "mcpDocumentationURL": "https://geminicli.com/docs/tools/mcp-server/",
-        "defaultMcpConfigPath": ".gemini/settings.json"
+        "defaultMcpConfigPath": "settings.json"
     },
     "antigravity": {
         "displayName": "Antigravity",
         "iconName": "arrow.up.circle",
         "logoFile": "antigravity",
-        "defaultSkillsPath": ".gemini/antigravity/skills",
-        "defaultWorkflowPath": ".gemini/antigravity/global_workflows",
+        "vendorHomeRelativePath": ".gemini/antigravity",
+        "defaultSkillsPath": "skills",
+        "defaultWorkflowPath": "global_workflows",
         "documentationURL": "https://antigravity.google/docs/skills",
         "mcpDocumentationURL": "https://antigravity.google/docs/mcp",
-        "defaultMcpConfigPath": ".gemini/antigravity/mcp_config.json",
+        "defaultMcpConfigPath": "mcp_config.json",
         "defaultSkillsPaths": [
-            ".gemini/antigravity/skills",
+            "skills",
             ".gemini/skills"
         ]
     }

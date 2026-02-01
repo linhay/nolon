@@ -1,10 +1,14 @@
 import SwiftUI
 import Observation
 import UniformTypeIdentifiers
+import OSLog
 
 @Observable
 final class EditProviderViewModel {
+    fileprivate static let logger = Logger(subsystem: "com.nolon", category: "EditProviderViewModel")
+
     var providerName: String
+    var projectRootPath: String
     var providerPath: String
     var workflowPath: String
     var commandPath: String
@@ -12,6 +16,7 @@ final class EditProviderViewModel {
     var showingFolderPicker = false
     var showingWorkflowFolderPicker = false
     var showingCommandFolderPicker = false
+    var showingProjectFolderPicker = false
     
     var settings: ProviderSettings
     var provider: Provider
@@ -20,6 +25,7 @@ final class EditProviderViewModel {
         self.settings = settings
         self.provider = provider
         self.providerName = provider.name
+        self.projectRootPath = provider.projectRootPath ?? ""
         self.providerPath = provider.defaultSkillsPath
         self.workflowPath = provider.workflowPath
         self.commandPath = provider.commandPath ?? ""
@@ -28,6 +34,10 @@ final class EditProviderViewModel {
 
     var usesCommandFiles: Bool {
         provider.templateId == "opencode"
+    }
+
+    var canEditPaths: Bool {
+        provider.canEditPaths
     }
     
     var canSave: Bool {
@@ -42,21 +52,58 @@ final class EditProviderViewModel {
                 providerPath = url.path
             }
         case .failure(let error):
-            print("Folder selection failed: \(error)")
+            Self.logger.error("Folder selection failed: \(error.localizedDescription)")
         }
     }
     
+    func handleProjectFolderSelection(_ result: Result<[URL], Error>) {
+        switch result {
+        case .success(let urls):
+            if let url = urls.first {
+                projectRootPath = url.path
+                resolveProjectPathsIfPossible()
+            }
+        case .failure(let error):
+            Self.logger.error("Project folder selection failed: \(error.localizedDescription)")
+        }
+    }
+
+    func resolveProjectPathsIfPossible() {
+        guard provider.kind == .project else { return }
+        guard let templateId = provider.templateId,
+              let template = ProviderTemplate(rawValue: templateId)
+        else {
+            return
+        }
+
+        let root = projectRootPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !root.isEmpty else { return }
+        let rootURL = URL(fileURLWithPath: root)
+
+        providerPath = template.skillsPath(forProjectRoot: rootURL).path
+        let commandURL = template.commandPath(forProjectRoot: rootURL)
+        commandPath = commandURL?.path ?? ""
+        workflowPath = (commandURL?.path) ?? template.workflowPath(forProjectRoot: rootURL).path
+    }
+
     func saveProvider() {
         var updatedProvider = provider
         updatedProvider.name = providerName.trimmingCharacters(in: .whitespaces)
-        updatedProvider.defaultSkillsPath = providerPath
-        if usesCommandFiles {
-            updatedProvider.commandPath = commandPath
-            updatedProvider.workflowPath = commandPath
-        } else {
-            updatedProvider.workflowPath = workflowPath
-            updatedProvider.commandPath = nil
+        if updatedProvider.kind == .project {
+            updatedProvider.projectRootPath = projectRootPath.trimmingCharacters(in: .whitespacesAndNewlines)
         }
+
+        if canEditPaths {
+            updatedProvider.defaultSkillsPath = providerPath
+            if usesCommandFiles {
+                updatedProvider.commandPath = commandPath
+                updatedProvider.workflowPath = commandPath
+            } else {
+                updatedProvider.workflowPath = workflowPath
+                updatedProvider.commandPath = nil
+            }
+        }
+
         updatedProvider.installMethod = installMethod
         settings.updateProvider(updatedProvider)
     }
@@ -84,63 +131,66 @@ struct EditProviderSheet: View {
                 }
                 
                 Section {
-                    HStack {
-                        Text(viewModel.providerPath.isEmpty
-                             ? NSLocalizedString("add_provider.no_folder", comment: "No folder selected")
-                             : viewModel.providerPath)
-                            .foregroundStyle(viewModel.providerPath.isEmpty ? .secondary : .primary)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                        
-                        Spacer()
-                        
-                        Button(NSLocalizedString("add_provider.choose", comment: "Choose...")) {
-                            viewModel.showingFolderPicker = true
+                    if viewModel.provider.kind == .project {
+                        HStack {
+                            Text(viewModel.projectRootPath.isEmpty
+                                 ? NSLocalizedString("add_provider.no_project_folder", value: "No project folder selected", comment: "No project folder selected")
+                                 : viewModel.projectRootPath)
+                                .foregroundStyle(viewModel.projectRootPath.isEmpty ? .secondary : .primary)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+
+                            Spacer()
+
+                            Button(NSLocalizedString("add_provider.choose", comment: "Choose...")) {
+                                viewModel.showingProjectFolderPicker = true
+                            }
+                            .buttonStyle(.bordered)
                         }
-                        .buttonStyle(.bordered)
+                    } else {
+                        Text(NSLocalizedString("add_provider.kind.vendor_paths_locked", value: "Vendor paths are predefined and cannot be changed.", comment: "Vendor paths are locked"))
+                            .foregroundStyle(.secondary)
+                            .font(.callout)
                     }
                 } header: {
-                    Text(NSLocalizedString("add_provider.folder_label", comment: "Skills Folder"))
+                    Text(viewModel.provider.kind == .project
+                         ? NSLocalizedString("add_provider.project_folder_label", value: "Project Folder", comment: "Project Folder")
+                         : NSLocalizedString("add_provider.kind.vendor_info_label", value: "Paths", comment: "Paths section label"))
                 }
 
                 Section {
-                    HStack {
+                    VStack(alignment: .leading, spacing: 8) {
+                        LabeledContent(NSLocalizedString("add_provider.folder_label", comment: "Skills Folder")) {
+                            Text(viewModel.providerPath.isEmpty
+                                 ? NSLocalizedString("add_provider.no_folder", comment: "No folder selected")
+                                 : viewModel.providerPath)
+                                .foregroundStyle(viewModel.providerPath.isEmpty ? .secondary : .primary)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                        }
+
                         if viewModel.usesCommandFiles {
-                            Text(viewModel.commandPath.isEmpty
-                                 ? NSLocalizedString("edit_provider.no_command_folder", value: "No command folder selected", comment: "No command folder selected")
-                                 : viewModel.commandPath)
-                                .foregroundStyle(viewModel.commandPath.isEmpty ? .secondary : .primary)
-                                .lineLimit(1)
-                                .truncationMode(.middle)
-                            
-                            Spacer()
-                            
-                            Button(NSLocalizedString("add_provider.choose", comment: "Choose...")) {
-                                viewModel.showingCommandFolderPicker = true
+                            LabeledContent(NSLocalizedString("edit_provider.command_folder_label", value: "Command Folder", comment: "Command Folder")) {
+                                Text(viewModel.commandPath.isEmpty
+                                     ? NSLocalizedString("edit_provider.no_command_folder", value: "No command folder selected", comment: "No command folder selected")
+                                     : viewModel.commandPath)
+                                    .foregroundStyle(viewModel.commandPath.isEmpty ? .secondary : .primary)
+                                    .lineLimit(1)
+                                    .truncationMode(.middle)
                             }
-                            .buttonStyle(.bordered)
                         } else {
-                            Text(viewModel.workflowPath.isEmpty
-                                 ? NSLocalizedString("edit_provider.no_workflow_folder", value: "No workflow folder selected", comment: "No workflow folder selected")
-                                 : viewModel.workflowPath)
-                                .foregroundStyle(viewModel.workflowPath.isEmpty ? .secondary : .primary)
-                                .lineLimit(1)
-                                .truncationMode(.middle)
-                            
-                            Spacer()
-                            
-                            Button(NSLocalizedString("add_provider.choose", comment: "Choose...")) {
-                                viewModel.showingWorkflowFolderPicker = true
+                            LabeledContent(NSLocalizedString("edit_provider.workflow_folder_label", value: "Workflow Folder", comment: "Workflow Folder")) {
+                                Text(viewModel.workflowPath.isEmpty
+                                     ? NSLocalizedString("edit_provider.no_workflow_folder", value: "No workflow folder selected", comment: "No workflow folder selected")
+                                     : viewModel.workflowPath)
+                                    .foregroundStyle(viewModel.workflowPath.isEmpty ? .secondary : .primary)
+                                    .lineLimit(1)
+                                    .truncationMode(.middle)
                             }
-                            .buttonStyle(.bordered)
                         }
                     }
                 } header: {
-                    Text(
-                        viewModel.usesCommandFiles
-                            ? NSLocalizedString("edit_provider.command_folder_label", value: "Command Folder", comment: "Command Folder")
-                            : NSLocalizedString("edit_provider.workflow_folder_label", value: "Workflow Folder", comment: "Workflow Folder")
-                    )
+                    Text(NSLocalizedString("add_provider.resolved_paths_label", value: "Resolved Paths", comment: "Resolved paths section header"))
                 }
                 
                 Section {
@@ -176,6 +226,12 @@ struct EditProviderSheet: View {
                 onCompletion: viewModel.handleFolderSelection
             )
             .fileImporter(
+                isPresented: $viewModel.showingProjectFolderPicker,
+                allowedContentTypes: [.folder],
+                allowsMultipleSelection: false,
+                onCompletion: viewModel.handleProjectFolderSelection
+            )
+            .fileImporter(
                 isPresented: $viewModel.showingWorkflowFolderPicker,
                 allowedContentTypes: [.folder],
                 allowsMultipleSelection: false,
@@ -186,7 +242,7 @@ struct EditProviderSheet: View {
                             viewModel.workflowPath = url.path
                         }
                     case .failure(let error):
-                        print("Workflow folder selection failed: \(error)")
+                        EditProviderViewModel.logger.error("Workflow folder selection failed: \(error.localizedDescription)")
                     }
                 }
             )
@@ -201,7 +257,7 @@ struct EditProviderSheet: View {
                             viewModel.commandPath = url.path
                         }
                     case .failure(let error):
-                        print("Command folder selection failed: \(error)")
+                        EditProviderViewModel.logger.error("Command folder selection failed: \(error.localizedDescription)")
                     }
                 }
             )

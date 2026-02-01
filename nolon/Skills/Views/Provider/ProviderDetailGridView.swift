@@ -108,6 +108,16 @@ struct ProviderDetailGridView: View {
                         ProviderWorkflowsGridView(viewModel: viewModel, columns: columns)
                     case .mcp:
                         mcpGrid
+                    case .accounts:
+                        if let provider = provider {
+                            CodexAccountsView(provider: provider)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                    case .usage:
+                        if let provider = provider {
+                            CodexUsageView(provider: provider)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
                     case .none:
                         EmptyView()
                     }
@@ -116,7 +126,7 @@ struct ProviderDetailGridView: View {
                 .searchable(text: $viewModel.searchText)
                 
                 // Floating Action Button - 根据当前 tab 显示
-                if selectedTab != nil {
+                if selectedTab == .skills || selectedTab == .workflows || selectedTab == .mcp {
                     quickInstallButton
                 }
             }
@@ -124,19 +134,21 @@ struct ProviderDetailGridView: View {
     }
     
     private var quickInstallButton: some View {
-        Button {
-            switch selectedTab {
-            case .skills:
-                viewModel.showingRemoteBrowser = .skill
-            case .workflows:
-                viewModel.showingRemoteBrowser = .workflow
-            case .mcp:
-                viewModel.showingRemoteBrowser = .mcp
-            case .none:
-                break
-            }
-        } label: {
-            ZStack {
+	        Button {
+	            switch selectedTab {
+	            case .skills:
+	                viewModel.showingRemoteBrowser = .skill
+	            case .workflows:
+	                viewModel.showingRemoteBrowser = .workflow
+	            case .mcp:
+	                viewModel.showingRemoteBrowser = .mcp
+	            case .accounts, .usage:
+	                break
+	            case .none:
+	                break
+	            }
+	        } label: {
+	            ZStack {
                 Circle()
                     .fill(Color.accentColor)
                     .frame(width: 56, height: 56)

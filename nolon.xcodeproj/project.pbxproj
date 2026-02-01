@@ -10,6 +10,7 @@
 		CD447BF32F1F79890056366B /* MarkdownUI in Frameworks */ = {isa = PBXBuildFile; productRef = CD447BF22F1F79890056366B /* MarkdownUI */; };
 		CD447BF62F1F79890056366B /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = CD447BF52F1F79890056366B /* Sparkle */; };
 		CD702B9F2F29FBC700E22535 /* TOML in Frameworks */ = {isa = PBXBuildFile; productRef = CD702B9E2F29FBC700E22535 /* TOML */; };
+		CD8D47612F2E606000428E7B /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = CD8D47602F2E606000428E7B /* GRDB */; };
 		CD9ECB202F21F6C0009248CB /* SwiftGit in Frameworks */ = {isa = PBXBuildFile; productRef = CD9ECB1F2F21F6C0009248CB /* SwiftGit */; };
 		CD9EDAC52F2320BC009248CB /* SwiftGit in Frameworks */ = {isa = PBXBuildFile; productRef = CD9EDAC42F2320BC009248CB /* SwiftGit */; };
 		CD9EDB742F23D2BE009248CB /* STJSON in Frameworks */ = {isa = PBXBuildFile; productRef = CD9EDB732F23D2BE009248CB /* STJSON */; };
@@ -50,6 +51,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				CD8D47612F2E606000428E7B /* GRDB in Frameworks */,
 				CD9EDAC52F2320BC009248CB /* SwiftGit in Frameworks */,
 				CD447BF32F1F79890056366B /* MarkdownUI in Frameworks */,
 				CD9ECB202F21F6C0009248CB /* SwiftGit in Frameworks */,
@@ -117,6 +119,7 @@
 				CD9EE26F2F2677A0009248CB /* Yams */,
 				CD702B9E2F29FBC700E22535 /* TOML */,
 				CDD096252F2A1262009326DD /* STFilePath */,
+				CD8D47602F2E606000428E7B /* GRDB */,
 			);
 			productName = nolon;
 			productReference = CD2B1A922F1F624900DF4A2B /* nolon.app */;
@@ -182,6 +185,7 @@
 				CD9EE26E2F2677A0009248CB /* XCRemoteSwiftPackageReference "Yams" */,
 				CD702B9D2F29FBC700E22535 /* XCRemoteSwiftPackageReference "swift-toml" */,
 				CDD096242F2A1262009326DD /* XCRemoteSwiftPackageReference "STFilePath" */,
+				CD8D475F2F2E606000428E7B /* XCRemoteSwiftPackageReference "GRDB.swift" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = CD2B1A932F1F624900DF4A2B /* Products */;
@@ -536,6 +540,14 @@
 				kind = branch;
 			};
 		};
+		CD8D475F2F2E606000428E7B /* XCRemoteSwiftPackageReference "GRDB.swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/groue/GRDB.swift.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 7.9.0;
+			};
+		};
 		CD9EDAC32F2320BC009248CB /* XCRemoteSwiftPackageReference "swift-git" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/linhay/swift-git";
@@ -585,6 +597,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = CD702B9D2F29FBC700E22535 /* XCRemoteSwiftPackageReference "swift-toml" */;
 			productName = TOML;
+		};
+		CD8D47602F2E606000428E7B /* GRDB */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = CD8D475F2F2E606000428E7B /* XCRemoteSwiftPackageReference "GRDB.swift" */;
+			productName = GRDB;
 		};
 		CD9ECB1F2F21F6C0009248CB /* SwiftGit */ = {
 			isa = XCSwiftPackageProductDependency;

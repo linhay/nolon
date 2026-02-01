@@ -1,17 +1,20 @@
 import SwiftUI
 import Observation
 import UniformTypeIdentifiers
+import OSLog
 
 @Observable
 final class AddProviderViewModel {
+    private static let logger = Logger(subsystem: "com.nolon", category: "AddProviderViewModel")
+
+    var kind: ProviderKind = .vendor
     var name: String = ""
-    var path: String = ""
-    var workflowPath: String = ""
-    var commandPath: String = ""
+    var projectRootPath: String = ""
+    var resolvedSkillsPath: String = ""
+    var resolvedWorkflowPath: String = ""
+    var resolvedCommandPath: String = ""
     var selectedTemplate: ProviderTemplate = .antigravity
-    var showingFolderPicker = false
-    var showingWorkflowFolderPicker = false
-    var showingCommandFolderPicker = false
+    var showingProjectFolderPicker = false
     var validationError: String?
     
     var settings: ProviderSettings
@@ -24,51 +27,68 @@ final class AddProviderViewModel {
     func applyTemplate(_ template: ProviderTemplate) {
         selectedTemplate = template
         name = template.displayName
-        path = template.defaultSkillsPath.path
-        workflowPath = template.defaultWorkflowPath.path
-        commandPath = template.defaultCommandPath?.path ?? ""
         validationError = nil
+        resolvePaths()
     }
-    
-    func handleFolderSelection(_ result: Result<[URL], Error>) {
-        switch result {
-        case .success(let urls):
-            if let url = urls.first {
-                path = url.path
-            }
-        case .failure(let error):
-            print("Folder selection failed: \(error)")
+
+    func setKind(_ newKind: ProviderKind) {
+        guard kind != newKind else { return }
+        kind = newKind
+        if newKind == .vendor {
+            projectRootPath = ""
         }
+        validationError = nil
+        resolvePaths()
     }
     
-    func handleWorkflowFolderSelection(_ result: Result<[URL], Error>) {
+    func handleProjectFolderSelection(_ result: Result<[URL], Error>) {
         switch result {
         case .success(let urls):
             if let url = urls.first {
-                workflowPath = url.path
+                projectRootPath = url.path
+                resolvePaths()
             }
         case .failure(let error):
-            print("Workflow folder selection failed: \(error)")
+            Self.logger.error("Project folder selection failed: \(error.localizedDescription)")
         }
     }
 
-    func handleCommandFolderSelection(_ result: Result<[URL], Error>) {
-        switch result {
-        case .success(let urls):
-            if let url = urls.first {
-                commandPath = url.path
+    private func resolvePaths() {
+        let template = selectedTemplate
+
+        switch kind {
+        case .vendor:
+            resolvedSkillsPath = template.defaultSkillsPath.path
+            let commandPath = template.defaultCommandPath?.path ?? ""
+            resolvedCommandPath = commandPath
+            resolvedWorkflowPath = commandPath.isEmpty ? template.defaultWorkflowPath.path : commandPath
+        case .project:
+            guard !projectRootPath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                resolvedSkillsPath = ""
+                resolvedWorkflowPath = ""
+                resolvedCommandPath = ""
+                return
             }
-        case .failure(let error):
-            print("Command folder selection failed: \(error)")
+
+            let rootURL = URL(fileURLWithPath: projectRootPath)
+            resolvedSkillsPath = template.skillsPath(forProjectRoot: rootURL).path
+            let commandURL = template.commandPath(forProjectRoot: rootURL)
+            resolvedCommandPath = commandURL?.path ?? ""
+            resolvedWorkflowPath = (commandURL?.path) ?? template.workflowPath(forProjectRoot: rootURL).path
         }
     }
     
     var canSave: Bool {
-        let hasBasics = !name.trimmingCharacters(in: .whitespaces).isEmpty && !path.isEmpty
-        if selectedTemplate.usesCommandFiles {
-            return hasBasics && !commandPath.isEmpty
+        let hasName = !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        switch kind {
+        case .vendor:
+            return hasName && !resolvedSkillsPath.isEmpty && !resolvedWorkflowPath.isEmpty
+        case .project:
+            return hasName
+                && !projectRootPath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                && !resolvedSkillsPath.isEmpty
+                && !resolvedWorkflowPath.isEmpty
         }
-        return hasBasics && !workflowPath.isEmpty
     }
     
     func save() {
@@ -80,24 +100,26 @@ final class AddProviderViewModel {
             return
         }
         
-        if settings.providers.contains(where: { $0.defaultSkillsPath == path }) {
+        if settings.providers.contains(where: { $0.defaultSkillsPath == resolvedSkillsPath }) {
             validationError = NSLocalizedString("add_provider.error.path_exists", value: "A provider with this path already exists.", comment: "Error message")
             return
         }
         
         // Check for "exact match" (logical equivalent) - though path check usually covers it
-        if settings.providers.contains(where: { $0.templateId == selectedTemplate.rawValue && $0.defaultSkillsPath == path }) {
+        if settings.providers.contains(where: { $0.kind == kind && $0.templateId == selectedTemplate.rawValue && $0.defaultSkillsPath == resolvedSkillsPath }) {
              validationError = NSLocalizedString("add_provider.error.exists", value: "This provider configuration already exists.", comment: "Error message")
              return
         }
         
         let isOpenCode = selectedTemplate.usesCommandFiles
-        let effectiveWorkflowPath = isOpenCode ? commandPath : workflowPath
+        let effectiveWorkflowPath = isOpenCode ? resolvedCommandPath : resolvedWorkflowPath
         let provider = Provider(
+            kind: kind,
             name: trimmedName,
-            defaultSkillsPath: path,
+            projectRootPath: kind == .project ? projectRootPath : nil,
+            defaultSkillsPath: resolvedSkillsPath,
             workflowPath: effectiveWorkflowPath,
-            commandPath: isOpenCode ? commandPath : nil,
+            commandPath: isOpenCode ? resolvedCommandPath : nil,
             iconName: selectedTemplate.iconName,
             installMethod: .symlink,
             templateId: selectedTemplate.rawValue,
@@ -119,6 +141,17 @@ struct AddProviderSheet: View {
         NavigationStack {
             Form {
                 Section {
+                    Picker(NSLocalizedString("add_provider.kind_label", value: "Type", comment: "Provider kind label"), selection: $viewModel.kind) {
+                        Text(NSLocalizedString("add_provider.kind.vendor", value: "Vendor", comment: "Vendor provider type"))
+                            .tag(ProviderKind.vendor)
+                        Text(NSLocalizedString("add_provider.kind.project", value: "Project", comment: "Project provider type"))
+                            .tag(ProviderKind.project)
+                    }
+                    .pickerStyle(.segmented)
+                    .onChange(of: viewModel.kind) { _, newValue in
+                        viewModel.setKind(newValue)
+                    }
+
                     Picker("Template", selection: $viewModel.selectedTemplate) {
                         ForEach(ProviderTemplate.allCases) { template in
                             Label {
@@ -146,65 +179,66 @@ struct AddProviderSheet: View {
                 }
                 
                 Section {
-                    HStack {
-                        Text(viewModel.path.isEmpty
-                             ? NSLocalizedString("add_provider.no_folder", comment: "No folder selected")
-                             : viewModel.path)
-                            .foregroundStyle(viewModel.path.isEmpty ? .secondary : .primary)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                        
-                        Spacer()
-                        
-                        Button(NSLocalizedString("add_provider.choose", comment: "Choose...")) {
-                            viewModel.showingFolderPicker = true
-                        }
-                        .buttonStyle(.bordered)
-                    }
-                } header: {
-                    Text(NSLocalizedString("add_provider.folder_label", comment: "Skills Folder"))
-                }
-
-                Section {
-                    if viewModel.selectedTemplate.usesCommandFiles {
+                    if viewModel.kind == .project {
                         HStack {
-                            Text(viewModel.commandPath.isEmpty
-                                 ? NSLocalizedString("add_provider.no_command_folder", value: "No command folder selected", comment: "No command folder selected")
-                                 : viewModel.commandPath)
-                                .foregroundStyle(viewModel.commandPath.isEmpty ? .secondary : .primary)
+                            Text(viewModel.projectRootPath.isEmpty
+                                 ? NSLocalizedString("add_provider.no_project_folder", value: "No project folder selected", comment: "No project folder selected")
+                                 : viewModel.projectRootPath)
+                                .foregroundStyle(viewModel.projectRootPath.isEmpty ? .secondary : .primary)
                                 .lineLimit(1)
                                 .truncationMode(.middle)
-                            
+
                             Spacer()
-                            
+
                             Button(NSLocalizedString("add_provider.choose", comment: "Choose...")) {
-                                viewModel.showingCommandFolderPicker = true
+                                viewModel.showingProjectFolderPicker = true
                             }
                             .buttonStyle(.bordered)
                         }
                     } else {
-                        HStack {
-                            Text(viewModel.workflowPath.isEmpty
-                                 ? NSLocalizedString("add_provider.no_workflow_folder", value: "No workflow folder selected", comment: "No workflow folder selected")
-                                 : viewModel.workflowPath)
-                                .foregroundStyle(viewModel.workflowPath.isEmpty ? .secondary : .primary)
+                        Text(NSLocalizedString("add_provider.kind.vendor_paths_locked", value: "Vendor paths are predefined and cannot be changed.", comment: "Vendor paths are locked"))
+                            .foregroundStyle(.secondary)
+                            .font(.callout)
+                    }
+                } header: {
+                    Text(viewModel.kind == .project
+                         ? NSLocalizedString("add_provider.project_folder_label", value: "Project Folder", comment: "Project Folder")
+                         : NSLocalizedString("add_provider.kind.vendor_info_label", value: "Paths", comment: "Paths section label"))
+                }
+
+                Section {
+                    VStack(alignment: .leading, spacing: 8) {
+                        LabeledContent(NSLocalizedString("add_provider.folder_label", comment: "Skills Folder")) {
+                            Text(viewModel.resolvedSkillsPath.isEmpty
+                                 ? NSLocalizedString("add_provider.no_folder", comment: "No folder selected")
+                                 : viewModel.resolvedSkillsPath)
+                                .foregroundStyle(viewModel.resolvedSkillsPath.isEmpty ? .secondary : .primary)
                                 .lineLimit(1)
                                 .truncationMode(.middle)
-                            
-                            Spacer()
-                            
-                            Button(NSLocalizedString("add_provider.choose", comment: "Choose...")) {
-                                viewModel.showingWorkflowFolderPicker = true
+                        }
+
+                        if viewModel.selectedTemplate.usesCommandFiles {
+                            LabeledContent(NSLocalizedString("add_provider.command_folder_label", value: "Command Folder", comment: "Command Folder")) {
+                                Text(viewModel.resolvedCommandPath.isEmpty
+                                     ? NSLocalizedString("add_provider.no_command_folder", value: "No command folder selected", comment: "No command folder selected")
+                                     : viewModel.resolvedCommandPath)
+                                    .foregroundStyle(viewModel.resolvedCommandPath.isEmpty ? .secondary : .primary)
+                                    .lineLimit(1)
+                                    .truncationMode(.middle)
                             }
-                            .buttonStyle(.bordered)
+                        } else {
+                            LabeledContent(NSLocalizedString("add_provider.workflow_folder_label", value: "Workflow Folder", comment: "Workflow Folder")) {
+                                Text(viewModel.resolvedWorkflowPath.isEmpty
+                                     ? NSLocalizedString("add_provider.no_workflow_folder", value: "No workflow folder selected", comment: "No workflow folder selected")
+                                     : viewModel.resolvedWorkflowPath)
+                                    .foregroundStyle(viewModel.resolvedWorkflowPath.isEmpty ? .secondary : .primary)
+                                    .lineLimit(1)
+                                    .truncationMode(.middle)
+                            }
                         }
                     }
                 } header: {
-                    Text(
-                        viewModel.selectedTemplate.usesCommandFiles
-                            ? NSLocalizedString("add_provider.command_folder_label", value: "Command Folder", comment: "Command Folder")
-                            : NSLocalizedString("add_provider.workflow_folder_label", value: "Workflow Folder", comment: "Workflow Folder")
-                    )
+                    Text(NSLocalizedString("add_provider.resolved_paths_label", value: "Resolved Paths", comment: "Resolved paths section header"))
                 }
                 
                 if let error = viewModel.validationError {
@@ -226,28 +260,18 @@ struct AddProviderSheet: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button(NSLocalizedString("generic.add", comment: "Add")) {
                         viewModel.save()
-                        dismiss()
+                        if viewModel.validationError == nil {
+                            dismiss()
+                        }
                     }
                     .disabled(!viewModel.canSave)
                 }
             }
             .fileImporter(
-                isPresented: $viewModel.showingFolderPicker,
+                isPresented: $viewModel.showingProjectFolderPicker,
                 allowedContentTypes: [.folder],
                 allowsMultipleSelection: false,
-                onCompletion: viewModel.handleFolderSelection
-            )
-            .fileImporter(
-                isPresented: $viewModel.showingWorkflowFolderPicker,
-                allowedContentTypes: [.folder],
-                allowsMultipleSelection: false,
-                onCompletion: viewModel.handleWorkflowFolderSelection
-            )
-            .fileImporter(
-                isPresented: $viewModel.showingCommandFolderPicker,
-                allowedContentTypes: [.folder],
-                allowsMultipleSelection: false,
-                onCompletion: viewModel.handleCommandFolderSelection
+                onCompletion: viewModel.handleProjectFolderSelection
             )
         }
         .frame(minWidth: 450, minHeight: 400)

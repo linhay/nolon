@@ -19,27 +19,30 @@ struct SkillCardView: View {
         cardContainer
     }
 
-    private var cardContainer: some View {
-        cardContent
-            .padding(16)
-            .frame(maxWidth: .infinity, minHeight: 140, alignment: .topLeading)
-            .background(Color.secondary.opacity(0.08))
-            .cornerRadius(12)
-            .contentShape(Rectangle())
-            .onTapGesture { onTap() }
-            .contextMenu { contextMenuItems }
-            .confirmationDialog(
-                NSLocalizedString("action.uninstall_confirm_title", value: "Confirm Uninstall", comment: "Uninstall confirmation title"),
-                isPresented: $showingUninstallConfirmation,
-                titleVisibility: .visible
-            ) {
-                Button(NSLocalizedString("action.uninstall", comment: "Uninstall"), role: .destructive) {
-                    Task { await onUninstall() }
+    private var cardContainer: AnyView {
+        AnyView(
+            cardContent
+                .padding(16)
+                .frame(maxWidth: .infinity, alignment: .topLeading)
+                .frame(minHeight: 140)
+                .background(Color.secondary.opacity(0.08))
+                .cornerRadius(12)
+                .contentShape(Rectangle())
+                .onTapGesture { onTap() }
+                .contextMenu { contextMenuItems }
+                .confirmationDialog(
+                    NSLocalizedString("action.uninstall_confirm_title", value: "Confirm Uninstall", comment: "Uninstall confirmation title"),
+                    isPresented: $showingUninstallConfirmation,
+                    titleVisibility: .visible
+                ) {
+                    Button(NSLocalizedString("action.uninstall", comment: "Uninstall"), role: .destructive) {
+                        Task { await onUninstall() }
+                    }
+                    Button(NSLocalizedString("action.cancel", value: "Cancel", comment: "Cancel action"), role: .cancel) {}
+                } message: {
+                    Text(NSLocalizedString("action.uninstall_confirm_message", value: "Are you sure you want to uninstall this skill? This action cannot be undone.", comment: "Uninstall confirmation message"))
                 }
-                Button(NSLocalizedString("action.cancel", value: "Cancel", comment: "Cancel action"), role: .cancel) {}
-            } message: {
-                Text(NSLocalizedString("action.uninstall_confirm_message", value: "Are you sure you want to uninstall this skill? This action cannot be undone.", comment: "Uninstall confirmation message"))
-            }
+        )
     }
 
     private var cardContent: some View {

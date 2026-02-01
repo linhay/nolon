@@ -11,9 +11,9 @@ struct McpServerCard: View {
     let onSetEnabled: (Bool) -> Void
     let onEdit: () -> Void
     let onDelete: () -> Void
-    
+
     @State private var showingDeleteConfirmation = false
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             // 1. 标题 | 更多菜单
@@ -25,12 +25,12 @@ struct McpServerCard: View {
                     style: .horizontal,
                     iconSize: 24
                 )
-                
+
                 Spacer()
-                
+
                 moreMenu
             }
-            
+
             // 2. 命令详情 (替代描述区)
             VStack(alignment: .leading, spacing: 4) {
                 if let dict = mcp.json.value as? [String: Any],
@@ -42,14 +42,14 @@ struct McpServerCard: View {
                         .lineLimit(2)
                         .truncationMode(.middle)
                 } else {
-                    Text("No command specified")
+                    Text(NSLocalizedString("mcp.no_command", value: "No command specified", comment: "Placeholder when MCP command is missing"))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .italic()
                 }
             }
             .frame(maxHeight: .infinity, alignment: .topLeading)
-            
+
             // 3. 操作区: 工作流 圆角矩形按钮 + 编辑/删除
             HStack {
                 if hasWorkflow {
@@ -58,14 +58,14 @@ struct McpServerCard: View {
                     } label: {
                         HStack(spacing: 6) {
                             Image(systemName: "arrow.triangle.branch")
-                            Text("Workflow")
+                            Text(NSLocalizedString("mcp.workflow", value: "Workflow", comment: "Workflow badge"))
                         }
                         .font(.caption2)
                         .fontWeight(.semibold)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 6)
-                        .background(Color.blue.opacity(0.1))
-                        .foregroundStyle(.blue)
+                        .background(DesignSystem.Colors.primary.opacity(0.10))
+                        .foregroundStyle(DesignSystem.Colors.primary)
                         .clipShape(RoundedRectangle(cornerRadius: 8))
                     }
                     .buttonStyle(.plain)
@@ -87,7 +87,7 @@ struct McpServerCard: View {
                     }
                     .buttonStyle(.plain)
                 }
-                
+
                 Button {
                     onSetEnabled(!mcp.isEnabled)
                 } label: {
@@ -103,8 +103,8 @@ struct McpServerCard: View {
                     .fontWeight(.semibold)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 6)
-                    .background(mcp.isEnabled ? Color.secondary.opacity(0.12) : Color.blue.opacity(0.1))
-                    .foregroundStyle(mcp.isEnabled ? AnyShapeStyle(.secondary) : AnyShapeStyle(.blue))
+                    .background(mcp.isEnabled ? Color.secondary.opacity(0.12) : DesignSystem.Colors.primary.opacity(0.10))
+                    .foregroundStyle(mcp.isEnabled ? AnyShapeStyle(.secondary) : AnyShapeStyle(DesignSystem.Colors.primary))
                     .clipShape(RoundedRectangle(cornerRadius: 8))
                 }
                 .buttonStyle(.plain)
@@ -113,7 +113,8 @@ struct McpServerCard: View {
             }
         }
         .padding(16)
-        .frame(maxWidth: .infinity, minHeight: 140, alignment: .leading)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(minHeight: 140)
         .background(Color.secondary.opacity(0.08))
         .cornerRadius(12)
         .contentShape(Rectangle())
@@ -133,7 +134,7 @@ struct McpServerCard: View {
             Text(NSLocalizedString("action.delete_confirm_message_mcp", value: "Are you sure you want to delete this MCP server? This will remove its configuration.", comment: "MCP Delete confirmation message"))
         }
     }
-    
+
     @ViewBuilder
     private var contextMenuItems: some View {
         Button {
@@ -168,20 +169,20 @@ struct McpServerCard: View {
                 )
             }
         }
-        
+
         Divider()
-        
+
         Button(action: onEdit) {
             Label(NSLocalizedString("action.edit", value: "Edit", comment: "Edit action"), systemImage: "pencil")
         }
-        
+
         Button(role: .destructive) {
             showingDeleteConfirmation = true
         } label: {
             Label(NSLocalizedString("action.delete", comment: "Delete"), systemImage: "trash")
         }
     }
-    
+
     private var moreMenu: some View {
         Menu {
             contextMenuItems
@@ -196,7 +197,7 @@ struct McpServerCard: View {
         .menuIndicator(.hidden)
         .fixedSize()
     }
-    
+
     private var mcpLogoName: String? {
         let name = mcp.name.lowercased()
         if name.contains("playwright") { return "playwright" }

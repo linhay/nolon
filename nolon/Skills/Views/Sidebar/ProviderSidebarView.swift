@@ -55,6 +55,14 @@ public struct ProviderSidebarView: View {
     @ObservedObject var settings: ProviderSettings
     @State private var viewModel: ProviderSidebarViewModel
     @State private var showingAddSheet = false
+
+    private var vendorProviders: [Provider] {
+        settings.providers.filter { $0.kind == .vendor }
+    }
+
+    private var projectProviders: [Provider] {
+        settings.providers.filter { $0.kind == .project }
+    }
     
     public init(
         selectedProviderId: Binding<Provider.ID?>,
@@ -67,25 +75,56 @@ public struct ProviderSidebarView: View {
     
     public var body: some View {
         List(selection: $selectedProviderId) {
-            Section {
-                ForEach(settings.providers) { provider in
-                    ProviderRowView(
-                        provider: provider,
-                        isSelected: selectedProviderId == provider.id,
-                        onShowInFinder: { viewModel.showInFinder(provider) },
-                        onEdit: { viewModel.editingProvider = provider },
-                        onDelete: { viewModel.deleteProvider(provider, currentSelection: $selectedProviderId) }
-                    )
-                    .tag(provider.id)
+            if !vendorProviders.isEmpty {
+                Section {
+                    ForEach(vendorProviders) { provider in
+                        ProviderRowView(
+                            provider: provider,
+                            isSelected: selectedProviderId == provider.id,
+                            onShowInFinder: { viewModel.showInFinder(provider) },
+                            onEdit: { viewModel.editingProvider = provider },
+                            onDelete: { viewModel.deleteProvider(provider, currentSelection: $selectedProviderId) }
+                        )
+                        .tag(provider.id)
+                    }
+                    .onDelete { offsets in
+                        let idsToDelete = Set(offsets.map { vendorProviders[$0].id })
+                        let originalIndices = IndexSet(
+                            settings.providers.enumerated().compactMap { index, provider in
+                                idsToDelete.contains(provider.id) ? index : nil
+                            }
+                        )
+                        viewModel.deleteProviders(at: originalIndices)
+                    }
+                } header: {
+                    Text(NSLocalizedString("sidebar.providers.vendors", value: "Vendors", comment: "Vendor providers section"))
                 }
-                .onDelete { offsets in
-                    viewModel.deleteProviders(at: offsets)
+            }
+
+            if !projectProviders.isEmpty {
+                Section {
+                    ForEach(projectProviders) { provider in
+                        ProviderRowView(
+                            provider: provider,
+                            isSelected: selectedProviderId == provider.id,
+                            onShowInFinder: { viewModel.showInFinder(provider) },
+                            onEdit: { viewModel.editingProvider = provider },
+                            onDelete: { viewModel.deleteProvider(provider, currentSelection: $selectedProviderId) }
+                        )
+                        .tag(provider.id)
+                    }
+                    .onDelete { offsets in
+                        let idsToDelete = Set(offsets.map { projectProviders[$0].id })
+                        let originalIndices = IndexSet(
+                            settings.providers.enumerated().compactMap { index, provider in
+                                idsToDelete.contains(provider.id) ? index : nil
+                            }
+                        )
+                        viewModel.deleteProviders(at: originalIndices)
+                    }
+                } header: {
+                    Text(NSLocalizedString("sidebar.providers.projects", value: "Projects", comment: "Project providers section"))
                 }
-                .onMove { source, destination in
-                    viewModel.moveProviders(from: source, to: destination)
-                }
-            } header: {
-                Text(NSLocalizedString("sidebar.providers", comment: "Providers"))
             }
         }
         .listStyle(.sidebar)

@@ -170,9 +170,26 @@ public class ProviderSettings: ObservableObject {
         var updatedProviders = providers
         
         for (index, provider) in updatedProviders.enumerated() {
+            guard provider.kind == .vendor else { continue }
             guard let templateId = provider.templateId,
                   let template = ProviderTemplate(rawValue: templateId) else {
                 continue
+            }
+
+            // Keep vendor paths in sync with template (vendor paths are predefined and not user-editable).
+            let expected = template.createProvider()
+            if updatedProviders[index].defaultSkillsPath != expected.defaultSkillsPath
+                || updatedProviders[index].workflowPath != expected.workflowPath
+                || updatedProviders[index].commandPath != expected.commandPath
+                || updatedProviders[index].additionalSkillsPaths != expected.additionalSkillsPaths
+                || updatedProviders[index].documentationURL != expected.documentationURL
+            {
+                updatedProviders[index].defaultSkillsPath = expected.defaultSkillsPath
+                updatedProviders[index].workflowPath = expected.workflowPath
+                updatedProviders[index].commandPath = expected.commandPath
+                updatedProviders[index].additionalSkillsPaths = expected.additionalSkillsPaths
+                updatedProviders[index].documentationURL = expected.documentationURL
+                hasChanges = true
             }
 
             // OpenCode migration: keep `commandPath` populated and `workflowPath` pointing to commands for legacy callers.

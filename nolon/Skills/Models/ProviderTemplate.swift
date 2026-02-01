@@ -40,25 +40,20 @@ public enum ProviderTemplate: String, CaseIterable, Sendable, Identifiable {
     /// Default path for this template
     @MainActor
     public var defaultSkillsPath: URL {
-        let home = URL(fileURLWithPath: NSHomeDirectory())
-        let relativePath = config?.defaultSkillsPath ?? ".\(rawValue)/skills"
-        return home.appendingPathComponent(relativePath)
+        resolvePath(base: vendorBaseURL, relativePath: relativeSkillsPath)
     }
     
     /// Default workflow path for this template
     @MainActor
     public var defaultWorkflowPath: URL {
-        let home = URL(fileURLWithPath: NSHomeDirectory())
-        let relativePath = config?.defaultWorkflowPath ?? ".\(rawValue)/workflows"
-        return home.appendingPathComponent(relativePath)
+        resolvePath(base: vendorBaseURL, relativePath: relativeWorkflowPath)
     }
     
     /// Default command path for this template (OpenCode).
     @MainActor
     public var defaultCommandPath: URL? {
-        let home = URL(fileURLWithPath: NSHomeDirectory())
         guard let relativePath = config?.defaultCommandPath else { return nil }
-        return home.appendingPathComponent(relativePath)
+        return resolvePath(base: vendorBaseURL, relativePath: relativePath)
     }
     
     @MainActor
@@ -83,24 +78,52 @@ public enum ProviderTemplate: String, CaseIterable, Sendable, Identifiable {
     /// Default MCP configuration path for this template
     @MainActor
     public var defaultMcpConfigPath: URL {
-        let home = URL(fileURLWithPath: NSHomeDirectory())
-        let relativePath = config?.defaultMcpConfigPath ?? ".\(rawValue)/mcp_settings.json"
-        return home.appendingPathComponent(relativePath)
+        resolvePath(base: vendorBaseURL, relativePath: relativeMcpConfigPath)
     }
     
     /// Additional default skills paths for this template (penetration reading)
     @MainActor
     public var defaultSkillsPaths: [URL] {
-        let home = URL(fileURLWithPath: NSHomeDirectory())
-        return config?.defaultSkillsPaths?.map { home.appendingPathComponent($0) } ?? []
+        let homeURL = URL(fileURLWithPath: NSHomeDirectory())
+        return (config?.defaultSkillsPaths ?? []).map { path in
+            let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.hasPrefix(".") {
+                return resolvePath(base: homeURL, relativePath: trimmed)
+            }
+            return resolvePath(base: vendorBaseURL, relativePath: trimmed)
+        }
     }
-    
+
+    // MARK: - Project-scoped paths
+
+    public var relativeSkillsPath: String { config?.defaultSkillsPath ?? ".\(rawValue)/skills" }
+    public var relativeWorkflowPath: String { config?.defaultWorkflowPath ?? ".\(rawValue)/workflows" }
+    public var relativeMcpConfigPath: String { config?.defaultMcpConfigPath ?? ".\(rawValue)/mcp_settings.json" }
+
+    public func skillsPath(forProjectRoot projectRoot: URL) -> URL {
+        resolvePath(base: vendorHomeURL(projectRoot: projectRoot), relativePath: relativeSkillsPath)
+    }
+
+    public func workflowPath(forProjectRoot projectRoot: URL) -> URL {
+        resolvePath(base: vendorHomeURL(projectRoot: projectRoot), relativePath: relativeWorkflowPath)
+    }
+
+    public func commandPath(forProjectRoot projectRoot: URL) -> URL? {
+        guard let relativePath = config?.defaultCommandPath else { return nil }
+        return resolvePath(base: vendorHomeURL(projectRoot: projectRoot), relativePath: relativePath)
+    }
+
+    public func mcpConfigPath(forProjectRoot projectRoot: URL) -> URL {
+        resolvePath(base: vendorHomeURL(projectRoot: projectRoot), relativePath: relativeMcpConfigPath)
+    }
+
     /// Create a Provider instance from this template
     @MainActor
     public func createProvider() -> Provider {
         let commandPath = defaultCommandPath?.path
         let effectiveWorkflowPath = commandPath ?? defaultWorkflowPath.path
         return Provider(
+            kind: .vendor,
             name: displayName,
             defaultSkillsPath: defaultSkillsPath.path,
             workflowPath: effectiveWorkflowPath,
@@ -111,5 +134,36 @@ public enum ProviderTemplate: String, CaseIterable, Sendable, Identifiable {
             additionalSkillsPaths: defaultSkillsPaths.map { $0.path },
             documentationURL: documentationURL
         )
+    }
+
+    // MARK: - Helpers
+
+    @MainActor
+    private var vendorBaseURL: URL {
+        vendorHomeURL(projectRoot: URL(fileURLWithPath: NSHomeDirectory()))
+    }
+
+    @MainActor
+    private func vendorHomeURL(projectRoot: URL) -> URL {
+        // Use a vendor home folder under the provided base when configured (e.g. "~/.codex" or "<project>/.codex").
+        if let relative = config?.vendorHomeRelativePath?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !relative.isEmpty
+        {
+            return resolvePath(base: projectRoot, relativePath: relative)
+        }
+
+        // Default: use the provided base.
+        return projectRoot
+    }
+
+    private func resolvePath(base: URL, relativePath: String) -> URL {
+        let trimmed = relativePath.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        guard !trimmed.isEmpty else { return base }
+
+        var url = base
+        for component in trimmed.split(separator: "/").map(String.init) {
+            url.appendPathComponent(component)
+        }
+        return url
     }
 }

@@ -21,6 +21,8 @@ enum ProviderContentTabType: String, CaseIterable, Identifiable {
     case skills = "Skills"
     case workflows = "Workflows"
     case mcp = "MCP"
+    case accounts = "Accounts"
+    case usage = "Usage"
     
     var id: String { rawValue }
     
@@ -29,6 +31,8 @@ enum ProviderContentTabType: String, CaseIterable, Identifiable {
         case .skills: return "square.grid.2x2"
         case .workflows: return "arrow.triangle.branch"
         case .mcp: return "server.rack"
+        case .accounts: return "person.2"
+        case .usage: return "chart.bar"
         }
     }
     
@@ -37,6 +41,41 @@ enum ProviderContentTabType: String, CaseIterable, Identifiable {
         case .skills: return NSLocalizedString("tab.skills", comment: "Skills")
         case .workflows: return NSLocalizedString("tab.workflows", comment: "Workflows")
         case .mcp: return NSLocalizedString("tab.mcp", comment: "MCP Server")
+        case .accounts: return NSLocalizedString("tab.accounts", value: "Accounts", comment: "Accounts")
+        case .usage: return NSLocalizedString("tab.usage", value: "Usage", comment: "Usage")
+        }
+    }
+
+    @MainActor
+    static func availableTabs(for provider: Provider) -> [ProviderContentTabType] {
+        var tabs: [ProviderContentTabType] = [.skills, .workflows, .mcp]
+        guard provider.kind == .vendor else { return tabs }
+
+        guard let templateId = provider.templateId,
+              let template = ProviderTemplate(rawValue: templateId),
+              let vendorTabs = template.config?.vendorTabs
+        else {
+            return tabs
+        }
+
+        for tabId in vendorTabs {
+            if let tab = ProviderContentTabType(vendorTabId: tabId), !tabs.contains(tab) {
+                tabs.append(tab)
+            }
+        }
+        return tabs
+    }
+}
+
+extension ProviderContentTabType {
+    init?(vendorTabId: String) {
+        switch vendorTabId.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+        case "accounts":
+            self = .accounts
+        case "usage":
+            self = .usage
+        default:
+            return nil
         }
     }
 }
@@ -61,6 +100,8 @@ final class ProviderContentTabViewModel {
         case .skills: return skillsCount
         case .workflows: return workflowsCount
         case .mcp: return mcpCount
+        case .accounts: return 0
+        case .usage: return 0
         }
     }
     
@@ -146,12 +187,14 @@ struct ProviderContentTabView: View {
         Group {
             if let provider = provider {
                 List(selection: $selectedTab) {
-                    ForEach(ProviderContentTabType.allCases) { tab in
+                    ForEach(ProviderContentTabType.availableTabs(for: provider)) { tab in
                         HStack {
                             Label(tab.localizedName, systemImage: tab.icon)
                             Spacer()
-                            Text("\(viewModel.count(for: tab))")
-                                .foregroundStyle(.secondary)
+                            if tab == .skills || tab == .workflows || tab == .mcp {
+                                Text("\(viewModel.count(for: tab))")
+                                    .foregroundStyle(.secondary)
+                            }
                         }
                         .tag(tab)
                     }
@@ -169,6 +212,11 @@ struct ProviderContentTabView: View {
         .onAppear {
             if selectedTab == nil {
                 selectedTab = .skills
+            }
+        }
+        .onChange(of: provider?.id) { _, _ in
+            if let provider, let selectedTab, !ProviderContentTabType.availableTabs(for: provider).contains(selectedTab) {
+                self.selectedTab = .skills
             }
         }
         .task(id: "\(provider?.id ?? "")-\(refreshTrigger)") {
