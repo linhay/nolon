@@ -484,5 +484,67 @@
                        xml:lang="en" />
         </item>
 
+    
+        <item>
+            <title>1.2.0</title>
+            <pubDate>Tue, 03 Feb 2026 17:39:54 +0800</pubDate>
+            <sparkle:version>202602031739</sparkle:version>
+            <sparkle:shortVersionString>1.2.0</sparkle:shortVersionString>
+            <link>https://github.com/linhay/nolon/releases/download/v1.2.0/nolon-arm64.dmg</link>
+            <description><![CDATA[<div style="white-space: pre-wrap; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;">## nolon 1.2.0
+
+### Changes
+# Nolon 1.2.0
+
+## What's New
+
+### ✨ Features
+- **MCP Web Editor**: MCP cards now open the WebView-based config editor (legacy form editor removed).
+- **Per-MCP Migration**: MCP migration is now done one server at a time, with clear “Migrate / Update” actions per card.
+- **Standard MCP Cache**: Migrated MCP cache to `~/.nolon/mcps` with “one MCP per file” JSON using the standard `mcpServers` shape.
+- **MCP JSON Normalization**: Improved MCP JSON write/read stability (canonical ordering, no escaped slashes, `type` inference for `http` / `stdio`).
+- **Environment Variable Expansion**: Added support for `${env:VAR}` and `${env:VAR:-default}` in MCP configs.
+- **OpenCode MCP Support Fixes**: Updated OpenCode MCP config path/format handling (now uses `~/.config/opencode/opencode.json`, with top-level `mcp`).
+
+### 🛠 Build & Project
+- **Git Submodules**: `libs/` dependencies are now managed via git submodules; build script validates they are populated.
+
+### Downloads
+
+| Platform | Architecture | Download |
+|----------|--------------|----------|
+| macOS | Apple Silicon (M1/M2/M3) | `nolon-arm64.dmg` |
+| macOS | Intel | `nolon-x86_64.dmg` |
+
+### Installation
+1. Download the appropriate DMG for your Mac
+   - **Apple Silicon** (M1, M2, M3 chips): `nolon-arm64.dmg`
+   - **Intel** (older Macs): `nolon-x86_64.dmg`
+2. Open the DMG and drag nolon to Applications
+3. Launch nolon from Applications
+
+### System Requirements
+- macOS 14.0 or later
+
+---
+*Built on 2026-02-03*</div>]]></description>
+            <enclosure url="https://github.com/linhay/nolon/releases/download/v1.2.0/nolon-arm64.dmg"
+                       sparkle:version="202602031739"
+                       sparkle:shortVersionString="1.2.0"
+                       sparkle:edSignature="VJJo6PauPoxiulBuF0Y9WovCni3vnR3KWocWLy9PVaSyG6d4Wt7HKluks8svLRnFQ2Ijyc90rS7Nga/m9eRvCw=="
+                       length="49827301"
+                       type="application/x-apple-diskimage"
+                       sparkle:os="macos"
+                       xml:lang="en" />
+            <enclosure url="https://github.com/linhay/nolon/releases/download/v1.2.0/nolon-x86_64.dmg"
+                       sparkle:version="202602031739"
+                       sparkle:shortVersionString="1.2.0"
+                       sparkle:edSignature="n182FXoQBJZ69HBrMSLa8u9E25hGrAabP3S453WHlkL7Wge1K2g9ULUYmxxakgU2DxIXfeOwdWu9+Ph7h7iRBQ=="
+                       length="50111943"
+                       type="application/x-apple-diskimage"
+                       sparkle:os="macos"
+                       xml:lang="en" />
+        </item>
+
     </channel>
 </rss>

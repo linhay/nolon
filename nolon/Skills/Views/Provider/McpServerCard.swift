@@ -6,9 +6,12 @@ struct McpServerCard: View {
     let mcp: MCP
     let hasWorkflow: Bool
     let searchText: String
+    let cacheState: ProviderDetailGridViewModel.McpCacheState
     let onLinkWorkflow: () -> Void
     let onUnlinkWorkflow: () -> Void
     let onSetEnabled: (Bool) -> Void
+    let onMigrateToNolon: () -> Void
+    let onUpdateNolonCache: () -> Void
     let onEdit: () -> Void
     let onDelete: () -> Void
 
@@ -88,6 +91,38 @@ struct McpServerCard: View {
                     .buttonStyle(.plain)
                 }
 
+                if cacheState == .notMigrated {
+                    Button(action: onMigrateToNolon) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "tray.and.arrow.down")
+                            Text(NSLocalizedString("action.migrate", value: "Migrate", comment: "Migrate"))
+                        }
+                        .font(.caption2)
+                        .fontWeight(.semibold)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(DesignSystem.Colors.primary.opacity(0.10))
+                        .foregroundStyle(DesignSystem.Colors.primary)
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                    }
+                    .buttonStyle(.plain)
+                } else if cacheState == .migratedNeedsUpdate {
+                    Button(action: onUpdateNolonCache) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "arrow.triangle.2.circlepath")
+                            Text(NSLocalizedString("action.update", value: "Update", comment: "Update"))
+                        }
+                        .font(.caption2)
+                        .fontWeight(.semibold)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(DesignSystem.Colors.primary.opacity(0.10))
+                        .foregroundStyle(DesignSystem.Colors.primary)
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                    }
+                    .buttonStyle(.plain)
+                }
+
                 Button {
                     onSetEnabled(!mcp.isEnabled)
                 } label: {
@@ -137,6 +172,24 @@ struct McpServerCard: View {
 
     @ViewBuilder
     private var contextMenuItems: some View {
+        if cacheState == .notMigrated {
+            Button(action: onMigrateToNolon) {
+                Label(
+                    NSLocalizedString("action.migrate", value: "Migrate", comment: "Migrate"),
+                    systemImage: "tray.and.arrow.down"
+                )
+            }
+            Divider()
+        } else if cacheState == .migratedNeedsUpdate {
+            Button(action: onUpdateNolonCache) {
+                Label(
+                    NSLocalizedString("action.update", value: "Update", comment: "Update"),
+                    systemImage: "arrow.triangle.2.circlepath"
+                )
+            }
+            Divider()
+        }
+
         Button {
             onSetEnabled(!mcp.isEnabled)
         } label: {

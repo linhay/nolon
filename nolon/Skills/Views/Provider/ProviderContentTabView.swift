@@ -147,13 +147,17 @@ final class ProviderContentTabViewModel {
                 mcpCount = servers.count
             } else {
                 guard let data = try? Data(contentsOf: configPath),
-                      let json = try? JSON(data: data),
-                      let servers = json["mcpServers"].dictionary
+                      let json = try? JSON(data: data)
                 else {
                     mcpCount = 0
                     return
                 }
-                mcpCount = servers.count
+
+                if template.rawValue == "opencode" {
+                    mcpCount = json["mcp"].dictionary?.count ?? 0
+                } else {
+                    mcpCount = (json["mcpServers"].dictionary ?? json["mcp_servers"].dictionary)?.count ?? 0
+                }
             }
         } else {
             mcpCount = 0

@@ -76,6 +76,7 @@ final class ProviderDetailGridViewModel {
     // MCPs
     var mcps: [MCP] = []
     var mcpWorkflowIds: Set<String> = []
+    var mcpCacheStates: [String: McpCacheState] = [:]
     
     // State
     var isLoading = false
@@ -261,6 +262,31 @@ final class ProviderDetailGridViewModel {
             mcps = []
             return
         }
+
+        if template.rawValue == "opencode" {
+            do {
+                let data = try Data(contentsOf: configPath)
+                guard !data.isEmpty else {
+                    mcps = []
+                    refreshMcpCacheStates()
+                    return
+                }
+
+                let json = try JSON(data: data)
+                let servers = json["mcp"].dictionaryValue
+                mcps = servers
+                    .map { key, value in
+                        MCP(name: key, json: AnyCodable(Self.convertOpenCodeMcpServerJson(value.object)))
+                    }
+                    .sorted { $0.name < $1.name }
+                refreshMcpCacheStates()
+                return
+            } catch {
+                mcps = []
+                refreshMcpCacheStates()
+                return
+            }
+        }
         
         if configPath.pathExtension.lowercased() == "toml" {
             // Codex uses TOML config
@@ -301,7 +327,8 @@ final class ProviderDetailGridViewModel {
             let expandedJson = MCPConfigExpander.expand(json)
             
             // 2. Load enabled servers
-            if let servers = expandedJson["mcpServers"].dictionary {
+            let servers = expandedJson["mcpServers"].dictionary ?? expandedJson["mcp_servers"].dictionary
+            if let servers {
                 mcps = servers
                     .map { key, value in
                         MCP(name: key, json: AnyCodable(value.object))
@@ -311,6 +338,8 @@ final class ProviderDetailGridViewModel {
                 mcps = []
             }
         }
+
+        refreshMcpCacheStates()
     }
 
     func setMCPEnabled(_ mcp: MCP, enabled: Bool, for provider: Provider) async {
@@ -326,6 +355,22 @@ final class ProviderDetailGridViewModel {
         }
 
         let configPath = template.defaultMcpConfigPath
+
+        if template.rawValue == "opencode" {
+            guard STFile(configPath).isExists else { return }
+            let data = try Data(contentsOf: configPath)
+            var root = (try? JSONSerialization.jsonObject(with: data) as? [String: Any]) ?? [:]
+            var mcpDict = root["mcp"] as? [String: Any] ?? [:]
+            var server = mcpDict[mcp.name] as? [String: Any] ?? [:]
+            server["enabled"] = enabled
+            mcpDict[mcp.name] = server
+            root["mcp"] = mcpDict
+
+            let updated = try JSONSerialization.data(withJSONObject: root, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
+            try updated.write(to: configPath, options: .atomic)
+            loadMCPs(for: provider)
+            return
+        }
 
         if configPath.pathExtension.lowercased() == "toml" {
             guard
@@ -353,6 +398,16 @@ final class ProviderDetailGridViewModel {
                 json = JSON([:])
             }
 
+            // Normalize legacy key if present.
+            if json["mcpServers"].dictionary == nil,
+               json["mcp_servers"].dictionary != nil {
+                let legacy = json["mcp_servers"]
+                var root = json.dictionaryValue
+                root["mcpServers"] = legacy
+                root["mcp_servers"] = nil
+                json = JSON(root)
+            }
+
             if json["mcpServers"].dictionary == nil {
                 json["mcpServers"] = JSON([:])
             }
@@ -375,6 +430,268 @@ final class ProviderDetailGridViewModel {
         }
 
         loadMCPs(for: provider)
+    }
+
+    struct McpCacheMigrationResult: Sendable {
+        let migrated: Int
+        let skipped: Int
+    }
+
+    enum McpCacheState: String, Sendable {
+        case notMigrated
+        case migratedUpToDate
+        case migratedNeedsUpdate
+    }
+
+    /// Export provider MCP servers into ~/.nolon/mcps as standard MCP JSON files.
+    /// This does NOT modify the provider's MCP config file.
+    func migrateMcpServersToGlobalCache(for provider: Provider) async throws -> McpCacheMigrationResult {
+        guard let templateId = provider.templateId,
+              let template = ProviderTemplate(rawValue: templateId) else {
+            return .init(migrated: 0, skipped: 0)
+        }
+
+        let configPath = template.defaultMcpConfigPath
+        guard STFile(configPath).isExists else {
+            return .init(migrated: 0, skipped: 0)
+        }
+
+        var serverConfigs: [String: [String: Any]] = [:]
+
+        if configPath.pathExtension.lowercased() == "toml" {
+            let data = try Data(contentsOf: configPath)
+            guard !data.isEmpty else { return .init(migrated: 0, skipped: 0) }
+            let config = try TOMLDecoder().decode(CodexMCPConfig.self, from: data)
+            let servers = config.mcpServers ?? [:]
+            for (name, server) in servers {
+                var dict: [String: Any] = [:]
+                if let url = server.url { dict["url"] = url }
+                if let command = server.command { dict["command"] = command }
+                if let args = server.args { dict["args"] = args }
+                if let env = server.env { dict["env"] = env }
+                if let enabled = server.enabled, enabled == false { dict["disabled"] = true }
+
+                // Claude MCP JSON uses `type` to describe transport.
+                if dict["type"] == nil {
+                    if dict["command"] != nil {
+                        dict["type"] = "stdio"
+                    } else if dict["url"] != nil {
+                        dict["type"] = "http"
+                    }
+                }
+                serverConfigs[name] = dict
+            }
+        } else {
+            let data = try Data(contentsOf: configPath)
+            guard !data.isEmpty else { return .init(migrated: 0, skipped: 0) }
+            let json = try JSON(data: data)
+            let servers = json["mcpServers"].dictionaryValue.isEmpty ? json["mcp_servers"].dictionaryValue : json["mcpServers"].dictionaryValue
+            for (name, value) in servers {
+                var dict = value.dictionaryObject ?? [:]
+
+                if dict["type"] == nil {
+                    if dict["command"] != nil {
+                        dict["type"] = "stdio"
+                    } else if dict["url"] != nil {
+                        dict["type"] = "http"
+                    }
+                }
+                serverConfigs[name] = dict
+            }
+        }
+
+        guard !serverConfigs.isEmpty else {
+            return .init(migrated: 0, skipped: 0)
+        }
+
+        let manager = NolonManager.shared
+        STFolder(manager.mcpsURL).createIfNotExists()
+
+        var migrated = 0
+        var skipped = 0
+
+        for (name, serverDict) in serverConfigs {
+            let fileName = "\(safeMcpCacheFileStem(for: name)).json"
+            let targetURL = manager.mcpsURL.appendingPathComponent(fileName)
+            if STFile(targetURL).isExists {
+                skipped += 1
+                continue
+            }
+
+            let root: [String: Any] = ["mcpServers": [name: serverDict]]
+
+            let data = try JSONSerialization.data(
+                withJSONObject: root,
+                options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+            )
+            try data.write(to: targetURL, options: .atomic)
+            migrated += 1
+        }
+
+        return .init(migrated: migrated, skipped: skipped)
+    }
+
+    func migrateMcpToGlobalCache(_ mcp: MCP) async throws {
+        let manager = NolonManager.shared
+        STFolder(manager.mcpsURL).createIfNotExists()
+
+        let targetURL = mcpCacheFileURL(for: mcp.name)
+        guard !STFile(targetURL).isExists else {
+            refreshMcpCacheStates()
+            return
+        }
+
+        let server = normalizedProviderServerConfig(for: mcp)
+        let root: [String: Any] = ["mcpServers": [mcp.name: server]]
+        let data = try JSONSerialization.data(
+            withJSONObject: root,
+            options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+        )
+        try data.write(to: targetURL, options: .atomic)
+        refreshMcpCacheStates()
+    }
+
+    func updateCachedMcpIfNeeded(_ mcp: MCP) async throws {
+        let manager = NolonManager.shared
+        STFolder(manager.mcpsURL).createIfNotExists()
+
+        let targetURL = mcpCacheFileURL(for: mcp.name)
+        guard STFile(targetURL).isExists else {
+            try await migrateMcpToGlobalCache(mcp)
+            return
+        }
+
+        let desired = normalizedProviderServerConfig(for: mcp)
+        let existingData = try Data(contentsOf: targetURL)
+        let existingServer = (try? MCPJsonFile.serverConfig(from: existingData, slug: mcp.name)) ?? [:]
+        let existing = normalizedServerConfigForComparison(existingServer, name: mcp.name)
+
+        if canonicalJsonData(existing) == canonicalJsonData(desired) {
+            refreshMcpCacheStates()
+            return
+        }
+
+        let root: [String: Any] = ["mcpServers": [mcp.name: desired]]
+        let data = try JSONSerialization.data(
+            withJSONObject: root,
+            options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+        )
+        try data.write(to: targetURL, options: .atomic)
+        refreshMcpCacheStates()
+    }
+
+    private func safeMcpCacheFileStem(for name: String) -> String {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return UUID().uuidString }
+
+        // Avoid creating nested paths. Keep common filename-safe characters.
+        let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-_ ."))
+        let mapped = trimmed.unicodeScalars.map { scalar -> Character in
+            allowed.contains(scalar) ? Character(scalar) : "-"
+        }
+
+        var result = String(mapped)
+        while result.contains("--") { result = result.replacingOccurrences(of: "--", with: "-") }
+        result = result.trimmingCharacters(in: CharacterSet(charactersIn: " .-"))
+        return result.isEmpty ? UUID().uuidString : result
+    }
+
+    private func mcpCacheFileURL(for name: String) -> URL {
+        NolonManager.shared.mcpsURL.appendingPathComponent("\(safeMcpCacheFileStem(for: name)).json")
+    }
+
+    private func refreshMcpCacheStates() {
+        var states: [String: McpCacheState] = [:]
+
+        for mcp in mcps {
+            let url = mcpCacheFileURL(for: mcp.name)
+            guard STFile(url).isExists else {
+                states[mcp.name] = .notMigrated
+                continue
+            }
+
+            let desired = normalizedProviderServerConfig(for: mcp)
+            if let data = try? Data(contentsOf: url),
+               let server = try? MCPJsonFile.serverConfig(from: data, slug: mcp.name) {
+                let existing = normalizedServerConfigForComparison(server, name: mcp.name)
+                states[mcp.name] = (canonicalJsonData(existing) == canonicalJsonData(desired))
+                    ? .migratedUpToDate
+                    : .migratedNeedsUpdate
+            } else {
+                states[mcp.name] = .migratedNeedsUpdate
+            }
+        }
+
+        mcpCacheStates = states
+    }
+
+    private func normalizedProviderServerConfig(for mcp: MCP) -> [String: Any] {
+        normalizedServerConfigForComparison(mcp.dictionaryValue, name: mcp.name, isEnabled: mcp.isEnabled)
+    }
+
+    private func normalizedServerConfigForComparison(
+        _ input: [String: Any],
+        name: String,
+        isEnabled: Bool? = nil
+    ) -> [String: Any] {
+        var dict = input
+
+        // Normalize enable/disable representation for cache: prefer `disabled`.
+        let enabled: Bool = isEnabled ?? MCPJsonFile.serverFields(from: dict).isEnabled
+        dict.removeValue(forKey: "enabled")
+        if enabled {
+            dict.removeValue(forKey: "disabled")
+        } else {
+            dict["disabled"] = true
+        }
+
+        // Ensure Claude-style `type` exists.
+        if dict["type"] == nil {
+            if dict["command"] != nil {
+                dict["type"] = "stdio"
+            } else if dict["url"] != nil {
+                dict["type"] = "http"
+            }
+        }
+
+        // If the dict came from a provider JSON that had legacy key names, keep server payload untouched
+        // besides normalization above.
+        _ = name
+        return dict
+    }
+
+    private func canonicalJsonData(_ object: Any) -> Data? {
+        try? JSONSerialization.data(withJSONObject: object, options: [.sortedKeys, .withoutEscapingSlashes])
+    }
+
+    private static func convertOpenCodeMcpServerJson(_ object: Any) -> [String: Any] {
+        guard let dict = object as? [String: Any] else { return [:] }
+        var result: [String: Any] = dict
+
+        if let commandArray = dict["command"] as? [Any] {
+            let parts = commandArray.compactMap { $0 as? String }
+            if let first = parts.first {
+                result["command"] = first
+                let rest = Array(parts.dropFirst())
+                if !rest.isEmpty { result["args"] = rest }
+            }
+        }
+
+        if let env = dict["environment"] as? [String: Any] {
+            result["env"] = env.compactMapValues { $0 as? String }
+        }
+
+        if let enabled = dict["enabled"] as? Bool {
+            result["enabled"] = enabled
+            result["disabled"] = enabled ? nil : true
+        }
+
+        if let type = dict["type"] as? String {
+            if type == "local" { result["type"] = "stdio" }
+            if type == "remote" { result["type"] = "http" }
+        }
+
+        return result
     }
     
     private func loadMcpWorkflows() {
@@ -433,6 +750,14 @@ final class ProviderDetailGridViewModel {
             }
             
             // 2. Ensure mcpServers object exists
+            if json["mcpServers"].dictionary == nil,
+               json["mcp_servers"].dictionary != nil {
+                let legacy = json["mcp_servers"]
+                var root = json.dictionaryValue
+                root["mcpServers"] = legacy
+                root["mcp_servers"] = nil
+                json = JSON(root)
+            }
             if json["mcpServers"].dictionary == nil {
                 json["mcpServers"] = JSON([:])
             }
@@ -466,6 +791,23 @@ final class ProviderDetailGridViewModel {
          
          let configPath = template.defaultMcpConfigPath
          
+         if template.rawValue == "opencode" {
+             do {
+                 let data = try Data(contentsOf: configPath)
+                 var root = (try? JSONSerialization.jsonObject(with: data) as? [String: Any]) ?? [:]
+                 var mcpDict = root["mcp"] as? [String: Any] ?? [:]
+                 mcpDict[name] = nil
+                 root["mcp"] = mcpDict
+                 let updated = try JSONSerialization.data(withJSONObject: root, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
+                 try updated.write(to: configPath, options: .atomic)
+             } catch {
+                 // ignore
+             }
+             
+             loadMCPs(for: provider)
+             return
+         }
+         
          if configPath.pathExtension.lowercased() == "toml" {
              guard
                  let data = try? Data(contentsOf: configPath),
@@ -483,6 +825,15 @@ final class ProviderDetailGridViewModel {
              guard let data = try? Data(contentsOf: configPath),
                    var json = try? JSON(data: data) else { return }
              
+             if json["mcpServers"].dictionary == nil,
+                json["mcp_servers"].dictionary != nil {
+                 let legacy = json["mcp_servers"]
+                 var root = json.dictionaryValue
+                 root["mcpServers"] = legacy
+                 root["mcp_servers"] = nil
+                 json = JSON(root)
+             }
+
              var servers = json["mcpServers"].dictionaryValue
              servers[name] = nil
              json["mcpServers"] = JSON(servers)
@@ -669,7 +1020,28 @@ final class ProviderDetailGridViewModel {
     
     func installRemoteMCP(_ mcp: RemoteMCP, to provider: Provider) async {
         await performAsync {
-            try installer.installRemoteMCP(mcp, to: provider)
+            let resourceInstaller = ResourceInstaller(globalCache: GlobalCacheRepository())
+
+            if let localPath = mcp.localPath {
+                try await resourceInstaller.installFromLocal(
+                    resourceURL: URL(fileURLWithPath: localPath),
+                    resourceSlug: mcp.slug,
+                    resourceType: .mcp,
+                    to: provider
+                )
+            } else {
+                let clawdhubRepo = ClawdhubRepository(
+                    repository: settings.remoteRepositories.first { $0.templateType == .clawdhub }
+                        ?? RepositoryTemplate.clawdhub.createRepository()
+                )
+
+                try await resourceInstaller.installFromRemote(
+                    repository: clawdhubRepo,
+                    resourceSlug: mcp.slug,
+                    resourceType: .mcp,
+                    to: provider
+                )
+            }
         }
     }
 }

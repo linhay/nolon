@@ -37,7 +37,7 @@
         "defaultCommandPath": "commands",
         "documentationURL": "https://opencode.ai/docs/skills",
         "mcpDocumentationURL": "https://opencode.ai/docs/mcp-servers/",
-        "defaultMcpConfigPath": "mcp_settings.json",
+        "defaultMcpConfigPath": "opencode.json",
         "defaultSkillsPaths": [
             "skills",
             ".claude/skills"

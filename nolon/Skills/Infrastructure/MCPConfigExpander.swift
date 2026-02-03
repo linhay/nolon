@@ -25,7 +25,12 @@ public struct MCPConfigExpander {
     
     /// Expands variables in a single string
     private static func expandString(_ value: String) -> String {
-        let pattern = #"\$\{([^}:]+)(?::-([^}]*))?\}"#
+        // Supports:
+        // - `${VAR}`
+        // - `${VAR:-default}`
+        // - `${env:VAR}`
+        // - `${env:VAR:-default}`
+        let pattern = #"\$\{(?:(?:env):)?([^}:]+)(?::-([^}]*))?\}"#
         guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else {
             return value
         }

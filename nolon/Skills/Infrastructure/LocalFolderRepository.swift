@@ -341,19 +341,20 @@ public struct LocalFolderRepository: RemoteResourceRepository {
     /// Parses an MCP from JSON file
     private func parseMCP(at path: String) throws -> RemoteMCP {
         let data = try Data(contentsOf: URL(fileURLWithPath: path))
-        let decoder = JSONDecoder()
-        decoder.keyDecodingStrategy = .convertFromSnakeCase
-        
-        let config = try decoder.decode(RemoteMCP.MCPConfiguration.self, from: data)
         let slug = (path as NSString).deletingPathExtension.components(separatedBy: "/").last ?? "unknown"
+
+        let metadata = MCPJsonFile.metadata(from: data)
+        let server = (try? MCPJsonFile.serverConfig(from: data, slug: slug)) ?? [:]
+        let fields = MCPJsonFile.serverFields(from: server)
+        let config = RemoteMCP.MCPConfiguration(command: fields.command, args: fields.args, env: fields.env)
         
         // Get file modification date
         let modificationDate: Date? = STFile(path).isExists ? STFile(path).attributes.modificationDate : nil
         
         return RemoteMCP(
             slug: slug,
-            displayName: slug,
-            summary: config.command,
+            displayName: metadata.name ?? slug,
+            summary: metadata.description ?? config.command,
             latestVersion: nil,
             updatedAt: modificationDate,
             downloads: nil,

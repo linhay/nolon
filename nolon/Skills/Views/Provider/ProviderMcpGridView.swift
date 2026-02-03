@@ -8,6 +8,7 @@ struct ProviderMcpGridView: View {
     let columns: [GridItem]
 
     @State private var editingConfig: EditingConfig?
+    @State private var migrationAlert: MigrationAlert?
     
     var body: some View {
         Group {
@@ -37,7 +38,16 @@ struct ProviderMcpGridView: View {
                             """
                             try? STFile(configPath).overlay(with: template)
                         } else {
-                            try? STFile(configPath).overlay(with: "{}")
+                            if template.rawValue == "opencode" {
+                                let template = """
+                                {
+                                  "mcp": {}
+                                }
+                                """
+                                try? STFile(configPath).overlay(with: template)
+                            } else {
+                                try? STFile(configPath).overlay(with: "{}")
+                            }
                         }
                         editingConfig = EditingConfig(
                             configURL: configPath,
@@ -92,14 +102,56 @@ struct ProviderMcpGridView: View {
             } else {
                 LazyVGrid(columns: columns, spacing: 16) {
                     ForEach(viewModel.filteredMcps) { mcp in
+                        let cacheState = viewModel.mcpCacheStates[mcp.name] ?? .notMigrated
                         McpServerCard(
                             mcp: mcp,
                             hasWorkflow: viewModel.mcpWorkflowIds.contains(mcp.name),
                             searchText: viewModel.searchText,
+                            cacheState: cacheState,
                             onLinkWorkflow: { viewModel.linkMcpToWorkflow(mcp) },
                             onUnlinkWorkflow: { viewModel.unlinkMcpFromWorkflow(mcp) },
                             onSetEnabled: { enabled in
                                 Task { await viewModel.setMCPEnabled(mcp, enabled: enabled, for: provider) }
+                            },
+                            onMigrateToNolon: {
+                                Task {
+                                    do {
+                                        try await viewModel.migrateMcpToGlobalCache(mcp)
+                                        migrationAlert = MigrationAlert(
+                                            title: NSLocalizedString("action.migrate", value: "Migrate", comment: "Migrate"),
+                                            message: NSLocalizedString(
+                                                "mcp.migration.single.success",
+                                                value: "Migrated.",
+                                                comment: "MCP single migration success"
+                                            )
+                                        )
+                                    } catch {
+                                        migrationAlert = MigrationAlert(
+                                            title: NSLocalizedString("action.migrate", value: "Migrate", comment: "Migrate"),
+                                            message: error.localizedDescription
+                                        )
+                                    }
+                                }
+                            },
+                            onUpdateNolonCache: {
+                                Task {
+                                    do {
+                                        try await viewModel.updateCachedMcpIfNeeded(mcp)
+                                        migrationAlert = MigrationAlert(
+                                            title: NSLocalizedString("action.update", value: "Update", comment: "Update"),
+                                            message: NSLocalizedString(
+                                                "mcp.migration.single.updated",
+                                                value: "Updated.",
+                                                comment: "MCP single cache update success"
+                                            )
+                                        )
+                                    } catch {
+                                        migrationAlert = MigrationAlert(
+                                            title: NSLocalizedString("action.update", value: "Update", comment: "Update"),
+                                            message: error.localizedDescription
+                                        )
+                                    }
+                                }
                             },
                             onEdit: {
                                 editingConfig = EditingConfig(
@@ -112,6 +164,13 @@ struct ProviderMcpGridView: View {
                                 Task { await viewModel.deleteMCP(named: mcp.name, for: provider) }
                             }
                         )
+                        .onTapGesture {
+                            editingConfig = EditingConfig(
+                                configURL: configPath,
+                                format: isToml ? .toml : .json,
+                                highlightKey: mcp.name
+                            )
+                        }
                     }
                 }
                 .toolbar {
@@ -152,6 +211,11 @@ struct ProviderMcpGridView: View {
                 await viewModel.loadData()
             }
         }
+        .alert(migrationAlert?.title ?? "", isPresented: Binding(get: { migrationAlert != nil }, set: { if !$0 { migrationAlert = nil } })) {
+            Button(NSLocalizedString("action.ok", value: "OK", comment: "OK action")) {}
+        } message: {
+            Text(migrationAlert?.message ?? "")
+        }
     }
 }
 
@@ -160,6 +224,12 @@ private struct EditingConfig: Identifiable {
     let configURL: URL
     let format: WebCodeEditorFormat
     let highlightKey: String?
+}
+
+private struct MigrationAlert: Identifiable {
+    let id = UUID()
+    let title: String
+    let message: String
 }
 
 #Preview {

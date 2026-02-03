@@ -272,9 +272,21 @@ public actor ResourceInstaller {
         
         // Read MCP configuration
         let data = try STFile(mcpPath).data()
-        let decoder = JSONDecoder()
-        decoder.keyDecodingStrategy = .convertFromSnakeCase
-        let config = try decoder.decode(RemoteMCP.MCPConfiguration.self, from: data)
+        let serverConfig: [String: Any]
+        if let parsed = try? MCPJsonFile.serverConfig(from: data, slug: slug) {
+            serverConfig = parsed
+        } else {
+            // Legacy: file may be a single server config object
+            let decoder = JSONDecoder()
+            decoder.keyDecodingStrategy = .convertFromSnakeCase
+            let config = try decoder.decode(RemoteMCP.MCPConfiguration.self, from: data)
+            var legacy: [String: Any] = [:]
+            if let command = config.command { legacy["command"] = command }
+            if let args = config.args { legacy["args"] = args }
+            if let env = config.env { legacy["env"] = env }
+            serverConfig = legacy
+        }
+        let fields = MCPJsonFile.serverFields(from: serverConfig)
         
         // Ensure MCP config directory exists
         let configDir = (mcpConfigPath as NSString).deletingLastPathComponent
@@ -291,17 +303,57 @@ public actor ResourceInstaller {
             
             var servers = configTable.mcpServers ?? [:]
             servers[slug] = CodexMCPServer(
-                url: nil,
-                command: config.command,
-                args: config.args,
-                env: config.env,
-                enabled: true
+                url: fields.url,
+                command: fields.command,
+                args: fields.args,
+                env: fields.env,
+                enabled: fields.isEnabled
             )
             configTable.mcpServers = servers
             
             let tomlData = try TOMLEncoder().encode(configTable)
             try tomlData.write(to: URL(fileURLWithPath: mcpConfigPath))
         } else {
+            if template.rawValue == "opencode" {
+                // OpenCode uses a single config file (opencode.json) with a top-level `mcp` object.
+                var root: [String: Any] = [:]
+                if STFile(mcpConfigPath).isExists,
+                   let existingData = try? Data(contentsOf: URL(fileURLWithPath: mcpConfigPath)),
+                   let json = try? JSONSerialization.jsonObject(with: existingData) as? [String: Any] {
+                    root = json
+                }
+
+                var mcpTable = root["mcp"] as? [String: Any] ?? [:]
+                var server: [String: Any] = [:]
+
+                let type = (serverConfig["type"] as? String)?.lowercased()
+                if type == "http" || type == "remote" || fields.url != nil {
+                    server["type"] = "remote"
+                    if let url = fields.url { server["url"] = url }
+                } else {
+                    server["type"] = "local"
+                    let parts = [fields.command].compactMap { $0 } + (fields.args ?? [])
+                    if !parts.isEmpty {
+                        server["command"] = parts
+                    }
+                }
+
+                if let env = fields.env {
+                    server["environment"] = env
+                }
+                server["enabled"] = fields.isEnabled
+
+                mcpTable[slug] = server
+                root["mcp"] = mcpTable
+
+                let updatedData = try JSONSerialization.data(
+                    withJSONObject: root,
+                    options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+                )
+                try updatedData.write(to: URL(fileURLWithPath: mcpConfigPath), options: .atomic)
+                return
+            }
+
             // Read existing mcp_settings.json or create new
             var existingConfig: [String: Any] = [:]
             if STFile(mcpConfigPath).isExists {
@@ -316,15 +368,11 @@ public actor ResourceInstaller {
             
             // Add/update this MCP
             var serverConfig: [String: Any] = [:]
-            if let command = config.command {
-                serverConfig["command"] = command
-            }
-            if let args = config.args {
-                serverConfig["args"] = args
-            }
-            if let env = config.env {
-                serverConfig["env"] = env
-            }
+            if let url = fields.url { serverConfig["url"] = url }
+            if let command = fields.command { serverConfig["command"] = command }
+            if let args = fields.args { serverConfig["args"] = args }
+            if let env = fields.env { serverConfig["env"] = env }
+            if fields.isEnabled == false { serverConfig["disabled"] = true }
             
             mcpServers[slug] = serverConfig
             existingConfig["mcpServers"] = mcpServers
@@ -334,7 +382,7 @@ public actor ResourceInstaller {
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
             let updatedData = try JSONSerialization.data(
                 withJSONObject: existingConfig,
-                options: [.prettyPrinted, .sortedKeys]
+                options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
             )
             try updatedData.write(to: URL(fileURLWithPath: mcpConfigPath))
         }
@@ -414,6 +462,19 @@ public actor ResourceInstaller {
                 return
             }
             
+            if template.rawValue == "opencode" {
+                var mcpTable = json["mcp"] as? [String: Any] ?? [:]
+                mcpTable.removeValue(forKey: slug)
+                json["mcp"] = mcpTable
+
+                let updatedData = try JSONSerialization.data(
+                    withJSONObject: json,
+                    options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+                )
+                try updatedData.write(to: URL(fileURLWithPath: mcpConfigPath), options: .atomic)
+                return
+            }
+
             // Remove from mcpServers
             if var mcpServers = json["mcpServers"] as? [String: Any] {
                 mcpServers.removeValue(forKey: slug)
@@ -422,9 +483,9 @@ public actor ResourceInstaller {
                 // Write back
                 let updatedData = try JSONSerialization.data(
                     withJSONObject: json,
-                    options: [.prettyPrinted, .sortedKeys]
+                    options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
                 )
-                try updatedData.write(to: URL(fileURLWithPath: mcpConfigPath))
+                try updatedData.write(to: URL(fileURLWithPath: mcpConfigPath), options: .atomic)
             }
         }
     }

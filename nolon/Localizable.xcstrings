@@ -352,6 +352,24 @@
         }
       }
     },
+    "action.ok" : {
+      "comment" : "OK action",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "OK"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "确定"
+          }
+        }
+      }
+    },
     "action.repair" : {
       "comment" : "Repair",
       "localizations" : {
@@ -1532,7 +1550,7 @@
     },
     "codex.usage.error.open_db" : {
       "comment" : "Error message",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1640,7 +1658,7 @@
     },
     "codex.usage.range.7d" : {
       "comment" : "Usage range",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1658,7 +1676,7 @@
     },
     "codex.usage.range.30d" : {
       "comment" : "Usage range",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1676,7 +1694,7 @@
     },
     "codex.usage.range.all" : {
       "comment" : "Usage range",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1712,7 +1730,7 @@
     },
     "codex.usage.range.today" : {
       "comment" : "Usage range",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2776,6 +2794,24 @@
         }
       }
     },
+    "mcp.action.migrate_to_cache" : {
+      "comment" : "Migrate MCP servers to ~/.nolon/mcps",
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Migrate to Nolon"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "迁移到 Nolon"
+          }
+        }
+      }
+    },
     "mcp.editor.invalid_config.title" : {
       "comment" : "Invalid config title",
       "extractionState" : "extracted_with_value",
@@ -2832,7 +2868,7 @@
     },
     "mcp.field.args" : {
       "comment" : "MCP args",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2850,7 +2886,7 @@
     },
     "mcp.field.command" : {
       "comment" : "MCP command",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2868,7 +2904,7 @@
     },
     "mcp.field.enabled" : {
       "comment" : "MCP enabled",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2886,7 +2922,7 @@
     },
     "mcp.field.env" : {
       "comment" : "MCP env",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2904,7 +2940,7 @@
     },
     "mcp.field.name" : {
       "comment" : "MCP field name",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2922,7 +2958,7 @@
     },
     "mcp.field.url" : {
       "comment" : "MCP URL",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2934,6 +2970,60 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "URL"
+          }
+        }
+      }
+    },
+    "mcp.migration.result" : {
+      "comment" : "MCP migration result message",
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Migrated %1$lld server(s), skipped %2$lld."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "已迁移 %lld 个服务器，跳过 %lld 个。"
+          }
+        }
+      }
+    },
+    "mcp.migration.single.success" : {
+      "comment" : "MCP single migration success",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Migrated."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已迁移。"
+          }
+        }
+      }
+    },
+    "mcp.migration.single.updated" : {
+      "comment" : "MCP single cache update success",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Updated."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已更新。"
           }
         }
       }
@@ -2980,7 +3070,7 @@
     },
     "mcp.section.command" : {
       "comment" : "MCP command section",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2998,7 +3088,7 @@
     },
     "mcp.section.connection" : {
       "comment" : "MCP connection section",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -3016,7 +3106,7 @@
     },
     "mcp.section.env" : {
       "comment" : "MCP env section",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {

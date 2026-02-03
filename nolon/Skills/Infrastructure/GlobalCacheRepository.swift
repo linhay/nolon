@@ -56,8 +56,10 @@ public actor GlobalCacheRepository: RemoteResourceRepository {
             try STPath(downloadURL).copy(to: STPath(targetPath), isOverlay: true)
             
         case .mcp:
-            // MCPs are JSON configuration files
-            try STPath(downloadURL).copy(to: STPath(targetPath), isOverlay: true)
+            // MCPs are JSON configuration files; normalize to an `mcpServers`-based document.
+            let input = try STFile(downloadURL).data()
+            let normalized = try MCPJsonFile.normalizedData(from: input, slug: slug)
+            try normalized.write(to: targetPath, options: .atomic)
         }
         
         return targetPath
@@ -412,15 +414,13 @@ public actor GlobalCacheRepository: RemoteResourceRepository {
             var summary: String?
             
             if let data = try? Data(contentsOf: URL(fileURLWithPath: mcpPath)) {
-                let decoder = JSONDecoder()
-                decoder.keyDecodingStrategy = .convertFromSnakeCase
-                
-                configuration = try? decoder.decode(RemoteMCP.MCPConfiguration.self, from: data)
-                
-                // Try to get metadata from JSON
-                if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                    displayName = json["name"] as? String ?? slug
-                    summary = json["description"] as? String
+                let metadata = MCPJsonFile.metadata(from: data)
+                displayName = metadata.name ?? slug
+                summary = metadata.description
+
+                if let server = try? MCPJsonFile.serverConfig(from: data, slug: slug) {
+                    let fields = MCPJsonFile.serverFields(from: server)
+                    configuration = .init(command: fields.command, args: fields.args, env: fields.env)
                 }
             }
             
