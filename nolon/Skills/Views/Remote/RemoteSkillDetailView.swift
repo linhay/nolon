@@ -1,4 +1,5 @@
 import SwiftUI
+import ProviderCatalog
 import MarkdownUI
 
 struct RemoteSkillDetailView: View {

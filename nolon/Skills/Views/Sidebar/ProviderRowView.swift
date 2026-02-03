@@ -1,4 +1,5 @@
 import SwiftUI
+import ProviderCatalog
 
 /// Row view for a provider in the sidebar
 struct ProviderRowView: View {

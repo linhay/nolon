@@ -1,4 +1,5 @@
 import SwiftUI
+import ProviderCatalog
 
 struct SkillDetailInspector: View {
     @Bindable var viewModel: SkillDetailViewModel

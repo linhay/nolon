@@ -58,6 +58,14 @@ Nolon 是一款强大的 macOS 应用程序，专为简化 AI 编程助手（如
 
 ## 💻 构建与运行
 
+### Git 子模块
+
+本仓库在 `libs/` 下使用 git submodule。构建前请先拉取子模块：
+
+```bash
+git submodule update --init --recursive
+```
+
 1.  在 Xcode 16+ 中打开 `nolon.xcodeproj`。
 2.  等待 Swift Package Manager 解析依赖项 (MarkdownUI)。
 3.  选择 **nolon** scheme 和 **My Mac** 作为目标。

@@ -1,5 +1,5 @@
 {
-  "originHash" : "18e958f57ea636ad35004a891ae13a057e8df2228e8b12fe2653f05e9d7b80f5",
+  "originHash" : "5546f5e89c4621560838b134ebba0350c434d7edf4c1300b166675a00461b219",
   "pins" : [
     {
       "identity" : "grdb.swift",
@@ -47,6 +47,15 @@
       }
     },
     {
+      "identity" : "sweetcookiekit",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/steipete/SweetCookieKit",
+      "state" : {
+        "revision" : "4d5b71ffbb296937dc5ee8472f64721bca771cf0",
+        "version" : "0.4.0"
+      }
+    },
+    {
       "identity" : "swift-cmark",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/swiftlang/swift-cmark",
@@ -76,7 +85,7 @@
     {
       "identity" : "swift-toml",
       "kind" : "remoteSourceControl",
-      "location" : "git@github.com:alexey1312/swift-toml.git",
+      "location" : "https://github.com/alexey1312/swift-toml.git",
       "state" : {
         "branch" : "feat/pure-c-bridge-v2",
         "revision" : "6629ace8131fc81a32cf001fa4b05ebde4cc33ce"

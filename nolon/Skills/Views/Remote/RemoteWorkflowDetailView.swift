@@ -1,4 +1,5 @@
 import SwiftUI
+import ProviderCatalog
 
 /// Remote Workflow 详情视图
 struct RemoteWorkflowDetailView: View {

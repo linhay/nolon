@@ -1,0 +1,23 @@
+[submodule "libs/CodexBar"]
+	path = libs/CodexBar
+	url = https://github.com/steipete/CodexBar.git
+
+[submodule "libs/SKProcessRunner"]
+	path = libs/SKProcessRunner
+	url = https://github.com/linhay/SKProcessRunner.git
+
+[submodule "libs/agent-skills"]
+	path = libs/agent-skills
+	url = https://github.com/vercel-labs/agent-skills.git
+
+[submodule "libs/codex"]
+	path = libs/codex
+	url = https://github.com/openai/codex.git
+
+[submodule "libs/opencode"]
+	path = libs/opencode
+	url = https://github.com/anomalyco/opencode.git
+
+[submodule "libs/oh-my-opencode"]
+	path = libs/oh-my-opencode
+	url = https://github.com/code-yeongyu/oh-my-opencode.git

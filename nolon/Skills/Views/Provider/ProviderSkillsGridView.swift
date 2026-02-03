@@ -1,4 +1,5 @@
 import SwiftUI
+import ProviderCatalog
 
 struct ProviderSkillsGridView: View {
     let viewModel: ProviderDetailGridViewModel

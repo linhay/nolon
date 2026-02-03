@@ -1,4 +1,5 @@
 import Foundation
+import ProviderCatalog
 import Observation
 import SwiftUI
 import STFilePath

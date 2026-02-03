@@ -1,4 +1,5 @@
 import SwiftUI
+import ProviderCatalog
 
 /// View for managing skills by provider
 @MainActor

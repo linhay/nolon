@@ -1,4 +1,5 @@
 import SwiftUI
+import ProviderCatalog
 import STFilePath
 
 struct ProviderMcpGridView: View {
@@ -6,12 +7,13 @@ struct ProviderMcpGridView: View {
     let viewModel: ProviderDetailGridViewModel
     let columns: [GridItem]
 
-    @State private var editingMcp: MCP?
+    @State private var editingConfig: EditingConfig?
     
     var body: some View {
-        if let provider = provider,
-           let templateId = provider.templateId,
-           let template = ProviderTemplate(rawValue: templateId) {
+        Group {
+            if let provider = provider,
+               let templateId = provider.templateId,
+               let template = ProviderTemplate(rawValue: templateId) {
             
             let configPath = template.defaultMcpConfigPath
             let isToml = configPath.pathExtension.lowercased() == "toml"
@@ -37,7 +39,11 @@ struct ProviderMcpGridView: View {
                         } else {
                             try? STFile(configPath).overlay(with: "{}")
                         }
-                        NSWorkspace.shared.selectFile(configPath.path, inFileViewerRootedAtPath: "")
+                        editingConfig = EditingConfig(
+                            configURL: configPath,
+                            format: isToml ? .toml : .json,
+                            highlightKey: nil
+                        )
                         // Reload data
                         Task { await viewModel.loadData() }
                     }
@@ -49,7 +55,11 @@ struct ProviderMcpGridView: View {
                     Text("No MCP servers configured.")
                 } actions: {
                     Button("Edit Configuration") {
-                        NSWorkspace.shared.selectFile(configPath.path, inFileViewerRootedAtPath: "")
+                        editingConfig = EditingConfig(
+                            configURL: configPath,
+                            format: isToml ? .toml : .json,
+                            highlightKey: nil
+                        )
                     }
                 }
                 .toolbar {
@@ -62,7 +72,11 @@ struct ProviderMcpGridView: View {
                      }
                      ToolbarItem {
                          Button(action: {
-                             NSWorkspace.shared.selectFile(configPath.path, inFileViewerRootedAtPath: "")
+                             editingConfig = EditingConfig(
+                                 configURL: configPath,
+                                 format: isToml ? .toml : .json,
+                                 highlightKey: nil
+                             )
                          }) {
                              Label("Edit Config", systemImage: "pencil")
                          }
@@ -88,17 +102,16 @@ struct ProviderMcpGridView: View {
                                 Task { await viewModel.setMCPEnabled(mcp, enabled: enabled, for: provider) }
                             },
                             onEdit: {
-                                editingMcp = mcp
+                                editingConfig = EditingConfig(
+                                    configURL: configPath,
+                                    format: isToml ? .toml : .json,
+                                    highlightKey: mcp.name
+                                )
                             },
                             onDelete: {
                                 Task { await viewModel.deleteMCP(named: mcp.name, for: provider) }
                             }
                         )
-                    }
-                }
-                .sheet(item: $editingMcp) { mcp in
-                    McpEditorView(mcp: mcp, isToml: isToml) { updated in
-                        Task { await viewModel.updateMCP(updated, for: provider) }
                     }
                 }
                 .toolbar {
@@ -111,21 +124,42 @@ struct ProviderMcpGridView: View {
                      }
                      ToolbarItem {
                          Button(action: {
-                             NSWorkspace.shared.selectFile(configPath.path, inFileViewerRootedAtPath: "")
+                             editingConfig = EditingConfig(
+                                 configURL: configPath,
+                                 format: isToml ? .toml : .json,
+                                 highlightKey: nil
+                             )
                          }) {
                              Label("Edit Config", systemImage: "pencil")
                          }
                      }
                 }
             }
-        } else {
+            } else {
              ContentUnavailableView(
                 NSLocalizedString("mcp.not_supported", comment: "MCP Not Supported"),
                 systemImage: "exclamationmark.triangle",
                 description: Text(NSLocalizedString("mcp.not_supported_desc", comment: "This provider does not support MCP configuration"))
             )
+            }
+        }
+        .sheet(item: $editingConfig) { config in
+            McpConfigEditorView(
+                configURL: config.configURL,
+                format: config.format,
+                highlightKey: config.highlightKey
+            ) { _ in
+                await viewModel.loadData()
+            }
         }
     }
+}
+
+private struct EditingConfig: Identifiable {
+    let id = UUID()
+    let configURL: URL
+    let format: WebCodeEditorFormat
+    let highlightKey: String?
 }
 
 #Preview {

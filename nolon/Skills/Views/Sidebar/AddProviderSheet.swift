@@ -1,4 +1,5 @@
 import SwiftUI
+import ProviderCatalog
 import Observation
 import UniformTypeIdentifiers
 import OSLog

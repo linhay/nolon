@@ -1,4 +1,5 @@
 import SwiftUI
+import ProviderCatalog
 
 /// 引导页 - 完成页面
 struct OnboardingCompletionView: View {

@@ -1,4 +1,5 @@
 import Foundation
+import ProviderCatalog
 
 enum CodexPaths {
     static func codexHomeURL(for provider: Provider) -> URL? {

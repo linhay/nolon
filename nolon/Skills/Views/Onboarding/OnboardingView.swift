@@ -1,4 +1,5 @@
 import SwiftUI
+import ProviderCatalog
 import STFilePath
 
 /// 引导页主容器视图

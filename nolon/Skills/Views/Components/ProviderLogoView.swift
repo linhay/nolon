@@ -1,4 +1,5 @@
 import SwiftUI
+import ProviderCatalog
 
 struct ProviderLogoView: View {
     enum Style {

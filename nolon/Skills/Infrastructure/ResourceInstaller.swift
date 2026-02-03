@@ -2,6 +2,7 @@ import Foundation
 import STJSON
 import TOML
 import STFilePath
+import ProviderCatalog
 
 /// Unified resource installer for Skills, Workflows, and MCPs
 /// Replaces and extends SkillInstaller.swift functionality

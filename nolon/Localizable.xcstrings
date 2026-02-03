@@ -1,9 +1,6 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
-    "" : {
-
-    },
     "%@=%@" : {
       "localizations" : {
         "en" : {
@@ -1049,7 +1046,7 @@
     },
     "codex.accounts.action.activate" : {
       "comment" : "Activate account",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1067,7 +1064,7 @@
     },
     "codex.accounts.action.add" : {
       "comment" : "Add account",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1085,7 +1082,7 @@
     },
     "codex.accounts.add.error.no_codex_home" : {
       "comment" : "Error",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1103,7 +1100,7 @@
     },
     "codex.accounts.add.error.no_file" : {
       "comment" : "Error",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1121,7 +1118,7 @@
     },
     "codex.accounts.add.name" : {
       "comment" : "Account name",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1139,7 +1136,7 @@
     },
     "codex.accounts.add.no_codex_home" : {
       "comment" : "No Codex home",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1157,7 +1154,7 @@
     },
     "codex.accounts.add.no_file" : {
       "comment" : "No file selected",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1175,7 +1172,7 @@
     },
     "codex.accounts.add.source" : {
       "comment" : "Account source",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1193,7 +1190,7 @@
     },
     "codex.accounts.add.source.current" : {
       "comment" : "Current auth.json",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1211,7 +1208,7 @@
     },
     "codex.accounts.add.source.file" : {
       "comment" : "Import file",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1229,7 +1226,7 @@
     },
     "codex.accounts.add.title" : {
       "comment" : "Add account title",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1247,7 +1244,7 @@
     },
     "codex.accounts.badge.active" : {
       "comment" : "Active badge",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1265,7 +1262,7 @@
     },
     "codex.accounts.current.api_key" : {
       "comment" : "Current auth summary",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1283,7 +1280,7 @@
     },
     "codex.accounts.current.email" : {
       "comment" : "Current auth summary",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1301,7 +1298,7 @@
     },
     "codex.accounts.current.none" : {
       "comment" : "Current auth summary",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1319,7 +1316,7 @@
     },
     "codex.accounts.current.plan" : {
       "comment" : "Current plan",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1337,7 +1334,7 @@
     },
     "codex.accounts.delete.message" : {
       "comment" : "Delete account message",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1355,7 +1352,7 @@
     },
     "codex.accounts.delete.title" : {
       "comment" : "Delete account title",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1373,7 +1370,7 @@
     },
     "codex.accounts.empty.desc" : {
       "comment" : "Empty state description",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1391,7 +1388,7 @@
     },
     "codex.accounts.empty.title" : {
       "comment" : "Empty state title",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1409,7 +1406,7 @@
     },
     "codex.accounts.error.activate" : {
       "comment" : "Error message",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1427,7 +1424,7 @@
     },
     "codex.accounts.error.add" : {
       "comment" : "Error message",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1445,7 +1442,7 @@
     },
     "codex.accounts.error.delete" : {
       "comment" : "Error message",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1463,7 +1460,7 @@
     },
     "codex.accounts.title" : {
       "comment" : "Codex accounts title",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1481,7 +1478,7 @@
     },
     "codex.usage.empty.desc" : {
       "comment" : "Empty description",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1499,7 +1496,7 @@
     },
     "codex.usage.empty.title" : {
       "comment" : "Empty title",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1517,7 +1514,7 @@
     },
     "codex.usage.error.load" : {
       "comment" : "Error message",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1553,7 +1550,7 @@
     },
     "codex.usage.error.title" : {
       "comment" : "Error title",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1571,7 +1568,7 @@
     },
     "codex.usage.no_db.desc" : {
       "comment" : "No DB description",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1589,7 +1586,7 @@
     },
     "codex.usage.no_db.title" : {
       "comment" : "No DB title",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1607,7 +1604,7 @@
     },
     "codex.usage.projects.empty" : {
       "comment" : "No projects",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1625,7 +1622,7 @@
     },
     "codex.usage.projects.title" : {
       "comment" : "Top projects title",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1697,7 +1694,7 @@
     },
     "codex.usage.range.label" : {
       "comment" : "Range label",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1733,7 +1730,7 @@
     },
     "codex.usage.title" : {
       "comment" : "Codex usage title",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1751,7 +1748,7 @@
     },
     "codex.usage.total.threads" : {
       "comment" : "Threads label",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1769,7 +1766,7 @@
     },
     "codex.usage.total.tokens" : {
       "comment" : "Total tokens label",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1791,6 +1788,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "命令"
+          }
+        }
+      }
+    },
+    "common.done" : {
+      "comment" : "Done",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Done"
           }
         }
       }
@@ -2370,10 +2379,17 @@
     },
     "generic.ok" : {
       "comment" : "OK",
+      "extractionState" : "extracted_with_value",
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "OK"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "确定"
           }
         }
@@ -2504,6 +2520,7 @@
     },
     "install_method.copy" : {
       "comment" : "Copy",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2521,6 +2538,7 @@
     },
     "install_method.symlink" : {
       "comment" : "Symbolic Link",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2754,6 +2772,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "启用"
+          }
+        }
+      }
+    },
+    "mcp.editor.invalid_config.title" : {
+      "comment" : "Invalid config title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Invalid Configuration"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "配置无效"
+          }
+        }
+      }
+    },
+    "mcp.editor.invalid_json" : {
+      "comment" : "Invalid JSON",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Invalid JSON."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "JSON 无效。"
           }
         }
       }
@@ -4951,6 +5005,534 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "更新"
+          }
+        }
+      }
+    },
+    "usage.account.default" : {
+      "comment" : "Default account label",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Default session"
+          }
+        }
+      }
+    },
+    "usage.metric.account" : {
+      "comment" : "Account label",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Account"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "账号"
+          }
+        }
+      }
+    },
+    "usage.metric.cost" : {
+      "comment" : "Cost label",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Cost"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "花费"
+          }
+        }
+      }
+    },
+    "usage.metric.cost.last30_format" : {
+      "comment" : "Last 30 days cost format",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Last 30 days: $%1$.2f%2$@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "近30天：$%.2f%@"
+          }
+        }
+      }
+    },
+    "usage.metric.cost.today_format" : {
+      "comment" : "Today cost format",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Today: $%1$.2f%2$@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "今天：$%.2f%@"
+          }
+        }
+      }
+    },
+    "usage.metric.credits" : {
+      "comment" : "Credits",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Credits"
+          }
+        }
+      }
+    },
+    "usage.metric.plan" : {
+      "comment" : "Plan label",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Plan"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "套餐"
+          }
+        }
+      }
+    },
+    "usage.metric.resets_at" : {
+      "comment" : "Resets label",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Resets %@"
+          }
+        }
+      }
+    },
+    "usage.metric.session" : {
+      "comment" : "Session",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Session"
+          }
+        }
+      }
+    },
+    "usage.metric.third" : {
+      "comment" : "Other",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Other"
+          }
+        }
+      }
+    },
+    "usage.metric.tokens" : {
+      "comment" : "Token count",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%d tokens"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "%d tokens"
+          }
+        }
+      }
+    },
+    "usage.metric.tokens_k" : {
+      "comment" : "Token count in thousands",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%.0fK tokens"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "%.0fK tokens"
+          }
+        }
+      }
+    },
+    "usage.metric.tokens_m" : {
+      "comment" : "Token count in millions",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%.0fM tokens"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "%.0fM tokens"
+          }
+        }
+      }
+    },
+    "usage.metric.unknown" : {
+      "comment" : "Unknown",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Unknown"
+          }
+        }
+      }
+    },
+    "usage.metric.unlimited" : {
+      "comment" : "Unlimited",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Unlimited"
+          }
+        }
+      }
+    },
+    "usage.metric.weekly" : {
+      "comment" : "Weekly",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Weekly"
+          }
+        }
+      }
+    },
+    "usage.metric.window_minutes" : {
+      "comment" : "Window minutes",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Window %d min"
+          }
+        }
+      }
+    },
+    "usage.monitor.empty.desc" : {
+      "comment" : "Empty description",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "No provider data available yet."
+          }
+        }
+      }
+    },
+    "usage.monitor.empty.title" : {
+      "comment" : "Empty title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "No usage data"
+          }
+        }
+      }
+    },
+    "usage.monitor.error.title" : {
+      "comment" : "Error title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Failed to load usage"
+          }
+        }
+      }
+    },
+    "usage.monitor.login" : {
+      "comment" : "Sign in",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Sign in…"
+          }
+        }
+      }
+    },
+    "usage.monitor.refresh" : {
+      "comment" : "Refresh",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Refresh"
+          }
+        }
+      }
+    },
+    "usage.monitor.source_mode.api_token" : {
+      "comment" : "API token",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "API token"
+          }
+        }
+      }
+    },
+    "usage.monitor.source_mode.auto" : {
+      "comment" : "Auto",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Auto"
+          }
+        }
+      }
+    },
+    "usage.monitor.source_mode.cli" : {
+      "comment" : "CLI",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "CLI"
+          }
+        }
+      }
+    },
+    "usage.monitor.source_mode.local_probe" : {
+      "comment" : "Local probe",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Local probe"
+          }
+        }
+      }
+    },
+    "usage.monitor.source_mode.oauth" : {
+      "comment" : "OAuth",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "OAuth"
+          }
+        }
+      }
+    },
+    "usage.monitor.source_mode.web" : {
+      "comment" : "Web",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Web"
+          }
+        }
+      }
+    },
+    "usage.monitor.source_mode.web_dashboard" : {
+      "comment" : "Web dashboard",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Web dashboard"
+          }
+        }
+      }
+    },
+    "usage.monitor.unsupported.desc" : {
+      "comment" : "Unsupported\nUnsupported description",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Usage is not configured for this provider yet."
+          }
+        }
+      }
+    },
+    "usage.monitor.unsupported.title" : {
+      "comment" : "Unsupported title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Usage not supported"
+          }
+        }
+      }
+    },
+    "usage.source.api_token" : {
+      "comment" : "API token",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "API token"
+          }
+        }
+      }
+    },
+    "usage.source.cli" : {
+      "comment" : "CLI",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "CLI"
+          }
+        }
+      }
+    },
+    "usage.source.local_probe" : {
+      "comment" : "Local probe",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Local probe"
+          }
+        }
+      }
+    },
+    "usage.source.oauth" : {
+      "comment" : "OAuth",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "OAuth"
+          }
+        }
+      }
+    },
+    "usage.source.web" : {
+      "comment" : "Web",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Web"
+          }
+        }
+      }
+    },
+    "usage.source.web_dashboard" : {
+      "comment" : "Web dashboard",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Web dashboard"
+          }
+        }
+      }
+    },
+    "usage.strategy.direct" : {
+      "comment" : "Direct fetch",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Direct"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "直连"
+          }
+        }
+      }
+    },
+    "usage.strategy.fallback" : {
+      "comment" : "Fallback fetch",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Fallback"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "回退"
           }
         }
       }

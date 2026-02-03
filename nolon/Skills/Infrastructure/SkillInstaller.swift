@@ -2,6 +2,7 @@ import Foundation
 import STJSON
 import STFilePath
 import OSLog
+import ProviderCatalog
 
 /// Skill state in a provider directory
 public struct ProviderSkillState: Sendable {

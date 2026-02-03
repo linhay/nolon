@@ -3,6 +3,7 @@ import Observation
 import SwiftUI
 import os.log
 import STFilePath
+import ProviderCatalog
 
 @MainActor
 @Observable

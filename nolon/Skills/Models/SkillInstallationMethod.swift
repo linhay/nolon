@@ -1,0 +1,3 @@
+import ProviderCatalog
+
+public typealias SkillInstallationMethod = ProviderCatalog.SkillInstallationMethod

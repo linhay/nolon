@@ -1,21 +1,7 @@
 import Combine
 import Foundation
-import SwiftUI
 import STFilePath
-
-public enum SkillInstallationMethod: String, CaseIterable, Codable, Identifiable, Sendable {
-    case symlink
-    case copy
-
-    public var id: String { rawValue }
-
-    public var displayName: String {
-        switch self {
-        case .symlink: return NSLocalizedString("install_method.symlink", comment: "Symbolic Link")
-        case .copy: return NSLocalizedString("install_method.copy", comment: "Copy")
-        }
-    }
-}
+import ProviderCatalog
 
 @MainActor
 public class ProviderSettings: ObservableObject {
@@ -79,11 +65,26 @@ public class ProviderSettings: ObservableObject {
     }
 
     public func removeProvider(at offsets: IndexSet) {
-        providers.remove(atOffsets: offsets)
+        guard !offsets.isEmpty else { return }
+        providers = providers.enumerated().compactMap { index, provider in
+            offsets.contains(index) ? nil : provider
+        }
     }
 
     public func moveProvider(from source: IndexSet, to destination: Int) {
-        providers.move(fromOffsets: source, toOffset: destination)
+        guard !source.isEmpty else { return }
+        var updated = providers
+
+        let moving = source.sorted().map { updated[$0] }
+        for index in source.sorted(by: >) {
+            updated.remove(at: index)
+        }
+
+        let adjustedDestination = destination - source.filter { $0 < destination }.count
+        let clampedDestination = max(0, min(adjustedDestination, updated.count))
+        updated.insert(contentsOf: moving, at: clampedDestination)
+
+        providers = updated
     }
 
     // MARK: - Remote Repository Management

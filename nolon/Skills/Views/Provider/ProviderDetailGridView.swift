@@ -1,4 +1,5 @@
 import SwiftUI
+import ProviderCatalog
 import Observation
 
 /// Detail 区域 - Grid 布局显示 Skills 或 Workflows
@@ -110,12 +111,7 @@ struct ProviderDetailGridView: View {
                         mcpGrid
                     case .accounts:
                         if let provider = provider {
-                            CodexAccountsView(provider: provider)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                        }
-                    case .usage:
-                        if let provider = provider {
-                            CodexUsageView(provider: provider)
+                            ProviderUsageView(provider: provider)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                         }
                     case .none:
@@ -142,7 +138,7 @@ struct ProviderDetailGridView: View {
 	                viewModel.showingRemoteBrowser = .workflow
 	            case .mcp:
 	                viewModel.showingRemoteBrowser = .mcp
-	            case .accounts, .usage:
+	            case .accounts:
 	                break
 	            case .none:
 	                break

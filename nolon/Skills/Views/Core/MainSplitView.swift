@@ -1,4 +1,5 @@
 import SwiftUI
+import ProviderCatalog
 import Combine
 
 /// Main three-column split view for the app

@@ -1,4 +1,5 @@
 import SwiftUI
+import ProviderCatalog
 import AppKit
 
 /// 远程技能卡片视图 - Grid 布局中的卡片

@@ -1,4 +1,5 @@
 import SwiftUI
+import ProviderCatalog
 
 /// Remote MCP 详情视图
 struct RemoteMCPDetailView: View {

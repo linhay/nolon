@@ -7,9 +7,12 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		CD0CE0732F31085200141F5F /* ProviderCatalog in Frameworks */ = {isa = PBXBuildFile; productRef = CD0CE0722F31085200141F5F /* ProviderCatalog */; };
 		CD447BF32F1F79890056366B /* MarkdownUI in Frameworks */ = {isa = PBXBuildFile; productRef = CD447BF22F1F79890056366B /* MarkdownUI */; };
 		CD447BF62F1F79890056366B /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = CD447BF52F1F79890056366B /* Sparkle */; };
 		CD702B9F2F29FBC700E22535 /* TOML in Frameworks */ = {isa = PBXBuildFile; productRef = CD702B9E2F29FBC700E22535 /* TOML */; };
+		CD8C9B6A2F7A1C3E00A1B2C3 /* ProviderUsage in Frameworks */ = {isa = PBXBuildFile; productRef = CD8C9B692F7A1C3E00A1B2C3 /* ProviderUsage */; };
+		CD8C9B6C2F7A1C3E00A1B2C3 /* CodexBarProviderCatalog in Frameworks */ = {isa = PBXBuildFile; productRef = CD8C9B6B2F7A1C3E00A1B2C3 /* CodexBarProviderCatalog */; };
 		CD8D47612F2E606000428E7B /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = CD8D47602F2E606000428E7B /* GRDB */; };
 		CD9ECB202F21F6C0009248CB /* SwiftGit in Frameworks */ = {isa = PBXBuildFile; productRef = CD9ECB1F2F21F6C0009248CB /* SwiftGit */; };
 		CD9EDAC52F2320BC009248CB /* SwiftGit in Frameworks */ = {isa = PBXBuildFile; productRef = CD9EDAC42F2320BC009248CB /* SwiftGit */; };
@@ -51,6 +54,9 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				CD0CE0732F31085200141F5F /* ProviderCatalog in Frameworks */,
+				CD8C9B6C2F7A1C3E00A1B2C3 /* CodexBarProviderCatalog in Frameworks */,
+				CD8C9B6A2F7A1C3E00A1B2C3 /* ProviderUsage in Frameworks */,
 				CD8D47612F2E606000428E7B /* GRDB in Frameworks */,
 				CD9EDAC52F2320BC009248CB /* SwiftGit in Frameworks */,
 				CD447BF32F1F79890056366B /* MarkdownUI in Frameworks */,
@@ -111,6 +117,9 @@
 			);
 			name = nolon;
 			packageProductDependencies = (
+				CD0CE0722F31085200141F5F /* ProviderCatalog */,
+				CD8C9B6B2F7A1C3E00A1B2C3 /* CodexBarProviderCatalog */,
+				CD8C9B692F7A1C3E00A1B2C3 /* ProviderUsage */,
 				CD447BF22F1F79890056366B /* MarkdownUI */,
 				CD9ECB1F2F21F6C0009248CB /* SwiftGit */,
 				CD9EDAC42F2320BC009248CB /* SwiftGit */,
@@ -178,6 +187,7 @@
 			mainGroup = CD2B1A892F1F624900DF4A2B;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
+				CD0CE0712F31085200141F5F /* XCLocalSwiftPackageReference "libs/Providers" */,
 				CD447BF12F1F79890056366B /* XCRemoteSwiftPackageReference "swift-markdown-ui" */,
 				CD9EDAC32F2320BC009248CB /* XCRemoteSwiftPackageReference "swift-git" */,
 				CD9EDB722F23D2BE009248CB /* XCRemoteSwiftPackageReference "STJSON" */,
@@ -515,6 +525,13 @@
 		};
 /* End XCConfigurationList section */
 
+/* Begin XCLocalSwiftPackageReference section */
+		CD0CE0712F31085200141F5F /* XCLocalSwiftPackageReference "libs/Providers" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = libs/Providers;
+		};
+/* End XCLocalSwiftPackageReference section */
+
 /* Begin XCRemoteSwiftPackageReference section */
 		CD447BF12F1F79890056366B /* XCRemoteSwiftPackageReference "swift-markdown-ui" */ = {
 			isa = XCRemoteSwiftPackageReference;
@@ -534,7 +551,7 @@
 		};
 		CD702B9D2F29FBC700E22535 /* XCRemoteSwiftPackageReference "swift-toml" */ = {
 			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "git@github.com:alexey1312/swift-toml.git";
+			repositoryURL = "https://github.com/alexey1312/swift-toml.git";
 			requirement = {
 				branch = "feat/pure-c-bridge-v2";
 				kind = branch;
@@ -583,6 +600,11 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		CD0CE0722F31085200141F5F /* ProviderCatalog */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = CD0CE0712F31085200141F5F /* XCLocalSwiftPackageReference "libs/Providers" */;
+			productName = ProviderCatalog;
+		};
 		CD447BF22F1F79890056366B /* MarkdownUI */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = CD447BF12F1F79890056366B /* XCRemoteSwiftPackageReference "swift-markdown-ui" */;
@@ -597,6 +619,16 @@
 			isa = XCSwiftPackageProductDependency;
 			package = CD702B9D2F29FBC700E22535 /* XCRemoteSwiftPackageReference "swift-toml" */;
 			productName = TOML;
+		};
+		CD8C9B692F7A1C3E00A1B2C3 /* ProviderUsage */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = CD0CE0712F31085200141F5F /* XCLocalSwiftPackageReference "libs/Providers" */;
+			productName = ProviderUsage;
+		};
+		CD8C9B6B2F7A1C3E00A1B2C3 /* CodexBarProviderCatalog */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = CD0CE0712F31085200141F5F /* XCLocalSwiftPackageReference "libs/Providers" */;
+			productName = CodexBarProviderCatalog;
 		};
 		CD8D47602F2E606000428E7B /* GRDB */ = {
 			isa = XCSwiftPackageProductDependency;

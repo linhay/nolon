@@ -1,4 +1,5 @@
 import SwiftUI
+import ProviderCatalog
 
 /// 引导页 - Provider 选择页面
 struct OnboardingProviderSelectionView: View {

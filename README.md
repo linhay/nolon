@@ -58,6 +58,14 @@ We use a code-based color system located in `nolon/DesignSystem/AppColors.swift`
 
 ## 💻 Build and Run
 
+### Git Submodules
+
+This repo uses git submodules under `libs/`. Make sure to fetch them before building:
+
+```bash
+git submodule update --init --recursive
+```
+
 1.  Open `nolon.xcodeproj` in Xcode 16+.
 2.  Wait for Swift Package Manager to resolve dependencies (MarkdownUI).
 3.  Select the **nolon** scheme and **My Mac** as the destination.
@@ -89,4 +97,3 @@ This project is inspired by and references the following projects:
 *   **CodexSkillManager**: [https://github.com/Dimillian/CodexSkillManager](https://github.com/Dimillian/CodexSkillManager)
 *   **SkillsManager**: [https://github.com/tddworks/SkillsManager](https://github.com/tddworks/SkillsManager)
 *   **Clawdhub**: [https://clawdhub.com](https://clawdhub.com) - Remote skills repository
-

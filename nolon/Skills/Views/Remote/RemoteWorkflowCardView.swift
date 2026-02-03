@@ -1,4 +1,5 @@
 import SwiftUI
+import ProviderCatalog
 import AppKit
 
 /// 远程 Workflow 卡片视图 - Grid 布局中的卡片

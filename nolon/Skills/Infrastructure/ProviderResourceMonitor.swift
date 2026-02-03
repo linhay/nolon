@@ -1,5 +1,6 @@
 import Foundation
 @preconcurrency import STFilePath
+import ProviderCatalog
 
 /// Watches provider-related filesystem locations (skills/workflows/MCP config) and triggers a refresh on change.
 @MainActor
@@ -100,4 +101,3 @@ public final class ProviderResourceMonitor {
         return targets
     }
 }
-

@@ -1,4 +1,5 @@
 import SwiftUI
+import ProviderCatalog
 
 struct SkillInstallSheet: View {
     let providers: [Provider]

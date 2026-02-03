@@ -1,4 +1,5 @@
 import SwiftUI
+import ProviderCatalog
 
 /// Skill 卡片视图 - Grid 布局中的卡片
 struct SkillCardView: View {
