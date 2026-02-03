@@ -1,9 +1,19 @@
 #!/bin/bash
-# Create a GitHub release and upload DMG assets for both architectures
-# Usage: ./scripts/release.sh [version]
-# Example: ./scripts/release.sh 1.0.0
+# Create a GitHub release and upload DMG assets for both architectures.
+#
+# This script is designed to be resumable: it creates/updates the GitHub Release first,
+# then uploads assets one-by-one with retries, and finally publishes the release.
+#
+# Usage:
+#   ./scripts/release.sh [version]
+#   ./scripts/release.sh [version] [changelog_file]
+#
+# Optional env:
+#   SKIP_BUILD=1            Skip ./scripts/build-dmg.sh all
+#   UPLOAD_RETRIES=5        Retry count for each asset upload
+#   UPLOAD_SLEEP_BASE=5     Base sleep seconds between retries (exponential-ish)
 
-set -e
+set -euo pipefail
 
 # Colors
 RED='\033[0;31m'
@@ -69,8 +79,12 @@ sed -i '' "s/CURRENT_PROJECT_VERSION = [^;]*;/CURRENT_PROJECT_VERSION = ${BUILD_
 echo -e "${GREEN}✅ Version updated: ${VERSION} (build ${BUILD_NUMBER})${NC}"
 
 # Build DMGs for both architectures
-echo -e "${YELLOW}📦 Building DMGs for all architectures...${NC}"
-./scripts/build-dmg.sh all
+if [ "${SKIP_BUILD:-0}" = "1" ]; then
+    echo -e "${YELLOW}⏭️  SKIP_BUILD=1, skip building DMGs.${NC}"
+else
+    echo -e "${YELLOW}📦 Building DMGs for all architectures...${NC}"
+    ./scripts/build-dmg.sh all
+fi
 
 # ------------------------------------------------------------------------------
 # Sparkle Integration
@@ -285,17 +299,57 @@ git tag -a "${TAG}" -m "${APP_NAME} ${VERSION}"
 git push origin HEAD
 git push origin "${TAG}"
 
-echo -e "${YELLOW}🚀 Creating release ${TAG}...${NC}"
+echo -e "${YELLOW}🚀 Preparing GitHub release ${TAG}...${NC}"
 
+RELEASE_TITLE="${APP_NAME} ${VERSION}"
 
-# Create release and upload both DMGs
-gh release create "$TAG" \
-    --title "${APP_NAME} ${VERSION}" \
-    --notes "$RELEASE_NOTES" \
-    "$DMG_ARM64" \
-    "$DMG_X86_64"
+# Create or update the Release (draft) first; uploads happen separately to avoid "stuck" large uploads.
+if gh release view "$TAG" >/dev/null 2>&1; then
+    echo -e "${YELLOW}🧩 Release exists; updating title/notes and keeping draft for uploads...${NC}"
+    gh release edit "$TAG" \
+        --title "${RELEASE_TITLE}" \
+        --notes "$RELEASE_NOTES" \
+        --draft
+else
+    echo -e "${YELLOW}🆕 Creating draft release ${TAG} (upload assets next)...${NC}"
+    gh release create "$TAG" \
+        --title "${RELEASE_TITLE}" \
+        --notes "$RELEASE_NOTES" \
+        --draft
+fi
 
-echo -e "${GREEN}✅ Release ${TAG} created successfully!${NC}"
+UPLOAD_RETRIES="${UPLOAD_RETRIES:-5}"
+UPLOAD_SLEEP_BASE="${UPLOAD_SLEEP_BASE:-5}"
+
+upload_asset() {
+    local file="$1"
+    local attempt=1
+    while true; do
+        echo -e "${YELLOW}⬆️  Uploading $(basename "$file") (attempt ${attempt}/${UPLOAD_RETRIES})...${NC}"
+        if gh release upload "$TAG" "$file" --clobber; then
+            echo -e "${GREEN}✅ Uploaded $(basename "$file")${NC}"
+            return 0
+        fi
+
+        if [ "$attempt" -ge "$UPLOAD_RETRIES" ]; then
+            echo -e "${RED}❌ Failed to upload $(basename "$file") after ${UPLOAD_RETRIES} attempts.${NC}"
+            return 1
+        fi
+
+        local sleep_s=$((UPLOAD_SLEEP_BASE * attempt))
+        echo -e "${YELLOW}⏳ Upload failed; retry in ${sleep_s}s...${NC}"
+        sleep "$sleep_s"
+        attempt=$((attempt + 1))
+    done
+}
+
+upload_asset "$DMG_ARM64"
+upload_asset "$DMG_X86_64"
+
+echo -e "${YELLOW}✅ Assets uploaded. Publishing release ${TAG}...${NC}"
+gh release edit "$TAG" --draft=false --latest
+
+echo -e "${GREEN}✅ Release ${TAG} published successfully!${NC}"
 echo -e "${GREEN}📍 View at: $(gh repo view --json url -q .url)/releases/tag/${TAG}${NC}"
 
 # Enable GitHub Pages if not already enabled
