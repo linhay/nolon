@@ -47,6 +47,14 @@ if ! gh auth status &> /dev/null; then
     exit 1
 fi
 
+# Ensure working tree is clean before starting.
+if ! git diff --quiet || ! git diff --cached --quiet; then
+    echo -e "${RED}❌ Working tree is not clean.${NC}"
+    echo -e "${YELLOW}Commit or stash changes first, then re-run:${NC} ./scripts/release.sh ${VERSION}${NC}"
+    git status --porcelain=v1 || true
+    exit 1
+fi
+
 # Update version in Xcode project
 echo -e "${YELLOW}📝 Updating version to ${VERSION}...${NC}"
 PROJECT_FILE="nolon.xcodeproj/project.pbxproj"
@@ -245,12 +253,6 @@ rm new_item.xml
 
 echo -e "${GREEN}✅ Appcast updated at ${APPCAST_FILE}${NC}"
 
-# Commit and Push Appcast
-echo -e "${YELLOW}GIT committing appcast...${NC}"
-git add "$APPCAST_FILE"
-git commit -m "Update appcast for ${VERSION}"
-git push origin HEAD
-
 # ------------------------------------------------------------------------------
 # End Sparkle Integration
 # ------------------------------------------------------------------------------
@@ -265,6 +267,23 @@ if [ ! -f "$DMG_X86_64" ]; then
     echo -e "${RED}❌ x86_64 DMG not found: ${DMG_X86_64}${NC}"
     exit 1
 fi
+
+if git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then
+    echo -e "${RED}❌ Tag already exists: ${TAG}${NC}"
+    exit 1
+fi
+
+echo -e "${YELLOW}GIT committing version + appcast...${NC}"
+git add "$PROJECT_FILE" "$APPCAST_FILE"
+
+if [ -f "docs/RELEASE_NOTES_${VERSION}.md" ]; then
+    git add "docs/RELEASE_NOTES_${VERSION}.md"
+fi
+
+git commit -m "chore(release): ${TAG}"
+git tag -a "${TAG}" -m "${APP_NAME} ${VERSION}"
+git push origin HEAD
+git push origin "${TAG}"
 
 echo -e "${YELLOW}🚀 Creating release ${TAG}...${NC}"
 
