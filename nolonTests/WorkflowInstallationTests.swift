@@ -1,5 +1,6 @@
 import XCTest
 import STJSON
+import ProviderCatalog
 @testable import nolon
 
 @MainActor
@@ -35,6 +36,26 @@ final class WorkflowInstallationTests: XCTestCase {
         
         let attributes = try fixture.fileManager.attributesOfItem(atPath: workflowPath)
         XCTAssertEqual(attributes[.type] as? FileAttributeType, .typeSymbolicLink)
+    }
+
+    func testBDD_GivenSkill_WhenInstallWorkflow_ThenProviderLinkTargetsGlobalWorkflow() throws {
+        // Given
+        let sourceURL = try fixture.createSampleSkill(id: "workflow-link", name: "Workflow Link")
+        let skill = try repository.importSkill(from: sourceURL)
+        let provider = fixture.createProvider(name: "Cursor", method: .symlink)
+
+        // When
+        try installer.installWorkflow(skill: skill, to: provider)
+
+        // Then
+        let providerWorkflowPath = "\(provider.workflowPath)/\(skill.id).md"
+        XCTAssertTrue(fixture.fileManager.fileExists(atPath: providerWorkflowPath))
+
+        let attributes = try fixture.fileManager.attributesOfItem(atPath: providerWorkflowPath)
+        XCTAssertEqual(attributes[.type] as? FileAttributeType, .typeSymbolicLink)
+
+        let destination = try fixture.fileManager.destinationOfSymbolicLink(atPath: providerWorkflowPath)
+        XCTAssertEqual(destination, "\(fixture.nolonManager.generatedWorkflowsPath)/\(skill.id).md")
     }
     
     func testUninstallWorkflow() throws {

@@ -26,8 +26,8 @@ struct SkillCardView: View {
                 .padding(16)
                 .frame(maxWidth: .infinity, alignment: .topLeading)
                 .frame(minHeight: 140)
-                .background(Color.secondary.opacity(0.08))
-                .cornerRadius(12)
+                .background(DesignSystem.Colors.Component.controlFillSubtle)
+                .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusL, style: .continuous))
                 .contentShape(Rectangle())
                 .onTapGesture { onTap() }
                 .contextMenu { contextMenuItems }
@@ -79,7 +79,7 @@ struct SkillCardView: View {
     private var descriptionView: some View {
         HighlightedText(text: skill.description, query: searchText)
             .font(.caption)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(DesignSystem.Colors.Text.secondary)
             .lineLimit(3)
             .frame(maxHeight: .infinity)
     }
@@ -99,9 +99,9 @@ struct SkillCardView: View {
                     .fontWeight(.semibold)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 6)
-                    .background(Color.blue.opacity(0.1))
-                    .foregroundStyle(.blue)
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .background(DesignSystem.Colors.primary.opacity(0.10))
+                    .foregroundStyle(DesignSystem.Colors.primary)
+                    .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusM, style: .continuous))
                 }
                 .buttonStyle(.plain)
 
@@ -120,9 +120,9 @@ struct SkillCardView: View {
                     .fontWeight(.semibold)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 6)
-                    .background(Color.secondary.opacity(0.12))
-                    .foregroundStyle(.secondary)
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .background(DesignSystem.Colors.Component.controlFill)
+                    .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                    .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusM, style: .continuous))
                 }
                 .buttonStyle(.plain)
 
@@ -136,7 +136,7 @@ struct SkillCardView: View {
                 }
             }
             .font(.caption2)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(DesignSystem.Colors.Text.secondary)
         }
     }
     
@@ -216,7 +216,7 @@ struct SkillCardView: View {
         } label: {
             Image(systemName: "ellipsis")
                 .font(.body)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(DesignSystem.Colors.Text.secondary)
                 .frame(width: 24, height: 24)
                 .contentShape(Rectangle())
         }

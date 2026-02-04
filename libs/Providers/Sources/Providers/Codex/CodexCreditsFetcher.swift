@@ -27,7 +27,7 @@ public actor CodexCreditsFetcher {
     /// Fetch credits via Codex RPC interface
     private func fetchRPCCredits() async throws -> CreditsSnapshot {
         let binaryPath = self.resolveCodexBinary()
-        let rpc = try CodexRPCClient(executable: binaryPath)
+        let rpc = try CodexRPCClient(executable: binaryPath, environment: environment)
         defer { rpc.shutdown() }
 
         try await rpc.initialize(clientName: "codexhelper", clientVersion: "1.0.0")

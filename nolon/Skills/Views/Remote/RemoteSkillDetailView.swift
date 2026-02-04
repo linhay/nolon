@@ -23,7 +23,7 @@ struct RemoteSkillDetailView: View {
                     if let summary = skill.summary {
                         Text(summary)
                             .font(.title3)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(DesignSystem.Colors.Text.secondary)
                     }
 
                     HStack(spacing: 16) {
@@ -41,12 +41,12 @@ struct RemoteSkillDetailView: View {
                         }
                     }
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(DesignSystem.Colors.Text.secondary)
                 }
                 .padding()
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color.secondary.opacity(0.1))
-                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .background(DesignSystem.Colors.Component.controlFill)
+                .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusL, style: .continuous))
 
                 // Content (Placeholder for README)
                 // In a real app we would load the README from ClawdhubRepository (remote API)
@@ -61,13 +61,13 @@ struct RemoteSkillDetailView: View {
                         Markdown(changelog)
                     } else {
                         Text("No detailed description available.")
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(DesignSystem.Colors.Text.secondary)
                     }
                 }
                 .padding()
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color.secondary.opacity(0.1))
-                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .background(DesignSystem.Colors.Component.controlFill)
+                .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusL, style: .continuous))
 
             }
             .padding()

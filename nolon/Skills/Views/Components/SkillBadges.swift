@@ -8,9 +8,9 @@ struct SkillVersionBadge: View {
             .font(.caption2)
             .padding(.horizontal, 6)
             .padding(.vertical, 2)
-            .background(Color.secondary.opacity(0.1))
-            .cornerRadius(4)
-            .foregroundStyle(.primary)
+            .background(DesignSystem.Colors.Component.controlFillSubtle)
+            .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusXS, style: .continuous))
+            .foregroundStyle(DesignSystem.Colors.Text.primary)
     }
 }
 
@@ -18,11 +18,11 @@ struct SkillInstalledBadge: View {
     var body: some View {
         Text("Installed")
             .font(.caption2)
-            .foregroundStyle(.white)
+            .foregroundStyle(DesignSystem.Colors.Text.onAccent)
             .padding(.horizontal, 6)
             .padding(.vertical, 2)
-            .background(Color.green)
-            .cornerRadius(4)
+            .background(DesignSystem.Colors.Status.success)
+            .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusXS, style: .continuous))
     }
 }
 
@@ -30,11 +30,11 @@ struct SkillOrphanedBadge: View {
     var body: some View {
         Text(NSLocalizedString("skill.orphaned", value: "Needs Migration", comment: "Orphaned skill badge"))
             .font(.caption2)
-            .foregroundStyle(.white)
+            .foregroundStyle(DesignSystem.Colors.Text.onAccent)
             .padding(.horizontal, 6)
             .padding(.vertical, 2)
-            .background(Color.orange)
-            .cornerRadius(4)
+            .background(DesignSystem.Colors.Status.warning)
+            .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusXS, style: .continuous))
     }
 }
 

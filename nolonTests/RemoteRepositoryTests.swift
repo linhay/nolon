@@ -26,7 +26,7 @@ final class RemoteRepositoryTests: XCTestCase {
     
     func testNormalizeGitURL_FullHTTPSURL() {
         let url = "https://github.com/owner/repo"
-        XCTAssertEqual(RemoteRepository.normalizeGitURL(url), url)
+        XCTAssertEqual(RemoteRepository.normalizeGitURL(url), "https://github.com/owner/repo.git")
         
         let urlWithGit = "https://github.com/owner/repo.git"
         XCTAssertEqual(RemoteRepository.normalizeGitURL(urlWithGit), urlWithGit)
@@ -39,7 +39,7 @@ final class RemoteRepositoryTests: XCTestCase {
     
     func testNormalizeGitURL_GitLabURL() {
         let gitlab = "https://gitlab.com/owner/repo"
-        XCTAssertEqual(RemoteRepository.normalizeGitURL(gitlab), gitlab)
+        XCTAssertEqual(RemoteRepository.normalizeGitURL(gitlab), "https://gitlab.com/owner/repo.git")
     }
     
     func testNormalizeGitURL_LocalPath() {

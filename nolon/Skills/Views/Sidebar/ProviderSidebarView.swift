@@ -31,6 +31,34 @@ final class ProviderSidebarViewModel {
     func moveProviders(from source: IndexSet, to destination: Int) {
         settings.moveProvider(from: source, to: destination)
     }
+
+    @MainActor
+    func moveVendorProviders(from source: IndexSet, to destination: Int) {
+        moveProviders(in: \.kind, matching: .vendor, from: source, to: destination)
+    }
+
+    @MainActor
+    private func moveProviders<Value: Equatable>(
+        in keyPath: KeyPath<Provider, Value>,
+        matching value: Value,
+        from source: IndexSet,
+        to destination: Int
+    ) {
+        guard !source.isEmpty else { return }
+
+        let allProviders = settings.providers
+        let matchingIndices = allProviders.indices.filter { allProviders[$0][keyPath: keyPath] == value }
+        var matchingProviders = matchingIndices.map { allProviders[$0] }
+
+        matchingProviders.move(fromOffsets: source, toOffset: destination)
+
+        var updatedProviders = allProviders
+        for (offset, index) in matchingIndices.enumerated() {
+            updatedProviders[index] = matchingProviders[offset]
+        }
+
+        settings.providers = updatedProviders
+    }
     
     @MainActor
     func selectFirstProviderIfNone(selection: Binding<Provider.ID?>) {
@@ -96,6 +124,9 @@ public struct ProviderSidebarView: View {
                             }
                         )
                         viewModel.deleteProviders(at: originalIndices)
+                    }
+                    .onMove { source, destination in
+                        viewModel.moveVendorProviders(from: source, to: destination)
                     }
                 } header: {
                     Text(NSLocalizedString("sidebar.providers.vendors", value: "Vendors", comment: "Vendor providers section"))

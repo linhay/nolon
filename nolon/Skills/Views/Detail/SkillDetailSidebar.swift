@@ -13,23 +13,23 @@ struct SkillDetailSidebar: View {
                         .fill(
                             LinearGradient(
                                 colors: [
-                                    Color.accentColor,
-                                    Color.accentColor.opacity(0.7)
+                                    DesignSystem.Colors.primary,
+                                    DesignSystem.Colors.primary.opacity(0.7)
                                 ],
                                 startPoint: .topLeading,
                                 endPoint: .bottomTrailing
                             )
                         )
-                        .shadow(color: Color.accentColor.opacity(0.3), radius: 8, x: 0, y: 4)
+                        .shadow(color: DesignSystem.Colors.primary.opacity(0.3), radius: 8, x: 0, y: 4)
                         .overlay(
                             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                .stroke(.white.opacity(0.2), lineWidth: 1)
+                                .stroke(DesignSystem.Colors.Component.border.opacity(0.25), lineWidth: 1)
                         )
                     
                     Text(viewModel.skill.name.prefix(1).uppercased())
                         .font(.system(size: 24, weight: .bold, design: .rounded))
-                        .foregroundStyle(.white)
-                        .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1)
+                        .foregroundStyle(DesignSystem.Colors.Text.onAccent)
+                        .shadow(color: DesignSystem.Colors.Shadow.floating.opacity(0.5), radius: 2, x: 0, y: 1)
                 }
                 .frame(width: 56, height: 56)
                 
@@ -45,13 +45,13 @@ struct SkillDetailSidebar: View {
                         Text("v" + viewModel.skill.version)
                             .font(.system(.caption2, design: .monospaced))
                             .fontWeight(.semibold)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(DesignSystem.Colors.Text.secondary)
                             .padding(.horizontal, 8)
                             .padding(.vertical, 3)
                             .background(
                                 Capsule()
                                     .fill(.ultraThinMaterial)
-                                    .stroke(Color.secondary.opacity(0.1), lineWidth: 0.5)
+                                    .stroke(DesignSystem.Colors.Component.border.opacity(0.20), lineWidth: 0.5)
                             )
                         
                         Spacer()

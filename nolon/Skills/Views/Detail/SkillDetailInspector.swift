@@ -59,7 +59,7 @@ struct SkillDetailInspector: View {
                                         
                                         if isInstalled {
                                             Image(systemName: "checkmark.circle.fill")
-                                                .foregroundStyle(.green)
+                                                .foregroundStyle(DesignSystem.Colors.Status.success)
                                         }
                                     }
                                     .padding(8)
@@ -67,7 +67,7 @@ struct SkillDetailInspector: View {
                                     .cornerRadius(8)
                                     .overlay(
                                         RoundedRectangle(cornerRadius: 8)
-                                            .stroke(isInstalled ? Color.accentColor.opacity(0.3) : Color.clear, lineWidth: 1)
+                                            .stroke(isInstalled ? DesignSystem.Colors.primary.opacity(0.30) : Color.clear, lineWidth: 1)
                                     )
                                 }
                                 .buttonStyle(.plain)
@@ -88,11 +88,11 @@ struct SkillDetailInspector: View {
                                         // Background
                                         RoundedRectangle(cornerRadius: 14, style: .continuous)
                                             .fill(Color(NSColor.controlBackgroundColor))
-                                            .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1)
+                                            .shadow(color: DesignSystem.Colors.Shadow.floating.opacity(0.5), radius: 2, x: 0, y: 1)
                                             .frame(width: 50, height: 50)
                                             .overlay(
                                                 RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                                    .stroke(isInstalled ? Color.accentColor : Color.secondary.opacity(0.1), lineWidth: isInstalled ? 2 : 1)
+                                                    .stroke(isInstalled ? DesignSystem.Colors.primary : DesignSystem.Colors.Component.border.opacity(0.20), lineWidth: isInstalled ? 2 : 1)
                                             )
                                         
                                         // Icon

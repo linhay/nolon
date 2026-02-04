@@ -311,6 +311,12 @@ final class CodexRPCClient: @unchecked Sendable {
             return url.path
         }
 
+        var envWithLoginPATH = environment
+        envWithLoginPATH["PATH"] = Self.effectivePATH(env: environment)
+        if let url = SKProcessRunner.resolveExecutableInPath(named: executable, environment: envWithLoginPATH) {
+            return url.path
+        }
+
         if let url = SKProcessRunner.resolveExecutableInUserShellSync(named: executable, environment: environment) {
             return url.path
         }
@@ -326,6 +332,9 @@ final class CodexRPCClient: @unchecked Sendable {
             return candidate
         }
 
+        if let resolved = TTYCommandRunner.which(executable, env: envWithLoginPATH) {
+            return resolved
+        }
         return TTYCommandRunner.which(executable, env: environment)
     }
 }

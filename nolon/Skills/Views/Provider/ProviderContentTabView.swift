@@ -23,6 +23,7 @@ enum ProviderContentTabType: String, CaseIterable, Identifiable {
     case workflows = "Workflows"
     case mcp = "MCP"
     case accounts = "Accounts"
+    case usage = "Usage"
     
     var id: String { rawValue }
     
@@ -32,6 +33,7 @@ enum ProviderContentTabType: String, CaseIterable, Identifiable {
         case .workflows: return "arrow.triangle.branch"
         case .mcp: return "server.rack"
         case .accounts: return "person.2"
+        case .usage: return "chart.bar.xaxis"
         }
     }
     
@@ -41,6 +43,7 @@ enum ProviderContentTabType: String, CaseIterable, Identifiable {
         case .workflows: return NSLocalizedString("tab.workflows", comment: "Workflows")
         case .mcp: return NSLocalizedString("tab.mcp", comment: "MCP Server")
         case .accounts: return NSLocalizedString("tab.accounts", value: "Accounts", comment: "Accounts")
+        case .usage: return NSLocalizedString("tab.usage", value: "Usage", comment: "Usage")
         }
     }
 
@@ -70,6 +73,8 @@ extension ProviderContentTabType {
         switch vendorTabId.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
         case "accounts":
             self = .accounts
+        case "usage":
+            self = .usage
         default:
             return nil
         }
@@ -97,6 +102,7 @@ final class ProviderContentTabViewModel {
         case .workflows: return workflowsCount
         case .mcp: return mcpCount
         case .accounts: return 0
+        case .usage: return 0
         }
     }
     
