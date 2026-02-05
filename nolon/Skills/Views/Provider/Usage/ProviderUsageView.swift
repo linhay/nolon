@@ -1543,56 +1543,94 @@ struct ProviderUsageView: View {
                 .tint(DesignSystem.Colors.primary)
                 .controlSize(.small)
 
-            if let resetText = codexResetText(window) {
-                Text(resetText)
-                    .font(.caption)
-                    .foregroundStyle(DesignSystem.Colors.Text.tertiary)
-                    .lineLimit(1)
+            let periodText = codexWindowPeriodText(window.windowMinutes)
+            let countdownText = codexResetCountdownText(resetsAt: window.resetsAt)
+            if periodText != nil || countdownText != nil {
+                HStack(spacing: 8) {
+                    if let periodText {
+                        Text(periodText)
+                    }
+
+                    Spacer()
+
+                    if let countdownText {
+                        Text(countdownText)
+                    }
+                }
+                .font(.caption)
+                .foregroundStyle(DesignSystem.Colors.Text.tertiary)
+                .lineLimit(1)
             }
         }
     }
 
-    private func codexResetText(_ window: RateWindow) -> String? {
-        if let resetDescription = window.resetDescription, !resetDescription.isEmpty {
-            return resetDescription
-        }
-        if let resetsAt = window.resetsAt {
-            if let countdown = codexResetCountdownText(resetsAt: resetsAt) {
-                return String(
-                    format: NSLocalizedString(
-                        "usage.metric.resets_in",
-                        value: "Resets in %@",
-                        comment: "Resets countdown label"
-                    ),
-                    countdown
-                )
-            }
-            if resetsAt <= Date() {
-                return NSLocalizedString("usage.metric.resets_now", value: "Resets now", comment: "Resets now label")
-            }
-            return String(
-                format: NSLocalizedString("usage.metric.resets_at", value: "Resets %@", comment: "Resets label"),
-                resetsAt.formatted(date: .abbreviated, time: .shortened)
-            )
-        }
-        if let minutes = window.windowMinutes {
-            return String(
-                format: NSLocalizedString("usage.metric.window_minutes", value: "Window %d min", comment: "Window minutes"),
-                minutes
-            )
-        }
-        return nil
-    }
-
-    private func codexResetCountdownText(resetsAt: Date) -> String? {
+    private func codexResetCountdownText(resetsAt: Date?) -> String? {
+        guard let resetsAt else { return nil }
         let remaining = max(0, resetsAt.timeIntervalSinceNow)
         if remaining <= 0 { return nil }
-        let formatter = DateComponentsFormatter()
-        formatter.allowedUnits = [.day, .hour, .minute]
-        formatter.unitsStyle = .abbreviated
-        formatter.maximumUnitCount = 2
-        formatter.zeroFormattingBehavior = [.dropLeading, .dropTrailing]
-        return formatter.string(from: remaining)
+        let seconds = Int(remaining.rounded(.down))
+        let minutes = max(0, seconds / 60)
+        let days = minutes / (60 * 24)
+        let hours = (minutes % (60 * 24)) / 60
+        let mins = minutes % 60
+
+        let isChinese = isChineseLocale
+        let dayUnit = isChinese ? "天" : "d"
+        let hourUnit = isChinese ? "小时" : "h"
+        let minuteUnit = isChinese ? "分钟" : "m"
+
+        var parts: [String] = []
+        if days > 0 { parts.append("\(days)\(dayUnit)") }
+        if hours > 0 { parts.append("\(hours)\(hourUnit)") }
+        if parts.isEmpty, mins > 0 { parts.append("\(mins)\(minuteUnit)") }
+        if parts.count < 2, mins > 0, days == 0, hours > 0 {
+            parts.append("\(mins)\(minuteUnit)")
+        }
+        let countdown = parts.joined()
+        if countdown.isEmpty { return nil }
+
+        return String(
+            format: NSLocalizedString(
+                "usage.metric.resets_in_compact",
+                value: "resets in %@",
+                comment: "Compact resets countdown label"
+            ),
+            countdown
+        )
+    }
+
+    private func codexWindowPeriodText(_ windowMinutes: Int?) -> String? {
+        guard let windowMinutes, windowMinutes > 0 else { return nil }
+
+        let weekMinutes = 60 * 24 * 7
+        let dayMinutes = 60 * 24
+        let isChinese = isChineseLocale
+
+        if windowMinutes % weekMinutes == 0 {
+            let value = windowMinutes / weekMinutes
+            return isChinese ? "\(value)周" : "\(value)w"
+        }
+        if windowMinutes % dayMinutes == 0 {
+            let value = windowMinutes / dayMinutes
+            return isChinese ? "\(value)天" : "\(value)d"
+        }
+        if windowMinutes % 60 == 0 {
+            let value = windowMinutes / 60
+            return isChinese ? "\(value)小时" : "\(value)h"
+        }
+        return isChinese ? "\(windowMinutes)分钟" : "\(windowMinutes)m"
+    }
+
+    private var isChineseLocale: Bool {
+        if #available(macOS 13.0, *) {
+            if let code = Locale.current.language.languageCode?.identifier {
+                return code.hasPrefix("zh")
+            }
+        }
+        if let code = Locale.current.languageCode {
+            return code.hasPrefix("zh")
+        }
+        return Locale.current.identifier.hasPrefix("zh")
     }
 
     private func codexCreditsText(_ value: Double) -> String {

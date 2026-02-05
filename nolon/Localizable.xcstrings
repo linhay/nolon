@@ -5665,6 +5665,24 @@
         }
       }
     },
+    "usage.metric.resets_in_compact" : {
+      "comment" : "Compact resets countdown label",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "resets in %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "重置于 %@"
+          }
+        }
+      }
+    },
     "usage.metric.resets_now" : {
       "comment" : "Resets now label",
       "extractionState" : "extracted_with_value",
