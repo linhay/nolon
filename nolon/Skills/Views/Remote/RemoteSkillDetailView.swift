@@ -1,6 +1,7 @@
 import SwiftUI
 import ProviderCatalog
 import MarkdownUI
+import STFilePath
 
 struct RemoteSkillDetailView: View {
     let skill: RemoteSkill
@@ -12,77 +13,60 @@ struct RemoteSkillDetailView: View {
     @State private var showingInstallSheet = false
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                // Header
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(skill.displayName)
-                        .font(.title)
-                        .bold()
+        Group {
+            if let localPath = resolvedLocalPath {
+                VStack(alignment: .leading, spacing: 16) {
+                    headerView(isLocalAvailable: true)
 
-                    if let summary = skill.summary {
-                        Text(summary)
-                            .font(.title3)
-                            .foregroundStyle(DesignSystem.Colors.Text.secondary)
-                    }
-
-                    HStack(spacing: 16) {
-                        if let stars = skill.stats?.stars {
-                            Label("\(stars) Stars", systemImage: "star.fill")
-                                .foregroundStyle(.yellow)
-                                .accessibilityLabel("\(stars) stars")
-                        }
-                        if let downloads = skill.stats?.downloads {
-                            Label("\(downloads) Downloads", systemImage: "arrow.down.circle")
-                                .accessibilityLabel("\(downloads) downloads")
-                        }
-                        if let version = skill.latestVersion?.version {
-                            SkillVersionBadge(version: version)
-                        }
-                    }
-                    .font(.subheadline)
-                    .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                    RemoteLocalSkillDetailView(skill: skill, localPath: localPath)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
                 .padding()
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(DesignSystem.Colors.Component.controlFill)
-                .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusL, style: .continuous))
+            } else {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 20) {
+                        headerView(isLocalAvailable: false)
 
-                // Content (Placeholder for README)
-                // In a real app we would load the README from ClawdhubRepository (remote API)
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("About this skill")
-                        .font(.headline)
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text(NSLocalizedString("About this skill", comment: "About this skill"))
+                                .font(.headline)
 
-                    if let changelog = skill.latestVersion?.changelog {
-                        Text("Latest Changes")
-                            .font(.subheadline)
-                            .bold()
-                        Markdown(changelog)
-                    } else {
-                        Text("No detailed description available.")
-                            .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                            if let changelog = skill.latestVersion?.changelog {
+                                Text(NSLocalizedString("Latest Changes", comment: "Latest changes"))
+                                    .font(.subheadline)
+                                    .bold()
+                                Markdown(changelog)
+                            } else {
+                                Text(NSLocalizedString("No detailed description available.", comment: "No description"))
+                                    .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                            }
+                        }
+                        .padding()
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(DesignSystem.Colors.Component.controlFill)
+                        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusL, style: .continuous))
                     }
+                    .padding()
+                    .textSelection(.enabled)
                 }
-                .padding()
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(DesignSystem.Colors.Component.controlFill)
-                .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusL, style: .continuous))
-
             }
-            .padding()
-            .textSelection(.enabled)
         }
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 if let target = targetProvider {
                     Button(action: { onInstall(target) }) {
-                        Label("Install to \(target.name)", systemImage: "square.and.arrow.down")
+                        Label(
+                            String(
+                                format: NSLocalizedString("Install to %@", comment: "Install to provider"),
+                                target.name
+                            ),
+                            systemImage: "square.and.arrow.down"
+                        )
                     }
                     .disabled(isInstalled)
                 } else {
                     Button(action: { showingInstallSheet = true }) {
-                        Label("Install", systemImage: "square.and.arrow.down")
+                        Label(NSLocalizedString("Install", comment: "Install"), systemImage: "square.and.arrow.down")
                     }
                     .disabled(isInstalled)
                 }
@@ -93,5 +77,77 @@ struct RemoteSkillDetailView: View {
                 onInstall(provider)
             }
         }
+    }
+
+    private var resolvedLocalPath: String? {
+        guard let path = skill.localPath, STPath(path).isExists else { return nil }
+        let skillMdPath = (path as NSString).appendingPathComponent("SKILL.md")
+        guard STFile(skillMdPath).isExists else { return nil }
+        return path
+    }
+
+    private func headerView(isLocalAvailable: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                Text(skill.displayName)
+                    .font(.title2)
+                    .bold()
+                    .foregroundStyle(DesignSystem.Colors.Text.primary)
+
+                if isLocalAvailable {
+                    Text(NSLocalizedString("remote.detail.local_badge", comment: "Local badge"))
+                        .font(.caption2)
+                        .foregroundStyle(DesignSystem.Colors.Status.success)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(DesignSystem.Colors.Status.success.opacity(0.15))
+                        .clipShape(Capsule())
+                }
+
+                Spacer()
+            }
+
+            if let summary = skill.summary {
+                Text(summary)
+                    .font(.title3)
+                    .foregroundStyle(DesignSystem.Colors.Text.secondary)
+            }
+
+            HStack(spacing: 16) {
+                if let stars = skill.stats?.stars {
+                    Label {
+                        Text(String(format: NSLocalizedString("%lld Stars", comment: "Star count"), Int64(stars)))
+                    } icon: {
+                        Image(systemName: "star.fill")
+                            .foregroundStyle(DesignSystem.Colors.Status.warning)
+                    }
+                    .accessibilityLabel(String(format: NSLocalizedString("%lld Stars", comment: "Star count"), Int64(stars)))
+                }
+                if let downloads = skill.stats?.downloads {
+                    Label {
+                        Text(String(format: NSLocalizedString("%lld Downloads", comment: "Download count"), Int64(downloads)))
+                    } icon: {
+                        Image(systemName: "arrow.down.circle")
+                            .foregroundStyle(DesignSystem.Colors.Status.info)
+                    }
+                    .accessibilityLabel(String(format: NSLocalizedString("%lld Downloads", comment: "Download count"), Int64(downloads)))
+                }
+                if let version = skill.latestVersion?.version {
+                    Text(String(format: NSLocalizedString("v%@", comment: "Version badge"), version))
+                        .font(.caption2)
+                        .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(DesignSystem.Colors.Component.controlFillSubtle)
+                        .clipShape(Capsule())
+                }
+            }
+            .font(.subheadline)
+            .foregroundStyle(DesignSystem.Colors.Text.secondary)
+        }
+        .padding()
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(DesignSystem.Colors.Component.controlFill)
+        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusL, style: .continuous))
     }
 }
