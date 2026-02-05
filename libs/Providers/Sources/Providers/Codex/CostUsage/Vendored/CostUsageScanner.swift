@@ -1,33 +1,22 @@
 import Foundation
 import CodexBarProviderCatalog
+import ProvidersShared
 
 enum CostUsageScanner {
-    enum ClaudeLogProviderFilter: Sendable {
-        case all
-        case vertexAIOnly
-        case excludeVertexAI
-    }
-
     struct Options: Sendable {
         var codexSessionsRoot: URL?
-        var claudeProjectsRoots: [URL]?
         var cacheRoot: URL?
         var refreshMinIntervalSeconds: TimeInterval = 60
-        var claudeLogProviderFilter: ClaudeLogProviderFilter = .all
         // Force a full rescan, ignoring per-file cache and incremental offsets.
         var forceRescan: Bool = false
 
         init(
             codexSessionsRoot: URL? = nil,
-            claudeProjectsRoots: [URL]? = nil,
             cacheRoot: URL? = nil,
-            claudeLogProviderFilter: ClaudeLogProviderFilter = .all,
             forceRescan: Bool = false)
         {
             self.codexSessionsRoot = codexSessionsRoot
-            self.claudeProjectsRoots = claudeProjectsRoots
             self.cacheRoot = cacheRoot
-            self.claudeLogProviderFilter = claudeLogProviderFilter
             self.forceRescan = forceRescan
         }
     }
@@ -45,11 +34,6 @@ enum CostUsageScanner {
         var seenFileIds: Set<String> = []
     }
 
-    struct ClaudeParseResult: Sendable {
-        let days: [String: [String: [Int]]]
-        let parsedBytes: Int64
-    }
-
     static func loadDailyReport(
         provider: UsageProvider,
         since: Date,
@@ -62,43 +46,7 @@ enum CostUsageScanner {
         switch provider {
         case .codex:
             return self.loadCodexDaily(range: range, now: now, options: options)
-        case .claude:
-            return self.loadClaudeDaily(provider: .claude, range: range, now: now, options: options)
-        case .zai:
-            return CostUsageDailyReport(data: [], summary: nil)
-        case .gemini:
-            return CostUsageDailyReport(data: [], summary: nil)
-        case .antigravity:
-            return CostUsageDailyReport(data: [], summary: nil)
-        case .cursor:
-            return CostUsageDailyReport(data: [], summary: nil)
-        case .opencode:
-            return CostUsageDailyReport(data: [], summary: nil)
-        case .factory:
-            return CostUsageDailyReport(data: [], summary: nil)
-        case .copilot:
-            return CostUsageDailyReport(data: [], summary: nil)
-        case .minimax:
-            return CostUsageDailyReport(data: [], summary: nil)
-        case .vertexai:
-            var filtered = options
-            if filtered.claudeLogProviderFilter == .all {
-                filtered.claudeLogProviderFilter = .vertexAIOnly
-            }
-            return self.loadClaudeDaily(provider: .vertexai, range: range, now: now, options: filtered)
-        case .kiro:
-            return CostUsageDailyReport(data: [], summary: nil)
-        case .kimi:
-            return CostUsageDailyReport(data: [], summary: nil)
-        case .kimik2:
-            return CostUsageDailyReport(data: [], summary: nil)
-        case .augment:
-            return CostUsageDailyReport(data: [], summary: nil)
-        case .jetbrains:
-            return CostUsageDailyReport(data: [], summary: nil)
-        case .amp:
-            return CostUsageDailyReport(data: [], summary: nil)
-        case .synthetic:
+        default:
             return CostUsageDailyReport(data: [], summary: nil)
         }
     }
@@ -252,6 +200,22 @@ enum CostUsageScanner {
         return String(describing: identifier)
     }
 
+    private static func parseCodexLineParts(_ obj: [String: Any])
+        -> (type: String, payload: [String: Any], timestamp: String?)?
+    {
+        let timestamp = obj["timestamp"] as? String
+        if let type = obj["type"] as? String {
+            let payload = obj["payload"] as? [String: Any] ?? [:]
+            return (type: type, payload: payload, timestamp: timestamp)
+        }
+        if let item = obj["item"] as? [String: Any], let type = item["type"] as? String {
+            let payload = item["payload"] as? [String: Any] ?? item
+            let itemTimestamp = item["timestamp"] as? String
+            return (type: type, payload: payload, timestamp: timestamp ?? itemTimestamp)
+        }
+        return nil
+    }
+
     static func parseCodexFile(
         fileURL: URL,
         range: CostUsageDayRange,
@@ -291,27 +255,28 @@ enum CostUsageScanner {
                 guard !line.bytes.isEmpty else { return }
                 guard !line.wasTruncated else { return }
 
-                guard
-                    line.bytes.containsAscii(#""type":"event_msg""#)
-                    || line.bytes.containsAscii(#""type":"turn_context""#)
-                    || line.bytes.containsAscii(#""type":"session_meta""#)
-                else { return }
+                let hasEventMsg = line.bytes.containsAscii(#"event_msg"#)
+                let hasTokenCount = line.bytes.containsAscii(#"token_count"#)
+                let hasTurnContext = line.bytes.containsAscii(#"turn_context"#)
+                let hasSessionMeta = line.bytes.containsAscii(#"session_meta"#)
 
-                if line.bytes.containsAscii(#""type":"event_msg""#), !line.bytes.containsAscii(#""token_count""#) {
+                guard hasEventMsg || hasTurnContext || hasSessionMeta || hasTokenCount else { return }
+                if hasEventMsg && !hasTokenCount {
                     return
                 }
 
-                guard
-                    let obj = (try? JSONSerialization.jsonObject(with: line.bytes)) as? [String: Any],
-                    let type = obj["type"] as? String
-                else { return }
+                guard let obj = (try? JSONSerialization.jsonObject(with: line.bytes)) as? [String: Any] else {
+                    return
+                }
+                guard let parts = Self.parseCodexLineParts(obj) else { return }
+                let type = parts.type
+                let payload = parts.payload
 
                 if type == "session_meta" {
                     if sessionId == nil {
-                        let payload = obj["payload"] as? [String: Any]
-                        sessionId = payload?["session_id"] as? String
-                            ?? payload?["sessionId"] as? String
-                            ?? payload?["id"] as? String
+                        sessionId = payload["session_id"] as? String
+                            ?? payload["sessionId"] as? String
+                            ?? payload["id"] as? String
                             ?? obj["session_id"] as? String
                             ?? obj["sessionId"] as? String
                             ?? obj["id"] as? String
@@ -319,28 +284,43 @@ enum CostUsageScanner {
                     return
                 }
 
-                guard let tsText = obj["timestamp"] as? String else { return }
+                guard let tsText = parts.timestamp ?? obj["timestamp"] as? String else { return }
                 guard let dayKey = Self.dayKeyFromTimestamp(tsText) ?? Self.dayKeyFromParsedISO(tsText) else { return }
 
                 if type == "turn_context" {
-                    if let payload = obj["payload"] as? [String: Any] {
-                        if let model = payload["model"] as? String {
+                    if let model = payload["model"] as? String {
+                        currentModel = model
+                    } else if let model = payload["model_name"] as? String {
+                        currentModel = model
+                    } else if let info = payload["info"] as? [String: Any] {
+                        if let model = info["model"] as? String {
                             currentModel = model
-                        } else if let info = payload["info"] as? [String: Any], let model = info["model"] as? String {
+                        } else if let model = info["model_name"] as? String {
                             currentModel = model
                         }
                     }
                     return
                 }
 
-                guard type == "event_msg" else { return }
-                guard let payload = obj["payload"] as? [String: Any] else { return }
-                guard (payload["type"] as? String) == "token_count" else { return }
+                var tokenPayload: [String: Any]? = nil
+                if type == "event_msg" {
+                    if let payloadType = payload["type"] as? String, payloadType == "token_count" {
+                        tokenPayload = payload
+                    } else if let nested = payload["payload"] as? [String: Any],
+                              let nestedType = nested["type"] as? String,
+                              nestedType == "token_count"
+                    {
+                        tokenPayload = nested
+                    }
+                } else if type == "token_count" {
+                    tokenPayload = payload.isEmpty ? obj : payload
+                }
+                guard let tokenPayload else { return }
 
-                let info = payload["info"] as? [String: Any]
+                let info = tokenPayload["info"] as? [String: Any]
                 let modelFromInfo = info?["model"] as? String
                     ?? info?["model_name"] as? String
-                    ?? payload["model"] as? String
+                    ?? tokenPayload["model"] as? String
                     ?? obj["model"] as? String
                 let model = modelFromInfo ?? currentModel ?? "gpt-5"
 

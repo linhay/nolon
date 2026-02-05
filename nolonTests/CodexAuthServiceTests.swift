@@ -1,6 +1,7 @@
 import XCTest
 import STJSON
 import ProviderUsage
+import STFilePath
 @testable import nolon
 
 @MainActor
@@ -13,7 +14,8 @@ final class CodexAuthServiceTests: XCTestCase {
         }
 
         let account = accounts[0]
-        let fileURL = await service.accountAuthFileURL(account)
+        let file = await service.accountAuthFile(account)
+        let fileURL = file.url
         let originalData = try Data(contentsOf: fileURL)
         defer {
             try? originalData.write(to: fileURL, options: [.atomic])

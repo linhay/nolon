@@ -1,4 +1,5 @@
 import Foundation
+import ProvidersShared
 import SKProcessRunner
 
 /// Convenience wrapper around `CodexCreditsFetcher`.

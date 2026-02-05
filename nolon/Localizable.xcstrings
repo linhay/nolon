@@ -5647,6 +5647,42 @@
         }
       }
     },
+    "usage.metric.resets_in" : {
+      "comment" : "Resets countdown label",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Resets in %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "重置于 %@"
+          }
+        }
+      }
+    },
+    "usage.metric.resets_now" : {
+      "comment" : "Resets now label",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Resets now"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "即将重置"
+          }
+        }
+      }
+    },
     "usage.metric.session" : {
       "comment" : "Session",
       "extractionState" : "extracted_with_value",

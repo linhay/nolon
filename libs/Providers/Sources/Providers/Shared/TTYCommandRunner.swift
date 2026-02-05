@@ -9,6 +9,10 @@ import Foundation
 public struct TTYCommandRunner: Sendable {
     public struct Result: Sendable {
         public let text: String
+
+        public init(text: String) {
+            self.text = text
+        }
     }
 
     public struct Options: Sendable {

@@ -34,10 +34,17 @@ let package = Package(
         .package(url: "https://github.com/steipete/SweetCookieKit", from: "0.4.0"),
     ],
     targets: [
+        // Shared Provider utilities
+        .target(
+            name: "ProvidersShared",
+            path: "Sources/Providers/Shared"
+        ),
+
         // Codex Provider
         .target(
             name: "CodexProvider",
             dependencies: [
+                "ProvidersShared",
                 .product(name: "SKProcessRunner", package: "SKProcessRunner"),
                 "CodexBarProviderCatalog",
                 .product(name: "SweetCookieKit", package: "SweetCookieKit"),

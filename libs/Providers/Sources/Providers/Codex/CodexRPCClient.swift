@@ -1,4 +1,5 @@
 import Foundation
+import ProvidersShared
 import SKProcessRunner
 
 // MARK: - Codex RPC client (local process)

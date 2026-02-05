@@ -1,4 +1,5 @@
 import Foundation
+import ProvidersShared
 import SKProcessRunner
 
 /// Runs `codex` inside a PTY, sends `/status`, captures text, and parses credits/limits.

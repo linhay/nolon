@@ -169,7 +169,7 @@ final class ProviderUsageViewModel {
             return
         }
         do {
-            codexAuthFilePath = await codexAuthService.authFileURL(for: provider)?.path
+            codexAuthFilePath = await codexAuthService.authFile(for: provider)?.url.path
             currentCodexAuthHashHex = await codexAuthService.currentAuthHashHex(for: provider)
 
             let loadedAccounts = try await codexAuthService.loadAccounts()
@@ -179,7 +179,11 @@ final class ProviderUsageViewModel {
                     if case .default = outcome.account { return true }
                     return false
                 }) {
-                    await persistCurrentCodexOutcomeIfPossible(outcome: outcome, accounts: loadedAccounts)
+                    let merged = await mergeCachedCodexUsageIfNeeded(outcome: outcome, accounts: loadedAccounts)
+                    outcomes = outcomes.map { item in
+                        item.id == outcome.id ? merged : item
+                    }
+                    await persistCurrentCodexOutcomeIfPossible(outcome: merged, accounts: loadedAccounts)
                 }
                 resetCodexMultiAccountState()
                 return
@@ -238,10 +242,10 @@ final class ProviderUsageViewModel {
 
         if usageProvider == .codex {
             if isMultiAccountEnabled {
-                paths.append(codexAuthService.nolonCodexAuthFolderURL().path)
+                paths.append(codexAuthService.nolonCodexAuthFolder().url.path)
             }
-            if let authURL = await codexAuthService.authFileURL(for: provider) {
-                paths.append(authURL.path)
+            if let authFile = await codexAuthService.authFile(for: provider) {
+                paths.append(authFile.url.path)
             }
         }
 
@@ -265,12 +269,12 @@ final class ProviderUsageViewModel {
             return
         }
 
-        let authFolderPath = codexAuthService.nolonCodexAuthFolderURL().standardizedFileURL.path
+        let authFolderPath = codexAuthService.nolonCodexAuthFolder().url.standardizedFileURL.path
         let authFilePath: String? = await {
             if let current = codexAuthFilePath {
                 return normalizedPath(current)
             }
-            if let refreshed = await codexAuthService.authFileURL(for: provider)?.path {
+            if let refreshed = await codexAuthService.authFile(for: provider)?.url.path {
                 codexAuthFilePath = refreshed
                 return normalizedPath(refreshed)
             }
@@ -282,8 +286,8 @@ final class ProviderUsageViewModel {
 
         guard isAuthFolderChange || isAuthFileChange else { return }
 
-        if isAuthFileChange, let updatedURL = await codexAuthService.syncActiveAuthTokensIfNeeded(for: provider) {
-            markAuthCacheWrite(at: updatedURL)
+        if isAuthFileChange, let updatedFile = await codexAuthService.syncActiveAuthTokensIfNeeded(for: provider) {
+            markAuthCacheWrite(at: updatedFile.url)
         }
 
         guard isMultiAccountEnabled else {
@@ -308,7 +312,7 @@ final class ProviderUsageViewModel {
 
     private func reloadCodexFromDisk(refreshUsage: Bool) async {
         do {
-            codexAuthFilePath = await codexAuthService.authFileURL(for: provider)?.path
+            codexAuthFilePath = await codexAuthService.authFile(for: provider)?.url.path
             currentCodexAuthHashHex = await codexAuthService.currentAuthHashHex(for: provider)
 
             let loadedAccounts = try await codexAuthService.loadAccounts()
@@ -546,7 +550,7 @@ final class ProviderUsageViewModel {
         do {
             try await codexAuthService.prepareForCLILogin(provider: provider, archiveAccountName: nil)
 
-            guard let authURL = await codexAuthService.authFileURL(for: provider) else {
+            guard let authFile = await codexAuthService.authFile(for: provider) else {
                 alertTitle = NSLocalizedString("codex.cli_login.title", value: "CLI Login", comment: "CLI login title")
                 alertMessage = NSLocalizedString("codex.accounts.add.no_codex_home", value: "Codex home path could not be resolved from this provider.", comment: "No Codex home")
                 return
@@ -567,13 +571,13 @@ final class ProviderUsageViewModel {
 
             let fileManager = FileManager.default
             while !Task.isCancelled {
-                if fileManager.fileExists(atPath: authURL.path),
-                   let data = try? Data(contentsOf: authURL),
+                if fileManager.fileExists(atPath: authFile.url.path),
+                   let data = try? authFile.data(),
                    !data.isEmpty {
                     break
                 }
 
-                if !process.isRunning, !fileManager.fileExists(atPath: authURL.path) {
+                if !process.isRunning, !fileManager.fileExists(atPath: authFile.url.path) {
                     alertTitle = NSLocalizedString("codex.cli_login.title", value: "CLI Login", comment: "CLI login title")
                     alertMessage = NSLocalizedString(
                         "codex.accounts.add.cli.error.no_auth",
@@ -624,8 +628,8 @@ final class ProviderUsageViewModel {
             return account.id == activeCodexAccountId
         }
         guard let currentCodexAuthHashHex else { return false }
-        let fileURL = codexAuthService.accountAuthFileURL(relativeAuthPath: account.relativeAuthPath)
-        guard let data = try? Data(contentsOf: fileURL),
+        let file = codexAuthService.accountAuthFile(relativeAuthPath: account.relativeAuthPath)
+        guard let data = try? file.data(),
               let raw = String(data: data, encoding: .utf8)
         else { return false }
         return CodexAuthAccount.hashHex(for: raw) == currentCodexAuthHashHex
@@ -635,18 +639,69 @@ final class ProviderUsageViewModel {
         var summaries: [UUID: CodexAuthSummary] = [:]
         summaries.reserveCapacity(accounts.count)
         for account in accounts {
-            let fileURL = codexAuthService.accountAuthFileURL(relativeAuthPath: account.relativeAuthPath)
-            if let data = try? Data(contentsOf: fileURL) {
+            let file = codexAuthService.accountAuthFile(relativeAuthPath: account.relativeAuthPath)
+            if let data = try? file.data() {
                 summaries[account.id] = CodexAuthSummary.fromJSONData(data)
             }
         }
         return summaries
     }
 
+    private func mergeCachedCodexUsageIfNeeded(
+        outcome: ProviderAccountUsageOutcome,
+        accounts: [CodexAuthAccount]
+    ) async -> ProviderAccountUsageOutcome {
+        guard case let .success(result) = outcome.outcome.result else { return outcome }
+        guard let activeId = await codexAuthService.activeAccountId(for: provider),
+              let activeAccount = accounts.first(where: { $0.id == activeId }),
+              let cache = try? await codexAuthService.loadUsageCache(for: activeAccount)
+        else { return outcome }
+
+        let mergedUsage = mergeUsageSnapshot(live: result.usage, cached: cache.usage)
+        let mergedResult = ProviderFetchResult(
+            usage: mergedUsage,
+            credits: result.credits,
+            cost: result.cost,
+            sourceLabel: result.sourceLabel,
+            fetchKind: result.fetchKind,
+            strategyKind: result.strategyKind
+        )
+        let mergedOutcome = ProviderFetchOutcome(fetchKind: outcome.outcome.fetchKind, result: .success(mergedResult))
+        return ProviderAccountUsageOutcome(provider: outcome.provider, account: outcome.account, outcome: mergedOutcome)
+    }
+
+    private func mergeUsageSnapshot(live: UsageSnapshot, cached: UsageSnapshot) -> UsageSnapshot {
+        UsageSnapshot(
+            identity: live.identity ?? cached.identity,
+            primary: mergeRateWindow(live: live.primary, cached: cached.primary),
+            secondary: mergeRateWindow(live: live.secondary, cached: cached.secondary),
+            tertiary: mergeRateWindow(live: live.tertiary, cached: cached.tertiary),
+            updatedAt: live.updatedAt
+        )
+    }
+
+    private func mergeRateWindow(live: RateWindow?, cached: RateWindow?) -> RateWindow? {
+        switch (live, cached) {
+        case (nil, nil):
+            return nil
+        case (nil, let cached):
+            return cached
+        case (let live, nil):
+            return live
+        case let (live?, cached?):
+            return RateWindow(
+                usedPercent: live.usedPercent,
+                resetDescription: live.resetDescription ?? cached.resetDescription,
+                resetsAt: live.resetsAt ?? cached.resetsAt,
+                windowMinutes: live.windowMinutes ?? cached.windowMinutes
+            )
+        }
+    }
+
     func revealCodexAccountInFinder(id: UUID) {
         guard let account = codexAccounts.first(where: { $0.id == id }) else { return }
-        let fileURL = codexAuthService.accountAuthFileURL(relativeAuthPath: account.relativeAuthPath)
-        NSWorkspace.shared.activateFileViewerSelecting([fileURL])
+        let file = codexAuthService.accountAuthFile(relativeAuthPath: account.relativeAuthPath)
+        NSWorkspace.shared.activateFileViewerSelecting([file.url])
     }
 
     func refreshCodexAccount(id: UUID) {
@@ -707,8 +762,8 @@ final class ProviderUsageViewModel {
                     credits: result.credits,
                     cost: result.cost
                 )
-                let targetURL = codexAuthService.accountAuthFileURL(relativeAuthPath: account.relativeAuthPath)
-                markAuthCacheWrite(at: targetURL)
+                let targetFile = codexAuthService.accountAuthFile(relativeAuthPath: account.relativeAuthPath)
+                markAuthCacheWrite(at: targetFile.url)
                 codexUsageCacheWriteCount += 1
                 defer { codexUsageCacheWriteCount = max(0, codexUsageCacheWriteCount - 1) }
                 try await codexAuthService.storeUsageCache(cache, for: account)
@@ -766,8 +821,8 @@ final class ProviderUsageViewModel {
                 credits: result.credits,
                 cost: result.cost
             )
-            let targetURL = codexAuthService.accountAuthFileURL(relativeAuthPath: activeAccount.relativeAuthPath)
-            markAuthCacheWrite(at: targetURL)
+            let targetFile = codexAuthService.accountAuthFile(relativeAuthPath: activeAccount.relativeAuthPath)
+            markAuthCacheWrite(at: targetFile.url)
             codexUsageCacheWriteCount += 1
             defer { codexUsageCacheWriteCount = max(0, codexUsageCacheWriteCount - 1) }
             try await codexAuthService.storeUsageCache(cache, for: activeAccount)
@@ -781,7 +836,7 @@ final class ProviderUsageViewModel {
         let filePath = url.standardizedFileURL.path
         codexAuthChangeSuppressions[filePath] = expiry
 
-        let folderPath = codexAuthService.nolonCodexAuthFolderURL().standardizedFileURL.path
+        let folderPath = codexAuthService.nolonCodexAuthFolder().url.standardizedFileURL.path
         codexAuthChangeSuppressions[folderPath] = expiry
     }
 
@@ -789,7 +844,7 @@ final class ProviderUsageViewModel {
         let now = Date()
         codexAuthChangeSuppressions = codexAuthChangeSuppressions.filter { $0.value > now }
         if codexUsageCacheWriteCount > 0, kind == .renamed {
-            let authFolderPath = codexAuthService.nolonCodexAuthFolderURL().standardizedFileURL.path
+            let authFolderPath = codexAuthService.nolonCodexAuthFolder().url.standardizedFileURL.path
             if path == authFolderPath || path.hasPrefix(authFolderPath + "/") {
                 return true
             }
@@ -864,10 +919,10 @@ final class ProviderUsageViewModel {
             try FileManager.default.createDirectory(at: tempRoot, withIntermediateDirectories: true, attributes: nil)
             defer { try? FileManager.default.removeItem(at: tempRoot) }
             let authURL = tempRoot.appendingPathComponent("auth.json")
-            let fileURL = codexAuthService.accountAuthFileURL(relativeAuthPath: account.relativeAuthPath)
-            let data = try Data(contentsOf: fileURL)
+            let file = codexAuthService.accountAuthFile(relativeAuthPath: account.relativeAuthPath)
+            let data = try file.data()
             let cleanData = CodexAuthService.cleanedAuthJSONData(from: data) ?? data
-            try cleanData.write(to: authURL, options: [.atomic])
+            try STFile(authURL).overlay(with: cleanData)
 
             var environment = ProcessInfo.processInfo.environment
             environment["CODEX_HOME"] = tempRoot.path
@@ -1487,7 +1542,57 @@ struct ProviderUsageView: View {
             ProgressView(value: percent, total: 100)
                 .tint(DesignSystem.Colors.primary)
                 .controlSize(.small)
+
+            if let resetText = codexResetText(window) {
+                Text(resetText)
+                    .font(.caption)
+                    .foregroundStyle(DesignSystem.Colors.Text.tertiary)
+                    .lineLimit(1)
+            }
         }
+    }
+
+    private func codexResetText(_ window: RateWindow) -> String? {
+        if let resetDescription = window.resetDescription, !resetDescription.isEmpty {
+            return resetDescription
+        }
+        if let resetsAt = window.resetsAt {
+            if let countdown = codexResetCountdownText(resetsAt: resetsAt) {
+                return String(
+                    format: NSLocalizedString(
+                        "usage.metric.resets_in",
+                        value: "Resets in %@",
+                        comment: "Resets countdown label"
+                    ),
+                    countdown
+                )
+            }
+            if resetsAt <= Date() {
+                return NSLocalizedString("usage.metric.resets_now", value: "Resets now", comment: "Resets now label")
+            }
+            return String(
+                format: NSLocalizedString("usage.metric.resets_at", value: "Resets %@", comment: "Resets label"),
+                resetsAt.formatted(date: .abbreviated, time: .shortened)
+            )
+        }
+        if let minutes = window.windowMinutes {
+            return String(
+                format: NSLocalizedString("usage.metric.window_minutes", value: "Window %d min", comment: "Window minutes"),
+                minutes
+            )
+        }
+        return nil
+    }
+
+    private func codexResetCountdownText(resetsAt: Date) -> String? {
+        let remaining = max(0, resetsAt.timeIntervalSinceNow)
+        if remaining <= 0 { return nil }
+        let formatter = DateComponentsFormatter()
+        formatter.allowedUnits = [.day, .hour, .minute]
+        formatter.unitsStyle = .abbreviated
+        formatter.maximumUnitCount = 2
+        formatter.zeroFormattingBehavior = [.dropLeading, .dropTrailing]
+        return formatter.string(from: remaining)
     }
 
     private func codexCreditsText(_ value: Double) -> String {
