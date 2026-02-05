@@ -11,6 +11,8 @@
 - **有官方链接先对齐官方**：用户给出“在线文档/标准格式/链接”时，先按链接内容对齐（尤其是配置文件路径与 JSON 结构），不要凭记忆推断。
 - **UI 文案必须本地化**：新增/修改 UI 文案必须走 `Localizable.xcstrings`，避免硬编码字符串。
 - **遵循 DesignSystem 颜色**：UI 颜色必须使用 `DesignSystem.Colors`（避免 `Color.blue`/`Color.white`/`Color.label` 等硬编码）。
+- **用量倒计时格式（Nolon Usage UI）**：周期与倒计时使用紧凑单位，英文 `w/d/h/m`，中文 `周/天/小时/分钟`；避免显示“Window/周期”等标签；布局上周期靠左、倒计时靠右。
+- **文件路径类型**：使用 `STFolder` / `STFile`（必要时 `STPathProtocol`），避免仅为取路径而定义 `URL` 变量。
 - **行为可验证**：每次修改后提供可执行的验证方式（例如 `./build.sh`）。
 - **外部 CLI 的 env/PATH 一致性**：App/测试里调用外部 CLI（如 `codex`）时，优先在统一的进程执行层（如 `SKProcessRunner`）合并 login shell env（尤其 PATH），避免“终端能跑但 App/test 找不到”的差异。
 - **CLI 缺失只给诊断指引**：当用户反馈命令找不到时，优先解释原因（未安装/PATH）并给出检查步骤，避免直接执行安装。
