@@ -293,6 +293,25 @@ struct RemoteRepositorySidebarView: View {
 
     }
     
+    private func gitStatusRow(_ repo: RemoteRepository) -> some View {
+        Group {
+            if viewModel.isSyncing, viewModel.syncingRepositoryID == repo.id {
+                ProgressView()
+                    .controlSize(.mini)
+                    .tint(DesignSystem.Colors.Status.info)
+            } else if let syncDate = repo.lastSyncDate {
+                Text(syncDate, style: .time)
+                    .font(.caption2)
+                    .foregroundStyle(DesignSystem.Colors.Text.secondary)
+            } else {
+                Text("Not synced")
+                    .font(.caption2)
+                    .foregroundStyle(DesignSystem.Colors.Status.warning)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
     private func sectionHeaderRow(_ title: String) -> some View {
         Text(title)
             .font(.caption)
@@ -326,6 +345,10 @@ struct RemoteRepositorySidebarView: View {
                             .foregroundStyle(DesignSystem.Colors.Text.secondary)
                             .lineLimit(1)
                     }
+
+                    if repo.templateType == .git {
+                        gitStatusRow(repo)
+                    }
                 }
             }
 
@@ -340,22 +363,6 @@ struct RemoteRepositorySidebarView: View {
                         .padding(.vertical, 2)
                         .background(DesignSystem.Colors.Component.controlFillSubtle)
                         .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusXS, style: .continuous))
-                }
-
-                if repo.templateType == .git {
-                    if viewModel.isSyncing, viewModel.syncingRepositoryID == repo.id {
-                        ProgressView()
-                            .controlSize(.mini)
-                            .tint(DesignSystem.Colors.Status.info)
-                    } else if let syncDate = repo.lastSyncDate {
-                        Text(syncDate, style: .time)
-                            .font(.caption2)
-                            .foregroundStyle(DesignSystem.Colors.Text.secondary)
-                    } else {
-                        Text("Not synced")
-                            .font(.caption2)
-                            .foregroundStyle(DesignSystem.Colors.Status.warning)
-                    }
                 }
             }
         }
@@ -507,11 +514,17 @@ private func repositorySections(_ repos: [RemoteRepository]) -> [RepositorySecti
 
     let builtInRepos = repos.filter { $0.isBuiltIn }
     if !builtInRepos.isEmpty {
+        let orderedBuiltIn = builtInRepos.sorted { lhs, rhs in
+            let lKey = builtInSortKey(lhs)
+            let rKey = builtInSortKey(rhs)
+            if lKey != rKey { return lKey < rKey }
+            return lhs.name.localizedStandardCompare(rhs.name) == .orderedAscending
+        }
         sections.append(
             RepositorySection(
                 id: "built_in",
                 title: "Built-in",
-                repositories: builtInRepos
+                repositories: orderedBuiltIn
             )
         )
     }
@@ -556,6 +569,14 @@ private func repositorySections(_ repos: [RemoteRepository]) -> [RepositorySecti
     }
 
     return sections
+}
+
+private func builtInSortKey(_ repo: RemoteRepository) -> Int {
+    switch repo.templateType {
+    case .globalSkills: return 0
+    case .clawdhub: return 1
+    default: return 2
+    }
 }
 
 private func repositoryDisplayName(_ repo: RemoteRepository) -> String {
