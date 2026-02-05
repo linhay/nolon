@@ -391,6 +391,7 @@ struct RemoteRepositorySidebarView: View {
                         .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusXS, style: .continuous))
                 }
             }
+            .frame(maxHeight: .infinity, alignment: .center)
         }
         .contextMenu {
             // Sync option for Git repositories
