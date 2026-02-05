@@ -124,82 +124,93 @@ struct RemoteSkillsBrowserView: View {
         }())
     }
     
+    private func refreshData() {
+        viewModel.refreshInstalledSkills(repository: repository, targetProvider: targetProvider, settings: settings)
+        viewModel.refreshInstalledWorkflows(targetProvider: targetProvider)
+        viewModel.refreshTrigger += 1
+    }
+
     var body: some View {
-        NavigationSplitView(columnVisibility: $viewModel.columnVisibility) {
-            // Column 1: Repository sidebar
-            RemoteRepositorySidebarView(
-                selectedRepository: $viewModel.selectedRepository,
-                settings: settings
-            )
-            .navigationSplitViewColumnWidth(min: 160, ideal: 180, max: 220)
-        } content: {
-            // Column 2: Tab navigation (类似 ProviderContentTabView)
-            RemoteContentTabView(
-                repository: viewModel.selectedRepository,
-                selectedTab: $viewModel.selectedTab,
-                refreshTrigger: viewModel.refreshTrigger
-            )
-        } detail: {
-            // Column 3: Grid view
-            RemoteSkillsGridView(
-                repository: viewModel.selectedRepository,
-                selectedTab: viewModel.selectedTab,
-                searchText: $viewModel.searchText,
-                installedSlugs: viewModel.installedSlugs,
-                installedWorkflowSlugs: viewModel.installedWorkflowSlugs,
-                providers: settings.providers,
-                refreshTrigger: viewModel.refreshTrigger,
-                targetProvider: targetProvider,
-                onInstall: { skill, provider in
-                    onInstall(skill, provider)
-                    // Refresh after install attempt
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                        viewModel.refreshInstalledSkills(repository: repository, targetProvider: targetProvider, settings: settings)
-                        viewModel.refreshTrigger += 1
+        VStack(spacing: 0) {
+            SheetHeaderView(title: NSLocalizedString("remote.browser.title", value: "Remote Skills", comment: "Remote skills browser")) {
+                HStack(spacing: 12) {
+                    Button {
+                        refreshData()
+                    } label: {
+                        Image(systemName: "arrow.clockwise")
+                            .foregroundStyle(DesignSystem.Colors.Text.secondary)
                     }
-                },
-                onInstallWorkflow: { workflow, provider in
-                    onInstallWorkflow?(workflow, provider)
-                    // Refresh after install attempt
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                        viewModel.refreshInstalledWorkflows(targetProvider: targetProvider)
-                        viewModel.refreshTrigger += 1
+                    .help(NSLocalizedString("Refresh", comment: "Refresh"))
+
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 22))
+                            .foregroundStyle(DesignSystem.Colors.Text.tertiary)
                     }
-                },
-                onInstallMCP: { mcp, provider in
-                    onInstallMCP?(mcp, provider)
-                    // Refresh after install attempt
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                        viewModel.refreshTrigger += 1
-                    }
-                }
-            )
-        }
-        .navigationSplitViewStyle(.balanced)
-        .toolbar {
-            ToolbarItem(placement: .cancellationAction) {
-                Button("Done") {
-                    dismiss()
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(NSLocalizedString("Close", comment: "Close"))
                 }
             }
-            ToolbarItem(placement: .automatic) {
-                Button {
-                    viewModel.refreshInstalledSkills(repository: repository, targetProvider: targetProvider, settings: settings)
-                    viewModel.refreshInstalledWorkflows(targetProvider: targetProvider)
-                    viewModel.refreshTrigger += 1
-                } label: {
-                    Image(systemName: "arrow.clockwise")
-                }
-                .help("Refresh installed status")
+
+            NavigationSplitView(columnVisibility: $viewModel.columnVisibility) {
+                // Column 1: Repository sidebar
+                RemoteRepositorySidebarView(
+                    selectedRepository: $viewModel.selectedRepository,
+                    settings: settings
+                )
+                .navigationSplitViewColumnWidth(min: 160, ideal: 180, max: 220)
+            } content: {
+                // Column 2: Tab navigation (类似 ProviderContentTabView)
+                RemoteContentTabView(
+                    repository: viewModel.selectedRepository,
+                    selectedTab: $viewModel.selectedTab,
+                    refreshTrigger: viewModel.refreshTrigger
+                )
+            } detail: {
+                // Column 3: Grid view
+                RemoteSkillsGridView(
+                    repository: viewModel.selectedRepository,
+                    selectedTab: viewModel.selectedTab,
+                    searchText: $viewModel.searchText,
+                    installedSlugs: viewModel.installedSlugs,
+                    installedWorkflowSlugs: viewModel.installedWorkflowSlugs,
+                    providers: settings.providers,
+                    refreshTrigger: viewModel.refreshTrigger,
+                    targetProvider: targetProvider,
+                    onInstall: { skill, provider in
+                        onInstall(skill, provider)
+                        // Refresh after install attempt
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                            viewModel.refreshInstalledSkills(repository: repository, targetProvider: targetProvider, settings: settings)
+                            viewModel.refreshTrigger += 1
+                        }
+                    },
+                    onInstallWorkflow: { workflow, provider in
+                        onInstallWorkflow?(workflow, provider)
+                        // Refresh after install attempt
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                            viewModel.refreshInstalledWorkflows(targetProvider: targetProvider)
+                            viewModel.refreshTrigger += 1
+                        }
+                    },
+                    onInstallMCP: { mcp, provider in
+                        onInstallMCP?(mcp, provider)
+                        // Refresh after install attempt
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                            viewModel.refreshTrigger += 1
+                        }
+                    }
+                )
             }
+            .navigationSplitViewStyle(.balanced)
         }
         .onAppear {
-            viewModel.refreshInstalledSkills(repository: repository, targetProvider: targetProvider, settings: settings)
-            viewModel.refreshInstalledWorkflows(targetProvider: targetProvider)
+            refreshData()
         }
         .frame(minHeight: 700, maxHeight: .infinity)
     }
-}
 
 #Preview {
     RemoteSkillsBrowserView(

@@ -1748,15 +1748,9 @@ private struct UsageLoginSheet: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack {
-                Text(title)
-                    .font(.headline)
-                Spacer()
-                Button(NSLocalizedString("common.done", value: "Done", comment: "Done")) {
-                    dismiss()
-                }
+            SheetHeaderView(title: title) {
+                dismiss()
             }
-            .padding()
 
             Divider()
 

@@ -8,13 +8,15 @@ struct DirectoryPickerSheet: View {
     let onConfirm: () -> Void
 
     var body: some View {
-        NavigationStack {
-            Form {
-                Section {
-                    Text("Select one or more directories containing skills:")
-                        .foregroundStyle(.secondary)
-                }
+        VStack(spacing: 0) {
+            SheetHeaderView(
+                title: NSLocalizedString("Choose Skills Directories", comment: "Choose skills directories"),
+                subtitle: NSLocalizedString("Select one or more directories containing skills:", comment: "Select directories")
+            ) {
+                isPresented = false
+            }
 
+            Form {
                 Section {
                     ForEach(Array(candidates.enumerated()), id: \.offset) { index, candidate in
                         Button {
@@ -28,18 +30,20 @@ struct DirectoryPickerSheet: View {
                                 VStack(alignment: .leading, spacing: 4) {
                                     HStack {
                                         Image(systemName: selectedIndices.contains(index) ? "checkmark.circle.fill" : "circle")
-                                            .foregroundStyle(selectedIndices.contains(index) ? DesignSystem.Colors.primary : .secondary)
-                                        Text(candidate.path == "." ? "Repository Root" : candidate.path)
+                                            .foregroundStyle(selectedIndices.contains(index) ? DesignSystem.Colors.primary : DesignSystem.Colors.Text.secondary)
+                                        Text(candidate.path == "."
+                                             ? NSLocalizedString("Repository Root", comment: "Repository root")
+                                             : candidate.path)
                                             .font(.body)
-                                        Spacer()
+                                        Spacer(minLength: 0)
                                         Text("\(candidate.skillCount) skill\(candidate.skillCount == 1 ? "" : "s")")
                                             .font(.caption)
-                                            .foregroundStyle(.secondary)
+                                            .foregroundStyle(DesignSystem.Colors.Text.secondary)
                                     }
                                     if !candidate.skillNames.isEmpty {
                                         Text(candidate.skillNames.joined(separator: ", "))
                                             .font(.caption2)
-                                            .foregroundStyle(.tertiary)
+                                            .foregroundStyle(DesignSystem.Colors.Text.tertiary)
                                             .lineLimit(1)
                                             .padding(.leading, 20)
                                     }
@@ -51,21 +55,27 @@ struct DirectoryPickerSheet: View {
                 }
             }
             .formStyle(.grouped)
-            .navigationTitle("Choose Skills Directories")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        isPresented = false
-                    }
+
+            Divider()
+                .background(DesignSystem.Colors.Component.separator.opacity(0.25))
+
+            HStack(spacing: 12) {
+                Button(NSLocalizedString("Cancel", comment: "Cancel")) {
+                    isPresented = false
                 }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Select \(selectedIndices.count) director\(selectedIndices.count == 1 ? "y" : "ies")") {
-                        onConfirm()
-                        isPresented = false
-                    }
-                    .disabled(selectedIndices.isEmpty)
+                .buttonStyle(.plain)
+
+                Spacer(minLength: 0)
+
+                Button(NSLocalizedString("select", comment: "Select")) {
+                    onConfirm()
+                    isPresented = false
                 }
+                .buttonStyle(.borderedProminent)
+                .disabled(selectedIndices.isEmpty)
             }
+            .padding(.horizontal, 24)
+            .padding(.vertical, 16)
         }
         .frame(width: 500, height: 400)
     }

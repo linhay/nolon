@@ -10,47 +10,26 @@ struct RemoteWorkflowDetailView: View {
     
     @State private var selectedProvider: Provider?
     @Environment(\.dismiss) private var dismiss
-    
+
+    private var workflowSubtitle: String? {
+        guard let version = workflow.latestVersion else { return nil }
+        let date = Date(timeIntervalSince1970: version.createdAt)
+            .formatted(date: .abbreviated, time: .omitted)
+        if date.isEmpty {
+            return version.version
+        }
+        return "\(version.version) • \(date)"
+    }
+
     var body: some View {
         VStack(spacing: 0) {
-            // Header
-            HStack {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(workflow.displayName)
-                        .font(.title)
-                        .fontWeight(.bold)
-                    
-                    if let version = workflow.latestVersion {
-                        HStack(spacing: 8) {
-                            Label(version.version, systemImage: "tag")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            
-                            if let date = Date(timeIntervalSince1970: version.createdAt).formatted(date: .abbreviated, time: .omitted) as String? {
-                                Text("•")
-                                    .foregroundStyle(.secondary)
-                                Text(date)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                    }
-                }
-                
-                Spacer()
-                
-                Button {
-                    dismiss()
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.title2)
-                        .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
+            SheetHeaderView(
+                title: workflow.displayName,
+                subtitle: workflowSubtitle
+            ) {
+                dismiss()
             }
-            .padding()
-            .background(Color(NSColor.controlBackgroundColor))
-            
+
             Divider()
             
             // Content

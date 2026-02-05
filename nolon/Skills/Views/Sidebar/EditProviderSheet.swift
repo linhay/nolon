@@ -120,7 +120,11 @@ struct EditProviderSheet: View {
     }
     
     var body: some View {
-        NavigationStack {
+        VStack(spacing: 0) {
+            SheetHeaderView(title: NSLocalizedString("Edit Provider", comment: "Edit Provider")) {
+                dismiss()
+            }
+
             Form {
                 Section {
                     TextField(
@@ -205,64 +209,69 @@ struct EditProviderSheet: View {
                 }
             }
             .formStyle(.grouped)
-            .navigationTitle(NSLocalizedString("edit_provider.title", comment: "Edit Provider"))
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button(NSLocalizedString("generic.cancel", comment: "Cancel")) {
-                        dismiss()
-                    }
+
+            Divider()
+                .background(DesignSystem.Colors.Component.separator.opacity(0.25))
+
+            HStack(spacing: 12) {
+                Button(NSLocalizedString("generic.cancel", comment: "Cancel")) {
+                    dismiss()
                 }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button(NSLocalizedString("generic.save", comment: "Save")) {
-                        viewModel.saveProvider()
-                        dismiss()
+                .buttonStyle(.plain)
+
+                Spacer(minLength: 0)
+
+                Button(NSLocalizedString("generic.save", value: "Save", comment: "Save")) {
+                    viewModel.save()
+                    dismiss()
+                }
+                .buttonStyle(.borderedProminent)
+            }
+            .padding(.horizontal, 24)
+            .padding(.vertical, 16)
+        }
+        .fileImporter(
+            isPresented: $viewModel.showingFolderPicker,
+            allowedContentTypes: [.folder],
+            allowsMultipleSelection: false,
+            onCompletion: viewModel.handleFolderSelection
+        )
+        .fileImporter(
+            isPresented: $viewModel.showingProjectFolderPicker,
+            allowedContentTypes: [.folder],
+            allowsMultipleSelection: false,
+            onCompletion: viewModel.handleProjectFolderSelection
+        )
+        .fileImporter(
+            isPresented: $viewModel.showingWorkflowFolderPicker,
+            allowedContentTypes: [.folder],
+            allowsMultipleSelection: false,
+            onCompletion: { result in
+                switch result {
+                case .success(let urls):
+                    if let url = urls.first {
+                        viewModel.workflowPath = url.path
                     }
-                    .disabled(!viewModel.canSave)
+                case .failure(let error):
+                    EditProviderViewModel.logger.error("Workflow folder selection failed: \(error.localizedDescription)")
                 }
             }
-            .fileImporter(
-                isPresented: $viewModel.showingFolderPicker,
-                allowedContentTypes: [.folder],
-                allowsMultipleSelection: false,
-                onCompletion: viewModel.handleFolderSelection
-            )
-            .fileImporter(
-                isPresented: $viewModel.showingProjectFolderPicker,
-                allowedContentTypes: [.folder],
-                allowsMultipleSelection: false,
-                onCompletion: viewModel.handleProjectFolderSelection
-            )
-            .fileImporter(
-                isPresented: $viewModel.showingWorkflowFolderPicker,
-                allowedContentTypes: [.folder],
-                allowsMultipleSelection: false,
-                onCompletion: { result in
-                    switch result {
-                    case .success(let urls):
-                        if let url = urls.first {
-                            viewModel.workflowPath = url.path
-                        }
-                    case .failure(let error):
-                        EditProviderViewModel.logger.error("Workflow folder selection failed: \(error.localizedDescription)")
+        )
+        .fileImporter(
+            isPresented: $viewModel.showingCommandFolderPicker,
+            allowedContentTypes: [.folder],
+            allowsMultipleSelection: false,
+            onCompletion: { result in
+                switch result {
+                case .success(let urls):
+                    if let url = urls.first {
+                        viewModel.commandPath = url.path
                     }
+                case .failure(let error):
+                    EditProviderViewModel.logger.error("Command folder selection failed: \(error.localizedDescription)")
                 }
-            )
-            .fileImporter(
-                isPresented: $viewModel.showingCommandFolderPicker,
-                allowedContentTypes: [.folder],
-                allowsMultipleSelection: false,
-                onCompletion: { result in
-                    switch result {
-                    case .success(let urls):
-                        if let url = urls.first {
-                            viewModel.commandPath = url.path
-                        }
-                    case .failure(let error):
-                        EditProviderViewModel.logger.error("Command folder selection failed: \(error.localizedDescription)")
-                    }
-                }
-            )
-        }
+            }
+        )
         .frame(minWidth: 400, minHeight: 300)
     }
 }

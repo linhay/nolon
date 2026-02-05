@@ -9,6 +9,7 @@ struct SkillDetailView: View {
     let provider: Provider? // Context provider
     
     @State private var viewModel: SkillDetailViewModel
+    @Environment(\.dismiss) private var dismiss
     
     init(skill: Skill, provider: Provider?, settings: ProviderSettings) {
         self.provider = provider
@@ -17,25 +18,31 @@ struct SkillDetailView: View {
     }
     
     var body: some View {
-        HStack(spacing: 0) {
-            // Column 1: Files Sidebar
-            SkillDetailSidebar(viewModel: viewModel)
-                .frame(width: 180)
-                .background(Color(NSColor.controlBackgroundColor))
-            
-            Divider()
-            
-            // Column 2: Content Preview
-            SkillDetailContent(viewModel: viewModel)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Color(NSColor.textBackgroundColor))
-            
-            Divider()
-            
-            // Column 3: Inspector / Actions
-            SkillDetailInspector(viewModel: viewModel, settings: settings, provider: provider)
-                .frame(width: 220)
-                .background(Color(NSColor.controlBackgroundColor))
+        VStack(spacing: 0) {
+            SheetHeaderView(title: viewModel.skill.name) {
+                dismiss()
+            }
+
+            HStack(spacing: 0) {
+                // Column 1: Files Sidebar
+                SkillDetailSidebar(viewModel: viewModel)
+                    .frame(width: 180)
+                    .background(DesignSystem.Colors.Background.elevated)
+
+                Divider()
+
+                // Column 2: Content Preview
+                SkillDetailContent(viewModel: viewModel)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(DesignSystem.Colors.Background.surface)
+
+                Divider()
+
+                // Column 3: Inspector / Actions
+                SkillDetailInspector(viewModel: viewModel, settings: settings, provider: provider)
+                    .frame(width: 220)
+                    .background(DesignSystem.Colors.Background.elevated)
+            }
         }
         .task {
             await viewModel.loadData(checkProviders: settings.providers, currentProvider: provider)

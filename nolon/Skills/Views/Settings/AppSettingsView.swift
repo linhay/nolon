@@ -23,49 +23,46 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
 struct AppSettingsView: View {
     @State private var settingsStore = AppSettingsStore.shared
     @State private var selectedCategory: SettingsCategory = .general
+    @Environment(\.dismiss) private var dismiss
     
     var body: some View {
-        HStack(spacing: 0) {
-            // Sidebar
-            VStack(alignment: .leading, spacing: 4) {
-                ForEach(SettingsCategory.allCases) { category in
-                    categoryRow(category: category)
-                }
-                Spacer()
+        VStack(spacing: 0) {
+            SheetHeaderView(title: NSLocalizedString("settings.title", value: "Settings", comment: "Title")) {
+                dismiss()
             }
-            .padding(.top, 40)
-            .padding(.horizontal, 12)
-            .frame(width: 180)
-            .background(Color.primary.opacity(0.02))
-            
-            Divider()
-                .opacity(0.1)
-            
-            // Content
-            VStack(alignment: .leading, spacing: 0) {
-                // Header
-                HStack {
-                    Text(NSLocalizedString("settings.title", value: "Settings", comment: "Title"))
-                        .font(.system(size: 18, weight: .bold))
+
+            HStack(spacing: 0) {
+                // Sidebar
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(SettingsCategory.allCases) { category in
+                        categoryRow(category: category)
+                    }
                     Spacer()
                 }
-                .padding(.horizontal, 32)
-                .padding(.top, 32)
-                .padding(.bottom, 24)
-                
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 32) {
-                        contentForSelectedCategory
+                .padding(.top, 40)
+                .padding(.horizontal, 12)
+                .frame(width: 180)
+                .background(Color.primary.opacity(0.02))
+
+                Divider()
+                    .opacity(0.1)
+
+                // Content
+                VStack(alignment: .leading, spacing: 0) {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 32) {
+                            contentForSelectedCategory
+                        }
+                        .padding(.horizontal, 32)
+                        .padding(.bottom, 32)
                     }
-                    .padding(.horizontal, 32)
-                    .padding(.bottom, 32)
                 }
+                .background(Color(NSColor.windowBackgroundColor))
             }
-            .background(Color(NSColor.windowBackgroundColor))
         }
         .frame(minWidth: 720, minHeight: 480)
     }
-    
+
     private func categoryRow(category: SettingsCategory) -> some View {
         let isSelected = selectedCategory == category
         return Button(action: { selectedCategory = category }) {
