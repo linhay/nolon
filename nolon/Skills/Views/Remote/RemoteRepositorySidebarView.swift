@@ -209,35 +209,41 @@ struct RemoteRepositorySidebarView: View {
     
     @State private var viewModel = RemoteRepositorySidebarViewModel()
     @State private var collapsedSectionIDs: Set<String> = []
+    @Environment(\.dismiss) private var dismiss
     
     var body: some View {
         let sections = repositorySections(settings.remoteRepositories)
         let orderedRepositories = sections.flatMap { $0.repositories }
-        List(selection: $selectedRepository) {
-            ForEach(sections) { section in
-                Section {
-                    sectionHeaderRow(section)
-                    if !collapsedSectionIDs.contains(section.id) {
-                        ForEach(section.repositories) { repo in
-                            repositoryRow(repo)
-                                .tag(repo)
-                        }
-                        .onDelete { offsets in
-                            deleteRepositories(offsets, in: section.repositories)
+        VStack(spacing: 0) {
+            SheetHeaderView(title: NSLocalizedString("Sources", comment: "Sources")) {
+                dismiss()
+            }
+
+            List(selection: $selectedRepository) {
+                ForEach(sections) { section in
+                    Section {
+                        sectionHeaderRow(section)
+                        if !collapsedSectionIDs.contains(section.id) {
+                            ForEach(section.repositories) { repo in
+                                repositoryRow(repo)
+                                    .tag(repo)
+                            }
+                            .onDelete { offsets in
+                                deleteRepositories(offsets, in: section.repositories)
+                            }
                         }
                     }
                 }
             }
-        }
-        .listStyle(.sidebar)
-        .animation(.snappy(duration: 0.2), value: collapsedSectionIDs)
-        .safeAreaInset(edge: .bottom) {
-            addRepositoryButton
+            .listStyle(.sidebar)
+            .animation(.snappy(duration: 0.2), value: collapsedSectionIDs)
+            .safeAreaInset(edge: .bottom) {
+                addRepositoryButton
+            }
         }
         .overlay(alignment: .top) {
             syncHUDOverlay
         }
-        .navigationTitle("Sources")
         .sheet(isPresented: $viewModel.showingAddRepository) {
             AddRepositorySheet(
                 isPresented: $viewModel.showingAddRepository,

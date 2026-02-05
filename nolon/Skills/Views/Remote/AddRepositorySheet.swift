@@ -379,25 +379,14 @@ struct AddRepositorySheet: View {
     // MARK: - Header View
     
     private var headerView: some View {
-        HStack {
-            Text(viewModel.isEditing ? "Edit Repository" : "Add Repository")
-                .font(.system(size: 20, weight: .bold))
-            
-            Spacer()
-            
-            Button {
-                isPresented = false
-            } label: {
-                Image(systemName: "xmark.circle.fill")
-                    .font(.system(size: 24))
-                    .foregroundStyle(DesignSystem.Colors.Text.tertiary)
-            }
-            .buttonStyle(.plain)
-            .disabled(viewModel.isAddingRepository)
+        SheetHeaderView(
+            title: viewModel.isEditing
+                ? NSLocalizedString("Edit Repository", comment: "Edit Repository")
+                : NSLocalizedString("Add Repository", comment: "Add Repository"),
+            isCloseDisabled: viewModel.isAddingRepository
+        ) {
+            isPresented = false
         }
-        .padding(.horizontal, 24)
-        .padding(.top, 24)
-        .padding(.bottom, 16)
     }
     
     // MARK: - Footer View
