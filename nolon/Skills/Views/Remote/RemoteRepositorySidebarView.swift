@@ -216,7 +216,7 @@ struct RemoteRepositorySidebarView: View {
         let orderedRepositories = sections.flatMap { $0.repositories }
         VStack(spacing: 0) {
             SheetHeaderView(title: NSLocalizedString("Sources", comment: "Sources")) {
-                dismiss()
+                EmptyView()
             }
 
             SheetDivider()
@@ -238,7 +238,6 @@ struct RemoteRepositorySidebarView: View {
                 }
             }
             .listStyle(.sidebar)
-            .sheetScrollContentPadding()
             .animation(.snappy(duration: 0.2), value: collapsedSectionIDs)
             .safeAreaInset(edge: .bottom) {
                 addRepositoryButton
