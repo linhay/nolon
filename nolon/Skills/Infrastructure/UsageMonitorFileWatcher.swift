@@ -1,10 +1,13 @@
 import Foundation
+import OSLog
 @preconcurrency import STFilePath
 
 /// Watches usage-related filesystem locations (token accounts + Codex auth files) and triggers a refresh on change.
 @MainActor
 final class UsageMonitorFileWatcher {
     typealias OnChange = @MainActor (STPathChanged) -> Void
+
+    private static let logger = Logger(subsystem: "com.nolon", category: "UsageMonitorFileWatcher")
 
     private let onChange: OnChange
     private var watchers: [STPathWatcher] = []
@@ -26,6 +29,10 @@ final class UsageMonitorFileWatcher {
 
         stop()
         targetPaths = desired
+        Self.logger.info("Start watching usage paths (\(desired.count, privacy: .public))")
+        for path in desired {
+            Self.logger.debug("Watching path: \(path, privacy: .public)")
+        }
 
         watchers = targets.map { STPathWatcher(path: $0) }
         watchTasks = watchers.map { watcher in
@@ -53,10 +60,14 @@ final class UsageMonitorFileWatcher {
         watchers.removeAll()
 
         targetPaths.removeAll()
+        Self.logger.info("Stopped watching usage paths")
     }
 
     private func scheduleChange(_ change: STPathChanged) async {
         latestChange = change
+        Self.logger.debug(
+            "Detected change: kind=\(String(describing: change.kind), privacy: .public) path=\(change.path.url.path, privacy: .public)"
+        )
         debounceTask?.cancel()
         debounceTask = Task { [weak self] in
             do {
@@ -66,6 +77,9 @@ final class UsageMonitorFileWatcher {
             }
             guard let self, !Task.isCancelled, let latest = self.latestChange else { return }
             self.latestChange = nil
+            Self.logger.info(
+                "Dispatching debounced change: kind=\(String(describing: latest.kind), privacy: .public) path=\(latest.path.url.path, privacy: .public)"
+            )
             Task { @MainActor in
                 self.onChange(latest)
             }
