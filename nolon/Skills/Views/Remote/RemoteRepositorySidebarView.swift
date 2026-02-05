@@ -24,7 +24,25 @@ final class RemoteRepositorySidebarViewModel {
     var showingAddRepository = false
     var editingRepository: RemoteRepository?  // For edit mode
     var isSyncing = false
-    var syncError: String?
+    var syncingRepositoryID: String?
+    var syncingRepositoryName: String?
+    var syncCompletionMessage: String?
+    var syncCompletionRepositoryName: String?
+    var syncCompletionStyle: SyncCompletionStyle?
+
+    @ObservationIgnored
+    private var syncCompletionToken: UUID?
+
+    @ObservationIgnored
+    private let syncSuccessDisplayDuration: TimeInterval = 1.6
+
+    @ObservationIgnored
+    private let syncFailureDisplayDuration: TimeInterval = 2.6
+
+    enum SyncCompletionStyle {
+        case success
+        case failure
+    }
     
     @MainActor
     func handleDirectoryCandidatesFound(repo: RemoteRepository, candidates: [GitRepository.SkillsDirectoryCandidate]) {
@@ -40,8 +58,17 @@ final class RemoteRepositorySidebarViewModel {
     func syncRepository(_ repo: RemoteRepository, settings: ProviderSettings) async {
         guard repo.templateType == .git else { return }
         
+        syncCompletionMessage = nil
+        syncCompletionRepositoryName = nil
+        syncCompletionStyle = nil
         isSyncing = true
-        defer { isSyncing = false }
+        syncingRepositoryID = repo.id
+        syncingRepositoryName = repositoryDisplayName(repo)
+        defer {
+            isSyncing = false
+            syncingRepositoryID = nil
+            syncingRepositoryName = nil
+        }
         
         do {
             let result = try await GitRepository.syncRepository(repo)
@@ -73,8 +100,17 @@ final class RemoteRepositorySidebarViewModel {
                 }
                 
                 settings.updateRemoteRepository(updatedRepo)
+                showSyncCompletion(
+                    message: result.message,
+                    style: .success,
+                    repositoryName: repositoryDisplayName(repo)
+                )
             } else {
-                syncError = result.message
+                showSyncCompletion(
+                    message: result.message,
+                    style: .failure,
+                    repositoryName: repositoryDisplayName(repo)
+                )
             }
         } catch GitRepository.SyncError.sshNotAvailable(let host) {
             // SSH not available, prompt for token
@@ -83,7 +119,34 @@ final class RemoteRepositorySidebarViewModel {
             inputToken = repo.accessToken ?? ""
             showingTokenInput = true
         } catch {
-            syncError = error.localizedDescription
+            showSyncCompletion(
+                message: error.localizedDescription,
+                style: .failure,
+                repositoryName: repositoryDisplayName(repo)
+            )
+        }
+    }
+
+    @MainActor
+    private func showSyncCompletion(message: String, style: SyncCompletionStyle, repositoryName: String) {
+        let token = UUID()
+        syncCompletionToken = token
+        withAnimation(.easeInOut(duration: 0.2)) {
+            syncCompletionMessage = message.isEmpty
+                ? NSLocalizedString("generic.error", comment: "Error")
+                : message
+            syncCompletionRepositoryName = repositoryName
+            syncCompletionStyle = style
+        }
+
+        let duration = style == .success ? syncSuccessDisplayDuration : syncFailureDisplayDuration
+        DispatchQueue.main.asyncAfter(deadline: .now() + duration) { [weak self] in
+            guard let self, self.syncCompletionToken == token else { return }
+            withAnimation(.easeInOut(duration: 0.2)) {
+                self.syncCompletionMessage = nil
+                self.syncCompletionRepositoryName = nil
+                self.syncCompletionStyle = nil
+            }
         }
     }
     
@@ -147,23 +210,28 @@ struct RemoteRepositorySidebarView: View {
     @State private var viewModel = RemoteRepositorySidebarViewModel()
     
     var body: some View {
-        let repos = sortedRepositories(settings.remoteRepositories)
+        let sections = repositorySections(settings.remoteRepositories)
+        let orderedRepositories = sections.flatMap { $0.repositories }
         List(selection: $selectedRepository) {
-            Section {
-                ForEach(repos) { repo in
-                    repositoryRow(repo)
-                        .tag(repo)
+            ForEach(sections) { section in
+                Section {
+                    sectionHeaderRow(section.title)
+                    ForEach(section.repositories) { repo in
+                        repositoryRow(repo)
+                            .tag(repo)
+                    }
+                    .onDelete { offsets in
+                        deleteRepositories(offsets, in: section.repositories)
+                    }
                 }
-                .onDelete { offsets in
-                    deleteRepositories(offsets, in: repos)
-                }
-            } header: {
-                Text("Repositories")
             }
         }
         .listStyle(.sidebar)
         .safeAreaInset(edge: .bottom) {
             addRepositoryButton
+        }
+        .overlay(alignment: .top) {
+            syncHUDOverlay
         }
         .navigationTitle("Sources")
         .sheet(isPresented: $viewModel.showingAddRepository) {
@@ -210,7 +278,7 @@ struct RemoteRepositorySidebarView: View {
         }
         .onAppear {
             if selectedRepository == nil {
-                selectedRepository = repos.first
+                selectedRepository = orderedRepositories.first
             }
             // Check for pending import immediately on appear
             if settings.pendingImportURL != nil {
@@ -225,10 +293,21 @@ struct RemoteRepositorySidebarView: View {
 
     }
     
+    private func sectionHeaderRow(_ title: String) -> some View {
+        Text(title)
+            .font(.caption)
+            .foregroundStyle(DesignSystem.Colors.Text.secondary)
+            .textCase(nil)
+            .padding(.top, 6)
+            .padding(.bottom, 2)
+            .listRowSeparator(.hidden)
+            .selectionDisabled(true)
+    }
+
     private func repositoryRow(_ repo: RemoteRepository) -> some View {
         HStack {
             Label {
-                Text(repo.name)
+                Text(repositoryDisplayName(repo))
             } icon: {
                 if let logoName = repo.logoName ?? repo.provider.logoName {
                     ProviderLogoView(name: repo.name, logoName: logoName, iconSize: 16)
@@ -249,7 +328,11 @@ struct RemoteRepositorySidebarView: View {
                     .background(DesignSystem.Colors.Component.controlFillSubtle)
                     .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusXS, style: .continuous))
             } else if repo.templateType == .git {
-                if let syncDate = repo.lastSyncDate {
+                if viewModel.isSyncing, viewModel.syncingRepositoryID == repo.id {
+                    ProgressView()
+                        .controlSize(.mini)
+                        .tint(DesignSystem.Colors.Status.info)
+                } else if let syncDate = repo.lastSyncDate {
                     Text(syncDate, style: .time)
                         .font(.caption2)
                         .foregroundStyle(DesignSystem.Colors.Text.secondary)
@@ -312,6 +395,79 @@ struct RemoteRepositorySidebarView: View {
         .padding(.vertical, 12)
         .background(Color(nsColor: .controlBackgroundColor))
     }
+
+    private enum SyncHUDStyle {
+        case info
+        case success
+        case failure
+    }
+
+    @ViewBuilder
+    private var syncHUDOverlay: some View {
+        if viewModel.isSyncing || viewModel.syncCompletionMessage != nil {
+            ZStack {
+                if viewModel.isSyncing {
+                    syncHUDCard(
+                        title: NSLocalizedString("Syncing repository...", comment: "Sync in progress"),
+                        subtitle: viewModel.syncingRepositoryName,
+                        style: .info
+                    ) {
+                        ProgressView()
+                            .controlSize(.small)
+                            .tint(DesignSystem.Colors.Status.info)
+                    }
+                } else if let message = viewModel.syncCompletionMessage {
+                    let completionStyle = viewModel.syncCompletionStyle ?? .success
+                    let hudStyle: SyncHUDStyle = completionStyle == .success ? .success : .failure
+                    syncHUDCard(
+                        title: message,
+                        subtitle: viewModel.syncCompletionRepositoryName,
+                        style: hudStyle
+                    ) {
+                        Image(systemName: completionStyle == .success ? "checkmark.circle.fill" : "xmark.octagon.fill")
+                            .foregroundStyle(completionStyle == .success
+                                             ? DesignSystem.Colors.Status.success
+                                             : DesignSystem.Colors.Status.error)
+                    }
+                }
+            }
+            .padding(.top, 12)
+            .transition(.opacity.combined(with: .scale(scale: 0.98)))
+            .allowsHitTesting(false)
+        }
+    }
+
+    private func syncHUDCard(
+        title: String,
+        subtitle: String?,
+        style: SyncHUDStyle,
+        @ViewBuilder icon: () -> some View
+    ) -> some View {
+        HStack(spacing: 12) {
+            icon()
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(DesignSystem.Colors.Text.primary)
+                    .lineLimit(2)
+                if let subtitle, !subtitle.isEmpty {
+                    Text(subtitle)
+                        .font(.system(size: 11))
+                        .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                        .lineLimit(1)
+                }
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(DesignSystem.Colors.Background.elevated.opacity(0.94))
+        .cornerRadius(12)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(DesignSystem.Colors.Component.border.opacity(style == .failure ? 0.6 : 0.35), lineWidth: 1)
+        )
+        .shadow(color: DesignSystem.Colors.Text.primary.opacity(0.14), radius: 12, x: 0, y: 8)
+    }
     
     private func deleteRepositories(_ offsets: IndexSet, in repos: [RemoteRepository]) {
         for index in offsets {
@@ -324,19 +480,99 @@ struct RemoteRepositorySidebarView: View {
     }
 }
 
-// MARK: - Token Input Sheet
-
-/// 排序规则：全局技能仓库放在最前，其余保持原有顺序
-private func sortedRepositories(_ repos: [RemoteRepository]) -> [RemoteRepository] {
-    repos.enumerated()
-        .sorted { lhs, rhs in
-            let lKey = lhs.element.templateType == .globalSkills ? 0 : 1
-            let rKey = rhs.element.templateType == .globalSkills ? 0 : 1
-            if lKey != rKey { return lKey < rKey }
-            return lhs.offset < rhs.offset
-        }
-        .map { $0.element }
+private struct RepositorySection: Identifiable {
+    let id: String
+    let title: String
+    let repositories: [RemoteRepository]
 }
+
+private func repositorySections(_ repos: [RemoteRepository]) -> [RepositorySection] {
+    var sections: [RepositorySection] = []
+
+    for template in RepositoryTemplate.allCases {
+        if template == .git {
+            let gitRepos = repos.filter { $0.templateType == .git }
+            guard !gitRepos.isEmpty else { continue }
+
+            var grouped: [String: [RemoteRepository]] = [:]
+            for repo in gitRepos {
+                let host = gitRepositoryHost(repo) ?? RepositoryTemplate.git.displayName
+                grouped[host, default: []].append(repo)
+            }
+
+            let orderedHosts = grouped.keys.sorted { lhs, rhs in
+                lhs.localizedStandardCompare(rhs) == .orderedAscending
+            }
+
+            for host in orderedHosts {
+                guard var repositories = grouped[host] else { continue }
+                repositories.sort { lhs, rhs in
+                    repositorySortKey(lhs).localizedStandardCompare(repositorySortKey(rhs)) == .orderedAscending
+                }
+                sections.append(
+                    RepositorySection(
+                        id: "git:\(host)",
+                        title: host,
+                        repositories: repositories
+                    )
+                )
+            }
+        } else {
+            let grouped = repos.filter { $0.templateType == template }
+            guard !grouped.isEmpty else { continue }
+            sections.append(
+                RepositorySection(
+                    id: template.rawValue,
+                    title: template.displayName,
+                    repositories: grouped
+                )
+            )
+        }
+    }
+
+    return sections
+}
+
+private func repositoryDisplayName(_ repo: RemoteRepository) -> String {
+    guard repo.templateType == .git else { return repo.name }
+    return gitRepositoryDisplayName(repo) ?? repo.name
+}
+
+private func repositorySortKey(_ repo: RemoteRepository) -> String {
+    repositoryDisplayName(repo).trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+}
+
+private func gitRepositoryDisplayName(_ repo: RemoteRepository) -> String? {
+    guard let components = gitRepositoryComponents(repo) else { return nil }
+    return "\(components.owner)@\(components.repo)"
+}
+
+private func gitRepositoryHost(_ repo: RemoteRepository) -> String? {
+    if let host = gitRepositoryComponents(repo)?.host {
+        return host
+    }
+    if let host = URL(string: repo.provider.baseURL)?.host {
+        return host
+    }
+    return nil
+}
+
+private struct GitRepositoryComponents {
+    let host: String?
+    let owner: String
+    let repo: String
+}
+
+private func gitRepositoryComponents(_ repo: RemoteRepository) -> GitRepositoryComponents? {
+    guard let gitURL = repo.gitURL else { return nil }
+    if let extracted = RemoteRepository.extractURLComponents(from: gitURL) {
+        return GitRepositoryComponents(host: extracted.host, owner: extracted.owner, repo: extracted.repo)
+    }
+    let fallback = repo.provider.extractComponents(from: gitURL)
+    return GitRepositoryComponents(host: nil, owner: fallback.owner, repo: fallback.repoName)
+}
+
+// MARK: - Token Input Sheet
 
 struct TokenInputSheet: View {
     @Binding var isPresented: Bool

@@ -243,7 +243,7 @@ final class RemoteSkillsGridViewModel {
 struct RemoteSkillsGridView: View {
     let repository: RemoteRepository?
     let selectedTab: RemoteContentTabType?
-    let searchText: String
+    @Binding var searchText: String
     let installedSlugs: Set<String>
     let installedWorkflowSlugs: Set<String>
     let providers: [Provider]
@@ -259,7 +259,7 @@ struct RemoteSkillsGridView: View {
     init(
         repository: RemoteRepository?,
         selectedTab: RemoteContentTabType?,
-        searchText: String,
+        searchText: Binding<String>,
         installedSlugs: Set<String>,
         installedWorkflowSlugs: Set<String>,
         providers: [Provider],
@@ -271,7 +271,7 @@ struct RemoteSkillsGridView: View {
     ) {
         self.repository = repository
         self.selectedTab = selectedTab
-        self.searchText = searchText
+        self._searchText = searchText
         self.installedSlugs = installedSlugs
         self.installedWorkflowSlugs = installedWorkflowSlugs
         self.providers = providers
@@ -301,18 +301,11 @@ struct RemoteSkillsGridView: View {
                     systemImage: "list.bullet"
                 )
             } else {
-                if viewModel.isLoading && viewModel.skills.isEmpty && viewModel.workflows.isEmpty && viewModel.mcps.isEmpty {
-                    ProgressView()
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else if let error = viewModel.errorMessage {
-                    ContentUnavailableView(
-                        "Error Loading Data",
-                        systemImage: "exclamationmark.triangle",
-                        description: Text(error)
-                    )
-                } else {
-                    gridContent
+                VStack(spacing: 12) {
+                    searchBar
+                    contentBody
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             }
         }
         // 使用 .task(id:) 处理仓库切换，它会自动取消旧任务并启动新任务
@@ -358,6 +351,34 @@ struct RemoteSkillsGridView: View {
             .frame(minWidth: 600, maxWidth: .infinity, minHeight: 400, maxHeight: .infinity)
         }
     }
+
+    @ViewBuilder
+    private var contentBody: some View {
+        if viewModel.isLoading && viewModel.skills.isEmpty && viewModel.workflows.isEmpty && viewModel.mcps.isEmpty {
+            ProgressView()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else if let error = viewModel.errorMessage {
+            ContentUnavailableView(
+                "Error Loading Data",
+                systemImage: "exclamationmark.triangle",
+                description: Text(error)
+            )
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+            gridContent
+        }
+    }
+
+    private var searchBar: some View {
+        HStack {
+            TextField("Search", text: $searchText)
+                .textFieldStyle(.roundedBorder)
+                .frame(maxWidth: 320)
+            Spacer()
+        }
+        .padding(.horizontal)
+        .padding(.top, 8)
+    }
     
     @ViewBuilder
     private var gridContent: some View {
@@ -365,7 +386,8 @@ struct RemoteSkillsGridView: View {
             ScrollView {
                 skillsGrid
             }
-            .padding()
+            .padding(.horizontal)
+            .padding(.bottom)
             // 彻底移除这里的 .searchable
         }
     }

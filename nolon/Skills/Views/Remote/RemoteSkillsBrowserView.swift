@@ -144,7 +144,7 @@ struct RemoteSkillsBrowserView: View {
             RemoteSkillsGridView(
                 repository: viewModel.selectedRepository,
                 selectedTab: viewModel.selectedTab,
-                searchText: viewModel.searchText, // 传入搜索文本
+                searchText: $viewModel.searchText,
                 installedSlugs: viewModel.installedSlugs,
                 installedWorkflowSlugs: viewModel.installedWorkflowSlugs,
                 providers: settings.providers,
@@ -175,7 +175,6 @@ struct RemoteSkillsBrowserView: View {
                 }
             )
         }
-        .searchable(text: $viewModel.searchText, placement: .toolbar, prompt: "Search") // 在顶级应用搜索
         .navigationSplitViewStyle(.balanced)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
