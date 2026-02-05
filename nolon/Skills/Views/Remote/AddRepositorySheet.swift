@@ -348,15 +348,17 @@ struct AddRepositorySheet: View {
     var body: some View {
         VStack(spacing: 0) {
             headerView
+
+            SheetDivider()
             
             ScrollView {
                 formContent
-                    .padding(.horizontal, 24)
-                    .padding(.bottom, 24)
+                    .padding(.horizontal, SheetLayout.horizontalPadding)
+                    .padding(.top, SheetLayout.contentVerticalPadding)
+                    .padding(.bottom, SheetLayout.contentBottomPadding)
             }
             
-            Divider()
-                .background(DesignSystem.Colors.Component.separator.opacity(0.25))
+            SheetDivider()
             
             footerView
         }
@@ -427,7 +429,8 @@ struct AddRepositorySheet: View {
                 .disabled(!viewModel.canAddRepository || viewModel.isAddingRepository)
             }
         }
-        .padding(20)
+        .padding(.horizontal, SheetLayout.footerHorizontalPadding)
+        .padding(.vertical, SheetLayout.footerVerticalPadding)
     }
 
     // MARK: - Form Content

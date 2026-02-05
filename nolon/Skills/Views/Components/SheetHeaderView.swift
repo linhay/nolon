@@ -59,8 +59,8 @@ struct SheetHeaderView: View {
 
             trailing
         }
-        .padding(.horizontal, 24)
-        .padding(.top, 24)
-        .padding(.bottom, 16)
+        .padding(.horizontal, SheetLayout.horizontalPadding)
+        .padding(.top, SheetLayout.horizontalPadding)
+        .padding(.bottom, SheetLayout.contentVerticalPadding)
     }
 }

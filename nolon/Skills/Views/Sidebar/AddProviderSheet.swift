@@ -144,6 +144,8 @@ struct AddProviderSheet: View {
                 dismiss()
             }
 
+            SheetDivider()
+
             Form {
                 Section {
                     Picker(NSLocalizedString("add_provider.kind_label", value: "Type", comment: "Provider kind label"), selection: $viewModel.kind) {
@@ -255,9 +257,9 @@ struct AddProviderSheet: View {
                 }
             }
             .formStyle(.grouped)
+            .sheetScrollContentPadding()
 
-            Divider()
-                .background(DesignSystem.Colors.Component.separator.opacity(0.25))
+            SheetDivider()
 
             HStack(spacing: 12) {
                 Button(NSLocalizedString("generic.cancel", comment: "Cancel")) {
@@ -276,8 +278,8 @@ struct AddProviderSheet: View {
                 .buttonStyle(.borderedProminent)
                 .disabled(!viewModel.canSave)
             }
-            .padding(.horizontal, 24)
-            .padding(.vertical, 16)
+            .padding(.horizontal, SheetLayout.footerHorizontalPadding)
+            .padding(.vertical, SheetLayout.footerVerticalPadding)
         }
         .fileImporter(
             isPresented: $viewModel.showingProjectFolderPicker,

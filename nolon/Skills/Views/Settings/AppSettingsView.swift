@@ -31,6 +31,8 @@ struct AppSettingsView: View {
                 dismiss()
             }
 
+            SheetDivider()
+
             HStack(spacing: 0) {
                 // Sidebar
                 VStack(alignment: .leading, spacing: 4) {

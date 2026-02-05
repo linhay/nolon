@@ -219,6 +219,8 @@ struct RemoteRepositorySidebarView: View {
                 dismiss()
             }
 
+            SheetDivider()
+
             List(selection: $selectedRepository) {
                 ForEach(sections) { section in
                     Section {
@@ -236,6 +238,7 @@ struct RemoteRepositorySidebarView: View {
                 }
             }
             .listStyle(.sidebar)
+            .sheetScrollContentPadding()
             .animation(.snappy(duration: 0.2), value: collapsedSectionIDs)
             .safeAreaInset(edge: .bottom) {
                 addRepositoryButton
@@ -673,6 +676,8 @@ struct TokenInputSheet: View {
                 isPresented = false
             }
 
+            SheetDivider()
+
             VStack(spacing: 20) {
                 Image(systemName: "key.fill")
                     .font(.system(size: 48))
@@ -705,11 +710,10 @@ struct TokenInputSheet: View {
                     .foregroundStyle(DesignSystem.Colors.Text.tertiary)
                     .multilineTextAlignment(.center)
             }
-            .padding(.horizontal, 24)
-            .padding(.bottom, 16)
+            .padding(.horizontal, SheetLayout.horizontalPadding)
+            .padding(.vertical, SheetLayout.contentVerticalPadding)
 
-            Divider()
-                .background(DesignSystem.Colors.Component.separator.opacity(0.25))
+            SheetDivider()
 
             HStack(spacing: 12) {
                 Button(NSLocalizedString("Cancel", comment: "Cancel")) {
@@ -726,8 +730,8 @@ struct TokenInputSheet: View {
                 .buttonStyle(.borderedProminent)
                 .disabled(token.isEmpty)
             }
-            .padding(.horizontal, 24)
-            .padding(.vertical, 16)
+            .padding(.horizontal, SheetLayout.footerHorizontalPadding)
+            .padding(.vertical, SheetLayout.footerVerticalPadding)
         }
         .frame(width: 420)
     }

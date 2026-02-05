@@ -18,6 +18,8 @@ struct SkillInstallSheet: View {
                 dismiss()
             }
 
+            SheetDivider()
+
             Form {
                 Section {
                     if providers.isEmpty {
@@ -39,6 +41,7 @@ struct SkillInstallSheet: View {
                 }
             }
             .formStyle(.grouped)
+            .sheetScrollContentPadding()
             .onAppear {
                 // Auto-select first provider if available
                 if selectedProviderID == nil, let firstProvider = providers.first {
@@ -46,8 +49,7 @@ struct SkillInstallSheet: View {
                 }
             }
 
-            Divider()
-                .background(DesignSystem.Colors.Component.separator.opacity(0.25))
+            SheetDivider()
 
             HStack(spacing: 12) {
                 Button(NSLocalizedString("Cancel", comment: "Cancel")) { dismiss() }
@@ -66,8 +68,8 @@ struct SkillInstallSheet: View {
                 .buttonStyle(.borderedProminent)
                 .disabled(selectedProviderID == nil)
             }
-            .padding(.horizontal, 24)
-            .padding(.vertical, 16)
+            .padding(.horizontal, SheetLayout.footerHorizontalPadding)
+            .padding(.vertical, SheetLayout.footerVerticalPadding)
         }
         .frame(width: 400, height: 280)
     }

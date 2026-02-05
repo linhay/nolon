@@ -23,6 +23,8 @@ struct SkillDetailView: View {
                 dismiss()
             }
 
+            SheetDivider()
+
             HStack(spacing: 0) {
                 // Column 1: Files Sidebar
                 SkillDetailSidebar(viewModel: viewModel)

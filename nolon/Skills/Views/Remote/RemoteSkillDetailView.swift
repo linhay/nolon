@@ -22,6 +22,8 @@ struct RemoteSkillDetailView: View {
                 ) {
                     dismiss()
                 }
+
+                SheetDivider()
             }
 
             Group {
