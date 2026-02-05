@@ -18,16 +18,9 @@ struct SheetDivider: View {
 extension View {
     @ViewBuilder
     func sheetScrollContentPadding() -> some View {
-        if #available(macOS 14.0, *) {
-            self
-                .scrollContentPadding(.horizontal, SheetLayout.horizontalPadding)
-                .scrollContentPadding(.top, SheetLayout.contentVerticalPadding)
-                .scrollContentPadding(.bottom, SheetLayout.contentBottomPadding)
-        } else {
-            self
-                .padding(.horizontal, SheetLayout.horizontalPadding)
-                .padding(.top, SheetLayout.contentVerticalPadding)
-                .padding(.bottom, SheetLayout.contentBottomPadding)
-        }
+        self
+            .padding(.horizontal, SheetLayout.horizontalPadding)
+            .padding(.top, SheetLayout.contentVerticalPadding)
+            .padding(.bottom, SheetLayout.contentBottomPadding)
     }
 }
