@@ -1,10 +1,44 @@
 import SwiftUI
 
 struct SheetHeaderView: View {
-    let title: String
-    var subtitle: String? = nil
-    var isCloseDisabled: Bool = false
-    let onClose: () -> Void
+    private let title: String
+    private var subtitle: String?
+    private var isCloseDisabled: Bool
+    private let trailing: AnyView
+
+    init(
+        title: String,
+        subtitle: String? = nil,
+        isCloseDisabled: Bool = false,
+        onClose: @escaping () -> Void
+    ) {
+        self.title = title
+        self.subtitle = subtitle
+        self.isCloseDisabled = isCloseDisabled
+        self.trailing = AnyView(
+            Button {
+                onClose()
+            } label: {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.system(size: 24))
+                    .foregroundStyle(DesignSystem.Colors.Text.tertiary)
+            }
+            .accessibilityLabel(NSLocalizedString("Close", comment: "Close"))
+            .buttonStyle(.plain)
+            .disabled(isCloseDisabled)
+        )
+    }
+
+    init(
+        title: String,
+        subtitle: String? = nil,
+        @ViewBuilder trailing: () -> some View
+    ) {
+        self.title = title
+        self.subtitle = subtitle
+        self.isCloseDisabled = false
+        self.trailing = AnyView(trailing())
+    }
 
     var body: some View {
         HStack(alignment: .center, spacing: 16) {
@@ -23,16 +57,7 @@ struct SheetHeaderView: View {
 
             Spacer(minLength: 0)
 
-            Button {
-                onClose()
-            } label: {
-                Image(systemName: "xmark.circle.fill")
-                    .font(.system(size: 24))
-                    .foregroundStyle(DesignSystem.Colors.Text.tertiary)
-            }
-            .accessibilityLabel(NSLocalizedString("Close", comment: "Close"))
-            .buttonStyle(.plain)
-            .disabled(isCloseDisabled)
+            trailing
         }
         .padding(.horizontal, 24)
         .padding(.top, 24)
