@@ -19,8 +19,9 @@ struct RemoteSkillDetailView: View {
                     headerView(isLocalAvailable: true)
 
                     RemoteLocalSkillDetailView(skill: skill, localPath: localPath)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 .padding()
             } else {
                 ScrollView {
