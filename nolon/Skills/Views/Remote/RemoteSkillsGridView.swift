@@ -326,7 +326,8 @@ struct RemoteSkillsGridView: View {
                     onInstall(skill, provider)
                 }
             )
-            .frame(minWidth: 600, maxWidth: .infinity, minHeight: 400, maxHeight: .infinity)
+            .frame(minWidth: 920, idealWidth: 1100, maxWidth: .infinity,
+                   minHeight: 620, idealHeight: 720, maxHeight: .infinity)
         }
         .sheet(item: $viewModel.selectedWorkflowForDetail) { workflow in
             RemoteWorkflowDetailView(
@@ -337,7 +338,8 @@ struct RemoteSkillsGridView: View {
                     onInstallWorkflow?(workflow, provider)
                 }
             )
-            .frame(minWidth: 600, maxWidth: .infinity, minHeight: 400, maxHeight: .infinity)
+            .frame(minWidth: 920, idealWidth: 1100, maxWidth: .infinity,
+                   minHeight: 620, idealHeight: 720, maxHeight: .infinity)
         }
         .sheet(item: $viewModel.selectedMCPForDetail) { mcp in
             RemoteMCPDetailView(
@@ -348,7 +350,8 @@ struct RemoteSkillsGridView: View {
                     onInstallMCP?(mcp, provider)
                 }
             )
-            .frame(minWidth: 600, maxWidth: .infinity, minHeight: 400, maxHeight: .infinity)
+            .frame(minWidth: 920, idealWidth: 1100, maxWidth: .infinity,
+                   minHeight: 620, idealHeight: 720, maxHeight: .infinity)
         }
     }
 
