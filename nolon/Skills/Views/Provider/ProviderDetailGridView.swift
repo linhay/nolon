@@ -100,23 +100,13 @@ struct ProviderDetailGridView: View {
         NavigationStack {
             ZStack(alignment: .bottomTrailing) {
                 ScrollView {
-                    switch selectedTab {
-                    case .skills:
-                        if let provider = provider {
-                            ProviderSkillsGridView(viewModel: viewModel, columns: columns, provider: provider)
+                    VStack(alignment: .leading, spacing: 16) {
+                        if isCodexXcodeProvider {
+                            codexXcodeNotice
                         }
-                    case .workflows:
-                        ProviderWorkflowsGridView(viewModel: viewModel, columns: columns)
-                    case .mcp:
-                        mcpGrid
-                    case .accounts:
-                        if let provider = provider {
-                            ProviderUsageView(provider: provider)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                        }
-                    case .none:
-                        EmptyView()
+                        tabContent
                     }
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
                 }
                 .padding()
                 .searchable(text: $viewModel.searchText)
@@ -128,7 +118,67 @@ struct ProviderDetailGridView: View {
             }
         }
     }
-    
+
+    private var isCodexXcodeProvider: Bool {
+        provider?.templateId == "codexXcode"
+    }
+
+    @ViewBuilder
+    private var tabContent: some View {
+        switch selectedTab {
+        case .skills:
+            if let provider = provider {
+                ProviderSkillsGridView(viewModel: viewModel, columns: columns, provider: provider)
+            }
+        case .workflows:
+            ProviderWorkflowsGridView(viewModel: viewModel, columns: columns)
+        case .mcp:
+            mcpGrid
+        case .accounts:
+            if let provider = provider {
+                ProviderUsageView(provider: provider)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        case .none:
+            EmptyView()
+        }
+    }
+
+    private var codexXcodeNotice: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: "hammer.fill")
+                .font(.title3)
+                .foregroundStyle(DesignSystem.Colors.Status.info)
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text(NSLocalizedString(
+                    "provider.codex_xcode.notice.title",
+                    value: "Xcode Built-in Codex",
+                    comment: "Xcode Codex banner title"
+                ))
+                .font(.headline)
+                .foregroundStyle(DesignSystem.Colors.Text.primary)
+
+                Text(NSLocalizedString(
+                    "provider.codex_xcode.notice.desc",
+                    value: "Uses Xcode's Codex folder at ~/Library/Developer/Xcode/CodingAssistant/codex for skills, workflows, and MCP. Account and usage are managed by Xcode.",
+                    comment: "Xcode Codex banner description"
+                ))
+                .font(.callout)
+                .foregroundStyle(DesignSystem.Colors.Text.secondary)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding()
+        .background(DesignSystem.Colors.Background.elevated)
+        .cornerRadius(12)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .strokeBorder(DesignSystem.Colors.Component.border.opacity(0.4), lineWidth: 1)
+        )
+    }
+
     private var quickInstallButton: some View {
 	        Button {
 	            switch selectedTab {

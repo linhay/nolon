@@ -982,6 +982,40 @@
         }
       }
     },
+    "provider.codex_xcode.notice.desc" : {
+      "comment" : "Xcode Codex banner description",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Uses Xcode's Codex folder at ~/Library/Developer/Xcode/CodingAssistant/codex for skills, workflows, and MCP. Account and usage are managed by Xcode."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用 Xcode 的 Codex 目录（~/Library/Developer/Xcode/CodingAssistant/codex）管理 Skills / Workflows / MCP。账号与用量由 Xcode 管理。"
+          }
+        }
+      }
+    },
+    "provider.codex_xcode.notice.title" : {
+      "comment" : "Xcode Codex banner title",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Xcode Built-in Codex"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Xcode 内置 Codex"
+          }
+        }
+      }
+    },
     "Browse and install skills from Clawdhub" : {
       "localizations" : {
         "zh-Hans" : {

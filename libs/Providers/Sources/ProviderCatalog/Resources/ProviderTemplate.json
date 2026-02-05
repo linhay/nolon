@@ -17,6 +17,20 @@
             "skills"
         ]
     },
+    "codexXcode": {
+        "displayName": "Codex (Xcode)",
+        "iconName": "hammer",
+        "logoFile": "openai",
+        "vendorHomeRelativePath": "Library/Developer/Xcode/CodingAssistant/codex",
+        "defaultSkillsPath": "skills",
+        "defaultWorkflowPath": "prompts",
+        "documentationURL": "https://developer.apple.com/documentation/xcode/setting-up-coding-intelligence",
+        "mcpDocumentationURL": "https://developer.apple.com/documentation/xcode/setting-up-coding-intelligence",
+        "defaultMcpConfigPath": "config.toml",
+        "defaultSkillsPaths": [
+            "skills"
+        ]
+    },
     "claude": {
         "displayName": "Claude Code",
         "iconName": "bubble.left.and.bubble.right",

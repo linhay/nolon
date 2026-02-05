@@ -4,6 +4,7 @@ import Foundation
 /// These are templates used when adding a new provider, not actual providers.
 public enum ProviderTemplate: String, CaseIterable, Sendable, Identifiable {
     case codex
+    case codexXcode
     case claudeCode
     case opencode
     case copilot
