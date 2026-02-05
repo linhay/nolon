@@ -70,11 +70,7 @@ final class RemoteLocalSkillDetailViewModel {
             version = metadata["version"] ?? fallbackVersion ?? "1.0.0"
         }
 
-        if let modified = STFile(skillMdPath).attributes.modificationDate {
-            lastUpdated = modified
-        } else {
-            lastUpdated = fallbackUpdatedAt
-        }
+        lastUpdated = STFile(skillMdPath).attributes.modificationDate
     }
 
     private func loadFiles() {
@@ -123,6 +119,7 @@ struct RemoteLocalSkillDetailView: View {
     let localPath: String
 
     @State private var viewModel: RemoteLocalSkillDetailViewModel
+    @Environment(\.dismiss) private var dismiss
 
     init(skill: RemoteSkill, localPath: String) {
         self.skill = skill
@@ -131,30 +128,36 @@ struct RemoteLocalSkillDetailView: View {
     }
 
     var body: some View {
-        HStack(spacing: 0) {
-            RemoteLocalSkillDetailSidebar(viewModel: viewModel)
-                .frame(width: 210)
-                .background(DesignSystem.Colors.Background.elevated)
+        VStack(spacing: 12) {
+            SheetHeaderView(title: viewModel.name) {
+                dismiss()
+            }
 
-            Divider()
-                .background(DesignSystem.Colors.Component.separator.opacity(0.6))
+            HStack(spacing: 0) {
+                RemoteLocalSkillDetailSidebar(viewModel: viewModel)
+                    .frame(width: 210)
+                    .background(DesignSystem.Colors.Background.elevated)
 
-            RemoteLocalSkillDetailContent(viewModel: viewModel)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(DesignSystem.Colors.Background.surface)
+                Divider()
+                    .background(DesignSystem.Colors.Component.separator.opacity(0.6))
 
-            Divider()
-                .background(DesignSystem.Colors.Component.separator.opacity(0.6))
+                RemoteLocalSkillDetailContent(viewModel: viewModel)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(DesignSystem.Colors.Background.surface)
 
-            RemoteLocalSkillDetailInspector(viewModel: viewModel, localPath: localPath)
-                .frame(width: 240)
-                .background(DesignSystem.Colors.Background.elevated)
+                Divider()
+                    .background(DesignSystem.Colors.Component.separator.opacity(0.6))
+
+                RemoteLocalSkillDetailInspector(viewModel: viewModel, localPath: localPath)
+                    .frame(width: 240)
+                    .background(DesignSystem.Colors.Background.elevated)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(DesignSystem.Colors.Component.border.opacity(0.4), lineWidth: 1)
+            )
         }
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(DesignSystem.Colors.Component.border.opacity(0.4), lineWidth: 1)
-        )
         .task {
             viewModel.load()
         }

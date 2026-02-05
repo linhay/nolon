@@ -11,44 +11,56 @@ struct RemoteSkillDetailView: View {
     let onInstall: (Provider) -> Void
 
     @State private var showingInstallSheet = false
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        Group {
-            if let localPath = resolvedLocalPath {
-                VStack(alignment: .leading, spacing: 16) {
-                    headerView(isLocalAvailable: true)
-
-                    RemoteLocalSkillDetailView(skill: skill, localPath: localPath)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        VStack(spacing: 0) {
+            if resolvedLocalPath == nil {
+                SheetHeaderView(
+                    title: skill.displayName,
+                    subtitle: skill.summary
+                ) {
+                    dismiss()
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                .padding()
-            } else {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 20) {
-                        headerView(isLocalAvailable: false)
+            }
 
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text(NSLocalizedString("About this skill", comment: "About this skill"))
-                                .font(.headline)
+            Group {
+                if let localPath = resolvedLocalPath {
+                    VStack(alignment: .leading, spacing: 16) {
+                        headerView(isLocalAvailable: true)
 
-                            if let changelog = skill.latestVersion?.changelog {
-                                Text(NSLocalizedString("Latest Changes", comment: "Latest changes"))
-                                    .font(.subheadline)
-                                    .bold()
-                                Markdown(changelog)
-                            } else {
-                                Text(NSLocalizedString("No detailed description available.", comment: "No description"))
-                                    .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                        RemoteLocalSkillDetailView(skill: skill, localPath: localPath)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    .padding()
+                } else {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 20) {
+                            headerView(isLocalAvailable: false)
+
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text(NSLocalizedString("About this skill", comment: "About this skill"))
+                                    .font(.headline)
+
+                                if let changelog = skill.latestVersion?.changelog {
+                                    Text(NSLocalizedString("Latest Changes", comment: "Latest changes"))
+                                        .font(.subheadline)
+                                        .bold()
+                                    Markdown(changelog)
+                                } else {
+                                    Text(NSLocalizedString("No detailed description available.", comment: "No description"))
+                                        .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                                }
                             }
+                            .padding()
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(DesignSystem.Colors.Component.controlFill)
+                            .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusL, style: .continuous))
                         }
                         .padding()
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(DesignSystem.Colors.Component.controlFill)
-                        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusL, style: .continuous))
+                        .textSelection(.enabled)
                     }
-                    .padding()
-                    .textSelection(.enabled)
                 }
             }
         }

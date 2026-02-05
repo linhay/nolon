@@ -139,7 +139,11 @@ struct AddProviderSheet: View {
     }
     
     var body: some View {
-        NavigationStack {
+        VStack(spacing: 0) {
+            SheetHeaderView(title: NSLocalizedString("Add Provider", comment: "Add Provider")) {
+                dismiss()
+            }
+
             Form {
                 Section {
                     Picker(NSLocalizedString("add_provider.kind_label", value: "Type", comment: "Provider kind label"), selection: $viewModel.kind) {
@@ -251,30 +255,36 @@ struct AddProviderSheet: View {
                 }
             }
             .formStyle(.grouped)
-            .navigationTitle("Add Provider")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button(NSLocalizedString("generic.cancel", comment: "Cancel")) {
+
+            Divider()
+                .background(DesignSystem.Colors.Component.separator.opacity(0.25))
+
+            HStack(spacing: 12) {
+                Button(NSLocalizedString("generic.cancel", comment: "Cancel")) {
+                    dismiss()
+                }
+                .buttonStyle(.plain)
+
+                Spacer(minLength: 0)
+
+                Button(NSLocalizedString("generic.add", comment: "Add")) {
+                    viewModel.save()
+                    if viewModel.validationError == nil {
                         dismiss()
                     }
                 }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button(NSLocalizedString("generic.add", comment: "Add")) {
-                        viewModel.save()
-                        if viewModel.validationError == nil {
-                            dismiss()
-                        }
-                    }
-                    .disabled(!viewModel.canSave)
-                }
+                .buttonStyle(.borderedProminent)
+                .disabled(!viewModel.canSave)
             }
-            .fileImporter(
-                isPresented: $viewModel.showingProjectFolderPicker,
-                allowedContentTypes: [.folder],
-                allowsMultipleSelection: false,
-                onCompletion: viewModel.handleProjectFolderSelection
-            )
+            .padding(.horizontal, 24)
+            .padding(.vertical, 16)
         }
+        .fileImporter(
+            isPresented: $viewModel.showingProjectFolderPicker,
+            allowedContentTypes: [.folder],
+            allowsMultipleSelection: false,
+            onCompletion: viewModel.handleProjectFolderSelection
+        )
         .frame(minWidth: 450, minHeight: 400)
     }
 }

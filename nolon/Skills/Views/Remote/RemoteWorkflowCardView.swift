@@ -215,10 +215,14 @@ private struct WorkflowInstallSheet: View {
     @Environment(\.dismiss) private var dismiss
     
     var body: some View {
-        VStack(spacing: 20) {
-            Text("Install '\(workflowName)' to...")
-                .font(.headline)
-            
+        VStack(spacing: 0) {
+            SheetHeaderView(
+                title: NSLocalizedString("Install", comment: "Install"),
+                subtitle: workflowName
+            ) {
+                dismiss()
+            }
+
             List {
                 ForEach(providers) { provider in
                     Button {
@@ -242,13 +246,22 @@ private struct WorkflowInstallSheet: View {
                     .buttonStyle(.plain)
                 }
             }
-            
-            Button("Cancel") {
-                dismiss()
+
+            Divider()
+                .background(DesignSystem.Colors.Component.separator.opacity(0.25))
+
+            HStack(spacing: 12) {
+                Button(NSLocalizedString("Cancel", comment: "Cancel")) {
+                    dismiss()
+                }
+                .buttonStyle(.plain)
+                .keyboardShortcut(.cancelAction)
+
+                Spacer(minLength: 0)
             }
-            .keyboardShortcut(.cancelAction)
+            .padding(.horizontal, 24)
+            .padding(.vertical, 16)
         }
-        .padding()
-        .frame(width: 400, height: 500)
+        .frame(width: 420, height: 520)
     }
 }

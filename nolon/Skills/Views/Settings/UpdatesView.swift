@@ -4,7 +4,21 @@ struct UpdatesView: View {
     @State private var viewModel = UpdatesViewModel()
     @State private var selectedUpdate: SkillUpdateInfo?
     @State private var showUpdateConfirmation = false
+    @Environment(\.dismiss) private var dismiss
     
+    private var lastCheckSubtitle: String? {
+        guard let lastCheck = viewModel.lastCheckDate else { return nil }
+        let minutes = Int(Date().timeIntervalSince(lastCheck) / 60)
+        return String(
+            format: NSLocalizedString(
+                "updates.last_checked",
+                value: "Last checked: %d minutes ago",
+                comment: "Last checked time"
+            ),
+            minutes
+        )
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             headerView
@@ -25,39 +39,39 @@ struct UpdatesView: View {
     }
     
     private var headerView: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(NSLocalizedString("updates.title", comment: "Updates view title"))
-                    .font(.title2)
-                    .fontWeight(.semibold)
-                
-                if let lastCheck = viewModel.lastCheckDate {
-                    Text("Last checked: \(Int(Date().timeIntervalSince(lastCheck) / 60)) minutes ago")
-                        .font(.caption)
+        SheetHeaderView(
+            title: NSLocalizedString("updates.title", comment: "Updates view title"),
+            subtitle: lastCheckSubtitle
+        ) {
+            HStack(spacing: 12) {
+                if viewModel.hasUpdates {
+                    Label(String(format: NSLocalizedString("updates.available_count", comment: "Number of updates available"), viewModel.updatableCount), systemImage: "arrow.down.circle")
+                        .font(.subheadline)
+                        .foregroundStyle(DesignSystem.Colors.Status.info)
+                }
+
+                Button(action: {
+                    Task {
+                        await viewModel.checkForUpdates()
+                    }
+                }) {
+                    Image(systemName: "arrow.clockwise")
                         .foregroundStyle(DesignSystem.Colors.Text.secondary)
                 }
-            }
-            
-            Spacer()
-            
-            if viewModel.hasUpdates {
-                Label(String(format: NSLocalizedString("updates.available_count", comment: "Number of updates available"), viewModel.updatableCount), systemImage: "arrow.down.circle")
-                    .font(.subheadline)
-                    .foregroundStyle(DesignSystem.Colors.Status.info)
-            }
-            
-            Button(action: {
-                Task {
-                    await viewModel.checkForUpdates()
+                .disabled(viewModel.isChecking)
+                .help(NSLocalizedString("updates.check_for_updates", comment: "Check for updates button help"))
+
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 22))
+                        .foregroundStyle(DesignSystem.Colors.Text.tertiary)
                 }
-            }) {
-                Image(systemName: "arrow.clockwise")
+                .buttonStyle(.plain)
+                .accessibilityLabel(NSLocalizedString("Close", comment: "Close"))
             }
-            .disabled(viewModel.isChecking)
-            .help(NSLocalizedString("updates.check_for_updates", comment: "Check for updates button help"))
         }
-        .padding()
-        .background(DesignSystem.Colors.Background.surface)
     }
     
     private var emptyStateView: some View {
@@ -104,7 +118,7 @@ struct UpdatesView: View {
 struct UpdateRowView: View {
     let update: SkillUpdateInfo
     let onUpdate: () -> Void
-    
+
     var body: some View {
         HStack(spacing: 16) {
             statusIndicator

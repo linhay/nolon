@@ -209,35 +209,41 @@ struct RemoteRepositorySidebarView: View {
     
     @State private var viewModel = RemoteRepositorySidebarViewModel()
     @State private var collapsedSectionIDs: Set<String> = []
+    @Environment(\.dismiss) private var dismiss
     
     var body: some View {
         let sections = repositorySections(settings.remoteRepositories)
         let orderedRepositories = sections.flatMap { $0.repositories }
-        List(selection: $selectedRepository) {
-            ForEach(sections) { section in
-                Section {
-                    sectionHeaderRow(section)
-                    if !collapsedSectionIDs.contains(section.id) {
-                        ForEach(section.repositories) { repo in
-                            repositoryRow(repo)
-                                .tag(repo)
-                        }
-                        .onDelete { offsets in
-                            deleteRepositories(offsets, in: section.repositories)
+        VStack(spacing: 0) {
+            SheetHeaderView(title: NSLocalizedString("Sources", comment: "Sources")) {
+                dismiss()
+            }
+
+            List(selection: $selectedRepository) {
+                ForEach(sections) { section in
+                    Section {
+                        sectionHeaderRow(section)
+                        if !collapsedSectionIDs.contains(section.id) {
+                            ForEach(section.repositories) { repo in
+                                repositoryRow(repo)
+                                    .tag(repo)
+                            }
+                            .onDelete { offsets in
+                                deleteRepositories(offsets, in: section.repositories)
+                            }
                         }
                     }
                 }
             }
-        }
-        .listStyle(.sidebar)
-        .animation(.snappy(duration: 0.2), value: collapsedSectionIDs)
-        .safeAreaInset(edge: .bottom) {
-            addRepositoryButton
+            .listStyle(.sidebar)
+            .animation(.snappy(duration: 0.2), value: collapsedSectionIDs)
+            .safeAreaInset(edge: .bottom) {
+                addRepositoryButton
+            }
         }
         .overlay(alignment: .top) {
             syncHUDOverlay
         }
-        .navigationTitle("Sources")
         .sheet(isPresented: $viewModel.showingAddRepository) {
             AddRepositorySheet(
                 isPresented: $viewModel.showingAddRepository,
@@ -662,50 +668,67 @@ struct TokenInputSheet: View {
     let onConfirm: () -> Void
     
     var body: some View {
-        VStack(spacing: 20) {
-            Image(systemName: "key.fill")
-                .font(.system(size: 48))
-                .foregroundStyle(.orange)
-            
-            Text("SSH Authentication Unavailable")
-                .font(.headline)
-            
-            Text(
-                "SSH key is not configured for **\(host)**. Please provide a Personal Access Token to authenticate."
-            )
-            .font(.subheadline)
-            .foregroundStyle(.secondary)
-            .multilineTextAlignment(.center)
-            
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Personal Access Token")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                
-                SecureField("Enter your token", text: $token)
-                    .textFieldStyle(.roundedBorder)
+        VStack(spacing: 0) {
+            SheetHeaderView(title: NSLocalizedString("SSH Authentication Unavailable", comment: "SSH unavailable")) {
+                isPresented = false
             }
-            
-            Text("Generate a token from your Git provider's settings with 'read_repository' scope.")
-                .font(.caption)
-                .foregroundStyle(.tertiary)
+
+            VStack(spacing: 20) {
+                Image(systemName: "key.fill")
+                    .font(.system(size: 48))
+                    .foregroundStyle(DesignSystem.Colors.Status.warning)
+
+                Text(
+                    String(
+                        format: NSLocalizedString(
+                            "SSH key is not configured for %@. Please provide a Personal Access Token to authenticate.",
+                            comment: "SSH token prompt"
+                        ),
+                        host
+                    )
+                )
+                .font(.subheadline)
+                .foregroundStyle(DesignSystem.Colors.Text.secondary)
                 .multilineTextAlignment(.center)
-            
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(NSLocalizedString("Personal Access Token", comment: "Personal access token"))
+                        .font(.caption)
+                        .foregroundStyle(DesignSystem.Colors.Text.secondary)
+
+                    SecureField(NSLocalizedString("Enter your token", comment: "Enter token"), text: $token)
+                        .textFieldStyle(.roundedBorder)
+                }
+
+                Text(NSLocalizedString("Generate a token from your Git provider's settings with 'read_repository' scope.", comment: "Token help"))
+                    .font(.caption)
+                    .foregroundStyle(DesignSystem.Colors.Text.tertiary)
+                    .multilineTextAlignment(.center)
+            }
+            .padding(.horizontal, 24)
+            .padding(.bottom, 16)
+
+            Divider()
+                .background(DesignSystem.Colors.Component.separator.opacity(0.25))
+
             HStack(spacing: 12) {
-                Button("Cancel") {
+                Button(NSLocalizedString("Cancel", comment: "Cancel")) {
                     isPresented = false
                 }
-                .buttonStyle(.bordered)
-                
-                Button("Save & Retry") {
+                .buttonStyle(.plain)
+
+                Spacer(minLength: 0)
+
+                Button(NSLocalizedString("Save & Retry", comment: "Save and retry")) {
                     isPresented = false
                     onConfirm()
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(token.isEmpty)
             }
+            .padding(.horizontal, 24)
+            .padding(.vertical, 16)
         }
-        .padding(24)
-        .frame(width: 400)
+        .frame(width: 420)
     }
 }

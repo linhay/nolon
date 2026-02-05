@@ -28,6 +28,7 @@
       }
     },
     "%lld downloads" : {
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -38,6 +39,7 @@
       }
     },
     "%lld Downloads" : {
+      "comment" : "Download count",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -74,6 +76,7 @@
       }
     },
     "%lld stars" : {
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -84,6 +87,7 @@
       }
     },
     "%lld Stars" : {
+      "comment" : "Star count",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -134,6 +138,7 @@
       }
     },
     "About this skill" : {
+      "comment" : "About this skill",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -520,6 +525,7 @@
       }
     },
     "Add Provider" : {
+      "comment" : "Add Provider",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -530,6 +536,7 @@
       }
     },
     "Add Repository" : {
+      "comment" : "Add Repository",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -982,40 +989,6 @@
         }
       }
     },
-    "provider.codex_xcode.notice.desc" : {
-      "comment" : "Xcode Codex banner description",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Uses Xcode's Codex folder at ~/Library/Developer/Xcode/CodingAssistant/codex for skills, workflows, and MCP. Account and usage are managed by Xcode."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "使用 Xcode 的 Codex 目录（~/Library/Developer/Xcode/CodingAssistant/codex）管理 Skills / Workflows / MCP。账号与用量由 Xcode 管理。"
-          }
-        }
-      }
-    },
-    "provider.codex_xcode.notice.title" : {
-      "comment" : "Xcode Codex banner title",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Xcode Built-in Codex"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Xcode 内置 Codex"
-          }
-        }
-      }
-    },
     "Browse and install skills from Clawdhub" : {
       "localizations" : {
         "zh-Hans" : {
@@ -1037,6 +1010,7 @@
       }
     },
     "Cancel" : {
+      "comment" : "Cancel",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -1067,6 +1041,7 @@
       }
     },
     "Choose Skills Directories" : {
+      "comment" : "Choose skills directories",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -1093,6 +1068,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Clawdhub 是官方 Skill 市场。"
+          }
+        }
+      }
+    },
+    "Close" : {
+      "comment" : "Close",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Close"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "关闭"
           }
         }
       }
@@ -2223,18 +2215,6 @@
         }
       }
     },
-    "common.done" : {
-      "comment" : "Done",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Done"
-          }
-        }
-      }
-    },
     "Configuration" : {
       "localizations" : {
         "zh-Hans" : {
@@ -2398,108 +2378,6 @@
         }
       }
     },
-    "remote.detail.files_title" : {
-      "comment" : "Files",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Files"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "文件"
-          }
-        }
-      }
-    },
-    "remote.detail.local_badge" : {
-      "comment" : "Local badge",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Local"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "本地"
-          }
-        }
-      }
-    },
-    "remote.detail.local_details_title" : {
-      "comment" : "Local Details",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Local Details"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "本地信息"
-          }
-        }
-      }
-    },
-    "remote.detail.path_label" : {
-      "comment" : "Path",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Path"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "路径"
-          }
-        }
-      }
-    },
-    "remote.detail.summary_title" : {
-      "comment" : "Summary",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Summary"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "简介"
-          }
-        }
-      }
-    },
-    "remote.detail.updated_label" : {
-      "comment" : "Updated",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Updated"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "更新"
-          }
-        }
-      }
-    },
     "Details" : {
       "localizations" : {
         "zh-Hans" : {
@@ -2521,6 +2399,7 @@
       }
     },
     "Done" : {
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -2560,7 +2439,25 @@
         }
       }
     },
+    "Edit Provider" : {
+      "comment" : "Edit Provider",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Edit Provider"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "编辑提供方"
+          }
+        }
+      }
+    },
     "Edit Repository" : {
+      "comment" : "Edit Repository",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -2608,6 +2505,7 @@
     },
     "edit_provider.title" : {
       "comment" : "Edit Provider",
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -2640,6 +2538,7 @@
       }
     },
     "Enter your token" : {
+      "comment" : "Enter token",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -2868,6 +2767,7 @@
       }
     },
     "Generate a token from your Git provider's settings with 'read_repository' scope." : {
+      "comment" : "Token help",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -2955,10 +2855,17 @@
     },
     "generic.save" : {
       "comment" : "Save",
+      "extractionState" : "extracted_with_value",
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Save"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "保存"
           }
         }
@@ -3007,6 +2914,7 @@
       }
     },
     "Install" : {
+      "comment" : "Install",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -3017,6 +2925,7 @@
       }
     },
     "Install '%@' to..." : {
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -3027,6 +2936,7 @@
       }
     },
     "Install %@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -3037,6 +2947,7 @@
       }
     },
     "Install to" : {
+      "comment" : "Install to",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -3047,6 +2958,7 @@
       }
     },
     "Install to %@" : {
+      "comment" : "Install to provider",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -3217,10 +3129,8 @@
         }
       }
     },
-    "Last checked: %lld minutes ago" : {
-
-    },
     "Latest Changes" : {
+      "comment" : "Latest changes",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -3681,6 +3591,7 @@
       }
     },
     "Metadata" : {
+      "comment" : "Metadata",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -3722,6 +3633,7 @@
       }
     },
     "No detailed description available." : {
+      "comment" : "No description",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -3732,6 +3644,7 @@
       }
     },
     "No file selected" : {
+      "comment" : "No file selected",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -3802,6 +3715,7 @@
       }
     },
     "No providers available. Please create a local provider first." : {
+      "comment" : "No providers",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -4282,6 +4196,7 @@
       }
     },
     "Personal Access Token" : {
+      "comment" : "Personal access token",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -4298,6 +4213,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Provider"
+          }
+        }
+      }
+    },
+    "provider.codex_xcode.notice.desc" : {
+      "comment" : "Xcode Codex banner description",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Uses Xcode's Codex folder at ~/Library/Developer/Xcode/CodingAssistant/codex for skills, workflows, and MCP. Account and usage are managed by Xcode."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用 Xcode 的 Codex 目录（~/Library/Developer/Xcode/CodingAssistant/codex）管理 Skills / Workflows / MCP。账号与用量由 Xcode 管理。"
+          }
+        }
+      }
+    },
+    "provider.codex_xcode.notice.title" : {
+      "comment" : "Xcode Codex banner title",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Xcode Built-in Codex"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Xcode 内置 Codex"
           }
         }
       }
@@ -4335,12 +4284,150 @@
         }
       }
     },
+    "Refresh" : {
+      "comment" : "Refresh",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Refresh"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "刷新"
+          }
+        }
+      }
+    },
     "Refresh installed status" : {
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "刷新安装状态"
+          }
+        }
+      }
+    },
+    "remote.browser.title" : {
+      "comment" : "Remote skills browser",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Remote Skills"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "远程技能"
+          }
+        }
+      }
+    },
+    "remote.detail.files_title" : {
+      "comment" : "Files",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Files"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "文件"
+          }
+        }
+      }
+    },
+    "remote.detail.local_badge" : {
+      "comment" : "Local badge",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Local"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本地"
+          }
+        }
+      }
+    },
+    "remote.detail.local_details_title" : {
+      "comment" : "Local details",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Local Details"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本地信息"
+          }
+        }
+      }
+    },
+    "remote.detail.path_label" : {
+      "comment" : "Path",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Path"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "路径"
+          }
+        }
+      }
+    },
+    "remote.detail.summary_title" : {
+      "comment" : "Summary",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Summary"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "简介"
+          }
+        }
+      }
+    },
+    "remote.detail.updated_label" : {
+      "comment" : "Updated",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Updated"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更新"
           }
         }
       }
@@ -4378,11 +4465,29 @@
       }
     },
     "Repositories" : {
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "仓库"
+          }
+        }
+      }
+    },
+    "Repository Root" : {
+      "comment" : "Repository root",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Repository Root"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "仓库根目录"
           }
         }
       }
@@ -4418,6 +4523,7 @@
       }
     },
     "Save & Retry" : {
+      "comment" : "Save and retry",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -4449,6 +4555,7 @@
       }
     },
     "Select %lld director%@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -4475,6 +4582,7 @@
       }
     },
     "Select a provider folder where this skill will be installed." : {
+      "comment" : "Install destination",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -4485,6 +4593,7 @@
       }
     },
     "Select a provider..." : {
+      "comment" : "Select provider",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -4495,6 +4604,7 @@
       }
     },
     "Select one or more directories containing skills:" : {
+      "comment" : "Select directories",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -5263,6 +5373,7 @@
       }
     },
     "Sources" : {
+      "comment" : "Sources",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -5273,6 +5384,7 @@
       }
     },
     "SSH Authentication Unavailable" : {
+      "comment" : "SSH unavailable",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -5283,11 +5395,29 @@
       }
     },
     "SSH key is not configured for **%@**. Please provide a Personal Access Token to authenticate." : {
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "未为 **%@** 配置 SSH 密钥。请提供个人访问令牌进行身份验证。"
+          }
+        }
+      }
+    },
+    "SSH key is not configured for %@. Please provide a Personal Access Token to authenticate." : {
+      "comment" : "SSH token prompt",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "SSH key is not configured for %@. Please provide a Personal Access Token to authenticate."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未为 %@ 配置 SSH 密钥。请提供个人访问令牌以进行身份验证。"
           }
         }
       }
@@ -5446,6 +5576,7 @@
       }
     },
     "Syncing repository..." : {
+      "comment" : "Sync in progress",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -5557,6 +5688,7 @@
       }
     },
     "Unable to read file" : {
+      "comment" : "Unable to read file",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -5621,18 +5753,18 @@
       }
     },
     "updates.last_checked" : {
-      "comment" : "Last checked timestamp",
-      "extractionState" : "stale",
+      "comment" : "Last checked time",
+      "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "Last checked: %@ ago"
+            "value" : "Last checked: %d minutes ago"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "最后检查：%@ 前"
           }
         }
@@ -6346,6 +6478,7 @@
       }
     },
     "v%@" : {
+      "comment" : "Version badge",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
