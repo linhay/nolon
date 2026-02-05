@@ -305,41 +305,57 @@ struct RemoteRepositorySidebarView: View {
     }
 
     private func repositoryRow(_ repo: RemoteRepository) -> some View {
-        HStack {
-            Label {
-                Text(repositoryDisplayName(repo))
-            } icon: {
+        HStack(alignment: .top, spacing: 12) {
+            HStack(alignment: .top, spacing: 8) {
                 if let logoName = repo.logoName ?? repo.provider.logoName {
                     ProviderLogoView(name: repo.name, logoName: logoName, iconSize: 16)
                 } else {
                     Image(systemName: repo.iconName)
                         .foregroundStyle(DesignSystem.Colors.Text.secondary)
                 }
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(repositoryDisplayName(repo))
+                        .font(.body)
+                        .foregroundStyle(DesignSystem.Colors.Text.primary)
+                        .lineLimit(1)
+
+                    if let secondaryLine = repositorySecondaryLine(repo) {
+                        Text(secondaryLine)
+                            .font(.caption)
+                            .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                            .lineLimit(1)
+                    }
+                }
             }
-            Spacer()
-            
-            // Show badges based on type
-            if repo.isBuiltIn {
-                Text("Built-in")
-                    .font(.caption2)
-                    .foregroundStyle(DesignSystem.Colors.Text.secondary)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(DesignSystem.Colors.Component.controlFillSubtle)
-                    .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusXS, style: .continuous))
-            } else if repo.templateType == .git {
-                if viewModel.isSyncing, viewModel.syncingRepositoryID == repo.id {
-                    ProgressView()
-                        .controlSize(.mini)
-                        .tint(DesignSystem.Colors.Status.info)
-                } else if let syncDate = repo.lastSyncDate {
-                    Text(syncDate, style: .time)
+
+            Spacer(minLength: 8)
+
+            VStack(alignment: .trailing, spacing: 6) {
+                if repo.isBuiltIn {
+                    Text("Built-in")
                         .font(.caption2)
                         .foregroundStyle(DesignSystem.Colors.Text.secondary)
-                } else {
-                    Text("Not synced")
-                    .font(.caption2)
-                    .foregroundStyle(DesignSystem.Colors.Status.warning)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(DesignSystem.Colors.Component.controlFillSubtle)
+                        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusXS, style: .continuous))
+                }
+
+                if repo.templateType == .git {
+                    if viewModel.isSyncing, viewModel.syncingRepositoryID == repo.id {
+                        ProgressView()
+                            .controlSize(.mini)
+                            .tint(DesignSystem.Colors.Status.info)
+                    } else if let syncDate = repo.lastSyncDate {
+                        Text(syncDate, style: .time)
+                            .font(.caption2)
+                            .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                    } else {
+                        Text("Not synced")
+                            .font(.caption2)
+                            .foregroundStyle(DesignSystem.Colors.Status.warning)
+                    }
                 }
             }
         }
@@ -489,13 +505,24 @@ private struct RepositorySection: Identifiable {
 private func repositorySections(_ repos: [RemoteRepository]) -> [RepositorySection] {
     var sections: [RepositorySection] = []
 
-    for template in RepositoryTemplate.allCases {
-        if template == .git {
-            let gitRepos = repos.filter { $0.templateType == .git }
-            guard !gitRepos.isEmpty else { continue }
+    let builtInRepos = repos.filter { $0.isBuiltIn }
+    if !builtInRepos.isEmpty {
+        sections.append(
+            RepositorySection(
+                id: "built_in",
+                title: "Built-in",
+                repositories: builtInRepos
+            )
+        )
+    }
 
+    for template in RepositoryTemplate.allCases {
+        let nonBuiltIn = repos.filter { !$0.isBuiltIn && $0.templateType == template }
+        guard !nonBuiltIn.isEmpty else { continue }
+
+        if template == .git {
             var grouped: [String: [RemoteRepository]] = [:]
-            for repo in gitRepos {
+            for repo in nonBuiltIn {
                 let host = gitRepositoryHost(repo) ?? RepositoryTemplate.git.displayName
                 grouped[host, default: []].append(repo)
             }
@@ -518,13 +545,11 @@ private func repositorySections(_ repos: [RemoteRepository]) -> [RepositorySecti
                 )
             }
         } else {
-            let grouped = repos.filter { $0.templateType == template }
-            guard !grouped.isEmpty else { continue }
             sections.append(
                 RepositorySection(
                     id: template.rawValue,
                     title: template.displayName,
-                    repositories: grouped
+                    repositories: nonBuiltIn
                 )
             )
         }
@@ -536,6 +561,14 @@ private func repositorySections(_ repos: [RemoteRepository]) -> [RepositorySecti
 private func repositoryDisplayName(_ repo: RemoteRepository) -> String {
     guard repo.templateType == .git else { return repo.name }
     return gitRepositoryDisplayName(repo) ?? repo.name
+}
+
+private func repositorySecondaryLine(_ repo: RemoteRepository) -> String? {
+    guard repo.templateType == .git else { return nil }
+    if let host = gitRepositoryHost(repo) {
+        return host
+    }
+    return nil
 }
 
 private func repositorySortKey(_ repo: RemoteRepository) -> String {
