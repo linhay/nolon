@@ -216,7 +216,16 @@ struct RemoteRepositorySidebarView: View {
         let orderedRepositories = sections.flatMap { $0.repositories }
         VStack(spacing: 0) {
             SheetHeaderView(title: NSLocalizedString("Sources", comment: "Sources")) {
-                EmptyView()
+                Button {
+                    viewModel.showingAddRepository = true
+                } label: {
+                    Image(systemName: "plus.circle.fill")
+                        .font(.system(size: 20))
+                        .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                }
+                .buttonStyle(.plain)
+                .help(NSLocalizedString("Add Repository", comment: "Add Repository"))
+                .accessibilityLabel(NSLocalizedString("Add Repository", comment: "Add Repository"))
             }
 
             SheetDivider()
