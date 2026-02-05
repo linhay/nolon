@@ -208,6 +208,7 @@ struct RemoteRepositorySidebarView: View {
     @ObservedObject var settings: ProviderSettings
     
     @State private var viewModel = RemoteRepositorySidebarViewModel()
+    @State private var collapsedSectionIDs: Set<String> = []
     
     var body: some View {
         let sections = repositorySections(settings.remoteRepositories)
@@ -215,18 +216,21 @@ struct RemoteRepositorySidebarView: View {
         List(selection: $selectedRepository) {
             ForEach(sections) { section in
                 Section {
-                    sectionHeaderRow(section.title)
-                    ForEach(section.repositories) { repo in
-                        repositoryRow(repo)
-                            .tag(repo)
-                    }
-                    .onDelete { offsets in
-                        deleteRepositories(offsets, in: section.repositories)
+                    sectionHeaderRow(section)
+                    if !collapsedSectionIDs.contains(section.id) {
+                        ForEach(section.repositories) { repo in
+                            repositoryRow(repo)
+                                .tag(repo)
+                        }
+                        .onDelete { offsets in
+                            deleteRepositories(offsets, in: section.repositories)
+                        }
                     }
                 }
             }
         }
         .listStyle(.sidebar)
+        .animation(.snappy(duration: 0.2), value: collapsedSectionIDs)
         .safeAreaInset(edge: .bottom) {
             addRepositoryButton
         }
@@ -312,15 +316,37 @@ struct RemoteRepositorySidebarView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private func sectionHeaderRow(_ title: String) -> some View {
-        Text(title)
-            .font(.caption)
-            .foregroundStyle(DesignSystem.Colors.Text.secondary)
+    private func sectionHeaderRow(_ section: RepositorySection) -> some View {
+        Button {
+            toggleSection(section)
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: collapsedSectionIDs.contains(section.id) ? "chevron.right" : "chevron.down")
+                    .font(.caption)
+                    .foregroundStyle(DesignSystem.Colors.Text.secondary)
+
+                Text(section.title)
+                    .font(.caption)
+                    .foregroundStyle(DesignSystem.Colors.Text.secondary)
+
+                Spacer(minLength: 0)
+            }
             .textCase(nil)
             .padding(.top, 6)
             .padding(.bottom, 2)
-            .listRowSeparator(.hidden)
-            .selectionDisabled(true)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .listRowSeparator(.hidden)
+        .selectionDisabled(true)
+    }
+
+    private func toggleSection(_ section: RepositorySection) {
+        if collapsedSectionIDs.contains(section.id) {
+            collapsedSectionIDs.remove(section.id)
+        } else {
+            collapsedSectionIDs.insert(section.id)
+        }
     }
 
     private func repositoryRow(_ repo: RemoteRepository) -> some View {
