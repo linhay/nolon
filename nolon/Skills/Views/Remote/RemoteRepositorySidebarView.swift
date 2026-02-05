@@ -248,9 +248,6 @@ struct RemoteRepositorySidebarView: View {
             }
             .listStyle(.sidebar)
             .animation(.snappy(duration: 0.2), value: collapsedSectionIDs)
-            .safeAreaInset(edge: .bottom) {
-                addRepositoryButton
-            }
         }
         .overlay(alignment: .top) {
             syncHUDOverlay
