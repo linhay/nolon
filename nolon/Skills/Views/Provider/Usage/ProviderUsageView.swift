@@ -132,7 +132,7 @@ final class ProviderUsageViewModel {
         guard shouldRefresh else { return }
 
         Self.logger.debug(
-            "Usage view appear refresh. provider=\(usageProvider.rawValue, privacy: .public) interval=\(intervalMinutes, privacy: .public)m last=\(String(describing: lastUsageRefreshAt), privacy: .public)"
+            "Usage view appear refresh. provider=\(usageProvider.rawValue, privacy: .public) interval=\(intervalMinutes, privacy: .public)m last=\(String(describing: self.lastUsageRefreshAt), privacy: .public)"
         )
         if await loadIfNeeded() {
             return
@@ -163,7 +163,7 @@ final class ProviderUsageViewModel {
         isLoading = true
         defer { isLoading = false }
 
-        Self.logger.info("Loading usage. provider=\(usageProvider.rawValue, privacy: .public) multiAccount=\(isMultiAccountEnabled, privacy: .public)")
+        Self.logger.info("Loading usage. provider=\(usageProvider.rawValue, privacy: .public) multiAccount=\(self.isMultiAccountEnabled, privacy: .public)")
         if usageProvider == .codex, isMultiAccountEnabled {
             outcomes = []
         } else {
@@ -342,7 +342,7 @@ final class ProviderUsageViewModel {
             codexAccountOutcomes = await loadCachedCodexAccountOutcomes(accounts: codexAccounts)
 
             Self.logger.debug(
-                "Codex disk reload complete. accounts=\(codexAccounts.count, privacy: .public) refreshUsage=\(refreshUsage, privacy: .public)"
+                "Codex disk reload complete. accounts=\(self.codexAccounts.count, privacy: .public) refreshUsage=\(refreshUsage, privacy: .public)"
             )
             if refreshUsage {
                 await refreshCodexAccountsIfNeeded(
