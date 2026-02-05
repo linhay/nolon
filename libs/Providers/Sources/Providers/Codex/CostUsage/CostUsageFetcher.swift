@@ -1,5 +1,6 @@
 import Foundation
 import CodexBarProviderCatalog
+import ProvidersShared
 
 public enum CostUsageError: LocalizedError, Sendable {
     case unsupportedProvider(UsageProvider)
@@ -24,10 +25,9 @@ public struct CostUsageFetcher: Sendable {
     public func loadTokenSnapshot(
         provider: UsageProvider,
         now: Date = Date(),
-        forceRefresh: Bool = false,
-        allowVertexClaudeFallback: Bool = false) async throws -> CostUsageTokenSnapshot
+        forceRefresh: Bool = false) async throws -> CostUsageTokenSnapshot
     {
-        guard provider == .codex || provider == .claude || provider == .vertexai else {
+        guard provider == .codex else {
             throw CostUsageError.unsupportedProvider(provider)
         }
 
@@ -36,36 +36,16 @@ public struct CostUsageFetcher: Sendable {
         let since = Calendar.current.date(byAdding: .day, value: -29, to: now) ?? now
 
         var options = CostUsageScanner.Options()
-        if provider == .vertexai {
-            options.claudeLogProviderFilter = allowVertexClaudeFallback ? .all : .vertexAIOnly
-        } else if provider == .claude {
-            options.claudeLogProviderFilter = .excludeVertexAI
-        }
         if forceRefresh {
             options.refreshMinIntervalSeconds = 0
             options.forceRescan = true
         }
-        var daily = CostUsageScanner.loadDailyReport(
+        let daily = CostUsageScanner.loadDailyReport(
             provider: provider,
             since: since,
             until: until,
             now: now,
             options: options)
-
-        if provider == .vertexai,
-           !allowVertexClaudeFallback,
-           options.claudeLogProviderFilter == .vertexAIOnly,
-           daily.data.isEmpty
-        {
-            var fallback = options
-            fallback.claudeLogProviderFilter = .all
-            daily = CostUsageScanner.loadDailyReport(
-                provider: provider,
-                since: since,
-                until: until,
-                now: now,
-                options: fallback)
-        }
 
         return Self.tokenSnapshot(from: daily, now: now)
     }

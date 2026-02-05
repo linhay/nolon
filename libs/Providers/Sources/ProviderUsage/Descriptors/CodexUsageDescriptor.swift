@@ -20,30 +20,38 @@ public struct CodexUsageDescriptor: ProviderUsageDescribing {
             let rateLimits = try await rateLimitsTask
             let accountInfo = await accountInfoTask
             let costInfo = await costTask
+            let statusSnapshot: CodexStatusSnapshot?
+            if rateLimits.primary?.resetsAt == nil || rateLimits.secondary?.resetsAt == nil {
+                statusSnapshot = try? await CodexStatusProbe().fetch()
+            } else {
+                statusSnapshot = nil
+            }
 
             let primary = rateLimits.primary.map { window in
-                RateWindow(
+                let resetDescription = window.resetsAt.map {
+                    String(
+                        format: NSLocalizedString("usage.metric.resets_at", value: "Resets %@", comment: "Resets label"),
+                        $0.formatted(date: .abbreviated, time: .shortened)
+                    )
+                } ?? statusSnapshot?.fiveHourResetDescription.map(Self.formatStatusResetDescription)
+                return RateWindow(
                     usedPercent: window.usedPercent,
-                    resetDescription: window.resetsAt.map {
-                        String(
-                            format: NSLocalizedString("usage.metric.resets_at", value: "Resets %@", comment: "Resets label"),
-                            $0.formatted(date: .abbreviated, time: .shortened)
-                        )
-                    },
+                    resetDescription: resetDescription,
                     resetsAt: window.resetsAt,
                     windowMinutes: window.windowDurationMins
                 )
             }
 
             let secondary = rateLimits.secondary.map { window in
-                RateWindow(
+                let resetDescription = window.resetsAt.map {
+                    String(
+                        format: NSLocalizedString("usage.metric.resets_at", value: "Resets %@", comment: "Resets label"),
+                        $0.formatted(date: .abbreviated, time: .shortened)
+                    )
+                } ?? statusSnapshot?.weeklyResetDescription.map(Self.formatStatusResetDescription)
+                return RateWindow(
                     usedPercent: window.usedPercent,
-                    resetDescription: window.resetsAt.map {
-                        String(
-                            format: NSLocalizedString("usage.metric.resets_at", value: "Resets %@", comment: "Resets label"),
-                            $0.formatted(date: .abbreviated, time: .shortened)
-                        )
-                    },
+                    resetDescription: resetDescription,
                     resetsAt: window.resetsAt,
                     windowMinutes: window.windowDurationMins
                 )
@@ -113,5 +121,39 @@ public struct CodexUsageDescriptor: ProviderUsageDescribing {
             }
             return nil
         }
+    }
+
+    static func formatStatusResetDescription(_ raw: String) -> String {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty { return raw }
+
+        let lower = trimmed.lowercased()
+        if lower.hasPrefix("in ") {
+            let tail = trimmed.dropFirst(3).trimmingCharacters(in: .whitespacesAndNewlines)
+            if !tail.isEmpty {
+                return String(
+                    format: NSLocalizedString(
+                        "usage.metric.resets_in",
+                        value: "Resets in %@",
+                        comment: "Resets countdown label"
+                    ),
+                    String(tail)
+                )
+            }
+        }
+        if lower.hasPrefix("at ") {
+            let tail = trimmed.dropFirst(3).trimmingCharacters(in: .whitespacesAndNewlines)
+            if !tail.isEmpty {
+                return String(
+                    format: NSLocalizedString("usage.metric.resets_at", value: "Resets %@", comment: "Resets label"),
+                    String(tail)
+                )
+            }
+        }
+
+        return String(
+            format: NSLocalizedString("usage.metric.resets_at", value: "Resets %@", comment: "Resets label"),
+            trimmed
+        )
     }
 }

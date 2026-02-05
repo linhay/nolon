@@ -24,14 +24,14 @@ struct RemoteMCPDetailView: View {
                         HStack(spacing: 8) {
                             Label(version.version, systemImage: "tag")
                                 .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(DesignSystem.Colors.Text.secondary)
                             
                             if let date = Date(timeIntervalSince1970: version.createdAt).formatted(date: .abbreviated, time: .omitted) as String? {
                                 Text("•")
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(DesignSystem.Colors.Text.secondary)
                                 Text(date)
                                     .font(.caption)
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(DesignSystem.Colors.Text.secondary)
                             }
                         }
                     }
@@ -44,7 +44,7 @@ struct RemoteMCPDetailView: View {
                 } label: {
                     Image(systemName: "xmark.circle.fill")
                         .font(.title2)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(DesignSystem.Colors.Text.secondary)
                 }
                 .buttonStyle(.plain)
             }
@@ -63,7 +63,7 @@ struct RemoteMCPDetailView: View {
                                 .font(.headline)
                             Text(summary)
                                 .font(.body)
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(DesignSystem.Colors.Text.secondary)
                         }
                     }
                     
@@ -83,8 +83,8 @@ struct RemoteMCPDetailView: View {
                                         .textSelection(.enabled)
                                         .padding(8)
                                         .frame(maxWidth: .infinity, alignment: .leading)
-                                        .background(Color.secondary.opacity(0.1))
-                                        .cornerRadius(6)
+                                        .background(DesignSystem.Colors.Component.controlFillSubtle)
+                                        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusS, style: .continuous))
                                 }
                             }
                             
@@ -101,8 +101,8 @@ struct RemoteMCPDetailView: View {
                                     }
                                     .padding(8)
                                     .frame(maxWidth: .infinity, alignment: .leading)
-                                    .background(Color.secondary.opacity(0.1))
-                                    .cornerRadius(6)
+                                    .background(DesignSystem.Colors.Component.controlFillSubtle)
+                                    .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusS, style: .continuous))
                                 }
                             }
                             
@@ -121,8 +121,8 @@ struct RemoteMCPDetailView: View {
                                     }
                                     .padding(8)
                                     .frame(maxWidth: .infinity, alignment: .leading)
-                                    .background(Color.secondary.opacity(0.1))
-                                    .cornerRadius(6)
+                                    .background(DesignSystem.Colors.Component.controlFillSubtle)
+                                    .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusS, style: .continuous))
                                 }
                             }
                         }
@@ -157,7 +157,7 @@ struct RemoteMCPDetailView: View {
                                 .font(.headline)
                             Text(changelog)
                                 .font(.body)
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(DesignSystem.Colors.Text.secondary)
                         }
                     }
                 }

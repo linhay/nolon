@@ -139,6 +139,11 @@ struct ProviderDetailGridView: View {
                 ProviderUsageView(provider: provider)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
+        case .usage:
+            if let provider = provider {
+                ProviderUsageView(provider: provider)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
         case .none:
             EmptyView()
         }
@@ -190,19 +195,21 @@ struct ProviderDetailGridView: View {
 	                viewModel.showingRemoteBrowser = .mcp
 	            case .accounts:
 	                break
+	            case .usage:
+	                break
 	            case .none:
 	                break
 	            }
 	        } label: {
-	            ZStack {
+            ZStack {
                 Circle()
-                    .fill(Color.accentColor)
+                    .fill(DesignSystem.Colors.primary)
                     .frame(width: 56, height: 56)
-                    .shadow(color: Color.accentColor.opacity(0.4), radius: 10, x: 0, y: 5)
+                    .shadow(color: DesignSystem.Colors.primary.opacity(0.4), radius: 10, x: 0, y: 5)
                 
                 Image(systemName: "plus")
                     .font(.system(size: 24, weight: .bold))
-                    .foregroundColor(.white)
+                    .foregroundStyle(DesignSystem.Colors.Text.onAccent)
             }
         }
         .buttonStyle(.plain)

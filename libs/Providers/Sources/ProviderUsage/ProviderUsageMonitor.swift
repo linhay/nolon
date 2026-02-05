@@ -5,11 +5,33 @@ public struct ProviderUsageMonitorSettings: Sendable, Codable, Equatable {
     public var sourceMode: ProviderSourceMode
     public var includeCredits: Bool
     public var webTimeoutSeconds: Int
+    public var autoRefreshIntervalMinutes: Int
 
-    public init(sourceMode: ProviderSourceMode = .auto, includeCredits: Bool = false, webTimeoutSeconds: Int = 30) {
+    public init(
+        sourceMode: ProviderSourceMode = .auto,
+        includeCredits: Bool = false,
+        webTimeoutSeconds: Int = 30,
+        autoRefreshIntervalMinutes: Int = 0
+    ) {
         self.sourceMode = sourceMode
         self.includeCredits = includeCredits
         self.webTimeoutSeconds = webTimeoutSeconds
+        self.autoRefreshIntervalMinutes = autoRefreshIntervalMinutes
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case sourceMode
+        case includeCredits
+        case webTimeoutSeconds
+        case autoRefreshIntervalMinutes
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        sourceMode = (try? container.decode(ProviderSourceMode.self, forKey: .sourceMode)) ?? .auto
+        includeCredits = (try? container.decode(Bool.self, forKey: .includeCredits)) ?? false
+        webTimeoutSeconds = (try? container.decode(Int.self, forKey: .webTimeoutSeconds)) ?? 30
+        autoRefreshIntervalMinutes = (try? container.decode(Int.self, forKey: .autoRefreshIntervalMinutes)) ?? 0
     }
 }
 

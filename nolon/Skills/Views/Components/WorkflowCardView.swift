@@ -18,10 +18,10 @@ enum WorkflowSource: String, CaseIterable {
     
     var color: Color {
         switch self {
-        case .skill: return .blue
-        case .user: return .orange
-        case .mcp: return .purple
-        case .unknown: return .secondary
+        case .skill: return DesignSystem.Colors.primary
+        case .user: return DesignSystem.Colors.Status.warning
+        case .mcp: return DesignSystem.Colors.secondary
+        case .unknown: return DesignSystem.Colors.Text.secondary
         }
     }
 }
@@ -108,7 +108,7 @@ struct WorkflowCardView: View {
             // 2. 描述区
             HighlightedText(text: workflow.description, query: searchText)
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(DesignSystem.Colors.Text.secondary)
                 .lineLimit(3)
                 .frame(maxHeight: .infinity, alignment: .topLeading)
             
@@ -116,15 +116,15 @@ struct WorkflowCardView: View {
             HStack {
                 Label("Workflow", systemImage: "arrow.triangle.branch")
                     .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(DesignSystem.Colors.Text.secondary)
                 
                 Spacer()
             }
         }
         .padding(16)
         .frame(minHeight: 140)
-        .background(Color.secondary.opacity(0.08))
-        .cornerRadius(12)
+        .background(DesignSystem.Colors.Component.controlFillSubtle)
+        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusL, style: .continuous))
         .contentShape(Rectangle())
         .onTapGesture {
             onTap()
@@ -186,7 +186,7 @@ struct WorkflowCardView: View {
         } label: {
             Image(systemName: "ellipsis")
                 .font(.body)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(DesignSystem.Colors.Text.secondary)
                 .frame(width: 24, height: 24)
                 .contentShape(Rectangle())
         }

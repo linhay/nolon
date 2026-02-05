@@ -5,6 +5,7 @@ import SwiftUI
 
 enum DesignSystem {
     enum Colors {}
+    enum Metrics {}
 }
 
 // MARK: - Color Definitions
@@ -31,6 +32,8 @@ extension DesignSystem.Colors {
         static let secondary = Color(light: 0x3C3C43, dark: 0xEBEBF5).opacity(0.60)
         static let tertiary = Color(light: 0x3C3C43, dark: 0xEBEBF5).opacity(0.30)
         static let quaternary = Color(light: 0x3C3C43, dark: 0xEBEBF5).opacity(0.18)
+
+        static let onAccent = Color(light: 0xFFFFFF, dark: 0xFFFFFF)
     }
 
     // MARK: Status
@@ -47,6 +50,21 @@ extension DesignSystem.Colors {
     struct Component {
         static let border = Color(light: 0xC6C6C8, dark: 0x38383A)
         static let separator = Color(light: 0xC6C6C8, dark: 0x38383A)
+
+        static let controlFill = Color(light: 0xFFFFFF, dark: 0x1C1C1E).opacity(0.35)
+        static let controlFillStrong = Color(light: 0xFFFFFF, dark: 0x1C1C1E).opacity(0.55)
+        static let controlFillSubtle = Color(light: 0xFFFFFF, dark: 0x1C1C1E).opacity(0.18)
+        static let disabledFill = Color(light: 0x000000, dark: 0xFFFFFF).opacity(0.12)
+    }
+
+    // MARK: Overlay / Shadow
+
+    struct Overlay {
+        static let scrim = Color(light: 0x000000, dark: 0x000000).opacity(0.40)
+    }
+
+    struct Shadow {
+        static let floating = Color(light: 0x000000, dark: 0x000000).opacity(0.20)
     }
 }
 

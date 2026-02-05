@@ -10,7 +10,6 @@
         "mcpDocumentationURL": "https://developers.openai.com/codex/mcp/",
         "defaultMcpConfigPath": "config.toml",
         "vendorTabs": [
-            "accounts",
             "usage"
         ],
         "defaultSkillsPaths": [

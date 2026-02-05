@@ -1,5 +1,6 @@
 #if canImport(SKProcessRunner)
 import Foundation
+import ProvidersShared
 import SKProcessRunner
 
 public struct SKProcessRunnerCommandRunner: CodexCLICommandRunning {

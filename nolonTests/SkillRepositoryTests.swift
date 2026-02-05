@@ -87,6 +87,22 @@ final class SkillRepositoryTests: XCTestCase {
         let content = try String(contentsOfFile: workflowPath)
         XCTAssertTrue(content.contains("Workflow Skill"))
     }
+
+    func testBDD_GivenSkillWithReferencesAndScripts_WhenImporting_ThenCountsMatch() throws {
+        // Given
+        let sourceURL = try fixture.createSampleSkill(id: "counted-skill", name: "Counted Skill")
+        let referencesDir = sourceURL.appendingPathComponent("references")
+        let scriptsDir = sourceURL.appendingPathComponent("scripts")
+        try "Ref".write(to: referencesDir.appendingPathComponent("ref.md"), atomically: true, encoding: .utf8)
+        try "Script".write(to: scriptsDir.appendingPathComponent("script.sh"), atomically: true, encoding: .utf8)
+
+        // When
+        let skill = try repository.importSkill(from: sourceURL)
+
+        // Then
+        XCTAssertEqual(skill.referenceCount, 1)
+        XCTAssertEqual(skill.scriptCount, 1)
+    }
     
     func testMetadataPersistence() throws {
         // Given

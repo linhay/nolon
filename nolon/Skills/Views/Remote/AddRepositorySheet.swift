@@ -356,18 +356,12 @@ struct AddRepositorySheet: View {
             }
             
             Divider()
-                .background(Color.white.opacity(0.1))
+                .background(DesignSystem.Colors.Component.separator.opacity(0.25))
             
             footerView
         }
         .frame(width: 500, height: 480)
-        .background(.ultraThinMaterial)
-        .cornerRadius(24)
-        .overlay(
-            RoundedRectangle(cornerRadius: 24)
-                .stroke(Color.white.opacity(0.2), lineWidth: 1)
-        )
-        .shadow(color: .black.opacity(0.2), radius: 30, x: 0, y: 15)
+        .dsGlassPanel()
         .overlay {
             if viewModel.isAddingRepository {
                 loadingOverlay
@@ -396,7 +390,7 @@ struct AddRepositorySheet: View {
             } label: {
                 Image(systemName: "xmark.circle.fill")
                     .font(.system(size: 24))
-                    .foregroundStyle(.secondary.opacity(0.5))
+                    .foregroundStyle(DesignSystem.Colors.Text.tertiary)
             }
             .buttonStyle(.plain)
             .disabled(viewModel.isAddingRepository)
@@ -413,7 +407,7 @@ struct AddRepositorySheet: View {
             if let error = viewModel.validationError {
                 Text(error)
                     .font(.system(size: 12))
-                    .foregroundStyle(.red.opacity(0.8))
+                    .foregroundStyle(DesignSystem.Colors.Status.error.opacity(0.8))
                     .lineLimit(2)
             }
             
@@ -427,8 +421,8 @@ struct AddRepositorySheet: View {
                 .font(.system(size: 13, weight: .medium))
                 .padding(.horizontal, 16)
                 .padding(.vertical, 8)
-                .background(Color.white.opacity(0.05))
-                .cornerRadius(16)
+                .background(DesignSystem.Colors.Component.controlFill)
+                .clipShape(Capsule())
                 .disabled(viewModel.isAddingRepository)
                 
                 Button(viewModel.isEditing ? "Save" : "Add") {
@@ -438,9 +432,9 @@ struct AddRepositorySheet: View {
                 .font(.system(size: 13, weight: .bold))
                 .padding(.horizontal, 24)
                 .padding(.vertical, 8)
-                .background(viewModel.canAddRepository ? Color.accentColor : Color.gray.opacity(0.2))
-                .foregroundColor(viewModel.canAddRepository ? .white : .secondary)
-                .cornerRadius(16)
+                .background(viewModel.canAddRepository ? DesignSystem.Colors.primary : DesignSystem.Colors.Component.disabledFill)
+                .foregroundStyle(viewModel.canAddRepository ? DesignSystem.Colors.Text.onAccent : DesignSystem.Colors.Text.tertiary)
+                .clipShape(Capsule())
                 .disabled(!viewModel.canAddRepository || viewModel.isAddingRepository)
             }
         }
@@ -492,7 +486,7 @@ struct AddRepositorySheet: View {
                 } else {
                     Image(systemName: template.iconName)
                         .font(.system(size: 14))
-                        .foregroundStyle(isSelected ? .white : .secondary)
+                        .foregroundStyle(isSelected ? DesignSystem.Colors.Text.onAccent : DesignSystem.Colors.Text.secondary)
                 }
                 
                 Text(template.displayName)
@@ -500,12 +494,12 @@ struct AddRepositorySheet: View {
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 8)
-            .background(isSelected ? Color.accentColor : Color.white.opacity(0.05))
-            .foregroundColor(isSelected ? .white : .primary)
-            .cornerRadius(16)
+            .background(isSelected ? DesignSystem.Colors.primary : DesignSystem.Colors.Component.controlFill)
+            .foregroundStyle(isSelected ? DesignSystem.Colors.Text.onAccent : DesignSystem.Colors.Text.primary)
+            .clipShape(Capsule())
             .overlay(
                 Capsule()
-                    .stroke(isSelected ? Color.accentColor : Color.white.opacity(0.1), lineWidth: 1)
+                    .stroke(isSelected ? DesignSystem.Colors.primary : DesignSystem.Colors.Component.border.opacity(0.25), lineWidth: 1)
             )
         }
         .buttonStyle(.plain)
@@ -581,12 +575,7 @@ struct AddRepositorySheet: View {
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 10)
-                .background(Color.black.opacity(0.2))
-                .cornerRadius(10)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10)
-                        .stroke(Color.white.opacity(0.1), lineWidth: 1)
-                )
+                .dsField(cornerRadius: DesignSystem.Metrics.cornerRadiusM)
                 
                 Button {
                     viewModel.selectLocalFolder()
@@ -598,12 +587,9 @@ struct AddRepositorySheet: View {
                     .font(.system(size: 13, weight: .medium))
                     .padding(.horizontal, 16)
                     .padding(.vertical, 10)
-                    .background(Color.white.opacity(0.05))
-                    .cornerRadius(20)
-                    .overlay(
-                        Capsule()
-                            .stroke(Color.white.opacity(0.1), lineWidth: 1)
-                    )
+                    .background(DesignSystem.Colors.Component.controlFill)
+                    .clipShape(Capsule())
+                    .overlay(Capsule().stroke(DesignSystem.Colors.Component.border.opacity(0.25), lineWidth: 1))
                 }
                 .buttonStyle(.plain)
             }
@@ -637,12 +623,7 @@ struct AddRepositorySheet: View {
                     }
                     .padding(.horizontal, 12)
                     .padding(.vertical, 10)
-                    .background(Color.black.opacity(0.2))
-                    .cornerRadius(10)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 10)
-                            .stroke(Color.white.opacity(0.1), lineWidth: 1)
-                    )
+                    .dsField(cornerRadius: DesignSystem.Metrics.cornerRadiusM)
                 }
                 
                 Text("Supports GitHub, GitLab, Bitbucket and other Git hosting services.")
@@ -688,8 +669,8 @@ struct AddRepositorySheet: View {
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
-                .background(Color.white.opacity(0.03))
-                .cornerRadius(8)
+                .background(DesignSystem.Colors.Component.controlFillSubtle)
+                .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusS, style: .continuous))
             }
             
             HStack(spacing: 8) {
@@ -700,19 +681,14 @@ struct AddRepositorySheet: View {
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
-                .background(Color.black.opacity(0.2))
-                .cornerRadius(10)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10)
-                        .stroke(Color.white.opacity(0.1), lineWidth: 1)
-                )
+                .dsField(cornerRadius: DesignSystem.Metrics.cornerRadiusM)
                 
                 Button {
                     viewModel.addSkillsPath()
                 } label: {
                     Image(systemName: "plus.circle.fill")
                         .font(.system(size: 20))
-                        .foregroundStyle(.green)
+                        .foregroundStyle(DesignSystem.Colors.Status.success)
                 }
                 .buttonStyle(.plain)
                 .disabled(viewModel.newSkillsPathInput.isEmpty)
@@ -730,28 +706,23 @@ struct AddRepositorySheet: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
-        .background(Color.black.opacity(0.2))
-        .cornerRadius(10)
-        .overlay(
-            RoundedRectangle(cornerRadius: 10)
-                .stroke(Color.white.opacity(0.1), lineWidth: 1)
-        )
+        .dsField(cornerRadius: DesignSystem.Metrics.cornerRadiusM)
     }
     
     private func readOnlyField(value: String) -> some View {
         HStack {
             Text(value)
                 .font(.system(size: 13))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(DesignSystem.Colors.Text.secondary)
             Spacer()
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
-        .background(Color.white.opacity(0.03))
-        .cornerRadius(10)
+        .background(DesignSystem.Colors.Component.controlFillSubtle)
+        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusM, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 10)
-                .stroke(Color.white.opacity(0.05), lineWidth: 1)
+            RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusM, style: .continuous)
+                .stroke(DesignSystem.Colors.Component.border.opacity(0.20), lineWidth: 1)
         )
     }
 
@@ -759,8 +730,8 @@ struct AddRepositorySheet: View {
 
     private var loadingOverlay: some View {
         ZStack {
-            Color.black.opacity(0.4)
-                .cornerRadius(24)
+            DesignSystem.Colors.Overlay.scrim
+                .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusXL, style: .continuous))
             
             VStack(spacing: 16) {
                 ProgressView()
@@ -768,11 +739,10 @@ struct AddRepositorySheet: View {
                 
                 Text("Adding repository...")
                     .font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(DesignSystem.Colors.Text.secondary)
             }
             .padding(32)
-            .background(.ultraThinMaterial)
-            .cornerRadius(16)
+            .dsGlassPanel(cornerRadius: DesignSystem.Metrics.cornerRadiusL)
         }
     }
 }

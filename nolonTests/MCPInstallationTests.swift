@@ -1,4 +1,5 @@
 import XCTest
+import ProviderCatalog
 @testable import nolon
 import STJSON
 

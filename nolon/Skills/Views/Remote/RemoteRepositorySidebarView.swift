@@ -234,7 +234,7 @@ struct RemoteRepositorySidebarView: View {
                     ProviderLogoView(name: repo.name, logoName: logoName, iconSize: 16)
                 } else {
                     Image(systemName: repo.iconName)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(DesignSystem.Colors.Text.secondary)
                 }
             }
             Spacer()
@@ -243,20 +243,20 @@ struct RemoteRepositorySidebarView: View {
             if repo.isBuiltIn {
                 Text("Built-in")
                     .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(DesignSystem.Colors.Text.secondary)
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)
-                    .background(Color.secondary.opacity(0.1))
-                    .cornerRadius(4)
+                    .background(DesignSystem.Colors.Component.controlFillSubtle)
+                    .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusXS, style: .continuous))
             } else if repo.templateType == .git {
                 if let syncDate = repo.lastSyncDate {
                     Text(syncDate, style: .time)
                         .font(.caption2)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(DesignSystem.Colors.Text.secondary)
                 } else {
                     Text("Not synced")
                     .font(.caption2)
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(DesignSystem.Colors.Status.warning)
                 }
             }
         }

@@ -1,5 +1,6 @@
 import Foundation
 import XCTest
+import ProviderCatalog
 @testable import nolon
 
 /// Helper class for integration tests to manage temporary environment

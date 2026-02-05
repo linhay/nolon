@@ -1,4 +1,5 @@
 import Foundation
+import ProvidersShared
 import SKProcessRunner
 
 /// Convenience wrapper around `CodexCreditsFetcher`.
@@ -69,7 +70,7 @@ public struct CodexHelper: Sendable {
 
     public func fetchRateLimits() async throws -> RateLimitsSnapshot {
         let binary = self.codexBinary ?? "codex"
-        let rpc = try CodexRPCClient(executable: binary)
+        let rpc = try CodexRPCClient(executable: binary, environment: environment)
         defer { rpc.shutdown() }
 
         try await rpc.initialize(clientName: "codexhelper", clientVersion: "1.0.0")
@@ -86,7 +87,7 @@ public struct CodexHelper: Sendable {
 
     public func fetchAccountInfo() async throws -> AccountInfo {
         let binary = self.codexBinary ?? "codex"
-        let rpc = try CodexRPCClient(executable: binary)
+        let rpc = try CodexRPCClient(executable: binary, environment: environment)
         defer { rpc.shutdown() }
 
         try await rpc.initialize(clientName: "codexhelper", clientVersion: "1.0.0")

@@ -18,14 +18,14 @@ struct SkillDetailContent: View {
                                     VStack(alignment: .leading, spacing: 12) {
                                         Text("Metadata")
                                             .font(.headline)
-                                            .foregroundStyle(.secondary)
+                                            .foregroundStyle(DesignSystem.Colors.Text.secondary)
                                         
                                         Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 8) {
                                             ForEach(metadata.sorted(by: { $0.key < $1.key }), id: \.key) { key, value in
                                                 GridRow(alignment: .top) {
                                                     Text(key)
                                                         .font(.caption)
-                                                        .foregroundStyle(.secondary)
+                                                        .foregroundStyle(DesignSystem.Colors.Text.secondary)
                                                         .frame(width: 80, alignment: .trailing)
                                                     
                                                     Text(value)
@@ -36,8 +36,8 @@ struct SkillDetailContent: View {
                                             }
                                         }
                                         .padding()
-                                        .background(Color.secondary.opacity(0.05))
-                                        .cornerRadius(8)
+                                        .background(DesignSystem.Colors.Component.controlFillSubtle)
+                                        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusM, style: .continuous))
                                     }
                                 }
                                 

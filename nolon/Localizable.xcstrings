@@ -1077,6 +1077,7 @@
       }
     },
     "Choose..." : {
+      "comment" : "Choose...",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -1098,7 +1099,7 @@
     },
     "codex.accounts.action.activate" : {
       "comment" : "Activate account",
-      "extractionState" : "stale",
+      "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1116,7 +1117,7 @@
     },
     "codex.accounts.action.add" : {
       "comment" : "Add account",
-      "extractionState" : "stale",
+      "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1128,6 +1129,132 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "添加账号"
+          }
+        }
+      }
+    },
+    "codex.accounts.activate.message" : {
+      "comment" : "Activate account message",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Switch to \"%1$@\"? This will overwrite:\n%2$@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "切换到“%@”？这将把 auth.json 指向：\n%@"
+          }
+        }
+      }
+    },
+    "codex.accounts.activate.title" : {
+      "comment" : "Activate account title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Activate Account"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "切换账号"
+          }
+        }
+      }
+    },
+    "codex.accounts.add.cli.desc" : {
+      "comment" : "CLI login description",
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Nolon will run `codex login` and automatically import the new auth.json when it is created."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nolon 会运行 `codex login`，并在生成新的 auth.json 后自动导入。"
+          }
+        }
+      }
+    },
+    "codex.accounts.add.cli.error.no_auth" : {
+      "comment" : "CLI login did not create auth.json",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Login did not create auth.json."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "登录未生成 auth.json。"
+          }
+        }
+      }
+    },
+    "codex.accounts.add.cli.running" : {
+      "comment" : "CLI login running status",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Logging in…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在登录…"
+          }
+        }
+      }
+    },
+    "codex.accounts.add.cli.start" : {
+      "comment" : "Start CLI login",
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Start CLI Login"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开始 CLI 登录"
+          }
+        }
+      }
+    },
+    "codex.accounts.add.cli.waiting" : {
+      "comment" : "CLI login waiting status",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Waiting for auth.json…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "等待生成 auth.json…"
           }
         }
       }
@@ -1152,7 +1279,7 @@
     },
     "codex.accounts.add.error.no_file" : {
       "comment" : "Error",
-      "extractionState" : "stale",
+      "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1188,7 +1315,7 @@
     },
     "codex.accounts.add.no_codex_home" : {
       "comment" : "No Codex home",
-      "extractionState" : "stale",
+      "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1240,9 +1367,27 @@
         }
       }
     },
+    "codex.accounts.add.source.cli" : {
+      "comment" : "CLI login",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "CLI Login"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CLI 登录"
+          }
+        }
+      }
+    },
     "codex.accounts.add.source.current" : {
       "comment" : "Current auth.json",
-      "extractionState" : "stale",
+      "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1259,8 +1404,8 @@
       }
     },
     "codex.accounts.add.source.file" : {
-      "comment" : "Import file",
-      "extractionState" : "stale",
+      "comment" : "Import auth.json file",
+      "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1278,7 +1423,7 @@
     },
     "codex.accounts.add.title" : {
       "comment" : "Add account title",
-      "extractionState" : "stale",
+      "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1350,7 +1495,7 @@
     },
     "codex.accounts.current.none" : {
       "comment" : "Current auth summary",
-      "extractionState" : "stale",
+      "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1422,7 +1567,7 @@
     },
     "codex.accounts.empty.desc" : {
       "comment" : "Empty state description",
-      "extractionState" : "stale",
+      "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1440,7 +1585,7 @@
     },
     "codex.accounts.empty.title" : {
       "comment" : "Empty state title",
-      "extractionState" : "stale",
+      "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1458,7 +1603,7 @@
     },
     "codex.accounts.error.activate" : {
       "comment" : "Error message",
-      "extractionState" : "stale",
+      "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1476,7 +1621,7 @@
     },
     "codex.accounts.error.add" : {
       "comment" : "Error message",
-      "extractionState" : "stale",
+      "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1510,9 +1655,27 @@
         }
       }
     },
+    "codex.accounts.multi.enable" : {
+      "comment" : "Multi-account toggle",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Multi-account"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "多账号"
+          }
+        }
+      }
+    },
     "codex.accounts.title" : {
       "comment" : "Codex accounts title",
-      "extractionState" : "stale",
+      "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1524,6 +1687,222 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "账号"
+          }
+        }
+      }
+    },
+    "codex.cli_login.action" : {
+      "comment" : "CLI login action",
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "CLI Login…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "CLI 登录…"
+          }
+        }
+      }
+    },
+    "codex.cli_login.archive_name" : {
+      "comment" : "Archive name",
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Archive current as (optional)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "将当前账号归档为（可选）"
+          }
+        }
+      }
+    },
+    "codex.cli_login.command" : {
+      "comment" : "CLI login command header",
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Command"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "命令"
+          }
+        }
+      }
+    },
+    "codex.cli_login.copy" : {
+      "comment" : "Copy command",
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Copy Command"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "复制命令"
+          }
+        }
+      }
+    },
+    "codex.cli_login.import" : {
+      "comment" : "Import",
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Import new auth.json"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "导入新的 auth.json"
+          }
+        }
+      }
+    },
+    "codex.cli_login.new_name" : {
+      "comment" : "New account name",
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "New account name"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "新账号名称"
+          }
+        }
+      }
+    },
+    "codex.cli_login.prepare" : {
+      "comment" : "Prepare",
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Prepare for login"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "准备登录"
+          }
+        }
+      }
+    },
+    "codex.cli_login.step1" : {
+      "comment" : "Step 1 header",
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Step 1"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "步骤 1"
+          }
+        }
+      }
+    },
+    "codex.cli_login.step1.desc" : {
+      "comment" : "Step 1 description",
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "This will snapshot your current auth.json into Nolon (if needed) and then remove auth.json so `codex login` can create a fresh one."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "如有必要，会先把当前 auth.json 快照保存到 Nolon，然后移除 auth.json，让 `codex login` 生成全新的文件。"
+          }
+        }
+      }
+    },
+    "codex.cli_login.step2" : {
+      "comment" : "Step 2 header",
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Step 2"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "步骤 2"
+          }
+        }
+      }
+    },
+    "codex.cli_login.step2.desc" : {
+      "comment" : "Step 2 description",
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Run the command in Terminal. After it finishes, click \"Import\" to save the new auth.json into Nolon and link it."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "在 Terminal 运行上面的命令完成登录，然后点击“导入”把新的 auth.json 保存到 Nolon 并链接到当前 Codex。"
+          }
+        }
+      }
+    },
+    "codex.cli_login.title" : {
+      "comment" : "CLI login title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "CLI Login"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "CLI 登录"
           }
         }
       }
@@ -2401,7 +2780,7 @@
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "添加"
           }
         }
@@ -2409,11 +2788,36 @@
     },
     "generic.cancel" : {
       "comment" : "Cancel",
+      "extractionState" : "extracted_with_value",
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Cancel"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "取消"
+          }
+        }
+      }
+    },
+    "generic.delete" : {
+      "comment" : "Delete",
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Delete"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "删除"
           }
         }
       }
@@ -5247,6 +5651,24 @@
         }
       }
     },
+    "usage.metric.refreshed_at" : {
+      "comment" : "Credits refreshed time",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Refreshed %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "刷新于 %@"
+          }
+        }
+      }
+    },
     "usage.metric.resets_at" : {
       "comment" : "Resets label",
       "extractionState" : "extracted_with_value",
@@ -5255,6 +5677,60 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "Resets %@"
+          }
+        }
+      }
+    },
+    "usage.metric.resets_in" : {
+      "comment" : "Resets countdown label",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Resets in %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "重置于 %@"
+          }
+        }
+      }
+    },
+    "usage.metric.resets_in_compact" : {
+      "comment" : "Compact resets countdown label",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "resets in %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "重置于 %@"
+          }
+        }
+      }
+    },
+    "usage.metric.resets_now" : {
+      "comment" : "Resets now label",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Resets now"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "即将重置"
           }
         }
       }
@@ -5381,6 +5857,102 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "Window %d min"
+          }
+        }
+      }
+    },
+    "usage.monitor.auto_refresh.2h" : {
+      "comment" : "Auto refresh 2 hours",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "2h"
+          }
+        }
+      }
+    },
+    "usage.monitor.auto_refresh.5h" : {
+      "comment" : "Auto refresh 5 hours",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "5h"
+          }
+        }
+      }
+    },
+    "usage.monitor.auto_refresh.5m" : {
+      "comment" : "Auto refresh 5 minutes",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "5m"
+          }
+        }
+      }
+    },
+    "usage.monitor.auto_refresh.15m" : {
+      "comment" : "Auto refresh 15 minutes",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "15m"
+          }
+        }
+      }
+    },
+    "usage.monitor.auto_refresh.30m" : {
+      "comment" : "Auto refresh 30 minutes",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "30m"
+          }
+        }
+      }
+    },
+    "usage.monitor.auto_refresh.off" : {
+      "comment" : "Auto refresh off",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Off"
+          }
+        }
+      }
+    },
+    "usage.monitor.auto_refresh.title" : {
+      "comment" : "Auto refresh interval",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Auto refresh"
+          }
+        }
+      }
+    },
+    "usage.monitor.cache.placeholder" : {
+      "comment" : "Placeholder cached usage label",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Cached"
           }
         }
       }

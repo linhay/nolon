@@ -40,13 +40,13 @@ struct MetadataItem: View {
     var body: some View {
         HStack(spacing: 8) {
             Image(systemName: icon)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(DesignSystem.Colors.Text.secondary)
                 .frame(width: 20)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(DesignSystem.Colors.Text.secondary)
 
                 Text(value)
                     .font(.callout)
@@ -55,8 +55,8 @@ struct MetadataItem: View {
             Spacer()
         }
         .padding(8)
-        .background(Color.secondary.opacity(0.05))
-        .cornerRadius(8)
+        .background(DesignSystem.Colors.Component.controlFillSubtle)
+        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusM, style: .continuous))
     }
 }
 

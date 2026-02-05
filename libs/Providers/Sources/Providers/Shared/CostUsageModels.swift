@@ -426,8 +426,8 @@ private struct CostUsageAnyCodingKey: CodingKey {
     }
 }
 
-enum CostUsageDateParser {
-    static func parse(_ text: String?) -> Date? {
+public enum CostUsageDateParser {
+    public static func parse(_ text: String?) -> Date? {
         guard let text, !text.isEmpty else { return nil }
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
 
@@ -452,7 +452,7 @@ enum CostUsageDateParser {
         return nil
     }
 
-    static func parseMonth(_ text: String?) -> Date? {
+    public static func parseMonth(_ text: String?) -> Date? {
         guard let text, !text.isEmpty else { return nil }
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
 

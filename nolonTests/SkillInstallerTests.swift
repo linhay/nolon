@@ -1,4 +1,5 @@
 import XCTest
+import ProviderCatalog
 @testable import nolon
 
 @MainActor
@@ -82,6 +83,25 @@ final class SkillInstallerTests: XCTestCase {
         
         // 3. Verify
         XCTAssertFalse(fixture.fileManager.fileExists(atPath: targetPath))
+    }
+
+    func testBDD_GivenInstalledSkill_WhenUninstalling_ThenProviderRemovedAndGlobalRemains() throws {
+        // Given
+        let sourceURL = try fixture.createSampleSkill(id: "keep-global", name: "Keep Global")
+        let provider = fixture.createProvider(name: "Cursor", method: .symlink)
+        let skill = try repository.importSkill(from: sourceURL)
+        try installer.install(skill: skill, to: provider)
+
+        let providerPath = "\(provider.defaultSkillsPath)/\(skill.id)"
+        XCTAssertTrue(fixture.fileManager.fileExists(atPath: providerPath))
+        XCTAssertTrue(fixture.fileManager.fileExists(atPath: skill.globalPath))
+
+        // When
+        try installer.uninstall(skill: skill, from: provider)
+
+        // Then
+        XCTAssertFalse(fixture.fileManager.fileExists(atPath: providerPath))
+        XCTAssertTrue(fixture.fileManager.fileExists(atPath: skill.globalPath))
     }
     
     func testScanProvider() throws {

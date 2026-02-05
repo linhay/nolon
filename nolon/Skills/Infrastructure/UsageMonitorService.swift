@@ -14,7 +14,7 @@ actor UsageMonitorService {
         await monitor.fetchOutcomes(provider: provider, settings: settings)
     }
 
-    private static func defaultTokenAccountsFileURL() -> URL {
+    static func defaultTokenAccountsFileURL() -> URL {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? FileManager.default.homeDirectoryForCurrentUser
         return base

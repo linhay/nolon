@@ -54,8 +54,6 @@ struct CostUsageCache: Codable, Sendable {
     // dayKey -> model -> packed usage
     var days: [String: [String: [Int]]] = [:]
 
-    // rootPath -> mtime (for Claude roots)
-    var roots: [String: Int64]?
 }
 
 struct CostUsageFileUsage: Codable, Sendable {

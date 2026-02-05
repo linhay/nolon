@@ -28,8 +28,8 @@ struct RemoteMCPCardView: View {
                             .font(.system(size: 10, weight: .bold))
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
-                            .background(Color.purple.opacity(0.15))
-                            .foregroundStyle(Color.purple)
+                            .background(DesignSystem.Colors.secondary.opacity(0.15))
+                            .foregroundStyle(DesignSystem.Colors.secondary)
                             .clipShape(Capsule())
                     }
                 }
@@ -43,7 +43,7 @@ struct RemoteMCPCardView: View {
             if let summary = mcp.summary {
                 Text(summary)
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(DesignSystem.Colors.Text.secondary)
                     .lineLimit(3)
                     .frame(maxHeight: .infinity, alignment: .topLeading)
             } else {
@@ -59,11 +59,11 @@ struct RemoteMCPCardView: View {
                         .font(.system(size: 10, design: .monospaced))
                         .lineLimit(1)
                 }
-                .foregroundStyle(.secondary)
+                .foregroundStyle(DesignSystem.Colors.Text.secondary)
                 .padding(.horizontal, 6)
                 .padding(.vertical, 3)
-                .background(Color.secondary.opacity(0.1))
-                .cornerRadius(4)
+                .background(DesignSystem.Colors.Component.controlFillSubtle)
+                .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusXS, style: .continuous))
             }
             
             // 4. Footer: Stats & Actions
@@ -82,7 +82,7 @@ struct RemoteMCPCardView: View {
                     }
                 }
                 .font(.caption2)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(DesignSystem.Colors.Text.secondary)
                 
                 Spacer()
                 
@@ -92,10 +92,10 @@ struct RemoteMCPCardView: View {
         }
         .padding(16)
         .frame(minHeight: 160)
-        .background(Color.secondary.opacity(0.08))
-        .cornerRadius(12)
+        .background(DesignSystem.Colors.Component.controlFillSubtle)
+        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusL, style: .continuous))
         .contentShape(Rectangle())
-        .shadow(color: .black.opacity(isHovered ? 0.15 : 0.05), radius: isHovered ? 8 : 4, y: isHovered ? 4 : 2)
+        .shadow(color: DesignSystem.Colors.Shadow.floating.opacity(isHovered ? 0.75 : 0.25), radius: isHovered ? 8 : 4, y: isHovered ? 4 : 2)
         .scaleEffect(isHovered ? 1.02 : 1.0)
         .animation(.easeInOut(duration: 0.2), value: isHovered)
         .onHover { hovering in
@@ -125,11 +125,11 @@ struct RemoteMCPCardView: View {
             }
             .font(.caption2)
             .fontWeight(.semibold)
-            .foregroundStyle(.green)
+            .foregroundStyle(DesignSystem.Colors.Status.success)
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
-            .background(Color.green.opacity(0.1))
-            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .background(DesignSystem.Colors.Status.success.opacity(0.10))
+            .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusS, style: .continuous))
         } else {
             Button {
                 handleInstall()
@@ -142,9 +142,9 @@ struct RemoteMCPCardView: View {
                 .fontWeight(.bold)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 6)
-                .background(Color.purple.opacity(0.1))
-                .foregroundStyle(Color.purple)
-                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .background(DesignSystem.Colors.secondary.opacity(0.10))
+                .foregroundStyle(DesignSystem.Colors.secondary)
+                .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusM, style: .continuous))
             }
             .buttonStyle(.plain)
         }
@@ -193,7 +193,7 @@ struct RemoteMCPCardView: View {
         } label: {
             Image(systemName: "ellipsis")
                 .font(.body)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(DesignSystem.Colors.Text.secondary)
                 .frame(width: 24, height: 24)
                 .contentShape(Rectangle())
         }

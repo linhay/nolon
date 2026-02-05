@@ -4,6 +4,12 @@ import CodexBarProviderCatalog
 
 struct ProviderUsageSnapshotView: View {
     let outcome: ProviderAccountUsageOutcome
+    let creditsRefreshedAt: Date?
+
+    init(outcome: ProviderAccountUsageOutcome, creditsRefreshedAt: Date? = nil) {
+        self.outcome = outcome
+        self.creditsRefreshedAt = creditsRefreshedAt
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -110,9 +116,9 @@ struct ProviderUsageSnapshotView: View {
                     window: tertiary)
             }
 
-            if let credits = result.credits {
+            if let credits = result.credits, !credits.remaining.isNaN {
                 Divider()
-                creditsRow(credits)
+                creditsRow(credits, refreshedAt: creditsRefreshedAt)
             }
 
             if let cost = result.cost, cost.todayCostUSD != nil || cost.last30DaysCostUSD != nil {
@@ -147,7 +153,7 @@ struct ProviderUsageSnapshotView: View {
         }
     }
 
-    private func creditsRow(_ credits: CreditsSnapshot) -> some View {
+    private func creditsRow(_ credits: CreditsSnapshot, refreshedAt: Date?) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
                 Text(NSLocalizedString("usage.metric.credits", value: "Credits", comment: "Credits"))
@@ -161,6 +167,19 @@ struct ProviderUsageSnapshotView: View {
             Text(credits.updatedAt.formatted(date: .abbreviated, time: .shortened))
                 .font(.caption)
                 .foregroundStyle(DesignSystem.Colors.Text.tertiary)
+
+            if let refreshedAt {
+                Text(String(
+                    format: NSLocalizedString(
+                        "usage.metric.refreshed_at",
+                        value: "Refreshed %@",
+                        comment: "Credits refreshed time"
+                    ),
+                    refreshedAt.formatted(date: .abbreviated, time: .shortened)
+                ))
+                .font(.caption)
+                .foregroundStyle(DesignSystem.Colors.Text.tertiary)
+            }
         }
     }
 
@@ -193,6 +212,19 @@ struct ProviderUsageSnapshotView: View {
             return resetDescription
         }
         if let resetsAt = window.resetsAt {
+            if let countdown = resetCountdownText(resetsAt: resetsAt) {
+                return String(
+                    format: NSLocalizedString(
+                        "usage.metric.resets_in",
+                        value: "Resets in %@",
+                        comment: "Resets countdown label"
+                    ),
+                    countdown
+                )
+            }
+            if resetsAt <= Date() {
+                return NSLocalizedString("usage.metric.resets_now", value: "Resets now", comment: "Resets now label")
+            }
             return String(
                 format: NSLocalizedString("usage.metric.resets_at", value: "Resets %@", comment: "Resets label"),
                 resetsAt.formatted(date: .abbreviated, time: .shortened))
@@ -203,6 +235,17 @@ struct ProviderUsageSnapshotView: View {
                 minutes)
         }
         return nil
+    }
+
+    private func resetCountdownText(resetsAt: Date) -> String? {
+        let remaining = max(0, resetsAt.timeIntervalSinceNow)
+        if remaining <= 0 { return nil }
+        let formatter = DateComponentsFormatter()
+        formatter.allowedUnits = [.day, .hour, .minute]
+        formatter.unitsStyle = .abbreviated
+        formatter.maximumUnitCount = 2
+        formatter.zeroFormattingBehavior = [.dropLeading, .dropTrailing]
+        return formatter.string(from: remaining)
     }
 
     private func creditsText(_ value: Double) -> String {

@@ -28,7 +28,19 @@ final class UsageMonitorSettingsStore {
         defaults.set(data, forKey: key)
     }
 
+    func isMultiAccountEnabled(for provider: Provider) -> Bool {
+        defaults.bool(forKey: multiAccountKey(for: provider))
+    }
+
+    func setMultiAccountEnabled(_ enabled: Bool, for provider: Provider) {
+        defaults.set(enabled, forKey: multiAccountKey(for: provider))
+    }
+
     private func storageKey(for provider: Provider) -> String {
         "nolon.usage.settings.\(provider.id)"
+    }
+
+    private func multiAccountKey(for provider: Provider) -> String {
+        "nolon.usage.multi_accounts.\(provider.id)"
     }
 }
