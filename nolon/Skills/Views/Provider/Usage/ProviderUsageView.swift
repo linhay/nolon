@@ -6,11 +6,14 @@ import WebKit
 import ProviderUsage
 import CodexBarProviderCatalog
 import UniformTypeIdentifiers
+import OSLog
 @preconcurrency import STFilePath
 
 @MainActor
 @Observable
 final class ProviderUsageViewModel {
+    private static let logger = Logger(subsystem: "com.nolon", category: "ProviderUsageViewModel")
+
     private let service = UsageMonitorService()
     private let settingsStore = UsageMonitorSettingsStore.shared
     private let codexAuthService = CodexAuthService()
@@ -128,6 +131,9 @@ final class ProviderUsageViewModel {
 
         guard shouldRefresh else { return }
 
+        Self.logger.debug(
+            "Usage view appear refresh. provider=\(usageProvider.rawValue, privacy: .public) interval=\(intervalMinutes, privacy: .public)m last=\(String(describing: lastUsageRefreshAt), privacy: .public)"
+        )
         if await loadIfNeeded() {
             return
         }
@@ -157,6 +163,7 @@ final class ProviderUsageViewModel {
         isLoading = true
         defer { isLoading = false }
 
+        Self.logger.info("Loading usage. provider=\(usageProvider.rawValue, privacy: .public) multiAccount=\(isMultiAccountEnabled, privacy: .public)")
         if usageProvider == .codex, isMultiAccountEnabled {
             outcomes = []
         } else {
@@ -249,6 +256,9 @@ final class ProviderUsageViewModel {
             }
         }
 
+        Self.logger.debug(
+            "Updating usage watcher. provider=\(usageProvider.rawValue, privacy: .public) paths=\(paths.count, privacy: .public)"
+        )
         usageWatcher?.startWatching(paths: paths)
     }
 
@@ -256,6 +266,9 @@ final class ProviderUsageViewModel {
         guard !isLoading else { return }
         guard let usageProvider else { return }
 
+        Self.logger.debug(
+            "Usage file change. provider=\(usageProvider.rawValue, privacy: .public) kind=\(String(describing: change.kind), privacy: .public) path=\(change.path.url.path, privacy: .public)"
+        )
         if usageProvider == .codex {
             await handleCodexUsageFileChange(change)
         } else {
@@ -266,6 +279,7 @@ final class ProviderUsageViewModel {
     private func handleCodexUsageFileChange(_ change: STPathChanged) async {
         let changedPath = change.path.url.standardizedFileURL.path
         if shouldIgnoreAuthChange(path: changedPath, kind: change.kind) {
+            Self.logger.debug("Ignored auth change. kind=\(String(describing: change.kind), privacy: .public) path=\(changedPath, privacy: .public)")
             return
         }
 
@@ -284,6 +298,9 @@ final class ProviderUsageViewModel {
         let isAuthFolderChange = changedPath == authFolderPath || changedPath.hasPrefix(authFolderPath + "/")
         let isAuthFileChange = authFilePath == changedPath
 
+        Self.logger.debug(
+            "Codex auth change. isAuthFolder=\(isAuthFolderChange, privacy: .public) isAuthFile=\(isAuthFileChange, privacy: .public) path=\(changedPath, privacy: .public)"
+        )
         guard isAuthFolderChange || isAuthFileChange else { return }
 
         if isAuthFileChange, let updatedFile = await codexAuthService.syncActiveAuthTokensIfNeeded(for: provider) {
@@ -307,6 +324,9 @@ final class ProviderUsageViewModel {
             }
         }
 
+        Self.logger.info(
+            "Reloading Codex from disk. refreshUsage=\(refreshUsage, privacy: .public) kind=\(String(describing: change.kind), privacy: .public)"
+        )
         await reloadCodexFromDisk(refreshUsage: refreshUsage)
     }
 
@@ -321,6 +341,9 @@ final class ProviderUsageViewModel {
             activeCodexAccountId = await codexAuthService.activeAccountId(for: provider)
             codexAccountOutcomes = await loadCachedCodexAccountOutcomes(accounts: codexAccounts)
 
+            Self.logger.debug(
+                "Codex disk reload complete. accounts=\(codexAccounts.count, privacy: .public) refreshUsage=\(refreshUsage, privacy: .public)"
+            )
             if refreshUsage {
                 await refreshCodexAccountsIfNeeded(
                     activeId: activeCodexAccountId,
@@ -329,6 +352,7 @@ final class ProviderUsageViewModel {
             }
         } catch {
             // Ignore file reload errors; watcher will fire again on next change.
+            Self.logger.error("Codex disk reload failed: \(String(describing: error), privacy: .public)")
         }
     }
 
@@ -838,6 +862,8 @@ final class ProviderUsageViewModel {
 
         let folderPath = codexAuthService.nolonCodexAuthFolder().url.standardizedFileURL.path
         codexAuthChangeSuppressions[folderPath] = expiry
+
+        Self.logger.debug("Auth cache write suppression set. file=\(filePath, privacy: .public) until=\(String(describing: expiry), privacy: .public)")
     }
 
     private func shouldIgnoreAuthChange(path: String, kind: STPathChangeKind) -> Bool {
@@ -846,6 +872,7 @@ final class ProviderUsageViewModel {
         if codexUsageCacheWriteCount > 0, kind == .renamed {
             let authFolderPath = codexAuthService.nolonCodexAuthFolder().url.standardizedFileURL.path
             if path == authFolderPath || path.hasPrefix(authFolderPath + "/") {
+                Self.logger.debug("Ignoring auth change during cache write. kind=\(String(describing: kind), privacy: .public) path=\(path, privacy: .public)")
                 return true
             }
         }
@@ -853,6 +880,7 @@ final class ProviderUsageViewModel {
         guard !codexAuthChangeSuppressions.isEmpty else { return false }
 
         if let expiry = codexAuthChangeSuppressions[path], expiry > now {
+            Self.logger.debug("Ignoring auth change (suppressed). kind=\(String(describing: kind), privacy: .public) path=\(path, privacy: .public)")
             return true
         }
 
