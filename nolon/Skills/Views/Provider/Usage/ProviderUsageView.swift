@@ -251,7 +251,8 @@ final class ProviderUsageViewModel {
             if isMultiAccountEnabled {
                 paths.append(codexAuthService.nolonCodexAuthFolder().url.path)
             }
-            if let authFile = await codexAuthService.authFile(for: provider) {
+            if !isMultiAccountEnabled,
+               let authFile = await codexAuthService.authFile(for: provider) {
                 paths.append(authFile.url.path)
             }
         }
