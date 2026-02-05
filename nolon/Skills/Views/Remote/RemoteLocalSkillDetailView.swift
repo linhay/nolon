@@ -132,10 +132,12 @@ struct RemoteLocalSkillDetailView: View {
     }
 
     var body: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 0) {
             SheetHeaderView(title: viewModel.name) {
                 dismiss()
             }
+
+            SheetDivider()
 
             HStack(spacing: 0) {
                 RemoteLocalSkillDetailSidebar(viewModel: viewModel)

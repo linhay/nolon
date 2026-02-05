@@ -125,6 +125,8 @@ struct EditProviderSheet: View {
                 dismiss()
             }
 
+            SheetDivider()
+
             Form {
                 Section {
                     TextField(
@@ -209,9 +211,9 @@ struct EditProviderSheet: View {
                 }
             }
             .formStyle(.grouped)
+            .sheetScrollContentPadding()
 
-            Divider()
-                .background(DesignSystem.Colors.Component.separator.opacity(0.25))
+            SheetDivider()
 
             HStack(spacing: 12) {
                 Button(NSLocalizedString("generic.cancel", comment: "Cancel")) {
@@ -227,8 +229,8 @@ struct EditProviderSheet: View {
                 }
                 .buttonStyle(.borderedProminent)
             }
-            .padding(.horizontal, 24)
-            .padding(.vertical, 16)
+            .padding(.horizontal, SheetLayout.footerHorizontalPadding)
+            .padding(.vertical, SheetLayout.footerVerticalPadding)
         }
         .fileImporter(
             isPresented: $viewModel.showingFolderPicker,

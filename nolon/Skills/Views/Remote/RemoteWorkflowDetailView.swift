@@ -30,7 +30,7 @@ struct RemoteWorkflowDetailView: View {
                 dismiss()
             }
 
-            Divider()
+            SheetDivider()
             
             // Content
             ScrollView {
@@ -79,17 +79,18 @@ struct RemoteWorkflowDetailView: View {
                         }
                     }
                 }
-                .padding()
+                .padding(.horizontal, SheetLayout.horizontalPadding)
+                .padding(.vertical, SheetLayout.contentVerticalPadding)
             }
             
-            Divider()
+            SheetDivider()
             
             // Footer - Install Button
             HStack {
                 if let targetProvider = targetProvider {
                     Text("Install to: \(targetProvider.name)")
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(DesignSystem.Colors.Text.secondary)
                 } else {
                     Picker("Install to:", selection: $selectedProvider) {
                         Text("Select Provider").tag(nil as Provider?)
@@ -105,6 +106,7 @@ struct RemoteWorkflowDetailView: View {
                 Button("Cancel") {
                     dismiss()
                 }
+                .buttonStyle(.plain)
                 .keyboardShortcut(.cancelAction)
                 
                 Button("Install") {
@@ -113,11 +115,12 @@ struct RemoteWorkflowDetailView: View {
                         dismiss()
                     }
                 }
+                .buttonStyle(.borderedProminent)
                 .keyboardShortcut(.defaultAction)
                 .disabled(targetProvider == nil && selectedProvider == nil)
             }
-            .padding()
-            .background(Color(NSColor.controlBackgroundColor))
+            .padding(.horizontal, SheetLayout.footerHorizontalPadding)
+            .padding(.vertical, SheetLayout.footerVerticalPadding)
         }
     }
 }

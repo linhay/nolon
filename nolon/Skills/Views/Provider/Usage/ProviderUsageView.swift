@@ -1752,7 +1752,7 @@ private struct UsageLoginSheet: View {
                 dismiss()
             }
 
-            Divider()
+            SheetDivider()
 
             if let url {
                 ProviderLoginWebView(url: url)

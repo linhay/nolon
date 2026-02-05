@@ -223,6 +223,8 @@ private struct WorkflowInstallSheet: View {
                 dismiss()
             }
 
+            SheetDivider()
+
             List {
                 ForEach(providers) { provider in
                     Button {
@@ -246,9 +248,9 @@ private struct WorkflowInstallSheet: View {
                     .buttonStyle(.plain)
                 }
             }
+            .sheetScrollContentPadding()
 
-            Divider()
-                .background(DesignSystem.Colors.Component.separator.opacity(0.25))
+            SheetDivider()
 
             HStack(spacing: 12) {
                 Button(NSLocalizedString("Cancel", comment: "Cancel")) {
@@ -259,8 +261,8 @@ private struct WorkflowInstallSheet: View {
 
                 Spacer(minLength: 0)
             }
-            .padding(.horizontal, 24)
-            .padding(.vertical, 16)
+            .padding(.horizontal, SheetLayout.footerHorizontalPadding)
+            .padding(.vertical, SheetLayout.footerVerticalPadding)
         }
         .frame(width: 420, height: 520)
     }

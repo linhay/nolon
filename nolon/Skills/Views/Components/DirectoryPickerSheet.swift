@@ -16,6 +16,8 @@ struct DirectoryPickerSheet: View {
                 isPresented = false
             }
 
+            SheetDivider()
+
             Form {
                 Section {
                     ForEach(Array(candidates.enumerated()), id: \.offset) { index, candidate in
@@ -55,9 +57,9 @@ struct DirectoryPickerSheet: View {
                 }
             }
             .formStyle(.grouped)
+            .sheetScrollContentPadding()
 
-            Divider()
-                .background(DesignSystem.Colors.Component.separator.opacity(0.25))
+            SheetDivider()
 
             HStack(spacing: 12) {
                 Button(NSLocalizedString("Cancel", comment: "Cancel")) {
@@ -74,8 +76,8 @@ struct DirectoryPickerSheet: View {
                 .buttonStyle(.borderedProminent)
                 .disabled(selectedIndices.isEmpty)
             }
-            .padding(.horizontal, 24)
-            .padding(.vertical, 16)
+            .padding(.horizontal, SheetLayout.footerHorizontalPadding)
+            .padding(.vertical, SheetLayout.footerVerticalPadding)
         }
         .frame(width: 500, height: 400)
     }

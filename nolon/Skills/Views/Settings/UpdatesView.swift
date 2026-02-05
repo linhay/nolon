@@ -22,6 +22,8 @@ struct UpdatesView: View {
     var body: some View {
         VStack(spacing: 0) {
             headerView
+
+            SheetDivider()
             
             if viewModel.isChecking {
                 ProgressView()
@@ -98,6 +100,7 @@ struct UpdatesView: View {
                 showUpdateConfirmation = true
             }
         }
+        .sheetScrollContentPadding()
         .alert(NSLocalizedString("action.edit", comment: "Edit"), isPresented: $showUpdateConfirmation) {
             Button(NSLocalizedString("generic.cancel", comment: "Cancel"), role: .cancel) { }
             Button(NSLocalizedString("generic.save", comment: "Save")) {

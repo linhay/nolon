@@ -154,6 +154,8 @@ struct RemoteSkillsBrowserView: View {
                 }
             }
 
+            SheetDivider()
+
             NavigationSplitView(columnVisibility: $viewModel.columnVisibility) {
                 // Column 1: Repository sidebar
                 RemoteRepositorySidebarView(
