@@ -268,7 +268,7 @@ public actor ResourceInstaller {
             throw RepositoryError.invalidConfiguration
         }
         
-        let mcpConfigPath = await template.defaultMcpConfigPath.path
+        let mcpConfigPath = template.defaultMcpConfigPath.path
         
         // Read MCP configuration
         let data = try STFile(mcpPath).data()
@@ -436,7 +436,7 @@ public actor ResourceInstaller {
             return
         }
         
-        let mcpConfigPath = await template.defaultMcpConfigPath.path
+        let mcpConfigPath = template.defaultMcpConfigPath.path
         
         guard STFile(mcpConfigPath).isExists else {
             return

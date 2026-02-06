@@ -15,7 +15,7 @@ struct ProviderRowView: View {
                 Text(provider.name)
                 Text(provider.defaultSkillsPath)
                     .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .dsSecondaryText(font: .caption2)
                     .lineLimit(1)
                     .truncationMode(.middle)
             }
@@ -29,12 +29,14 @@ struct ProviderRowView: View {
                 onShowInFinder()
             } label: {
                 Label(NSLocalizedString("action.show_in_finder", comment: "Show in Finder"), systemImage: "folder")
+                    .dsIconLabelButton()
             }
             
             Button {
                 onEdit()
             } label: {
                 Label(NSLocalizedString("action.edit", comment: "Edit"), systemImage: "pencil")
+                    .dsIconLabelButton()
             }
             
             Divider()
@@ -43,6 +45,7 @@ struct ProviderRowView: View {
                 onDelete()
             } label: {
                 Label(NSLocalizedString("action.delete", comment: "Delete"), systemImage: "trash")
+                    .dsIconLabelButton()
             }
         }
     }

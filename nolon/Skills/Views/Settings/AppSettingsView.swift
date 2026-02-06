@@ -44,7 +44,7 @@ struct AppSettingsView: View {
                 .padding(.top, 40)
                 .padding(.horizontal, 12)
                 .frame(width: 180)
-                .background(Color.primary.opacity(0.02))
+                .background(DesignSystem.Colors.Component.controlFillSubtle.opacity(0.6))
 
                 Divider()
                     .opacity(0.1)
@@ -59,7 +59,7 @@ struct AppSettingsView: View {
                         .padding(.bottom, 32)
                     }
                 }
-                .background(Color(NSColor.windowBackgroundColor))
+                .background(DesignSystem.Colors.Background.surface)
             }
         }
         .frame(minWidth: 720, minHeight: 480)
@@ -70,16 +70,16 @@ struct AppSettingsView: View {
         return Button(action: { selectedCategory = category }) {
             Text(category.displayName)
                 .font(.system(size: 13, weight: isSelected ? .medium : .regular))
-                .foregroundStyle(isSelected ? .primary : .secondary)
+                .foregroundStyle(isSelected ? DesignSystem.Colors.Text.primary : DesignSystem.Colors.Text.secondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
                 .background(
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(isSelected ? Color.primary.opacity(0.08) : Color.clear)
+                    RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusS)
+                        .fill(isSelected ? DesignSystem.Colors.primary.opacity(0.08) : Color.clear)
                 )
         }
-        .buttonStyle(.plain)
+        .dsLinkButton()
     }
     
     @ViewBuilder
@@ -110,11 +110,11 @@ private struct GeneralSettingsView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Text(NSLocalizedString("settings.workspace.current", value: "Current Workspace", comment: "Label"))
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .dsSecondaryText(font: .caption)
                     
                     HStack(spacing: 12) {
                         Image(systemName: "folder")
-                            .foregroundStyle(.secondary)
+                            .dsSecondaryText(font: .body)
                         Text(settings.workspacePath)
                             .font(.system(size: 13, design: .monospaced))
                             .lineLimit(1)
@@ -122,8 +122,7 @@ private struct GeneralSettingsView: View {
                     }
                     .padding(16)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color.primary.opacity(0.05))
-                    .cornerRadius(12)
+                    .dsCard()
                 }
             }
             
@@ -139,13 +138,12 @@ private struct GeneralSettingsView: View {
                         Spacer()
                         Text(NSLocalizedString("settings.onboarding.description", value: "Refresh agents & project picks", comment: "Description"))
                             .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .dsSecondaryText(font: .caption)
                     }
                     .padding(16)
-                    .background(Color.primary.opacity(0.05))
-                    .cornerRadius(12)
+                    .dsCard()
                 }
-                .buttonStyle(.plain)
+                .dsLinkButton()
             }
         }
     }
@@ -167,8 +165,7 @@ private struct DisplaySettingsView: View {
                         appearanceRow(appearance: appearance)
                     }
                 }
-                .background(Color.primary.opacity(0.05))
-                .cornerRadius(12)
+                .dsCard()
             }
             
             settingsSection(title: NSLocalizedString("settings.language", value: "Language", comment: "Section title")) {
@@ -177,8 +174,7 @@ private struct DisplaySettingsView: View {
                         languageRow(language: language)
                     }
                 }
-                .background(Color.primary.opacity(0.05))
-                .cornerRadius(12)
+                .dsCard()
             }
         }
         .onAppear {
@@ -217,7 +213,7 @@ private struct DisplaySettingsView: View {
                 if isSelected {
                     Image(systemName: "checkmark")
                         .font(.system(size: 12, weight: .bold))
-                        .foregroundStyle(Color.accentColor)
+                        .foregroundStyle(DesignSystem.Colors.primary)
                 }
             }
             .padding(20)
@@ -225,15 +221,15 @@ private struct DisplaySettingsView: View {
             .background(
                 ZStack {
                     if isSelected {
-                        RoundedRectangle(cornerRadius: 12)
-                            .stroke(Color.accentColor.opacity(0.5), lineWidth: 2)
-                            .background(Color.accentColor.opacity(0.05))
-                            .shadow(color: Color.accentColor.opacity(0.2), radius: 8)
+                        RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusM)
+                            .stroke(DesignSystem.Colors.primary.opacity(0.5), lineWidth: 2)
+                            .background(DesignSystem.Colors.primary.opacity(0.05))
+                            .shadow(color: DesignSystem.Colors.primary.opacity(0.2), radius: 8)
                     }
                 }
             )
         }
-        .buttonStyle(.plain)
+        .dsLinkButton()
     }
     
     private func languageRow(language: AppLanguage) -> some View {
@@ -249,7 +245,7 @@ private struct DisplaySettingsView: View {
                 if isSelected {
                     Image(systemName: "checkmark")
                         .font(.system(size: 12, weight: .bold))
-                        .foregroundStyle(Color.accentColor)
+                        .foregroundStyle(DesignSystem.Colors.primary)
                 }
             }
             .padding(16)
@@ -257,14 +253,14 @@ private struct DisplaySettingsView: View {
             .background(
                 ZStack {
                     if isSelected {
-                        RoundedRectangle(cornerRadius: 12)
-                            .stroke(Color.accentColor.opacity(0.5), lineWidth: 2)
-                            .background(Color.accentColor.opacity(0.05))
+                        RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusM)
+                            .stroke(DesignSystem.Colors.primary.opacity(0.5), lineWidth: 2)
+                            .background(DesignSystem.Colors.primary.opacity(0.05))
                     }
                 }
             )
         }
-        .buttonStyle(.plain)
+        .dsLinkButton()
     }
 }
 
@@ -295,7 +291,7 @@ private struct AdvancedSettingsView: View {
                         )
                     )
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .dsSecondaryText(font: .caption)
                     
                     Toggle(
                         NSLocalizedString(
@@ -324,13 +320,12 @@ private struct AdvancedSettingsView: View {
                                 )
                             )
                             Spacer()
-                        }
-                        .padding(16)
-                        .background(Color.primary.opacity(0.05))
-                        .cornerRadius(12)
                     }
-                    .buttonStyle(.plain)
-                    .disabled(isRebuildingSkillLock)
+                    .padding(16)
+                    .dsCard()
+                }
+                .dsLinkButton()
+                .disabled(isRebuildingSkillLock)
                     .confirmationDialog(
                         NSLocalizedString(
                             "settings.advanced.skill_lock.confirm_title",
@@ -362,13 +357,12 @@ private struct AdvancedSettingsView: View {
                     if let message = rebuildResultMessage {
                         Text(message)
                             .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .dsSecondaryText(font: .caption)
                     }
                     
                     if let error = rebuildErrorMessage {
                         Text(error)
-                            .font(.caption)
-                            .foregroundStyle(.red)
+                            .dsErrorText(font: .caption)
                     }
                 }
             }
@@ -400,10 +394,9 @@ private struct AdvancedSettingsView: View {
                         }
                     }
                     .padding(16)
-                    .background(Color.primary.opacity(0.05))
-                    .cornerRadius(12)
+                    .dsCard()
                 }
-                .buttonStyle(.plain)
+                .dsLinkButton()
                 .sheet(isPresented: $showingUpdatesSheet) {
                     UpdatesView()
                 }
@@ -466,19 +459,18 @@ private struct AboutSettingsView: View {
                     if let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String {
                         Text(version)
                             .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .dsSecondaryText(font: .caption)
                     }
                 }
                 
                 Text(NSLocalizedString("settings.about.description", value: "Desktop workspace for managing agent assets and distributing skills, memory docs, and sync rules.", comment: "About text"))
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .dsSecondaryText(font: .subheadline)
                     .fixedSize(horizontal: false, vertical: true)
             }
             .padding(20)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.primary.opacity(0.05))
-            .cornerRadius(12)
+            .dsCard()
             
             // Integrated update check
             Button(action: { 
@@ -489,13 +481,12 @@ private struct AboutSettingsView: View {
                     Text(NSLocalizedString("settings.about.check_updates", value: "Check for updates", comment: "Button"))
                     Spacer()
                     Image(systemName: "arrow.up.circle")
-                        .foregroundStyle(.secondary)
+                        .dsSecondaryText(font: .body)
                 }
                 .padding(16)
-                .background(Color.primary.opacity(0.05))
-                .cornerRadius(12)
+                .dsCard()
             }
-            .buttonStyle(.plain)
+            .dsLinkButton()
         }
     }
 }

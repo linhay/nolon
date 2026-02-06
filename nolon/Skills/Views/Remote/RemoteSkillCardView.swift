@@ -26,11 +26,12 @@ struct RemoteSkillCardView: View {
                     if let version = skill.latestVersion {
                         Text(version.version)
                             .font(.system(size: 10, weight: .bold))
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(DesignSystem.Colors.primary.opacity(0.15))
-                            .foregroundStyle(DesignSystem.Colors.primary)
-                            .clipShape(Capsule())
+                            .dsBadge(
+                                foreground: DesignSystem.Colors.primary,
+                                background: DesignSystem.Colors.primary.opacity(0.15),
+                                horizontalPadding: 6,
+                                verticalPadding: 2
+                            )
                     }
                 }
                 
@@ -43,7 +44,7 @@ struct RemoteSkillCardView: View {
             if let summary = skill.summary {
                 Text(summary)
                     .font(.caption)
-                    .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                    .dsSecondaryText(font: .caption)
                     .lineLimit(3)
                     .frame(maxHeight: .infinity, alignment: .topLeading)
             } else {
@@ -56,14 +57,13 @@ struct RemoteSkillCardView: View {
                 HStack(spacing: 8) {
                     if let stars = skill.stats?.stars {
                         Label("\(stars)", systemImage: "star.fill")
-                            .foregroundStyle(.yellow)
+                            .dsIconLabelText(foreground: DesignSystem.Colors.Status.warning, font: .caption2)
                     }
                     if let downloads = skill.stats?.downloads {
                         Label("\(downloads)", systemImage: "arrow.down.circle")
+                            .dsIconLabelText()
                     }
                 }
-                .font(.caption2)
-                .foregroundStyle(DesignSystem.Colors.Text.secondary)
                 
                 Spacer()
                 
@@ -73,8 +73,7 @@ struct RemoteSkillCardView: View {
         }
         .padding(16)
         .frame(minHeight: 140)
-        .background(DesignSystem.Colors.Component.controlFillSubtle)
-        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusL, style: .continuous))
+        .dsCard()
         .contentShape(Rectangle())
         .shadow(color: DesignSystem.Colors.Shadow.floating.opacity(isHovered ? 0.75 : 0.25), radius: isHovered ? 8 : 4, y: isHovered ? 4 : 2)
         .scaleEffect(isHovered ? 1.02 : 1.0)
@@ -104,13 +103,11 @@ struct RemoteSkillCardView: View {
                 Image(systemName: "checkmark.circle.fill")
                 Text("Installed")
             }
-            .font(.caption2)
             .fontWeight(.semibold)
-            .foregroundStyle(DesignSystem.Colors.Status.success)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(DesignSystem.Colors.Status.success.opacity(0.10))
-            .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusS, style: .continuous))
+            .dsBadge(
+                foreground: DesignSystem.Colors.Status.success,
+                background: DesignSystem.Colors.Status.success.opacity(0.10)
+            )
         } else {
             Button {
                 handleInstall()
@@ -119,15 +116,15 @@ struct RemoteSkillCardView: View {
                     Image(systemName: "arrow.down.circle")
                     Text("Install")
                 }
-                .font(.caption2)
                 .fontWeight(.bold)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(DesignSystem.Colors.primary.opacity(0.10))
-                .foregroundStyle(DesignSystem.Colors.primary)
-                .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusM, style: .continuous))
+                .dsBadge(
+                    foreground: DesignSystem.Colors.primary,
+                    background: DesignSystem.Colors.primary.opacity(0.10),
+                    horizontalPadding: 10,
+                    verticalPadding: 6
+                )
             }
-            .buttonStyle(.plain)
+            .dsLinkButton()
         }
     }
     
@@ -137,6 +134,7 @@ struct RemoteSkillCardView: View {
             onTap()
         } label: {
             Label("View Details", systemImage: "info.circle")
+                .dsIconLabelButton()
         }
 
         if let revealURL = revealInFinderURL {
@@ -144,6 +142,7 @@ struct RemoteSkillCardView: View {
                 NSWorkspace.shared.activateFileViewerSelecting([revealURL])
             } label: {
                 Label(NSLocalizedString("action.show_in_finder", comment: "Show in Finder"), systemImage: "folder")
+                    .dsIconLabelButton()
             }
         }
 
@@ -153,6 +152,7 @@ struct RemoteSkillCardView: View {
                 handleInstall()
             } label: {
                 Label("Install", systemImage: "arrow.down.circle")
+                    .dsIconLabelButton()
             }
         }
     }
@@ -162,12 +162,9 @@ struct RemoteSkillCardView: View {
             contextMenuItems
         } label: {
             Image(systemName: "ellipsis")
-                .font(.body)
-                .foregroundStyle(DesignSystem.Colors.Text.secondary)
-                .frame(width: 24, height: 24)
-                .contentShape(Rectangle())
+                .dsIconButton()
         }
-        .menuStyle(.borderlessButton)
+        .dsBorderlessMenu()
         .menuIndicator(.hidden)
         .fixedSize()
     }

@@ -128,7 +128,12 @@ public actor GitRepository: RemoteResourceRepository {
 
         // If the repository already exists locally, initialize the scanner without pulling.
         if STPath(localClonePath).isExists {
-            localFolderRepo = makeLocalFolderRepository()
+            localFolderRepo = Self.makeLocalFolderRepository(
+                id: id,
+                name: name,
+                localClonePath: localClonePath,
+                skillsPaths: skillsPaths
+            )
         }
 
         let watchPaths = Self.resolveBasePaths(localClonePath: localClonePath, skillsPaths: skillsPaths)
@@ -158,7 +163,12 @@ public actor GitRepository: RemoteResourceRepository {
 
         // If the repository already exists locally, initialize the scanner without pulling.
         if STPath(localClonePath).isExists {
-            localFolderRepo = makeLocalFolderRepository()
+            localFolderRepo = Self.makeLocalFolderRepository(
+                id: id,
+                name: name,
+                localClonePath: localClonePath,
+                skillsPaths: skillsPaths
+            )
         }
     }
     
@@ -320,10 +330,24 @@ public actor GitRepository: RemoteResourceRepository {
     }
 
     private func makeLocalFolderRepository() -> LocalFolderRepository {
+        Self.makeLocalFolderRepository(
+            id: id,
+            name: name,
+            localClonePath: localClonePath,
+            skillsPaths: skillsPaths
+        )
+    }
+
+    private static func makeLocalFolderRepository(
+        id: String,
+        name: String,
+        localClonePath: URL,
+        skillsPaths: [String]
+    ) -> LocalFolderRepository {
         LocalFolderRepository(
             id: id,
             name: name,
-            basePaths: resolveBasePaths(from: skillsPaths)
+            basePaths: resolveBasePaths(localClonePath: localClonePath, skillsPaths: skillsPaths)
         )
     }
     

@@ -48,8 +48,7 @@ struct UpdatesView: View {
             HStack(spacing: 12) {
                 if viewModel.hasUpdates {
                     Label(String(format: NSLocalizedString("updates.available_count", comment: "Number of updates available"), viewModel.updatableCount), systemImage: "arrow.down.circle")
-                        .font(.subheadline)
-                        .foregroundStyle(DesignSystem.Colors.Status.info)
+                        .dsIconLabelText(foreground: DesignSystem.Colors.Status.info, font: .subheadline)
                 }
 
                 Button(action: {
@@ -58,7 +57,7 @@ struct UpdatesView: View {
                     }
                 }) {
                     Image(systemName: "arrow.clockwise")
-                        .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                        .dsIconButton()
                 }
                 .disabled(viewModel.isChecking)
                 .help(NSLocalizedString("updates.check_for_updates", comment: "Check for updates button help"))
@@ -67,10 +66,9 @@ struct UpdatesView: View {
                     dismiss()
                 } label: {
                     Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 22))
-                        .foregroundStyle(DesignSystem.Colors.Text.tertiary)
+                        .dsIconButton(size: 22, foreground: DesignSystem.Colors.Text.tertiary)
                 }
-                .buttonStyle(.plain)
+                .dsLinkButton()
                 .accessibilityLabel(NSLocalizedString("Close", comment: "Close"))
             }
         }
@@ -87,7 +85,7 @@ struct UpdatesView: View {
             
             Text(NSLocalizedString("updates.empty_desc", comment: "No updates available description"))
                 .font(.subheadline)
-                .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                .dsSecondaryText(font: .subheadline)
         }
         .padding()
         .frame(maxHeight: .infinity)
@@ -132,13 +130,12 @@ struct UpdateRowView: View {
                 
                 HStack(spacing: 8) {
                     Label(update.updateSource.rawValue, systemImage: sourceIcon)
-                        .font(.caption)
-                        .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                        .dsIconLabelText(foreground: DesignSystem.Colors.Text.secondary, font: .caption)
                     
                     if let current = update.currentVersion {
                         Text("Current: \(current)")
                             .font(.caption)
-                            .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                            .dsSecondaryText(font: .caption)
                     }
                     
                     if let latest = update.latestVersion {
@@ -155,7 +152,7 @@ struct UpdateRowView: View {
                 Button(NSLocalizedString("action.save", comment: "Save")) {
                     onUpdate()
                 }
-                .buttonStyle(.borderedProminent)
+                .dsPrimaryButton()
                 .controlSize(.small)
             } else {
                 Label(NSLocalizedString("updates.empty_title", comment: "All skills up to date"), systemImage: "checkmark")

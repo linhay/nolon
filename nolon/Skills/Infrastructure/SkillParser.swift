@@ -7,7 +7,7 @@ public enum SkillParser: Sendable {
     /// Check if a directory is a valid skill directory (contains SKILL.md)
     /// - Parameter path: Path to the directory to check
     /// - Returns: true if the directory contains a valid SKILL.md file
-    public static func isSkillDirectory(at path: String) -> Bool {
+    public nonisolated static func isSkillDirectory(at path: String) -> Bool {
         let skillMdPath = (path as NSString).appendingPathComponent("SKILL.md")
         return STFile(skillMdPath).isExists
     }
@@ -15,7 +15,7 @@ public enum SkillParser: Sendable {
     /// Check if a directory is a valid skill directory and return skill name if valid
     /// - Parameter path: Path to the directory to check
     /// - Returns: The skill name (from frontmatter or directory name) if valid, nil otherwise
-    public static func skillName(at path: String) -> String? {
+    public nonisolated static func skillName(at path: String) -> String? {
         let skillMdPath = (path as NSString).appendingPathComponent("SKILL.md")
         guard STFile(skillMdPath).isExists,
               let content = try? STFile(skillMdPath).read() else {
@@ -40,7 +40,7 @@ public enum SkillParser: Sendable {
     ///   - globalPath: Path to the skill folder in global storage
     /// - Returns: A parsed Skill model
     /// - Throws: SkillError.parsingFailed if parsing fails
-    public static func parse(
+    public nonisolated static func parse(
         content: String,
         id: String,
         globalPath: String

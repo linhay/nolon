@@ -1,1 +1,2 @@
 // Shared build settings
+EXCLUDED_RESOURCE_FILE_NAMES = Info.plist

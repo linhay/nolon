@@ -193,15 +193,8 @@ struct ProviderContentTabView: View {
             if let provider = provider {
                 List(selection: $selectedTab) {
                     ForEach(ProviderContentTabType.availableTabs(for: provider)) { tab in
-                        HStack {
-                            Label(tab.localizedName, systemImage: tab.icon)
-                            Spacer()
-                            if tab == .skills || tab == .workflows || tab == .mcp {
-                                Text("\(viewModel.count(for: tab))")
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                        .tag(tab)
+                        tabRow(tab)
+                            .tag(tab)
                     }
                 }
                 .listStyle(.sidebar)
@@ -211,6 +204,7 @@ struct ProviderContentTabView: View {
                     NSLocalizedString("content.no_provider", comment: "Select a Provider"),
                     systemImage: "sidebar.left",
                     description: Text(NSLocalizedString("content.no_provider_desc", comment: "Choose a provider from the sidebar"))
+                        .dsSecondaryText(font: .body)
                 )
             }
         }
@@ -234,5 +228,17 @@ struct ProviderContentTabView: View {
             Task { await viewModel.loadCounts(for: provider) }
         }
         .navigationSplitViewColumnWidth(min: 160, ideal: 180, max: 200)
+    }
+
+    @ViewBuilder
+    private func tabRow(_ tab: ProviderContentTabType) -> some View {
+        HStack {
+            Label(tab.localizedName, systemImage: tab.icon)
+            Spacer()
+            if tab == .skills || tab == .workflows || tab == .mcp {
+                Text("\(viewModel.count(for: tab))")
+                    .dsSecondaryText(font: .callout)
+            }
+        }
     }
 }

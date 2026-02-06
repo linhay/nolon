@@ -24,8 +24,7 @@ struct ProviderUsageSnapshotView: View {
         }
         .padding()
         .frame(maxWidth: .infinity, alignment: .topLeading)
-        .background(DesignSystem.Colors.Background.surface)
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .dsCard()
     }
 
     private var header: some View {
@@ -38,13 +37,13 @@ struct ProviderUsageSnapshotView: View {
 
                 Text(outcome.provider.rawValue.uppercased())
                     .font(.caption)
-                    .foregroundStyle(DesignSystem.Colors.Text.tertiary)
+                    .dsTertiaryText(font: .caption)
             }
 
             if let identity = identityLine {
                 Text(identity)
                     .font(.subheadline)
-                    .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                    .dsSecondaryText(font: .subheadline)
                     .textSelection(.enabled)
             }
 
@@ -84,8 +83,7 @@ struct ProviderUsageSnapshotView: View {
                 )
             }
         }
-        .font(.caption)
-        .foregroundStyle(DesignSystem.Colors.Text.tertiary)
+        .dsTertiaryText(font: .caption)
         .textSelection(.enabled)
     }
 
@@ -135,7 +133,7 @@ struct ProviderUsageSnapshotView: View {
             HStack {
                 Text(title)
                     .font(.subheadline)
-                    .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                    .dsSecondaryText(font: .subheadline)
                 Spacer()
                 Text(String(format: "%.0f%%", window.remainingPercent))
                     .font(.subheadline)
@@ -148,7 +146,7 @@ struct ProviderUsageSnapshotView: View {
             if let detail = resetText(window: window), !detail.isEmpty {
                 Text(detail)
                     .font(.caption)
-                    .foregroundStyle(DesignSystem.Colors.Text.tertiary)
+                    .dsTertiaryText(font: .caption)
             }
         }
     }
@@ -158,7 +156,7 @@ struct ProviderUsageSnapshotView: View {
             HStack {
                 Text(NSLocalizedString("usage.metric.credits", value: "Credits", comment: "Credits"))
                     .font(.subheadline)
-                    .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                    .dsSecondaryText(font: .subheadline)
                 Spacer()
                 Text(creditsText(credits.remaining))
                     .font(.subheadline)
@@ -166,7 +164,7 @@ struct ProviderUsageSnapshotView: View {
             }
             Text(credits.updatedAt.formatted(date: .abbreviated, time: .shortened))
                 .font(.caption)
-                .foregroundStyle(DesignSystem.Colors.Text.tertiary)
+                .dsTertiaryText(font: .caption)
 
             if let refreshedAt {
                 Text(String(
@@ -178,7 +176,7 @@ struct ProviderUsageSnapshotView: View {
                     refreshedAt.formatted(date: .abbreviated, time: .shortened)
                 ))
                 .font(.caption)
-                .foregroundStyle(DesignSystem.Colors.Text.tertiary)
+                .dsTertiaryText(font: .caption)
             }
         }
     }
@@ -192,14 +190,13 @@ struct ProviderUsageSnapshotView: View {
             Text(result.usage.updatedAt.formatted(date: .abbreviated, time: .shortened))
         }
         .font(.caption)
-        .foregroundStyle(DesignSystem.Colors.Text.tertiary)
+        .dsTertiaryText(font: .caption)
     }
 
     private func errorContent(_ error: Error) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(NSLocalizedString("usage.monitor.error.title", value: "Failed to load usage", comment: "Error title"))
-                .font(.subheadline)
-                .foregroundStyle(DesignSystem.Colors.Status.error)
+                .dsErrorText(font: .subheadline)
             Text(error.localizedDescription)
                 .font(.body)
                 .foregroundStyle(DesignSystem.Colors.Text.primary)
@@ -258,17 +255,17 @@ struct ProviderUsageSnapshotView: View {
         VStack(alignment: .leading, spacing: 6) {
             Text(NSLocalizedString("usage.metric.cost", value: "Cost", comment: "Cost label"))
                 .font(.subheadline)
-                .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                .dsSecondaryText(font: .subheadline)
 
             if let line = costLineToday(cost), !line.isEmpty {
                 Text(line)
                     .font(.caption)
-                    .foregroundStyle(DesignSystem.Colors.Text.tertiary)
+                    .dsTertiaryText(font: .caption)
             }
             if let line = costLineLast30(cost), !line.isEmpty {
                 Text(line)
                     .font(.caption)
-                    .foregroundStyle(DesignSystem.Colors.Text.tertiary)
+                    .dsTertiaryText(font: .caption)
             }
         }
     }

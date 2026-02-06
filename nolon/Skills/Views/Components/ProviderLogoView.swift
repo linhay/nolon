@@ -105,7 +105,7 @@ struct ProviderLogoView: View {
         HighlightedText(text: name, query: highlightQuery)
             .font(.caption)
             .lineLimit(1)
-            .foregroundStyle(.primary)
+            .foregroundStyle(DesignSystem.Colors.Text.primary)
     }
     
     var fallbackView: some View {
@@ -120,6 +120,6 @@ struct ProviderLogoView: View {
         return Text(name.prefix(1).uppercased())
             .font(font)
             .fontWeight(.bold)
-            .foregroundStyle(.secondary)
+            .dsSecondaryText(font: font)
     }
 }

@@ -42,7 +42,7 @@ struct RemoteMCPDetailView: View {
                                 .font(.headline)
                             Text(summary)
                                 .font(.body)
-                                .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                                .dsSecondaryText(font: .body)
                         }
                     }
                     
@@ -62,8 +62,10 @@ struct RemoteMCPDetailView: View {
                                         .textSelection(.enabled)
                                         .padding(8)
                                         .frame(maxWidth: .infinity, alignment: .leading)
-                                        .background(DesignSystem.Colors.Component.controlFillSubtle)
-                                        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusS, style: .continuous))
+                                        .dsCard(
+                                            background: DesignSystem.Colors.Component.controlFillSubtle,
+                                            cornerRadius: DesignSystem.Metrics.cornerRadiusS
+                                        )
                                 }
                             }
                             
@@ -80,8 +82,10 @@ struct RemoteMCPDetailView: View {
                                     }
                                     .padding(8)
                                     .frame(maxWidth: .infinity, alignment: .leading)
-                                    .background(DesignSystem.Colors.Component.controlFillSubtle)
-                                    .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusS, style: .continuous))
+                                    .dsCard(
+                                        background: DesignSystem.Colors.Component.controlFillSubtle,
+                                        cornerRadius: DesignSystem.Metrics.cornerRadiusS
+                                    )
                                 }
                             }
                             
@@ -100,8 +104,10 @@ struct RemoteMCPDetailView: View {
                                     }
                                     .padding(8)
                                     .frame(maxWidth: .infinity, alignment: .leading)
-                                    .background(DesignSystem.Colors.Component.controlFillSubtle)
-                                    .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusS, style: .continuous))
+                                    .dsCard(
+                                        background: DesignSystem.Colors.Component.controlFillSubtle,
+                                        cornerRadius: DesignSystem.Metrics.cornerRadiusS
+                                    )
                                 }
                             }
                         }
@@ -116,16 +122,17 @@ struct RemoteMCPDetailView: View {
                             HStack(spacing: 20) {
                                 if let stars = stats.stars {
                                     Label("\(stars) Stars", systemImage: "star.fill")
-                                        .foregroundStyle(.yellow)
+                                        .dsIconLabelText(foreground: DesignSystem.Colors.Status.warning, font: .callout)
                                 }
                                 if let downloads = stats.downloads {
                                     Label("\(downloads) Downloads", systemImage: "arrow.down.circle")
+                                        .dsIconLabelText(foreground: DesignSystem.Colors.Text.secondary, font: .callout)
                                 }
                                 if let installs = stats.installs {
                                     Label("\(installs) Installs", systemImage: "server.rack")
+                                        .dsIconLabelText(foreground: DesignSystem.Colors.Text.secondary, font: .callout)
                                 }
                             }
-                            .font(.callout)
                         }
                     }
                     
@@ -136,7 +143,7 @@ struct RemoteMCPDetailView: View {
                                 .font(.headline)
                             Text(changelog)
                                 .font(.body)
-                                .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                                .dsSecondaryText(font: .body)
                         }
                     }
                 }
@@ -151,7 +158,7 @@ struct RemoteMCPDetailView: View {
                 if let targetProvider = targetProvider {
                     Text("Install to: \(targetProvider.name)")
                         .font(.caption)
-                        .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                        .dsSecondaryText(font: .caption)
                 } else {
                     Picker("Install to:", selection: $selectedProvider) {
                         Text("Select Provider").tag(nil as Provider?)
@@ -167,7 +174,7 @@ struct RemoteMCPDetailView: View {
                 Button("Cancel") {
                     dismiss()
                 }
-                .buttonStyle(.plain)
+                .dsLinkButton()
                 .keyboardShortcut(.cancelAction)
                 
                 Button("Install") {
@@ -176,7 +183,7 @@ struct RemoteMCPDetailView: View {
                         dismiss()
                     }
                 }
-                .buttonStyle(.borderedProminent)
+                .dsPrimaryButton()
                 .keyboardShortcut(.defaultAction)
                 .disabled(targetProvider == nil && selectedProvider == nil)
             }

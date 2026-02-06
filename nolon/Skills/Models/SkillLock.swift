@@ -33,7 +33,7 @@ public struct SkillLockEntry: Codable, Sendable, Equatable {
     /// Display name from SKILL.md
     public let displayName: String?
     
-    public init(
+    public nonisolated init(
         source: String,
         sourceType: String,
         sourceUrl: String,
@@ -54,6 +54,44 @@ public struct SkillLockEntry: Codable, Sendable, Equatable {
         self.version = version
         self.displayName = displayName
     }
+
+    public enum CodingKeys: String, CodingKey {
+        case source
+        case sourceType
+        case sourceUrl
+        case skillPath
+        case skillFolderHash
+        case installedAt
+        case updatedAt
+        case version
+        case displayName
+    }
+
+    public nonisolated init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.source = try container.decode(String.self, forKey: .source)
+        self.sourceType = try container.decode(String.self, forKey: .sourceType)
+        self.sourceUrl = try container.decode(String.self, forKey: .sourceUrl)
+        self.skillPath = try container.decodeIfPresent(String.self, forKey: .skillPath)
+        self.skillFolderHash = try container.decodeIfPresent(String.self, forKey: .skillFolderHash)
+        self.installedAt = try container.decode(Date.self, forKey: .installedAt)
+        self.updatedAt = try container.decode(Date.self, forKey: .updatedAt)
+        self.version = try container.decodeIfPresent(String.self, forKey: .version)
+        self.displayName = try container.decodeIfPresent(String.self, forKey: .displayName)
+    }
+
+    public nonisolated func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(source, forKey: .source)
+        try container.encode(sourceType, forKey: .sourceType)
+        try container.encode(sourceUrl, forKey: .sourceUrl)
+        try container.encodeIfPresent(skillPath, forKey: .skillPath)
+        try container.encodeIfPresent(skillFolderHash, forKey: .skillFolderHash)
+        try container.encode(installedAt, forKey: .installedAt)
+        try container.encode(updatedAt, forKey: .updatedAt)
+        try container.encodeIfPresent(version, forKey: .version)
+        try container.encodeIfPresent(displayName, forKey: .displayName)
+    }
 }
 
 // MARK: - Skill Lock File
@@ -73,7 +111,7 @@ public struct SkillLockFile: Codable, Sendable {
     /// Last selected providers for installation
     public var lastSelectedProviders: [String]?
     
-    public init(
+    public nonisolated init(
         version: Int = SkillLockFile.currentVersion,
         skills: [String: SkillLockEntry] = [:],
         dismissedPrompts: [String: Bool]? = nil,
@@ -86,11 +124,34 @@ public struct SkillLockFile: Codable, Sendable {
     }
     
     /// Current lock file version
-    public static let currentVersion = 3
+    public nonisolated static let currentVersion = 3
     
     /// Create an empty lock file
-    public static func empty() -> SkillLockFile {
+    public nonisolated static func empty() -> SkillLockFile {
         SkillLockFile(version: currentVersion, skills: [:])
+    }
+
+    public enum CodingKeys: String, CodingKey {
+        case version
+        case skills
+        case dismissedPrompts
+        case lastSelectedProviders
+    }
+
+    public nonisolated init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.version = try container.decode(Int.self, forKey: .version)
+        self.skills = try container.decode([String: SkillLockEntry].self, forKey: .skills)
+        self.dismissedPrompts = try container.decodeIfPresent([String: Bool].self, forKey: .dismissedPrompts)
+        self.lastSelectedProviders = try container.decodeIfPresent([String].self, forKey: .lastSelectedProviders)
+    }
+
+    public nonisolated func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(version, forKey: .version)
+        try container.encode(skills, forKey: .skills)
+        try container.encodeIfPresent(dismissedPrompts, forKey: .dismissedPrompts)
+        try container.encodeIfPresent(lastSelectedProviders, forKey: .lastSelectedProviders)
     }
 }
 
@@ -114,7 +175,7 @@ public struct SkillUpdateInfo: Sendable, Equatable, Identifiable {
         case local
     }
     
-    public init(
+    public nonisolated init(
         id: String,
         skillName: String,
         currentVersion: String? = nil,

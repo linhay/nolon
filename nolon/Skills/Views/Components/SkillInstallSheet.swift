@@ -24,7 +24,7 @@ struct SkillInstallSheet: View {
                 Section {
                     if providers.isEmpty {
                         Text(NSLocalizedString("No providers available. Please create a local provider first.", comment: "No providers"))
-                            .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                            .dsSecondaryText(font: .body)
                     } else {
                         Picker(NSLocalizedString("Install to", comment: "Install to"), selection: $selectedProviderID) {
                             Text(NSLocalizedString("Select a provider...", comment: "Select provider"))
@@ -37,7 +37,7 @@ struct SkillInstallSheet: View {
                     }
                 } footer: {
                     Text(NSLocalizedString("Select a provider folder where this skill will be installed.", comment: "Install destination"))
-                        .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                        .dsSecondaryText(font: .body)
                 }
             }
             .formStyle(.grouped)
@@ -53,7 +53,7 @@ struct SkillInstallSheet: View {
 
             HStack(spacing: 12) {
                 Button(NSLocalizedString("Cancel", comment: "Cancel")) { dismiss() }
-                    .buttonStyle(.plain)
+                    .dsLinkButton()
 
                 Spacer(minLength: 0)
 
@@ -65,7 +65,7 @@ struct SkillInstallSheet: View {
                         dismiss()
                     }
                 }
-                .buttonStyle(.borderedProminent)
+                .dsPrimaryButton()
                 .disabled(selectedProviderID == nil)
             }
             .padding(.horizontal, SheetLayout.footerHorizontalPadding)

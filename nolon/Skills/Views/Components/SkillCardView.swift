@@ -26,8 +26,7 @@ struct SkillCardView: View {
                 .padding(16)
                 .frame(maxWidth: .infinity, alignment: .topLeading)
                 .frame(minHeight: 140)
-                .background(DesignSystem.Colors.Component.controlFillSubtle)
-                .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusL, style: .continuous))
+                .dsCard()
                 .contentShape(Rectangle())
                 .onTapGesture { onTap() }
                 .contextMenu { contextMenuItems }
@@ -79,7 +78,7 @@ struct SkillCardView: View {
     private var descriptionView: some View {
         HighlightedText(text: skill.description, query: searchText)
             .font(.caption)
-            .foregroundStyle(DesignSystem.Colors.Text.secondary)
+            .dsSecondaryText(font: .caption)
             .lineLimit(3)
             .frame(maxHeight: .infinity)
     }
@@ -95,15 +94,16 @@ struct SkillCardView: View {
                         Image(systemName: "arrow.triangle.branch")
                         Text("Workflow")
                     }
-                    .font(.caption2)
                     .fontWeight(.semibold)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(DesignSystem.Colors.primary.opacity(0.10))
-                    .foregroundStyle(DesignSystem.Colors.primary)
-                    .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusM, style: .continuous))
+                    .dsBadge(
+                        foreground: DesignSystem.Colors.primary,
+                        background: DesignSystem.Colors.primary.opacity(0.10),
+                        horizontalPadding: 10,
+                        verticalPadding: 6,
+                        cornerRadius: DesignSystem.Metrics.cornerRadiusM
+                    )
                 }
-                .buttonStyle(.plain)
+                .dsLinkButton()
 
                 Spacer()
             }
@@ -116,27 +116,30 @@ struct SkillCardView: View {
                         Image(systemName: "plus.circle")
                         Text(NSLocalizedString("action.link_workflow", comment: "Link to Workflow"))
                     }
-                    .font(.caption2)
                     .fontWeight(.semibold)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(DesignSystem.Colors.Component.controlFill)
-                    .foregroundStyle(DesignSystem.Colors.Text.secondary)
-                    .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusM, style: .continuous))
+                    .dsBadge(
+                        foreground: DesignSystem.Colors.Text.secondary,
+                        background: DesignSystem.Colors.Component.controlFill,
+                        horizontalPadding: 10,
+                        verticalPadding: 6,
+                        cornerRadius: DesignSystem.Metrics.cornerRadiusM
+                    )
                 }
-                .buttonStyle(.plain)
+                .dsLinkButton()
 
                 Spacer()
 
                 if skill.hasReferences {
                     Label("\(skill.referenceCount)", systemImage: "doc.text")
+                        .dsIconLabelButton(foreground: DesignSystem.Colors.Text.secondary, font: .caption2)
                 }
                 if skill.hasScripts {
                     Label("\(skill.scriptCount)", systemImage: "terminal")
+                        .dsIconLabelButton(foreground: DesignSystem.Colors.Text.secondary, font: .caption2)
                 }
             }
             .font(.caption2)
-            .foregroundStyle(DesignSystem.Colors.Text.secondary)
+            .dsSecondaryText(font: .caption2)
         }
     }
     
@@ -150,6 +153,7 @@ struct SkillCardView: View {
                 NSLocalizedString("action.show_in_finder", comment: "Show in Finder"),
                 systemImage: "folder"
             )
+            .dsIconLabelButton()
         }
         
         if skill.installationState == .orphaned {
@@ -161,6 +165,7 @@ struct SkillCardView: View {
                     NSLocalizedString("action.migrate", value: "Migrate", comment: "Migrate orphaned skill"),
                     systemImage: "arrow.right.arrow.left"
                 )
+                .dsIconLabelButton()
             }
             
             Divider()
@@ -173,6 +178,7 @@ struct SkillCardView: View {
                     NSLocalizedString("action.delete", value: "Delete", comment: "Delete skill"),
                     systemImage: "trash"
                 )
+                .dsIconLabelButton()
             }
         } else {
             // Installed: Link/Unlink Workflow
@@ -184,6 +190,7 @@ struct SkillCardView: View {
                         NSLocalizedString("action.unlink_workflow", value: "Unlink Workflow", comment: "Unlink from Workflow"),
                         systemImage: "link.badge.plus"
                     )
+                    .dsIconLabelButton()
                 }
             } else {
                 Button {
@@ -193,6 +200,7 @@ struct SkillCardView: View {
                         NSLocalizedString("action.link_workflow", comment: "Link to Workflow"),
                         systemImage: "link"
                     )
+                    .dsIconLabelButton()
                 }
             }
             
@@ -206,6 +214,7 @@ struct SkillCardView: View {
                     NSLocalizedString("action.uninstall", comment: "Uninstall"),
                     systemImage: "trash"
                 )
+                .dsIconLabelButton()
             }
         }
     }
@@ -215,12 +224,9 @@ struct SkillCardView: View {
             contextMenuItems
         } label: {
             Image(systemName: "ellipsis")
-                .font(.body)
-                .foregroundStyle(DesignSystem.Colors.Text.secondary)
-                .frame(width: 24, height: 24)
-                .contentShape(Rectangle())
+                .dsIconButton()
         }
-        .menuStyle(.borderlessButton)
+        .dsBorderlessMenu()
         .menuIndicator(.hidden)
         .fixedSize()
     }

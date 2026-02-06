@@ -45,13 +45,13 @@ struct SkillDetailSidebar: View {
                         Text("v" + viewModel.skill.version)
                             .font(.system(.caption2, design: .monospaced))
                             .fontWeight(.semibold)
-                            .foregroundStyle(DesignSystem.Colors.Text.secondary)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 3)
-                            .background(
-                                Capsule()
-                                    .fill(.ultraThinMaterial)
-                                    .stroke(DesignSystem.Colors.Component.border.opacity(0.20), lineWidth: 0.5)
+                            .dsBadgeBorder(
+                                foreground: DesignSystem.Colors.Text.secondary,
+                                background: DesignSystem.Colors.Component.controlFillSubtle,
+                                borderColor: DesignSystem.Colors.Component.border.opacity(0.20),
+                                borderWidth: 0.5,
+                                horizontalPadding: 8,
+                                verticalPadding: 3
                             )
                         
                         Spacer()

@@ -220,10 +220,9 @@ struct RemoteRepositorySidebarView: View {
                     viewModel.showingAddRepository = true
                 } label: {
                     Image(systemName: "plus.circle.fill")
-                        .font(.system(size: 20))
-                        .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                        .dsIconButton(size: 20, foreground: DesignSystem.Colors.Text.secondary)
                 }
-                .buttonStyle(.plain)
+                .dsLinkButton()
                 .help(NSLocalizedString("Add Repository", comment: "Add Repository"))
                 .accessibilityLabel(NSLocalizedString("Add Repository", comment: "Add Repository"))
             }
@@ -320,7 +319,7 @@ struct RemoteRepositorySidebarView: View {
             } else if let syncDate = repo.lastSyncDate {
                 Text(syncDate, style: .time)
                     .font(.caption2)
-                    .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                    .dsSecondaryText(font: .caption2)
             } else {
                 Text("Not synced")
                     .font(.caption2)
@@ -337,11 +336,11 @@ struct RemoteRepositorySidebarView: View {
             HStack(spacing: 6) {
                 Image(systemName: collapsedSectionIDs.contains(section.id) ? "chevron.right" : "chevron.down")
                     .font(.caption)
-                    .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                    .dsSecondaryText(font: .caption)
 
                 Text(section.title)
                     .font(.caption)
-                    .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                    .dsSecondaryText(font: .caption)
 
                 Spacer(minLength: 0)
             }
@@ -350,7 +349,7 @@ struct RemoteRepositorySidebarView: View {
             .padding(.bottom, 2)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .dsLinkButton()
         .listRowSeparator(.hidden)
         .selectionDisabled(true)
     }
@@ -370,7 +369,7 @@ struct RemoteRepositorySidebarView: View {
                     ProviderLogoView(name: repo.name, logoName: logoName, iconSize: 16)
                 } else {
                     Image(systemName: repo.iconName)
-                        .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                        .dsSecondaryText(font: .caption)
                 }
 
                 VStack(alignment: .leading, spacing: 3) {
@@ -382,7 +381,7 @@ struct RemoteRepositorySidebarView: View {
                     if let secondaryLine = repositorySecondaryLine(repo) {
                         Text(secondaryLine)
                             .font(.caption)
-                            .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                            .dsSecondaryText(font: .caption)
                             .lineLimit(1)
                     }
 
@@ -397,12 +396,12 @@ struct RemoteRepositorySidebarView: View {
             VStack(alignment: .trailing, spacing: 6) {
                 if repo.isBuiltIn {
                     Text("Built-in")
-                        .font(.caption2)
-                        .foregroundStyle(DesignSystem.Colors.Text.secondary)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(DesignSystem.Colors.Component.controlFillSubtle)
-                        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusXS, style: .continuous))
+                        .dsBadge(
+                            foreground: DesignSystem.Colors.Text.secondary,
+                            background: DesignSystem.Colors.Component.controlFillSubtle,
+                            horizontalPadding: 6,
+                            verticalPadding: 2
+                        )
                 }
             }
             .frame(maxHeight: .infinity, alignment: .center)
@@ -414,6 +413,7 @@ struct RemoteRepositorySidebarView: View {
                     Task { await viewModel.syncRepository(repo, settings: settings) }
                 } label: {
                     Label("Sync", systemImage: "arrow.triangle.2.circlepath")
+                        .dsIconLabelButton()
                 }
             }
             
@@ -423,6 +423,7 @@ struct RemoteRepositorySidebarView: View {
                     viewModel.revealInFinder(repo)
                 } label: {
                     Label("Reveal in Finder", systemImage: "folder")
+                        .dsIconLabelButton()
                 }
             }
             
@@ -432,6 +433,7 @@ struct RemoteRepositorySidebarView: View {
                     viewModel.editingRepository = repo
                 } label: {
                     Label("Edit", systemImage: "pencil")
+                        .dsIconLabelButton()
                 }
             }
             
@@ -442,6 +444,7 @@ struct RemoteRepositorySidebarView: View {
                     Task { await viewModel.removeRepository(repo, settings: settings) }
                 } label: {
                     Label("Remove", systemImage: "trash")
+                        .dsIconLabelButton()
                 }
             }
         }
@@ -453,11 +456,12 @@ struct RemoteRepositorySidebarView: View {
         } label: {
             Label("Add Repository", systemImage: "plus")
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .dsIconLabelButton()
         }
-        .buttonStyle(.borderless)
+        .dsBorderlessButton()
         .padding(.horizontal)
         .padding(.vertical, 12)
-        .background(Color(nsColor: .controlBackgroundColor))
+        .background(DesignSystem.Colors.Component.controlFillSubtle)
     }
 
     private enum SyncHUDStyle {
@@ -517,20 +521,24 @@ struct RemoteRepositorySidebarView: View {
                 if let subtitle, !subtitle.isEmpty {
                     Text(subtitle)
                         .font(.system(size: 11))
-                        .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                        .dsSecondaryText(font: .system(size: 11))
                         .lineLimit(1)
                 }
             }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
-        .background(DesignSystem.Colors.Background.elevated.opacity(0.94))
-        .cornerRadius(12)
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(DesignSystem.Colors.Component.border.opacity(style == .failure ? 0.6 : 0.35), lineWidth: 1)
+        .dsCard(
+            background: DesignSystem.Colors.Background.elevated.opacity(0.94),
+            cornerRadius: DesignSystem.Metrics.cornerRadiusM,
+            borderColor: DesignSystem.Colors.Component.border.opacity(style == .failure ? 0.6 : 0.35),
+            shadow: DesignSystem.CardShadow(
+                color: DesignSystem.Colors.Text.primary.opacity(0.14),
+                radius: 12,
+                x: 0,
+                y: 8
+            )
         )
-        .shadow(color: DesignSystem.Colors.Text.primary.opacity(0.14), radius: 12, x: 0, y: 8)
     }
     
     private func deleteRepositories(_ offsets: IndexSet, in repos: [RemoteRepository]) {
@@ -698,13 +706,13 @@ struct TokenInputSheet: View {
                     )
                 )
                 .font(.subheadline)
-                .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                .dsSecondaryText(font: .subheadline)
                 .multilineTextAlignment(.center)
 
                 VStack(alignment: .leading, spacing: 8) {
                     Text(NSLocalizedString("Personal Access Token", comment: "Personal access token"))
                         .font(.caption)
-                        .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                        .dsSecondaryText(font: .caption)
 
                     SecureField(NSLocalizedString("Enter your token", comment: "Enter token"), text: $token)
                         .textFieldStyle(.roundedBorder)
@@ -712,7 +720,7 @@ struct TokenInputSheet: View {
 
                 Text(NSLocalizedString("Generate a token from your Git provider's settings with 'read_repository' scope.", comment: "Token help"))
                     .font(.caption)
-                    .foregroundStyle(DesignSystem.Colors.Text.tertiary)
+                    .dsTertiaryText(font: .caption)
                     .multilineTextAlignment(.center)
             }
             .padding(.horizontal, SheetLayout.horizontalPadding)
@@ -724,7 +732,7 @@ struct TokenInputSheet: View {
                 Button(NSLocalizedString("Cancel", comment: "Cancel")) {
                     isPresented = false
                 }
-                .buttonStyle(.plain)
+                .dsLinkButton()
 
                 Spacer(minLength: 0)
 
@@ -732,7 +740,7 @@ struct TokenInputSheet: View {
                     isPresented = false
                     onConfirm()
                 }
-                .buttonStyle(.borderedProminent)
+                .dsPrimaryButton()
                 .disabled(token.isEmpty)
             }
             .padding(.horizontal, SheetLayout.footerHorizontalPadding)

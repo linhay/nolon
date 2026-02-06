@@ -10,6 +10,7 @@ struct ProviderWorkflowsGridView: View {
                 viewModel.searchText.isEmpty ? NSLocalizedString("workflows.empty", comment: "No Workflows") : "No Results",
                 systemImage: viewModel.searchText.isEmpty ? "arrow.triangle.branch" : "magnifyingglass",
                 description: Text(viewModel.searchText.isEmpty ? NSLocalizedString("workflows.empty_desc", comment: "No workflows in this provider") : "No matching workflows found")
+                    .dsSecondaryText(font: .body)
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {

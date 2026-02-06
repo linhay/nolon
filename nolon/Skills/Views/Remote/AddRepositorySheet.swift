@@ -397,8 +397,7 @@ struct AddRepositorySheet: View {
         HStack {
             if let error = viewModel.validationError {
                 Text(error)
-                    .font(.system(size: 12))
-                    .foregroundStyle(DesignSystem.Colors.Status.error.opacity(0.8))
+                    .dsErrorText(font: .system(size: 12))
                     .lineLimit(2)
             }
             
@@ -408,24 +407,27 @@ struct AddRepositorySheet: View {
                 Button("Cancel") {
                     isPresented = false
                 }
-                .buttonStyle(.plain)
+                .dsLinkButton()
                 .font(.system(size: 13, weight: .medium))
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
-                .background(DesignSystem.Colors.Component.controlFill)
-                .clipShape(Capsule())
+                .dsBadge(
+                    foreground: DesignSystem.Colors.Text.primary,
+                    background: DesignSystem.Colors.Component.controlFill,
+                    horizontalPadding: 16,
+                    verticalPadding: 8
+                )
                 .disabled(viewModel.isAddingRepository)
                 
                 Button(viewModel.isEditing ? "Save" : "Add") {
                     Task { await viewModel.saveRepository() }
                 }
-                .buttonStyle(.plain)
+                .dsLinkButton()
                 .font(.system(size: 13, weight: .bold))
-                .padding(.horizontal, 24)
-                .padding(.vertical, 8)
-                .background(viewModel.canAddRepository ? DesignSystem.Colors.primary : DesignSystem.Colors.Component.disabledFill)
-                .foregroundStyle(viewModel.canAddRepository ? DesignSystem.Colors.Text.onAccent : DesignSystem.Colors.Text.tertiary)
-                .clipShape(Capsule())
+                .dsBadge(
+                    foreground: viewModel.canAddRepository ? DesignSystem.Colors.Text.onAccent : DesignSystem.Colors.Text.tertiary,
+                    background: viewModel.canAddRepository ? DesignSystem.Colors.primary : DesignSystem.Colors.Component.disabledFill,
+                    horizontalPadding: 24,
+                    verticalPadding: 8
+                )
                 .disabled(!viewModel.canAddRepository || viewModel.isAddingRepository)
             }
         }
@@ -486,15 +488,16 @@ struct AddRepositorySheet: View {
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 8)
-            .background(isSelected ? DesignSystem.Colors.primary : DesignSystem.Colors.Component.controlFill)
-            .foregroundStyle(isSelected ? DesignSystem.Colors.Text.onAccent : DesignSystem.Colors.Text.primary)
-            .clipShape(Capsule())
-            .overlay(
-                Capsule()
-                    .stroke(isSelected ? DesignSystem.Colors.primary : DesignSystem.Colors.Component.border.opacity(0.25), lineWidth: 1)
+            .dsBadgeBorder(
+                foreground: isSelected ? DesignSystem.Colors.Text.onAccent : DesignSystem.Colors.Text.primary,
+                background: isSelected ? DesignSystem.Colors.primary : DesignSystem.Colors.Component.controlFill,
+                borderColor: isSelected ? DesignSystem.Colors.primary : DesignSystem.Colors.Component.border.opacity(0.25),
+                borderWidth: 1,
+                horizontalPadding: 14,
+                verticalPadding: 8
             )
         }
-        .buttonStyle(.plain)
+        .dsLinkButton()
         .disabled(viewModel.isEditing)
     }
 
@@ -546,7 +549,7 @@ struct AddRepositorySheet: View {
             
             Text("Clawdhub is the official skill marketplace.")
                 .font(.system(size: 11))
-                .foregroundStyle(.secondary.opacity(0.8))
+                .foregroundStyle(DesignSystem.Colors.Text.secondary.opacity(0.8))
         }
     }
 
@@ -559,7 +562,7 @@ struct AddRepositorySheet: View {
                 HStack {
                     Text(viewModel.newLocalPath.isEmpty ? "No folder selected" : viewModel.newLocalPath)
                         .font(.system(size: 13))
-                        .foregroundStyle(viewModel.newLocalPath.isEmpty ? .secondary : .primary)
+                        .foregroundStyle(viewModel.newLocalPath.isEmpty ? DesignSystem.Colors.Text.secondary : DesignSystem.Colors.Text.primary)
                         .lineLimit(1)
                         .truncationMode(.middle)
                     
@@ -577,18 +580,21 @@ struct AddRepositorySheet: View {
                         Text("Choose...")
                     }
                     .font(.system(size: 13, weight: .medium))
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-                    .background(DesignSystem.Colors.Component.controlFill)
-                    .clipShape(Capsule())
-                    .overlay(Capsule().stroke(DesignSystem.Colors.Component.border.opacity(0.25), lineWidth: 1))
+                    .dsBadgeBorder(
+                        foreground: DesignSystem.Colors.Text.primary,
+                        background: DesignSystem.Colors.Component.controlFill,
+                        borderColor: DesignSystem.Colors.Component.border.opacity(0.25),
+                        borderWidth: 1,
+                        horizontalPadding: 16,
+                        verticalPadding: 10
+                    )
                 }
-                .buttonStyle(.plain)
+                .dsLinkButton()
             }
             
             Text("Select a folder containing skill directories (each with a SKILL.md file).")
                 .font(.system(size: 11))
-                .foregroundStyle(.secondary.opacity(0.8))
+                .foregroundStyle(DesignSystem.Colors.Text.secondary.opacity(0.8))
         }
     }
 
@@ -620,7 +626,7 @@ struct AddRepositorySheet: View {
                 
                 Text("Supports GitHub, GitLab, Bitbucket and other Git hosting services.")
                     .font(.system(size: 11))
-                    .foregroundStyle(.secondary.opacity(0.8))
+                    .foregroundStyle(DesignSystem.Colors.Text.secondary.opacity(0.8))
             }
             
             // Skills Paths
@@ -632,7 +638,7 @@ struct AddRepositorySheet: View {
                 
                 Text("Add one or more paths containing skills (e.g., 'skills', 'python', '.agent/skills'). Use '.' for repository root.")
                     .font(.system(size: 11))
-                    .foregroundStyle(.secondary.opacity(0.8))
+                    .foregroundStyle(DesignSystem.Colors.Text.secondary.opacity(0.8))
             }
         }
     }
@@ -655,14 +661,16 @@ struct AddRepositorySheet: View {
                         viewModel.removeSkillsPath(at: index)
                     } label: {
                         Image(systemName: "minus.circle.fill")
-                            .foregroundStyle(.red.opacity(0.8))
+                            .foregroundStyle(DesignSystem.Colors.Status.error.opacity(0.8))
                     }
-                    .buttonStyle(.plain)
+                    .dsLinkButton()
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
-                .background(DesignSystem.Colors.Component.controlFillSubtle)
-                .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusS, style: .continuous))
+                .dsCard(
+                    background: DesignSystem.Colors.Component.controlFillSubtle,
+                    cornerRadius: DesignSystem.Metrics.cornerRadiusS
+                )
             }
             
             HStack(spacing: 8) {
@@ -682,7 +690,7 @@ struct AddRepositorySheet: View {
                         .font(.system(size: 20))
                         .foregroundStyle(DesignSystem.Colors.Status.success)
                 }
-                .buttonStyle(.plain)
+                .dsLinkButton()
                 .disabled(viewModel.newSkillsPathInput.isEmpty)
             }
         }
@@ -705,16 +713,15 @@ struct AddRepositorySheet: View {
         HStack {
             Text(value)
                 .font(.system(size: 13))
-                .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                .dsSecondaryText(font: .system(size: 13))
             Spacer()
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
-        .background(DesignSystem.Colors.Component.controlFillSubtle)
-        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusM, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusM, style: .continuous)
-                .stroke(DesignSystem.Colors.Component.border.opacity(0.20), lineWidth: 1)
+        .dsCard(
+            background: DesignSystem.Colors.Component.controlFillSubtle,
+            cornerRadius: DesignSystem.Metrics.cornerRadiusM,
+            borderColor: DesignSystem.Colors.Component.border.opacity(0.20)
         )
     }
 
@@ -731,7 +738,7 @@ struct AddRepositorySheet: View {
                 
                 Text("Adding repository...")
                     .font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                    .dsSecondaryText(font: .system(size: 14, weight: .medium))
             }
             .padding(32)
             .dsGlassPanel(cornerRadius: DesignSystem.Metrics.cornerRadiusL)

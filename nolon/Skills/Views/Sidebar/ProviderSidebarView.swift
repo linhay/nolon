@@ -174,6 +174,7 @@ public struct ProviderSidebarView: View {
                     showingAddSheet = true
                 } label: {
                     Label(NSLocalizedString("action.add_provider", value: "Add Provider", comment: "Add Provider"), systemImage: "plus")
+                        .dsIconLabelButton()
                 }
             }
         }

@@ -1,4 +1,5 @@
 import Foundation
+import STFilePath
 
 actor CodexAuthAccountStore {
     private let fileURL: URL
@@ -28,7 +29,7 @@ actor CodexAuthAccountStore {
     }
 
     private static func defaultFileURL() -> URL {
-        let root = NolonManager.shared.rootURL
+        let root = STFolder("~").folder(".nolon").url
         return root
             .appendingPathComponent("codex", isDirectory: true)
             .appendingPathComponent("accounts.json")

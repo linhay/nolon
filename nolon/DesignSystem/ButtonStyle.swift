@@ -1,0 +1,273 @@
+import SwiftUI
+
+// MARK: - Button Styles
+
+private struct DSPrimaryButtonStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 13, weight: .semibold))
+            .foregroundStyle(isEnabled ? DesignSystem.Colors.Text.onAccent : DesignSystem.Colors.Text.tertiary)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 7)
+            .background(isEnabled ? DesignSystem.Colors.primary : DesignSystem.Colors.Component.disabledFill)
+            .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusM, style: .continuous))
+            .opacity(configuration.isPressed ? 0.92 : 1.0)
+    }
+}
+
+private struct DSSecondaryButtonStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
+    let foreground: Color?
+    let background: Color?
+    let borderColor: Color?
+
+    func makeBody(configuration: Configuration) -> some View {
+        let fg = foreground ?? (isEnabled ? DesignSystem.Colors.Text.primary : DesignSystem.Colors.Text.tertiary)
+        let bg = background ?? DesignSystem.Colors.Component.controlFillSubtle
+        let border = borderColor ?? DesignSystem.Colors.Component.border.opacity(0.30)
+
+        return configuration.label
+            .font(.system(size: 13, weight: .semibold))
+            .foregroundStyle(fg)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 7)
+            .background(bg)
+            .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusM, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusM, style: .continuous)
+                    .stroke(border, lineWidth: 1)
+            )
+            .opacity(configuration.isPressed ? 0.92 : 1.0)
+    }
+}
+
+private struct DSLinkButtonStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 13, weight: .medium))
+            .foregroundStyle(isEnabled ? DesignSystem.Colors.Text.primary : DesignSystem.Colors.Text.tertiary)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 4)
+            .background(
+                RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusS, style: .continuous)
+                    .fill(configuration.isPressed ? DesignSystem.Colors.Component.controlFillSubtle : Color.clear)
+            )
+            .opacity(configuration.isPressed ? 0.9 : 1.0)
+    }
+}
+
+extension View {
+    func dsPrimaryButton() -> some View {
+        buttonStyle(DSPrimaryButtonStyle())
+    }
+
+    func dsSecondaryButton(
+        foreground: Color? = nil,
+        background: Color? = nil,
+        borderColor: Color? = nil
+    ) -> some View {
+        buttonStyle(DSSecondaryButtonStyle(
+            foreground: foreground,
+            background: background,
+            borderColor: borderColor
+        ))
+    }
+
+    func dsLinkButton() -> some View {
+        buttonStyle(DSLinkButtonStyle())
+    }
+}
+
+extension View {
+    func dsBorderlessButton() -> some View {
+        buttonStyle(.borderless)
+    }
+
+    func dsBorderlessMenu() -> some View {
+        menuStyle(.borderlessButton)
+    }
+}
+
+private struct DSIconButtonModifier: ViewModifier {
+    let size: CGFloat
+    let foreground: Color
+    let background: Color
+    let cornerRadius: CGFloat
+
+    func body(content: Content) -> some View {
+        content
+            .font(.body)
+            .foregroundStyle(foreground)
+            .frame(width: size, height: size)
+            .background(background)
+            .contentShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+    }
+}
+
+extension View {
+    func dsIconButton(
+        size: CGFloat = 24,
+        foreground: Color = DesignSystem.Colors.Text.secondary,
+        background: Color = .clear,
+        cornerRadius: CGFloat = DesignSystem.Metrics.cornerRadiusS
+    ) -> some View {
+        modifier(DSIconButtonModifier(
+            size: size,
+            foreground: foreground,
+            background: background,
+            cornerRadius: cornerRadius
+        ))
+    }
+}
+
+private struct DSIconLabelButtonModifier: ViewModifier {
+    let foreground: Color
+    let font: Font
+
+    func body(content: Content) -> some View {
+        content
+            .font(font)
+            .foregroundStyle(foreground)
+    }
+}
+
+extension View {
+    func dsIconLabelButton(
+        foreground: Color = DesignSystem.Colors.Text.primary,
+        font: Font = .system(size: 13, weight: .medium)
+    ) -> some View {
+        modifier(DSIconLabelButtonModifier(foreground: foreground, font: font))
+    }
+}
+
+private struct DSIconLabelTextModifier: ViewModifier {
+    let foreground: Color
+    let font: Font
+
+    func body(content: Content) -> some View {
+        content
+            .font(font)
+            .foregroundStyle(foreground)
+    }
+}
+
+extension View {
+    func dsIconLabelText(
+        foreground: Color = DesignSystem.Colors.Text.secondary,
+        font: Font = .caption2
+    ) -> some View {
+        modifier(DSIconLabelTextModifier(foreground: foreground, font: font))
+    }
+}
+
+private struct DSEmptyStateTitleModifier: ViewModifier {
+    func body(content: Content) -> some View {
+        content
+            .font(.headline)
+            .foregroundStyle(DesignSystem.Colors.Text.primary)
+    }
+}
+
+extension View {
+    func dsEmptyStateTitle() -> some View {
+        modifier(DSEmptyStateTitleModifier())
+    }
+}
+
+private struct DSEmptyStateIconModifier: ViewModifier {
+    let color: Color
+    let size: CGFloat
+
+    func body(content: Content) -> some View {
+        content
+            .font(.system(size: size))
+            .foregroundStyle(color)
+    }
+}
+
+extension View {
+    func dsEmptyStateIcon(
+        color: Color = DesignSystem.Colors.Text.tertiary,
+        size: CGFloat = 18
+    ) -> some View {
+        modifier(DSEmptyStateIconModifier(color: color, size: size))
+    }
+}
+
+private struct DSEmptyStateErrorTitleModifier: ViewModifier {
+    func body(content: Content) -> some View {
+        content
+            .font(.headline)
+            .foregroundStyle(DesignSystem.Colors.Status.error)
+    }
+}
+
+extension View {
+    func dsEmptyStateErrorTitle() -> some View {
+        modifier(DSEmptyStateErrorTitleModifier())
+    }
+}
+
+private struct DSErrorTextModifier: ViewModifier {
+    let font: Font
+
+    func body(content: Content) -> some View {
+        content
+            .font(font)
+            .foregroundStyle(DesignSystem.Colors.Status.error)
+    }
+}
+
+extension View {
+    func dsErrorText(font: Font = .caption) -> some View {
+        modifier(DSErrorTextModifier(font: font))
+    }
+}
+
+private struct DSSecondaryTextModifier: ViewModifier {
+    let font: Font
+
+    func body(content: Content) -> some View {
+        content
+            .font(font)
+            .foregroundStyle(DesignSystem.Colors.Text.secondary)
+    }
+}
+
+private struct DSTertiaryTextModifier: ViewModifier {
+    let font: Font
+
+    func body(content: Content) -> some View {
+        content
+            .font(font)
+            .foregroundStyle(DesignSystem.Colors.Text.tertiary)
+    }
+}
+
+extension View {
+    func dsSecondaryText(font: Font = .caption) -> some View {
+        modifier(DSSecondaryTextModifier(font: font))
+    }
+
+    func dsTertiaryText(font: Font = .caption) -> some View {
+        modifier(DSTertiaryTextModifier(font: font))
+    }
+}
+
+extension Text {
+    func dsSecondaryText(font: Font = .body) -> Text {
+        self
+            .font(font)
+            .foregroundStyle(DesignSystem.Colors.Text.secondary)
+    }
+
+    func dsTertiaryText(font: Font = .caption) -> Text {
+        self
+            .font(font)
+            .foregroundStyle(DesignSystem.Colors.Text.tertiary)
+    }
+}

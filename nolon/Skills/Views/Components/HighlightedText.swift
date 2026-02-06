@@ -4,7 +4,7 @@ import SwiftUI
 struct HighlightedText: View {
     let text: String
     let query: String
-    var highlightColor: Color = .blue
+    var highlightColor: Color = DesignSystem.Colors.primary
     
     var body: some View {
         if query.isEmpty {

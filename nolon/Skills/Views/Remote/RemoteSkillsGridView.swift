@@ -291,15 +291,25 @@ struct RemoteSkillsGridView: View {
         let cacheBuster = "\(refreshTrigger)-\(repoSyncToken)"
         Group {
             if repository == nil {
-                ContentUnavailableView(
-                    NSLocalizedString("detail.no_repository", comment: "Select a Repository"),
-                    systemImage: "tray"
-                )
+                ContentUnavailableView {
+                    Label {
+                        Text(NSLocalizedString("detail.no_repository", comment: "Select a Repository"))
+                            .dsEmptyStateTitle()
+                    } icon: {
+                        Image(systemName: "tray")
+                            .dsEmptyStateIcon()
+                    }
+                }
             } else if selectedTab == nil {
-                ContentUnavailableView(
-                    NSLocalizedString("detail.select_tab", comment: "Select a Tab"),
-                    systemImage: "list.bullet"
-                )
+                ContentUnavailableView {
+                    Label {
+                        Text(NSLocalizedString("detail.select_tab", comment: "Select a Tab"))
+                            .dsEmptyStateTitle()
+                    } icon: {
+                        Image(systemName: "list.bullet")
+                            .dsEmptyStateIcon()
+                    }
+                }
             } else {
                 VStack(spacing: 12) {
                     searchBar
@@ -361,11 +371,18 @@ struct RemoteSkillsGridView: View {
             ProgressView()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if let error = viewModel.errorMessage {
-            ContentUnavailableView(
-                "Error Loading Data",
-                systemImage: "exclamationmark.triangle",
-                description: Text(error)
-            )
+            ContentUnavailableView {
+                Label {
+                    Text("Error Loading Data")
+                        .dsEmptyStateErrorTitle()
+                } icon: {
+                    Image(systemName: "exclamationmark.triangle")
+                        .dsEmptyStateIcon(color: DesignSystem.Colors.Status.error)
+                }
+            } description: {
+                Text(error)
+                    .dsSecondaryText(font: .body)
+            }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             gridContent
@@ -405,6 +422,7 @@ struct RemoteSkillsGridView: View {
                     searchText.isEmpty ? NSLocalizedString("skills.empty", comment: "No Skills") : "No Results",
                     systemImage: searchText.isEmpty ? "square.grid.2x2" : "magnifyingglass",
                     description: Text(searchText.isEmpty ? NSLocalizedString("skills.empty_desc", comment: "No skills in this repository") : "No matching skills found")
+                        .dsSecondaryText(font: .body)
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
@@ -433,6 +451,7 @@ struct RemoteSkillsGridView: View {
                     searchText.isEmpty ? "No Workflows" : "No Results",
                     systemImage: searchText.isEmpty ? "arrow.triangle.branch" : "magnifyingglass",
                     description: Text(searchText.isEmpty ? "No workflows in this repository" : "No matching workflows found")
+                        .dsSecondaryText(font: .body)
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
@@ -461,6 +480,7 @@ struct RemoteSkillsGridView: View {
                     searchText.isEmpty ? "No MCPs" : "No Results",
                     systemImage: searchText.isEmpty ? "server.rack" : "magnifyingglass",
                     description: Text(searchText.isEmpty ? "No MCPs in this repository" : "No matching MCPs found")
+                        .dsSecondaryText(font: .body)
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {

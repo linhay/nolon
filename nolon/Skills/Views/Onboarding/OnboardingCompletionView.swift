@@ -35,7 +35,7 @@ struct OnboardingCompletionView: View {
                     
                     Text("onboarding.completion.subtitle")
                         .font(.system(size: 16))
-                        .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                        .dsSecondaryText(font: .system(size: 16))
                 }
             }
             .padding(.bottom, 48)
@@ -45,7 +45,7 @@ struct OnboardingCompletionView: View {
                 HStack {
                     Text("onboarding.completion.providers_configured \(selectedProviders.count)")
                         .font(.system(size: 14, weight: .bold))
-                        .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                        .dsSecondaryText(font: .system(size: 14, weight: .bold))
                     Spacer()
                 }
                 
@@ -73,7 +73,7 @@ struct OnboardingCompletionView: View {
                             
                             Text("onboarding.completion.more_providers \(selectedProviders.count - 8)")
                                 .font(.system(size: 10, weight: .bold))
-                                .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                                .dsSecondaryText(font: .system(size: 10, weight: .bold))
                         }
                     }
                 }
@@ -120,7 +120,7 @@ private struct TipRow: View {
             
             Text(text)
                 .font(.system(size: 12))
-                .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                .dsSecondaryText(font: .system(size: 12))
             
             Spacer()
         }

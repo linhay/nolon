@@ -9,14 +9,14 @@ public struct CodexAuthAccount: Codable, Identifiable, Hashable, Sendable {
     /// Relative path under `~/.nolon/codex/` (e.g. `auth/work.json`).
     public var relativeAuthPath: String
 
-    public init(id: UUID = UUID(), name: String, createdAt: Date = Date(), relativeAuthPath: String) {
+    public nonisolated init(id: UUID = UUID(), name: String, createdAt: Date = Date(), relativeAuthPath: String) {
         self.id = id
         self.name = name
         self.createdAt = createdAt
         self.relativeAuthPath = relativeAuthPath
     }
 
-    public static func hashHex(for authJSONString: String) -> String {
+    public nonisolated static func hashHex(for authJSONString: String) -> String {
         let data = Data(authJSONString.utf8)
         let digest = SHA256.hash(data: data)
         return digest.map { String(format: "%02x", $0) }.joined()
@@ -28,7 +28,13 @@ public struct CodexAuthSummary: Hashable, Sendable {
     public var apiKeySuffix: String?
     public var plan: String?
 
-    public static func fromJSONString(_ string: String) -> CodexAuthSummary {
+    public nonisolated init(email: String? = nil, apiKeySuffix: String? = nil, plan: String? = nil) {
+        self.email = email
+        self.apiKeySuffix = apiKeySuffix
+        self.plan = plan
+    }
+
+    public nonisolated static func fromJSONString(_ string: String) -> CodexAuthSummary {
         guard let data = string.data(using: .utf8),
               let json = try? JSON(data: data)
         else {
@@ -102,7 +108,7 @@ public struct CodexAuthSummary: Hashable, Sendable {
                                plan: plan)
     }
 
-    public static func fromJSONData(_ data: Data) -> CodexAuthSummary {
+    public nonisolated static func fromJSONData(_ data: Data) -> CodexAuthSummary {
         guard let json = try? JSON(data: data) else { return CodexAuthSummary() }
 
         var email = (json["email"].string
@@ -174,14 +180,14 @@ public struct CodexAuthSummary: Hashable, Sendable {
 }
 
 private extension CodexAuthSummary {
-    static func decodeJWTPayloadJSON(_ jwt: String) -> JSON? {
+    nonisolated static func decodeJWTPayloadJSON(_ jwt: String) -> JSON? {
         let parts = jwt.split(separator: ".")
         guard parts.count >= 2 else { return nil }
         guard let payloadData = base64URLDecode(String(parts[1])) else { return nil }
         return try? JSON(data: payloadData)
     }
 
-    static func base64URLDecode(_ string: String) -> Data? {
+    nonisolated static func base64URLDecode(_ string: String) -> Data? {
         var base64 = string
             .replacingOccurrences(of: "-", with: "+")
             .replacingOccurrences(of: "_", with: "/")

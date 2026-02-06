@@ -118,7 +118,7 @@ struct RemoteSkillsBrowserView: View {
         self.onInstallWorkflow = onInstallWorkflow
         self.onInstallMCP = onInstallMCP
         self._viewModel = State(initialValue: {
-            var vm = RemoteSkillsBrowserViewModel()
+            let vm = RemoteSkillsBrowserViewModel()
             vm.selectedTab = selectedTab
             return vm
         }())
@@ -138,7 +138,7 @@ struct RemoteSkillsBrowserView: View {
                         refreshData()
                     } label: {
                         Image(systemName: "arrow.clockwise")
-                            .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                            .dsIconButton()
                     }
                     .help(NSLocalizedString("Refresh", comment: "Refresh"))
                     
@@ -146,10 +146,9 @@ struct RemoteSkillsBrowserView: View {
                         dismiss()
                     } label: {
                         Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 22))
-                            .foregroundStyle(DesignSystem.Colors.Text.tertiary)
+                            .dsIconButton(size: 22, foreground: DesignSystem.Colors.Text.tertiary)
                     }
-                    .buttonStyle(.plain)
+                    .dsLinkButton()
                     .accessibilityLabel(NSLocalizedString("Close", comment: "Close"))
                 }
             }

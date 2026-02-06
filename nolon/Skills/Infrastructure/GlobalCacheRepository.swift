@@ -331,7 +331,7 @@ public actor GlobalCacheRepository: RemoteResourceRepository {
                 if STPath(migratedPath).isExists {
                     continue
                 }
-                try? STPath(workflowPath).move(to: STPath(migratedPath), isOverlay: false)
+                _ = try? STPath(workflowPath).move(to: STPath(migratedPath), isOverlay: false)
                 workflowPath = migratedPath
             } else {
                 continue
@@ -397,7 +397,7 @@ public actor GlobalCacheRepository: RemoteResourceRepository {
                 if STPath(migratedPath).isExists {
                     continue
                 }
-                try? STPath(mcpPath).move(to: STPath(migratedPath), isOverlay: false)
+                _ = try? STPath(mcpPath).move(to: STPath(migratedPath), isOverlay: false)
                 mcpPath = migratedPath
             } else {
                 continue
@@ -482,7 +482,7 @@ public actor GlobalCacheRepository: RemoteResourceRepository {
         let tempDir = try STFolder(sanbox: .temporary).folder(UUID().uuidString).create()
         
         defer {
-            try? tempDir.deleteIncludingBrokenSymlink()
+            _ = try? tempDir.deleteIncludingBrokenSymlink()
         }
         
         // Extract using ditto

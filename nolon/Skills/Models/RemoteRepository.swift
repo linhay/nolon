@@ -37,12 +37,12 @@ public enum GitProvider: String, CaseIterable, Identifiable, Codable, Sendable {
     }
 
     /// Directory name for storing repositories
-    public var directoryName: String {
+    public nonisolated var directoryName: String {
         rawValue
     }
 
     /// Normalize URL to this provider's format
-    public func normalizeURL(_ url: String) -> String {
+    public nonisolated func normalizeURL(_ url: String) -> String {
         var normalized =
             url
             .replacingOccurrences(of: ".git", with: "")
@@ -69,7 +69,7 @@ public enum GitProvider: String, CaseIterable, Identifiable, Codable, Sendable {
     }
 
     /// Extract owner and repo name from URL
-    public func extractComponents(from url: String) -> (owner: String, repoName: String) {
+    public nonisolated func extractComponents(from url: String) -> (owner: String, repoName: String) {
         let normalized = normalizeURL(url)
         let components = normalized.split(separator: "/")
         if components.count >= 2 {
@@ -352,7 +352,7 @@ public struct RemoteRepository: Identifiable, Codable, Hashable, Sendable {
     /// Extract host, owner and repo from a Git URL (HTTPS or SSH)
     /// Supports: https://gitlab.dxy.net/ios-developer/tod-skills
     ///           git@gitlab.dxy.net:ios-developer/tod-skills.git
-    public static func extractURLComponents(from url: String) -> (
+    public nonisolated static func extractURLComponents(from url: String) -> (
         host: String, owner: String, repo: String
     )? {
         let cleaned =
@@ -459,10 +459,8 @@ public struct RemoteRepository: Identifiable, Codable, Hashable, Sendable {
             return nil
         }
         
-        var urlString = trimmed
-        var isShorthand = false
+        let urlString = trimmed
         if !trimmed.contains("://") && !trimmed.contains("@") {
-            isShorthand = true
             let components = trimmed.split(separator: "/")
             if components.count > 2 {
                 return components.dropFirst(2).joined(separator: "/")

@@ -6,7 +6,7 @@ import TOML
 import STFilePath
 
 // MARK: - Codex MCP Config Models (shared)
-struct CodexMCPConfig: Codable {
+struct CodexMCPConfig: Codable, Sendable {
     var model: String?
     var modelReasoningEffort: String?
     var projects: [String: CodexProject]?
@@ -20,30 +20,130 @@ struct CodexMCPConfig: Codable {
         case notice
         case mcpServers = "mcp_servers"
     }
+
+    nonisolated init(
+        model: String? = nil,
+        modelReasoningEffort: String? = nil,
+        projects: [String: CodexProject]? = nil,
+        notice: CodexNotice? = nil,
+        mcpServers: [String: CodexMCPServer]? = nil
+    ) {
+        self.model = model
+        self.modelReasoningEffort = modelReasoningEffort
+        self.projects = projects
+        self.notice = notice
+        self.mcpServers = mcpServers
+    }
+
+    nonisolated init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.model = try container.decodeIfPresent(String.self, forKey: .model)
+        self.modelReasoningEffort = try container.decodeIfPresent(String.self, forKey: .modelReasoningEffort)
+        self.projects = try container.decodeIfPresent([String: CodexProject].self, forKey: .projects)
+        self.notice = try container.decodeIfPresent(CodexNotice.self, forKey: .notice)
+        self.mcpServers = try container.decodeIfPresent([String: CodexMCPServer].self, forKey: .mcpServers)
+    }
+
+    nonisolated func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encodeIfPresent(model, forKey: .model)
+        try container.encodeIfPresent(modelReasoningEffort, forKey: .modelReasoningEffort)
+        try container.encodeIfPresent(projects, forKey: .projects)
+        try container.encodeIfPresent(notice, forKey: .notice)
+        try container.encodeIfPresent(mcpServers, forKey: .mcpServers)
+    }
 }
 
-struct CodexProject: Codable {
+struct CodexProject: Codable, Sendable {
     var trustLevel: String?
     
     enum CodingKeys: String, CodingKey {
         case trustLevel = "trust_level"
     }
+
+    nonisolated init(trustLevel: String? = nil) {
+        self.trustLevel = trustLevel
+    }
+
+    nonisolated init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.trustLevel = try container.decodeIfPresent(String.self, forKey: .trustLevel)
+    }
+
+    nonisolated func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encodeIfPresent(trustLevel, forKey: .trustLevel)
+    }
 }
 
-struct CodexNotice: Codable {
+struct CodexNotice: Codable, Sendable {
     var modelMigrations: [String: String]?
     
     enum CodingKeys: String, CodingKey {
         case modelMigrations = "model_migrations"
     }
+
+    nonisolated init(modelMigrations: [String: String]? = nil) {
+        self.modelMigrations = modelMigrations
+    }
+
+    nonisolated init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.modelMigrations = try container.decodeIfPresent([String: String].self, forKey: .modelMigrations)
+    }
+
+    nonisolated func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encodeIfPresent(modelMigrations, forKey: .modelMigrations)
+    }
 }
 
-struct CodexMCPServer: Codable {
+struct CodexMCPServer: Codable, Sendable {
     var url: String?
     var command: String?
     var args: [String]?
     var env: [String: String]?
     var enabled: Bool?
+
+    enum CodingKeys: String, CodingKey {
+        case url
+        case command
+        case args
+        case env
+        case enabled
+    }
+
+    nonisolated init(
+        url: String? = nil,
+        command: String? = nil,
+        args: [String]? = nil,
+        env: [String: String]? = nil,
+        enabled: Bool? = nil
+    ) {
+        self.url = url
+        self.command = command
+        self.args = args
+        self.env = env
+        self.enabled = enabled
+    }
+
+    nonisolated init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.url = try container.decodeIfPresent(String.self, forKey: .url)
+        self.command = try container.decodeIfPresent(String.self, forKey: .command)
+        self.args = try container.decodeIfPresent([String].self, forKey: .args)
+        self.env = try container.decodeIfPresent([String: String].self, forKey: .env)
+        self.enabled = try container.decodeIfPresent(Bool.self, forKey: .enabled)
+    }
+
+    nonisolated func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encodeIfPresent(url, forKey: .url)
+        try container.encodeIfPresent(command, forKey: .command)
+        try container.encodeIfPresent(args, forKey: .args)
+        try container.encodeIfPresent(env, forKey: .env)
+        try container.encodeIfPresent(enabled, forKey: .enabled)
+    }
 }
 
 extension CodexMCPServer {

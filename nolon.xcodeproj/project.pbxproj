@@ -37,9 +37,25 @@
 		CD9EDF3C2F24F31E009248CB /* nolonTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = nolonTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		CDFA66352F35978D0053E30A /* Exceptions for "nolon" folder in "nolon" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Configuration/Debug.xcconfig,
+				Configuration/Release.xcconfig,
+				Configuration/Shared.xcconfig,
+				Info.plist,
+			);
+			target = CD2B1A912F1F624900DF4A2B /* nolon */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		CD2B1A942F1F624900DF4A2B /* nolon */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				CDFA66352F35978D0053E30A /* Exceptions for "nolon" folder in "nolon" target */,
+			);
 			path = nolon;
 			sourceTree = "<group>";
 		};
@@ -168,7 +184,7 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 2620;
-				LastUpgradeCheck = 2620;
+				LastUpgradeCheck = 2630;
 				TargetAttributes = {
 					CD2B1A912F1F624900DF4A2B = {
 						CreatedOnToolsVersion = 26.2;
@@ -399,7 +415,7 @@
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = nolon/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = nolon;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
@@ -434,7 +450,7 @@
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = nolon/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = nolon;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";

@@ -52,13 +52,15 @@ struct RemoteSkillDetailView: View {
                                     Markdown(changelog)
                                 } else {
                                     Text(NSLocalizedString("No detailed description available.", comment: "No description"))
-                                        .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                                        .dsSecondaryText(font: .body)
                                 }
                             }
                             .padding()
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(DesignSystem.Colors.Component.controlFill)
-                            .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusL, style: .continuous))
+                            .dsCard(
+                                background: DesignSystem.Colors.Component.controlFill,
+                                cornerRadius: DesignSystem.Metrics.cornerRadiusL
+                            )
                         }
                         .padding()
                         .textSelection(.enabled)
@@ -77,11 +79,13 @@ struct RemoteSkillDetailView: View {
                             ),
                             systemImage: "square.and.arrow.down"
                         )
+                        .dsIconLabelButton()
                     }
                     .disabled(isInstalled)
                 } else {
                     Button(action: { showingInstallSheet = true }) {
                         Label(NSLocalizedString("Install", comment: "Install"), systemImage: "square.and.arrow.down")
+                            .dsIconLabelButton()
                     }
                     .disabled(isInstalled)
                 }
@@ -111,12 +115,12 @@ struct RemoteSkillDetailView: View {
 
                 if isLocalAvailable {
                     Text(NSLocalizedString("remote.detail.local_badge", comment: "Local badge"))
-                        .font(.caption2)
-                        .foregroundStyle(DesignSystem.Colors.Status.success)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(DesignSystem.Colors.Status.success.opacity(0.15))
-                        .clipShape(Capsule())
+                        .dsBadge(
+                            foreground: DesignSystem.Colors.Status.success,
+                            background: DesignSystem.Colors.Status.success.opacity(0.15),
+                            horizontalPadding: 6,
+                            verticalPadding: 2
+                        )
                 }
 
                 Spacer()
@@ -125,7 +129,7 @@ struct RemoteSkillDetailView: View {
             if let summary = skill.summary {
                 Text(summary)
                     .font(.title3)
-                    .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                    .dsSecondaryText(font: .title3)
             }
 
             HStack(spacing: 16) {
@@ -149,20 +153,22 @@ struct RemoteSkillDetailView: View {
                 }
                 if let version = skill.latestVersion?.version {
                     Text(String(format: NSLocalizedString("v%@", comment: "Version badge"), version))
-                        .font(.caption2)
-                        .foregroundStyle(DesignSystem.Colors.Text.secondary)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(DesignSystem.Colors.Component.controlFillSubtle)
-                        .clipShape(Capsule())
+                        .dsBadge(
+                            foreground: DesignSystem.Colors.Text.secondary,
+                            background: DesignSystem.Colors.Component.controlFillSubtle,
+                            horizontalPadding: 6,
+                            verticalPadding: 2
+                        )
                 }
             }
             .font(.subheadline)
-            .foregroundStyle(DesignSystem.Colors.Text.secondary)
+            .dsSecondaryText(font: .subheadline)
         }
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(DesignSystem.Colors.Component.controlFill)
-        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusL, style: .continuous))
+        .dsCard(
+            background: DesignSystem.Colors.Component.controlFill,
+            cornerRadius: DesignSystem.Metrics.cornerRadiusL
+        )
     }
 }

@@ -41,13 +41,13 @@ struct McpServerCard: View {
                     HighlightedText(text: command, query: searchText)
                         .font(.caption)
                         .fontDesign(.monospaced)
-                        .foregroundStyle(.secondary)
+                        .dsSecondaryText(font: .caption)
                         .lineLimit(2)
                         .truncationMode(.middle)
                 } else {
                     Text(NSLocalizedString("mcp.no_command", value: "No command specified", comment: "Placeholder when MCP command is missing"))
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .dsSecondaryText(font: .caption)
                         .italic()
                 }
             }
@@ -63,15 +63,16 @@ struct McpServerCard: View {
                             Image(systemName: "arrow.triangle.branch")
                             Text(NSLocalizedString("mcp.workflow", value: "Workflow", comment: "Workflow badge"))
                         }
-                        .font(.caption2)
                         .fontWeight(.semibold)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(DesignSystem.Colors.primary.opacity(0.10))
-                        .foregroundStyle(DesignSystem.Colors.primary)
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                        .dsBadge(
+                            foreground: DesignSystem.Colors.primary,
+                            background: DesignSystem.Colors.primary.opacity(0.10),
+                            horizontalPadding: 10,
+                            verticalPadding: 6,
+                            cornerRadius: DesignSystem.Metrics.cornerRadiusS
+                        )
                     }
-                    .buttonStyle(.plain)
+                    .dsLinkButton()
                 } else {
                     Button {
                         onLinkWorkflow()
@@ -80,15 +81,16 @@ struct McpServerCard: View {
                             Image(systemName: "plus.circle")
                             Text(NSLocalizedString("action.link_workflow", comment: "Link to Workflow"))
                         }
-                        .font(.caption2)
                         .fontWeight(.semibold)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(Color.secondary.opacity(0.12))
-                        .foregroundStyle(.secondary)
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                        .dsBadge(
+                            foreground: DesignSystem.Colors.Text.secondary,
+                            background: DesignSystem.Colors.Component.controlFillSubtle,
+                            horizontalPadding: 10,
+                            verticalPadding: 6,
+                            cornerRadius: DesignSystem.Metrics.cornerRadiusS
+                        )
                     }
-                    .buttonStyle(.plain)
+                    .dsLinkButton()
                 }
 
                 if cacheState == .notMigrated {
@@ -97,30 +99,32 @@ struct McpServerCard: View {
                             Image(systemName: "tray.and.arrow.down")
                             Text(NSLocalizedString("action.migrate", value: "Migrate", comment: "Migrate"))
                         }
-                        .font(.caption2)
                         .fontWeight(.semibold)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(DesignSystem.Colors.primary.opacity(0.10))
-                        .foregroundStyle(DesignSystem.Colors.primary)
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
-                    }
-                    .buttonStyle(.plain)
+                        .dsBadge(
+                            foreground: DesignSystem.Colors.primary,
+                            background: DesignSystem.Colors.primary.opacity(0.10),
+                            horizontalPadding: 10,
+                            verticalPadding: 6,
+                            cornerRadius: DesignSystem.Metrics.cornerRadiusS
+                        )
+                }
+                .dsLinkButton()
                 } else if cacheState == .migratedNeedsUpdate {
                     Button(action: onUpdateNolonCache) {
                         HStack(spacing: 6) {
                             Image(systemName: "arrow.triangle.2.circlepath")
                             Text(NSLocalizedString("action.update", value: "Update", comment: "Update"))
                         }
-                        .font(.caption2)
                         .fontWeight(.semibold)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(DesignSystem.Colors.primary.opacity(0.10))
-                        .foregroundStyle(DesignSystem.Colors.primary)
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
-                    }
-                    .buttonStyle(.plain)
+                        .dsBadge(
+                            foreground: DesignSystem.Colors.primary,
+                            background: DesignSystem.Colors.primary.opacity(0.10),
+                            horizontalPadding: 10,
+                            verticalPadding: 6,
+                            cornerRadius: DesignSystem.Metrics.cornerRadiusS
+                        )
+                }
+                .dsLinkButton()
                 }
 
                 Button {
@@ -134,15 +138,16 @@ struct McpServerCard: View {
                                 : NSLocalizedString("mcp.action.enable", value: "Enable", comment: "Enable MCP")
                         )
                     }
-                    .font(.caption2)
                     .fontWeight(.semibold)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(mcp.isEnabled ? Color.secondary.opacity(0.12) : DesignSystem.Colors.primary.opacity(0.10))
-                    .foregroundStyle(mcp.isEnabled ? AnyShapeStyle(.secondary) : AnyShapeStyle(DesignSystem.Colors.primary))
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .dsBadge(
+                        foreground: mcp.isEnabled ? DesignSystem.Colors.Text.secondary : DesignSystem.Colors.primary,
+                        background: mcp.isEnabled ? DesignSystem.Colors.Component.controlFillSubtle : DesignSystem.Colors.primary.opacity(0.10),
+                        horizontalPadding: 10,
+                        verticalPadding: 6,
+                        cornerRadius: DesignSystem.Metrics.cornerRadiusS
+                    )
                 }
-                .buttonStyle(.plain)
+                .dsLinkButton()
 
                 Spacer()
             }
@@ -150,8 +155,7 @@ struct McpServerCard: View {
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .frame(minHeight: 140)
-        .background(Color.secondary.opacity(0.08))
-        .cornerRadius(12)
+        .dsCard()
         .contentShape(Rectangle())
         .contextMenu {
             contextMenuItems
@@ -227,12 +231,14 @@ struct McpServerCard: View {
 
         Button(action: onEdit) {
             Label(NSLocalizedString("action.edit", value: "Edit", comment: "Edit action"), systemImage: "pencil")
+                .dsIconLabelButton()
         }
 
         Button(role: .destructive) {
             showingDeleteConfirmation = true
         } label: {
             Label(NSLocalizedString("action.delete", comment: "Delete"), systemImage: "trash")
+                .dsIconLabelButton()
         }
     }
 
@@ -241,12 +247,9 @@ struct McpServerCard: View {
             contextMenuItems
         } label: {
             Image(systemName: "ellipsis")
-                .font(.body)
-                .foregroundStyle(.secondary)
-                .frame(width: 24, height: 24)
-                .contentShape(Rectangle())
+                .dsIconButton()
         }
-        .menuStyle(.borderlessButton)
+        .dsBorderlessMenu()
         .menuIndicator(.hidden)
         .fixedSize()
     }

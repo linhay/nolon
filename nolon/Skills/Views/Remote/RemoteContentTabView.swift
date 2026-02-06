@@ -141,7 +141,7 @@ struct RemoteContentTabView: View {
                             Label(tab.localizedName, systemImage: tab.icon)
                             Spacer()
                             Text("\(viewModel.count(for: tab))")
-                                .foregroundStyle(.secondary)
+                                .dsSecondaryText(font: .callout)
                         }
                         .tag(tab)
                     }
@@ -153,6 +153,7 @@ struct RemoteContentTabView: View {
                     NSLocalizedString("content.no_repository", comment: "Select a Repository"),
                     systemImage: "tray",
                     description: Text(NSLocalizedString("content.no_repository_desc", comment: "Choose a repository from the sidebar"))
+                        .dsSecondaryText(font: .body)
                 )
             }
         }

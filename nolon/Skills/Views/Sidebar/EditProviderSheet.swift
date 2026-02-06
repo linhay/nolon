@@ -144,7 +144,7 @@ struct EditProviderSheet: View {
                             Text(viewModel.projectRootPath.isEmpty
                                  ? NSLocalizedString("add_provider.no_project_folder", value: "No project folder selected", comment: "No project folder selected")
                                  : viewModel.projectRootPath)
-                                .foregroundStyle(viewModel.projectRootPath.isEmpty ? .secondary : .primary)
+                                .foregroundStyle(viewModel.projectRootPath.isEmpty ? DesignSystem.Colors.Text.secondary : DesignSystem.Colors.Text.primary)
                                 .lineLimit(1)
                                 .truncationMode(.middle)
 
@@ -153,12 +153,11 @@ struct EditProviderSheet: View {
                             Button(NSLocalizedString("add_provider.choose", comment: "Choose...")) {
                                 viewModel.showingProjectFolderPicker = true
                             }
-                            .buttonStyle(.bordered)
+                            .dsSecondaryButton()
                         }
                     } else {
                         Text(NSLocalizedString("add_provider.kind.vendor_paths_locked", value: "Vendor paths are predefined and cannot be changed.", comment: "Vendor paths are locked"))
-                            .foregroundStyle(.secondary)
-                            .font(.callout)
+                            .dsSecondaryText(font: .callout)
                     }
                 } header: {
                     Text(viewModel.provider.kind == .project
@@ -172,7 +171,7 @@ struct EditProviderSheet: View {
                             Text(viewModel.providerPath.isEmpty
                                  ? NSLocalizedString("add_provider.no_folder", comment: "No folder selected")
                                  : viewModel.providerPath)
-                                .foregroundStyle(viewModel.providerPath.isEmpty ? .secondary : .primary)
+                                .foregroundStyle(viewModel.providerPath.isEmpty ? DesignSystem.Colors.Text.secondary : DesignSystem.Colors.Text.primary)
                                 .lineLimit(1)
                                 .truncationMode(.middle)
                         }
@@ -182,7 +181,7 @@ struct EditProviderSheet: View {
                                 Text(viewModel.commandPath.isEmpty
                                      ? NSLocalizedString("edit_provider.no_command_folder", value: "No command folder selected", comment: "No command folder selected")
                                      : viewModel.commandPath)
-                                    .foregroundStyle(viewModel.commandPath.isEmpty ? .secondary : .primary)
+                                    .foregroundStyle(viewModel.commandPath.isEmpty ? DesignSystem.Colors.Text.secondary : DesignSystem.Colors.Text.primary)
                                     .lineLimit(1)
                                     .truncationMode(.middle)
                             }
@@ -191,7 +190,7 @@ struct EditProviderSheet: View {
                                 Text(viewModel.workflowPath.isEmpty
                                      ? NSLocalizedString("edit_provider.no_workflow_folder", value: "No workflow folder selected", comment: "No workflow folder selected")
                                      : viewModel.workflowPath)
-                                    .foregroundStyle(viewModel.workflowPath.isEmpty ? .secondary : .primary)
+                                    .foregroundStyle(viewModel.workflowPath.isEmpty ? DesignSystem.Colors.Text.secondary : DesignSystem.Colors.Text.primary)
                                     .lineLimit(1)
                                     .truncationMode(.middle)
                             }
@@ -220,7 +219,7 @@ struct EditProviderSheet: View {
                 Button(NSLocalizedString("generic.cancel", comment: "Cancel")) {
                     dismiss()
                 }
-                .buttonStyle(.plain)
+                .dsLinkButton()
 
                 Spacer(minLength: 0)
 
@@ -228,7 +227,7 @@ struct EditProviderSheet: View {
                     viewModel.saveProvider()
                     dismiss()
                 }
-                .buttonStyle(.borderedProminent)
+                .dsPrimaryButton()
             }
             .padding(.horizontal, SheetLayout.footerHorizontalPadding)
             .padding(.vertical, SheetLayout.footerVerticalPadding)

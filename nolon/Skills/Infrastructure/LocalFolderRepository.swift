@@ -4,7 +4,7 @@ import STFilePath
 /// Local folder repository implementation
 /// Scans local directories for skills, workflows, and MCPs
 /// Replaces LocalFolderService.swift
-public struct LocalFolderRepository: RemoteResourceRepository {
+public actor LocalFolderRepository: RemoteResourceRepository {
     
     // MARK: - RemoteResourceRepository Protocol
     

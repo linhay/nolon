@@ -37,7 +37,9 @@ public struct SkillListView: View {
                         Label(
                             NSLocalizedString("list.import", comment: "Import Skill"),
                             systemImage: "plus")
+                        .dsIconLabelButton()
                     }
+                    .tint(DesignSystem.Colors.primary)
                 }
             }
             .fileImporter(
@@ -72,15 +74,22 @@ public struct SkillListView: View {
 
     private var emptyStateView: some View {
         ContentUnavailableView {
-            Label(
-                NSLocalizedString("list.empty_title", comment: "No Skills Managed"),
-                systemImage: "square.stack.3d.up.slash")
+            Label {
+                Text(NSLocalizedString("list.empty_title", comment: "No Skills Managed"))
+                    .dsEmptyStateTitle()
+            } icon: {
+                Image(systemName: "square.stack.3d.up.slash")
+                    .dsEmptyStateIcon()
+            }
         } description: {
             Text(NSLocalizedString("list.empty_desc_action", comment: "Import a skill..."))
+                .dsSecondaryText(font: .body)
         } actions: {
             Button(NSLocalizedString("list.import_btn", comment: "Import from Folder")) {
                 showingImportSheet = true
             }
+            .dsPrimaryButton()
+            .controlSize(.small)
         }
     }
 
@@ -115,17 +124,17 @@ struct SkillRow: View {
                     Text("Installed")
                         .font(.caption2)
                         .fontWeight(.medium)
-                        .foregroundStyle(.white)
+                        .foregroundStyle(DesignSystem.Colors.Text.onAccent)
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
-                        .background(Color.green)
-                        .cornerRadius(4)
+                        .background(DesignSystem.Colors.Status.success)
+                        .cornerRadius(DesignSystem.Metrics.cornerRadiusXS)
                 }
             }
 
             Text(skill.description)
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .dsSecondaryText(font: .caption)
                 .lineLimit(2)
 
             HStack {
@@ -133,13 +142,13 @@ struct SkillRow: View {
                     HStack(spacing: 12) {
                         if skill.hasReferences {
                             Label("\(skill.referenceCount)", systemImage: "doc.text")
+                                .dsIconLabelText()
                         }
                         if skill.hasScripts {
                             Label("\(skill.scriptCount)", systemImage: "terminal")
+                                .dsIconLabelText()
                         }
                     }
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
                 }
 
                 Spacer()
@@ -153,11 +162,10 @@ struct SkillRow: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(NSLocalizedString("skill.path_label", comment: "Path:"))
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .dsSecondaryText(font: .caption)
 
                     Text(skill.globalPath)
-                        .font(.system(.caption2, design: .monospaced))
-                        .foregroundStyle(.secondary)
+                        .dsSecondaryText(font: .system(.caption2, design: .monospaced))
                         .lineLimit(1)
                         .truncationMode(.middle)
 

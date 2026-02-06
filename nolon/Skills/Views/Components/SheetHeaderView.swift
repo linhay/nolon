@@ -20,11 +20,10 @@ struct SheetHeaderView: View {
                 onClose()
             } label: {
                 Image(systemName: "xmark.circle.fill")
-                    .font(.system(size: 24))
-                    .foregroundStyle(DesignSystem.Colors.Text.tertiary)
+                    .dsIconButton(size: 24, foreground: DesignSystem.Colors.Text.tertiary)
             }
             .accessibilityLabel(NSLocalizedString("Close", comment: "Close"))
-            .buttonStyle(.plain)
+            .dsLinkButton()
             .disabled(isCloseDisabled)
         )
     }
@@ -50,7 +49,7 @@ struct SheetHeaderView: View {
                 if let subtitle {
                     Text(subtitle)
                         .font(.subheadline)
-                        .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                        .dsSecondaryText(font: .subheadline)
                         .lineLimit(2)
                 }
             }

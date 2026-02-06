@@ -42,7 +42,7 @@ struct RemoteWorkflowDetailView: View {
                                 .font(.headline)
                             Text(summary)
                                 .font(.body)
-                                .foregroundStyle(.secondary)
+                                .dsSecondaryText(font: .body)
                         }
                     }
                     
@@ -55,16 +55,17 @@ struct RemoteWorkflowDetailView: View {
                             HStack(spacing: 20) {
                                 if let stars = stats.stars {
                                     Label("\(stars) Stars", systemImage: "star.fill")
-                                        .foregroundStyle(.yellow)
+                                        .dsIconLabelText(foreground: DesignSystem.Colors.Status.warning, font: .callout)
                                 }
                                 if let downloads = stats.downloads {
                                     Label("\(downloads) Downloads", systemImage: "arrow.down.circle")
+                                        .dsIconLabelText(foreground: DesignSystem.Colors.Text.secondary, font: .callout)
                                 }
                                 if let usages = stats.usages {
                                     Label("\(usages) Usages", systemImage: "arrow.triangle.branch")
+                                        .dsIconLabelText(foreground: DesignSystem.Colors.Text.secondary, font: .callout)
                                 }
                             }
-                            .font(.callout)
                         }
                     }
                     
@@ -75,7 +76,7 @@ struct RemoteWorkflowDetailView: View {
                                 .font(.headline)
                             Text(changelog)
                                 .font(.body)
-                                .foregroundStyle(.secondary)
+                                .dsSecondaryText(font: .body)
                         }
                     }
                 }
@@ -90,7 +91,7 @@ struct RemoteWorkflowDetailView: View {
                 if let targetProvider = targetProvider {
                     Text("Install to: \(targetProvider.name)")
                         .font(.caption)
-                        .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                        .dsSecondaryText(font: .caption)
                 } else {
                     Picker("Install to:", selection: $selectedProvider) {
                         Text("Select Provider").tag(nil as Provider?)
@@ -106,7 +107,7 @@ struct RemoteWorkflowDetailView: View {
                 Button("Cancel") {
                     dismiss()
                 }
-                .buttonStyle(.plain)
+                .dsLinkButton()
                 .keyboardShortcut(.cancelAction)
                 
                 Button("Install") {
@@ -115,7 +116,7 @@ struct RemoteWorkflowDetailView: View {
                         dismiss()
                     }
                 }
-                .buttonStyle(.borderedProminent)
+                .dsPrimaryButton()
                 .keyboardShortcut(.defaultAction)
                 .disabled(targetProvider == nil && selectedProvider == nil)
             }

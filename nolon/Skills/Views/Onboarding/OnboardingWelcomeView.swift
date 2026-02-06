@@ -30,7 +30,7 @@ struct OnboardingWelcomeView: View {
                     
                     Text("onboarding.welcome.subtitle")
                         .font(.system(size: 16))
-                        .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                        .dsSecondaryText(font: .system(size: 16))
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 40)
                 }
@@ -96,7 +96,7 @@ private struct FeatureCard: View {
                 
                 Text(description)
                     .font(.system(size: 12))
-                    .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                    .dsSecondaryText(font: .system(size: 12))
             }
             
             Spacer()

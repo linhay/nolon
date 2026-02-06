@@ -48,7 +48,7 @@ public struct Skill: Sendable, Equatable, Identifiable, Hashable {
 
     // MARK: - Init
 
-    public init(
+    public nonisolated init(
         id: String,
         name: String,
         description: String,
@@ -73,17 +73,17 @@ public struct Skill: Sendable, Equatable, Identifiable, Hashable {
     // MARK: - Computed Properties
 
     /// Whether this skill has reference files
-    public var hasReferences: Bool {
+    public nonisolated var hasReferences: Bool {
         referenceCount > 0
     }
 
     /// Whether this skill has script files
-    public var hasScripts: Bool {
+    public nonisolated var hasScripts: Bool {
         scriptCount > 0
     }
     
     /// Unique identifier combining source path and skill ID for use in ForEach
-    public var uniqueId: String {
+    public nonisolated var uniqueId: String {
         if let source = sourcePath {
             return "\(source)/\(id)"
         }
@@ -93,7 +93,7 @@ public struct Skill: Sendable, Equatable, Identifiable, Hashable {
     /// Content for the associated workflow file
     /// Generates a lightweight declaration that tells CLI a skill exists,
     /// allowing CLI to discover and load the full skill content itself.
-    public var workflowContent: String {
+    public nonisolated var workflowContent: String {
         func yamlQuoted(_ value: String) -> String {
             var v = value
             v = v.replacingOccurrences(of: "\\", with: "\\\\")
@@ -116,7 +116,7 @@ public struct Skill: Sendable, Equatable, Identifiable, Hashable {
     // MARK: - Search
 
     /// Check if skill matches a search query
-    public func matches(query: String) -> Bool {
+    public nonisolated func matches(query: String) -> Bool {
         guard !query.isEmpty else { return true }
         return name.localizedCaseInsensitiveContains(query)
             || description.localizedCaseInsensitiveContains(query)
@@ -125,7 +125,7 @@ public struct Skill: Sendable, Equatable, Identifiable, Hashable {
     // MARK: - Mutation Methods
 
     /// Returns a copy with updated content
-    public func updating(content newContent: String) -> Skill {
+    public nonisolated func updating(content newContent: String) -> Skill {
         Skill(
             id: id,
             name: name,

@@ -28,7 +28,7 @@ struct ProviderSkillCard: View {
             // Description / State Info
             Text(stateDescription)
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .dsSecondaryText(font: .caption)
                 .lineLimit(2)
             
             Spacer(minLength: 0)
@@ -38,13 +38,15 @@ struct ProviderSkillCard: View {
         }
         .padding()
         .frame(minHeight: 120)
-        .background(cardBackground)
-        .cornerRadius(12)
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .strokeBorder(borderColor, lineWidth: 1)
+        .dsCard(
+            background: cardBackground,
+            borderColor: borderColor
         )
-        .shadow(color: .black.opacity(isHovered ? 0.15 : 0.05), radius: isHovered ? 8 : 4, y: isHovered ? 4 : 2)
+        .shadow(
+            color: DesignSystem.Colors.Shadow.floating.opacity(isHovered ? 0.75 : 0.35),
+            radius: isHovered ? 8 : 4,
+            y: isHovered ? 4 : 2
+        )
         .scaleEffect(isHovered ? 1.02 : 1.0)
         .animation(.easeInOut(duration: 0.2), value: isHovered)
         .onHover { hovering in
@@ -67,27 +69,33 @@ struct ProviderSkillCard: View {
             case .installed:
                 Label(NSLocalizedString("status.synced", value: "Synced", comment: "Synced status"), systemImage: "checkmark.circle.fill")
                     .font(.caption.weight(.medium))
-                    .foregroundStyle(.green)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(Color.green.opacity(0.15))
-                    .cornerRadius(6)
+                    .dsBadge(
+                        foreground: DesignSystem.Colors.Status.success,
+                        background: DesignSystem.Colors.Status.success.opacity(0.15),
+                        horizontalPadding: 8,
+                        verticalPadding: 4,
+                        cornerRadius: DesignSystem.Metrics.cornerRadiusS
+                    )
             case .orphaned:
                 Label(NSLocalizedString("status.local", value: "Local", comment: "Local status"), systemImage: "folder.fill")
                     .font(.caption.weight(.medium))
-                    .foregroundStyle(.orange)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(Color.orange.opacity(0.15))
-                    .cornerRadius(6)
+                    .dsBadge(
+                        foreground: DesignSystem.Colors.Status.warning,
+                        background: DesignSystem.Colors.Status.warning.opacity(0.15),
+                        horizontalPadding: 8,
+                        verticalPadding: 4,
+                        cornerRadius: DesignSystem.Metrics.cornerRadiusS
+                    )
             case .broken:
                 Label(NSLocalizedString("status.broken", comment: "Broken Link"), systemImage: "exclamationmark.triangle.fill")
                     .font(.caption.weight(.medium))
-                    .foregroundStyle(.red)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(Color.red.opacity(0.15))
-                    .cornerRadius(6)
+                    .dsBadge(
+                        foreground: DesignSystem.Colors.Status.error,
+                        background: DesignSystem.Colors.Status.error.opacity(0.15),
+                        horizontalPadding: 8,
+                        verticalPadding: 4,
+                        cornerRadius: DesignSystem.Metrics.cornerRadiusS
+                    )
             }
         }
     }
@@ -105,27 +113,18 @@ struct ProviderSkillCard: View {
     }
     
     // MARK: - Background & Border
-    private var cardBackground: some View {
-        Group {
-            switch state.state {
-            case .installed:
-                Color.secondary.opacity(0.08)
-            case .orphaned:
-                Color.orange.opacity(0.05)
-            case .broken:
-                Color.red.opacity(0.05)
-            }
-        }
+    private var cardBackground: Color {
+        DesignSystem.Colors.Component.controlFillSubtle
     }
     
     private var borderColor: Color {
         switch state.state {
         case .installed:
-            return .clear
+            return DesignSystem.Colors.Component.border.opacity(0.35)
         case .orphaned:
-            return .orange.opacity(0.3)
+            return DesignSystem.Colors.Status.warning.opacity(0.35)
         case .broken:
-            return .red.opacity(0.3)
+            return DesignSystem.Colors.Status.error.opacity(0.35)
         }
     }
     
@@ -140,9 +139,8 @@ struct ProviderSkillCard: View {
                     Label(NSLocalizedString("action.update", value: "Update", comment: "Update"), systemImage: "arrow.down.circle")
                         .font(.caption.weight(.medium))
                 }
-                .buttonStyle(.borderedProminent)
+                .dsPrimaryButton()
                 .controlSize(.small)
-                .tint(DesignSystem.Colors.primary)
             }
             
             switch state.state {
@@ -152,15 +150,13 @@ struct ProviderSkillCard: View {
                         Task { await onUninstall() }
                     } label: {
                         Label(NSLocalizedString("action.uninstall", comment: "Uninstall"), systemImage: "trash")
+                            .dsIconLabelButton()
                     }
                 } label: {
                     Image(systemName: "ellipsis")
-                        .font(.body)
-                        .foregroundStyle(.secondary)
-                        .frame(width: 28, height: 28)
-                        .contentShape(Rectangle())
+                        .dsIconButton(size: 28)
                 }
-                .menuStyle(.borderlessButton)
+                .dsBorderlessMenu()
                 .menuIndicator(.hidden)
                 .fixedSize()
                 
@@ -171,7 +167,7 @@ struct ProviderSkillCard: View {
                     Label(NSLocalizedString("action.import", value: "Import", comment: "Import to library"), systemImage: "square.and.arrow.down")
                         .font(.caption.weight(.medium))
                 }
-                .buttonStyle(.borderedProminent)
+                .dsPrimaryButton()
                 .controlSize(.small)
                 
             case .broken:
@@ -181,7 +177,7 @@ struct ProviderSkillCard: View {
                     Label(NSLocalizedString("action.repair", comment: "Repair"), systemImage: "wrench")
                         .font(.caption)
                 }
-                .buttonStyle(.bordered)
+                .dsSecondaryButton()
                 .controlSize(.small)
                 
                 Button {
@@ -190,8 +186,11 @@ struct ProviderSkillCard: View {
                     Image(systemName: "trash")
                         .font(.caption)
                 }
-                .buttonStyle(.bordered)
-                .tint(.red)
+                .dsSecondaryButton(
+                    foreground: DesignSystem.Colors.Status.error,
+                    background: DesignSystem.Colors.Status.error.opacity(0.08),
+                    borderColor: DesignSystem.Colors.Status.error.opacity(0.45)
+                )
                 .controlSize(.small)
             }
             

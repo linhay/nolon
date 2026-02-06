@@ -154,9 +154,9 @@ struct RemoteLocalSkillDetailView: View {
                     .frame(width: 240)
                     .background(DesignSystem.Colors.Background.elevated)
             }
-            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusL))
             .overlay(
-                RoundedRectangle(cornerRadius: 12)
+                RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusL)
                     .stroke(DesignSystem.Colors.Component.border.opacity(0.4), lineWidth: 1)
             )
         }
@@ -183,20 +183,20 @@ private struct RemoteLocalSkillDetailSidebar: View {
 
                 HStack(spacing: 8) {
                     Text(String(format: NSLocalizedString("v%@", comment: "Version badge"), viewModel.version))
-                        .font(.caption2)
-                        .foregroundStyle(DesignSystem.Colors.Text.secondary)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(DesignSystem.Colors.Background.surface.opacity(0.8))
-                        .clipShape(Capsule())
+                        .dsBadge(
+                            foreground: DesignSystem.Colors.Text.secondary,
+                            background: DesignSystem.Colors.Background.surface.opacity(0.8),
+                            horizontalPadding: 6,
+                            verticalPadding: 2
+                        )
 
                     Text(NSLocalizedString("remote.detail.local_badge", comment: "Local badge"))
-                        .font(.caption2)
-                        .foregroundStyle(DesignSystem.Colors.Status.success)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(DesignSystem.Colors.Status.success.opacity(0.15))
-                        .clipShape(Capsule())
+                        .dsBadge(
+                            foreground: DesignSystem.Colors.Status.success,
+                            background: DesignSystem.Colors.Status.success.opacity(0.15),
+                            horizontalPadding: 6,
+                            verticalPadding: 2
+                        )
                 }
             }
             .padding(16)
@@ -211,7 +211,7 @@ private struct RemoteLocalSkillDetailSidebar: View {
                             Text(file.name)
                         } icon: {
                             icon(for: file.type)
-                                .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                                .dsSecondaryText(font: .body)
                         }
                         .tag(file)
                     }
@@ -247,15 +247,13 @@ private struct RemoteLocalSkillDetailContent: View {
                                 if !metadata.isEmpty {
                                     VStack(alignment: .leading, spacing: 12) {
                                         Text(NSLocalizedString("Metadata", comment: "Metadata"))
-                                            .font(.headline)
-                                            .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                                            .dsSecondaryText(font: .headline)
 
                                         Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 8) {
                                             ForEach(metadata.sorted(by: { $0.key < $1.key }), id: \.key) { key, value in
                                                 GridRow(alignment: .top) {
                                                     Text(key)
-                                                        .font(.caption)
-                                                        .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                                                        .dsSecondaryText(font: .caption)
                                                         .frame(width: 80, alignment: .trailing)
 
                                                     Text(value)
@@ -267,7 +265,7 @@ private struct RemoteLocalSkillDetailContent: View {
                                         }
                                         .padding()
                                         .background(DesignSystem.Colors.Background.elevated.opacity(0.8))
-                                        .cornerRadius(8)
+                                        .cornerRadius(DesignSystem.Metrics.cornerRadiusS)
                                     }
                                 }
 
@@ -295,16 +293,26 @@ private struct RemoteLocalSkillDetailContent: View {
                         }
                     }
                 } else {
-                    ContentUnavailableView(
-                        NSLocalizedString("Unable to read file", comment: "Unable to read file"),
-                        systemImage: "doc.questionmark"
-                    )
+                    ContentUnavailableView {
+                        Label {
+                            Text(NSLocalizedString("Unable to read file", comment: "Unable to read file"))
+                                .dsEmptyStateTitle()
+                        } icon: {
+                            Image(systemName: "doc.questionmark")
+                                .dsEmptyStateIcon()
+                        }
+                    }
                 }
             } else {
-                ContentUnavailableView(
-                    NSLocalizedString("No file selected", comment: "No file selected"),
-                    systemImage: "doc"
-                )
+                ContentUnavailableView {
+                    Label {
+                        Text(NSLocalizedString("No file selected", comment: "No file selected"))
+                            .dsEmptyStateTitle()
+                    } icon: {
+                        Image(systemName: "doc")
+                            .dsEmptyStateIcon()
+                    }
+                }
             }
         }
     }
@@ -322,7 +330,7 @@ private struct RemoteLocalSkillDetailInspector: View {
                         .font(.headline)
                     Text(viewModel.description)
                         .font(.caption)
-                        .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                        .dsSecondaryText(font: .caption)
                 }
 
                 Divider()
@@ -336,7 +344,7 @@ private struct RemoteLocalSkillDetailInspector: View {
                         HStack(alignment: .top) {
                             Text(NSLocalizedString("remote.detail.path_label", comment: "Path"))
                                 .font(.caption)
-                                .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                                .dsSecondaryText(font: .caption)
                                 .frame(width: 60, alignment: .leading)
                             Text(localPath)
                                 .font(.caption)
@@ -347,7 +355,7 @@ private struct RemoteLocalSkillDetailInspector: View {
                         HStack {
                             Text(NSLocalizedString("remote.detail.updated_label", comment: "Updated"))
                                 .font(.caption)
-                                .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                                .dsSecondaryText(font: .caption)
                                 .frame(width: 60, alignment: .leading)
                             Text(viewModel.lastUpdated, style: .date)
                                 .font(.caption)
@@ -363,8 +371,9 @@ private struct RemoteLocalSkillDetailInspector: View {
                 } label: {
                     Label(NSLocalizedString("action.show_in_finder", comment: "Show in Finder"), systemImage: "folder")
                         .frame(maxWidth: .infinity)
+                        .dsIconLabelButton()
                 }
-                .buttonStyle(.bordered)
+                .dsSecondaryButton()
             }
             .padding(16)
         }

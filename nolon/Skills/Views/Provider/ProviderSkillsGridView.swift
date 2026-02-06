@@ -12,6 +12,7 @@ struct ProviderSkillsGridView: View {
                 viewModel.searchText.isEmpty ? NSLocalizedString("skills.empty", comment: "No Skills") : "No Results",
                 systemImage: viewModel.searchText.isEmpty ? "square.grid.2x2" : "magnifyingglass",
                 description: Text(viewModel.searchText.isEmpty ? NSLocalizedString("skills.empty_desc", comment: "No skills installed in this provider") : "No matching skills found")
+                    .dsSecondaryText(font: .body)
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
@@ -36,7 +37,7 @@ struct ProviderSkillsGridView: View {
                         HStack {
                             Text(viewModel.displayPath(for: group.path))
                                 .font(.headline)
-                                .foregroundStyle(.secondary)
+                                .dsSecondaryText(font: .headline)
                             Spacer()
                         }
                         .padding(.top, 8)

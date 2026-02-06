@@ -1116,6 +1116,7 @@ struct ProviderUsageView: View {
                     value: "Usage is not configured for this provider yet.",
                     comment: "Unsupported description"
                 ))
+                .dsSecondaryText(font: .body)
             )
         } else if viewModel.isLoading {
             ProgressView()
@@ -1127,6 +1128,7 @@ struct ProviderUsageView: View {
                 NSLocalizedString("usage.monitor.empty.title", value: "No usage data", comment: "Empty title"),
                 systemImage: "chart.bar",
                 description: Text(NSLocalizedString("usage.monitor.empty.desc", value: "No provider data available yet.", comment: "Empty description"))
+                    .dsSecondaryText(font: .body)
             )
         } else {
             genericUsageContent
@@ -1188,7 +1190,7 @@ struct ProviderUsageView: View {
                     if let status = viewModel.cliLoginStatus, viewModel.isRunningCLILogin {
                         Divider()
                         Text(status)
-                            .foregroundStyle(.secondary)
+                            .dsSecondaryText(font: .body)
                     }
                 }
                 .disabled(!viewModel.isMultiAccountEnabled)
@@ -1203,12 +1205,9 @@ struct ProviderUsageView: View {
             }
         } label: {
             Image(systemName: "ellipsis")
-                .font(.body)
-                .foregroundStyle(DesignSystem.Colors.Text.secondary)
-                .frame(width: 24, height: 24)
-                .contentShape(Rectangle())
+                .dsIconButton()
         }
-        .menuStyle(.borderlessButton)
+        .dsBorderlessMenu()
         .menuIndicator(.hidden)
         .fixedSize()
     }
@@ -1252,15 +1251,16 @@ struct ProviderUsageView: View {
             if viewModel.isMultiAccountEnabled {
                 VStack(alignment: .leading, spacing: 16) {
                     if viewModel.codexAccounts.isEmpty {
-                        ContentUnavailableView(
-                            NSLocalizedString("codex.accounts.empty.title", value: "No accounts", comment: "Empty state title"),
-                            systemImage: "person.crop.circle.badge.plus",
-                            description: Text(NSLocalizedString(
-                                "codex.accounts.empty.desc",
-                                value: "Add a snapshot of Codex auth.json to quickly switch accounts.",
-                                comment: "Empty state description"
-                            ))
-                        )
+                ContentUnavailableView(
+                    NSLocalizedString("codex.accounts.empty.title", value: "No accounts", comment: "Empty state title"),
+                    systemImage: "person.crop.circle.badge.plus",
+                    description: Text(NSLocalizedString(
+                        "codex.accounts.empty.desc",
+                        value: "Add a snapshot of Codex auth.json to quickly switch accounts.",
+                        comment: "Empty state description"
+                    ))
+                    .dsSecondaryText(font: .body)
+                )
                     }
 
                     LazyVGrid(columns: codexAccountColumns, alignment: .leading, spacing: 12) {
@@ -1283,6 +1283,7 @@ struct ProviderUsageView: View {
                             NSLocalizedString("usage.monitor.empty.title", value: "No usage data", comment: "Empty title"),
                             systemImage: "chart.bar",
                             description: Text(NSLocalizedString("usage.monitor.empty.desc", value: "No provider data available yet.", comment: "Empty description"))
+                                .dsSecondaryText(font: .body)
                         )
                     }
                 }
@@ -1334,7 +1335,7 @@ struct ProviderUsageView: View {
             }
         )
         .overlay {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
+            RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusL, style: .continuous)
                 .strokeBorder(
                     borderColor,
                     style: borderStyle
@@ -1342,11 +1343,14 @@ struct ProviderUsageView: View {
         }
         .background {
             if isSelected {
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusL, style: .continuous)
                     .fill(DesignSystem.Colors.primary.opacity(isActive ? 0.12 : 0.08))
+            } else {
+                RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusL, style: .continuous)
+                    .fill(DesignSystem.Colors.Component.controlFillSubtle)
             }
         }
-        .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .contentShape(RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusL, style: .continuous))
         .onTapGesture {
             guard let accountId, !isActive else { return }
             viewModel.requestActivateCodexAccount(id: accountId)
@@ -1357,6 +1361,7 @@ struct ProviderUsageView: View {
                     viewModel.revealCodexAccountInFinder(id: accountId)
                 } label: {
                     Label(NSLocalizedString("action.show_in_finder", comment: "Show in Finder"), systemImage: "folder")
+                        .dsIconLabelButton()
                 }
             }
         }
@@ -1394,11 +1399,10 @@ struct ProviderUsageView: View {
                                 .controlSize(.mini)
                         } else {
                             Image(systemName: "arrow.clockwise")
-                                .font(.caption.weight(.semibold))
+                                .dsIconButton(size: 18, foreground: DesignSystem.Colors.Text.secondary)
                         }
                     }
-                    .buttonStyle(.borderless)
-                    .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                    .dsBorderlessButton()
                     .help(NSLocalizedString("usage.monitor.refresh", value: "Refresh", comment: "Refresh"))
                 }
             }
@@ -1412,7 +1416,7 @@ struct ProviderUsageView: View {
                 if let subtitle = codexSubtitleText(title: title, email: email, plan: plan) {
                     Text(subtitle)
                         .font(.caption)
-                        .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                        .dsSecondaryText(font: .caption)
                         .lineLimit(1)
                 }
 
@@ -1425,7 +1429,7 @@ struct ProviderUsageView: View {
                 {
                     Text(result.usage.updatedAt.formatted(date: .abbreviated, time: .shortened))
                         .font(.caption)
-                        .foregroundStyle(DesignSystem.Colors.Text.tertiary)
+                        .dsTertiaryText(font: .caption)
                 } else {
                     VStack(alignment: .leading, spacing: 8) {
                         if let primary = result.usage.primary {
@@ -1513,7 +1517,7 @@ struct ProviderUsageView: View {
                 if let subtitle = codexSubtitleText(title: title, email: fallbackEmail, plan: fallbackPlan) {
                     Text(subtitle)
                         .font(.caption)
-                        .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                        .dsSecondaryText(font: .caption)
                         .lineLimit(1)
                 }
 
@@ -1523,20 +1527,18 @@ struct ProviderUsageView: View {
                 }()
 
                 Text(NSLocalizedString("usage.monitor.error.title", value: "Failed to load usage", comment: "Error title"))
-                    .font(.caption)
-                    .foregroundStyle(DesignSystem.Colors.Status.error)
+                    .dsErrorText(font: .caption)
                     .lineLimit(1)
 
                 Text(errorText)
                     .font(.caption)
-                    .foregroundStyle(DesignSystem.Colors.Text.tertiary)
+                    .dsTertiaryText(font: .caption)
                     .lineLimit(2)
             }
         }
         .padding()
         .frame(maxWidth: .infinity, minHeight: 104, alignment: .topLeading)
-        .background(DesignSystem.Colors.Background.surface)
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .dsCard()
     }
 
     private func codexSubtitleText(title: String, email: String?, plan: String?) -> String? {
@@ -1655,9 +1657,6 @@ struct ProviderUsageView: View {
             if let code = Locale.current.language.languageCode?.identifier {
                 return code.hasPrefix("zh")
             }
-        }
-        if let code = Locale.current.languageCode {
-            return code.hasPrefix("zh")
         }
         return Locale.current.identifier.hasPrefix("zh")
     }
@@ -1790,6 +1789,7 @@ private struct UsageLoginSheet: View {
                     NSLocalizedString("usage.monitor.login", value: "Sign in…", comment: "Sign in"),
                     systemImage: "globe",
                     description: Text(NSLocalizedString("usage.monitor.unsupported.desc", value: "Usage is not configured for this provider yet.", comment: "Unsupported"))
+                        .dsSecondaryText(font: .body)
                 )
             }
         }

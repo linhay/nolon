@@ -22,7 +22,7 @@ struct OnboardingProviderSelectionView: View {
                      ? "onboarding.provider.subtitle"
                      : "onboarding.provider.subtitle_detected")
                     .font(.system(size: 14))
-                    .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                    .dsSecondaryText(font: .system(size: 14))
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 40)
             }
@@ -87,7 +87,7 @@ private struct ProviderSelectionCard: View {
                             .padding(.vertical, 2)
                             .background(DesignSystem.Colors.primary.opacity(0.12))
                             .foregroundStyle(DesignSystem.Colors.primary)
-                            .cornerRadius(4)
+                            .cornerRadius(DesignSystem.Metrics.cornerRadiusXS)
                     }
                 }
             }
@@ -103,7 +103,7 @@ private struct ProviderSelectionCard: View {
             )
             .scaleEffect(isSelected ? 1.02 : 1.0)
         }
-        .buttonStyle(.plain)
+        .dsLinkButton()
     }
 }
 

@@ -36,7 +36,7 @@ actor CodexAuthService {
 
     private nonisolated let rootFolder: STFolder
 
-    init(rootURL: URL = NolonManager.shared.rootURL) {
+    init(rootURL: URL = STFolder("~").folder(".nolon").url) {
         self.rootFolder = STFolder(rootURL)
     }
 

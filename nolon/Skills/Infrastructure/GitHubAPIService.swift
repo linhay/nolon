@@ -155,13 +155,39 @@ public actor GitHubAPIService {
 
 // MARK: - GitHub API Response Models
 
-struct GitTreeResponse: Decodable {
+@preconcurrency
+struct GitTreeResponse: Decodable, Sendable {
     let sha: String
     let tree: [GitTreeEntry]
+
+    enum CodingKeys: String, CodingKey {
+        case sha
+        case tree
+    }
+
+    nonisolated init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.sha = try container.decode(String.self, forKey: .sha)
+        self.tree = try container.decode([GitTreeEntry].self, forKey: .tree)
+    }
 }
 
-struct GitTreeEntry: Decodable {
+@preconcurrency
+struct GitTreeEntry: Decodable, Sendable {
     let path: String
     let type: String
     let sha: String
+
+    enum CodingKeys: String, CodingKey {
+        case path
+        case type
+        case sha
+    }
+
+    nonisolated init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.path = try container.decode(String.self, forKey: .path)
+        self.type = try container.decode(String.self, forKey: .type)
+        self.sha = try container.decode(String.self, forKey: .sha)
+    }
 }

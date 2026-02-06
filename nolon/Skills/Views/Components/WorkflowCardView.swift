@@ -108,23 +108,21 @@ struct WorkflowCardView: View {
             // 2. 描述区
             HighlightedText(text: workflow.description, query: searchText)
                 .font(.caption)
-                .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                .dsSecondaryText(font: .caption)
                 .lineLimit(3)
                 .frame(maxHeight: .infinity, alignment: .topLeading)
             
             // 3. 操作区
             HStack {
                 Label("Workflow", systemImage: "arrow.triangle.branch")
-                    .font(.caption2)
-                    .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                    .dsIconLabelText(foreground: DesignSystem.Colors.Text.secondary, font: .caption2)
                 
                 Spacer()
             }
         }
         .padding(16)
         .frame(minHeight: 140)
-        .background(DesignSystem.Colors.Component.controlFillSubtle)
-        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusL, style: .continuous))
+        .dsCard()
         .contentShape(Rectangle())
         .onTapGesture {
             onTap()
@@ -150,11 +148,12 @@ struct WorkflowCardView: View {
     private var sourceBadge: some View {
         Text(workflow.source.displayName)
             .font(.system(size: 10, weight: .bold))
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(workflow.source.color.opacity(0.15))
-            .foregroundStyle(workflow.source.color)
-            .clipShape(Capsule())
+            .dsBadge(
+                foreground: workflow.source.color,
+                background: workflow.source.color.opacity(0.15),
+                horizontalPadding: 6,
+                verticalPadding: 2
+            )
     }
     
     @ViewBuilder
@@ -166,6 +165,7 @@ struct WorkflowCardView: View {
                 NSLocalizedString("action.show_in_finder", comment: "Show in Finder"),
                 systemImage: "folder"
             )
+            .dsIconLabelButton()
         }
         
         Divider()
@@ -177,6 +177,7 @@ struct WorkflowCardView: View {
                 NSLocalizedString("action.delete", comment: "Delete"),
                 systemImage: "trash"
             )
+            .dsIconLabelButton()
         }
     }
     
@@ -185,12 +186,9 @@ struct WorkflowCardView: View {
             contextMenuItems
         } label: {
             Image(systemName: "ellipsis")
-                .font(.body)
-                .foregroundStyle(DesignSystem.Colors.Text.secondary)
-                .frame(width: 24, height: 24)
-                .contentShape(Rectangle())
+                .dsIconButton()
         }
-        .menuStyle(.borderlessButton)
+        .dsBorderlessMenu()
         .menuIndicator(.hidden)
         .fixedSize()
     }

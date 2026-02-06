@@ -191,7 +191,7 @@ struct AddProviderSheet: View {
                             Text(viewModel.projectRootPath.isEmpty
                                  ? NSLocalizedString("add_provider.no_project_folder", value: "No project folder selected", comment: "No project folder selected")
                                  : viewModel.projectRootPath)
-                                .foregroundStyle(viewModel.projectRootPath.isEmpty ? .secondary : .primary)
+                                .foregroundStyle(viewModel.projectRootPath.isEmpty ? DesignSystem.Colors.Text.secondary : DesignSystem.Colors.Text.primary)
                                 .lineLimit(1)
                                 .truncationMode(.middle)
 
@@ -200,12 +200,11 @@ struct AddProviderSheet: View {
                             Button(NSLocalizedString("add_provider.choose", comment: "Choose...")) {
                                 viewModel.showingProjectFolderPicker = true
                             }
-                            .buttonStyle(.bordered)
+                            .dsSecondaryButton()
                         }
                     } else {
                         Text(NSLocalizedString("add_provider.kind.vendor_paths_locked", value: "Vendor paths are predefined and cannot be changed.", comment: "Vendor paths are locked"))
-                            .foregroundStyle(.secondary)
-                            .font(.callout)
+                            .dsSecondaryText(font: .callout)
                     }
                 } header: {
                     Text(viewModel.kind == .project
@@ -219,7 +218,7 @@ struct AddProviderSheet: View {
                             Text(viewModel.resolvedSkillsPath.isEmpty
                                  ? NSLocalizedString("add_provider.no_folder", comment: "No folder selected")
                                  : viewModel.resolvedSkillsPath)
-                                .foregroundStyle(viewModel.resolvedSkillsPath.isEmpty ? .secondary : .primary)
+                                .foregroundStyle(viewModel.resolvedSkillsPath.isEmpty ? DesignSystem.Colors.Text.secondary : DesignSystem.Colors.Text.primary)
                                 .lineLimit(1)
                                 .truncationMode(.middle)
                         }
@@ -229,7 +228,7 @@ struct AddProviderSheet: View {
                                 Text(viewModel.resolvedCommandPath.isEmpty
                                      ? NSLocalizedString("add_provider.no_command_folder", value: "No command folder selected", comment: "No command folder selected")
                                      : viewModel.resolvedCommandPath)
-                                    .foregroundStyle(viewModel.resolvedCommandPath.isEmpty ? .secondary : .primary)
+                                    .foregroundStyle(viewModel.resolvedCommandPath.isEmpty ? DesignSystem.Colors.Text.secondary : DesignSystem.Colors.Text.primary)
                                     .lineLimit(1)
                                     .truncationMode(.middle)
                             }
@@ -238,7 +237,7 @@ struct AddProviderSheet: View {
                                 Text(viewModel.resolvedWorkflowPath.isEmpty
                                      ? NSLocalizedString("add_provider.no_workflow_folder", value: "No workflow folder selected", comment: "No workflow folder selected")
                                      : viewModel.resolvedWorkflowPath)
-                                    .foregroundStyle(viewModel.resolvedWorkflowPath.isEmpty ? .secondary : .primary)
+                                    .foregroundStyle(viewModel.resolvedWorkflowPath.isEmpty ? DesignSystem.Colors.Text.secondary : DesignSystem.Colors.Text.primary)
                                     .lineLimit(1)
                                     .truncationMode(.middle)
                             }
@@ -251,8 +250,7 @@ struct AddProviderSheet: View {
                 if let error = viewModel.validationError {
                     Section {
                         Text(error)
-                            .foregroundStyle(.red)
-                            .font(.caption)
+                            .dsErrorText(font: .caption)
                     }
                 }
             }
@@ -265,7 +263,7 @@ struct AddProviderSheet: View {
                 Button(NSLocalizedString("generic.cancel", comment: "Cancel")) {
                     dismiss()
                 }
-                .buttonStyle(.plain)
+                .dsLinkButton()
 
                 Spacer(minLength: 0)
 
@@ -275,7 +273,7 @@ struct AddProviderSheet: View {
                         dismiss()
                     }
                 }
-                .buttonStyle(.borderedProminent)
+                .dsPrimaryButton()
                 .disabled(!viewModel.canSave)
             }
             .padding(.horizontal, SheetLayout.footerHorizontalPadding)

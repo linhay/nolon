@@ -43,6 +43,7 @@ public struct ProviderSkillsView: View {
                         NSLocalizedString("provider.empty", comment: "No Skills"),
                         systemImage: "folder.badge.questionmark",
                         description: Text(NSLocalizedString("provider.empty_desc", comment: "No skills found in this provider"))
+                            .dsSecondaryText(font: .body)
                     )
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
@@ -94,7 +95,7 @@ public struct ProviderSkillsView: View {
         HStack(spacing: 12) {
             Image(systemName: "exclamationmark.triangle.fill")
                 .font(.title2)
-                .foregroundStyle(.orange)
+                .foregroundStyle(DesignSystem.Colors.Status.warning)
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(
@@ -108,7 +109,7 @@ public struct ProviderSkillsView: View {
                         "banner.orphaned_desc", comment: "Some skills are not managed...")
                 )
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .dsSecondaryText(font: .caption)
             }
 
             Spacer()
@@ -118,15 +119,14 @@ public struct ProviderSkillsView: View {
                     await viewModel.migrateAll()
                 }
             }
-            .buttonStyle(.borderedProminent)
+            .dsPrimaryButton()
             .controlSize(.small)
         }
         .padding()
-        .background(Color.orange.opacity(0.1))
-        .cornerRadius(12)
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .strokeBorder(Color.orange.opacity(0.3), lineWidth: 1)
+        .dsCard(
+            background: DesignSystem.Colors.Status.warning.opacity(0.12),
+            cornerRadius: DesignSystem.Metrics.cornerRadiusM,
+            borderColor: DesignSystem.Colors.Status.warning.opacity(0.35)
         )
         .padding(.horizontal)
     }
@@ -161,8 +161,11 @@ struct ProviderSkillRow: View {
                             await onUninstall()
                         }
                     }
-                    .buttonStyle(.bordered)
-                    .tint(.red)
+                    .dsSecondaryButton(
+                        foreground: DesignSystem.Colors.Status.error,
+                        background: DesignSystem.Colors.Status.error.opacity(0.08),
+                        borderColor: DesignSystem.Colors.Status.error.opacity(0.45)
+                    )
 
                 case .orphaned:
                     Button(NSLocalizedString("action.migrate", comment: "Migrate")) {
@@ -170,7 +173,7 @@ struct ProviderSkillRow: View {
                             await onMigrate()
                         }
                     }
-                    .buttonStyle(.borderedProminent)
+                    .dsPrimaryButton()
 
                 case .broken:
                     HStack(spacing: 8) {
@@ -179,13 +182,16 @@ struct ProviderSkillRow: View {
                                 await onRepair()
                             }
                         }
-                        .buttonStyle(.bordered)
+                        .dsSecondaryButton()
 
                         Button(NSLocalizedString("action.delete", comment: "Delete")) {
                             showingDeleteConfirmation = true
                         }
-                        .buttonStyle(.bordered)
-                        .tint(.red)
+                        .dsSecondaryButton(
+                            foreground: DesignSystem.Colors.Status.error,
+                            background: DesignSystem.Colors.Status.error.opacity(0.08),
+                            borderColor: DesignSystem.Colors.Status.error.opacity(0.45)
+                        )
                     }
                 }
         }
@@ -209,22 +215,19 @@ struct ProviderSkillRow: View {
                     NSLocalizedString("status.symlinked", comment: "Symlinked"),
                     systemImage: "checkmark.circle.fill"
                 )
-                .font(.caption)
-                .foregroundStyle(.green)
+                .dsIconLabelText(foreground: DesignSystem.Colors.Status.success, font: .caption)
             case .orphaned:
                 Label(
                     NSLocalizedString("status.physical", comment: "Physical File"),
                     systemImage: "folder.fill"
                 )
-                .font(.caption)
-                .foregroundStyle(.orange)
+                .dsIconLabelText(foreground: DesignSystem.Colors.Status.warning, font: .caption)
             case .broken:
                 Label(
                     NSLocalizedString("status.broken", comment: "Broken Link"),
                     systemImage: "exclamationmark.triangle.fill"
                 )
-                .font(.caption)
-                .foregroundStyle(.red)
+                .dsIconLabelText(foreground: DesignSystem.Colors.Status.error, font: .caption)
             }
         }
     }

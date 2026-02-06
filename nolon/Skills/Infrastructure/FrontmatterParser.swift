@@ -5,13 +5,13 @@ import Yams
 public enum FrontmatterParser: Sendable {
     
     /// Parse metadata from content with YAML frontmatter.
-    public static func parseMetadata(from content: String) -> [String: String] {
+    public nonisolated static func parseMetadata(from content: String) -> [String: String] {
         guard let frontmatter = extractFrontmatter(from: content) else { return [:] }
         return parseYAMLFrontmatter(frontmatter)
     }
     
     /// Remove YAML frontmatter from content.
-    public static func stripFrontmatter(from content: String) -> String {
+    public nonisolated static func stripFrontmatter(from content: String) -> String {
         let pattern = "^---\\s*\\n([\\s\\S]*?)\\n---"
         guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else { return content }
         let range = NSRange(content.startIndex..., in: content)
@@ -23,7 +23,7 @@ public enum FrontmatterParser: Sendable {
     // MARK: - Private
     
     /// Extract frontmatter content between --- markers.
-    private static func extractFrontmatter(from content: String) -> String? {
+    private nonisolated static func extractFrontmatter(from content: String) -> String? {
         let pattern = "^---\\s*\\n([\\s\\S]*?)\\n---"
         guard let regex = try? NSRegularExpression(pattern: pattern, options: []),
               let match = regex.firstMatch(
@@ -39,7 +39,7 @@ public enum FrontmatterParser: Sendable {
     }
     
     /// Parse YAML frontmatter using Yams.
-    private static func parseYAMLFrontmatter(_ yaml: String) -> [String: String] {
+    private nonisolated static func parseYAMLFrontmatter(_ yaml: String) -> [String: String] {
         guard let decoded = try? Yams.load(yaml: yaml) as? [String: Any] else {
             return [:]
         }
@@ -51,4 +51,3 @@ public enum FrontmatterParser: Sendable {
         return result
     }
 }
-

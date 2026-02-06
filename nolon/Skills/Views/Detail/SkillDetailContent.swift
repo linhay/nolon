@@ -17,15 +17,13 @@ struct SkillDetailContent: View {
                                 if !metadata.isEmpty {
                                     VStack(alignment: .leading, spacing: 12) {
                                         Text("Metadata")
-                                            .font(.headline)
-                                            .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                                            .dsSecondaryText(font: .headline)
                                         
                                         Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 8) {
                                             ForEach(metadata.sorted(by: { $0.key < $1.key }), id: \.key) { key, value in
                                                 GridRow(alignment: .top) {
                                                     Text(key)
-                                                        .font(.caption)
-                                                        .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                                                        .dsSecondaryText(font: .caption)
                                                         .frame(width: 80, alignment: .trailing)
                                                     
                                                     Text(value)
@@ -36,8 +34,10 @@ struct SkillDetailContent: View {
                                             }
                                         }
                                         .padding()
-                                        .background(DesignSystem.Colors.Component.controlFillSubtle)
-                                        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusM, style: .continuous))
+                                        .dsCard(
+                                            background: DesignSystem.Colors.Component.controlFillSubtle,
+                                            cornerRadius: DesignSystem.Metrics.cornerRadiusM
+                                        )
                                     }
                                 }
                                 
@@ -66,10 +66,26 @@ struct SkillDetailContent: View {
                         }
                     }
                 } else {
-                    ContentUnavailableView("Unable to read file", systemImage: "doc.question.mark")
+                    ContentUnavailableView {
+                        Label {
+                            Text("Unable to read file")
+                                .dsEmptyStateTitle()
+                        } icon: {
+                            Image(systemName: "doc.question.mark")
+                                .dsEmptyStateIcon()
+                        }
+                    }
                 }
             } else {
-                ContentUnavailableView("No file selected", systemImage: "doc")
+                ContentUnavailableView {
+                    Label {
+                        Text("No file selected")
+                            .dsEmptyStateTitle()
+                    } icon: {
+                        Image(systemName: "doc")
+                            .dsEmptyStateIcon()
+                    }
+                }
             }
         }
     }

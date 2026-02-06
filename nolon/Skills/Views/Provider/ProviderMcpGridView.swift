@@ -22,9 +22,16 @@ struct ProviderMcpGridView: View {
             
             if !exists {
                 ContentUnavailableView {
-                    Label("No Configuration", systemImage: "server.rack")
+                    Label {
+                        Text("No Configuration")
+                            .dsEmptyStateTitle()
+                    } icon: {
+                        Image(systemName: "server.rack")
+                            .dsEmptyStateIcon()
+                    }
                 } description: {
                     Text("MCP configuration file not found.")
+                        .dsSecondaryText(font: .body)
                 } actions: {
                     Button("Create Configuration") {
                         // Create directory if needed
@@ -57,12 +64,20 @@ struct ProviderMcpGridView: View {
                         // Reload data
                         Task { await viewModel.loadData() }
                     }
+                    .dsIconLabelButton()
                 }
             } else if viewModel.filteredMcps.isEmpty && viewModel.searchText.isEmpty {
                 ContentUnavailableView {
-                    Label("No Servers", systemImage: "server.rack")
+                    Label {
+                        Text("No Servers")
+                            .dsEmptyStateTitle()
+                    } icon: {
+                        Image(systemName: "server.rack")
+                            .dsEmptyStateIcon()
+                    }
                 } description: {
                     Text("No MCP servers configured.")
+                        .dsSecondaryText(font: .body)
                 } actions: {
                     Button("Edit Configuration") {
                         editingConfig = EditingConfig(
@@ -71,12 +86,14 @@ struct ProviderMcpGridView: View {
                             highlightKey: nil
                         )
                     }
+                    .dsIconLabelButton()
                 }
                 .toolbar {
                      if let url = template.mcpDocumentationURL {
                          ToolbarItem {
                              Link(destination: url) {
                                  Label("Documentation", systemImage: "doc.text")
+                                    .dsIconLabelButton()
                              }
                          }
                      }
@@ -89,6 +106,7 @@ struct ProviderMcpGridView: View {
                              )
                          }) {
                              Label("Edit Config", systemImage: "pencil")
+                                .dsIconLabelButton()
                          }
                      }
                 }
@@ -97,6 +115,7 @@ struct ProviderMcpGridView: View {
                     "No Results",
                     systemImage: "magnifyingglass",
                     description: Text("No matching MCP servers found")
+                        .dsSecondaryText(font: .body)
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
@@ -199,6 +218,7 @@ struct ProviderMcpGridView: View {
                 NSLocalizedString("mcp.not_supported", comment: "MCP Not Supported"),
                 systemImage: "exclamationmark.triangle",
                 description: Text(NSLocalizedString("mcp.not_supported_desc", comment: "This provider does not support MCP configuration"))
+                    .dsSecondaryText(font: .body)
             )
             }
         }

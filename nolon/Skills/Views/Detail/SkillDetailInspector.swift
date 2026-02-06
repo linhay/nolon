@@ -18,7 +18,7 @@ struct SkillDetailInspector: View {
                         .font(.headline)
                     Text(viewModel.skill.description)
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .dsSecondaryText(font: .caption)
                 }
                 
                 // Providers Grid
@@ -33,9 +33,9 @@ struct SkillDetailInspector: View {
                             }
                         } label: {
                             Image(systemName: isListMode ? "square.grid.2x2" : "list.bullet")
-                                .foregroundStyle(.secondary)
+                                .dsIconButton(size: 20, foreground: DesignSystem.Colors.Text.secondary)
                         }
-                        .buttonStyle(.plain)
+                        .dsLinkButton()
                         .help(isListMode ? "Show as Grid" : "Show as List")
                     }
                     
@@ -63,14 +63,19 @@ struct SkillDetailInspector: View {
                                         }
                                     }
                                     .padding(8)
-                                    .background(Color(NSColor.controlBackgroundColor))
-                                    .cornerRadius(8)
+                                    .background(DesignSystem.Colors.Component.controlFillSubtle)
+                                    .cornerRadius(DesignSystem.Metrics.cornerRadiusS)
                                     .overlay(
-                                        RoundedRectangle(cornerRadius: 8)
-                                            .stroke(isInstalled ? DesignSystem.Colors.primary.opacity(0.30) : Color.clear, lineWidth: 1)
+                                        RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusS)
+                                            .stroke(
+                                                isInstalled
+                                                    ? DesignSystem.Colors.primary.opacity(0.30)
+                                                    : DesignSystem.Colors.Component.border.opacity(0.20),
+                                                lineWidth: 1
+                                            )
                                     )
                                 }
-                                .buttonStyle(.plain)
+                                .dsLinkButton()
                             }
                         }
                     } else {
@@ -87,7 +92,7 @@ struct SkillDetailInspector: View {
                                     ZStack {
                                         // Background
                                         RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                            .fill(Color(NSColor.controlBackgroundColor))
+                                            .fill(DesignSystem.Colors.Component.controlFillSubtle)
                                             .shadow(color: DesignSystem.Colors.Shadow.floating.opacity(0.5), radius: 2, x: 0, y: 1)
                                             .frame(width: 50, height: 50)
                                             .overlay(
@@ -103,7 +108,7 @@ struct SkillDetailInspector: View {
                                     .contentShape(Rectangle())
                                     .help(provider.name)
                                 }
-                                .buttonStyle(.plain)
+                                .dsLinkButton()
                             }
                         }
                     }
@@ -119,7 +124,7 @@ struct SkillDetailInspector: View {
                         
                         Text("Associate this skill with a workflow in **\(currentProvider.name)**.")
                             .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .dsSecondaryText(font: .caption)
                         
                         Toggle(isOn: Binding(
                             get: { viewModel.isWorkflowLinked },
@@ -139,6 +144,7 @@ struct SkillDetailInspector: View {
                 } label: {
                     Label("Reveal in Finder", systemImage: "folder")
                         .frame(maxWidth: .infinity)
+                        .dsIconLabelButton()
                 }
                 .controlSize(.large)
             }

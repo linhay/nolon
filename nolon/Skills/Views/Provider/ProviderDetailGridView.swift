@@ -26,25 +26,42 @@ struct ProviderDetailGridView: View {
     var body: some View {
         Group {
             if provider == nil {
-                ContentUnavailableView(
-                    NSLocalizedString("detail.no_provider", comment: "Select a Provider"),
-                    systemImage: "sidebar.left"
-                )
+                ContentUnavailableView {
+                    Label {
+                        Text(NSLocalizedString("detail.no_provider", comment: "Select a Provider"))
+                            .dsEmptyStateTitle()
+                    } icon: {
+                        Image(systemName: "sidebar.left")
+                            .dsEmptyStateIcon()
+                    }
+                }
             } else if selectedTab == nil {
-                ContentUnavailableView(
-                    NSLocalizedString("detail.select_tab", comment: "Select a Tab"),
-                    systemImage: "list.bullet"
-                )
+                ContentUnavailableView {
+                    Label {
+                        Text(NSLocalizedString("detail.select_tab", comment: "Select a Tab"))
+                            .dsEmptyStateTitle()
+                    } icon: {
+                        Image(systemName: "list.bullet")
+                            .dsEmptyStateIcon()
+                    }
+                }
             } else {
                 if viewModel.isLoading {
                     ProgressView()
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else if let error = viewModel.errorMessage {
-                    ContentUnavailableView(
-                        "Error Loading Data",
-                        systemImage: "exclamationmark.triangle",
-                        description: Text(error)
-                    )
+                    ContentUnavailableView {
+                        Label {
+                            Text("Error Loading Data")
+                                .dsEmptyStateErrorTitle()
+                        } icon: {
+                            Image(systemName: "exclamationmark.triangle")
+                                .dsEmptyStateIcon(color: DesignSystem.Colors.Status.error)
+                        }
+                    } description: {
+                        Text(error)
+                            .dsSecondaryText(font: .body)
+                    }
                 } else {
                     gridContent
                 }
@@ -170,17 +187,16 @@ struct ProviderDetailGridView: View {
                     comment: "Xcode Codex banner description"
                 ))
                 .font(.callout)
-                .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                .dsSecondaryText(font: .callout)
             }
 
             Spacer(minLength: 0)
         }
         .padding()
-        .background(DesignSystem.Colors.Background.elevated)
-        .cornerRadius(12)
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .strokeBorder(DesignSystem.Colors.Component.border.opacity(0.4), lineWidth: 1)
+        .dsCard(
+            background: DesignSystem.Colors.Background.elevated,
+            cornerRadius: DesignSystem.Metrics.cornerRadiusM,
+            borderColor: DesignSystem.Colors.Component.border.opacity(0.4)
         )
     }
 
@@ -212,7 +228,7 @@ struct ProviderDetailGridView: View {
                     .foregroundStyle(DesignSystem.Colors.Text.onAccent)
             }
         }
-        .buttonStyle(.plain)
+        .dsLinkButton()
         .padding(32)
     }
     

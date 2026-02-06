@@ -17,7 +17,7 @@ public enum MCPJsonFile {
     /// Supported inputs:
     /// - `{ "mcpServers": { ... } }` (or legacy `{ "mcp_servers": { ... } }`)
     /// - `{ "command": "...", "args": [...], "env": { ... } }` (single server config)
-    public static func normalizedData(
+    public nonisolated static func normalizedData(
         from input: Data,
         slug: String,
         name: String? = nil,
@@ -57,7 +57,7 @@ public enum MCPJsonFile {
     /// - If `mcpServers[slug]` exists, returns it.
     /// - If `mcpServers` contains exactly one server, returns that server.
     /// - Otherwise throws.
-    public static func serverConfig(from data: Data, slug: String) throws -> [String: Any] {
+    public nonisolated static func serverConfig(from data: Data, slug: String) throws -> [String: Any] {
         guard let raw = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             throw Error.invalidJson
         }
@@ -78,14 +78,14 @@ public enum MCPJsonFile {
         throw Error.missingServerConfig
     }
 
-    public static func metadata(from data: Data) -> (name: String?, description: String?) {
+    public nonisolated static func metadata(from data: Data) -> (name: String?, description: String?) {
         guard let raw = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             return (nil, nil)
         }
         return (raw["name"] as? String, raw["description"] as? String)
     }
 
-    public static func serverFields(from serverConfig: [String: Any]) -> (url: String?, command: String?, args: [String]?, env: [String: String]?, isEnabled: Bool) {
+    public nonisolated static func serverFields(from serverConfig: [String: Any]) -> (url: String?, command: String?, args: [String]?, env: [String: String]?, isEnabled: Bool) {
         let url = serverConfig["url"] as? String
         let command = serverConfig["command"] as? String
 

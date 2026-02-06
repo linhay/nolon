@@ -40,19 +40,19 @@ struct DirectoryPickerSheet: View {
                                         Spacer(minLength: 0)
                                         Text("\(candidate.skillCount) skill\(candidate.skillCount == 1 ? "" : "s")")
                                             .font(.caption)
-                                            .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                                            .dsSecondaryText(font: .caption)
                                     }
                                     if !candidate.skillNames.isEmpty {
                                         Text(candidate.skillNames.joined(separator: ", "))
                                             .font(.caption2)
-                                            .foregroundStyle(DesignSystem.Colors.Text.tertiary)
+                                            .dsTertiaryText(font: .caption2)
                                             .lineLimit(1)
                                             .padding(.leading, 20)
                                     }
                                 }
                             }
                         }
-                        .buttonStyle(.plain)
+                        .dsLinkButton()
                     }
                 }
             }
@@ -65,7 +65,7 @@ struct DirectoryPickerSheet: View {
                 Button(NSLocalizedString("Cancel", comment: "Cancel")) {
                     isPresented = false
                 }
-                .buttonStyle(.plain)
+                .dsLinkButton()
 
                 Spacer(minLength: 0)
 
@@ -73,7 +73,7 @@ struct DirectoryPickerSheet: View {
                     onConfirm()
                     isPresented = false
                 }
-                .buttonStyle(.borderedProminent)
+                .dsPrimaryButton()
                 .disabled(selectedIndices.isEmpty)
             }
             .padding(.horizontal, SheetLayout.footerHorizontalPadding)

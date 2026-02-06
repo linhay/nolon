@@ -3,7 +3,8 @@ import Foundation
 // MARK: - Repository Protocol
 
 /// Protocol for remote resource repositories
-public protocol RemoteResourceRepository: Sendable {
+@preconcurrency
+public protocol RemoteResourceRepository: Actor {
     /// Unique identifier for this repository
     var id: String { get }
     

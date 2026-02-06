@@ -3,27 +3,27 @@ import STFilePath
 
 /// Central manager for .nolon directory structure
 public final class NolonManager: Sendable {
-    public static let shared = NolonManager()
+    public nonisolated static let shared = NolonManager()
     
     // MARK: - Paths
-    public let rootURL: URL
-    public let skillsURL: URL
-    public let generatedWorkflowsURL: URL
-    public let userWorkflowsURL: URL
-    public let repositoriesURL: URL
-    public let providersConfigURL: URL
-    public let mcpsURL: URL
-    public let mcpsWorkflowsURL: URL
+    public nonisolated let rootURL: URL
+    public nonisolated let skillsURL: URL
+    public nonisolated let generatedWorkflowsURL: URL
+    public nonisolated let userWorkflowsURL: URL
+    public nonisolated let repositoriesURL: URL
+    public nonisolated let providersConfigURL: URL
+    public nonisolated let mcpsURL: URL
+    public nonisolated let mcpsWorkflowsURL: URL
     
     // MARK: - Path Strings
-    public var rootPath: String { rootURL.path }
-    public var skillsPath: String { skillsURL.path }
-    public var generatedWorkflowsPath: String { generatedWorkflowsURL.path }
-    public var userWorkflowsPath: String { userWorkflowsURL.path }
-    public var repositoriesPath: String { repositoriesURL.path }
-    public var providersConfigPath: String { providersConfigURL.path }
-    public var mcpsPath: String { mcpsURL.path }
-    public var mcpsWorkflowsPath: String { mcpsWorkflowsURL.path }
+    public nonisolated var rootPath: String { rootURL.path }
+    public nonisolated var skillsPath: String { skillsURL.path }
+    public nonisolated var generatedWorkflowsPath: String { generatedWorkflowsURL.path }
+    public nonisolated var userWorkflowsPath: String { userWorkflowsURL.path }
+    public nonisolated var repositoriesPath: String { repositoriesURL.path }
+    public nonisolated var providersConfigPath: String { providersConfigURL.path }
+    public nonisolated var mcpsPath: String { mcpsURL.path }
+    public nonisolated var mcpsWorkflowsPath: String { mcpsWorkflowsURL.path }
     
     public init(rootURL: URL? = nil) {
         let rootFolder: STFolder

@@ -25,6 +25,7 @@ public struct SkillDetailContentView: View {
                         NSLocalizedString(
                             "detail.no_selection_desc",
                             comment: "Select a skill to view its details"))
+                        .dsSecondaryText(font: .body)
                 )
             }
         }
@@ -40,13 +41,12 @@ struct MetadataItem: View {
     var body: some View {
         HStack(spacing: 8) {
             Image(systemName: icon)
-                .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                .dsSecondaryText(font: .caption)
                 .frame(width: 20)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                    .font(.caption)
-                    .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                    .dsSecondaryText(font: .caption)
 
                 Text(value)
                     .font(.callout)
@@ -55,8 +55,10 @@ struct MetadataItem: View {
             Spacer()
         }
         .padding(8)
-        .background(DesignSystem.Colors.Component.controlFillSubtle)
-        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusM, style: .continuous))
+        .dsCard(
+            background: DesignSystem.Colors.Component.controlFillSubtle,
+            cornerRadius: DesignSystem.Metrics.cornerRadiusM
+        )
     }
 }
 

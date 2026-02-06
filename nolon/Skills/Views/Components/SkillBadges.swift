@@ -5,36 +5,39 @@ struct SkillVersionBadge: View {
 
     var body: some View {
         Text("v\(version)")
-            .font(.caption2)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(DesignSystem.Colors.Component.controlFillSubtle)
-            .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusXS, style: .continuous))
-            .foregroundStyle(DesignSystem.Colors.Text.primary)
+            .dsBadge(
+                foreground: DesignSystem.Colors.Text.primary,
+                background: DesignSystem.Colors.Component.controlFillSubtle,
+                horizontalPadding: 6,
+                verticalPadding: 2,
+                cornerRadius: DesignSystem.Metrics.cornerRadiusXS
+            )
     }
 }
 
 struct SkillInstalledBadge: View {
     var body: some View {
         Text("Installed")
-            .font(.caption2)
-            .foregroundStyle(DesignSystem.Colors.Text.onAccent)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(DesignSystem.Colors.Status.success)
-            .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusXS, style: .continuous))
+            .dsBadge(
+                foreground: DesignSystem.Colors.Text.onAccent,
+                background: DesignSystem.Colors.Status.success,
+                horizontalPadding: 6,
+                verticalPadding: 2,
+                cornerRadius: DesignSystem.Metrics.cornerRadiusXS
+            )
     }
 }
 
 struct SkillOrphanedBadge: View {
     var body: some View {
         Text(NSLocalizedString("skill.orphaned", value: "Needs Migration", comment: "Orphaned skill badge"))
-            .font(.caption2)
-            .foregroundStyle(DesignSystem.Colors.Text.onAccent)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(DesignSystem.Colors.Status.warning)
-            .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusXS, style: .continuous))
+            .dsBadge(
+                foreground: DesignSystem.Colors.Text.onAccent,
+                background: DesignSystem.Colors.Status.warning,
+                horizontalPadding: 6,
+                verticalPadding: 2,
+                cornerRadius: DesignSystem.Metrics.cornerRadiusXS
+            )
     }
 }
 

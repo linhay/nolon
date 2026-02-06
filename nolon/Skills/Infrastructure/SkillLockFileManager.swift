@@ -250,7 +250,7 @@ public actor SkillLockFileManager {
     public func updateSkillHash(slug: String, hash: String?) async throws {
         var lockFile = try await readLockFile()
         
-        guard var entry = lockFile.skills[slug] else {
+        guard let entry = lockFile.skills[slug] else {
             return
         }
         

@@ -26,11 +26,12 @@ struct RemoteMCPCardView: View {
                     if let version = mcp.latestVersion {
                         Text(version.version)
                             .font(.system(size: 10, weight: .bold))
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(DesignSystem.Colors.secondary.opacity(0.15))
-                            .foregroundStyle(DesignSystem.Colors.secondary)
-                            .clipShape(Capsule())
+                            .dsBadge(
+                                foreground: DesignSystem.Colors.secondary,
+                                background: DesignSystem.Colors.secondary.opacity(0.15),
+                                horizontalPadding: 6,
+                                verticalPadding: 2
+                            )
                     }
                 }
                 
@@ -43,7 +44,7 @@ struct RemoteMCPCardView: View {
             if let summary = mcp.summary {
                 Text(summary)
                     .font(.caption)
-                    .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                    .dsSecondaryText(font: .caption)
                     .lineLimit(3)
                     .frame(maxHeight: .infinity, alignment: .topLeading)
             } else {
@@ -59,11 +60,13 @@ struct RemoteMCPCardView: View {
                         .font(.system(size: 10, design: .monospaced))
                         .lineLimit(1)
                 }
-                .foregroundStyle(DesignSystem.Colors.Text.secondary)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 3)
-                .background(DesignSystem.Colors.Component.controlFillSubtle)
-                .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusXS, style: .continuous))
+                .dsBadge(
+                    foreground: DesignSystem.Colors.Text.secondary,
+                    background: DesignSystem.Colors.Component.controlFillSubtle,
+                    horizontalPadding: 6,
+                    verticalPadding: 3,
+                    cornerRadius: DesignSystem.Metrics.cornerRadiusXS
+                )
             }
             
             // 4. Footer: Stats & Actions
@@ -72,17 +75,17 @@ struct RemoteMCPCardView: View {
                 HStack(spacing: 8) {
                     if let stars = mcp.stats?.stars {
                         Label("\(stars)", systemImage: "star.fill")
-                            .foregroundStyle(.yellow)
+                            .dsIconLabelText(foreground: DesignSystem.Colors.Status.warning, font: .caption2)
                     }
                     if let installs = mcp.stats?.installs {
                         Label("\(installs)", systemImage: "server.rack")
+                            .dsIconLabelText()
                     }
                     if let downloads = mcp.stats?.downloads {
                         Label("\(downloads)", systemImage: "arrow.down.circle")
+                            .dsIconLabelText()
                     }
                 }
-                .font(.caption2)
-                .foregroundStyle(DesignSystem.Colors.Text.secondary)
                 
                 Spacer()
                 
@@ -92,8 +95,7 @@ struct RemoteMCPCardView: View {
         }
         .padding(16)
         .frame(minHeight: 160)
-        .background(DesignSystem.Colors.Component.controlFillSubtle)
-        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusL, style: .continuous))
+        .dsCard()
         .contentShape(Rectangle())
         .shadow(color: DesignSystem.Colors.Shadow.floating.opacity(isHovered ? 0.75 : 0.25), radius: isHovered ? 8 : 4, y: isHovered ? 4 : 2)
         .scaleEffect(isHovered ? 1.02 : 1.0)
@@ -123,13 +125,11 @@ struct RemoteMCPCardView: View {
                 Image(systemName: "checkmark.circle.fill")
                 Text("Installed")
             }
-            .font(.caption2)
             .fontWeight(.semibold)
-            .foregroundStyle(DesignSystem.Colors.Status.success)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(DesignSystem.Colors.Status.success.opacity(0.10))
-            .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusS, style: .continuous))
+            .dsBadge(
+                foreground: DesignSystem.Colors.Status.success,
+                background: DesignSystem.Colors.Status.success.opacity(0.10)
+            )
         } else {
             Button {
                 handleInstall()
@@ -138,15 +138,15 @@ struct RemoteMCPCardView: View {
                     Image(systemName: "arrow.down.circle")
                     Text("Install")
                 }
-                .font(.caption2)
                 .fontWeight(.bold)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(DesignSystem.Colors.secondary.opacity(0.10))
-                .foregroundStyle(DesignSystem.Colors.secondary)
-                .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusM, style: .continuous))
+                .dsBadge(
+                    foreground: DesignSystem.Colors.secondary,
+                    background: DesignSystem.Colors.secondary.opacity(0.10),
+                    horizontalPadding: 10,
+                    verticalPadding: 6
+                )
             }
-            .buttonStyle(.plain)
+            .dsLinkButton()
         }
     }
     
@@ -156,6 +156,7 @@ struct RemoteMCPCardView: View {
             onTap()
         } label: {
             Label("View Details", systemImage: "info.circle")
+                .dsIconLabelButton()
         }
 
         if let revealURL = revealInFinderURL {
@@ -163,6 +164,7 @@ struct RemoteMCPCardView: View {
                 NSWorkspace.shared.activateFileViewerSelecting([revealURL])
             } label: {
                 Label(NSLocalizedString("action.show_in_finder", comment: "Show in Finder"), systemImage: "folder")
+                    .dsIconLabelButton()
             }
         }
 
@@ -172,6 +174,7 @@ struct RemoteMCPCardView: View {
                 handleInstall()
             } label: {
                 Label("Install", systemImage: "arrow.down.circle")
+                    .dsIconLabelButton()
             }
         }
 
@@ -183,6 +186,7 @@ struct RemoteMCPCardView: View {
                 NSPasteboard.general.setString(command, forType: .string)
             } label: {
                 Label("Copy Command", systemImage: "doc.on.doc")
+                    .dsIconLabelButton()
             }
         }
     }
@@ -192,12 +196,9 @@ struct RemoteMCPCardView: View {
             contextMenuItems
         } label: {
             Image(systemName: "ellipsis")
-                .font(.body)
-                .foregroundStyle(DesignSystem.Colors.Text.secondary)
-                .frame(width: 24, height: 24)
-                .contentShape(Rectangle())
+                .dsIconButton()
         }
-        .menuStyle(.borderlessButton)
+        .dsBorderlessMenu()
         .menuIndicator(.hidden)
         .fixedSize()
     }
@@ -270,7 +271,7 @@ private struct MCPInstallSheet: View {
                             Spacer()
                         }
                     }
-                    .buttonStyle(.plain)
+                    .dsLinkButton()
                 }
             }
             .sheetScrollContentPadding()
@@ -281,7 +282,7 @@ private struct MCPInstallSheet: View {
                 Button(NSLocalizedString("Cancel", comment: "Cancel")) {
                     dismiss()
                 }
-                .buttonStyle(.plain)
+                .dsLinkButton()
                 .keyboardShortcut(.cancelAction)
 
                 Spacer(minLength: 0)

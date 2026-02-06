@@ -230,7 +230,7 @@ private struct OnboardingPrimaryButtonStyle: ButtonStyle {
             .frame(height: 44)
             .padding(.horizontal, 18)
             .background(
-                RoundedRectangle(cornerRadius: 12)
+                RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusM)
                     .fill(isEnabled ? DesignSystem.Colors.primary : DesignSystem.Colors.Component.border.opacity(0.35))
             )
             .opacity(configuration.isPressed ? 0.9 : 1.0)
@@ -240,14 +240,14 @@ private struct OnboardingPrimaryButtonStyle: ButtonStyle {
 private struct OnboardingSecondaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .foregroundStyle(DesignSystem.Colors.Text.secondary)
+            .dsSecondaryText(font: .body)
             .frame(height: 44)
             .padding(.horizontal, 18)
             .background(
-                RoundedRectangle(cornerRadius: 12)
+                RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusM)
                     .fill(DesignSystem.Colors.Background.elevated.opacity(0.55))
                     .overlay(
-                        RoundedRectangle(cornerRadius: 12)
+                        RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusM)
                             .stroke(DesignSystem.Colors.Component.border.opacity(0.20), lineWidth: 1)
                     )
             )
