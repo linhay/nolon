@@ -1,5 +1,5 @@
 {
-  "originHash" : "36b5bc7e3a42de9794b66747cf55d51c29833d585081d8cb9dbce835dbab766e",
+  "originHash" : "5546f5e89c4621560838b134ebba0350c434d7edf4c1300b166675a00461b219",
   "pins" : [
     {
       "identity" : "grdb.swift",
@@ -29,6 +29,24 @@
       }
     },
     {
+      "identity" : "stfilepath",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/linhay/STFilePath.git",
+      "state" : {
+        "revision" : "c1208b16456330b548ee8579ef3d53aa1e1a8fc1",
+        "version" : "1.3.3"
+      }
+    },
+    {
+      "identity" : "stjson",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/linhay/STJSON",
+      "state" : {
+        "revision" : "fee967f4641b6fc49c8847d168ba34dcf5ffd15d",
+        "version" : "1.4.4"
+      }
+    },
+    {
       "identity" : "sweetcookiekit",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/steipete/SweetCookieKit",
@@ -51,8 +69,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/linhay/swift-git",
       "state" : {
-        "revision" : "10ed0a35bc67b137fb2e11e7a80b0478a9f5656d",
-        "version" : "2.1.0"
+        "revision" : "0714bb03980e461f9f67638725d402a7ca73497c",
+        "version" : "2.1.4"
       }
     },
     {
