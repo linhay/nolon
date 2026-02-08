@@ -13,6 +13,8 @@
 		CD4538D82F3442FC0090D8F7 /* STFilePath in Frameworks */ = {isa = PBXBuildFile; productRef = CD4538D72F3442FC0090D8F7 /* STFilePath */; };
 		CD4538DA2F3448850090D8F7 /* STJSON in Frameworks */ = {isa = PBXBuildFile; productRef = CD4538D92F3448850090D8F7 /* STJSON */; };
 		CD4538DD2F3448C00090D8F7 /* STJSON in Frameworks */ = {isa = PBXBuildFile; productRef = CD4538DC2F3448C00090D8F7 /* STJSON */; };
+		CD68A7082F371C8E008772E7 /* SKProcessRunner in Frameworks */ = {isa = PBXBuildFile; productRef = CD68A7072F371C8E008772E7 /* SKProcessRunner */; };
+		CD68A7432F37AB0F008772E7 /* SwiftGitUniversal in Frameworks */ = {isa = PBXBuildFile; productRef = CD68A7422F37AB0F008772E7 /* SwiftGitUniversal */; };
 		CD702B9F2F29FBC700E22535 /* TOML in Frameworks */ = {isa = PBXBuildFile; productRef = CD702B9E2F29FBC700E22535 /* TOML */; };
 		CD8C9B6A2F7A1C3E00A1B2C3 /* ProviderUsage in Frameworks */ = {isa = PBXBuildFile; productRef = CD8C9B692F7A1C3E00A1B2C3 /* ProviderUsage */; };
 		CD8C9B6C2F7A1C3E00A1B2C3 /* CodexBarProviderCatalog in Frameworks */ = {isa = PBXBuildFile; productRef = CD8C9B6B2F7A1C3E00A1B2C3 /* CodexBarProviderCatalog */; };
@@ -79,6 +81,7 @@
 				CD8C9B6C2F7A1C3E00A1B2C3 /* CodexBarProviderCatalog in Frameworks */,
 				CD4538D82F3442FC0090D8F7 /* STFilePath in Frameworks */,
 				CDFA67412F3599FB0053E30A /* STFilePath in Frameworks */,
+				CD68A7082F371C8E008772E7 /* SKProcessRunner in Frameworks */,
 				CD4538DA2F3448850090D8F7 /* STJSON in Frameworks */,
 				CD8C9B6A2F7A1C3E00A1B2C3 /* ProviderUsage in Frameworks */,
 				CD8D47612F2E606000428E7B /* GRDB in Frameworks */,
@@ -88,6 +91,7 @@
 				CD702B9F2F29FBC700E22535 /* TOML in Frameworks */,
 				CD9EE2702F2677A0009248CB /* Yams in Frameworks */,
 				CD447BF62F1F79890056366B /* Sparkle in Frameworks */,
+				CD68A7432F37AB0F008772E7 /* SwiftGitUniversal in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -106,6 +110,7 @@
 			children = (
 				CD2B1A942F1F624900DF4A2B /* nolon */,
 				CD9EDF3D2F24F31E009248CB /* nolonTests */,
+				CD68A73F2F37AA4E008772E7 /* Frameworks */,
 				CD2B1A932F1F624900DF4A2B /* Products */,
 			);
 			sourceTree = "<group>";
@@ -117,6 +122,13 @@
 				CD9EDF3C2F24F31E009248CB /* nolonTests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		CD68A73F2F37AA4E008772E7 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -154,6 +166,8 @@
 				CD4538DC2F3448C00090D8F7 /* STJSON */,
 				CDFA67402F3599FB0053E30A /* STFilePath */,
 				CDFA67432F359A110053E30A /* STJSON */,
+				CD68A7072F371C8E008772E7 /* SKProcessRunner */,
+				CD68A7422F37AB0F008772E7 /* SwiftGitUniversal */,
 			);
 			productName = nolon;
 			productReference = CD2B1A922F1F624900DF4A2B /* nolon.app */;
@@ -221,6 +235,7 @@
 				CD8D475F2F2E606000428E7B /* XCRemoteSwiftPackageReference "GRDB.swift" */,
 				CDFA673F2F3599FB0053E30A /* XCRemoteSwiftPackageReference "STFilePath" */,
 				CDFA67422F359A110053E30A /* XCRemoteSwiftPackageReference "STJSON" */,
+				CD68A7062F371C8E008772E7 /* XCRemoteSwiftPackageReference "SKProcessRunner" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = CD2B1A932F1F624900DF4A2B /* Products */;
@@ -574,12 +589,20 @@
 				kind = branch;
 			};
 		};
+		CD68A7062F371C8E008772E7 /* XCRemoteSwiftPackageReference "SKProcessRunner" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/linhay/SKProcessRunner";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.0.5;
+			};
+		};
 		CD702B9D2F29FBC700E22535 /* XCRemoteSwiftPackageReference "swift-toml" */ = {
 			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/alexey1312/swift-toml.git";
+			repositoryURL = "https://github.com/mattt/swift-toml";
 			requirement = {
-				branch = "feat/pure-c-bridge-v2";
-				kind = branch;
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.0.0;
 			};
 		};
 		CD8D475F2F2E606000428E7B /* XCRemoteSwiftPackageReference "GRDB.swift" */ = {
@@ -595,7 +618,7 @@
 			repositoryURL = "https://github.com/linhay/swift-git";
 			requirement = {
 				kind = upToNextMajorVersion;
-				minimumVersion = 2.1.0;
+				minimumVersion = 2.2.0;
 			};
 		};
 		CD9EE26E2F2677A0009248CB /* XCRemoteSwiftPackageReference "Yams" */ = {
@@ -651,6 +674,16 @@
 		CD4538DC2F3448C00090D8F7 /* STJSON */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = STJSON;
+		};
+		CD68A7072F371C8E008772E7 /* SKProcessRunner */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = CD68A7062F371C8E008772E7 /* XCRemoteSwiftPackageReference "SKProcessRunner" */;
+			productName = SKProcessRunner;
+		};
+		CD68A7422F37AB0F008772E7 /* SwiftGitUniversal */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = CD9EDAC32F2320BC009248CB /* XCRemoteSwiftPackageReference "swift-git" */;
+			productName = SwiftGitUniversal;
 		};
 		CD702B9E2F29FBC700E22535 /* TOML */ = {
 			isa = XCSwiftPackageProductDependency;
