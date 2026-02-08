@@ -44,9 +44,22 @@ sign_app() {
         echo -e "${YELLOW}⚠️  SIGNING_IDENTITY not set, skipping code signing${NC}"
         return 0
     fi
+
+    # Sign embedded git binaries that live under Resources and are not always covered by --deep.
+    local git_bundle_path="${app_path}/Contents/Resources/SwiftGit_SwiftGitResourcesUniversal.bundle/Contents/Resources/git-instance.bundle"
+    if [ -d "$git_bundle_path" ]; then
+        echo -e "${YELLOW}🔐 Signing embedded git binaries...${NC}"
+        while IFS= read -r -d '' file_path; do
+            if file "$file_path" | grep -q "Mach-O"; then
+                codesign --force --options runtime --timestamp \
+                    --sign "$SIGNING_IDENTITY" \
+                    "$file_path"
+            fi
+        done < <(find "$git_bundle_path" -type f -print0)
+    fi
     
     echo -e "${YELLOW}🔏 Signing app with: ${SIGNING_IDENTITY}${NC}"
-    codesign --force --deep --options runtime \
+    codesign --force --deep --options runtime --timestamp \
         --sign "$SIGNING_IDENTITY" \
         "$app_path"
     
