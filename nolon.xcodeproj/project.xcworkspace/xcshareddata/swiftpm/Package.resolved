@@ -1,5 +1,5 @@
 {
-  "originHash" : "5546f5e89c4621560838b134ebba0350c434d7edf4c1300b166675a00461b219",
+  "originHash" : "4985ba5a9275e14ac47eaaab4551394faea15ce5c9ffd9caf34551cfe9caa360",
   "pins" : [
     {
       "identity" : "grdb.swift",
@@ -20,6 +20,15 @@
       }
     },
     {
+      "identity" : "skprocessrunner",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/linhay/SKProcessRunner",
+      "state" : {
+        "revision" : "d0d2d59dec2c806b1c91d48bcc679b0af29e974d",
+        "version" : "0.0.5"
+      }
+    },
+    {
       "identity" : "sparkle",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/sparkle-project/Sparkle.git",
@@ -33,8 +42,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/linhay/STFilePath.git",
       "state" : {
-        "revision" : "c1208b16456330b548ee8579ef3d53aa1e1a8fc1",
-        "version" : "1.3.3"
+        "revision" : "3bbcb9ec909e787b473310f17257d1378e1f5b17",
+        "version" : "1.3.4"
       }
     },
     {
@@ -69,8 +78,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/linhay/swift-git",
       "state" : {
-        "revision" : "0714bb03980e461f9f67638725d402a7ca73497c",
-        "version" : "2.1.4"
+        "revision" : "eea4abadef299579b5543fcd3da4ec289d07df80",
+        "version" : "2.2.1"
       }
     },
     {
@@ -85,10 +94,10 @@
     {
       "identity" : "swift-toml",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/alexey1312/swift-toml.git",
+      "location" : "https://github.com/mattt/swift-toml",
       "state" : {
-        "branch" : "feat/pure-c-bridge-v2",
-        "revision" : "6629ace8131fc81a32cf001fa4b05ebde4cc33ce"
+        "revision" : "827506c90475e82d5a7f191f950fb3025cbdc0d6",
+        "version" : "2.0.0"
       }
     },
     {
