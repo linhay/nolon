@@ -131,6 +131,7 @@ struct RemoteSkillsBrowserView: View {
     }
     
     var body: some View {
+        let isClawdhub = viewModel.selectedRepository?.templateType == .clawdhub
         VStack(spacing: 0) {
             SheetHeaderView(title: NSLocalizedString("remote.browser.title", value: "Remote Skills", comment: "Remote skills browser")) {
                 HStack(spacing: 12) {
@@ -155,62 +156,122 @@ struct RemoteSkillsBrowserView: View {
 
             SheetDivider()
 
-            NavigationSplitView(columnVisibility: $viewModel.columnVisibility) {
-                // Column 1: Repository sidebar
-                RemoteRepositorySidebarView(
-                    selectedRepository: $viewModel.selectedRepository,
-                    settings: settings
-                )
-                .navigationSplitViewColumnWidth(min: 160, ideal: 180, max: 220)
-            } content: {
-                // Column 2: Tab navigation (类似 ProviderContentTabView)
-                RemoteContentTabView(
-                    repository: viewModel.selectedRepository,
-                    selectedTab: $viewModel.selectedTab,
-                    refreshTrigger: viewModel.refreshTrigger
-                )
-            } detail: {
-                // Column 3: Grid view
-                RemoteSkillsGridView(
-                    repository: viewModel.selectedRepository,
-                    selectedTab: viewModel.selectedTab,
-                    searchText: $viewModel.searchText,
-                    installedSlugs: viewModel.installedSlugs,
-                    installedWorkflowSlugs: viewModel.installedWorkflowSlugs,
-                    providers: settings.providers,
-                    refreshTrigger: viewModel.refreshTrigger,
-                    targetProvider: targetProvider,
-                    onInstall: { skill, provider in
-                        onInstall(skill, provider)
-                        // Refresh after install attempt
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                            viewModel.refreshInstalledSkills(repository: repository, targetProvider: targetProvider, settings: settings)
-                            viewModel.refreshTrigger += 1
+            if isClawdhub {
+                NavigationSplitView {
+                    // Column 1: Repository sidebar
+                    RemoteRepositorySidebarView(
+                        selectedRepository: $viewModel.selectedRepository,
+                        settings: settings
+                    )
+                    .navigationSplitViewColumnWidth(min: 160, ideal: 180, max: 220)
+                } detail: {
+                    // Column 2: Grid view (Clawdhub only)
+                    RemoteSkillsGridView(
+                        repository: viewModel.selectedRepository,
+                        selectedTab: .skills,
+                        searchText: $viewModel.searchText,
+                        installedSlugs: viewModel.installedSlugs,
+                        installedWorkflowSlugs: viewModel.installedWorkflowSlugs,
+                        providers: settings.providers,
+                        refreshTrigger: viewModel.refreshTrigger,
+                        targetProvider: targetProvider,
+                        onInstall: { skill, provider in
+                            onInstall(skill, provider)
+                            // Refresh after install attempt
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                                viewModel.refreshInstalledSkills(repository: repository, targetProvider: targetProvider, settings: settings)
+                                viewModel.refreshTrigger += 1
+                            }
+                        },
+                        onInstallWorkflow: { workflow, provider in
+                            onInstallWorkflow?(workflow, provider)
+                            // Refresh after install attempt
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                                viewModel.refreshInstalledWorkflows(targetProvider: targetProvider)
+                                viewModel.refreshTrigger += 1
+                            }
+                        },
+                        onInstallMCP: { mcp, provider in
+                            onInstallMCP?(mcp, provider)
+                            // Refresh after install attempt
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                                viewModel.refreshTrigger += 1
+                            }
                         }
-                    },
-                    onInstallWorkflow: { workflow, provider in
-                        onInstallWorkflow?(workflow, provider)
-                        // Refresh after install attempt
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                            viewModel.refreshInstalledWorkflows(targetProvider: targetProvider)
-                            viewModel.refreshTrigger += 1
+                    )
+                }
+                .navigationSplitViewStyle(.balanced)
+            } else {
+                NavigationSplitView(columnVisibility: $viewModel.columnVisibility) {
+                    // Column 1: Repository sidebar
+                    RemoteRepositorySidebarView(
+                        selectedRepository: $viewModel.selectedRepository,
+                        settings: settings
+                    )
+                    .navigationSplitViewColumnWidth(min: 160, ideal: 180, max: 220)
+                } content: {
+                    // Column 2: Tab navigation (类似 ProviderContentTabView)
+                    RemoteContentTabView(
+                        repository: viewModel.selectedRepository,
+                        selectedTab: $viewModel.selectedTab,
+                        refreshTrigger: viewModel.refreshTrigger
+                    )
+                } detail: {
+                    // Column 3: Grid view
+                    RemoteSkillsGridView(
+                        repository: viewModel.selectedRepository,
+                        selectedTab: viewModel.selectedTab,
+                        searchText: $viewModel.searchText,
+                        installedSlugs: viewModel.installedSlugs,
+                        installedWorkflowSlugs: viewModel.installedWorkflowSlugs,
+                        providers: settings.providers,
+                        refreshTrigger: viewModel.refreshTrigger,
+                        targetProvider: targetProvider,
+                        onInstall: { skill, provider in
+                            onInstall(skill, provider)
+                            // Refresh after install attempt
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                                viewModel.refreshInstalledSkills(repository: repository, targetProvider: targetProvider, settings: settings)
+                                viewModel.refreshTrigger += 1
+                            }
+                        },
+                        onInstallWorkflow: { workflow, provider in
+                            onInstallWorkflow?(workflow, provider)
+                            // Refresh after install attempt
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                                viewModel.refreshInstalledWorkflows(targetProvider: targetProvider)
+                                viewModel.refreshTrigger += 1
+                            }
+                        },
+                        onInstallMCP: { mcp, provider in
+                            onInstallMCP?(mcp, provider)
+                            // Refresh after install attempt
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                                viewModel.refreshTrigger += 1
+                            }
                         }
-                    },
-                    onInstallMCP: { mcp, provider in
-                        onInstallMCP?(mcp, provider)
-                        // Refresh after install attempt
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                            viewModel.refreshTrigger += 1
-                        }
-                    }
-                )
+                    )
+                }
+                .navigationSplitViewStyle(.balanced)
             }
-            .navigationSplitViewStyle(.balanced)
         }
         .onAppear {
             refreshData()
+            if viewModel.selectedRepository?.templateType == .clawdhub {
+                viewModel.selectedTab = .skills
+            }
         }
-        .frame(minHeight: 700, maxHeight: .infinity)
+        .onChange(of: viewModel.selectedRepository) { _, repository in
+            if repository?.templateType == .clawdhub {
+                viewModel.selectedTab = .skills
+            } else {
+                if viewModel.selectedTab == nil {
+                    viewModel.selectedTab = .skills
+                }
+            }
+        }
+        .frame(minWidth: 980, idealWidth: 1100, maxWidth: .infinity,
+               minHeight: 700, idealHeight: 760, maxHeight: .infinity)
     }
     
     #Preview {

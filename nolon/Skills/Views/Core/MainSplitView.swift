@@ -1,6 +1,7 @@
 import SwiftUI
 import ProviderCatalog
 import Combine
+import OSLog
 
 /// Main three-column split view for the app
 /// Left 1: Provider sidebar (collapsible)
@@ -9,6 +10,8 @@ import Combine
 @MainActor
 @Observable
 final class MainSplitViewModel {
+    fileprivate static let logger = Logger(subsystem: "com.nolon", category: "MainSplitView")
+
     var settings = ProviderSettings.shared
     var repository = SkillRepository()
     private(set) var installer: SkillInstaller?
@@ -33,6 +36,10 @@ final class MainSplitViewModel {
             self?.refreshTrigger += 1
         }
         updateResourceMonitoring()
+        Task {
+            _ = try? await CodexBinaryManager.shared.discoverXcodeAgentVersions()
+            _ = await CodexBinaryManager.shared.checkForRustReleaseUpdateIfNeeded(force: false)
+        }
     }
 
     @MainActor
@@ -51,9 +58,9 @@ final class MainSplitViewModel {
         do {
             if let localPath = skill.localPath {
                 // Install from local path (GitHub or Local Folder)
-                print("Installing from local path: \(localPath)")
+                Self.logger.info("Installing skill from local path: \(localPath, privacy: .public)")
                 try installer.installLocal(from: localPath, slug: skill.slug, to: provider)
-                print("Successfully installed \(skill.slug) from \(localPath)")
+                Self.logger.info("Installed skill \(skill.slug, privacy: .public) from local path")
             } else {
                 let clawdhubRepo = ClawdhubRepository(
                     repository: settings.remoteRepositories.first { $0.templateType == .clawdhub }
@@ -65,13 +72,13 @@ final class MainSplitViewModel {
                     version: skill.latestVersion?.version
                 )
                 try installer.installRemote(zipURL: zipURL, slug: skill.slug, to: provider)
-                print("Successfully installed \(skill.slug) from Clawdhub to \(provider.name)")
+                Self.logger.info("Installed skill \(skill.slug, privacy: .public) from Clawdhub to \(provider.name, privacy: .public)")
             }
 
             // Trigger refresh immediately after install
             refreshTrigger += 1
         } catch {
-            print("Failed to install remote skill: \(error)")
+            Self.logger.error("Failed to install remote skill: \(String(describing: error), privacy: .public)")
             // Ideally show an alert here
         }
     }
@@ -83,13 +90,13 @@ final class MainSplitViewModel {
 
             if let localPath = workflow.localPath {
                 guard let installer else { return }
-                print("Installing workflow from local path: \(localPath)")
+                Self.logger.info("Installing workflow from local path: \(localPath, privacy: .public)")
                 try installer.installLocalWorkflow(
                     fileURL: URL(fileURLWithPath: localPath),
                     slug: workflow.slug,
                     to: provider
                 )
-                print("Successfully installed workflow \(workflow.slug) from local path")
+                Self.logger.info("Installed workflow \(workflow.slug, privacy: .public) from local path")
             } else {
                 // Download from remote repository and install
                 let clawdhubRepo = ClawdhubRepository(
@@ -103,13 +110,13 @@ final class MainSplitViewModel {
                     resourceType: .workflow,
                     to: provider
                 )
-                print("Successfully installed workflow \(workflow.slug) to \(provider.name)")
+                Self.logger.info("Installed workflow \(workflow.slug, privacy: .public) to \(provider.name, privacy: .public)")
             }
             
             // Trigger refresh immediately after install
             refreshTrigger += 1
         } catch {
-            print("Failed to install workflow: \(error)")
+            Self.logger.error("Failed to install workflow: \(String(describing: error), privacy: .public)")
             // Ideally show an alert here
         }
     }
@@ -121,14 +128,14 @@ final class MainSplitViewModel {
             
             if let localPath = mcp.localPath {
                 // Install from local path (GitHub or Local Folder)
-                print("Installing MCP from local path: \(localPath)")
+                Self.logger.info("Installing MCP from local path: \(localPath, privacy: .public)")
                 try await resourceInstaller.installFromLocal(
                     resourceURL: URL(fileURLWithPath: localPath),
                     resourceSlug: mcp.slug,
                     resourceType: .mcp,
                     to: provider
                 )
-                print("Successfully installed MCP \(mcp.slug) from local path")
+                Self.logger.info("Installed MCP \(mcp.slug, privacy: .public) from local path")
             } else {
                 // Download from remote repository and install
                 let clawdhubRepo = ClawdhubRepository(
@@ -142,13 +149,13 @@ final class MainSplitViewModel {
                     resourceType: .mcp,
                     to: provider
                 )
-                print("Successfully installed MCP \(mcp.slug) to \(provider.name)")
+                Self.logger.info("Installed MCP \(mcp.slug, privacy: .public) to \(provider.name, privacy: .public)")
             }
             
             // Trigger refresh immediately after install
             refreshTrigger += 1
         } catch {
-            print("Failed to install MCP: \(error)")
+            Self.logger.error("Failed to install MCP: \(String(describing: error), privacy: .public)")
             // Ideally show an alert here
         }
     }
@@ -238,7 +245,8 @@ public struct MainSplitView: View {
                     }
                 }
             )
-            .frame(minHeight: 700, maxHeight: .infinity)
+            .frame(minWidth: 980, idealWidth: 1100, maxWidth: .infinity,
+                   minHeight: 700, idealHeight: 760, maxHeight: .infinity)
         }
         .onChange(of: viewModel.showingClawdhub) { _, isShowing in
             // Refresh skills list when Clawdhub sheet is dismissed
@@ -248,15 +256,15 @@ public struct MainSplitView: View {
         }
         .onReceive(URLSchemeHandler.shared.$pendingURL) { pendingURL in
             guard let url = pendingURL else { return }
-            print("[MainSplitView] Received URL from URLSchemeHandler: \(url.absoluteString)")
+            MainSplitViewModel.logger.info("Received URL from URLSchemeHandler: \(url.absoluteString, privacy: .public)")
             
             // URLSchemeHandler already converted nln:// or nolon:// to https://
             let urlString = url.absoluteString
-            print("[MainSplitView] Setting pendingImportURL to: \(urlString)")
+            MainSplitViewModel.logger.info("Setting pendingImportURL to: \(urlString, privacy: .public)")
             viewModel.settings.pendingImportURL = urlString
-            print("[MainSplitView] pendingImportURL after set: \(viewModel.settings.pendingImportURL ?? "nil")")
+            MainSplitViewModel.logger.info("pendingImportURL after set: \(viewModel.settings.pendingImportURL ?? "nil", privacy: .public)")
             
-            print("[MainSplitView] Opening RemoteSkillsBrowserView sheet")
+            MainSplitViewModel.logger.info("Opening RemoteSkillsBrowserView sheet")
             viewModel.showingClawdhub = true
             
             // Clear the pending URL after consuming
