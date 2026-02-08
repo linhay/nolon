@@ -38,6 +38,20 @@ public struct CodexHelper: Sendable {
         }
     }
 
+    public struct ModelListSnapshot: Sendable, Equatable {
+        public let fetchedAt: Date
+        public let etag: String?
+        public let clientVersion: String?
+        public let models: [CodexModelsCache.Model]
+
+        public init(fetchedAt: Date, etag: String?, clientVersion: String?, models: [CodexModelsCache.Model]) {
+            self.fetchedAt = fetchedAt
+            self.etag = etag
+            self.clientVersion = clientVersion
+            self.models = models
+        }
+    }
+
     private let codexBinary: String?
     private let environment: [String: String]
     private let fetcher: CodexCreditsFetcher
@@ -103,5 +117,37 @@ public struct CodexHelper: Sendable {
         }
 
         return info
+    }
+
+    public func loadModelsCache() throws -> ModelListSnapshot {
+        let cacheURL = self.modelsCacheFileURL()
+        let cache = try CodexModelsCache.load(from: cacheURL)
+        return ModelListSnapshot(
+            fetchedAt: cache.fetchedAt,
+            etag: cache.etag,
+            clientVersion: cache.clientVersion,
+            models: cache.models
+        )
+    }
+
+    public func loadVisibleModelsFromCache() throws -> [CodexModelsCache.Model] {
+        let cache = try self.loadModelsCache()
+        return cache.models.filter { model in
+            let visibility = model.visibility?.lowercased()
+            return visibility == nil || visibility == "list"
+        }
+    }
+
+    private func modelsCacheFileURL() -> URL {
+        if let override = self.environment["CODEX_HOME"]?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !override.isEmpty
+        {
+            return URL(fileURLWithPath: override, isDirectory: true)
+                .appendingPathComponent("models_cache.json", isDirectory: false)
+        }
+
+        return FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".codex", isDirectory: true)
+            .appendingPathComponent("models_cache.json", isDirectory: false)
     }
 }

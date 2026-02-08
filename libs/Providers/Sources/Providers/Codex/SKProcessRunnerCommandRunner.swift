@@ -12,43 +12,27 @@ public struct SKProcessRunnerCommandRunner: CodexCLICommandRunning {
         options: TTYCommandRunner.Options
     ) async throws -> TTYCommandRunner.Result {
         let env = Self.mergedEnvironment(options: options)
+        let payload = SKProcessPayload(
+            executable: .path(binary),
+            arguments: options.extraArgs,
+            stdinData: send.isEmpty ? nil : Data(send.utf8),
+            cwd: options.workingDirectory,
+            environment: SKProcessEnvironment(env),
+            timeoutMs: Int(max(1.0, options.timeout) * 1000.0),
+            throwOnNonZeroExit: false
+        )
 
-        let exeURL: URL
         do {
-            exeURL = try SKProcessRunner.resolveExecutable(binary, environment: env)
-        } catch let error as SKProcessRunner.RunError {
+            let result = try await SKProcessRunner.run(payload)
+
+            let text = Self.combine(stdout: result.stdout, stderr: result.stderr)
+            return TTYCommandRunner.Result(text: text)
+        } catch let error as SKProcessRunError {
             switch error {
             case let .executableNotFound(name):
                 throw TTYCommandRunner.Error.binaryNotFound(name)
             case let .invalidExecutable(value):
                 throw TTYCommandRunner.Error.launchFailed("Invalid executable: \(value)")
-            default:
-                throw TTYCommandRunner.Error.launchFailed(error.localizedDescription)
-            }
-        } catch {
-            throw TTYCommandRunner.Error.launchFailed(error.localizedDescription)
-        }
-
-        var config = SKProcessRunner.Configuration()
-        config.cwd = options.workingDirectory
-        config.environment = env
-        config.timeoutMs = Int(max(1.0, options.timeout) * 1000.0)
-
-        do {
-            let result = try await SKProcessRunner.run(
-                executableURL: exeURL,
-                arguments: options.extraArgs,
-                stdinData: send.isEmpty ? nil : Data(send.utf8),
-                configuration: config,
-                onStdout: nil,
-                onStderr: nil,
-                throwOnNonZeroExit: false
-            )
-
-            let text = Self.combine(stdout: result.stdout, stderr: result.stderr)
-            return TTYCommandRunner.Result(text: text)
-        } catch let error as SKProcessRunner.RunError {
-            switch error {
             case let .timedOut(_, stdoutData, stderrData, truncated: _):
                 let stdout = String(data: stdoutData, encoding: .utf8) ?? ""
                 let stderr = String(data: stderrData, encoding: .utf8) ?? ""
