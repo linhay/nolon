@@ -1,5 +1,5 @@
 {
-  "originHash" : "4985ba5a9275e14ac47eaaab4551394faea15ce5c9ffd9caf34551cfe9caa360",
+  "originHash" : "ec470b945cff06432fddf8bf1c3aaf8e6ab6c5ed144c62d548dd76bf8fdb198a",
   "pins" : [
     {
       "identity" : "grdb.swift",
@@ -24,8 +24,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/linhay/SKProcessRunner",
       "state" : {
-        "revision" : "d0d2d59dec2c806b1c91d48bcc679b0af29e974d",
-        "version" : "0.0.5"
+        "revision" : "f432e9223555a3c945661669e8c81aa07a554dfa",
+        "version" : "0.0.11"
       }
     },
     {
@@ -34,7 +34,7 @@
       "location" : "https://github.com/sparkle-project/Sparkle.git",
       "state" : {
         "branch" : "2.x",
-        "revision" : "90eff791ec690324b5f227b8d4fa09da8d890e07"
+        "revision" : "afea2cda87819c960114f26e26f369a1a0945b17"
       }
     },
     {
@@ -105,8 +105,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/jpsim/Yams",
       "state" : {
-        "revision" : "51b5127c7fb6ffac106ad6d199aaa33c5024895f",
-        "version" : "6.2.0"
+        "revision" : "deaf82e867fa2cbd3cd865978b079bfcf384ac28",
+        "version" : "6.2.1"
       }
     }
   ],

@@ -1,6 +1,15 @@
 {
-  "originHash" : "3167a1dd2bc0fc6d4a9d90ff75b28ae0b495f8459a6fd410f8d796c9746ba77c",
+  "originHash" : "5e1e9b7b5933896d1b39e9cbefbcb0a4b93b2a86b60814f5e0d3eae10b06acaa",
   "pins" : [
+    {
+      "identity" : "skprocessrunner",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/linhay/SKProcessRunner",
+      "state" : {
+        "revision" : "f432e9223555a3c945661669e8c81aa07a554dfa",
+        "version" : "0.0.11"
+      }
+    },
     {
       "identity" : "sweetcookiekit",
       "kind" : "remoteSourceControl",

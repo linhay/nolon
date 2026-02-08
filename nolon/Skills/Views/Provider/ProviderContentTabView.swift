@@ -144,7 +144,6 @@ enum ProviderContentTabType: String, CaseIterable, Identifiable {
     case binary = "Binary"
     case accounts = "Accounts"
     case usage = "Usage"
-    case binary = "Binary"
     
     var id: String { rawValue }
     
@@ -156,7 +155,6 @@ enum ProviderContentTabType: String, CaseIterable, Identifiable {
         case .binary: return "terminal"
         case .accounts: return "person.2"
         case .usage: return "chart.bar.xaxis"
-        case .binary: return "shippingbox"
         }
     }
     
@@ -168,7 +166,6 @@ enum ProviderContentTabType: String, CaseIterable, Identifiable {
         case .binary: return NSLocalizedString("tab.binary", value: "Binary", comment: "Binary")
         case .accounts: return NSLocalizedString("tab.accounts", value: "Accounts", comment: "Accounts")
         case .usage: return NSLocalizedString("tab.usage", value: "Usage", comment: "Usage")
-        case .binary: return NSLocalizedString("tab.binary", value: "Binary", comment: "Binary")
         }
     }
 
@@ -240,7 +237,6 @@ final class ProviderContentTabViewModel {
         case .binary: return 0
         case .accounts: return 0
         case .usage: return 0
-        case .binary: return 0
         }
     }
     

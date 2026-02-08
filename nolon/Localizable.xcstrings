@@ -390,7 +390,7 @@
       }
     },
     "action.save" : {
-      "comment" : "Save",
+      "comment" : "Save\nSave action",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
@@ -5096,6 +5096,78 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Provider"
+          }
+        }
+      }
+    },
+    "provider.binary.codex.desc" : {
+      "comment" : "Codex binary model picker description",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Choose the default model used by this Codex provider."
+          }
+        }
+      }
+    },
+    "provider.binary.codex.model" : {
+      "comment" : "Codex model picker label",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Model"
+          }
+        }
+      }
+    },
+    "provider.binary.codex.model.default" : {
+      "comment" : "Default model option",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Follow CLI default"
+          }
+        }
+      }
+    },
+    "provider.binary.codex.model.empty" : {
+      "comment" : "No cached model list",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "No model list found in models_cache.json. Run Codex CLI once to refresh cache."
+          }
+        }
+      }
+    },
+    "provider.binary.codex.model.saved" : {
+      "comment" : "Codex model saved status",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Model preference saved."
+          }
+        }
+      }
+    },
+    "provider.binary.codex.title" : {
+      "comment" : "Codex binary title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Codex Binary"
           }
         }
       }
