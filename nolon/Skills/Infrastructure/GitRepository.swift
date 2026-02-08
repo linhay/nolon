@@ -1,5 +1,6 @@
 import Foundation
 import SwiftGit
+import SwiftGitResourcesUniversal
 import os.log
 import STFilePath
 
@@ -124,7 +125,7 @@ public actor GitRepository: RemoteResourceRepository {
         self.localClonePath = localClonePath
         self.skillsPaths = skillsPaths
         self.accessToken = accessToken
-        self.git = try Git.shared
+        self.git = try Self.makeGit()
 
         // If the repository already exists locally, initialize the scanner without pulling.
         if STPath(localClonePath).isExists {
@@ -159,7 +160,7 @@ public actor GitRepository: RemoteResourceRepository {
         // Do NOT use `effectiveSkillsPaths` here because it expands to absolute paths and breaks path joining.
         self.skillsPaths = repository.skillsPaths.isEmpty ? ["."] : repository.skillsPaths
         self.accessToken = repository.accessToken
-        self.git = try Git.shared
+        self.git = try Self.makeGit()
 
         // If the repository already exists locally, initialize the scanner without pulling.
         if STPath(localClonePath).isExists {
@@ -411,7 +412,7 @@ public actor GitRepository: RemoteResourceRepository {
         logger.info("🔧 Pulling repository updates")
         
         do {
-            let repository = git.repository(at: localClonePath)
+            let repository = Repository(git: git, path: localClonePath.path)
             logger.info("⏳ Starting git pull with ff-only...")
             try await repository.pull([.ffOnly])
             logger.info("✅ Pull completed successfully")
@@ -419,6 +420,13 @@ public actor GitRepository: RemoteResourceRepository {
             logger.error("❌ Pull failed with error: \(error.localizedDescription)")
             throw SyncError.pullFailed(error.localizedDescription)
         }
+    }
+
+    private static func makeGit() throws -> Git {
+        return try Git(environments: [
+            .init(type: .system),
+            .init(type: .embed(.universal))
+        ])
     }
     
     // MARK: - Git Utilities

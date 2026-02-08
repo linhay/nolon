@@ -581,7 +581,7 @@ final class ProviderUsageViewModel {
                 return
             }
 
-            let command = buildCodexLoginCommand()
+            let command = try await buildCodexLoginCommand()
 
             let process = Process()
             process.executableURL = URL(fileURLWithPath: "/bin/zsh")
@@ -954,6 +954,9 @@ final class ProviderUsageViewModel {
             try STFile(authURL).overlay(with: cleanData)
 
             var environment = ProcessInfo.processInfo.environment
+            if let managedEnv = try? await CodexBinaryManager.shared.launchEnvironmentVariables() {
+                environment.merge(managedEnv) { _, new in new }
+            }
             environment["CODEX_HOME"] = tempRoot.path
 
             let context = ProviderFetchContext(
@@ -986,11 +989,13 @@ final class ProviderUsageViewModel {
         return raw
     }
 
-    private func buildCodexLoginCommand() -> String {
+    private func buildCodexLoginCommand() async throws -> String {
         let skillsURL = URL(fileURLWithPath: provider.defaultSkillsPath)
         let codexHome = skillsURL.deletingLastPathComponent().path
-        let escaped = codexHome.replacingOccurrences(of: "\"", with: "\\\"")
-        return "CODEX_HOME=\"\(escaped)\" codex login"
+        return try await CodexBinaryManager.shared.cliLaunchCommand(
+            codexHomePath: codexHome,
+            arguments: ["login"]
+        )
     }
 }
 
