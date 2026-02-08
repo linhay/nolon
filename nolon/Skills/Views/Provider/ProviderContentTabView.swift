@@ -22,6 +22,7 @@ enum ProviderContentTabType: String, CaseIterable, Identifiable {
     case skills = "Skills"
     case workflows = "Workflows"
     case mcp = "MCP"
+    case binary = "Binary"
     case accounts = "Accounts"
     case usage = "Usage"
     
@@ -32,6 +33,7 @@ enum ProviderContentTabType: String, CaseIterable, Identifiable {
         case .skills: return "square.grid.2x2"
         case .workflows: return "arrow.triangle.branch"
         case .mcp: return "server.rack"
+        case .binary: return "terminal"
         case .accounts: return "person.2"
         case .usage: return "chart.bar.xaxis"
         }
@@ -42,6 +44,7 @@ enum ProviderContentTabType: String, CaseIterable, Identifiable {
         case .skills: return NSLocalizedString("tab.skills", comment: "Skills")
         case .workflows: return NSLocalizedString("tab.workflows", comment: "Workflows")
         case .mcp: return NSLocalizedString("tab.mcp", comment: "MCP Server")
+        case .binary: return NSLocalizedString("tab.binary", value: "Binary", comment: "Binary")
         case .accounts: return NSLocalizedString("tab.accounts", value: "Accounts", comment: "Accounts")
         case .usage: return NSLocalizedString("tab.usage", value: "Usage", comment: "Usage")
         }
@@ -50,6 +53,9 @@ enum ProviderContentTabType: String, CaseIterable, Identifiable {
     @MainActor
     static func availableTabs(for provider: Provider) -> [ProviderContentTabType] {
         var tabs: [ProviderContentTabType] = [.skills, .workflows, .mcp]
+        if provider.templateId == "codex" || provider.templateId == "codexXcode" {
+            tabs.append(.binary)
+        }
         guard provider.kind == .vendor else { return tabs }
 
         guard let templateId = provider.templateId,
@@ -101,6 +107,7 @@ final class ProviderContentTabViewModel {
         case .skills: return skillsCount
         case .workflows: return workflowsCount
         case .mcp: return mcpCount
+        case .binary: return 0
         case .accounts: return 0
         case .usage: return 0
         }

@@ -151,6 +151,10 @@ struct ProviderDetailGridView: View {
             ProviderWorkflowsGridView(viewModel: viewModel, columns: columns)
         case .mcp:
             mcpGrid
+        case .binary:
+            if let provider = provider {
+                ProviderCodexBinaryView(provider: provider, viewModel: viewModel)
+            }
         case .accounts:
             if let provider = provider {
                 ProviderUsageView(provider: provider)
@@ -209,6 +213,8 @@ struct ProviderDetailGridView: View {
 	                viewModel.showingRemoteBrowser = .workflow
 	            case .mcp:
 	                viewModel.showingRemoteBrowser = .mcp
+                case .binary:
+                    break
 	            case .accounts:
 	                break
 	            case .usage:

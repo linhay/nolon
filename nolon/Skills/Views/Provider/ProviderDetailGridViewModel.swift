@@ -183,6 +183,10 @@ final class ProviderDetailGridViewModel {
     var errorMessage: String?
     var searchText: String = ""
     var showingRemoteBrowser: RemoteBrowserType? = nil
+    var codexModelOptions: [String] = []
+    var selectedCodexModel: String?
+    var isSavingCodexModel = false
+    var codexModelStatusMessage: String?
     
     enum RemoteBrowserType: Identifiable {
         case skill, workflow, mcp
@@ -211,6 +215,10 @@ final class ProviderDetailGridViewModel {
         guard let provider = provider else {
             installedSkills = []
             workflows = []
+            mcps = []
+            codexModelOptions = []
+            selectedCodexModel = nil
+            codexModelStatusMessage = nil
             return
         }
         
@@ -264,8 +272,67 @@ final class ProviderDetailGridViewModel {
         
         // Load MCPs
         loadMCPs(for: provider)
+        loadCodexBinaryModels(for: provider)
         
         isLoading = false
+    }
+
+    var hasCodexBinarySupport: Bool {
+        guard let templateId = provider?.templateId else { return false }
+        return templateId == "codex" || templateId == "codexXcode"
+    }
+
+    func saveSelectedCodexModel(_ model: String?) async {
+        guard let provider else { return }
+        guard hasCodexBinarySupport else { return }
+        guard let templateId = provider.templateId, let template = ProviderTemplate(rawValue: templateId) else { return }
+
+        isSavingCodexModel = true
+        defer { isSavingCodexModel = false }
+
+        do {
+            let configFile = STFile(template.defaultMcpConfigPath)
+            let trimmed = model?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let normalized = (trimmed?.isEmpty == false) ? trimmed : nil
+            if let normalized {
+                try await CodexBinaryManager.shared.applyModelToConfig(normalized, configFile: configFile)
+            } else {
+                try await CodexBinaryManager.shared.clearPreferredModel(configFile: configFile)
+            }
+            selectedCodexModel = normalized
+            codexModelStatusMessage = NSLocalizedString(
+                "provider.binary.codex.model.saved",
+                value: "Model preference saved.",
+                comment: "Codex model saved status"
+            )
+        } catch {
+            codexModelStatusMessage = error.localizedDescription
+        }
+    }
+
+    private func loadCodexBinaryModels(for provider: Provider) {
+        guard hasCodexBinarySupport else {
+            codexModelOptions = []
+            selectedCodexModel = nil
+            codexModelStatusMessage = nil
+            return
+        }
+
+        let configuredModel = loadCurrentConfiguredModel(for: provider)
+        selectedCodexModel = configuredModel
+
+        var options: [String] = []
+        var seen = Set<String>()
+        for url in modelsCacheURLs(for: provider) {
+            for slug in loadVisibleModelSlugs(url) where seen.insert(slug).inserted {
+                options.append(slug)
+            }
+        }
+
+        if let configuredModel, !configuredModel.isEmpty, seen.insert(configuredModel).inserted {
+            options.insert(configuredModel, at: 0)
+        }
+        codexModelOptions = options
     }
     
     private let homeDirectory = NSHomeDirectory()
@@ -1143,5 +1210,70 @@ final class ProviderDetailGridViewModel {
                 )
             }
         }
+    }
+
+    private func modelsCacheURLs(for provider: Provider) -> [URL] {
+        var urls: [URL] = []
+        let providerHome = URL(fileURLWithPath: provider.defaultSkillsPath, isDirectory: true)
+            .deletingLastPathComponent()
+            .appendingPathComponent("models_cache.json", isDirectory: false)
+        urls.append(providerHome)
+
+        let userCodexHome = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".codex", isDirectory: true)
+            .appendingPathComponent("models_cache.json", isDirectory: false)
+        if userCodexHome.path != providerHome.path {
+            urls.append(userCodexHome)
+        }
+        return urls
+    }
+
+    private func loadVisibleModelSlugs(_ cacheURL: URL) -> [String] {
+        guard let data = try? Data(contentsOf: cacheURL),
+              let cache = try? JSONDecoder().decode(CodexModelsCacheLite.self, from: data)
+        else {
+            return []
+        }
+
+        var seen = Set<String>()
+        var models: [String] = []
+        for item in cache.models {
+            guard !item.slug.isEmpty else { continue }
+            if item.visibility?.lowercased() == "hide" { continue }
+            if seen.insert(item.slug).inserted {
+                models.append(item.slug)
+            }
+        }
+        return models
+    }
+
+    private func loadCurrentConfiguredModel(for provider: Provider) -> String? {
+        guard let templateId = provider.templateId,
+              let template = ProviderTemplate(rawValue: templateId)
+        else {
+            return nil
+        }
+
+        let configPath = template.defaultMcpConfigPath
+        guard configPath.pathExtension.lowercased() == "toml",
+              let data = try? Data(contentsOf: configPath),
+              !data.isEmpty,
+              let config = try? TOMLDecoder().decode(CodexMCPConfig.self, from: data)
+        else {
+            return nil
+        }
+
+        let trimmed = config.model?.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let trimmed, !trimmed.isEmpty else { return nil }
+        return trimmed
+    }
+}
+
+private struct CodexModelsCacheLite: Decodable {
+    let models: [Model]
+
+    struct Model: Decodable {
+        let slug: String
+        let visibility: String?
     }
 }
