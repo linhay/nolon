@@ -107,7 +107,8 @@ struct ProviderDetailGridView: View {
                         }
                     }
                 )
-                .frame(minWidth: 900, minHeight: 600)
+                .frame(minWidth: 980, idealWidth: 1100, maxWidth: .infinity,
+                       minHeight: 700, idealHeight: 760, maxHeight: .infinity)
             }
         }
     }
@@ -118,6 +119,15 @@ struct ProviderDetailGridView: View {
             ZStack(alignment: .bottomTrailing) {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
+                        if shouldShowSearch {
+                            HStack {
+                                SearchField(
+                                    placeholder: NSLocalizedString("search.placeholder", value: "Search", comment: "Search placeholder"),
+                                    text: $viewModel.searchText
+                                )
+                                Spacer()
+                            }
+                        }
                         if isCodexXcodeProvider {
                             codexXcodeNotice
                         }
@@ -126,7 +136,6 @@ struct ProviderDetailGridView: View {
                     .frame(maxWidth: .infinity, alignment: .topLeading)
                 }
                 .padding()
-                .searchable(text: $viewModel.searchText)
                 
                 // Floating Action Button - 根据当前 tab 显示
                 if selectedTab == .skills || selectedTab == .workflows || selectedTab == .mcp {
@@ -138,6 +147,10 @@ struct ProviderDetailGridView: View {
 
     private var isCodexXcodeProvider: Bool {
         provider?.templateId == "codexXcode"
+    }
+
+    private var shouldShowSearch: Bool {
+        selectedTab == .skills || selectedTab == .workflows || selectedTab == .mcp
     }
 
     @ViewBuilder
@@ -163,6 +176,11 @@ struct ProviderDetailGridView: View {
         case .usage:
             if let provider = provider {
                 ProviderUsageView(provider: provider)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        case .binary:
+            if let provider = provider {
+                CodexBinaryConfigView(provider: provider)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
         case .none:
@@ -218,6 +236,8 @@ struct ProviderDetailGridView: View {
 	            case .accounts:
 	                break
 	            case .usage:
+	                break
+	            case .binary:
 	                break
 	            case .none:
 	                break

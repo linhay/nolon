@@ -10,7 +10,8 @@
         "mcpDocumentationURL": "https://developers.openai.com/codex/mcp/",
         "defaultMcpConfigPath": "config.toml",
         "vendorTabs": [
-            "usage"
+            "usage",
+            "binary"
         ],
         "defaultSkillsPaths": [
             "skills"
@@ -26,6 +27,9 @@
         "documentationURL": "https://developer.apple.com/documentation/xcode/setting-up-coding-intelligence",
         "mcpDocumentationURL": "https://developer.apple.com/documentation/xcode/setting-up-coding-intelligence",
         "defaultMcpConfigPath": "config.toml",
+        "vendorTabs": [
+            "binary"
+        ],
         "defaultSkillsPaths": [
             "skills"
         ]

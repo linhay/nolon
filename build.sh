@@ -8,7 +8,7 @@ if ! xcode-select -p &> /dev/null; then
     exit 1
 fi
 
-if [[ -f ".gitmodules" ]]; then
+if [[ -f ".gitmodules" && "${CHECK_SUBMODULES:-0}" == "1" ]]; then
     missing_submodule=0
     for path in libs/CodexBar libs/SKProcessRunner libs/agent-skills libs/codex libs/oh-my-opencode libs/opencode; do
         if [[ ! -e "${path}/.git" ]]; then

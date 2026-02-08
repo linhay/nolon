@@ -1,6 +1,9 @@
 import SwiftUI
 import ProviderCatalog
 import Observation
+#if os(macOS)
+import AppKit
+#endif
 
 /// Remote Skills Grid ViewModel
 @MainActor
@@ -11,6 +14,8 @@ final class RemoteSkillsGridViewModel {
     var mcps: [RemoteMCP] = []
     var isLoading = false
     var errorMessage: String?
+    var canLoadMore = false
+    var isLoadingMore = false
     var selectedSkillForDetail: RemoteSkill?
     var selectedWorkflowForDetail: RemoteWorkflow?
     var selectedMCPForDetail: RemoteMCP?
@@ -18,6 +23,7 @@ final class RemoteSkillsGridViewModel {
     private struct CacheKey: Hashable {
         let repositoryID: String
         let tab: RemoteContentTabType
+        let query: String
     }
 
     private struct CacheEntry {
@@ -26,10 +32,14 @@ final class RemoteSkillsGridViewModel {
         var mcps: [RemoteMCP] = []
         var errorMessage: String?
         var cacheBuster: String
+        var limit: Int
+        var canLoadMore: Bool
     }
 
     private var cache: [CacheKey: CacheEntry] = [:]
     private var currentLoadID: UUID?
+    private let pageSize: Int = 20
+    private let maxLimit: Int = 200
     
     // 过滤逻辑现在在这里
     func filteredSkills(searchText: String) -> [RemoteSkill] {
@@ -65,7 +75,7 @@ final class RemoteSkillsGridViewModel {
         }
     }
     
-    func loadContent(for repository: RemoteRepository?, tab: RemoteContentTabType?, cacheBuster: String) async {
+    func loadContent(for repository: RemoteRepository?, tab: RemoteContentTabType?, searchQuery: String, cacheBuster: String) async {
         guard let repository = repository, let tab = tab else {
             skills = []
             workflows = []
@@ -73,10 +83,13 @@ final class RemoteSkillsGridViewModel {
             errorMessage = nil
             isLoading = false
             currentLoadID = nil
+            canLoadMore = false
             return
         }
 
-        let cacheKey = CacheKey(repositoryID: repository.id, tab: tab)
+        let trimmedQuery = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        let hasQuery = !trimmedQuery.isEmpty
+        let cacheKey = CacheKey(repositoryID: repository.id, tab: tab, query: trimmedQuery)
         let loadID = UUID()
         currentLoadID = loadID
 
@@ -93,6 +106,7 @@ final class RemoteSkillsGridViewModel {
         // 切换仓库/Tab 或手动刷新时：清空旧错误，避免展示上一个仓库的错误
         errorMessage = nil
         isLoading = true
+        isLoadingMore = false
 
         defer {
             // 仅当本次任务仍然是最新请求时才落地 isLoading，避免竞态覆盖
@@ -102,25 +116,32 @@ final class RemoteSkillsGridViewModel {
         }
         
         do {
+            let cachedLimit = cache[cacheKey]?.limit ?? pageSize
             switch repository.templateType {
             case .clawdhub:
                 let repo = ClawdhubRepository(repository: repository)
                 switch tab {
                 case .skills:
-                    let result = try await repo.fetchSkills(query: nil, limit: 20)
+                    let result = try await repo.fetchSkills(query: hasQuery ? trimmedQuery : nil, limit: cachedLimit)
                     guard currentLoadID == loadID else { return }
                     skills = result
-                    cache[cacheKey] = CacheEntry(skills: result, workflows: [], mcps: [], errorMessage: nil, cacheBuster: cacheBuster)
+                    let canLoad = result.count >= cachedLimit && cachedLimit < maxLimit
+                    canLoadMore = canLoad
+                    cache[cacheKey] = CacheEntry(skills: result, workflows: [], mcps: [], errorMessage: nil, cacheBuster: cacheBuster, limit: cachedLimit, canLoadMore: canLoad)
                 case .workflows:
-                    let result = try await repo.fetchWorkflows(query: nil, limit: 20)
+                    let result = try await repo.fetchWorkflows(query: hasQuery ? trimmedQuery : nil, limit: cachedLimit)
                     guard currentLoadID == loadID else { return }
                     workflows = result
-                    cache[cacheKey] = CacheEntry(skills: [], workflows: result, mcps: [], errorMessage: nil, cacheBuster: cacheBuster)
+                    let canLoad = result.count >= cachedLimit && cachedLimit < maxLimit
+                    canLoadMore = canLoad
+                    cache[cacheKey] = CacheEntry(skills: [], workflows: result, mcps: [], errorMessage: nil, cacheBuster: cacheBuster, limit: cachedLimit, canLoadMore: canLoad)
                 case .mcps:
-                    let result = try await repo.fetchMCPs(query: nil, limit: 20)
+                    let result = try await repo.fetchMCPs(query: hasQuery ? trimmedQuery : nil, limit: cachedLimit)
                     guard currentLoadID == loadID else { return }
                     mcps = result
-                    cache[cacheKey] = CacheEntry(skills: [], workflows: [], mcps: result, errorMessage: nil, cacheBuster: cacheBuster)
+                    let canLoad = result.count >= cachedLimit && cachedLimit < maxLimit
+                    canLoadMore = canLoad
+                    cache[cacheKey] = CacheEntry(skills: [], workflows: [], mcps: result, errorMessage: nil, cacheBuster: cacheBuster, limit: cachedLimit, canLoadMore: canLoad)
                 }
                 
             case .globalSkills:
@@ -132,17 +153,20 @@ final class RemoteSkillsGridViewModel {
                     let result = try await cacheRepo.fetchSkills(query: nil, limit: 100)
                     guard currentLoadID == loadID else { return }
                     skills = result
-                    cache[cacheKey] = CacheEntry(skills: result, workflows: [], mcps: [], errorMessage: nil, cacheBuster: cacheBuster)
+                    canLoadMore = false
+                    cache[cacheKey] = CacheEntry(skills: result, workflows: [], mcps: [], errorMessage: nil, cacheBuster: cacheBuster, limit: 100, canLoadMore: false)
                 case .workflows:
                     let result = try await cacheRepo.fetchWorkflows(query: nil, limit: 100)
                     guard currentLoadID == loadID else { return }
                     workflows = result
-                    cache[cacheKey] = CacheEntry(skills: [], workflows: result, mcps: [], errorMessage: nil, cacheBuster: cacheBuster)
+                    canLoadMore = false
+                    cache[cacheKey] = CacheEntry(skills: [], workflows: result, mcps: [], errorMessage: nil, cacheBuster: cacheBuster, limit: 100, canLoadMore: false)
                 case .mcps:
                     let result = try await cacheRepo.fetchMCPs(query: nil, limit: 100)
                     guard currentLoadID == loadID else { return }
                     mcps = result
-                    cache[cacheKey] = CacheEntry(skills: [], workflows: [], mcps: result, errorMessage: nil, cacheBuster: cacheBuster)
+                    canLoadMore = false
+                    cache[cacheKey] = CacheEntry(skills: [], workflows: [], mcps: result, errorMessage: nil, cacheBuster: cacheBuster, limit: 100, canLoadMore: false)
                 }
                 
             case .localFolder, .git:
@@ -159,17 +183,20 @@ final class RemoteSkillsGridViewModel {
                         let result = try await gitRepo.fetchSkills(query: nil, limit: 100)
                         guard currentLoadID == loadID else { return }
                         skills = result
-                        cache[cacheKey] = CacheEntry(skills: result, workflows: [], mcps: [], errorMessage: nil, cacheBuster: cacheBuster)
+                        canLoadMore = false
+                        cache[cacheKey] = CacheEntry(skills: result, workflows: [], mcps: [], errorMessage: nil, cacheBuster: cacheBuster, limit: 100, canLoadMore: false)
                     case .workflows:
                         let result = try await gitRepo.fetchWorkflows(query: nil, limit: 100)
                         guard currentLoadID == loadID else { return }
                         workflows = result
-                        cache[cacheKey] = CacheEntry(skills: [], workflows: result, mcps: [], errorMessage: nil, cacheBuster: cacheBuster)
+                        canLoadMore = false
+                        cache[cacheKey] = CacheEntry(skills: [], workflows: result, mcps: [], errorMessage: nil, cacheBuster: cacheBuster, limit: 100, canLoadMore: false)
                     case .mcps:
                         let result = try await gitRepo.fetchMCPs(query: nil, limit: 100)
                         guard currentLoadID == loadID else { return }
                         mcps = result
-                        cache[cacheKey] = CacheEntry(skills: [], workflows: [], mcps: result, errorMessage: nil, cacheBuster: cacheBuster)
+                        canLoadMore = false
+                        cache[cacheKey] = CacheEntry(skills: [], workflows: [], mcps: result, errorMessage: nil, cacheBuster: cacheBuster, limit: 100, canLoadMore: false)
                     }
                 } else {
                     // Local folder repository
@@ -184,17 +211,20 @@ final class RemoteSkillsGridViewModel {
                         let result = try await localRepo.fetchSkills(query: nil, limit: 100)
                         guard currentLoadID == loadID else { return }
                         skills = result
-                        cache[cacheKey] = CacheEntry(skills: result, workflows: [], mcps: [], errorMessage: nil, cacheBuster: cacheBuster)
+                        canLoadMore = false
+                        cache[cacheKey] = CacheEntry(skills: result, workflows: [], mcps: [], errorMessage: nil, cacheBuster: cacheBuster, limit: 100, canLoadMore: false)
                     case .workflows:
                         let result = try await localRepo.fetchWorkflows(query: nil, limit: 100)
                         guard currentLoadID == loadID else { return }
                         workflows = result
-                        cache[cacheKey] = CacheEntry(skills: [], workflows: result, mcps: [], errorMessage: nil, cacheBuster: cacheBuster)
+                        canLoadMore = false
+                        cache[cacheKey] = CacheEntry(skills: [], workflows: result, mcps: [], errorMessage: nil, cacheBuster: cacheBuster, limit: 100, canLoadMore: false)
                     case .mcps:
                         let result = try await localRepo.fetchMCPs(query: nil, limit: 100)
                         guard currentLoadID == loadID else { return }
                         mcps = result
-                        cache[cacheKey] = CacheEntry(skills: [], workflows: [], mcps: result, errorMessage: nil, cacheBuster: cacheBuster)
+                        canLoadMore = false
+                        cache[cacheKey] = CacheEntry(skills: [], workflows: [], mcps: result, errorMessage: nil, cacheBuster: cacheBuster, limit: 100, canLoadMore: false)
                     }
                 }
             }
@@ -208,7 +238,61 @@ final class RemoteSkillsGridViewModel {
             guard currentLoadID == loadID else { return }
             clearAllContent()
             errorMessage = error.localizedDescription
-            cache[cacheKey] = CacheEntry(skills: [], workflows: [], mcps: [], errorMessage: error.localizedDescription, cacheBuster: cacheBuster)
+            canLoadMore = false
+            cache[cacheKey] = CacheEntry(skills: [], workflows: [], mcps: [], errorMessage: error.localizedDescription, cacheBuster: cacheBuster, limit: pageSize, canLoadMore: false)
+        }
+    }
+
+    func loadMore(repository: RemoteRepository?, tab: RemoteContentTabType?, searchQuery: String) async {
+        guard let repository = repository, let tab = tab else { return }
+        guard repository.templateType == .clawdhub else { return }
+
+        let trimmedQuery = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cacheKey = CacheKey(repositoryID: repository.id, tab: tab, query: trimmedQuery)
+        let currentLimit = cache[cacheKey]?.limit ?? pageSize
+        let nextLimit = min(maxLimit, currentLimit + pageSize)
+        guard nextLimit > currentLimit else { return }
+
+        let loadID = UUID()
+        currentLoadID = loadID
+        isLoadingMore = true
+
+        defer {
+            if currentLoadID == loadID {
+                isLoadingMore = false
+            }
+        }
+
+        do {
+            let repo = ClawdhubRepository(repository: repository)
+            switch tab {
+            case .skills:
+                let result = try await repo.fetchSkills(query: trimmedQuery.isEmpty ? nil : trimmedQuery, limit: nextLimit)
+                guard currentLoadID == loadID else { return }
+                skills = result
+                let canLoad = result.count >= nextLimit && nextLimit < maxLimit
+                canLoadMore = canLoad
+                cache[cacheKey] = CacheEntry(skills: result, workflows: [], mcps: [], errorMessage: nil, cacheBuster: cache[cacheKey]?.cacheBuster ?? "", limit: nextLimit, canLoadMore: canLoad)
+            case .workflows:
+                let result = try await repo.fetchWorkflows(query: trimmedQuery.isEmpty ? nil : trimmedQuery, limit: nextLimit)
+                guard currentLoadID == loadID else { return }
+                workflows = result
+                let canLoad = result.count >= nextLimit && nextLimit < maxLimit
+                canLoadMore = canLoad
+                cache[cacheKey] = CacheEntry(skills: [], workflows: result, mcps: [], errorMessage: nil, cacheBuster: cache[cacheKey]?.cacheBuster ?? "", limit: nextLimit, canLoadMore: canLoad)
+            case .mcps:
+                let result = try await repo.fetchMCPs(query: trimmedQuery.isEmpty ? nil : trimmedQuery, limit: nextLimit)
+                guard currentLoadID == loadID else { return }
+                mcps = result
+                let canLoad = result.count >= nextLimit && nextLimit < maxLimit
+                canLoadMore = canLoad
+                cache[cacheKey] = CacheEntry(skills: [], workflows: [], mcps: result, errorMessage: nil, cacheBuster: cache[cacheKey]?.cacheBuster ?? "", limit: nextLimit, canLoadMore: canLoad)
+            }
+        } catch {
+            guard currentLoadID == loadID else { return }
+            errorMessage = error.localizedDescription
+            canLoadMore = false
+            cache[cacheKey] = CacheEntry(skills: skills, workflows: workflows, mcps: mcps, errorMessage: error.localizedDescription, cacheBuster: cache[cacheKey]?.cacheBuster ?? "", limit: currentLimit, canLoadMore: false)
         }
     }
 
@@ -230,12 +314,14 @@ final class RemoteSkillsGridViewModel {
 
         errorMessage = cached.errorMessage
         isLoading = false
+        canLoadMore = cached.canLoadMore
     }
 
     private func clearAllContent() {
         skills = []
         workflows = []
         mcps = []
+        canLoadMore = false
     }
 }
 
@@ -255,6 +341,10 @@ struct RemoteSkillsGridView: View {
     
     @State private var viewModel = RemoteSkillsGridViewModel()
     @ObservedObject private var watchCenter = RemoteRepositoryWatchCenter.shared
+    @State private var debouncedSearchText: String = ""
+    @State private var searchDebounceTask: Task<Void, Never>?
+    @State private var retryTrigger: Int = 0
+    @State private var showCopiedToast: Bool = false
     
     init(
         repository: RemoteRepository?,
@@ -285,10 +375,24 @@ struct RemoteSkillsGridView: View {
     private let columns = [
         GridItem(.adaptive(minimum: 280, maximum: 400), spacing: 16)
     ]
+
+    private var isClawdhub: Bool {
+        repository?.templateType == .clawdhub
+    }
+
+    private var normalizedSearchQuery: String {
+        isClawdhub ? debouncedSearchText : ""
+    }
+
+    private var isSearching: Bool {
+        let trimmed = normalizedSearchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        return isClawdhub && !trimmed.isEmpty && viewModel.isLoading
+    }
     
     var body: some View {
         let repoSyncToken = watchCenter.token(for: repository)
-        let cacheBuster = "\(refreshTrigger)-\(repoSyncToken)"
+        let searchQuery = normalizedSearchQuery
+        let cacheBuster = "\(refreshTrigger)-\(repoSyncToken)-\(searchQuery)-\(retryTrigger)"
         Group {
             if repository == nil {
                 ContentUnavailableView {
@@ -324,7 +428,15 @@ struct RemoteSkillsGridView: View {
             if let repository {
                 watchCenter.ensureWatching(repository: repository)
             }
-            await viewModel.loadContent(for: repository, tab: selectedTab, cacheBuster: cacheBuster)
+            await viewModel.loadContent(for: repository, tab: selectedTab, searchQuery: searchQuery, cacheBuster: cacheBuster)
+        }
+        .onChange(of: searchText) { _, newValue in
+            searchDebounceTask?.cancel()
+            searchDebounceTask = Task {
+                try? await Task.sleep(nanoseconds: 300_000_000)
+                if Task.isCancelled { return }
+                debouncedSearchText = newValue
+            }
         }
         .sheet(item: $viewModel.selectedSkillForDetail) { skill in
             RemoteSkillDetailView(
@@ -373,15 +485,36 @@ struct RemoteSkillsGridView: View {
         } else if let error = viewModel.errorMessage {
             ContentUnavailableView {
                 Label {
-                    Text("Error Loading Data")
+                    Text(NSLocalizedString("remote.error.title", value: "Error Loading Data", comment: "Remote load error title"))
                         .dsEmptyStateErrorTitle()
                 } icon: {
                     Image(systemName: "exclamationmark.triangle")
                         .dsEmptyStateIcon(color: DesignSystem.Colors.Status.error)
                 }
             } description: {
-                Text(error)
-                    .dsSecondaryText(font: .body)
+                Button {
+                    #if os(macOS)
+                    let pasteboard = NSPasteboard.general
+                    pasteboard.clearContents()
+                    pasteboard.setString(error, forType: .string)
+                    #endif
+                    showCopiedToast = true
+                    Task { @MainActor in
+                        try? await Task.sleep(nanoseconds: 1_200_000_000)
+                        showCopiedToast = false
+                    }
+                } label: {
+                    Text(error)
+                        .dsSecondaryText(font: .body)
+                }
+                .buttonStyle(.plain)
+            } actions: {
+                Button {
+                    retryTrigger += 1
+                } label: {
+                    Text(NSLocalizedString("remote.retry", value: "Retry", comment: "Retry"))
+                }
+                .buttonStyle(.bordered)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
@@ -391,9 +524,11 @@ struct RemoteSkillsGridView: View {
 
     private var searchBar: some View {
         HStack {
-            TextField("Search", text: $searchText)
-                .textFieldStyle(.roundedBorder)
-                .frame(maxWidth: 320)
+            SearchField(
+                placeholder: NSLocalizedString("remote.search.placeholder", value: "Search", comment: "Search placeholder"),
+                text: $searchText,
+                showSearching: isSearching
+            )
             Spacer()
         }
         .padding(.horizontal)
@@ -409,101 +544,187 @@ struct RemoteSkillsGridView: View {
             .padding(.horizontal)
             .padding(.bottom)
             // 彻底移除这里的 .searchable
+            if showCopiedToast {
+                ToastView(
+                    text: NSLocalizedString("remote.error.copied", value: "Copied", comment: "Copied tooltip"),
+                    systemImage: "doc.on.doc"
+                )
+                .padding(.trailing, 16)
+                .padding(.bottom, 16)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
         }
+        .animation(.easeOut(duration: 0.2), value: showCopiedToast)
     }
     
     @ViewBuilder
     private var skillsGrid: some View {
+        let shouldClientFilter = repository?.templateType != .clawdhub
         switch selectedTab {
         case .skills:
-            let filtered = viewModel.filteredSkills(searchText: searchText)
+            let filtered = shouldClientFilter ? viewModel.filteredSkills(searchText: searchText) : viewModel.skills
             if filtered.isEmpty {
                 ContentUnavailableView(
-                    searchText.isEmpty ? NSLocalizedString("skills.empty", comment: "No Skills") : "No Results",
+                    searchText.isEmpty
+                    ? NSLocalizedString("skills.empty", comment: "No Skills")
+                    : NSLocalizedString("remote.search.no_results", value: "No Results", comment: "No search results"),
                     systemImage: searchText.isEmpty ? "square.grid.2x2" : "magnifyingglass",
-                    description: Text(searchText.isEmpty ? NSLocalizedString("skills.empty_desc", comment: "No skills in this repository") : "No matching skills found")
+                    description: Text(
+                        searchText.isEmpty
+                        ? NSLocalizedString("skills.empty_desc", comment: "No skills in this repository")
+                        : NSLocalizedString("remote.search.no_results_desc", value: "No matching skills found", comment: "No search results description")
+                    )
                         .dsSecondaryText(font: .body)
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                LazyVGrid(columns: columns, spacing: 16) {
-                    ForEach(filtered) { skill in
-                        RemoteSkillCardView(
-                            skill: skill,
-                            isInstalled: installedSlugs.contains(skill.slug),
-                            targetProvider: targetProvider,
-                            providers: providers,
-                            onInstall: { provider in
-                                onInstall(skill, provider)
-                            },
-                            onTap: {
-                                viewModel.selectedSkillForDetail = skill
-                            }
-                        )
+                VStack(spacing: 16) {
+                    LazyVGrid(columns: columns, spacing: 16) {
+                        ForEach(filtered) { skill in
+                            RemoteSkillCardView(
+                                skill: skill,
+                                isInstalled: installedSlugs.contains(skill.slug),
+                                targetProvider: targetProvider,
+                                providers: providers,
+                                onInstall: { provider in
+                                    onInstall(skill, provider)
+                                },
+                                onTap: {
+                                    viewModel.selectedSkillForDetail = skill
+                                }
+                            )
+                        }
                     }
+                    loadMoreRowIfNeeded
                 }
             }
             
         case .workflows:
-            let filtered = viewModel.filteredWorkflows(searchText: searchText)
+            let filtered = shouldClientFilter ? viewModel.filteredWorkflows(searchText: searchText) : viewModel.workflows
             if filtered.isEmpty {
                 ContentUnavailableView(
-                    searchText.isEmpty ? "No Workflows" : "No Results",
+                    searchText.isEmpty
+                    ? NSLocalizedString("remote.workflows.empty", value: "No Workflows", comment: "No workflows")
+                    : NSLocalizedString("remote.search.no_results", value: "No Results", comment: "No search results"),
                     systemImage: searchText.isEmpty ? "arrow.triangle.branch" : "magnifyingglass",
-                    description: Text(searchText.isEmpty ? "No workflows in this repository" : "No matching workflows found")
+                    description: Text(
+                        searchText.isEmpty
+                        ? NSLocalizedString("remote.workflows.empty_desc", value: "No workflows in this repository", comment: "No workflows description")
+                        : NSLocalizedString("remote.search.no_results_desc", value: "No matching workflows found", comment: "No search results description")
+                    )
                         .dsSecondaryText(font: .body)
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                LazyVGrid(columns: columns, spacing: 16) {
-                    ForEach(filtered) { workflow in
-                        RemoteWorkflowCardView(
-                            workflow: workflow,
-                            isInstalled: installedWorkflowSlugs.contains(workflow.slug),
-                            targetProvider: targetProvider,
-                            providers: providers,
-                            onInstall: { provider in
-                                onInstallWorkflow?(workflow, provider)
-                            },
-                            onTap: {
-                                viewModel.selectedWorkflowForDetail = workflow
-                            }
-                        )
+                VStack(spacing: 16) {
+                    LazyVGrid(columns: columns, spacing: 16) {
+                        ForEach(filtered) { workflow in
+                            RemoteWorkflowCardView(
+                                workflow: workflow,
+                                isInstalled: installedWorkflowSlugs.contains(workflow.slug),
+                                targetProvider: targetProvider,
+                                providers: providers,
+                                onInstall: { provider in
+                                    onInstallWorkflow?(workflow, provider)
+                                },
+                                onTap: {
+                                    viewModel.selectedWorkflowForDetail = workflow
+                                }
+                            )
+                        }
                     }
+                    loadMoreRowIfNeeded
                 }
             }
             
         case .mcps:
-            let filtered = viewModel.filteredMCPs(searchText: searchText)
+            let filtered = shouldClientFilter ? viewModel.filteredMCPs(searchText: searchText) : viewModel.mcps
             if filtered.isEmpty {
                 ContentUnavailableView(
-                    searchText.isEmpty ? "No MCPs" : "No Results",
+                    searchText.isEmpty
+                    ? NSLocalizedString("remote.mcps.empty", value: "No MCPs", comment: "No MCPs")
+                    : NSLocalizedString("remote.search.no_results", value: "No Results", comment: "No search results"),
                     systemImage: searchText.isEmpty ? "server.rack" : "magnifyingglass",
-                    description: Text(searchText.isEmpty ? "No MCPs in this repository" : "No matching MCPs found")
+                    description: Text(
+                        searchText.isEmpty
+                        ? NSLocalizedString("remote.mcps.empty_desc", value: "No MCPs in this repository", comment: "No MCPs description")
+                        : NSLocalizedString("remote.search.no_results_desc", value: "No matching MCPs found", comment: "No search results description")
+                    )
                         .dsSecondaryText(font: .body)
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                LazyVGrid(columns: columns, spacing: 16) {
-                    ForEach(filtered) { mcp in
-                        RemoteMCPCardView(
-                            mcp: mcp,
-                            isInstalled: false, // TODO: Track MCP installation status
-                            targetProvider: targetProvider,
-                            providers: providers,
-                            onInstall: { provider in
-                                onInstallMCP?(mcp, provider)
-                            },
-                            onTap: {
-                                viewModel.selectedMCPForDetail = mcp
-                            }
-                        )
+                VStack(spacing: 16) {
+                    LazyVGrid(columns: columns, spacing: 16) {
+                        ForEach(filtered) { mcp in
+                            RemoteMCPCardView(
+                                mcp: mcp,
+                                isInstalled: false, // TODO: Track MCP installation status
+                                targetProvider: targetProvider,
+                                providers: providers,
+                                onInstall: { provider in
+                                    onInstallMCP?(mcp, provider)
+                                },
+                                onTap: {
+                                    viewModel.selectedMCPForDetail = mcp
+                                }
+                            )
+                        }
                     }
+                    loadMoreRowIfNeeded
                 }
             }
             
         case .none:
             EmptyView()
+        }
+    }
+
+    @ViewBuilder
+    private var loadMoreRowIfNeeded: some View {
+        if repository?.templateType != .clawdhub {
+            EmptyView()
+        } else if viewModel.canLoadMore {
+            Button {
+                Task {
+                    await viewModel.loadMore(
+                        repository: repository,
+                        tab: selectedTab,
+                        searchQuery: normalizedSearchQuery
+                    )
+                }
+            } label: {
+                HStack(spacing: 8) {
+                    if viewModel.isLoadingMore {
+                        ProgressView()
+                            .controlSize(.small)
+                    }
+                    Text(
+                        viewModel.isLoadingMore
+                        ? NSLocalizedString("remote.load_more.loading", value: "Loading...", comment: "Loading more indicator")
+                        : NSLocalizedString("remote.load_more", value: "Load More", comment: "Load more")
+                    )
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 10)
+            }
+            .buttonStyle(.bordered)
+            .disabled(viewModel.isLoadingMore)
+            .onAppear {
+                guard !viewModel.isLoadingMore else { return }
+                Task {
+                    await viewModel.loadMore(
+                        repository: repository,
+                        tab: selectedTab,
+                        searchQuery: normalizedSearchQuery
+                    )
+                }
+            }
+        } else if !viewModel.isLoading && !(viewModel.skills.isEmpty && viewModel.workflows.isEmpty && viewModel.mcps.isEmpty) {
+            Text(NSLocalizedString("remote.load_more.end", value: "You have reached the end.", comment: "End of list"))
+                .dsSecondaryText(font: .callout)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 8)
         }
     }
 }

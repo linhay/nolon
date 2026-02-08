@@ -30,7 +30,7 @@ let package = Package(
             targets: ["CopilotProvider"]),
     ],
     dependencies: [
-        .package(path: "../SKProcessRunner"),
+        .package(url: "https://github.com/linhay/SKProcessRunner", from: "0.0.5"),
         .package(url: "https://github.com/steipete/SweetCookieKit", from: "0.4.0"),
     ],
     targets: [

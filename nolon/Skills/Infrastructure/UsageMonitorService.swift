@@ -3,15 +3,24 @@ import ProviderUsage
 import CodexBarProviderCatalog
 
 actor UsageMonitorService {
-    private let monitor: ProviderUsageMonitorService
+    private let tokenStore: FileTokenAccountStore
 
     init() {
-        let store = FileTokenAccountStore(fileURL: Self.defaultTokenAccountsFileURL())
-        self.monitor = ProviderUsageMonitorService(tokenAccountStore: store)
+        self.tokenStore = FileTokenAccountStore(fileURL: Self.defaultTokenAccountsFileURL())
     }
 
     func fetchOutcomes(provider: UsageProvider, settings: UsageMonitorProviderSettings) async -> [ProviderAccountUsageOutcome] {
-        await monitor.fetchOutcomes(provider: provider, settings: settings)
+        var environment = ProcessInfo.processInfo.environment
+        if provider == .codex {
+            if let managedEnv = try? await CodexBinaryManager.shared.launchEnvironmentVariables() {
+                environment.merge(managedEnv) { _, new in new }
+            }
+            if let codexCLIPath = await CodexBinaryManager.shared.activeCLIPathIfAvailable() {
+                environment["CODEX_CLI_PATH"] = codexCLIPath
+            }
+        }
+        let monitor = ProviderUsageMonitorService(tokenAccountStore: tokenStore, baseEnvironment: environment)
+        return await monitor.fetchOutcomes(provider: provider, settings: settings)
     }
 
     static func defaultTokenAccountsFileURL() -> URL {

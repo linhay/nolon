@@ -22,6 +22,30 @@ public struct SKProcessRunnerCommandRunner: CodexCLICommandRunning {
             throwOnNonZeroExit: false
         )
 
+        let exeURL: URL
+        do {
+            exeURL = try SKProcessRunner.resolveExecutable(binary, environment: env)
+        } catch let error as SKProcessRunError {
+            switch error {
+            case let .executableNotFound(name):
+                throw TTYCommandRunner.Error.binaryNotFound(name)
+            case let .invalidExecutable(value):
+                throw TTYCommandRunner.Error.launchFailed("Invalid executable: \(value)")
+            default:
+                throw TTYCommandRunner.Error.launchFailed(error.localizedDescription)
+            }
+        } catch {
+            throw TTYCommandRunner.Error.launchFailed(error.localizedDescription)
+        }
+
+        var payload = SKProcessPayload.executableURL(exeURL)
+        payload.arguments = options.extraArgs
+        payload.stdinData = send.isEmpty ? nil : Data(send.utf8)
+        payload.cwd = options.workingDirectory
+        payload.environment = SKProcessEnvironment(env)
+        payload.timeoutMs = Int(max(1.0, options.timeout) * 1000.0)
+        payload.throwOnNonZeroExit = false
+
         do {
             let result = try await SKProcessRunner.run(payload)
 
@@ -29,10 +53,6 @@ public struct SKProcessRunnerCommandRunner: CodexCLICommandRunning {
             return TTYCommandRunner.Result(text: text)
         } catch let error as SKProcessRunError {
             switch error {
-            case let .executableNotFound(name):
-                throw TTYCommandRunner.Error.binaryNotFound(name)
-            case let .invalidExecutable(value):
-                throw TTYCommandRunner.Error.launchFailed("Invalid executable: \(value)")
             case let .timedOut(_, stdoutData, stderrData, truncated: _):
                 let stdout = String(data: stdoutData, encoding: .utf8) ?? ""
                 let stderr = String(data: stderrData, encoding: .utf8) ?? ""
