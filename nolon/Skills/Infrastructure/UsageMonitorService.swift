@@ -9,7 +9,11 @@ actor UsageMonitorService {
         self.tokenStore = FileTokenAccountStore(fileURL: Self.defaultTokenAccountsFileURL())
     }
 
-    func fetchOutcomes(provider: UsageProvider, settings: UsageMonitorProviderSettings) async -> [ProviderAccountUsageOutcome] {
+    func fetchOutcomes(
+        provider: UsageProvider,
+        settings: UsageMonitorProviderSettings,
+        costWindowDays: Int? = 30
+    ) async -> [ProviderAccountUsageOutcome] {
         var environment = ProcessInfo.processInfo.environment
         if provider == .codex {
             if let managedEnv = try? await CodexBinaryManager.shared.launchEnvironmentVariables() {
@@ -20,7 +24,8 @@ actor UsageMonitorService {
             }
         }
         let monitor = ProviderUsageMonitorService(tokenAccountStore: tokenStore, baseEnvironment: environment)
-        return await monitor.fetchOutcomes(provider: provider, settings: settings)
+        let effectiveWindow = costWindowDays ?? settings.costWindowDays
+        return await monitor.fetchOutcomes(provider: provider, settings: settings, costWindowDays: effectiveWindow)
     }
 
     static func defaultTokenAccountsFileURL() -> URL {

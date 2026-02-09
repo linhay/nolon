@@ -8026,6 +8026,186 @@
         }
       }
     },
+    "usage.cost.chart.day" : {
+      "comment" : "Day granularity",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "日"
+          }
+        }
+      }
+    },
+    "usage.cost.chart.display" : {
+      "comment" : "Display label",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "显示"
+          }
+        }
+      }
+    },
+    "usage.cost.chart.month" : {
+      "comment" : "Month granularity",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "月"
+          }
+        }
+      }
+    },
+    "usage.cost.chart.period" : {
+      "comment" : "Period label",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "周期"
+          }
+        }
+      }
+    },
+    "usage.cost.chart.range" : {
+      "comment" : "Range label",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "范围"
+          }
+        }
+      }
+    },
+    "usage.cost.chart.range.30d" : {
+      "comment" : "Range 30 days",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "30D"
+          }
+        }
+      }
+    },
+    "usage.cost.chart.range.90d" : {
+      "comment" : "Range 90 days",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "90D"
+          }
+        }
+      }
+    },
+    "usage.cost.chart.range.180d" : {
+      "comment" : "Range 180 days",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "180D"
+          }
+        }
+      }
+    },
+    "usage.cost.chart.range.365d" : {
+      "comment" : "Range 365 days",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "365D"
+          }
+        }
+      }
+    },
+    "usage.cost.chart.range.all" : {
+      "comment" : "Range all",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "All"
+          }
+        }
+      }
+    },
+    "usage.cost.chart.value_mode.cost" : {
+      "comment" : "Cost only",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "费用"
+          }
+        }
+      }
+    },
+    "usage.cost.chart.value_mode.tokens" : {
+      "comment" : "Tokens only",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Tokens"
+          }
+        }
+      }
+    },
+    "usage.cost.table.cost" : {
+      "comment" : "Cost table cost",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "费用"
+          }
+        }
+      }
+    },
+    "usage.cost.table.date" : {
+      "comment" : "Cost table date",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "日期"
+          }
+        }
+      }
+    },
+    "usage.cost.table.tokens" : {
+      "comment" : "Cost table tokens",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Tokens"
+          }
+        }
+      }
+    },
     "usage.metric.account" : {
       "comment" : "Account label",
       "extractionState" : "extracted_with_value",

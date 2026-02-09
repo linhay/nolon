@@ -6,17 +6,20 @@ public struct ProviderUsageMonitorSettings: Sendable, Codable, Equatable {
     public var includeCredits: Bool
     public var webTimeoutSeconds: Int
     public var autoRefreshIntervalMinutes: Int
+    public var costWindowDays: Int?
 
     public init(
         sourceMode: ProviderSourceMode = .auto,
         includeCredits: Bool = false,
         webTimeoutSeconds: Int = 30,
-        autoRefreshIntervalMinutes: Int = 0
+        autoRefreshIntervalMinutes: Int = 0,
+        costWindowDays: Int? = 30
     ) {
         self.sourceMode = sourceMode
         self.includeCredits = includeCredits
         self.webTimeoutSeconds = webTimeoutSeconds
         self.autoRefreshIntervalMinutes = autoRefreshIntervalMinutes
+        self.costWindowDays = costWindowDays
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -24,6 +27,7 @@ public struct ProviderUsageMonitorSettings: Sendable, Codable, Equatable {
         case includeCredits
         case webTimeoutSeconds
         case autoRefreshIntervalMinutes
+        case costWindowDays
     }
 
     public init(from decoder: Decoder) throws {
@@ -32,6 +36,26 @@ public struct ProviderUsageMonitorSettings: Sendable, Codable, Equatable {
         includeCredits = (try? container.decode(Bool.self, forKey: .includeCredits)) ?? false
         webTimeoutSeconds = (try? container.decode(Int.self, forKey: .webTimeoutSeconds)) ?? 30
         autoRefreshIntervalMinutes = (try? container.decode(Int.self, forKey: .autoRefreshIntervalMinutes)) ?? 0
+        if container.contains(.costWindowDays) {
+            // Keep explicit `null` as nil ("All"), only default when key is absent (legacy data).
+            costWindowDays = try container.decodeIfPresent(Int.self, forKey: .costWindowDays)
+        } else {
+            costWindowDays = 30
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(sourceMode, forKey: .sourceMode)
+        try container.encode(includeCredits, forKey: .includeCredits)
+        try container.encode(webTimeoutSeconds, forKey: .webTimeoutSeconds)
+        try container.encode(autoRefreshIntervalMinutes, forKey: .autoRefreshIntervalMinutes)
+        if let costWindowDays {
+            try container.encode(costWindowDays, forKey: .costWindowDays)
+        } else {
+            // Persist explicit null so decode can distinguish it from missing key.
+            try container.encodeNil(forKey: .costWindowDays)
+        }
     }
 }
 
@@ -73,7 +97,11 @@ public actor ProviderUsageMonitorService {
         self.baseEnvironment = baseEnvironment
     }
 
-    public func fetchOutcomes(provider: UsageProvider, settings: ProviderUsageMonitorSettings) async -> [ProviderAccountUsageOutcome] {
+    public func fetchOutcomes(
+        provider: UsageProvider,
+        settings: ProviderUsageMonitorSettings,
+        costWindowDays: Int? = 30
+    ) async -> [ProviderAccountUsageOutcome] {
         let tokenAccounts: [ProviderTokenAccount] = (try? tokenAccountStore.loadAccounts()[provider]?.accounts) ?? []
         var accountKinds: [ProviderAccountUsageOutcome.AccountKind] = [.default]
         accountKinds.append(contentsOf: tokenAccounts.map { .tokenAccount($0) })
@@ -94,6 +122,7 @@ public actor ProviderUsageMonitorService {
                         sourceMode: settings.sourceMode,
                         includeCredits: settings.includeCredits,
                         timeout: TimeInterval(settings.webTimeoutSeconds),
+                        costWindowDays: costWindowDays,
                         environment: self.baseEnvironment,
                         token: token
                     )

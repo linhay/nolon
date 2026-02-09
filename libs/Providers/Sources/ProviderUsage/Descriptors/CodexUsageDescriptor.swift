@@ -15,7 +15,9 @@ public struct CodexUsageDescriptor: ProviderUsageDescribing {
             let helper = CodexHelper(codexBinary: nil, environment: context.environment)
             async let rateLimitsTask = helper.fetchRateLimits()
             async let accountInfoTask: CodexHelper.AccountInfo? = try? helper.fetchAccountInfo()
-            async let costTask: CodexCostSnapshot? = context.includeCredits ? (try? CodexCostFetcher().fetchCostSnapshot()) : nil
+            async let costTask: CodexCostSnapshot? = context.includeCredits
+                ? (try? CodexCostFetcher().fetchCostSnapshot(windowDays: context.costWindowDays))
+                : nil
 
             let rateLimits = try await rateLimitsTask
             let accountInfo = await accountInfoTask
@@ -86,6 +88,10 @@ public struct CodexUsageDescriptor: ProviderUsageDescribing {
                     todayTokens: snapshot.todayTokens,
                     last30DaysCostUSD: snapshot.last30DaysCostUSD,
                     last30DaysTokens: snapshot.last30DaysTokens,
+                    windowDays: snapshot.windowDays,
+                    dailyCosts: snapshot.dailyCosts.map { daily in
+                        CostSnapshot.DailyCost(date: daily.date, costUSD: daily.costUSD, tokens: daily.tokens)
+                    },
                     updatedAt: snapshot.updatedAt
                 )
             }

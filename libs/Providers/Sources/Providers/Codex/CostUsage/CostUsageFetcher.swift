@@ -25,6 +25,7 @@ public struct CostUsageFetcher: Sendable {
     public func loadTokenSnapshot(
         provider: UsageProvider,
         now: Date = Date(),
+        trailingDays: Int? = 30,
         forceRefresh: Bool = false) async throws -> CostUsageTokenSnapshot
     {
         guard provider == .codex else {
@@ -32,8 +33,14 @@ public struct CostUsageFetcher: Sendable {
         }
 
         let until = now
-        // Rolling window: last 30 days (inclusive). Use -29 for inclusive boundaries.
-        let since = Calendar.current.date(byAdding: .day, value: -29, to: now) ?? now
+        let since: Date = {
+            if let trailingDays, trailingDays > 0 {
+                // Rolling window: N days (inclusive). Use -(N-1) for inclusive boundaries.
+                return Calendar.current.date(byAdding: .day, value: -(trailingDays - 1), to: now) ?? now
+            }
+            // Nil means no explicit window limit.
+            return Date(timeIntervalSince1970: 0)
+        }()
 
         var options = CostUsageScanner.Options()
         if forceRefresh {
