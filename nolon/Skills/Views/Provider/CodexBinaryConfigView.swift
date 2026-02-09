@@ -21,6 +21,8 @@ final class CodexBinaryConfigViewModel {
     var pathStatus: CodexBinaryManager.CodexPathStatus?
     var isConfiguringPath = false
     var isCheckingPath = false
+    var isSyncingRemoteVersions = false
+    var remoteVersionSyncFailed = false
 
     private let manager: CodexBinaryManager
     private let provider: Provider
@@ -32,21 +34,48 @@ final class CodexBinaryConfigViewModel {
 
     func load() async {
         isLoading = true
-        defer { isLoading = false }
+        errorMessage = nil
+
+        do { _ = try await manager.discoverXcodeAgentVersions() } catch {}
 
         do {
-            _ = try await manager.discoverXcodeAgentVersions()
-            manifest = await manager.checkForRustReleaseUpdateIfNeeded(force: false)
+            // Fast path: render from local manifest/cache first, avoid waiting on network.
+            manifest = try await manager.loadManifest()
             preferredModelDraft = loadModelFromConfig() ?? manifest.preferredModel ?? ""
-            await refreshRemoteReleases()
-            await refreshCurrentCLIVersion()
-            if !isCodexXcodeProvider {
-                await refreshPathStatus()
-            } else {
-                pathStatus = nil
-            }
+            applyCachedRemoteRelease(from: manifest)
+            isLoading = false
         } catch {
-            errorMessage = error.localizedDescription
+            // Recover from malformed/corrupted manifest without blocking the page.
+            do {
+                manifest = .default
+                _ = try await manager.saveManifest(manifest)
+                preferredModelDraft = loadModelFromConfig() ?? manifest.preferredModel ?? ""
+                applyCachedRemoteRelease(from: manifest)
+                isLoading = false
+            } catch {
+                isLoading = false
+                errorMessage = error.localizedDescription
+                return
+            }
+        }
+
+        await refreshCurrentCLIVersion()
+        if !isCodexXcodeProvider {
+            await refreshPathStatus()
+        } else {
+            pathStatus = nil
+        }
+
+        // Slow path: refresh update status and remote versions in background.
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            self.isSyncingRemoteVersions = true
+            self.remoteVersionSyncFailed = false
+            self.manifest = await self.manager.checkForRustReleaseUpdateIfNeeded(force: false)
+            self.applyCachedRemoteRelease(from: self.manifest)
+            await self.refreshRemoteReleases()
+            self.remoteVersionSyncFailed = self.manifest.updateState == .checkFailed
+            self.isSyncingRemoteVersions = false
         }
     }
 
@@ -328,8 +357,38 @@ final class CodexBinaryConfigViewModel {
     func refreshRemoteReleases() async {
         do {
             remoteReleases = try await manager.fetchRemoteReleases(includePrerelease: showBetaVersions)
+            remoteVersionSyncFailed = false
         } catch {
-            errorMessage = error.localizedDescription
+            // Keep existing/cached rows; remote list failure should not block Binary page.
+            remoteVersionSyncFailed = true
+        }
+    }
+
+    private func applyCachedRemoteRelease(from manifest: CodexBinaryManifest) {
+        guard let tag = manifest.lastSeenRemoteTag,
+              let version = manifest.lastSeenRemoteVersion,
+              let raw = manifest.lastSeenRemoteAssetURL,
+              let assetURL = URL(string: raw) else {
+            if remoteReleases.isEmpty {
+                remoteReleases = []
+            }
+            return
+        }
+
+        let cached = CodexRemoteRelease(
+            tag: tag,
+            version: version,
+            assetURL: assetURL,
+            isPrerelease: !CodexBinaryManager.isStableVersion(version)
+        )
+
+        if remoteReleases.isEmpty {
+            remoteReleases = [cached]
+            return
+        }
+
+        if !remoteReleases.contains(where: { $0.tag == cached.tag }) {
+            remoteReleases.insert(cached, at: 0)
         }
     }
 
@@ -524,6 +583,25 @@ struct CodexBinaryConfigView: View {
                 Text(viewModel.currentCLIVersion)
                     .font(.callout.monospaced())
                     .foregroundStyle(DesignSystem.Colors.Text.primary)
+            }
+
+            if viewModel.isSyncingRemoteVersions || viewModel.remoteVersionSyncFailed {
+                HStack(spacing: 8) {
+                    if viewModel.isSyncingRemoteVersions {
+                        ProgressView()
+                            .controlSize(.small)
+                        Text(NSLocalizedString("codex.binary.update.checking", value: "Checking updates...", comment: "Update status"))
+                            .font(.footnote)
+                            .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                    } else if viewModel.remoteVersionSyncFailed {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(DesignSystem.Colors.Status.warning)
+                        Text(NSLocalizedString("codex.binary.update.failed", value: "Update check failed", comment: "Update status"))
+                            .font(.footnote)
+                            .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                    }
+                    Spacer(minLength: 0)
+                }
             }
 
             ViewThatFits(in: .horizontal) {
@@ -751,15 +829,15 @@ struct CodexBinaryConfigView: View {
         VStack(spacing: 0) {
             HStack(spacing: 10) {
                 Text(NSLocalizedString("codex.binary.table.name", value: "Name", comment: "Version table name"))
-                    .frame(width: 200, alignment: .leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 Text(NSLocalizedString("codex.binary.table.version", value: "Version", comment: "Version table version"))
-                    .frame(width: 110, alignment: .leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 Text(NSLocalizedString("codex.binary.table.source", value: "Source", comment: "Version table source"))
-                    .frame(width: 110, alignment: .leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 Text(NSLocalizedString("codex.binary.table.state", value: "State", comment: "Version table state"))
-                    .frame(width: 80, alignment: .leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 Text(NSLocalizedString("codex.binary.table.actions", value: "Actions", comment: "Version table actions"))
-                    .frame(maxWidth: .infinity, alignment: .trailing)
+                    .frame(width: 120, alignment: .trailing)
             }
             .font(.caption.weight(.semibold))
             .foregroundStyle(DesignSystem.Colors.Text.secondary)
@@ -779,22 +857,22 @@ struct CodexBinaryConfigView: View {
                             format: NSLocalizedString("codex.binary.version.github", value: "Codex %@", comment: "GitHub version name"),
                             release.version
                         ))
-                        .frame(width: 200, alignment: .leading)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                         .foregroundStyle(DesignSystem.Colors.Text.primary)
                         Text("v\(release.version)")
                             .font(.callout.monospaced())
-                            .frame(width: 110, alignment: .leading)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                             .foregroundStyle(DesignSystem.Colors.Text.primary)
                         Text(NSLocalizedString("codex.binary.source.github", value: "GitHub", comment: "GitHub source"))
                             .font(.callout)
-                            .frame(width: 110, alignment: .leading)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                             .foregroundStyle(DesignSystem.Colors.Text.secondary)
                         Text(
                             isActiveDownload
                             ? NSLocalizedString("codex.binary.state.downloading", value: "Downloading", comment: "Downloading state")
                             : NSLocalizedString("codex.binary.state.available", value: "Available", comment: "Available state")
                         )
-                        .frame(width: 80, alignment: .leading)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                         .foregroundStyle(DesignSystem.Colors.Status.warning)
                         if isActiveDownload {
                             VStack(alignment: .trailing, spacing: 4) {
@@ -814,6 +892,7 @@ struct CodexBinaryConfigView: View {
                                         .foregroundStyle(DesignSystem.Colors.Text.secondary)
                                 }
                             }
+                            .frame(width: 120, alignment: .trailing)
                         } else {
                             Button(NSLocalizedString("codex.binary.download", value: "Download", comment: "Download")) {
                                 Task { await viewModel.downloadRemoteRelease(release) }
@@ -821,7 +900,7 @@ struct CodexBinaryConfigView: View {
                             .buttonStyle(.plain)
                             .foregroundStyle(DesignSystem.Colors.primary)
                             .disabled(viewModel.isDownloadingRemoteVersion)
-                            .frame(maxWidth: .infinity, alignment: .trailing)
+                            .frame(width: 120, alignment: .trailing)
                         }
                     }
                     .padding(.horizontal, 10)
@@ -829,22 +908,22 @@ struct CodexBinaryConfigView: View {
                 case .local(let version):
                     HStack(spacing: 10) {
                         Text(version.displayName)
-                            .frame(width: 200, alignment: .leading)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                             .foregroundStyle(DesignSystem.Colors.Text.primary)
                         Text("v\(version.detectedVersion)")
                             .font(.callout.monospaced())
-                            .frame(width: 110, alignment: .leading)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                             .foregroundStyle(DesignSystem.Colors.Text.primary)
                         Text(version.source)
                             .font(.callout)
-                            .frame(width: 110, alignment: .leading)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                             .foregroundStyle(DesignSystem.Colors.Text.secondary)
                         Text(
                             viewModel.manifest.selectedVersionId == version.id
                             ? NSLocalizedString("codex.binary.active", value: "Active", comment: "Active")
                             : NSLocalizedString("codex.binary.inactive", value: "Inactive", comment: "Inactive")
                         )
-                        .frame(width: 80, alignment: .leading)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                         .foregroundStyle(
                             viewModel.manifest.selectedVersionId == version.id
                             ? DesignSystem.Colors.Status.success
@@ -856,7 +935,7 @@ struct CodexBinaryConfigView: View {
                         .buttonStyle(.plain)
                         .foregroundStyle(DesignSystem.Colors.Status.error)
                         .disabled(viewModel.manifest.selectedVersionId == version.id)
-                        .frame(maxWidth: .infinity, alignment: .trailing)
+                        .frame(width: 120, alignment: .trailing)
                     }
                     .padding(.horizontal, 10)
                     .padding(.vertical, 8)
