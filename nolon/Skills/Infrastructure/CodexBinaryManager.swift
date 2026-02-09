@@ -354,6 +354,16 @@ public actor CodexBinaryManager {
         try removeModelFromConfig(file: configFile ?? xcodeCodexConfigFile)
     }
 
+    public func setModelReasoningEffort(_ effort: String?, configFile: STFile? = nil) throws {
+        let trimmed = effort?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let file = configFile ?? xcodeCodexConfigFile
+        if let trimmed, !trimmed.isEmpty {
+            try writeConfigValue(key: "model_reasoning_effort", value: trimmed, file: file)
+        } else {
+            try removeConfigValue(key: "model_reasoning_effort", file: file)
+        }
+    }
+
     public func setLaunchEnvironmentValue(_ value: String?, forKey rawKey: String) throws {
         let key = rawKey.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !key.isEmpty else { return }
@@ -774,20 +784,31 @@ public actor CodexBinaryManager {
 
     private func writeModelToConfig(_ model: String, file: STFile) throws {
         guard !model.isEmpty else { return }
+        try writeConfigValue(key: "model", value: model, file: file)
+    }
 
+    private func removeModelFromConfig(file: STFile) throws {
+        try removeConfigValue(key: "model", file: file)
+    }
+
+    private func writeConfigValue(key: String, value: String, file: STFile) throws {
+        guard !key.isEmpty else { return }
         let parent = file.url.deletingLastPathComponent()
         try fileManager.createDirectory(at: parent, withIntermediateDirectories: true)
 
         let original = (try? String(contentsOf: file.url, encoding: .utf8)) ?? ""
         let lines = original.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+        let escaped = value.replacingOccurrences(of: "\"", with: "\\\"")
+        let assignLine = "\(key) = \"\(escaped)\""
 
-        let modelLine = "model = \"\(model)\""
         var replaced = false
         let rewritten = lines.map { line -> String in
-            let trimmed = line.trimmingCharacters(in: .whitespaces)
-            if trimmed.hasPrefix("model =") {
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard let equalIndex = trimmed.firstIndex(of: "=") else { return line }
+            let existingKey = trimmed[..<equalIndex].trimmingCharacters(in: .whitespacesAndNewlines)
+            if existingKey == key {
                 replaced = true
-                return modelLine
+                return assignLine
             }
             return line
         }
@@ -796,14 +817,15 @@ public actor CodexBinaryManager {
         if replaced {
             output = rewritten.joined(separator: "\n")
         } else if original.isEmpty {
-            output = modelLine + "\n"
+            output = assignLine + "\n"
         } else {
-            output = original + (original.hasSuffix("\n") ? "" : "\n") + modelLine + "\n"
+            output = original + (original.hasSuffix("\n") ? "" : "\n") + assignLine + "\n"
         }
         try output.write(to: file.url, atomically: true, encoding: .utf8)
     }
 
-    private func removeModelFromConfig(file: STFile) throws {
+    private func removeConfigValue(key: String, file: STFile) throws {
+        guard !key.isEmpty else { return }
         let url = file.url
         guard fileManager.fileExists(atPath: url.path) else { return }
         let original = (try? String(contentsOf: url, encoding: .utf8)) ?? ""
@@ -811,8 +833,8 @@ public actor CodexBinaryManager {
         let filtered = lines.filter { line in
             let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
             guard let equalIndex = trimmed.firstIndex(of: "=") else { return true }
-            let key = trimmed[..<equalIndex].trimmingCharacters(in: .whitespacesAndNewlines)
-            return key != "model"
+            let existingKey = trimmed[..<equalIndex].trimmingCharacters(in: .whitespacesAndNewlines)
+            return existingKey != key
         }
         let output = filtered.map(String.init).joined(separator: "\n")
         try output.write(to: url, atomically: true, encoding: .utf8)

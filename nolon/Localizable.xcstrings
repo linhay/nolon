@@ -140,6 +140,19 @@
         }
       }
     },
+    "~/.codex/%@" : {
+
+    },
+    "~/.codex/%@  ->  %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "~/.codex/%1$@  ->  %2$@"
+          }
+        }
+      }
+    },
     "About" : {
       "localizations" : {
         "zh-Hans" : {
@@ -1088,6 +1101,9 @@
     "Clear" : {
       "comment" : "Clear"
     },
+    "client: %@" : {
+
+    },
     "Close" : {
       "comment" : "Close",
       "localizations" : {
@@ -1663,6 +1679,23 @@
         }
       }
     },
+    "codex.accounts.login_at" : {
+      "comment" : "Last login label",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Last login"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "登录时间"
+          }
+        }
+      }
+    },
     "codex.accounts.multi.enable" : {
       "comment" : "Multi-account toggle",
       "extractionState" : "extracted_with_value",
@@ -1715,40 +1748,6 @@
         }
       }
     },
-    "codex.accounts.login_at" : {
-      "comment" : "Last login label",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Last login"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "登录时间"
-          }
-        }
-      }
-    },
-    "codex.usage.group.title" : {
-      "comment" : "Global usage/cost group title",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Usage & Cost"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "用量与花费"
-          }
-        }
-      }
-    },
     "codex.accounts.title" : {
       "comment" : "Codex accounts title",
       "extractionState" : "extracted_with_value",
@@ -1763,6 +1762,702 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "账号"
+          }
+        }
+      }
+    },
+    "codex.advanced.link.confirm" : {
+      "comment" : "Confirm action",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Confirm"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "确定"
+          }
+        }
+      }
+    },
+    "codex.advanced.link.conflict.message" : {
+      "comment" : "Conflict message",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "The target folder already contains files. Confirm to delete its visible contents and replace it with a symlink."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "目标目录已包含文件。确认后将删除其中可见内容，并替换为软链接。"
+          }
+        }
+      }
+    },
+    "codex.advanced.link.conflict.short" : {
+      "comment" : "Short conflict hint",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Contains visible files"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "包含可见文件"
+          }
+        }
+      }
+    },
+    "codex.advanced.link.conflict.title" : {
+      "comment" : "Conflict title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Directory Contains Files"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "目录包含文件"
+          }
+        }
+      }
+    },
+    "codex.advanced.models_cache.activate" : {
+      "comment" : "Activate model",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Activate"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "激活"
+          }
+        }
+      }
+    },
+    "codex.advanced.models_cache.activated" : {
+      "comment" : "Activated state",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Activated"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已激活"
+          }
+        }
+      }
+    },
+    "codex.advanced.models_cache.active" : {
+      "comment" : "Active model",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Active"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当前激活"
+          }
+        }
+      }
+    },
+    "codex.advanced.models_cache.column.display_name" : {
+      "comment" : "Display name column title",
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Display Name"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "显示名"
+          }
+        }
+      }
+    },
+    "codex.advanced.models_cache.column.model" : {
+      "comment" : "Model column title",
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Model"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "模型"
+          }
+        }
+      }
+    },
+    "codex.advanced.models_cache.column.visibility" : {
+      "comment" : "Visibility column title",
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Visibility"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "可见性"
+          }
+        }
+      }
+    },
+    "codex.advanced.models_cache.detail" : {
+      "comment" : "Model details title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Model Details"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "模型详情"
+          }
+        }
+      }
+    },
+    "codex.advanced.models_cache.field.context_window" : {
+      "comment" : "Context window field",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Context Window"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上下文窗口"
+          }
+        }
+      }
+    },
+    "codex.advanced.models_cache.field.default_reasoning_level" : {
+      "comment" : "Default reasoning level field",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Default Reasoning"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "默认推理等级"
+          }
+        }
+      }
+    },
+    "codex.advanced.models_cache.field.display_name" : {
+      "comment" : "Display name field",
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Display Name"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "显示名"
+          }
+        }
+      }
+    },
+    "codex.advanced.models_cache.field.input_modalities" : {
+      "comment" : "Input modalities field",
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Input Modalities"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "输入模态"
+          }
+        }
+      }
+    },
+    "codex.advanced.models_cache.field.minimal_client_version" : {
+      "comment" : "Minimum client version field",
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Minimum Client Version"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最低客户端版本"
+          }
+        }
+      }
+    },
+    "codex.advanced.models_cache.field.slug" : {
+      "comment" : "Model ID field",
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Model ID"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "模型 ID"
+          }
+        }
+      }
+    },
+    "codex.advanced.models_cache.field.supported_reasoning_levels" : {
+      "comment" : "Supported reasoning levels field",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Reasoning Levels"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "支持的推理等级"
+          }
+        }
+      }
+    },
+    "codex.advanced.models_cache.field.supports_parallel_tool_calls" : {
+      "comment" : "Parallel tool calls field",
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Parallel Tool Calls"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "并行工具调用"
+          }
+        }
+      }
+    },
+    "codex.advanced.models_cache.field.supports_reasoning_summaries" : {
+      "comment" : "Reasoning summaries field",
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Reasoning Summaries"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "推理摘要"
+          }
+        }
+      }
+    },
+    "codex.advanced.models_cache.field.supports_verbosity" : {
+      "comment" : "Verbosity field",
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Verbosity Control"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "输出详略控制"
+          }
+        }
+      }
+    },
+    "codex.advanced.models_cache.field.upgrade" : {
+      "comment" : "Upgrade target field",
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Upgrade Target"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "升级目标"
+          }
+        }
+      }
+    },
+    "codex.advanced.models_cache.field.visibility" : {
+      "comment" : "Visibility field",
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Visibility"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "可见性"
+          }
+        }
+      }
+    },
+    "codex.advanced.models_cache.group.basic" : {
+      "comment" : "Basic model group",
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Basic"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "基础信息"
+          }
+        }
+      }
+    },
+    "codex.advanced.models_cache.group.capabilities" : {
+      "comment" : "Capabilities model group",
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Capabilities"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "能力"
+          }
+        }
+      }
+    },
+    "codex.advanced.models_cache.group.compatibility" : {
+      "comment" : "Compatibility model group",
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Compatibility"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "兼容性"
+          }
+        }
+      }
+    },
+    "codex.advanced.models_cache.hidden" : {
+      "comment" : "Hidden models",
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Hidden"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "隐藏"
+          }
+        }
+      }
+    },
+    "codex.advanced.models_cache.hidden_active_hint" : {
+      "comment" : "Hidden active model hint",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Current model is hidden from list. Activate a visible model to replace it."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当前模型在列表中不可见。激活一个可见模型即可替换。"
+          }
+        }
+      }
+    },
+    "codex.advanced.models_cache.meta.fetched_at" : {
+      "comment" : "Last fetch",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Last Fetch"
+          }
+        }
+      }
+    },
+    "codex.advanced.models_cache.reasoning_effort" : {
+      "comment" : "Reasoning effort title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Reasoning Effort"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "推理强度"
+          }
+        }
+      }
+    },
+    "codex.advanced.models_cache.reasoning_effort.default" : {
+      "comment" : "Default reasoning effort",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Use Model Default"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用模型默认值"
+          }
+        }
+      }
+    },
+    "codex.advanced.models_cache.reasoning_effort.unsupported" : {
+      "comment" : "Reasoning unsupported text",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "The active model does not support configurable reasoning effort."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当前激活模型不支持配置推理强度。"
+          }
+        }
+      }
+    },
+    "codex.advanced.models_cache.title" : {
+      "comment" : "Models cache section title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Models Cache"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "模型缓存"
+          }
+        }
+      }
+    },
+    "codex.advanced.models_cache.total" : {
+      "comment" : "Total models",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Total"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "总数"
+          }
+        }
+      }
+    },
+    "codex.advanced.models_cache.visibility.hide" : {
+      "comment" : "Hidden visibility",
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Hidden"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "隐藏"
+          }
+        }
+      }
+    },
+    "codex.advanced.models_cache.visibility.list" : {
+      "comment" : "Visible visibility",
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Visible"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "可见"
+          }
+        }
+      }
+    },
+    "codex.advanced.models_cache.visible" : {
+      "comment" : "Visible models",
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Visible"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "可见"
+          }
+        }
+      }
+    },
+    "codex.advanced.xcode_links.desc" : {
+      "comment" : "Xcode links description",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Link Xcode Codex folders to ~/.codex equivalents."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "将 Xcode Codex 目录链接到 ~/.codex 对应目录。"
+          }
+        }
+      }
+    },
+    "codex.advanced.xcode_links.title" : {
+      "comment" : "Xcode folder links section title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Xcode Folder Links"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Xcode 目录链接"
           }
         }
       }
@@ -2081,7 +2776,7 @@
     },
     "codex.binary.model_placeholder" : {
       "comment" : "Model placeholder",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2942,6 +3637,23 @@
         }
       }
     },
+    "codex.usage.group.title" : {
+      "comment" : "Global usage/cost group title",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usage & Cost"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用量与花费"
+          }
+        }
+      }
+    },
     "codex.usage.no_db.desc" : {
       "comment" : "No DB description",
       "extractionState" : "stale",
@@ -3761,7 +4473,7 @@
     },
     "generic.clear" : {
       "comment" : "Clear",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -5339,6 +6051,60 @@
         }
       }
     },
+    "provider.codex_xcode.linked_hint.add" : {
+      "comment" : "Add codex provider quickly",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Add Codex Provider"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "添加 Codex Provider"
+          }
+        }
+      }
+    },
+    "provider.codex_xcode.linked_hint.jump" : {
+      "comment" : "Jump to codex provider",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Jump to Codex"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "跳转到 Codex"
+          }
+        }
+      }
+    },
+    "provider.codex_xcode.linked_hint.title" : {
+      "comment" : "Codex linked hint title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Linked to Codex"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已链接到 Codex"
+          }
+        }
+      }
+    },
     "provider.codex_xcode.notice.desc" : {
       "comment" : "Xcode Codex banner description",
       "localizations" : {
@@ -6854,6 +7620,24 @@
         }
       }
     },
+    "status.linked" : {
+      "comment" : "Linked status",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Linked"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已链接"
+          }
+        }
+      }
+    },
     "status.local" : {
       "comment" : "Local status",
       "extractionState" : "extracted_with_value",
@@ -6886,6 +7670,24 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "技能仅在本地存在"
+          }
+        }
+      }
+    },
+    "status.not_linked" : {
+      "comment" : "Not linked status",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Not Linked"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未链接"
           }
         }
       }
@@ -6993,6 +7795,24 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "账号"
+          }
+        }
+      }
+    },
+    "tab.advanced" : {
+      "comment" : "Advanced",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Advanced"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "高级配置"
           }
         }
       }

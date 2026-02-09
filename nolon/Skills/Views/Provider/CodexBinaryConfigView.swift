@@ -557,11 +557,6 @@ struct CodexBinaryConfigView: View {
                     NSLocalizedString("codex.binary.section.update_versions", value: "Versions", comment: "Merged versions section")
                 )
                 mergedVersionSection
-
-                sectionHeader(
-                    NSLocalizedString("codex.binary.section.preferences", value: "Run Preferences", comment: "Preferences section")
-                )
-                preferencesSection
             }
             .padding()
         }
@@ -610,76 +605,6 @@ struct CodexBinaryConfigView: View {
             }
 
             versionTable
-        }
-        .padding(14)
-        .frame(maxWidth: .infinity, alignment: .topLeading)
-        .dsCard(
-            background: DesignSystem.Colors.Background.elevated,
-            cornerRadius: DesignSystem.Metrics.cornerRadiusM,
-            borderColor: DesignSystem.Colors.Component.border.opacity(0.35)
-        )
-    }
-
-    private var preferencesSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text(NSLocalizedString("codex.binary.model_placeholder", value: "preferred model (e.g. gpt-5.3-codex)", comment: "Model placeholder"))
-                    .font(.callout)
-                    .foregroundStyle(DesignSystem.Colors.Text.secondary)
-                Spacer(minLength: 0)
-                Button(NSLocalizedString("generic.save", value: "Save", comment: "Save")) {
-                    Task { await viewModel.applySelectedModel(viewModel.preferredModelDraft) }
-                }
-                .dsPrimaryButton()
-                .disabled(viewModel.preferredModelDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                Button(NSLocalizedString("generic.clear", value: "Clear", comment: "Clear")) {
-                    Task { await viewModel.clearPreferredModel() }
-                }
-                .dsSecondaryButton()
-                .disabled(viewModel.preferredModelDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                Button(NSLocalizedString("codex.binary.open_config", value: "Open Config", comment: "Open config file")) {
-                    Task { await viewModel.openModelConfig() }
-                }
-                .dsSecondaryButton()
-            }
-            textInputField(
-                placeholder: NSLocalizedString("codex.binary.model_placeholder", value: "preferred model (e.g. gpt-5.3-codex)", comment: "Model placeholder"),
-                text: $viewModel.preferredModelDraft
-            )
-
-            if !viewModel.isCodexXcodeProvider, viewModel.pathStatus?.configured != true {
-                Divider()
-                    .padding(.vertical, 6)
-                HStack(alignment: .top, spacing: 12) {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(NSLocalizedString("codex.binary.path.section", value: "Terminal PATH", comment: "PATH section title"))
-                            .font(.callout)
-                            .foregroundStyle(DesignSystem.Colors.Text.secondary)
-                        HStack(spacing: 8) {
-                            if viewModel.isCheckingPath {
-                                ProgressView()
-                                    .controlSize(.small)
-                            }
-                            if let status = viewModel.pathStatus {
-                                Text(pathStatusText(status))
-                                    .font(.footnote)
-                                    .foregroundStyle(DesignSystem.Colors.Text.secondary)
-                            }
-                        }
-                    }
-                    Spacer(minLength: 0)
-                    Button(NSLocalizedString("codex.binary.path.configure", value: "Add to PATH", comment: "Add codex path to shell profile")) {
-                        Task { await viewModel.installPath() }
-                    }
-                    .dsPrimaryButton()
-                    .disabled(viewModel.isConfiguringPath || viewModel.isCheckingPath)
-                    Button(NSLocalizedString("codex.binary.path.check", value: "Check", comment: "Check PATH status")) {
-                        Task { await viewModel.refreshPathStatus() }
-                    }
-                    .dsSecondaryButton()
-                    .disabled(viewModel.isConfiguringPath || viewModel.isCheckingPath)
-                }
-            }
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .topLeading)
@@ -770,17 +695,6 @@ struct CodexBinaryConfigView: View {
         }
     }
 
-    private func textInputField(placeholder: String, text: Binding<String>) -> some View {
-        HStack {
-            TextField(placeholder, text: text)
-                .textFieldStyle(.plain)
-                .font(.system(size: 13))
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .dsField(cornerRadius: DesignSystem.Metrics.cornerRadiusM)
-    }
-
     private func formatByteProgress(completed: Int64, total: Int64) -> String {
         func formatBytes(_ value: Int64) -> String {
             let kb: Double = 1024
@@ -802,26 +716,6 @@ struct CodexBinaryConfigView: View {
             format: NSLocalizedString("codex.binary.download.progress", value: "%@ / %@", comment: "Download progress bytes"),
             formatBytes(completed),
             formatBytes(total)
-        )
-    }
-
-    private func pathStatusText(_ status: CodexBinaryManager.CodexPathStatus) -> String {
-        let configured = status.configured
-            ? NSLocalizedString("codex.binary.path.configured", value: "Yes", comment: "Configured label")
-            : NSLocalizedString("codex.binary.path.not_configured", value: "No", comment: "Not configured label")
-        let active = status.active
-            ? NSLocalizedString("codex.binary.path.active", value: "Yes", comment: "Active label")
-            : NSLocalizedString("codex.binary.path.inactive", value: "No", comment: "Inactive label")
-        return String(
-            format: NSLocalizedString(
-                "codex.binary.path.status",
-                value: "Shell: %@ (%@) • Configured: %@ • Active: %@",
-                comment: "PATH status line"
-            ),
-            status.shellName,
-            status.profilePath,
-            configured,
-            active
         )
     }
 
