@@ -143,16 +143,6 @@
     "~/.codex/%@" : {
 
     },
-    "~/.codex/%@  ->  %@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "~/.codex/%1$@  ->  %2$@"
-          }
-        }
-      }
-    },
     "About" : {
       "localizations" : {
         "zh-Hans" : {
