@@ -791,11 +791,12 @@ struct CodexAdvancedConfigView: View {
             ))
             .font(.callout)
             .dsSecondaryText(font: .callout)
+            .padding(.horizontal, 2)
 
             ForEach(CodexLinkFolder.allCases) { folder in
                 let state = viewModel.linkState(for: folder)
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack(alignment: .center, spacing: 12) {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(alignment: .center, spacing: 10) {
                         VStack(alignment: .leading, spacing: 6) {
                             HStack(spacing: 8) {
                                 Text(folder.rawValue.capitalized)
@@ -815,55 +816,109 @@ struct CodexAdvancedConfigView: View {
                                             ? DesignSystem.Colors.Status.success
                                             : DesignSystem.Colors.Component.controlFillSubtle).opacity(0.12),
                                         in: Capsule()
-                                    )
+                                )
                             }
-
-                            Text("~/.codex/\(folder.rawValue)  ->  \(displayPath(state.targetURL.path))")
-                                .font(.caption.monospaced())
-                                .lineLimit(1)
-                                .truncationMode(.middle)
-                                .dsSecondaryText(font: .caption)
                         }
 
                         Spacer(minLength: 0)
-                        VStack(alignment: .trailing, spacing: 8) {
-                            Toggle(
-                                "",
-                                isOn: Binding(
-                                    get: { state.isLinked },
-                                    set: { enabled in
-                                        Task { await viewModel.requestSetLink(enabled, folder: folder) }
-                                    }
-                                )
+                        Toggle(
+                            "",
+                            isOn: Binding(
+                                get: { state.isLinked },
+                                set: { enabled in
+                                    Task { await viewModel.requestSetLink(enabled, folder: folder) }
+                                }
                             )
-                            .labelsHidden()
-                            .toggleStyle(.switch)
-                            .disabled(viewModel.applyingLinkFolders.contains(folder))
+                        )
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                        .disabled(viewModel.applyingLinkFolders.contains(folder))
+                    }
 
-                            Button(NSLocalizedString("action.show_in_finder", comment: "Show in Finder")) {
-                                NSWorkspace.shared.activateFileViewerSelecting([state.targetURL])
-                            }
-                            .dsSecondaryButton()
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack(spacing: 8) {
+                            Image(systemName: "link")
+                                .font(.caption)
+                                .foregroundStyle(DesignSystem.Colors.Text.tertiary)
+                            Text("~/.codex/\(folder.rawValue)")
+                                .font(.caption.monospaced())
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                                .foregroundStyle(DesignSystem.Colors.Text.secondary)
                         }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 7)
+                        .dsCard(
+                            background: DesignSystem.Colors.Background.surface.opacity(0.22),
+                            cornerRadius: DesignSystem.Metrics.cornerRadiusS,
+                            borderColor: DesignSystem.Colors.Component.border.opacity(0.14)
+                        )
+
+                        HStack(spacing: 8) {
+                            Image(systemName: "folder")
+                                .font(.caption)
+                                .foregroundStyle(DesignSystem.Colors.Text.tertiary)
+                            Text(displayPath(state.targetURL.path))
+                                .font(.caption.monospaced())
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                                .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 7)
+                        .dsCard(
+                            background: DesignSystem.Colors.Background.surface.opacity(0.22),
+                            cornerRadius: DesignSystem.Metrics.cornerRadiusS,
+                            borderColor: DesignSystem.Colors.Component.border.opacity(0.14)
+                        )
                     }
 
                     if state.hasVisibleEntries {
-                        Text(NSLocalizedString(
-                            "codex.advanced.link.conflict.short",
-                            value: "Contains visible files",
-                            comment: "Short conflict hint"
-                        ))
-                        .font(.caption)
+                        HStack(spacing: 6) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .font(.caption)
+                            Text(NSLocalizedString(
+                                "codex.advanced.link.conflict.short",
+                                value: "Contains visible files",
+                                comment: "Short conflict hint"
+                            ))
+                            .font(.caption)
+                        }
                         .foregroundStyle(DesignSystem.Colors.Status.warning)
                     }
+
+                    HStack {
+                        Spacer(minLength: 0)
+                        Menu {
+                            Button(NSLocalizedString("action.show_in_finder", comment: "Show in Finder")) {
+                                NSWorkspace.shared.activateFileViewerSelecting([state.targetURL])
+                            }
+                        } label: {
+                            Image(systemName: "ellipsis")
+                                .font(.callout.weight(.semibold))
+                                .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                                .frame(width: 28, height: 24)
+                                .background(
+                                    DesignSystem.Colors.Component.controlFillSubtle.opacity(0.3),
+                                    in: RoundedRectangle(cornerRadius: 7)
+                                )
+                        }
+                        .menuStyle(.borderlessButton)
+                        .menuIndicator(.hidden)
+                    }
                 }
-                .padding(12)
+                .padding(14)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .dsCard(
-                    background: DesignSystem.Colors.Background.surface.opacity(0.36),
+                    background: DesignSystem.Colors.Background.elevated.opacity(0.55),
                     cornerRadius: DesignSystem.Metrics.cornerRadiusS,
-                    borderColor: DesignSystem.Colors.Component.border.opacity(0.22)
+                    borderColor: DesignSystem.Colors.Component.border.opacity(0.18)
                 )
+                .contextMenu {
+                    Button(NSLocalizedString("action.show_in_finder", comment: "Show in Finder")) {
+                        NSWorkspace.shared.activateFileViewerSelecting([state.targetURL])
+                    }
+                }
             }
         }
         .padding(14)
