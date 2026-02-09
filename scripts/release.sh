@@ -12,6 +12,7 @@
 #   SKIP_BUILD=1            Skip ./scripts/build-dmg.sh all
 #   UPLOAD_RETRIES=5        Retry count for each asset upload
 #   UPLOAD_SLEEP_BASE=5     Base sleep seconds between retries (exponential-ish)
+#   UPLOAD_TIMEOUT_SECONDS=1800  Per-asset upload timeout in seconds (30 min default)
 
 set -euo pipefail
 
@@ -325,15 +326,42 @@ fi
 
 UPLOAD_RETRIES="${UPLOAD_RETRIES:-5}"
 UPLOAD_SLEEP_BASE="${UPLOAD_SLEEP_BASE:-5}"
+UPLOAD_TIMEOUT_SECONDS="${UPLOAD_TIMEOUT_SECONDS:-1800}"
+
+UPLOAD_TIMEOUT_CMD=()
+if command -v gtimeout >/dev/null 2>&1; then
+    UPLOAD_TIMEOUT_CMD=(gtimeout "${UPLOAD_TIMEOUT_SECONDS}")
+elif command -v timeout >/dev/null 2>&1; then
+    UPLOAD_TIMEOUT_CMD=(timeout "${UPLOAD_TIMEOUT_SECONDS}")
+fi
 
 upload_asset() {
     local file="$1"
     local attempt=1
     while true; do
         echo -e "${YELLOW}⬆️  Uploading $(basename "$file") (attempt ${attempt}/${UPLOAD_RETRIES})...${NC}"
-        if gh release upload "$TAG" "$file" --clobber; then
+        local upload_status=0
+        if [ "${#UPLOAD_TIMEOUT_CMD[@]}" -gt 0 ]; then
+            if "${UPLOAD_TIMEOUT_CMD[@]}" gh release upload "$TAG" "$file" --clobber; then
+                upload_status=0
+            else
+                upload_status=$?
+            fi
+        else
+            if gh release upload "$TAG" "$file" --clobber; then
+                upload_status=0
+            else
+                upload_status=$?
+            fi
+        fi
+
+        if [ "$upload_status" -eq 0 ]; then
             echo -e "${GREEN}✅ Uploaded $(basename "$file")${NC}"
             return 0
+        fi
+
+        if [ "$upload_status" -eq 124 ]; then
+            echo -e "${YELLOW}⏱️  Upload timed out after ${UPLOAD_TIMEOUT_SECONDS}s.${NC}"
         fi
 
         if [ "$attempt" -ge "$UPLOAD_RETRIES" ]; then
