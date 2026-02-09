@@ -6,6 +6,18 @@
 	path = libs/SKProcessRunner
 	url = https://github.com/linhay/SKProcessRunner.git
 
+[submodule "libs/SKIntelligence"]
+	path = libs/SKIntelligence
+	url = https://github.com/linhay/SKIntelligence.git
+
+[submodule "libs/STFilePath"]
+	path = libs/STFilePath
+	url = https://github.com/linhay/STFilePath.git
+
+[submodule "libs/STJSON"]
+	path = libs/STJSON
+	url = https://github.com/linhay/STJSON.git
+
 [submodule "libs/agent-skills"]
 	path = libs/agent-skills
 	url = https://github.com/vercel-labs/agent-skills.git
