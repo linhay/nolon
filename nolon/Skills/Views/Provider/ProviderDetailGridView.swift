@@ -8,18 +8,31 @@ struct ProviderDetailGridView: View {
     let selectedTab: ProviderContentTabType?
     @ObservedObject var settings: ProviderSettings
     var refreshTrigger: Int
+    var onSelectProvider: ((Provider.ID) -> Void)?
+    var onSelectTab: ((ProviderContentTabType) -> Void)?
     
     @State private var viewModel: ProviderDetailGridViewModel
+    @AppStorage("provider.codex_xcode.notice.dismissed") private var codexXcodeNoticeDismissed = false
+    @State private var isAddingCodexProvider = false
     
     private let columns = [
         GridItem(.adaptive(minimum: 280, maximum: 400), spacing: 16)
     ]
     
-    init(provider: Provider?, selectedTab: ProviderContentTabType?, settings: ProviderSettings, refreshTrigger: Int = 0) {
+    init(
+        provider: Provider?,
+        selectedTab: ProviderContentTabType?,
+        settings: ProviderSettings,
+        refreshTrigger: Int = 0,
+        onSelectProvider: ((Provider.ID) -> Void)? = nil,
+        onSelectTab: ((ProviderContentTabType) -> Void)? = nil
+    ) {
         self.provider = provider
         self.selectedTab = selectedTab
         self.settings = settings
         self.refreshTrigger = refreshTrigger
+        self.onSelectProvider = onSelectProvider
+        self.onSelectTab = onSelectTab
         self._viewModel = State(initialValue: ProviderDetailGridViewModel(provider: provider, settings: settings))
     }
     
@@ -111,6 +124,9 @@ struct ProviderDetailGridView: View {
                        minHeight: 700, idealHeight: 760, maxHeight: .infinity)
             }
         }
+        .sheet(isPresented: $isAddingCodexProvider) {
+            AddProviderSheet(settings: settings)
+        }
     }
     
     @ViewBuilder
@@ -128,9 +144,10 @@ struct ProviderDetailGridView: View {
                                 Spacer()
                             }
                         }
-                        if isCodexXcodeProvider {
+                        if isCodexXcodeProvider && !codexXcodeNoticeDismissed {
                             codexXcodeNotice
                         }
+                        codexLinkedHint
                         tabContent
                     }
                     .frame(maxWidth: .infinity, alignment: .topLeading)
@@ -138,7 +155,7 @@ struct ProviderDetailGridView: View {
                 .padding()
                 
                 // Floating Action Button - 根据当前 tab 显示
-                if selectedTab == .skills || selectedTab == .workflows || selectedTab == .mcp {
+                if shouldShowQuickInstallButton {
                     quickInstallButton
                 }
             }
@@ -146,11 +163,26 @@ struct ProviderDetailGridView: View {
     }
 
     private var isCodexXcodeProvider: Bool {
-        provider?.templateId == "codexXcode"
+        guard let provider else { return false }
+        if provider.templateId == "codexXcode" { return true }
+        let expanded = (provider.defaultSkillsPath as NSString).expandingTildeInPath
+        return expanded.contains("/Library/Developer/Xcode/CodingAssistant/codex")
     }
 
     private var shouldShowSearch: Bool {
         selectedTab == .skills || selectedTab == .workflows || selectedTab == .mcp
+    }
+
+    private var shouldShowQuickInstallButton: Bool {
+        guard let selectedTab else { return false }
+        switch selectedTab {
+        case .skills, .workflows:
+            return !isCurrentTabLinkedToCodex
+        case .mcp:
+            return true
+        default:
+            return false
+        }
     }
 
     @ViewBuilder
@@ -167,6 +199,12 @@ struct ProviderDetailGridView: View {
         case .binary:
             if let provider = provider {
                 CodexBinaryConfigView(provider: provider)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        case .advanced:
+            if let provider = provider {
+                CodexAdvancedConfigView(provider: provider)
+                    .id(provider.id)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
         case .accounts:
@@ -209,6 +247,16 @@ struct ProviderDetailGridView: View {
             }
 
             Spacer(minLength: 0)
+            Button {
+                codexXcodeNoticeDismissed = true
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                    .padding(6)
+                    .background(DesignSystem.Colors.Component.controlFillSubtle, in: .circle)
+            }
+            .buttonStyle(.plain)
         }
         .padding()
         .dsCard(
@@ -228,6 +276,8 @@ struct ProviderDetailGridView: View {
             case .mcp:
                 viewModel.showingRemoteBrowser = .mcp
             case .binary:
+                break
+            case .advanced:
                 break
             case .accounts:
                 break
@@ -250,6 +300,142 @@ struct ProviderDetailGridView: View {
         }
         .dsLinkButton()
         .padding(32)
+    }
+
+    private var codexProvider: Provider? {
+        settings.providers.first { $0.templateId == "codex" }
+    }
+
+    private var codexLinkedHint: some View {
+        Group {
+            guard isCodexXcodeProvider else { return AnyView(EmptyView()) }
+            guard let selectedTab else { return AnyView(EmptyView()) }
+            let folder: CodexLinkFolder?
+            switch selectedTab {
+            case .skills:
+                folder = .skills
+            case .workflows:
+                folder = .prompts
+            default:
+                folder = nil
+            }
+            guard let folder,
+                  let targetURL = linkedTargetURL(for: folder),
+                  isTargetLinked(to: codexSourceURL(for: folder), targetURL: targetURL) else {
+                return AnyView(EmptyView())
+            }
+
+            return AnyView(
+                HStack(alignment: .center, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(NSLocalizedString(
+                            "provider.codex_xcode.linked_hint.title",
+                            value: "Linked to Codex",
+                            comment: "Codex linked hint title"
+                        ))
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(DesignSystem.Colors.Text.primary)
+
+                        Text("~/.codex/\(folder.rawValue)")
+                            .font(.caption.monospaced())
+                            .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                    }
+
+                    Spacer(minLength: 0)
+                    if let codexProvider {
+                        Button(NSLocalizedString(
+                            "provider.codex_xcode.linked_hint.jump",
+                            value: "Jump to Codex",
+                            comment: "Jump to codex provider"
+                        )) {
+                            onSelectProvider?(codexProvider.id)
+                            if selectedTab == .skills {
+                                onSelectTab?(.skills)
+                            } else if selectedTab == .workflows {
+                                onSelectTab?(.workflows)
+                            }
+                        }
+                        .dsPrimaryButton()
+                    } else {
+                        Button(NSLocalizedString(
+                            "provider.codex_xcode.linked_hint.add",
+                            value: "Add Codex Provider",
+                            comment: "Add codex provider quickly"
+                        )) {
+                            if let template = ProviderTemplate(rawValue: "codex") {
+                                let newProvider = template.createProvider()
+                                settings.addProvider(newProvider)
+                                onSelectProvider?(newProvider.id)
+                                if selectedTab == .skills {
+                                    onSelectTab?(.skills)
+                                } else if selectedTab == .workflows {
+                                    onSelectTab?(.workflows)
+                                }
+                            } else {
+                                isAddingCodexProvider = true
+                            }
+                        }
+                        .dsPrimaryButton()
+                    }
+                }
+                .padding(12)
+                .dsCard(
+                    background: DesignSystem.Colors.Background.elevated,
+                    cornerRadius: DesignSystem.Metrics.cornerRadiusM,
+                    borderColor: DesignSystem.Colors.Component.border.opacity(0.35)
+                )
+            )
+        }
+    }
+
+    private var isCurrentTabLinkedToCodex: Bool {
+        guard isCodexXcodeProvider, let selectedTab else { return false }
+        let folder: CodexLinkFolder?
+        switch selectedTab {
+        case .skills:
+            folder = .skills
+        case .workflows:
+            folder = .prompts
+        default:
+            folder = nil
+        }
+        guard let folder,
+              let targetURL = linkedTargetURL(for: folder) else { return false }
+        return isTargetLinked(to: codexSourceURL(for: folder), targetURL: targetURL)
+    }
+
+    private func linkedTargetURL(for folder: CodexLinkFolder) -> URL? {
+        guard let provider else { return nil }
+        switch folder {
+        case .skills:
+            return URL(fileURLWithPath: provider.defaultSkillsPath, isDirectory: true)
+        case .prompts:
+            return URL(fileURLWithPath: provider.workflowPath, isDirectory: true)
+        case .rules:
+            return URL(fileURLWithPath: provider.defaultSkillsPath, isDirectory: true)
+                .deletingLastPathComponent()
+                .appendingPathComponent("rules", isDirectory: true)
+        }
+    }
+
+    private func codexSourceURL(for folder: CodexLinkFolder) -> URL {
+        FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".codex", isDirectory: true)
+            .appendingPathComponent(folder.rawValue, isDirectory: true)
+    }
+
+    private func isTargetLinked(to sourceURL: URL, targetURL: URL) -> Bool {
+        guard (try? targetURL.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink) == true else {
+            return false
+        }
+        do {
+            let destination = try FileManager.default.destinationOfSymbolicLink(atPath: targetURL.path)
+            let resolved = URL(fileURLWithPath: destination, relativeTo: targetURL.deletingLastPathComponent())
+                .standardizedFileURL
+            return resolved.path == sourceURL.standardizedFileURL.path
+        } catch {
+            return false
+        }
     }
     
     @ViewBuilder

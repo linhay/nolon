@@ -198,7 +198,13 @@ public struct MainSplitView: View {
                 provider: viewModel.selectedProvider,
                 selectedTab: viewModel.selectedTab,
                 settings: viewModel.settings,
-                refreshTrigger: viewModel.refreshTrigger
+                refreshTrigger: viewModel.refreshTrigger,
+                onSelectProvider: { providerID in
+                    viewModel.selectedProviderId = providerID
+                },
+                onSelectTab: { tab in
+                    viewModel.selectedTab = tab
+                }
             )
         }
         .navigationSplitViewStyle(.balanced)

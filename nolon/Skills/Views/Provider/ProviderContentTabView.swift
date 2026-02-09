@@ -142,6 +142,7 @@ enum ProviderContentTabType: String, CaseIterable, Identifiable {
     case workflows = "Workflows"
     case mcp = "MCP"
     case binary = "Binary"
+    case advanced = "Advanced"
     case accounts = "Accounts"
     case usage = "Usage"
     
@@ -153,6 +154,7 @@ enum ProviderContentTabType: String, CaseIterable, Identifiable {
         case .workflows: return "arrow.triangle.branch"
         case .mcp: return "server.rack"
         case .binary: return "terminal"
+        case .advanced: return "slider.horizontal.3"
         case .accounts: return "person.2"
         case .usage: return "chart.bar.xaxis"
         }
@@ -164,6 +166,7 @@ enum ProviderContentTabType: String, CaseIterable, Identifiable {
         case .workflows: return NSLocalizedString("tab.workflows", comment: "Workflows")
         case .mcp: return NSLocalizedString("tab.mcp", comment: "MCP Server")
         case .binary: return NSLocalizedString("tab.binary", value: "Binary", comment: "Binary")
+        case .advanced: return NSLocalizedString("tab.advanced", value: "Advanced", comment: "Advanced")
         case .accounts: return NSLocalizedString("tab.accounts", value: "Accounts", comment: "Accounts")
         case .usage: return NSLocalizedString("tab.usage", value: "Usage", comment: "Usage")
         }
@@ -174,6 +177,7 @@ enum ProviderContentTabType: String, CaseIterable, Identifiable {
         var tabs: [ProviderContentTabType] = [.skills, .workflows, .mcp]
         if provider.templateId == "codex" || provider.templateId == "codexXcode" {
             tabs.append(.binary)
+            tabs.append(.advanced)
         }
         guard provider.kind == .vendor else { return tabs }
 
@@ -202,6 +206,8 @@ extension ProviderContentTabType {
             self = .usage
         case "binary":
             self = .binary
+        case "advanced":
+            self = .advanced
         default:
             return nil
         }
@@ -235,6 +241,7 @@ final class ProviderContentTabViewModel {
         case .workflows: return workflowsCount
         case .mcp: return mcpCount
         case .binary: return 0
+        case .advanced: return 0
         case .accounts: return 0
         case .usage: return 0
         }
