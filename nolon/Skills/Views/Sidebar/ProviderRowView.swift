@@ -6,6 +6,7 @@ struct ProviderRowView: View {
     let provider: Provider
     let isSelected: Bool
     let onShowInFinder: () -> Void
+    let onViewOfficialDocumentation: () -> Void
     let onEdit: () -> Void
     let onDelete: () -> Void
     
@@ -25,18 +26,35 @@ struct ProviderRowView: View {
         .padding(.vertical, 2)
         .contentShape(Rectangle())
         .contextMenu {
+            if provider.documentationURL != nil {
+                Button {
+                    onViewOfficialDocumentation()
+                } label: {
+                    menuLabel(
+                        NSLocalizedString("action.view_official_docs", value: "View Official Documentation", comment: "Open official provider documentation"),
+                        systemImage: "book.closed"
+                    )
+                }
+
+                Divider()
+            }
+
             Button {
                 onShowInFinder()
             } label: {
-                Label(NSLocalizedString("action.show_in_finder", comment: "Show in Finder"), systemImage: "folder")
-                    .dsIconLabelButton()
+                menuLabel(
+                    NSLocalizedString("action.show_in_finder", comment: "Show in Finder"),
+                    systemImage: "folder"
+                )
             }
             
             Button {
                 onEdit()
             } label: {
-                Label(NSLocalizedString("action.edit", comment: "Edit"), systemImage: "pencil")
-                    .dsIconLabelButton()
+                menuLabel(
+                    NSLocalizedString("action.edit", comment: "Edit"),
+                    systemImage: "square.and.pencil"
+                )
             }
             
             Divider()
@@ -44,9 +62,26 @@ struct ProviderRowView: View {
             Button(role: .destructive) {
                 onDelete()
             } label: {
-                Label(NSLocalizedString("action.delete", comment: "Delete"), systemImage: "trash")
-                    .dsIconLabelButton()
+                menuLabel(
+                    NSLocalizedString("action.delete", comment: "Delete"),
+                    systemImage: "trash",
+                    foreground: DesignSystem.Colors.Status.error
+                )
             }
         }
+    }
+
+    private func menuLabel(
+        _ title: String,
+        systemImage: String,
+        foreground: Color = DesignSystem.Colors.Text.primary
+    ) -> some View {
+        Label {
+            Text(title)
+        } icon: {
+            Image(systemName: systemImage)
+                .font(.system(size: 11, weight: .semibold))
+        }
+        .dsIconLabelButton(foreground: foreground)
     }
 }

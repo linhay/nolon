@@ -6,7 +6,7 @@
         "vendorHomeRelativePath": ".codex",
         "defaultSkillsPath": "skills",
         "defaultWorkflowPath": "prompts",
-        "documentationURL": "https://developers.openai.com/codex/skills",
+        "documentationURL": "https://developers.openai.com/codex/",
         "mcpDocumentationURL": "https://developers.openai.com/codex/mcp/",
         "defaultMcpConfigPath": "config.toml",
         "vendorTabs": [
@@ -24,7 +24,7 @@
         "vendorHomeRelativePath": "Library/Developer/Xcode/CodingAssistant/codex",
         "defaultSkillsPath": "skills",
         "defaultWorkflowPath": "prompts",
-        "documentationURL": "https://developer.apple.com/documentation/xcode/setting-up-coding-intelligence",
+        "documentationURL": "https://developer.apple.com/documentation/Xcode/setting-up-coding-intelligence",
         "mcpDocumentationURL": "https://developer.apple.com/documentation/xcode/setting-up-coding-intelligence",
         "defaultMcpConfigPath": "config.toml",
         "vendorTabs": [
@@ -40,7 +40,7 @@
         "logoFile": "claude",
         "defaultSkillsPath": ".claude/skills",
         "defaultWorkflowPath": ".claude/workflows",
-        "documentationURL": "https://docs.claude.ai/docs/en/skills",
+        "documentationURL": "https://code.claude.com/docs/en/overview",
         "mcpDocumentationURL": "https://docs.claude.ai/docs/en/mcp#option-1%3A-exclusive-control-with-managed-mcp-json",
         "defaultMcpConfigPath": ".claude.json"
     },
