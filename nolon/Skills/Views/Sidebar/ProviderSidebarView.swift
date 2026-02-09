@@ -72,6 +72,12 @@ final class ProviderSidebarViewModel {
         let url = URL(fileURLWithPath: provider.defaultSkillsPath)
         NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: url.path)
     }
+
+    @MainActor
+    func openOfficialDocumentation(for provider: Provider) {
+        guard let url = provider.documentationURL else { return }
+        NSWorkspace.shared.open(url)
+    }
 }
 
 // MARK: - View
@@ -111,6 +117,7 @@ public struct ProviderSidebarView: View {
                             provider: provider,
                             isSelected: selectedProviderId == provider.id,
                             onShowInFinder: { viewModel.showInFinder(provider) },
+                            onViewOfficialDocumentation: { viewModel.openOfficialDocumentation(for: provider) },
                             onEdit: { viewModel.editingProvider = provider },
                             onDelete: { viewModel.deleteProvider(provider, currentSelection: $selectedProviderId) }
                         )
@@ -140,6 +147,7 @@ public struct ProviderSidebarView: View {
                             provider: provider,
                             isSelected: selectedProviderId == provider.id,
                             onShowInFinder: { viewModel.showInFinder(provider) },
+                            onViewOfficialDocumentation: { viewModel.openOfficialDocumentation(for: provider) },
                             onEdit: { viewModel.editingProvider = provider },
                             onDelete: { viewModel.deleteProvider(provider, currentSelection: $selectedProviderId) }
                         )
