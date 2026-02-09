@@ -172,6 +172,7 @@ RELEASE_NOTES="${RELEASE_NOTES}
 
 # Update Appcast
 APPCAST_FILE="docs/appcast.xml"
+APPCAST_FILE_ROOT="appcast.xml"
 APPCAST_URL="https://linhay.github.io/nolon/appcast.xml"
 DOWNLOAD_BASE_URL="https://github.com/linhay/nolon/releases/download/${TAG}"
 DATE_RFC2822=$(date "+%a, %d %b %Y %H:%M:%S %z")
@@ -267,6 +268,10 @@ rm new_item.xml
 
 echo -e "${GREEN}✅ Appcast updated at ${APPCAST_FILE}${NC}"
 
+# Mirror appcast at repository root for Pages configurations that publish from "/"
+cp "$APPCAST_FILE" "$APPCAST_FILE_ROOT"
+echo -e "${GREEN}✅ Appcast mirrored to ${APPCAST_FILE_ROOT}${NC}"
+
 # ------------------------------------------------------------------------------
 # End Sparkle Integration
 # ------------------------------------------------------------------------------
@@ -288,7 +293,7 @@ if git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then
 fi
 
 echo -e "${YELLOW}GIT committing version + appcast...${NC}"
-git add "$PROJECT_FILE" "$APPCAST_FILE"
+git add "$PROJECT_FILE" "$APPCAST_FILE" "$APPCAST_FILE_ROOT"
 
 if [ -f "docs/RELEASE_NOTES_${VERSION}.md" ]; then
     git add "docs/RELEASE_NOTES_${VERSION}.md"

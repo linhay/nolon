@@ -1,0 +1,754 @@
+<?xml version="1.0" standalone="yes"?>
+<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+    <channel>
+        <title>Nolon Changelog</title>
+        <link>https://linhay.github.io/nolon/appcast.xml</link>
+        <description>Most recent changes with links to updates.</description>
+        <language>en</language>
+            <item>
+            <title>0.0.4</title>
+            <pubDate>Sun, 25 Jan 2026 01:31:20 +0800</pubDate>
+            <sparkle:version>0.0.4</sparkle:version>
+            <sparkle:shortVersionString>0.0.4</sparkle:shortVersionString>
+            <link>https://github.com/linhay/nolon/releases/download/v0.0.4/nolon-arm64.dmg</link>
+            <description><![CDATA[<div style="white-space: pre-wrap; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;">## nolon 0.0.4
+            
+### Downloads
+| Platform | Architecture | Download |
+|----------|--------------|----------|
+| macOS | Apple Silicon | [nolon-arm64.dmg](https://github.com/linhay/nolon/releases/download/v0.0.4/nolon-arm64.dmg) |
+| macOS | Intel | [nolon-x86_64.dmg](https://github.com/linhay/nolon/releases/download/v0.0.4/nolon-x86_64.dmg) |
+</div>]]></description>
+            <enclosure url="https://github.com/linhay/nolon/releases/download/v0.0.4/nolon-arm64.dmg"
+                       sparkle:version="0.0.4"
+                       sparkle:shortVersionString="0.0.4"
+                       sparkle:edSignature="CGBYpbYJ2sm4JNEcdaUQH2JAWEQTykzYsnLSmMqBZvAP45U6DnJkTMjBoUNwvJD2tM9ACC79s2JO/n2t35XtBw=="
+                       length="44863817"
+                       type="application/x-apple-diskimage"
+                       sparkle:os="macos" />
+            <enclosure url="https://github.com/linhay/nolon/releases/download/v0.0.4/nolon-x86_64.dmg"
+                       sparkle:version="0.0.4"
+                       sparkle:shortVersionString="0.0.4"
+                       sparkle:edSignature="uNoIvIyPMXUMN8D97SBeu9hcisM63oBkSJbr0WCDbQe0pJArVr4spx4bMfOmE7z44rwCWZdUgRQjJphh3x7wDA=="
+                       length="44989752"
+                       type="application/x-apple-diskimage"
+                       sparkle:os="macos" />
+        </item>
+
+    
+        <item>
+            <title>0.0.6</title>
+            <pubDate>Sun, 25 Jan 2026 02:06:42 +0800</pubDate>
+            <sparkle:version>202601250206</sparkle:version>
+            <sparkle:shortVersionString>0.0.6</sparkle:shortVersionString>
+            <link>https://github.com/linhay/nolon/releases/download/v0.0.6/nolon-arm64.dmg</link>
+            <description><![CDATA[<div style="white-space: pre-wrap; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;"></div>]]></description>
+            <enclosure url="https://github.com/linhay/nolon/releases/download/v0.0.6/nolon-arm64.dmg"
+                       sparkle:version="202601250206"
+                       sparkle:shortVersionString="0.0.6"
+                       sparkle:edSignature="9a+1YdGRHQMYW6pTX0D3LsMzuv65oHXka7Qk+HoTJOqFtQUdWHFJEjnAbTx5LUrNN00uEnVuP9FP8qHyaCKYAA=="
+                       length="44864620"
+                       type="application/x-apple-diskimage"
+                       sparkle:os="macos"
+                       xml:lang="en" />
+            <enclosure url="https://github.com/linhay/nolon/releases/download/v0.0.6/nolon-x86_64.dmg"
+                       sparkle:version="202601250206"
+                       sparkle:shortVersionString="0.0.6"
+                       sparkle:edSignature="EOCsILzKUvAYNHy7xYryJNbB9gSEEc/yK1y0jYaAvc1UHAGgelfPBVKgqGB7nu/jG4SRepZOQB5gtHkvDIbqCQ=="
+                       length="44990372"
+                       type="application/x-apple-diskimage"
+                       sparkle:os="macos"
+                       xml:lang="en" />
+        </item>
+
+    
+        <item>
+            <title>0.0.7</title>
+            <pubDate>Mon, 26 Jan 2026 01:22:18 +0800</pubDate>
+            <sparkle:version>202601260114</sparkle:version>
+            <sparkle:shortVersionString>0.0.7</sparkle:shortVersionString>
+            <link>https://github.com/linhay/nolon/releases/download/v0.0.7/nolon-arm64.dmg</link>
+            <description><![CDATA[<div style="white-space: pre-wrap; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;"></div>]]></description>
+            <enclosure url="https://github.com/linhay/nolon/releases/download/v0.0.7/nolon-arm64.dmg"
+                       sparkle:version="202601260114"
+                       sparkle:shortVersionString="0.0.7"
+                       sparkle:edSignature="opoC4XZghZXPaa9ylLpOx7wIJNeI9ffc1MiESb/WK9mAfzCsVI260t6cYtpL3I/RcXjcd/WKL/5J3Qx1bDLGBw=="
+                       length="45619157"
+                       type="application/x-apple-diskimage"
+                       sparkle:os="macos"
+                       xml:lang="en" />
+            <enclosure url="https://github.com/linhay/nolon/releases/download/v0.0.7/nolon-x86_64.dmg"
+                       sparkle:version="202601260114"
+                       sparkle:shortVersionString="0.0.7"
+                       sparkle:edSignature="umAi7m33kp+Zn+FRBkYSQ70/6CSNz/M3sSsM73DiDkSiVlV2vG07USFmfTJl5c2oCNpZjmVKU7hoFBaMupdiAQ=="
+                       length="45785372"
+                       type="application/x-apple-diskimage"
+                       sparkle:os="macos"
+                       xml:lang="en" />
+        </item>
+
+    
+        <item>
+            <title>0.0.8</title>
+            <pubDate>Mon, 26 Jan 2026 11:32:47 +0800</pubDate>
+            <sparkle:version>202601261120</sparkle:version>
+            <sparkle:shortVersionString>0.0.8</sparkle:shortVersionString>
+            <link>https://github.com/linhay/nolon/releases/download/v0.0.8/nolon-arm64.dmg</link>
+            <description><![CDATA[<div style="white-space: pre-wrap; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;"></div>]]></description>
+            <enclosure url="https://github.com/linhay/nolon/releases/download/v0.0.8/nolon-arm64.dmg"
+                       sparkle:version="202601261120"
+                       sparkle:shortVersionString="0.0.8"
+                       sparkle:edSignature="PdFBYEXEGpp1xH38ATol1VVR6sB5nIRipElje4hffAfQGkGcarl3/OdGH73y/wfZpomOzG6JnkkCDDnocyljAg=="
+                       length="45619045"
+                       type="application/x-apple-diskimage"
+                       sparkle:os="macos"
+                       xml:lang="en" />
+            <enclosure url="https://github.com/linhay/nolon/releases/download/v0.0.8/nolon-x86_64.dmg"
+                       sparkle:version="202601261120"
+                       sparkle:shortVersionString="0.0.8"
+                       sparkle:edSignature="ftatWJlf0USbsPWRD8MAvYez7EtjlpM3x8tY7uUZIzj0A7vyOa84ltY4/iRrqc2F2o/zs4fG2cGgl9z195upCQ=="
+                       length="45785444"
+                       type="application/x-apple-diskimage"
+                       sparkle:os="macos"
+                       xml:lang="en" />
+        </item>
+
+    
+        <item>
+            <title>0.0.9</title>
+            <pubDate>Mon, 26 Jan 2026 12:05:31 +0800</pubDate>
+            <sparkle:version>202601261153</sparkle:version>
+            <sparkle:shortVersionString>0.0.9</sparkle:shortVersionString>
+            <link>https://github.com/linhay/nolon/releases/download/v0.0.9/nolon-arm64.dmg</link>
+            <description><![CDATA[<div style="white-space: pre-wrap; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;">## nolon 0.0.9
+
+### Changes
+
+
+### Downloads
+
+| Platform | Architecture | Download |
+|----------|--------------|----------|
+| macOS | Apple Silicon (M1/M2/M3) | `nolon-arm64.dmg` |
+| macOS | Intel | `nolon-x86_64.dmg` |
+
+### Installation
+1. Download the appropriate DMG for your Mac
+   - **Apple Silicon** (M1, M2, M3 chips): `nolon-arm64.dmg`
+   - **Intel** (older Macs): `nolon-x86_64.dmg`
+2. Open the DMG and drag nolon to Applications
+3. Launch nolon from Applications
+
+### System Requirements
+- macOS 14.0 or later
+
+---
+*Built on 2026-01-26*</div>]]></description>
+            <enclosure url="https://github.com/linhay/nolon/releases/download/v0.0.9/nolon-arm64.dmg"
+                       sparkle:version="202601261153"
+                       sparkle:shortVersionString="0.0.9"
+                       sparkle:edSignature="ABYva4ahuasnWmHZyiWZVLDKyf0mD5pU6lGmuVBfpELOAbRK9KvLv+6BjBoAsCJUnXYcgyVD6tsbkGKqO2MhAQ=="
+                       length="45619095"
+                       type="application/x-apple-diskimage"
+                       sparkle:os="macos"
+                       xml:lang="en" />
+            <enclosure url="https://github.com/linhay/nolon/releases/download/v0.0.9/nolon-x86_64.dmg"
+                       sparkle:version="202601261153"
+                       sparkle:shortVersionString="0.0.9"
+                       sparkle:edSignature="98kmgec5Sri411qVXBOV+Nomcr6aPUPHrdFXHos1idDY4X7LXrD5fp8OREpnSkOg6QuiJrQd9Vx4S52JpYMSAQ=="
+                       length="45785324"
+                       type="application/x-apple-diskimage"
+                       sparkle:os="macos"
+                       xml:lang="en" />
+        </item>
+
+    
+        <item>
+            <title>0.1.0</title>
+            <pubDate>Mon, 26 Jan 2026 12:47:58 +0800</pubDate>
+            <sparkle:version>202601261237</sparkle:version>
+            <sparkle:shortVersionString>0.1.0</sparkle:shortVersionString>
+            <link>https://github.com/linhay/nolon/releases/download/v0.1.0/nolon-arm64.dmg</link>
+            <description><![CDATA[<div style="white-space: pre-wrap; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;">## nolon 0.1.0
+
+### Changes
+## nolon 0.0.9
+
+### ✨ New Features
+- **智能发布流程**: 现在支持自动从 `docs/RELEASE_NOTES_{version}.md` 读取更新说明。
+- **状态跟踪**: 优化了发布过程中的状态实时反馈。
+
+### 🐞 Bug Fixes
+- 修复了 Sparkle 更新日志描述为空的问题。
+- 修复了 GitHub Release Notes 中的换行符转义问题。
+
+---
+感谢您的支持！
+
+### Downloads
+
+| Platform | Architecture | Download |
+|----------|--------------|----------|
+| macOS | Apple Silicon (M1/M2/M3) | `nolon-arm64.dmg` |
+| macOS | Intel | `nolon-x86_64.dmg` |
+
+### Installation
+1. Download the appropriate DMG for your Mac
+   - **Apple Silicon** (M1, M2, M3 chips): `nolon-arm64.dmg`
+   - **Intel** (older Macs): `nolon-x86_64.dmg`
+2. Open the DMG and drag nolon to Applications
+3. Launch nolon from Applications
+
+### System Requirements
+- macOS 14.0 or later
+
+---
+*Built on 2026-01-26*</div>]]></description>
+            <enclosure url="https://github.com/linhay/nolon/releases/download/v0.1.0/nolon-arm64.dmg"
+                       sparkle:version="202601261237"
+                       sparkle:shortVersionString="0.1.0"
+                       sparkle:edSignature="CPdXAJwKJJJ4hv268qFnqumIbcu4z5s+v1ApsuXOlPgLt5QVEKUgVONVrAv9iaxF7h4U17AWlAQh/pBQBO/nCw=="
+                       length="45619065"
+                       type="application/x-apple-diskimage"
+                       sparkle:os="macos"
+                       xml:lang="en" />
+            <enclosure url="https://github.com/linhay/nolon/releases/download/v0.1.0/nolon-x86_64.dmg"
+                       sparkle:version="202601261237"
+                       sparkle:shortVersionString="0.1.0"
+                       sparkle:edSignature="n2g6m4iPeF3OqT1Yad0MseIA27PpFv/oyVmR046dQJFpLIePqLGjeR0+jRLWY8q3HHGJYTSEvVkj1U/ucAztAg=="
+                       length="45785400"
+                       type="application/x-apple-diskimage"
+                       sparkle:os="macos"
+                       xml:lang="en" />
+        </item>
+
+    
+        <item>
+            <title>0.1.1</title>
+            <pubDate>Wed, 28 Jan 2026 18:27:59 +0800</pubDate>
+            <sparkle:version>202601281815</sparkle:version>
+            <sparkle:shortVersionString>0.1.1</sparkle:shortVersionString>
+            <link>https://github.com/linhay/nolon/releases/download/v0.1.1/nolon-arm64.dmg</link>
+            <description><![CDATA[<div style="white-space: pre-wrap; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;">## Nolon v0.2.0 Release Notes
+
+## 🎯 重大架构重构
+
+### 统一资源管理系统
+- **Repository 协议架构**: 引入全新的 `RemoteResourceRepository` 协议，统一管理 Skills、Workflows 和 MCPs 三类资源
+- **四大 Repository 实现**:
+  - `ClawdhubRepository`: API 驱动的云端资源仓库，支持所有三类资源的浏览与下载
+  - `GitRepository`: 基于 SwiftGit 的 Git 仓库集成，支持 SSH/HTTPS 认证，自动同步与浅克隆
+  - `LocalFolderRepository`: 本地文件系统扫描器，递归发现本地资源
+  - `GlobalCacheRepository`: 全局缓存管理器（`~/.nolon/`），同时作为本地资源仓库使用
+
+### 资源独立化与路径重构
+- **Workflow 完全独立**: 
+  - 从 Skill 关联中解耦，成为一等公民资源类型
+  - 移除了基于 Skill 自动生成 workflow 的逻辑
+  - 独立缓存路径：`~/.nolon/workflows`
+- **MCP 全面支持**:
+  - 新增 MCP 全局缓存：`~/.nolon/mcps`
+  - 智能配置合并至 Provider 的 `mcp_settings.json`
+  - 支持从 Clawdhub、Git 仓库、本地缓存安装
+- **Skills 路径优化**: 
+  - 全局缓存保持在 `~/.nolon/skills`
+  - 支持软链接和复制两种安装方式
+
+### 统一安装器
+- **ResourceInstaller**: 取代旧的 `SkillInstaller`，提供统一的资源安装接口
+  - `installFromRemote()`: 完整的下载 → 缓存 → 安装流程
+  - `installFromCache()`: 从全局缓存快速安装
+  - `uninstall()`: 可选的缓存清理
+  - 自动处理 zip 解压、文件复制、软链接创建
+  - MCP 配置自动合并到 Provider 配置文件
+
+## 🔧 技术优化
+
+### Swift 6 严格并发
+- 全面适配 Swift 6 actor isolation 模型
+- `GlobalCacheRepository` 和 `ResourceInstaller` 使用 actor 确保线程安全
+- `RemoteResourceRepository` 协议标记为 `Sendable`
+- 正确使用 `nonisolated` 标注不可变属性
+
+### Clean Architecture
+- **Models**: 纯 Swift 结构体，不可变，Codable & Sendable
+- **Infrastructure**: 副作用隔离（文件操作、网络请求、Git 同步）
+- **Views**: SwiftUI 视图层，通过 Repository 协议与基础设施通信
+- 依赖方向：Views → Infrastructure → Models
+
+### 错误处理优化
+- 统一的 `RepositoryError` 枚举覆盖所有错误场景
+- 本地化错误消息
+- 明确区分资源类型不支持、网络错误、文件操作失败等场景
+
+## 📦 功能增强
+
+### 远程资源浏览器
+- **三类资源统一浏览**: Skills、Workflows、MCPs 在同一界面切换
+- **多仓库支持**: 
+  - Clawdhub 官方仓库
+  - GitHub/GitLab 等 Git 仓库（自动同步）
+  - 本地文件夹
+  - 全局缓存（已下载资源）
+- **智能过滤与搜索**: 支持按名称、描述搜索，Repository 层级查询过滤
+
+### 安装流程优化
+- **Workflow 安装**: 直接安装到 Provider 的 workflow 目录
+- **MCP 安装**: 
+  - 自动检测 Provider 的 MCP 配置路径（通过 ProviderTemplate）
+  - 智能合并 `command`、`args`、`env` 配置
+  - 保持现有配置不被覆盖
+- **Skills 安装**: 保持原有安装逻辑，但代码更清晰
+
+### 缓存管理
+- **自动缓存**: 所有远程下载的资源自动缓存到 `~/.nolon/`
+- **重复检测**: 安装时智能检查缓存，避免重复下载
+- **缓存浏览**: GlobalCacheRepository 可作为资源仓库直接浏览已缓存内容
+- **选择性清理**: 卸载时可选择是否同时删除缓存
+
+## 🐛 Bug 修复
+
+- 修复了 `RemoteMCP.MCPConfiguration` 缺少 `Encodable` 协议导致的编码错误
+- 修复了 Actor isolation 导致的并发访问错误
+- 修复了 `Provider.defaultMcpConfigPath` 属性不存在的问题（应使用 `ProviderTemplate`）
+- 修复了 `RemoteSkillsBrowserView` 参数顺序错误
+- 修复了 Workflow 和 MCP 安装按钮无响应的问题
+- 修复了 GlobalSkills 仓库错误使用 LocalFolderRepository 的问题
+- 修复了从 Git/本地仓库安装 Workflow 无法更新卡片安装状态的问题（现在会跟随 Provider 的 workflow 目录刷新）
+- 修复了 Remote 仓库列表排序与删除索引错位问题（全局仓库固定置顶）
+- 修复了从仓库安装 Skill 后 Provider Skills 页面可能出现 “未能打开文件，因为它不存在” 的问题
+- 修复了 Provider Tab 数字（尤其是 MCP）不刷新/不准确的问题，并支持 Codex 的 `config.toml` 解析统计
+
+## 📝 代码改进
+
+### 新增文件（6个核心基础设施）
+- `RemoteResourceRepository.swift` (178 行): 核心协议定义
+- `ClawdhubRepository.swift` (566 行): Clawdhub API 客户端
+- `LocalFolderRepository.swift` (390 行): 本地文件扫描器
+- `GitRepository.swift` (317 行): SwiftGit 集成
+- `GlobalCacheRepository.swift` (380 行): 全局缓存管理 + Repository 实现
+- `ResourceInstaller.swift` (357 行): 统一资源安装器
+
+### 修改文件
+- `NolonManager.swift`: 新增 `mcpsURL` 属性
+- `RemoteSkillsGridView.swift`: 适配新 Repository 架构
+- `RemoteMCP.swift`: `MCPConfiguration` 改为 `Codable`
+- `MainSplitView.swift`: 新增 Workflow 和 MCP 安装回调处理
+
+## ⚠️ 破坏性变更
+
+- 移除了 `ClawdhubService` （替换为 `ClawdhubRepository`）
+- 移除了 `LocalFolderService` （替换为 `LocalFolderRepository`）
+- 移除了 `GitHubRepositoryService` （替换为 `GitRepository`）
+- `GlobalCacheRepository` 不再自动为 Skills 生成 global workflows
+- Workflow 现在完全独立，不再与 Skill 关联
+
+## 🎓 开发者注意事项
+
+- 所有 Repository 实现必须遵守 `RemoteResourceRepository` 协议
+- 使用 `ResourceInstaller` 替代直接文件操作进行资源安装
+- MCP 安装需要通过 `ProviderTemplate` 获取配置路径，而非 `Provider` 实例
+- Git 操作使用 SwiftGit 库，支持浅克隆（`depth=1`）以节省空间
+
+## 📊 统计数据
+
+- 新增代码：约 2600 行
+- 重构代码：约 200 行
+- 修复 Bug：7 个编译错误 + 2 个运行时 bug
+- 架构模式：Clean Architecture + Repository Pattern
+- 并发模型：Swift 6 Actor Isolation
+
+---
+
+## Nolon v0.1.1 Release Notes
+
+## 核心改进与修复
+
+- **卡片组件重构与体验升级**: 
+  - **Skill, MCP, Workflow 视觉统合**: 统一了三类卡片的 UI 规范，采用 16pt 内边距与 12pt 元素间距，视觉风格高度一致。
+  - **操作收纳与极简设计**: 移除了卡片底部冗余的编辑/删除按钮，将功能统一收纳至右上角更多菜单与右键上下文菜单中。
+  - **交互安全性增强**: 为所有删除和卸载操作增加了二次确认弹窗（Confirmation Dialog），有效防止误触风险。
+
+- **Workflow 管理增强**:
+  - **MCP 工作流同步**: 实现了 MCP 关联工作流自动同步至 Provider 工作目录（如 `.gemini/workflows` 等）的功能，确保 IDE 即刻识别。
+  - **智能来源标注**: `WorkflowCardView` 现在能根据物理路径自动标注 `Skill` / `User` / `MCP` 来源，解析逻辑已适配软链接情形。
+
+- **国际化与体验细节**:
+  - **本地化优化**: 修正了部分中文翻译，确保技术术语（如 MCP, Workflow）在多语言环境下的一致性。
+  - **动画反馈**: 优化了卡片点击与交互的响应速度，提升了操作流畅度。
+
+- **链接解析与导入优化**:
+  - **URL Scheme 增强**: 完善了 `nln://` 与 `nolon://` 协议的解析能力，现在支持从包含协议头的完整 URL 中自动提取 Git 仓库地址及子路径。
+  - **单实例窗口管理**: 修复了点击外部链接时可能产生重复窗口的问题，确保应用始终在单一窗口内处理导入事件。
+  - **状态同步修复**: 解决了 `@State` 缓存导致的导入界面无法即时更新 URL 的问题，提升了从外部一键安装 Skill 的成功率。
+
+- **开发者设施**:
+  - **代码鲁棒性**: 修复了公共模块中关于 Swift 访问控制（Access Control）的潜在编译报错。
+  - **项目自动化**: 引入了更严谨的 UI 开发规范与编码 Skill 沉淀。
+
+### Downloads
+
+| Platform | Architecture | Download |
+|----------|--------------|----------|
+| macOS | Apple Silicon (M1/M2/M3) | `nolon-arm64.dmg` |
+| macOS | Intel | `nolon-x86_64.dmg` |
+
+### Installation
+1. Download the appropriate DMG for your Mac
+   - **Apple Silicon** (M1, M2, M3 chips): `nolon-arm64.dmg`
+   - **Intel** (older Macs): `nolon-x86_64.dmg`
+2. Open the DMG and drag nolon to Applications
+3. Launch nolon from Applications
+
+### System Requirements
+- macOS 14.0 or later
+
+---
+*Built on 2026-01-28*</div>]]></description>
+            <enclosure url="https://github.com/linhay/nolon/releases/download/v0.1.1/nolon-arm64.dmg"
+                       sparkle:version="202601281815"
+                       sparkle:shortVersionString="0.1.1"
+                       sparkle:edSignature="ZpeNLV3375ml7KuVuh5kddqNacrMe758U/qHwN9BalP6Wf7ZJl/zDOskDBUDyheNUgZ4kf1fkFI/MBaR70LLCg=="
+                       length="46423753"
+                       type="application/x-apple-diskimage"
+                       sparkle:os="macos"
+                       xml:lang="en" />
+            <enclosure url="https://github.com/linhay/nolon/releases/download/v0.1.1/nolon-x86_64.dmg"
+                       sparkle:version="202601281815"
+                       sparkle:shortVersionString="0.1.1"
+                       sparkle:edSignature="gIFCdvfpjHVPok/ShgrwZMNDuqUWf9BINLcds1Kvr7zmu2nUi9GnLQJ2OJZEGPIn2sGjm4/FzsaijnH9KyQzAA=="
+                       length="46614271"
+                       type="application/x-apple-diskimage"
+                       sparkle:os="macos"
+                       xml:lang="en" />
+        </item>
+
+    
+        <item>
+            <title>1.1.1</title>
+            <pubDate>Thu, 29 Jan 2026 23:10:51 +0800</pubDate>
+            <sparkle:version>202601292258</sparkle:version>
+            <sparkle:shortVersionString>1.1.1</sparkle:shortVersionString>
+            <link>https://github.com/linhay/nolon/releases/download/v1.1.1/nolon-arm64.dmg</link>
+            <description><![CDATA[<div style="white-space: pre-wrap; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;">## nolon 1.1.1
+
+### Changes
+# Nolon 1.1.1
+
+## What's New
+
+### ✨ Features
+- **MCP Editing**: Added support for editing MCP configurations and enabling/disabling them directly.
+- **Enhanced Remote MCP**: Remote MCP cards now feature a "Show in Finder" option for easier access.
+- **Git Caching**: Improved `GitRepository` and `RemoteSkillsGridView` with a caching mechanism and optimized data loading.
+
+### 🛠 Refactoring
+- **Parser Improvements**: Migrated skill content parsing to use `FrontmatterParser` for better reliability.
+- **File System**: Migrated `FileManager` operations to `STFilePath` for a more structured file handling approach.
+- **Architecture**: Refactored `GitRepository` and removed `LocalFolderService` to streamline the codebase.
+
+### Downloads
+
+| Platform | Architecture | Download |
+|----------|--------------|----------|
+| macOS | Apple Silicon (M1/M2/M3) | `nolon-arm64.dmg` |
+| macOS | Intel | `nolon-x86_64.dmg` |
+
+### Installation
+1. Download the appropriate DMG for your Mac
+   - **Apple Silicon** (M1, M2, M3 chips): `nolon-arm64.dmg`
+   - **Intel** (older Macs): `nolon-x86_64.dmg`
+2. Open the DMG and drag nolon to Applications
+3. Launch nolon from Applications
+
+### System Requirements
+- macOS 14.0 or later
+
+---
+*Built on 2026-01-29*</div>]]></description>
+            <enclosure url="https://github.com/linhay/nolon/releases/download/v1.1.1/nolon-arm64.dmg"
+                       sparkle:version="202601292258"
+                       sparkle:shortVersionString="1.1.1"
+                       sparkle:edSignature="WWwoiq66LSXB++GRz7ZH8w7QToq75q+/FgPvWs+tI75s8MLFk5MRaPvuoXo5eUwyz3uANn4P058f6scYKn5+Dw=="
+                       length="46406562"
+                       type="application/x-apple-diskimage"
+                       sparkle:os="macos"
+                       xml:lang="en" />
+            <enclosure url="https://github.com/linhay/nolon/releases/download/v1.1.1/nolon-x86_64.dmg"
+                       sparkle:version="202601292258"
+                       sparkle:shortVersionString="1.1.1"
+                       sparkle:edSignature="7QSfQQmVeukGIzD8atjVmBdpdRghaBdJUhTHfhHdSf7atiPz5olMcrvzz5xf0rZOOlUaOicXkQS8H8n1QLjDBQ=="
+                       length="46609124"
+                       type="application/x-apple-diskimage"
+                       sparkle:os="macos"
+                       xml:lang="en" />
+        </item>
+
+    
+        <item>
+            <title>1.2.0</title>
+            <pubDate>Tue, 03 Feb 2026 17:39:54 +0800</pubDate>
+            <sparkle:version>202602031739</sparkle:version>
+            <sparkle:shortVersionString>1.2.0</sparkle:shortVersionString>
+            <link>https://github.com/linhay/nolon/releases/download/v1.2.0/nolon-arm64.dmg</link>
+            <description><![CDATA[<div style="white-space: pre-wrap; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;">## nolon 1.2.0
+
+### Changes
+# Nolon 1.2.0
+
+## What's New
+
+### ✨ Features
+- **MCP Web Editor**: MCP cards now open the WebView-based config editor (legacy form editor removed).
+- **Per-MCP Migration**: MCP migration is now done one server at a time, with clear “Migrate / Update” actions per card.
+- **Standard MCP Cache**: Migrated MCP cache to `~/.nolon/mcps` with “one MCP per file” JSON using the standard `mcpServers` shape.
+- **MCP JSON Normalization**: Improved MCP JSON write/read stability (canonical ordering, no escaped slashes, `type` inference for `http` / `stdio`).
+- **Environment Variable Expansion**: Added support for `${env:VAR}` and `${env:VAR:-default}` in MCP configs.
+- **OpenCode MCP Support Fixes**: Updated OpenCode MCP config path/format handling (now uses `~/.config/opencode/opencode.json`, with top-level `mcp`).
+
+### 🛠 Build & Project
+- **Git Submodules**: `libs/` dependencies are now managed via git submodules; build script validates they are populated.
+
+### Downloads
+
+| Platform | Architecture | Download |
+|----------|--------------|----------|
+| macOS | Apple Silicon (M1/M2/M3) | `nolon-arm64.dmg` |
+| macOS | Intel | `nolon-x86_64.dmg` |
+
+### Installation
+1. Download the appropriate DMG for your Mac
+   - **Apple Silicon** (M1, M2, M3 chips): `nolon-arm64.dmg`
+   - **Intel** (older Macs): `nolon-x86_64.dmg`
+2. Open the DMG and drag nolon to Applications
+3. Launch nolon from Applications
+
+### System Requirements
+- macOS 14.0 or later
+
+---
+*Built on 2026-02-03*</div>]]></description>
+            <enclosure url="https://github.com/linhay/nolon/releases/download/v1.2.0/nolon-arm64.dmg"
+                       sparkle:version="202602031739"
+                       sparkle:shortVersionString="1.2.0"
+                       sparkle:edSignature="VJJo6PauPoxiulBuF0Y9WovCni3vnR3KWocWLy9PVaSyG6d4Wt7HKluks8svLRnFQ2Ijyc90rS7Nga/m9eRvCw=="
+                       length="49827301"
+                       type="application/x-apple-diskimage"
+                       sparkle:os="macos"
+                       xml:lang="en" />
+            <enclosure url="https://github.com/linhay/nolon/releases/download/v1.2.0/nolon-x86_64.dmg"
+                       sparkle:version="202602031739"
+                       sparkle:shortVersionString="1.2.0"
+                       sparkle:edSignature="n182FXoQBJZ69HBrMSLa8u9E25hGrAabP3S453WHlkL7Wge1K2g9ULUYmxxakgU2DxIXfeOwdWu9+Ph7h7iRBQ=="
+                       length="50111943"
+                       type="application/x-apple-diskimage"
+                       sparkle:os="macos"
+                       xml:lang="en" />
+        </item>
+
+    
+        <item>
+            <title>1.2.1</title>
+            <pubDate>Thu, 05 Feb 2026 15:26:47 +0800</pubDate>
+            <sparkle:version>202602051509</sparkle:version>
+            <sparkle:shortVersionString>1.2.1</sparkle:shortVersionString>
+            <link>https://github.com/linhay/nolon/releases/download/v1.2.1/nolon-arm64.dmg</link>
+            <description><![CDATA[<div style="white-space: pre-wrap; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;">## nolon 1.2.1
+
+### Changes
+# Nolon 1.2.1
+
+## What's New
+
+### ✨ Features
+- **Codex Usage Details**: Usage cards now show the quota period (w/d/h/m) and a compact reset countdown.
+
+### 🛠 Fixes
+- **Codex Auth Symlink Resolution**: Relative symlink targets now resolve against the parent folder for more reliable account detection.
+
+### Downloads
+
+| Platform | Architecture | Download |
+|----------|--------------|----------|
+| macOS | Apple Silicon (M1/M2/M3) | `nolon-arm64.dmg` |
+| macOS | Intel | `nolon-x86_64.dmg` |
+
+### Installation
+1. Download the appropriate DMG for your Mac
+   - **Apple Silicon** (M1, M2, M3 chips): `nolon-arm64.dmg`
+   - **Intel** (older Macs): `nolon-x86_64.dmg`
+2. Open the DMG and drag nolon to Applications
+3. Launch nolon from Applications
+
+### System Requirements
+- macOS 14.0 or later
+
+---
+*Built on 2026-02-05*</div>]]></description>
+            <enclosure url="https://github.com/linhay/nolon/releases/download/v1.2.1/nolon-arm64.dmg"
+                       sparkle:version="202602051509"
+                       sparkle:shortVersionString="1.2.1"
+                       sparkle:edSignature="PUk0z4sJg2zWRpDtjiEcEMw4xw2GiJalecbS+112eXnkFHqo9h49R/btWezrmglPQacSf13ZgbYLn8uqI8v5AQ=="
+                       length="50157005"
+                       type="application/x-apple-diskimage"
+                       sparkle:os="macos"
+                       xml:lang="en" />
+            <enclosure url="https://github.com/linhay/nolon/releases/download/v1.2.1/nolon-x86_64.dmg"
+                       sparkle:version="202602051509"
+                       sparkle:shortVersionString="1.2.1"
+                       sparkle:edSignature="1IeejYfY3IaOM6zVoo4hsdm7htmvvII737W85xSDkFvDTE+3XI4L6CRl/vrLx+nQfp5xW8l2kJGAWGi+6J0fBA=="
+                       length="50465669"
+                       type="application/x-apple-diskimage"
+                       sparkle:os="macos"
+                       xml:lang="en" />
+        </item>
+
+    
+        <item>
+            <title>1.2.2</title>
+            <pubDate>Thu, 05 Feb 2026 17:00:06 +0800</pubDate>
+            <sparkle:version>202602051644</sparkle:version>
+            <sparkle:shortVersionString>1.2.2</sparkle:shortVersionString>
+            <link>https://github.com/linhay/nolon/releases/download/v1.2.2/nolon-arm64.dmg</link>
+            <description><![CDATA[<div style="white-space: pre-wrap; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;">## nolon 1.2.2
+
+### Changes
+- Merge branch 'main' into xcode-codex
+- Add Xcode Codex provider support
+- 更新 preferences 和 release 文档，补充用量倒计时格式及文件路径类型规范，添加发布脚本失败处理说明
+
+### Downloads
+
+| Platform | Architecture | Download |
+|----------|--------------|----------|
+| macOS | Apple Silicon (M1/M2/M3) | `nolon-arm64.dmg` |
+| macOS | Intel | `nolon-x86_64.dmg` |
+
+### Installation
+1. Download the appropriate DMG for your Mac
+   - **Apple Silicon** (M1, M2, M3 chips): `nolon-arm64.dmg`
+   - **Intel** (older Macs): `nolon-x86_64.dmg`
+2. Open the DMG and drag nolon to Applications
+3. Launch nolon from Applications
+
+### System Requirements
+- macOS 14.0 or later
+
+---
+*Built on 2026-02-05*</div>]]></description>
+            <enclosure url="https://github.com/linhay/nolon/releases/download/v1.2.2/nolon-arm64.dmg"
+                       sparkle:version="202602051644"
+                       sparkle:shortVersionString="1.2.2"
+                       sparkle:edSignature="4tFVoEhpJOf5+sgQQHMWBqct3JXXJomvxPPSH1DN07JWXHPCIbSAqgY7uj2ScahsGRVxZp7DWg6YQA8XAIM/BA=="
+                       length="50162810"
+                       type="application/x-apple-diskimage"
+                       sparkle:os="macos"
+                       xml:lang="en" />
+            <enclosure url="https://github.com/linhay/nolon/releases/download/v1.2.2/nolon-x86_64.dmg"
+                       sparkle:version="202602051644"
+                       sparkle:shortVersionString="1.2.2"
+                       sparkle:edSignature="f1bBnNapJ+Gz7bLZ9eoxb0G/PIaq5gqjYtnxYzMUg3Cr2bVGONVma7uJR2t5kTUhuY+AfxHYhSyaidaYJtnaBw=="
+                       length="50468596"
+                       type="application/x-apple-diskimage"
+                       sparkle:os="macos"
+                       xml:lang="en" />
+        </item>
+
+    
+        <item>
+            <title>1.3.0</title>
+            <pubDate>Mon, 09 Feb 2026 02:23:49 +0800</pubDate>
+            <sparkle:version>202602090208</sparkle:version>
+            <sparkle:shortVersionString>1.3.0</sparkle:shortVersionString>
+            <link>https://github.com/linhay/nolon/releases/download/v1.3.0/nolon-arm64.dmg</link>
+            <description><![CDATA[<div style="white-space: pre-wrap; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;">## nolon 1.3.0
+
+### Changes
+- Fix release signing for embedded SwiftGit binaries
+- Fix Codex runner payload redeclaration and Provider tab enum duplicates
+- chore:
+- Merge codex-version-manager into main
+- Bump SKProcessRunner submodule
+- Update providers and codex binary features
+- Improve remote search UX and Clawdhub layout
+- feat(provider): add Codex Binary tab with model preference
+- Add full codex models_cache parsing and migrate to new SKProcessRunner API
+- Merge branch 'codex-version-manager'
+- Update Xcode project files
+- Fix tgz detection in Codex download
+- chore:
+- Revert "chore(release): v1.3.0"
+- chore(release): v1.3.0
+- 添加 STFilePath 和 STJSON 依赖项，并更新 Package.resolved 文件
+- Unify provider cards and fix concurrency warnings
+- Remove bottom add-repository button
+- Add add-repository action to sidebar header
+- Remove sidebar close button and extra padding
+- Avoid scrollContentPadding for SDK compatibility
+- Merge branch 'remote' into dev
+- Guard scrollContentPadding for older macOS
+- Merge branch 'remote' into dev
+- Merge branch 'remote' into dev
+- Apply sheet padding to repository sidebar list
+- Unify sheet spacing and dividers
+- Apply SheetHeaderView across sheets
+- Merge branch 'codex' into dev
+- Avoid duplicate watcher paths for Codex auth
+- Merge branch 'codex' into dev
+- Make SheetHeaderView more flexible
+- Fix self capture in usage logging
+- Merge branch 'codex' into dev
+- Add logging for Codex usage refresh
+- Extract sheet header and reuse in remote views
+- Merge branch 'remote'
+- Allow local skill detail to expand
+- Merge branch 'remote'
+- Center right-side badges in repo rows
+- Make repo groups collapsible
+- Merge branch 'remote'
+- Increase remote detail sheet minimum size
+- Group built-ins first and separate git status line
+- Merge branch 'remote'
+- Adjust repo grouping and row layout
+- Merge branch 'remote'
+- Refine remote repo grouping and search layout
+
+### Downloads
+
+| Platform | Architecture | Download |
+|----------|--------------|----------|
+| macOS | Apple Silicon (M1/M2/M3) | `nolon-arm64.dmg` |
+| macOS | Intel | `nolon-x86_64.dmg` |
+
+### Installation
+1. Download the appropriate DMG for your Mac
+   - **Apple Silicon** (M1, M2, M3 chips): `nolon-arm64.dmg`
+   - **Intel** (older Macs): `nolon-x86_64.dmg`
+2. Open the DMG and drag nolon to Applications
+3. Launch nolon from Applications
+
+### System Requirements
+- macOS 14.0 or later
+
+---
+*Built on 2026-02-09*</div>]]></description>
+            <enclosure url="https://github.com/linhay/nolon/releases/download/v1.3.0/nolon-arm64.dmg"
+                       sparkle:version="202602090208"
+                       sparkle:shortVersionString="1.3.0"
+                       sparkle:edSignature="lvl82N5UD7uEnxElo7VpJYShJZfC2p3kmQVlgA9eDRIl+1vZA3tL6ku7SBroc0Wt/SOMRabnejSQuU8bKgUUCQ=="
+                       length="59201646"
+                       type="application/x-apple-diskimage"
+                       sparkle:os="macos"
+                       xml:lang="en" />
+            <enclosure url="https://github.com/linhay/nolon/releases/download/v1.3.0/nolon-x86_64.dmg"
+                       sparkle:version="202602090208"
+                       sparkle:shortVersionString="1.3.0"
+                       sparkle:edSignature="m4FHsnmsiepnUHWDwibUv6pLpYBOw/kTlON2DWPuDr5MR8CFJyyZwQ2agYp8Ah78d9szzhkVryViU6KDQOMbAA=="
+                       length="59552145"
+                       type="application/x-apple-diskimage"
+                       sparkle:os="macos"
+                       xml:lang="en" />
+        </item>
+
+    </channel>
+</rss>
