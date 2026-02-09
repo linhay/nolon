@@ -2,13 +2,18 @@
 
 [English](README.md) | 中文
 
-Nolon 是一款强大的 macOS 应用程序，专为简化 AI 编程助手（如 **Codex** 和 **Claude Code**）的 Skills 管理而设计。它作为一个中心化枢纽，让您可以高效地组织、安装和维护您的 Skills。
+Nolon 是一款用于管理 AI 编程助手 Skills 的 macOS 应用，支持 **Codex**、**Claude Code**、**Cursor** 等多个 Provider。它在 `~/.nolon/skills` 中维护统一技能仓库，并通过软链接或复制安装到各 Provider。
+
+## 📦 下载
+
+*   **最新版本**：[v1.3.5](https://github.com/linhay/nolon/releases/latest)
+*   **Appcast（Sparkle 更新源）**：[appcast.xml](https://linhay.github.io/nolon/appcast.xml)
 
 ## 🚀 主要功能
 
 *   **中心化仓库**：在 `~/.nolon/skills/` 中维护所有 Skills 的单一事实来源。
 *   **Clawdhub 集成**：直接从 [Clawdhub](https://clawdhub.com) 远程仓库浏览和安装 Skills。
-*   **MCP 支持** 🆕：直接在 Nolon 中管理每个 Provider 的 Model Context Protocol (MCP) 配置。
+*   **MCP 支持**：直接在 Nolon 中管理每个 Provider 的 Model Context Protocol (MCP) 配置。
 *   **广泛的 Provider 支持** (25+)：
     *   **Codex**, **Claude Code**, **OpenCode**, **GitHub Copilot**, **Gemini CLI**, **Antigravity**, **Cursor**, **Amp**, **Clawdbot**, **Cline**, **Command Code**, **Droid**, **Goose**, **Kilo**, **Kiro**, **MCPJam**, **OpenHands**, **Pi**, **Qoder**, **Qwen**, **Roo**, **Trae**, **Windsurf**, **Zencoder**, **Neovate**。
 *   **灵活配置**：

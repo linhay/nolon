@@ -2,13 +2,18 @@
 
 English | [中文](README_ZH.md)
 
-Nolon is a powerful macOS application designed to streamline the management of skills for AI coding assistants like **Codex** and **Claude Code**. It acts as a centralized hub, allowing you to organize, install, and maintain your skills efficiently.
+Nolon is a macOS app for managing skills across AI coding assistants like **Codex**, **Claude Code**, **Cursor**, and more. It keeps a single source of truth in `~/.nolon/skills`, then installs skills to each provider via symlink or copy.
+
+## 📦 Download
+
+*   **Latest release**: [v1.3.5](https://github.com/linhay/nolon/releases/latest)
+*   **Appcast (Sparkle updates)**: [appcast.xml](https://linhay.github.io/nolon/appcast.xml)
 
 ## 🚀 Key Features
 
 *   **Centralized Repository**: Maintains a single source of truth for all your skills in `~/.nolon/skills/`.
 *   **Clawdhub Integration**: Browse and install skills directly from [Clawdhub](https://clawdhub.com) remote repository.
-*   **MCP Support** 🆕: Manage Model Context Protocol (MCP) configurations for each provider directly from Nolon.
+*   **MCP Support**: Manage Model Context Protocol (MCP) configurations for each provider directly from Nolon.
 *   **Broad Provider Support** (25+):
     *   **Codex**, **Claude Code**, **OpenCode**, **GitHub Copilot**, **Gemini CLI**, **Antigravity**, **Cursor**, **Amp**, **Clawdbot**, **Cline**, **Command Code**, **Droid**, **Goose**, **Kilo**, **Kiro**, **MCPJam**, **OpenHands**, **Pi**, **Qoder**, **Qwen**, **Roo**, **Trae**, **Windsurf**, **Zencoder**, **Neovate**.
 *   **Flexible Configuration**:
