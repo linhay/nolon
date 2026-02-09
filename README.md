@@ -2,7 +2,14 @@
 
 English | [中文](README_ZH.md)
 
-Nolon is a macOS app for managing skills across AI coding assistants like **Codex**, **Claude Code**, **Cursor**, and more. It keeps a single source of truth in `~/.nolon/skills`, then installs skills to each provider via symlink or copy.
+Nolon is a macOS control plane for AI coding assistants.  
+It manages your **skills**, **providers**, and **MCP configuration** in one place, then applies them consistently across tools like **Codex**, **Claude Code**, **Cursor**, and 20+ others.
+
+Instead of treating skills as isolated files, Nolon treats your setup as an operational system:
+*   One canonical storage at `~/.nolon/skills`
+*   Deterministic install to each provider via symlink/copy
+*   Remote distribution + local lifecycle (import, migrate, repair, update)
+*   Built-in update channels for both the app (Sparkle) and managed content
 
 ## 📦 Download
 
@@ -11,32 +18,43 @@ Nolon is a macOS app for managing skills across AI coding assistants like **Code
 
 ## 🚀 Key Features
 
-*   **Centralized Repository**: Maintains a single source of truth for all your skills in `~/.nolon/skills/`.
-*   **Clawdhub Integration**: Browse and install skills directly from [Clawdhub](https://clawdhub.com) remote repository.
-*   **MCP Support**: Manage Model Context Protocol (MCP) configurations for each provider directly from Nolon.
+### 1) Provider Fleet Management
 *   **Broad Provider Support** (25+):
     *   **Codex**, **Claude Code**, **OpenCode**, **GitHub Copilot**, **Gemini CLI**, **Antigravity**, **Cursor**, **Amp**, **Clawdbot**, **Cline**, **Command Code**, **Droid**, **Goose**, **Kilo**, **Kiro**, **MCPJam**, **OpenHands**, **Pi**, **Qoder**, **Qwen**, **Roo**, **Trae**, **Windsurf**, **Zencoder**, **Neovate**.
-*   **Flexible Configuration**:
-    *   **Custom Paths**: Configure the skills directory used by each provider.
-    *   **Installation Methods**: Choose between **Symbolic Link** (Live Sync) or **Copy** (Standard) for installation.
-*   **Migration Assistant**: Automatically detects "orphaned" skills (physical files) in provider directories and helps you migrate them to Nolon's managed storage.
-*   **Health Checks**: Identifies and repairs broken symlinks to keep your environment healthy.
-*   **Rich Metadata Support**: Parses standard `SKILL.md` frontmatter to display version, description, and other details.
-*   **Complete Folder Support**: Manages skills as complete folders, preserving auxiliary files like `scripts/` and `references/`.
-*   **Internationalization**: Fully localized in **English** and **Chinese (Simplified)**.
+*   **Provider-level path mapping**: each provider can use its own target directory.
+*   **Install strategy per provider**: choose **symlink** (live-sync) or **copy** (snapshot).
 
-## 🔄 Skills Management Workflow
+### 2) Skills Lifecycle Orchestration
+*   **Centralized repository** at `~/.nolon/skills` as source of truth.
+*   **Import + install + uninstall** across providers from a single UI.
+*   **Migration assistant** for orphaned/manual skills found in provider directories.
+*   **Health checks and repair** for broken symlinks and inconsistent install state.
+*   **Structured metadata parsing** from `SKILL.md` frontmatter.
+*   **Folder-native skills model** (keeps `scripts/`, `references/`, and side files intact).
 
-### Local Skills
+### 3) Remote Distribution + MCP
+*   **Clawdhub integration** for remote browsing and one-click install.
+*   **Remote repositories** beyond Clawdhub (syncable repository model).
+*   **MCP management** per provider, including remote MCP install flows.
+
+### 4) Operational Tooling
+*   **In-app update checks** for managed skills content.
+*   **Sparkle app updates** for Nolon itself.
+*   **Internationalized UI** in English and Simplified Chinese.
+
+## 🔄 Workflow
+
+### Local Lifecycle
 1.  **Import**: Import skills from local folders into Nolon's global storage.
 2.  **Install**: Select a skill and toggle installation for target providers (e.g., Codex, Claude).
 3.  **Migrate**: Use the "By Provider" view to find existing unmanaged skills and migrate them to Nolon's management.
+4.  **Repair**: Run health checks to detect and fix broken links/state drift.
 
-### Remote Skills (Clawdhub)
-1.  **Browse**: Click the cloud icon in toolbar to open Clawdhub browser.
-2.  **Search**: Search for skills by name or browse the latest skills.
-3.  **Install**: Select a skill and choose a provider to install to.
-4.  **Auto-Sync**: Skills are downloaded to global storage, then linked/copied to provider.
+### Remote Lifecycle
+1.  **Browse**: Open remote browser (Clawdhub or configured repository source).
+2.  **Search**: Find skills/MCPs by name or recent updates.
+3.  **Install**: Pick provider target and install strategy.
+4.  **Sync**: Pull remote changes into local canonical storage, then apply to providers.
 
 ## 🛠 Project Structure
 

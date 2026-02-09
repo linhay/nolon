@@ -2,7 +2,14 @@
 
 [English](README.md) | 中文
 
-Nolon 是一款用于管理 AI 编程助手 Skills 的 macOS 应用，支持 **Codex**、**Claude Code**、**Cursor** 等多个 Provider。它在 `~/.nolon/skills` 中维护统一技能仓库，并通过软链接或复制安装到各 Provider。
+Nolon 是一个面向 AI 编程助手的 macOS 控制中枢。  
+它把 **Skills**、**Provider 配置**、**MCP 配置** 放在同一套管理模型里，统一编排到 **Codex**、**Claude Code**、**Cursor** 等 20+ 工具。
+
+Nolon 不把 Skill 仅当作“文件管理”，而是把整套环境当作可运维系统：
+*   统一事实源：`~/.nolon/skills`
+*   可预测安装：按 Provider 执行软链接或复制
+*   远程分发 + 本地生命周期：导入、迁移、修复、更新
+*   双更新链路：应用更新（Sparkle）+ 内容更新（Skills/MCP）
 
 ## 📦 下载
 
@@ -11,32 +18,43 @@ Nolon 是一款用于管理 AI 编程助手 Skills 的 macOS 应用，支持 **C
 
 ## 🚀 主要功能
 
-*   **中心化仓库**：在 `~/.nolon/skills/` 中维护所有 Skills 的单一事实来源。
-*   **Clawdhub 集成**：直接从 [Clawdhub](https://clawdhub.com) 远程仓库浏览和安装 Skills。
-*   **MCP 支持**：直接在 Nolon 中管理每个 Provider 的 Model Context Protocol (MCP) 配置。
-*   **广泛的 Provider 支持** (25+)：
+### 1) Provider 集群管理
+*   **广泛 Provider 支持** (25+)：
     *   **Codex**, **Claude Code**, **OpenCode**, **GitHub Copilot**, **Gemini CLI**, **Antigravity**, **Cursor**, **Amp**, **Clawdbot**, **Cline**, **Command Code**, **Droid**, **Goose**, **Kilo**, **Kiro**, **MCPJam**, **OpenHands**, **Pi**, **Qoder**, **Qwen**, **Roo**, **Trae**, **Windsurf**, **Zencoder**, **Neovate**。
-*   **灵活配置**：
-    *   **自定义路径**：为每个 Provider 配置使用的 Skills 目录。
-    *   **安装方式**：选择 **软链接 (Symbolic Link)**（实时同步）或 **复制 (Copy)**（标准模式）进行安装。
-*   **迁移助手**：自动检测 Provider 目录中的"孤立" Skills（物理文件），并帮助您将其迁移到 Nolon 的托管存储中。
-*   **健康检查**：识别并修复损坏的软链接，保持环境健康。
-*   **丰富的元数据支持**：解析标准 `SKILL.md` 的 frontmatter 以显示版本、描述和其他详细信息。
-*   **完整文件夹支持**：将 Skills 作为完整文件夹管理，保留 `scripts/` 和 `references/` 等辅助文件。
-*   **国际化**：完全支持 **英语** 和 **简体中文**。
+*   **按 Provider 配置目录**：每个 Provider 可独立指定目标路径。
+*   **按 Provider 设定安装策略**：**软链接**（实时）或**复制**（快照）。
 
-## 🔄 Skills 管理工作流
+### 2) Skills 生命周期编排
+*   **中心化仓库**：`~/.nolon/skills` 作为单一事实来源。
+*   **统一导入/安装/卸载**：在一个界面内管理多 Provider 分发。
+*   **迁移助手**：自动识别 Provider 目录下的孤立/手工 Skill 并纳管。
+*   **健康检查与修复**：识别并修复软链接损坏与状态漂移。
+*   **元数据解析**：支持 `SKILL.md` frontmatter。
+*   **完整目录技能模型**：保留 `scripts/`、`references/` 等配套资源。
 
-### 本地 Skills
+### 3) 远程分发与 MCP
+*   **Clawdhub 集成**：浏览并一键安装远程 Skills。
+*   **远程仓库能力**：支持仓库源同步工作流。
+*   **MCP 管理**：按 Provider 管理 MCP 配置并支持远程 MCP 安装流程。
+
+### 4) 运维与更新
+*   **内容更新检查**：检查已管理 Skills 的可用更新。
+*   **应用自更新**：通过 Sparkle 分发 Nolon 新版本。
+*   **国际化**：支持英文与简体中文界面。
+
+## 🔄 工作流
+
+### 本地生命周期
 1.  **导入**：将本地文件夹中的 Skills 导入到 Nolon 的全局存储中。
 2.  **安装**：选择一个 Skill 并切换其在目标 Provider（如 Codex, Claude）中的安装状态。
 3.  **迁移**：使用"按 Provider"视图查找现有的未托管 Skills，并将其迁移到 Nolon 的管理中。
+4.  **修复**：通过健康检查识别并修复损坏链接和状态不一致。
 
-### 远程 Skills (Clawdhub)
-1.  **浏览**：点击工具栏中的云图标打开 Clawdhub 浏览器。
-2.  **搜索**：按名称搜索 Skills 或浏览最新 Skills。
-3.  **安装**：选择一个 Skill 并选择要安装的 Provider。
-4.  **自动同步**：Skills 会下载到全局存储，然后链接/复制到 Provider。
+### 远程生命周期
+1.  **浏览**：打开远程浏览器（Clawdhub 或已配置仓库源）。
+2.  **检索**：按名称或更新时间查找 Skills / MCP。
+3.  **安装**：选择目标 Provider 与安装策略。
+4.  **同步**：将远程变更同步到本地事实源，再应用到各 Provider。
 
 ## 🛠 项目结构
 
