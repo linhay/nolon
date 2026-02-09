@@ -98,6 +98,41 @@ actor CodexAuthService {
         return try loadAccount(file: file, relativeAuthPath: relativePath)
     }
 
+    func updateAccount(_ account: CodexAuthAccount, authJSONString: String) async throws {
+        try await migrateLegacyIfNeeded()
+        let file = accountAuthFile(account)
+        try writeAccountFile(
+            file: file,
+            relativeAuthPath: account.relativeAuthPath,
+            authJSONString: authJSONString,
+            preferredId: account.id,
+            preferredName: account.name,
+            preferredCreatedAt: account.createdAt
+        )
+    }
+
+    func findAccountByEmail(_ email: String) async throws -> CodexAuthAccount? {
+        let normalized = normalizedEmail(email)
+        guard let normalized else { return nil }
+        let accounts = try await loadAccounts()
+        for account in accounts {
+            let file = accountAuthFile(account)
+            guard let data = try? file.data(),
+                  !data.isEmpty
+            else { continue }
+            let summary = CodexAuthSummary.fromJSONData(data)
+            if let candidate = normalizedEmail(summary.email), candidate == normalized {
+                return account
+            }
+        }
+        return nil
+    }
+
+    func matchAccountByAuthData(_ data: Data) async throws -> CodexAuthAccount? {
+        let accounts = try await loadAccounts()
+        return matchAccount(authData: data, accounts: accounts)
+    }
+
     func deleteAccount(id: UUID) async throws {
         let accounts = try await loadAccounts()
         guard let account = accounts.first(where: { $0.id == id }) else { return }
@@ -154,9 +189,53 @@ actor CodexAuthService {
         let file = accountAuthFile(account)
         var rootObject = (try? file.data()).flatMap { Self.decodeJSONObject(from: $0) } ?? [:]
         var nolonObject = (rootObject["nolon"] as? JSONObject) ?? [:]
+        if let cacheObject = nolonObject["usage_cache"], !(cacheObject is NSNull) {
+            if let existing = try? Self.decodeUsageCache(from: cacheObject),
+               Self.isUsageCacheEquivalent(existing, cache) {
+                return
+            }
+        }
         nolonObject["usage_cache"] = cache
         rootObject["nolon"] = nolonObject
         try file.overlay(with: Self.encodeJSONObject(rootObject))
+    }
+
+    func updateSyncSuccess(for account: CodexAuthAccount, date: Date = Date()) throws {
+        let file = accountAuthFile(account)
+        try updateSyncMetadata(
+            file: file,
+            loginAt: nil,
+            successAt: date,
+            failureAt: nil,
+            failureMessage: nil,
+            clearFailure: true
+        )
+    }
+
+    func updateSyncFailure(for account: CodexAuthAccount, message: String, date: Date = Date()) throws {
+        let file = accountAuthFile(account)
+        let trimmed = message.trimmingCharacters(in: .whitespacesAndNewlines)
+        let clipped = String(trimmed.prefix(220))
+        try updateSyncMetadata(
+            file: file,
+            loginAt: nil,
+            successAt: nil,
+            failureAt: date,
+            failureMessage: clipped.isEmpty ? nil : clipped,
+            clearFailure: false
+        )
+    }
+
+    func updateLoginSuccess(for account: CodexAuthAccount, date: Date = Date()) throws {
+        let file = accountAuthFile(account)
+        try updateSyncMetadata(
+            file: file,
+            loginAt: date,
+            successAt: nil,
+            failureAt: nil,
+            failureMessage: nil,
+            clearFailure: false
+        )
     }
 
     func currentAuthHashHex(for provider: Provider) -> String? {
@@ -392,6 +471,13 @@ actor CodexAuthService {
         }
         return "account"
     }
+
+    nonisolated func deriveEmail(fromAuthJSONString authJSONString: String) -> String? {
+        guard let data = authJSONString.data(using: .utf8),
+              let json = try? JSON(data: data)
+        else { return nil }
+        return deriveEmail(from: json)
+    }
 }
 
 private extension CodexAuthService {
@@ -418,6 +504,23 @@ private extension CodexAuthService {
     private static func encodeJSONObject(_ object: JSONObject) throws -> Data {
         let encodable = object.mapValues { AnyEncodable($0) }
         return try jsonEncoder.encode(encodable)
+    }
+
+    private static func decodeUsageCache(from cacheObject: Any) throws -> CodexAuthUsageCache {
+        let cacheData = try encodeJSONObject(["usage_cache": cacheObject])
+        let wrapped = try CodexAuthUsageCache.jsonDecoder().decode(CodexAuthUsageCacheWrapper.self, from: cacheData)
+        return wrapped.usageCache
+    }
+
+    private static func isUsageCacheEquivalent(_ lhs: CodexAuthUsageCache, _ rhs: CodexAuthUsageCache) -> Bool {
+        var left = lhs
+        var right = rhs
+        let referenceDate = Date(timeIntervalSince1970: 0)
+        left.cachedAt = referenceDate
+        right.cachedAt = referenceDate
+        left.creditsRefreshedAt = nil
+        right.creditsRefreshedAt = nil
+        return left == right
     }
 
     private func resolveSymlinkTarget(for path: any STPathProtocol) -> STPath? {
@@ -548,6 +651,40 @@ private extension CodexAuthService {
         guard changed else { return false }
         try file.overlay(with: Self.encodeJSONObject(rootObject))
         return true
+    }
+
+    func updateSyncMetadata(
+        file: STFile,
+        loginAt: Date?,
+        successAt: Date?,
+        failureAt: Date?,
+        failureMessage: String?,
+        clearFailure: Bool
+    ) throws {
+        var rootObject = (try? file.data()).flatMap { Self.decodeJSONObject(from: $0) } ?? [:]
+        var nolonObject = (rootObject["nolon"] as? JSONObject) ?? [:]
+        var accountObject = (nolonObject["account"] as? JSONObject) ?? [:]
+
+        if let loginAt {
+            accountObject["lastLoginAt"] = Self.isoFormatter.string(from: loginAt)
+        }
+        if let successAt {
+            accountObject["lastSyncSucceededAt"] = Self.isoFormatter.string(from: successAt)
+        }
+        if let failureAt {
+            accountObject["lastSyncFailedAt"] = Self.isoFormatter.string(from: failureAt)
+        }
+        if let failureMessage {
+            accountObject["lastSyncFailureMessage"] = failureMessage
+        }
+        if clearFailure {
+            accountObject.removeValue(forKey: "lastSyncFailedAt")
+            accountObject.removeValue(forKey: "lastSyncFailureMessage")
+        }
+
+        nolonObject["account"] = accountObject
+        rootObject["nolon"] = nolonObject
+        try file.overlay(with: Self.encodeJSONObject(rootObject))
     }
 
     func normalizedEmail(_ value: String?) -> String? {
@@ -759,7 +896,7 @@ private extension CodexAuthService {
         }
     }
 
-    func deriveEmail(from authJSON: JSON) -> String? {
+    nonisolated func deriveEmail(from authJSON: JSON) -> String? {
         let trimmed: (String?) -> String? = { value in
             guard let value = value?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else { return nil }
             return value
@@ -782,7 +919,7 @@ private extension CodexAuthService {
         return decodeEmail(fromJWT: idToken)
     }
 
-    func decodeEmail(fromJWT jwt: String) -> String? {
+    nonisolated func decodeEmail(fromJWT jwt: String) -> String? {
         let parts = jwt.split(separator: ".")
         guard parts.count >= 2 else { return nil }
         let payloadB64 = String(parts[1])
@@ -800,7 +937,7 @@ private extension CodexAuthService {
             ?? trimmed(payloadJSON["profile"]["email"].string)
     }
 
-    func base64URLDecode(_ string: String) -> Data? {
+    nonisolated func base64URLDecode(_ string: String) -> Data? {
         var base64 = string
             .replacingOccurrences(of: "-", with: "+")
             .replacingOccurrences(of: "_", with: "/")

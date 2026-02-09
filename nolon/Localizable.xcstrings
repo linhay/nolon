@@ -4,6 +4,16 @@
     "" : {
 
     },
+    "%@ · %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ · %2$@"
+          }
+        }
+      }
+    },
     "%@=%@" : {
       "localizations" : {
         "en" : {
@@ -1313,7 +1323,7 @@
     },
     "codex.accounts.add.no_codex_home" : {
       "comment" : "No Codex home",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1667,6 +1677,74 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "多账号"
+          }
+        }
+      }
+    },
+    "codex.accounts.sync.failure" : {
+      "comment" : "Last failure label",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Last failure"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最近失败"
+          }
+        }
+      }
+    },
+    "codex.accounts.sync.success" : {
+      "comment" : "Last sync label",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Last sync"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上次同步"
+          }
+        }
+      }
+    },
+    "codex.accounts.login_at" : {
+      "comment" : "Last login label",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Last login"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "登录时间"
+          }
+        }
+      }
+    },
+    "codex.usage.group.title" : {
+      "comment" : "Global usage/cost group title",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usage & Cost"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用量与花费"
           }
         }
       }
@@ -2543,7 +2621,7 @@
     },
     "codex.cli_login.action" : {
       "comment" : "CLI login action",
-      "extractionState" : "stale",
+      "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2573,6 +2651,23 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "将当前账号归档为（可选）"
+          }
+        }
+      }
+    },
+    "codex.cli_login.cancel" : {
+      "comment" : "Cancel CLI login",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cancel Login"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "取消登录"
           }
         }
       }

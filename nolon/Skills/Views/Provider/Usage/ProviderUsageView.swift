@@ -5,6 +5,7 @@ import Observation
 import WebKit
 import ProviderUsage
 import CodexBarProviderCatalog
+import CodexProvider
 import UniformTypeIdentifiers
 import OSLog
 @preconcurrency import STFilePath
@@ -45,6 +46,9 @@ final class ProviderUsageViewModel {
     var isShowingAuthFileImporter = false
     var isRunningCLILogin = false
     var cliLoginStatus: String?
+    var cliLoginPreferredAccountId: UUID?
+    @ObservationIgnored private var cliLoginHandle: CodexLoginHandle?
+    @ObservationIgnored private var cliLoginTempDir: URL?
 
     var isShowingActivateConfirm = false
     var pendingActivateCodexAccount: CodexAuthAccount?
@@ -53,13 +57,14 @@ final class ProviderUsageViewModel {
     var alertMessage: String?
 
     private var cliLoginTask: Task<Void, Never>?
-    private var cliLoginProcess: Process?
+    private var cliLoginSessionId: UUID?
     private var codexAuthChangeSuppressions: [String: Date] = [:]
     private let codexAuthChangeSuppressionWindow: TimeInterval = 2.5
     private var codexUsageCacheWriteCount = 0
     private var hasTriggeredAppearRefresh = false
     private var didStartInitialLoad = false
     private var lastUsageRefreshAt: Date?
+    private let cliLoginTimeoutSeconds: TimeInterval = 10 * 60
 
     init(provider: Provider) {
         self.provider = provider
@@ -279,6 +284,9 @@ final class ProviderUsageViewModel {
 
     private func handleCodexUsageFileChange(_ change: STPathChanged) async {
         let changedPath = change.path.url.standardizedFileURL.path
+        if shouldIgnoreTemporaryFileChange(path: changedPath) {
+            return
+        }
         if shouldIgnoreAuthChange(path: changedPath, kind: change.kind) {
             Self.logger.debug("Ignored auth change. kind=\(String(describing: change.kind), privacy: .public) path=\(changedPath, privacy: .public)")
             return
@@ -304,6 +312,14 @@ final class ProviderUsageViewModel {
         )
         guard isAuthFolderChange || isAuthFileChange else { return }
 
+        if isAuthFolderChange, change.kind == .renamed, !isAuthFileChange {
+            let fileName = (changedPath as NSString).lastPathComponent
+            if isKnownCodexAuthFile(named: fileName) {
+                Self.logger.debug("Ignored auth rename for known account file. path=\(changedPath, privacy: .public)")
+                return
+            }
+        }
+
         if isAuthFileChange, let updatedFile = await codexAuthService.syncActiveAuthTokensIfNeeded(for: provider) {
             markAuthCacheWrite(at: updatedFile.url)
         }
@@ -318,9 +334,9 @@ final class ProviderUsageViewModel {
             refreshUsage = true
         } else {
             switch change.kind {
-            case .created, .deleted, .renamed:
+            case .created, .deleted:
                 refreshUsage = true
-            case .modified:
+            case .renamed, .modified:
                 refreshUsage = false
             }
         }
@@ -359,6 +375,20 @@ final class ProviderUsageViewModel {
 
     private func normalizedPath(_ path: String) -> String {
         URL(fileURLWithPath: path).standardizedFileURL.path
+    }
+
+    private func shouldIgnoreTemporaryFileChange(path: String) -> Bool {
+        let lastComponent = (path as NSString).lastPathComponent
+        if lastComponent.hasPrefix(".dat.nosync") {
+            return true
+        }
+        return false
+    }
+
+    private func isKnownCodexAuthFile(named fileName: String) -> Bool {
+        guard !fileName.isEmpty else { return false }
+        let relative = "auth/\(fileName)"
+        return codexAccounts.contains { $0.relativeAuthPath == relative }
     }
 
     private func activeCodexAccountForRefresh() -> CodexAuthAccount? {
@@ -528,14 +558,18 @@ final class ProviderUsageViewModel {
     }
 
     func cancelCLILoginIfNeeded() {
+        cliLoginSessionId = nil
         cliLoginTask?.cancel()
         cliLoginTask = nil
-        if let process = cliLoginProcess, process.isRunning {
-            process.terminate()
+        cliLoginHandle?.cancel()
+        cliLoginHandle = nil
+        if let tempDir = cliLoginTempDir {
+            try? FileManager.default.removeItem(at: tempDir)
+            cliLoginTempDir = nil
         }
-        cliLoginProcess = nil
         isRunningCLILogin = false
         cliLoginStatus = nil
+        cliLoginPreferredAccountId = nil
     }
 
     private func resetCodexMultiAccountState() {
@@ -550,59 +584,87 @@ final class ProviderUsageViewModel {
         pendingActivateCodexAccount = nil
     }
 
-    func startCLILoginFlow() {
+    func startCLILoginFlow(preferredAccountId: UUID? = nil) {
         guard usageProvider == .codex else { return }
         guard !isRunningCLILogin else { return }
 
+        let sessionId = UUID()
+        cliLoginSessionId = sessionId
         isRunningCLILogin = true
         cliLoginStatus = NSLocalizedString("codex.accounts.add.cli.running", value: "Logging in…", comment: "CLI login running status")
+        cliLoginPreferredAccountId = preferredAccountId
 
         cliLoginTask?.cancel()
         cliLoginTask = Task { [weak self] in
             guard let self else { return }
-            await self.runCLILoginFlow()
+            await self.runCLILoginFlow(sessionId: sessionId)
         }
     }
 
-    private func runCLILoginFlow() async {
+    private func runCLILoginFlow(sessionId: UUID) async {
         defer {
-            cliLoginProcess = nil
-            cliLoginTask = nil
-            isRunningCLILogin = false
-            cliLoginStatus = nil
+            if cliLoginSessionId == sessionId {
+                cliLoginTask = nil
+                isRunningCLILogin = false
+                cliLoginStatus = nil
+                cliLoginSessionId = nil
+                cliLoginPreferredAccountId = nil
+                cliLoginHandle?.cancel()
+                cliLoginHandle = nil
+                if let tempDir = cliLoginTempDir {
+                    try? FileManager.default.removeItem(at: tempDir)
+                    cliLoginTempDir = nil
+                }
+            }
         }
 
         do {
-            try await codexAuthService.prepareForCLILogin(provider: provider, archiveAccountName: nil)
+            let tempDir = try createCLILoginTempDir()
+            cliLoginTempDir = tempDir
+            Self.logger.info("CLI login started. tempDir=\(tempDir.path, privacy: .public)")
 
-            guard let authFile = await codexAuthService.authFile(for: provider) else {
-                alertTitle = NSLocalizedString("codex.cli_login.title", value: "CLI Login", comment: "CLI login title")
-                alertMessage = NSLocalizedString("codex.accounts.add.no_codex_home", value: "Codex home path could not be resolved from this provider.", comment: "No Codex home")
-                return
+            var env = ProcessInfo.processInfo.environment
+            if let managedEnv = try? await CodexBinaryManager.shared.launchEnvironmentVariables() {
+                env.merge(managedEnv) { _, new in new }
             }
 
-            let command = try await buildCodexLoginCommand()
-
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: "/bin/zsh")
-            process.arguments = ["-lc", command]
-            process.standardInput = nil
-            process.standardOutput = nil
-            process.standardError = nil
-            try process.run()
-            cliLoginProcess = process
+            let runner = CodexLoginRunner()
+            cliLoginHandle = try runner.startLogin(environment: env, codexHome: tempDir)
+            Self.logger.info("CLI login process launched.")
 
             cliLoginStatus = NSLocalizedString("codex.accounts.add.cli.waiting", value: "Waiting for auth.json…", comment: "CLI login waiting status")
 
             let fileManager = FileManager.default
+            let authFile = tempDir.appendingPathComponent("auth.json")
+            let deadline = Date().addingTimeInterval(cliLoginTimeoutSeconds)
+            let processExitGraceSeconds: TimeInterval = 4
+            var processExitedAt: Date?
             while !Task.isCancelled {
-                if fileManager.fileExists(atPath: authFile.url.path),
-                   let data = try? authFile.data(),
+                guard cliLoginSessionId == sessionId else { return }
+                if fileManager.fileExists(atPath: authFile.path),
+                   let data = try? Data(contentsOf: authFile),
                    !data.isEmpty {
                     break
                 }
 
-                if !process.isRunning, !fileManager.fileExists(atPath: authFile.url.path) {
+                if let handle = cliLoginHandle, !handle.isRunning {
+                    if processExitedAt == nil {
+                        processExitedAt = Date()
+                        Self.logger.info("CLI login process exited; waiting for auth.json grace period.")
+                    } else if Date().timeIntervalSince(processExitedAt!) >= processExitGraceSeconds {
+                        Self.logger.info("CLI login exited before auth.json was created.")
+                        alertTitle = NSLocalizedString("codex.cli_login.title", value: "CLI Login", comment: "CLI login title")
+                        alertMessage = NSLocalizedString(
+                            "codex.accounts.add.cli.error.no_auth",
+                            value: "Login did not create auth.json.",
+                            comment: "CLI login did not create auth.json"
+                        )
+                        return
+                    }
+                }
+
+                if Date() >= deadline {
+                    Self.logger.info("CLI login timed out waiting for auth.json.")
                     alertTitle = NSLocalizedString("codex.cli_login.title", value: "CLI Login", comment: "CLI login title")
                     alertMessage = NSLocalizedString(
                         "codex.accounts.add.cli.error.no_auth",
@@ -617,14 +679,52 @@ final class ProviderUsageViewModel {
 
             guard !Task.isCancelled else { return }
 
-            _ = try await codexAuthService.finalizeCLILogin(provider: provider, newAccountName: "")
+            let data = try Data(contentsOf: authFile)
+            guard let raw = String(data: data, encoding: .utf8) else {
+                alertTitle = NSLocalizedString("codex.cli_login.title", value: "CLI Login", comment: "CLI login title")
+                alertMessage = NSLocalizedString("codex.accounts.add.cli.error.no_auth", value: "Login did not create auth.json.", comment: "CLI login did not create auth.json")
+                return
+            }
 
-            if process.isRunning {
-                process.terminate()
+            let email = codexAuthService.deriveEmail(fromAuthJSONString: raw)
+            var matched: CodexAuthAccount?
+            if let email {
+                matched = try await codexAuthService.findAccountByEmail(email)
+            } else if let preferredId = cliLoginPreferredAccountId,
+                      let preferred = codexAccounts.first(where: { $0.id == preferredId }) {
+                matched = preferred
+            } else {
+                matched = try await codexAuthService.matchAccountByAuthData(data)
+            }
+
+            let account: CodexAuthAccount
+            if let matched {
+                try await codexAuthService.updateAccount(matched, authJSONString: raw)
+                account = matched
+            } else {
+                let finalName = codexAuthService.deriveAccountName(fromAuthJSONString: raw)
+                account = try await codexAuthService.addAccount(name: finalName, authJSONString: raw)
+            }
+
+            let loginAt = Date()
+            try? await codexAuthService.updateLoginSuccess(for: account, date: loginAt)
+            try? await codexAuthService.updateSyncSuccess(for: account, date: loginAt)
+            Self.logger.info("CLI login completed; account updated without activation. accountId=\(account.id.uuidString, privacy: .public)")
+
+            cliLoginHandle?.cancel()
+            cliLoginHandle = nil
+            if let tempDir = cliLoginTempDir {
+                try? FileManager.default.removeItem(at: tempDir)
+                cliLoginTempDir = nil
             }
 
             await load()
         } catch {
+            if error is CancellationError {
+                Self.logger.info("CLI login task cancelled.")
+                return
+            }
+            guard cliLoginSessionId == sessionId else { return }
             alertTitle = NSLocalizedString("codex.cli_login.title", value: "CLI Login", comment: "CLI login title")
             alertMessage = error.localizedDescription
         }
@@ -634,6 +734,14 @@ final class ProviderUsageViewModel {
         guard let account = codexAccounts.first(where: { $0.id == id }) else { return }
         pendingActivateCodexAccount = account
         isShowingActivateConfirm = true
+    }
+
+    func requestLoginForCodexAccount(id: UUID) {
+        if isRunningCLILogin {
+            Self.logger.info("CLI login restart requested for account \(id.uuidString, privacy: .public).")
+            cancelCLILoginIfNeeded()
+        }
+        startCLILoginFlow(preferredAccountId: id)
     }
 
     func confirmActivate() async {
@@ -767,6 +875,7 @@ final class ProviderUsageViewModel {
 
         if case let .success(result) = outcome.outcome.result {
             let now = Date()
+            try? await codexAuthService.updateSyncSuccess(for: account, date: now)
             let creditsRefreshedAt: Date? = {
                 guard let credits = result.credits, !credits.remaining.isNaN else { return nil }
                 return now
@@ -810,8 +919,19 @@ final class ProviderUsageViewModel {
                 {
                     summary.plan = plan
                 }
+                summary.lastSyncSucceededAt = now
+                summary.lastSyncFailedAt = nil
+                summary.lastSyncFailureMessage = nil
                 codexAccountSummaries[accountId] = summary
             }
+        } else if case let .failure(error) = outcome.outcome.result {
+            let now = Date()
+            let message = error.localizedDescription
+            try? await codexAuthService.updateSyncFailure(for: account, message: message, date: now)
+            var summary = codexAccountSummaries[accountId] ?? CodexAuthSummary()
+            summary.lastSyncFailedAt = now
+            summary.lastSyncFailureMessage = message
+            codexAccountSummaries[accountId] = summary
         }
     }
 
@@ -870,10 +990,15 @@ final class ProviderUsageViewModel {
     private func shouldIgnoreAuthChange(path: String, kind: STPathChangeKind) -> Bool {
         let now = Date()
         codexAuthChangeSuppressions = codexAuthChangeSuppressions.filter { $0.value > now }
-        if codexUsageCacheWriteCount > 0, kind == .renamed {
-            let authFolderPath = codexAuthService.nolonCodexAuthFolder().url.standardizedFileURL.path
-            if path == authFolderPath || path.hasPrefix(authFolderPath + "/") {
+        let authFolderPath = codexAuthService.nolonCodexAuthFolder().url.standardizedFileURL.path
+        let isAuthFolderChange = path == authFolderPath || path.hasPrefix(authFolderPath + "/")
+        if isAuthFolderChange {
+            if codexUsageCacheWriteCount > 0 {
                 Self.logger.debug("Ignoring auth change during cache write. kind=\(String(describing: kind), privacy: .public) path=\(path, privacy: .public)")
+                return true
+            }
+            if !codexRefreshingAccountIds.isEmpty {
+                Self.logger.debug("Ignoring auth change during refresh. kind=\(String(describing: kind), privacy: .public) path=\(path, privacy: .public)")
                 return true
             }
         }
@@ -989,13 +1114,26 @@ final class ProviderUsageViewModel {
         return raw
     }
 
-    private func buildCodexLoginCommand() async throws -> String {
-        let skillsURL = URL(fileURLWithPath: provider.defaultSkillsPath)
-        let codexHome = skillsURL.deletingLastPathComponent().path
-        return try await CodexBinaryManager.shared.cliLaunchCommand(
-            codexHomePath: codexHome,
-            arguments: ["login"]
-        )
+    private func createCLILoginTempDir() throws -> URL {
+        let base = FileManager.default.temporaryDirectory
+        cleanupExpiredLoginTempDirs(base: base)
+        let dir = base.appendingPathComponent("nolon-codex-login-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true, attributes: nil)
+        return dir
+    }
+
+    private func cleanupExpiredLoginTempDirs(base: URL) {
+        let fm = FileManager.default
+        guard let entries = try? fm.contentsOfDirectory(at: base, includingPropertiesForKeys: [.creationDateKey], options: []) else {
+            return
+        }
+        let cutoff = Date().addingTimeInterval(-24 * 60 * 60)
+        for entry in entries where entry.lastPathComponent.hasPrefix("nolon-codex-login-") {
+            let created = (try? entry.resourceValues(forKeys: [.creationDateKey]).creationDate) ?? Date()
+            if created < cutoff {
+                try? fm.removeItem(at: entry)
+            }
+        }
     }
 }
 
@@ -1200,6 +1338,12 @@ struct ProviderUsageView: View {
                 }
                 .disabled(!viewModel.isMultiAccountEnabled)
 
+                if viewModel.isRunningCLILogin {
+                    Button(NSLocalizedString("codex.cli_login.cancel", value: "Cancel Login", comment: "Cancel CLI login")) {
+                        viewModel.cancelCLILoginIfNeeded()
+                    }
+                }
+
                 Toggle(
                     NSLocalizedString("codex.accounts.multi.enable", value: "Multi-account", comment: "Multi-account toggle"),
                     isOn: Binding(
@@ -1251,6 +1395,25 @@ struct ProviderUsageView: View {
         }
     }
 
+    private var codexGlobalOutcome: ProviderAccountUsageOutcome? {
+        if let activeId = viewModel.activeCodexAccountId,
+           let active = viewModel.codexAccountOutcomes.first(where: { outcome in
+               if case let .tokenAccount(account) = outcome.account {
+                   return account.id == activeId
+               }
+               return false
+           }) {
+            return active
+        }
+        if let success = viewModel.codexAccountOutcomes.first(where: { outcome in
+            if case .success = outcome.outcome.result { return true }
+            return false
+        }) {
+            return success
+        }
+        return viewModel.codexAccountOutcomes.first
+    }
+
     private var codexContent: some View {
         ScrollView {
             if viewModel.isMultiAccountEnabled {
@@ -1274,6 +1437,8 @@ struct ProviderUsageView: View {
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
+
+                    codexGlobalUsageGroup
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             } else {
@@ -1320,21 +1485,26 @@ struct ProviderUsageView: View {
         }()
 
         let isSelected = isActive || isPending
-        let borderColor = isSelected ? DesignSystem.Colors.primary : DesignSystem.Colors.Component.border.opacity(0.35)
+        let borderColor = isSelected ? DesignSystem.Colors.primary : DesignSystem.Colors.Component.border.opacity(0.6)
         let borderStyle = StrokeStyle(
             lineWidth: isSelected ? 2 : 1,
             dash: isPending && !isActive ? [6, 4] : []
         )
         let summary = accountId.flatMap { viewModel.codexAccountSummaries[$0] }
-        let creditsRefreshedAt = accountId.flatMap { viewModel.codexAccountCreditsRefreshedAt[$0] }
         let isRefreshing = accountId.map { viewModel.codexRefreshingAccountIds.contains($0) } ?? false
+        let canLogin = accountId != nil
+        let isLoggingIn = accountId != nil
+            && viewModel.isRunningCLILogin
+            && viewModel.cliLoginPreferredAccountId == accountId
+        let onLogin: (() -> Void)? = accountId.map { id in
+            { viewModel.requestLoginForCodexAccount(id: id) }
+        }
 
         codexCompactSnapshotView(
             outcome: outcome,
             isSelected: isSelected,
             isRefreshing: isRefreshing,
             summary: summary,
-            creditsRefreshedAt: creditsRefreshedAt,
             onRefresh: accountId.map { id in
                 { viewModel.refreshCodexAccount(id: id) }
             }
@@ -1349,10 +1519,10 @@ struct ProviderUsageView: View {
         .background {
             if isSelected {
                 RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusL, style: .continuous)
-                    .fill(DesignSystem.Colors.primary.opacity(isActive ? 0.12 : 0.08))
+                    .fill(DesignSystem.Colors.primary.opacity(isActive ? 0.16 : 0.1))
             } else {
                 RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusL, style: .continuous)
-                    .fill(DesignSystem.Colors.Component.controlFillSubtle)
+                    .fill(DesignSystem.Colors.Background.elevated)
             }
         }
         .contentShape(RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusL, style: .continuous))
@@ -1368,6 +1538,19 @@ struct ProviderUsageView: View {
                     Label(NSLocalizedString("action.show_in_finder", comment: "Show in Finder"), systemImage: "folder")
                         .dsIconLabelButton()
                 }
+
+                if let onLogin {
+                    Divider()
+                    Button(NSLocalizedString("codex.cli_login.action", value: "CLI Login…", comment: "CLI login action")) {
+                        onLogin()
+                    }
+                    .disabled(!canLogin)
+                }
+
+                if isLoggingIn {
+                    Button(NSLocalizedString("codex.accounts.add.cli.running", value: "Logging in…", comment: "CLI login running status")) {}
+                        .disabled(true)
+                }
             }
         }
     }
@@ -1378,15 +1561,18 @@ struct ProviderUsageView: View {
         isSelected: Bool,
         isRefreshing: Bool,
         summary: CodexAuthSummary?,
-        creditsRefreshedAt: Date?,
         onRefresh: (() -> Void)?
     ) -> some View {
         let title = outcome.displayName
         let fallbackEmail = summary?.email?.trimmingCharacters(in: .whitespacesAndNewlines)
         let fallbackPlan = summary?.plan?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let lastLogin = summary?.lastLoginAt
+        let lastSync = summary?.lastSyncSucceededAt
+        let lastFailure = summary?.lastSyncFailedAt
+        let lastFailureMessage = summary?.lastSyncFailureMessage
 
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .firstTextBaseline, spacing: 10) {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text(title)
                     .font(.subheadline)
                     .fontWeight(.semibold)
@@ -1412,6 +1598,27 @@ struct ProviderUsageView: View {
                 }
             }
 
+            if let lastFailure, let lastFailureMessage, !lastFailureMessage.isEmpty {
+                HStack(spacing: 6) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                        .foregroundStyle(DesignSystem.Colors.Status.error)
+                    Text(NSLocalizedString("codex.accounts.sync.failure", value: "Last failure", comment: "Last failure label"))
+                        .font(.caption)
+                        .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                    Text("\(lastFailure.formatted(date: .abbreviated, time: .shortened)) · \(lastFailureMessage)")
+                        .font(.caption)
+                        .foregroundStyle(DesignSystem.Colors.Text.primary)
+                        .lineLimit(2)
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 6)
+                .background(
+                    RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusS, style: .continuous)
+                        .fill(DesignSystem.Colors.Status.error.opacity(0.16))
+                )
+            }
+
             switch outcome.outcome.result {
             case let .success(result):
                 let identity = result.usage.identity?.scoped(to: outcome.provider)
@@ -1426,16 +1633,7 @@ struct ProviderUsageView: View {
                 }
 
                 let metadata = ProviderUsageRegistry.metadata(for: outcome.provider)
-
-                if result.usage.primary == nil,
-                   result.usage.secondary == nil,
-                   result.usage.tertiary == nil,
-                   result.credits == nil
-                {
-                    Text(result.usage.updatedAt.formatted(date: .abbreviated, time: .shortened))
-                        .font(.caption)
-                        .dsTertiaryText(font: .caption)
-                } else {
+                if result.usage.primary != nil || result.usage.secondary != nil || result.usage.tertiary != nil {
                     VStack(alignment: .leading, spacing: 8) {
                         if let primary = result.usage.primary {
                             codexQuotaRow(
@@ -1444,7 +1642,6 @@ struct ProviderUsageView: View {
                                 window: primary
                             )
                         }
-
                         if let secondary = result.usage.secondary {
                             codexQuotaRow(
                                 title: metadata?.weeklyLabel
@@ -1452,69 +1649,12 @@ struct ProviderUsageView: View {
                                 window: secondary
                             )
                         }
-
                         if let tertiary = result.usage.tertiary {
                             codexQuotaRow(
                                 title: metadata?.opusLabel
                                     ?? NSLocalizedString("usage.metric.third", value: "Other", comment: "Other"),
                                 window: tertiary
                             )
-                        }
-
-                        if let credits = result.credits, !credits.remaining.isNaN {
-                            VStack(alignment: .leading, spacing: 4) {
-                                HStack(spacing: 8) {
-                                    Text(NSLocalizedString("usage.metric.credits", value: "Credits", comment: "Credits"))
-                                        .font(.caption)
-                                        .foregroundStyle(DesignSystem.Colors.Text.tertiary)
-
-                                    Spacer()
-
-                                    Text(codexCreditsText(credits.remaining))
-                                        .font(.caption)
-                                        .foregroundStyle(DesignSystem.Colors.Text.tertiary)
-                                        .monospacedDigit()
-                                }
-
-                                Text(credits.updatedAt.formatted(date: .abbreviated, time: .shortened))
-                                    .font(.caption)
-                                    .foregroundStyle(DesignSystem.Colors.Text.tertiary)
-
-                                if let creditsRefreshedAt {
-                                    Text(String(
-                                        format: NSLocalizedString(
-                                            "usage.metric.refreshed_at",
-                                            value: "Refreshed %@",
-                                            comment: "Credits refreshed time"),
-                                        creditsRefreshedAt.formatted(date: .abbreviated, time: .shortened)
-                                    ))
-                                    .font(.caption)
-                                    .foregroundStyle(DesignSystem.Colors.Text.tertiary)
-                                }
-                            }
-                        }
-
-                        if let cost = result.cost {
-                            let todayLine = codexCostLineToday(cost)
-                            let last30Line = codexCostLineLast30(cost)
-                            if todayLine != nil || last30Line != nil {
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text(NSLocalizedString("usage.metric.cost", value: "Cost", comment: "Cost label"))
-                                        .font(.caption)
-                                        .foregroundStyle(DesignSystem.Colors.Text.tertiary)
-
-                                    if let todayLine {
-                                        Text(todayLine)
-                                            .font(.caption)
-                                            .foregroundStyle(DesignSystem.Colors.Text.tertiary)
-                                    }
-                                    if let last30Line {
-                                        Text(last30Line)
-                                            .font(.caption)
-                                            .foregroundStyle(DesignSystem.Colors.Text.tertiary)
-                                    }
-                                }
-                            }
                         }
                     }
                 }
@@ -1540,10 +1680,102 @@ struct ProviderUsageView: View {
                     .dsTertiaryText(font: .caption)
                     .lineLimit(2)
             }
+
+            if let lastLogin {
+                HStack(spacing: 6) {
+                    Text(NSLocalizedString("codex.accounts.login_at", value: "Last login", comment: "Last login label"))
+                        .font(.caption)
+                        .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                    Text(lastLogin.formatted(date: .abbreviated, time: .shortened))
+                        .font(.caption)
+                        .foregroundStyle(DesignSystem.Colors.Text.primary)
+                        .lineLimit(1)
+                }
+            }
+
+            if let lastSync {
+                HStack(spacing: 6) {
+                    Text(NSLocalizedString("codex.accounts.sync.success", value: "Last sync", comment: "Last sync label"))
+                        .font(.caption)
+                        .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                    Text(lastSync.formatted(date: .abbreviated, time: .shortened))
+                        .font(.caption)
+                        .foregroundStyle(DesignSystem.Colors.Text.primary)
+                        .lineLimit(1)
+                }
+            }
+
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .frame(maxWidth: .infinity, minHeight: 104, alignment: .topLeading)
+        .textSelection(.enabled)
+        .dsCard(background: .clear, borderColor: nil, borderWidth: 0)
+    }
+
+    @ViewBuilder
+    private var codexGlobalUsageGroup: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(NSLocalizedString("codex.usage.group.title", value: "Usage & Cost", comment: "Global usage/cost group title"))
+                .font(.headline)
+
+            if let outcome = codexGlobalOutcome {
+                codexGlobalUsageContent(outcome: outcome)
+            } else {
+                ContentUnavailableView(
+                    NSLocalizedString("usage.monitor.empty.title", value: "No usage data", comment: "Empty title"),
+                    systemImage: "chart.bar",
+                    description: Text(NSLocalizedString("usage.monitor.empty.desc", value: "No provider data available yet.", comment: "Empty description"))
+                        .dsSecondaryText(font: .body)
+                )
+            }
         }
         .padding()
-        .frame(maxWidth: .infinity, minHeight: 104, alignment: .topLeading)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .dsCard()
+    }
+
+    @ViewBuilder
+    private func codexGlobalUsageContent(outcome: ProviderAccountUsageOutcome) -> some View {
+        switch outcome.outcome.result {
+        case let .success(result):
+            VStack(alignment: .leading, spacing: 10) {
+                if let cost = result.cost {
+                    let todayLine = codexCostLineToday(cost)
+                    let last30Line = codexCostLineLast30(cost)
+                    if todayLine != nil || last30Line != nil {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(NSLocalizedString("usage.metric.cost", value: "Cost", comment: "Cost label"))
+                                .font(.caption)
+                                .foregroundStyle(DesignSystem.Colors.Text.tertiary)
+
+                            if let todayLine {
+                                Text(todayLine)
+                                    .font(.caption)
+                                    .foregroundStyle(DesignSystem.Colors.Text.tertiary)
+                            }
+                            if let last30Line {
+                                Text(last30Line)
+                                    .font(.caption)
+                                    .foregroundStyle(DesignSystem.Colors.Text.tertiary)
+                            }
+                        }
+                    }
+                } else {
+                    Text(NSLocalizedString("usage.monitor.empty.desc", value: "No provider data available yet.", comment: "Empty description"))
+                        .font(.caption)
+                        .foregroundStyle(DesignSystem.Colors.Text.tertiary)
+                }
+            }
+        case let .failure(error):
+            Text(NSLocalizedString("usage.monitor.error.title", value: "Failed to load usage", comment: "Error title"))
+                .dsErrorText(font: .caption)
+
+            Text(error.localizedDescription)
+                .font(.caption)
+                .dsTertiaryText(font: .caption)
+                .lineLimit(2)
+        }
     }
 
     private func codexSubtitleText(title: String, email: String?, plan: String?) -> String? {

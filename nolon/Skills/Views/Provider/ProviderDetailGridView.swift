@@ -166,7 +166,8 @@ struct ProviderDetailGridView: View {
             mcpGrid
         case .binary:
             if let provider = provider {
-                ProviderCodexBinaryView(provider: provider, viewModel: viewModel)
+                CodexBinaryConfigView(provider: provider)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
         case .accounts:
             if let provider = provider {
@@ -176,11 +177,6 @@ struct ProviderDetailGridView: View {
         case .usage:
             if let provider = provider {
                 ProviderUsageView(provider: provider)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-        case .binary:
-            if let provider = provider {
-                CodexBinaryConfigView(provider: provider)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
         case .none:
@@ -224,25 +220,23 @@ struct ProviderDetailGridView: View {
 
     private var quickInstallButton: some View {
 	        Button {
-	            switch selectedTab {
-	            case .skills:
-	                viewModel.showingRemoteBrowser = .skill
-	            case .workflows:
-	                viewModel.showingRemoteBrowser = .workflow
-	            case .mcp:
-	                viewModel.showingRemoteBrowser = .mcp
-                case .binary:
-                    break
-	            case .accounts:
-	                break
-	            case .usage:
-	                break
-	            case .binary:
-	                break
-	            case .none:
-	                break
-	            }
-	        } label: {
+            switch selectedTab {
+            case .skills:
+                viewModel.showingRemoteBrowser = .skill
+            case .workflows:
+                viewModel.showingRemoteBrowser = .workflow
+            case .mcp:
+                viewModel.showingRemoteBrowser = .mcp
+            case .binary:
+                break
+            case .accounts:
+                break
+            case .usage:
+                break
+            case .none:
+                break
+            }
+        } label: {
             ZStack {
                 Circle()
                     .fill(DesignSystem.Colors.primary)

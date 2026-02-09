@@ -27,11 +27,27 @@ public struct CodexAuthSummary: Hashable, Sendable {
     public var email: String?
     public var apiKeySuffix: String?
     public var plan: String?
+    public var lastLoginAt: Date?
+    public var lastSyncSucceededAt: Date?
+    public var lastSyncFailedAt: Date?
+    public var lastSyncFailureMessage: String?
 
-    public nonisolated init(email: String? = nil, apiKeySuffix: String? = nil, plan: String? = nil) {
+    public nonisolated init(
+        email: String? = nil,
+        apiKeySuffix: String? = nil,
+        plan: String? = nil,
+        lastLoginAt: Date? = nil,
+        lastSyncSucceededAt: Date? = nil,
+        lastSyncFailedAt: Date? = nil,
+        lastSyncFailureMessage: String? = nil
+    ) {
         self.email = email
         self.apiKeySuffix = apiKeySuffix
         self.plan = plan
+        self.lastLoginAt = lastLoginAt
+        self.lastSyncSucceededAt = lastSyncSucceededAt
+        self.lastSyncFailedAt = lastSyncFailedAt
+        self.lastSyncFailureMessage = lastSyncFailureMessage
     }
 
     public nonisolated static func fromJSONString(_ string: String) -> CodexAuthSummary {
@@ -103,9 +119,17 @@ public struct CodexAuthSummary: Hashable, Sendable {
             suffix = nil
         }
 
-        return CodexAuthSummary(email: email,
-                               apiKeySuffix: suffix,
-                               plan: plan)
+        let (lastLoginAt, lastSyncSucceededAt, lastSyncFailedAt, lastSyncFailureMessage) = readSyncMetadata(json: json)
+
+        return CodexAuthSummary(
+            email: email,
+            apiKeySuffix: suffix,
+            plan: plan,
+            lastLoginAt: lastLoginAt,
+            lastSyncSucceededAt: lastSyncSucceededAt,
+            lastSyncFailedAt: lastSyncFailedAt,
+            lastSyncFailureMessage: lastSyncFailureMessage
+        )
     }
 
     public nonisolated static func fromJSONData(_ data: Data) -> CodexAuthSummary {
@@ -173,13 +197,36 @@ public struct CodexAuthSummary: Hashable, Sendable {
             suffix = nil
         }
 
-        return CodexAuthSummary(email: email,
-                               apiKeySuffix: suffix,
-                               plan: plan)
+        let (lastLoginAt, lastSyncSucceededAt, lastSyncFailedAt, lastSyncFailureMessage) = readSyncMetadata(json: json)
+
+        return CodexAuthSummary(
+            email: email,
+            apiKeySuffix: suffix,
+            plan: plan,
+            lastLoginAt: lastLoginAt,
+            lastSyncSucceededAt: lastSyncSucceededAt,
+            lastSyncFailedAt: lastSyncFailedAt,
+            lastSyncFailureMessage: lastSyncFailureMessage
+        )
     }
 }
 
 private extension CodexAuthSummary {
+    nonisolated static let isoFormatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
+
+    nonisolated static func readSyncMetadata(json: JSON) -> (Date?, Date?, Date?, String?) {
+        let account = json["nolon"]["account"]
+        let login = account["lastLoginAt"].string.flatMap { isoFormatter.date(from: $0) }
+        let success = account["lastSyncSucceededAt"].string.flatMap { isoFormatter.date(from: $0) }
+        let failed = account["lastSyncFailedAt"].string.flatMap { isoFormatter.date(from: $0) }
+        let failureMessage = account["lastSyncFailureMessage"].string?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return (login, success, failed, failureMessage?.isEmpty == true ? nil : failureMessage)
+    }
+
     nonisolated static func decodeJWTPayloadJSON(_ jwt: String) -> JSON? {
         let parts = jwt.split(separator: ".")
         guard parts.count >= 2 else { return nil }

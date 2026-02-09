@@ -26,7 +26,7 @@ struct SkillCardView: View {
                 .padding(16)
                 .frame(maxWidth: .infinity, alignment: .topLeading)
                 .frame(minHeight: 140)
-                .dsCard()
+                .providerTabCardStyle()
                 .contentShape(Rectangle())
                 .onTapGesture { onTap() }
                 .contextMenu { contextMenuItems }

@@ -155,7 +155,7 @@ struct McpServerCard: View {
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .frame(minHeight: 140)
-        .dsCard()
+        .providerTabCardStyle()
         .contentShape(Rectangle())
         .contextMenu {
             contextMenuItems
