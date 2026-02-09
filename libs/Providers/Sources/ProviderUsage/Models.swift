@@ -102,10 +102,24 @@ public struct CreditsSnapshot: Codable, Sendable, Equatable {
 }
 
 public struct CostSnapshot: Codable, Sendable, Equatable {
+    public struct DailyCost: Codable, Sendable, Equatable {
+        public let date: String
+        public let costUSD: Double?
+        public let tokens: Int?
+
+        public init(date: String, costUSD: Double?, tokens: Int? = nil) {
+            self.date = date
+            self.costUSD = costUSD
+            self.tokens = tokens
+        }
+    }
+
     public let todayCostUSD: Double?
     public let todayTokens: Int?
     public let last30DaysCostUSD: Double?
     public let last30DaysTokens: Int?
+    public let windowDays: Int?
+    public let dailyCosts: [DailyCost]?
     public let updatedAt: Date
 
     public init(
@@ -113,12 +127,16 @@ public struct CostSnapshot: Codable, Sendable, Equatable {
         todayTokens: Int?,
         last30DaysCostUSD: Double?,
         last30DaysTokens: Int?,
+        windowDays: Int? = 30,
+        dailyCosts: [DailyCost]? = nil,
         updatedAt: Date = Date()
     ) {
         self.todayCostUSD = todayCostUSD
         self.todayTokens = todayTokens
         self.last30DaysCostUSD = last30DaysCostUSD
         self.last30DaysTokens = last30DaysTokens
+        self.windowDays = windowDays
+        self.dailyCosts = dailyCosts
         self.updatedAt = updatedAt
     }
 }
@@ -182,6 +200,7 @@ public struct ProviderFetchContext: Sendable {
     public let sourceMode: ProviderSourceMode
     public let includeCredits: Bool
     public let timeout: TimeInterval
+    public let costWindowDays: Int?
     public let environment: [String: String]
     public let token: String?
 
@@ -190,6 +209,7 @@ public struct ProviderFetchContext: Sendable {
         sourceMode: ProviderSourceMode,
         includeCredits: Bool,
         timeout: TimeInterval,
+        costWindowDays: Int? = 30,
         environment: [String: String],
         token: String?
     ) {
@@ -197,6 +217,7 @@ public struct ProviderFetchContext: Sendable {
         self.sourceMode = sourceMode
         self.includeCredits = includeCredits
         self.timeout = timeout
+        self.costWindowDays = costWindowDays
         self.environment = environment
         self.token = token
     }
