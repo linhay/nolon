@@ -14,6 +14,7 @@ struct ProviderDetailGridView: View {
     @State private var viewModel: ProviderDetailGridViewModel
     @AppStorage("provider.codex_xcode.notice.dismissed") private var codexXcodeNoticeDismissed = false
     @State private var isAddingCodexProvider = false
+    @State private var editingRule: EditingRule?
     
     private let columns = [
         GridItem(.adaptive(minimum: 280, maximum: 400), spacing: 16)
@@ -127,6 +128,11 @@ struct ProviderDetailGridView: View {
         .sheet(isPresented: $isAddingCodexProvider) {
             AddProviderSheet(settings: settings)
         }
+        .sheet(item: $editingRule) { editingRule in
+            RuleMarkdownEditorView(ruleURL: editingRule.url) { _ in
+                await viewModel.loadData()
+            }
+        }
     }
     
     @ViewBuilder
@@ -170,13 +176,13 @@ struct ProviderDetailGridView: View {
     }
 
     private var shouldShowSearch: Bool {
-        selectedTab == .skills || selectedTab == .workflows || selectedTab == .mcp
+        selectedTab == .skills || selectedTab == .workflows || selectedTab == .rules || selectedTab == .mcp
     }
 
     private var shouldShowQuickInstallButton: Bool {
         guard let selectedTab else { return false }
         switch selectedTab {
-        case .skills, .workflows:
+        case .skills, .workflows, .rules:
             return !isCurrentTabLinkedToCodex
         case .mcp:
             return true
@@ -194,6 +200,10 @@ struct ProviderDetailGridView: View {
             }
         case .workflows:
             ProviderWorkflowsGridView(viewModel: viewModel, columns: columns)
+        case .rules:
+            ProviderRulesGridView(viewModel: viewModel, columns: columns) { rule in
+                editingRule = EditingRule(url: URL(fileURLWithPath: rule.path))
+            }
         case .mcp:
             mcpGrid
         case .binary:
@@ -273,6 +283,10 @@ struct ProviderDetailGridView: View {
                 viewModel.showingRemoteBrowser = .skill
             case .workflows:
                 viewModel.showingRemoteBrowser = .workflow
+            case .rules:
+                if let url = viewModel.createRuleDraft() {
+                    editingRule = EditingRule(url: url)
+                }
             case .mcp:
                 viewModel.showingRemoteBrowser = .mcp
             case .binary:
@@ -302,6 +316,11 @@ struct ProviderDetailGridView: View {
         .padding(32)
     }
 
+    private struct EditingRule: Identifiable {
+        let url: URL
+        var id: String { url.path }
+    }
+
     private var codexProvider: Provider? {
         settings.providers.first { $0.templateId == "codex" }
     }
@@ -316,6 +335,8 @@ struct ProviderDetailGridView: View {
                 folder = .skills
             case .workflows:
                 folder = .prompts
+            case .rules:
+                folder = .rules
             default:
                 folder = nil
             }
@@ -353,6 +374,8 @@ struct ProviderDetailGridView: View {
                                 onSelectTab?(.skills)
                             } else if selectedTab == .workflows {
                                 onSelectTab?(.workflows)
+                            } else if selectedTab == .rules {
+                                onSelectTab?(.rules)
                             }
                         }
                         .dsPrimaryButton()
@@ -370,6 +393,8 @@ struct ProviderDetailGridView: View {
                                     onSelectTab?(.skills)
                                 } else if selectedTab == .workflows {
                                     onSelectTab?(.workflows)
+                                } else if selectedTab == .rules {
+                                    onSelectTab?(.rules)
                                 }
                             } else {
                                 isAddingCodexProvider = true
@@ -396,6 +421,8 @@ struct ProviderDetailGridView: View {
             folder = .skills
         case .workflows:
             folder = .prompts
+        case .rules:
+            folder = .rules
         default:
             folder = nil
         }
@@ -412,9 +439,7 @@ struct ProviderDetailGridView: View {
         case .prompts:
             return URL(fileURLWithPath: provider.workflowPath, isDirectory: true)
         case .rules:
-            return URL(fileURLWithPath: provider.defaultSkillsPath, isDirectory: true)
-                .deletingLastPathComponent()
-                .appendingPathComponent("rules", isDirectory: true)
+            return provider.codexRulesURL
         }
     }
 

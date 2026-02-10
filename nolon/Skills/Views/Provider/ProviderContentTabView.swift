@@ -140,6 +140,7 @@ private enum CodexTerminalLauncher {
 enum ProviderContentTabType: String, CaseIterable, Identifiable {
     case skills = "Skills"
     case workflows = "Workflows"
+    case rules = "Rules"
     case mcp = "MCP"
     case binary = "Binary"
     case advanced = "Advanced"
@@ -152,6 +153,7 @@ enum ProviderContentTabType: String, CaseIterable, Identifiable {
         switch self {
         case .skills: return "square.grid.2x2"
         case .workflows: return "arrow.triangle.branch"
+        case .rules: return "list.bullet.rectangle"
         case .mcp: return "server.rack"
         case .binary: return "terminal"
         case .advanced: return "slider.horizontal.3"
@@ -164,6 +166,7 @@ enum ProviderContentTabType: String, CaseIterable, Identifiable {
         switch self {
         case .skills: return NSLocalizedString("tab.skills", comment: "Skills")
         case .workflows: return NSLocalizedString("tab.workflows", comment: "Workflows")
+        case .rules: return NSLocalizedString("tab.rules", value: "Rules", comment: "Rules")
         case .mcp: return NSLocalizedString("tab.mcp", comment: "MCP Server")
         case .binary: return NSLocalizedString("tab.binary", value: "Binary", comment: "Binary")
         case .advanced: return NSLocalizedString("tab.advanced", value: "Advanced", comment: "Advanced")
@@ -176,6 +179,7 @@ enum ProviderContentTabType: String, CaseIterable, Identifiable {
     static func availableTabs(for provider: Provider) -> [ProviderContentTabType] {
         var tabs: [ProviderContentTabType] = [.skills, .workflows, .mcp]
         if provider.templateId == "codex" || provider.templateId == "codexXcode" {
+            tabs.append(.rules)
             tabs.append(.binary)
             tabs.append(.advanced)
         }
@@ -208,6 +212,8 @@ extension ProviderContentTabType {
             self = .binary
         case "advanced":
             self = .advanced
+        case "rules":
+            self = .rules
         default:
             return nil
         }
@@ -222,6 +228,7 @@ final class ProviderContentTabViewModel {
 
     var skillsCount: Int = 0
     var workflowsCount: Int = 0
+    var rulesCount: Int = 0
     var mcpCount: Int = 0
     var terminalApps: [CodexTerminalApp] = []
     var terminalErrorMessage: String?
@@ -239,6 +246,7 @@ final class ProviderContentTabViewModel {
         switch tab {
         case .skills: return skillsCount
         case .workflows: return workflowsCount
+        case .rules: return rulesCount
         case .mcp: return mcpCount
         case .binary: return 0
         case .advanced: return 0
@@ -251,6 +259,7 @@ final class ProviderContentTabViewModel {
         guard let provider = provider else {
             skillsCount = 0
             workflowsCount = 0
+            rulesCount = 0
             mcpCount = 0
             return
         }
@@ -271,6 +280,13 @@ final class ProviderContentTabViewModel {
             workflowsCount = contents.filter { $0.url.pathExtension == "md" }.count
         } else {
             workflowsCount = 0
+        }
+
+        // Rules count (Codex only)
+        if isCodexProvider(provider) {
+            rulesCount = Self.countRulesFiles(in: provider.codexRulesURL)
+        } else {
+            rulesCount = 0
         }
         
         // MCP count
@@ -313,6 +329,28 @@ final class ProviderContentTabViewModel {
 
     func isCodexProvider(_ provider: Provider) -> Bool {
         provider.templateId == "codex" || provider.templateId == "codexXcode"
+    }
+
+    private static func countRulesFiles(in directoryURL: URL) -> Int {
+        let fileManager = FileManager.default
+        guard fileManager.fileExists(atPath: directoryURL.path) else { return 0 }
+
+        let enumerator = fileManager.enumerator(
+            at: directoryURL,
+            includingPropertiesForKeys: [.isRegularFileKey],
+            options: [.skipsHiddenFiles]
+        )
+
+        var count = 0
+        while let next = enumerator?.nextObject() as? URL {
+            guard next.pathExtension.lowercased() == "rules" else { continue }
+            guard let values = try? next.resourceValues(forKeys: [.isRegularFileKey]),
+                  values.isRegularFile == true else {
+                continue
+            }
+            count += 1
+        }
+        return count
     }
 
     func refreshTerminalApps(for provider: Provider?) {
@@ -471,7 +509,7 @@ struct ProviderContentTabView: View {
         HStack {
             Label(tab.localizedName, systemImage: tab.icon)
             Spacer()
-            if tab == .skills || tab == .workflows || tab == .mcp {
+            if tab == .skills || tab == .workflows || tab == .rules || tab == .mcp {
                 Text("\(viewModel.count(for: tab))")
                     .dsSecondaryText(font: .callout)
             }
