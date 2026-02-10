@@ -60,6 +60,8 @@ final class ProviderUsageViewModel {
     private var cliLoginSessionId: UUID?
     private var codexAuthChangeSuppressions: [String: Date] = [:]
     private let codexAuthChangeSuppressionWindow: TimeInterval = 2.5
+    private var codexAuthEventDeduplicator = TimedEventDeduplicator<String>()
+    private let codexAuthEventSuppressionWindow: TimeInterval = 1.0
     private var codexUsageCacheWriteCount = 0
     private var hasTriggeredAppearRefresh = false
     private var didStartInitialLoad = false
@@ -312,12 +314,20 @@ final class ProviderUsageViewModel {
         )
         guard isAuthFolderChange || isAuthFileChange else { return }
 
-        if isAuthFolderChange, change.kind == .renamed, !isAuthFileChange {
-            let fileName = (changedPath as NSString).lastPathComponent
-            if isKnownCodexAuthFile(named: fileName) {
-                Self.logger.debug("Ignored auth rename for known account file. path=\(changedPath, privacy: .public)")
-                return
-            }
+        if CodexAuthEventPolicy.shouldIgnoreKnownAuthRename(
+            changedPath: changedPath,
+            kind: change.kind,
+            isAuthFolderChange: isAuthFolderChange,
+            isAuthFileChange: isAuthFileChange,
+            knownAuthFileNames: Set(codexAccounts.map { ($0.relativeAuthPath as NSString).lastPathComponent })
+        ) {
+            Self.logger.debug("Ignored auth rename for known account file. path=\(changedPath, privacy: .public)")
+            return
+        }
+
+        if shouldIgnoreRapidAuthEvent(path: changedPath, kind: change.kind) {
+            Self.logger.debug("Ignored rapid auth event. kind=\(String(describing: change.kind), privacy: .public) path=\(changedPath, privacy: .public)")
+            return
         }
 
         if isAuthFileChange, let updatedFile = await codexAuthService.syncActiveAuthTokensIfNeeded(for: provider) {
@@ -344,6 +354,7 @@ final class ProviderUsageViewModel {
         Self.logger.info(
             "Reloading Codex from disk. refreshUsage=\(refreshUsage, privacy: .public) kind=\(String(describing: change.kind), privacy: .public)"
         )
+        markRapidAuthEvent(path: changedPath, kind: change.kind)
         await reloadCodexFromDisk(refreshUsage: refreshUsage)
     }
 
@@ -688,11 +699,12 @@ final class ProviderUsageViewModel {
 
             let email = codexAuthService.deriveEmail(fromAuthJSONString: raw)
             var matched: CodexAuthAccount?
-            if let email {
-                matched = try await codexAuthService.findAccountByEmail(email)
-            } else if let preferredId = cliLoginPreferredAccountId,
-                      let preferred = codexAccounts.first(where: { $0.id == preferredId }) {
+            if let preferredId = cliLoginPreferredAccountId,
+               let preferred = codexAccounts.first(where: { $0.id == preferredId }) {
+                // Right-click "CLI Login" is scoped to a specific card; update that account first.
                 matched = preferred
+            } else if let email {
+                matched = try await codexAuthService.findAccountByEmail(email)
             } else {
                 matched = try await codexAuthService.matchAccountByAuthData(data)
             }
@@ -737,9 +749,9 @@ final class ProviderUsageViewModel {
     }
 
     func requestLoginForCodexAccount(id: UUID) {
-        if isRunningCLILogin {
-            Self.logger.info("CLI login restart requested for account \(id.uuidString, privacy: .public).")
-            cancelCLILoginIfNeeded()
+        guard !isRunningCLILogin else {
+            Self.logger.info("Ignoring duplicate CLI login request while login is already running.")
+            return
         }
         startCLILoginFlow(preferredAccountId: id)
     }
@@ -1015,6 +1027,20 @@ final class ProviderUsageViewModel {
         }
 
         return false
+    }
+
+    private func shouldIgnoreRapidAuthEvent(path: String, kind: STPathChangeKind) -> Bool {
+        let key = rapidAuthEventSuppressionKey(path: path, kind: kind)
+        return codexAuthEventDeduplicator.shouldSuppress(key)
+    }
+
+    private func markRapidAuthEvent(path: String, kind: STPathChangeKind) {
+        let key = rapidAuthEventSuppressionKey(path: path, kind: kind)
+        codexAuthEventDeduplicator.mark(key, ttl: codexAuthEventSuppressionWindow)
+    }
+
+    private func rapidAuthEventSuppressionKey(path: String, kind: STPathChangeKind) -> String {
+        "\(String(describing: kind))|\(path)"
     }
 
     private func updateCodexOutcome(_ outcome: ProviderAccountUsageOutcome, for account: CodexAuthAccount) {
@@ -1544,7 +1570,7 @@ struct ProviderUsageView: View {
                     Button(NSLocalizedString("codex.cli_login.action", value: "CLI Login…", comment: "CLI login action")) {
                         onLogin()
                     }
-                    .disabled(!canLogin)
+                    .disabled(!canLogin || viewModel.isRunningCLILogin)
                 }
 
                 if isLoggingIn {
@@ -1759,6 +1785,8 @@ struct ProviderUsageView: View {
                                     .font(.caption)
                                     .foregroundStyle(DesignSystem.Colors.Text.tertiary)
                             }
+
+                            codexUsageTokensTable(cost)
                         }
                     }
                 } else {
@@ -1924,18 +1952,80 @@ struct ProviderUsageView: View {
     }
 
     private func codexCostLineLast30(_ cost: CostSnapshot) -> String? {
-        guard let dollars = cost.last30DaysCostUSD else { return nil }
-        let tokens = cost.last30DaysTokens
+        guard let dollars = cost.rangeCostUSD else { return nil }
+        let tokens = cost.rangeTokens
         let tokenText = tokens.map { " • \(codexTokenCountText($0))" } ?? ""
+        let label = codexRangeLabel(cost.rangeDays)
         return String(
-            format: NSLocalizedString(
-                "usage.metric.cost.last30_format",
-                value: "Last 30 days: $%.2f%@",
-                comment: "Last 30 days cost format"
-            ),
+            format: "%@: $%.2f%@",
+            label,
             dollars,
             tokenText
         )
+    }
+
+    @ViewBuilder
+    private func codexUsageTokensTable(_ cost: CostSnapshot) -> some View {
+        let today = CodexUsageBreakdown(
+            title: NSLocalizedString("codex.usage.range.today", value: "Today", comment: "Usage range"),
+            total: cost.todayTokens,
+            input: cost.todayInputTokens,
+            output: cost.todayOutputTokens,
+            cached: cost.todayCachedInputTokens
+        )
+        let range = CodexUsageBreakdown(
+            title: codexRangeLabel(cost.rangeDays),
+            total: cost.rangeTokens,
+            input: cost.rangeInputTokens,
+            output: cost.rangeOutputTokens,
+            cached: cost.rangeCachedInputTokens
+        )
+        if today.hasData || range.hasData {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Tokens")
+                    .font(.caption)
+                    .foregroundStyle(DesignSystem.Colors.Text.tertiary)
+
+                Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 8, verticalSpacing: 3) {
+                    GridRow {
+                        Text("")
+                        Text("Total")
+                        Text("Input")
+                        Text("Output")
+                        Text("Cached")
+                    }
+                    .font(.caption2)
+                    .foregroundStyle(DesignSystem.Colors.Text.tertiary)
+
+                    GridRow {
+                        Text(today.title)
+                        Text(today.totalText)
+                        Text(today.inputText)
+                        Text(today.outputText)
+                        Text(today.cachedText)
+                    }
+                    GridRow {
+                        Text(range.title)
+                        Text(range.totalText)
+                        Text(range.inputText)
+                        Text(range.outputText)
+                        Text(range.cachedText)
+                    }
+                }
+                .font(.caption)
+                .foregroundStyle(DesignSystem.Colors.Text.tertiary)
+            }
+        }
+    }
+
+    private func codexRangeLabel(_ rangeDays: Int?) -> String {
+        if let rangeDays {
+            if rangeDays == 1 {
+                return NSLocalizedString("codex.usage.range.today", value: "Today", comment: "Usage range")
+            }
+            return String(format: NSLocalizedString("Last %d days", value: "Last %d days", comment: "Rolling usage days"), rangeDays)
+        }
+        return NSLocalizedString("codex.usage.range.all", value: "All time", comment: "Usage range")
     }
 
     private func codexTokenCountText(_ value: Int) -> String {
@@ -1950,6 +2040,61 @@ struct ProviderUsageView: View {
         return String(format: NSLocalizedString("usage.metric.tokens", value: "%d tokens", comment: "Token count"), value)
     }
 
+}
+
+private struct CodexUsageBreakdown {
+    let title: String
+    let total: Int?
+    let input: Int?
+    let output: Int?
+    let cached: Int?
+
+    var hasData: Bool {
+        total != nil || input != nil || output != nil || cached != nil
+    }
+
+    var totalText: String { text(total) }
+    var inputText: String { text(input) }
+    var outputText: String { text(output) }
+    var cachedText: String { text(cached) }
+
+    private func text(_ value: Int?) -> String {
+        guard let value else { return "-" }
+        return "\(value)"
+    }
+}
+
+struct TimedEventDeduplicator<Key: Hashable> {
+    private var expiries: [Key: Date] = [:]
+
+    mutating func shouldSuppress(_ key: Key, now: Date = Date()) -> Bool {
+        removeExpired(now: now)
+        return expiries[key].map { $0 > now } ?? false
+    }
+
+    mutating func mark(_ key: Key, ttl: TimeInterval, now: Date = Date()) {
+        removeExpired(now: now)
+        expiries[key] = now.addingTimeInterval(ttl)
+    }
+
+    private mutating func removeExpired(now: Date) {
+        expiries = expiries.filter { $0.value > now }
+    }
+}
+
+struct CodexAuthEventPolicy {
+    static func shouldIgnoreKnownAuthRename(
+        changedPath: String,
+        kind: STPathChangeKind,
+        isAuthFolderChange: Bool,
+        isAuthFileChange: Bool,
+        knownAuthFileNames: Set<String>
+    ) -> Bool {
+        guard isAuthFolderChange, kind == .renamed, !isAuthFileChange else { return false }
+        let fileName = (changedPath as NSString).lastPathComponent
+        guard !fileName.isEmpty else { return false }
+        return knownAuthFileNames.contains(fileName)
+    }
 }
 
 private extension View {

@@ -87,6 +87,7 @@ struct WorkflowCardView: View {
     let onTap: () -> Void
     
     @State private var showingDeleteConfirmation = false
+    private let descriptionHeight: CGFloat = 44
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -110,7 +111,8 @@ struct WorkflowCardView: View {
                 .font(.caption)
                 .dsSecondaryText(font: .caption)
                 .lineLimit(3)
-                .frame(maxHeight: .infinity, alignment: .topLeading)
+                .truncationMode(.tail)
+                .frame(maxWidth: .infinity, minHeight: descriptionHeight, maxHeight: descriptionHeight, alignment: .topLeading)
             
             // 3. 操作区
             HStack {

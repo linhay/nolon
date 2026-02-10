@@ -3,23 +3,44 @@ import Foundation
 public struct CostUsageTokenSnapshot: Sendable, Equatable {
     public let sessionTokens: Int?
     public let sessionCostUSD: Double?
-    public let last30DaysTokens: Int?
-    public let last30DaysCostUSD: Double?
+    public let todayInputTokens: Int?
+    public let todayOutputTokens: Int?
+    public let todayCachedInputTokens: Int?
+    public let rangeDays: Int?
+    public let rangeTokens: Int?
+    public let rangeCostUSD: Double?
+    public let rangeInputTokens: Int?
+    public let rangeOutputTokens: Int?
+    public let rangeCachedInputTokens: Int?
     public let daily: [CostUsageDailyReport.Entry]
     public let updatedAt: Date
 
     public init(
         sessionTokens: Int?,
         sessionCostUSD: Double?,
-        last30DaysTokens: Int?,
-        last30DaysCostUSD: Double?,
+        todayInputTokens: Int?,
+        todayOutputTokens: Int?,
+        todayCachedInputTokens: Int?,
+        rangeDays: Int?,
+        rangeTokens: Int?,
+        rangeCostUSD: Double?,
+        rangeInputTokens: Int?,
+        rangeOutputTokens: Int?,
+        rangeCachedInputTokens: Int?,
         daily: [CostUsageDailyReport.Entry],
         updatedAt: Date)
     {
         self.sessionTokens = sessionTokens
         self.sessionCostUSD = sessionCostUSD
-        self.last30DaysTokens = last30DaysTokens
-        self.last30DaysCostUSD = last30DaysCostUSD
+        self.todayInputTokens = todayInputTokens
+        self.todayOutputTokens = todayOutputTokens
+        self.todayCachedInputTokens = todayCachedInputTokens
+        self.rangeDays = rangeDays
+        self.rangeTokens = rangeTokens
+        self.rangeCostUSD = rangeCostUSD
+        self.rangeInputTokens = rangeInputTokens
+        self.rangeOutputTokens = rangeOutputTokens
+        self.rangeCachedInputTokens = rangeCachedInputTokens
         self.daily = daily
         self.updatedAt = updatedAt
     }

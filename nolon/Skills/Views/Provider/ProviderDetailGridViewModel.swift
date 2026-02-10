@@ -175,6 +175,9 @@ final class ProviderDetailGridViewModel {
     
     // Rules
     var rules: [RuleInfo] = []
+    
+    // AGENTS.md docs
+    var agentsFiles: [AgentDocInfo] = []
 
     // MCPs
     var mcps: [MCP] = []
@@ -219,6 +222,7 @@ final class ProviderDetailGridViewModel {
             installedSkills = []
             workflows = []
             rules = []
+            agentsFiles = []
             mcps = []
             codexModelOptions = []
             selectedCodexModel = nil
@@ -276,6 +280,9 @@ final class ProviderDetailGridViewModel {
         
         // Load rules
         loadRules(for: provider)
+        
+        // Load AGENTS docs
+        loadAgentsFiles(for: provider)
         
         // Load MCPs
         loadMCPs(for: provider)
@@ -379,6 +386,10 @@ final class ProviderDetailGridViewModel {
     
     var filteredRules: [RuleInfo] {
         filtered(rules, searchIn: \.name, \.preview, \.relativePath)
+    }
+    
+    var filteredAgentsFiles: [AgentDocInfo] {
+        filtered(agentsFiles, searchIn: \.fileName, \.preview)
     }
     
     var filteredMcps: [MCP] {
@@ -1083,6 +1094,30 @@ final class ProviderDetailGridViewModel {
 
         rules = parsedRules.sorted { $0.relativePath.localizedStandardCompare($1.relativePath) == .orderedAscending }
     }
+
+    private func loadAgentsFiles(for provider: Provider) {
+        guard provider.templateId == "codex" || provider.templateId == "codexXcode" else {
+            agentsFiles = []
+            return
+        }
+
+        let fileManager = FileManager.default
+        let overrideURL = provider.codexAgentsOverrideFileURL
+        let baseURL = provider.codexAgentsFileURL
+        var docs: [AgentDocInfo] = []
+
+        if fileManager.fileExists(atPath: overrideURL.path),
+           let doc = AgentDocInfo.parse(url: overrideURL, kind: .override) {
+            docs.append(doc)
+        }
+
+        if fileManager.fileExists(atPath: baseURL.path),
+           let doc = AgentDocInfo.parse(url: baseURL, kind: .base) {
+            docs.append(doc)
+        }
+
+        agentsFiles = docs
+    }
     
     // MARK: - Actions
     
@@ -1196,6 +1231,49 @@ final class ProviderDetailGridViewModel {
         guard let provider else { return }
         try? STPath(rule.path).deleteIncludingBrokenSymlink()
         loadRules(for: provider)
+    }
+
+    func revealAgentDocInFinder(_ doc: AgentDocInfo) {
+        NSWorkspace.shared.selectFile(doc.path, inFileViewerRootedAtPath: "")
+    }
+
+    func deleteAgentDoc(_ doc: AgentDocInfo) async {
+        guard let provider else { return }
+        try? STPath(doc.path).deleteIncludingBrokenSymlink()
+        loadAgentsFiles(for: provider)
+    }
+
+    func createAgentDocDraft() -> URL? {
+        guard let provider else { return nil }
+        guard provider.templateId == "codex" || provider.templateId == "codexXcode" else { return nil }
+
+        let fileManager = FileManager.default
+        let baseURL = provider.codexAgentsFileURL
+        let overrideURL = provider.codexAgentsOverrideFileURL
+
+        let targetURL: URL
+        if !fileManager.fileExists(atPath: baseURL.path) {
+            targetURL = baseURL
+        } else if !fileManager.fileExists(atPath: overrideURL.path) {
+            targetURL = overrideURL
+        } else {
+            targetURL = overrideURL
+        }
+
+        do {
+            try FileManager.default.createDirectory(
+                at: targetURL.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+            if !fileManager.fileExists(atPath: targetURL.path) {
+                try "".write(to: targetURL, atomically: true, encoding: .utf8)
+            }
+            loadAgentsFiles(for: provider)
+            return targetURL
+        } catch {
+            errorMessage = error.localizedDescription
+            return nil
+        }
     }
 
     func createRuleDraft() -> URL? {

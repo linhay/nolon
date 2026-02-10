@@ -84,8 +84,15 @@ public struct CodexUsageDescriptor: ProviderUsageDescribing {
                 CostSnapshot(
                     todayCostUSD: snapshot.todayCostUSD,
                     todayTokens: snapshot.todayTokens,
-                    last30DaysCostUSD: snapshot.last30DaysCostUSD,
-                    last30DaysTokens: snapshot.last30DaysTokens,
+                    todayInputTokens: snapshot.todayInputTokens,
+                    todayOutputTokens: snapshot.todayOutputTokens,
+                    todayCachedInputTokens: snapshot.todayCachedInputTokens,
+                    rangeDays: snapshot.rangeDays,
+                    rangeCostUSD: snapshot.rangeCostUSD,
+                    rangeTokens: snapshot.rangeTokens,
+                    rangeInputTokens: snapshot.rangeInputTokens,
+                    rangeOutputTokens: snapshot.rangeOutputTokens,
+                    rangeCachedInputTokens: snapshot.rangeCachedInputTokens,
                     updatedAt: snapshot.updatedAt
                 )
             }

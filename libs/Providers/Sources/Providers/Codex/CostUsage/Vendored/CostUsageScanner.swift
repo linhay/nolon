@@ -540,6 +540,7 @@ enum CostUsageScanner {
         var entries: [CostUsageDailyReport.Entry] = []
         var totalInput = 0
         var totalOutput = 0
+        var totalCached = 0
         var totalTokens = 0
         var totalCost: Double = 0
         var costSeen = false
@@ -554,6 +555,7 @@ enum CostUsageScanner {
 
             var dayInput = 0
             var dayOutput = 0
+            var dayCached = 0
 
             var breakdown: [CostUsageDailyReport.ModelBreakdown] = []
             var dayCost: Double = 0
@@ -567,6 +569,7 @@ enum CostUsageScanner {
 
                 dayInput += input
                 dayOutput += output
+                dayCached += cached
 
                 let cost = CostUsagePricing.codexCostUSD(
                     model: model,
@@ -589,6 +592,7 @@ enum CostUsageScanner {
                 date: day,
                 inputTokens: dayInput,
                 outputTokens: dayOutput,
+                cacheReadTokens: dayCached,
                 totalTokens: dayTotal,
                 costUSD: entryCost,
                 modelsUsed: modelNames,
@@ -596,6 +600,7 @@ enum CostUsageScanner {
 
             totalInput += dayInput
             totalOutput += dayOutput
+            totalCached += dayCached
             totalTokens += dayTotal
             if let entryCost {
                 totalCost += entryCost
@@ -608,6 +613,7 @@ enum CostUsageScanner {
             : CostUsageDailyReport.Summary(
                 totalInputTokens: totalInput,
                 totalOutputTokens: totalOutput,
+                cacheReadTokens: totalCached,
                 totalTokens: totalTokens,
                 totalCostUSD: costSeen ? totalCost : nil)
 
