@@ -119,7 +119,7 @@ struct ProviderUsageSnapshotView: View {
                 creditsRow(credits, refreshedAt: creditsRefreshedAt)
             }
 
-            if let cost = result.cost, cost.todayCostUSD != nil || cost.rangeCostUSD != nil {
+            if let cost = result.cost, cost.todayCostUSD != nil || cost.last30DaysCostUSD != nil {
                 Divider()
                 costRow(cost)
             }
@@ -288,10 +288,10 @@ struct ProviderUsageSnapshotView: View {
     }
 
     private func costLineLast30(_ cost: CostSnapshot) -> String? {
-        guard let dollars = cost.rangeCostUSD else { return nil }
-        let tokens = cost.rangeTokens
+        guard let dollars = cost.last30DaysCostUSD else { return nil }
+        let tokens = cost.last30DaysTokens
         let tokenText = tokens.map { " • \(tokenCountText($0))" } ?? ""
-        let label = rangeLabel(cost.rangeDays)
+        let label = rangeLabel(cost.windowDays)
         return String(
             format: "%@: $%.2f%@",
             label,
@@ -305,16 +305,16 @@ struct ProviderUsageSnapshotView: View {
         let today = UsageBreakdown(
             title: NSLocalizedString("codex.usage.range.today", value: "Today", comment: "Usage range"),
             total: cost.todayTokens,
-            input: cost.todayInputTokens,
-            output: cost.todayOutputTokens,
-            cached: cost.todayCachedInputTokens
+            input: nil,
+            output: nil,
+            cached: nil
         )
         let range = UsageBreakdown(
-            title: rangeLabel(cost.rangeDays),
-            total: cost.rangeTokens,
-            input: cost.rangeInputTokens,
-            output: cost.rangeOutputTokens,
-            cached: cost.rangeCachedInputTokens
+            title: rangeLabel(cost.windowDays),
+            total: cost.last30DaysTokens,
+            input: nil,
+            output: nil,
+            cached: nil
         )
         if today.hasData || range.hasData {
             VStack(alignment: .leading, spacing: 4) {
@@ -326,9 +326,6 @@ struct ProviderUsageSnapshotView: View {
                     GridRow {
                         Text("")
                         Text("Total")
-                        Text("Input")
-                        Text("Output")
-                        Text("Cached")
                     }
                     .font(.caption2)
                     .dsTertiaryText(font: .caption2)
@@ -336,16 +333,10 @@ struct ProviderUsageSnapshotView: View {
                     GridRow {
                         Text(today.title)
                         Text(today.totalText)
-                        Text(today.inputText)
-                        Text(today.outputText)
-                        Text(today.cachedText)
                     }
                     GridRow {
                         Text(range.title)
                         Text(range.totalText)
-                        Text(range.inputText)
-                        Text(range.outputText)
-                        Text(range.cachedText)
                     }
                 }
                 .font(.caption)
