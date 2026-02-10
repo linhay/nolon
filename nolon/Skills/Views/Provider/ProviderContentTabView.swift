@@ -141,6 +141,7 @@ enum ProviderContentTabType: String, CaseIterable, Identifiable {
     case skills = "Skills"
     case workflows = "Workflows"
     case rules = "Rules"
+    case agents = "Agents"
     case mcp = "MCP"
     case binary = "Binary"
     case advanced = "Advanced"
@@ -154,6 +155,7 @@ enum ProviderContentTabType: String, CaseIterable, Identifiable {
         case .skills: return "square.grid.2x2"
         case .workflows: return "arrow.triangle.branch"
         case .rules: return "list.bullet.rectangle"
+        case .agents: return "person.text.rectangle"
         case .mcp: return "server.rack"
         case .binary: return "terminal"
         case .advanced: return "slider.horizontal.3"
@@ -167,6 +169,7 @@ enum ProviderContentTabType: String, CaseIterable, Identifiable {
         case .skills: return NSLocalizedString("tab.skills", comment: "Skills")
         case .workflows: return NSLocalizedString("tab.workflows", comment: "Workflows")
         case .rules: return NSLocalizedString("tab.rules", value: "Rules", comment: "Rules")
+        case .agents: return NSLocalizedString("tab.agents", value: "Agents", comment: "Agents")
         case .mcp: return NSLocalizedString("tab.mcp", comment: "MCP Server")
         case .binary: return NSLocalizedString("tab.binary", value: "Binary", comment: "Binary")
         case .advanced: return NSLocalizedString("tab.advanced", value: "Advanced", comment: "Advanced")
@@ -180,6 +183,7 @@ enum ProviderContentTabType: String, CaseIterable, Identifiable {
         var tabs: [ProviderContentTabType] = [.skills, .workflows, .mcp]
         if provider.templateId == "codex" || provider.templateId == "codexXcode" {
             tabs.append(.rules)
+            tabs.append(.agents)
             tabs.append(.binary)
             tabs.append(.advanced)
         }
@@ -214,6 +218,8 @@ extension ProviderContentTabType {
             self = .advanced
         case "rules":
             self = .rules
+        case "agents":
+            self = .agents
         default:
             return nil
         }
@@ -229,6 +235,7 @@ final class ProviderContentTabViewModel {
     var skillsCount: Int = 0
     var workflowsCount: Int = 0
     var rulesCount: Int = 0
+    var agentsCount: Int = 0
     var mcpCount: Int = 0
     var terminalApps: [CodexTerminalApp] = []
     var terminalErrorMessage: String?
@@ -247,6 +254,7 @@ final class ProviderContentTabViewModel {
         case .skills: return skillsCount
         case .workflows: return workflowsCount
         case .rules: return rulesCount
+        case .agents: return agentsCount
         case .mcp: return mcpCount
         case .binary: return 0
         case .advanced: return 0
@@ -260,6 +268,7 @@ final class ProviderContentTabViewModel {
             skillsCount = 0
             workflowsCount = 0
             rulesCount = 0
+            agentsCount = 0
             mcpCount = 0
             return
         }
@@ -285,8 +294,13 @@ final class ProviderContentTabViewModel {
         // Rules count (Codex only)
         if isCodexProvider(provider) {
             rulesCount = Self.countRulesFiles(in: provider.codexRulesURL)
+            agentsCount = Self.countAgentsFiles(
+                baseURL: provider.codexAgentsFileURL,
+                overrideURL: provider.codexAgentsOverrideFileURL
+            )
         } else {
             rulesCount = 0
+            agentsCount = 0
         }
         
         // MCP count
@@ -350,6 +364,14 @@ final class ProviderContentTabViewModel {
             }
             count += 1
         }
+        return count
+    }
+
+    private static func countAgentsFiles(baseURL: URL, overrideURL: URL) -> Int {
+        let fileManager = FileManager.default
+        var count = 0
+        if fileManager.fileExists(atPath: overrideURL.path) { count += 1 }
+        if fileManager.fileExists(atPath: baseURL.path) { count += 1 }
         return count
     }
 
@@ -509,7 +531,7 @@ struct ProviderContentTabView: View {
         HStack {
             Label(tab.localizedName, systemImage: tab.icon)
             Spacer()
-            if tab == .skills || tab == .workflows || tab == .rules || tab == .mcp {
+            if tab == .skills || tab == .workflows || tab == .rules || tab == .agents || tab == .mcp {
                 Text("\(viewModel.count(for: tab))")
                     .dsSecondaryText(font: .callout)
             }

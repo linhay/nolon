@@ -14,7 +14,7 @@ struct ProviderDetailGridView: View {
     @State private var viewModel: ProviderDetailGridViewModel
     @AppStorage("provider.codex_xcode.notice.dismissed") private var codexXcodeNoticeDismissed = false
     @State private var isAddingCodexProvider = false
-    @State private var editingRule: EditingRule?
+    @State private var editingMarkdownDocument: EditingMarkdownDocument?
     
     private let columns = [
         GridItem(.adaptive(minimum: 280, maximum: 400), spacing: 16)
@@ -128,8 +128,8 @@ struct ProviderDetailGridView: View {
         .sheet(isPresented: $isAddingCodexProvider) {
             AddProviderSheet(settings: settings)
         }
-        .sheet(item: $editingRule) { editingRule in
-            RuleMarkdownEditorView(ruleURL: editingRule.url) { _ in
+        .sheet(item: $editingMarkdownDocument) { editingDocument in
+            RuleMarkdownEditorView(ruleURL: editingDocument.url) { _ in
                 await viewModel.loadData()
             }
         }
@@ -176,13 +176,13 @@ struct ProviderDetailGridView: View {
     }
 
     private var shouldShowSearch: Bool {
-        selectedTab == .skills || selectedTab == .workflows || selectedTab == .rules || selectedTab == .mcp
+        selectedTab == .skills || selectedTab == .workflows || selectedTab == .rules || selectedTab == .agents || selectedTab == .mcp
     }
 
     private var shouldShowQuickInstallButton: Bool {
         guard let selectedTab else { return false }
         switch selectedTab {
-        case .skills, .workflows, .rules:
+        case .skills, .workflows, .rules, .agents:
             return !isCurrentTabLinkedToCodex
         case .mcp:
             return true
@@ -202,7 +202,11 @@ struct ProviderDetailGridView: View {
             ProviderWorkflowsGridView(viewModel: viewModel, columns: columns)
         case .rules:
             ProviderRulesGridView(viewModel: viewModel, columns: columns) { rule in
-                editingRule = EditingRule(url: URL(fileURLWithPath: rule.path))
+                editingMarkdownDocument = EditingMarkdownDocument(url: URL(fileURLWithPath: rule.path))
+            }
+        case .agents:
+            ProviderAgentsGridView(viewModel: viewModel, columns: columns) { doc in
+                editingMarkdownDocument = EditingMarkdownDocument(url: URL(fileURLWithPath: doc.path))
             }
         case .mcp:
             mcpGrid
@@ -285,7 +289,11 @@ struct ProviderDetailGridView: View {
                 viewModel.showingRemoteBrowser = .workflow
             case .rules:
                 if let url = viewModel.createRuleDraft() {
-                    editingRule = EditingRule(url: url)
+                    editingMarkdownDocument = EditingMarkdownDocument(url: url)
+                }
+            case .agents:
+                if let url = viewModel.createAgentDocDraft() {
+                    editingMarkdownDocument = EditingMarkdownDocument(url: url)
                 }
             case .mcp:
                 viewModel.showingRemoteBrowser = .mcp
@@ -316,7 +324,7 @@ struct ProviderDetailGridView: View {
         .padding(32)
     }
 
-    private struct EditingRule: Identifiable {
+    private struct EditingMarkdownDocument: Identifiable {
         let url: URL
         var id: String { url.path }
     }
@@ -337,6 +345,8 @@ struct ProviderDetailGridView: View {
                 folder = .prompts
             case .rules:
                 folder = .rules
+            case .agents:
+                folder = nil
             default:
                 folder = nil
             }
@@ -376,6 +386,8 @@ struct ProviderDetailGridView: View {
                                 onSelectTab?(.workflows)
                             } else if selectedTab == .rules {
                                 onSelectTab?(.rules)
+                            } else if selectedTab == .agents {
+                                onSelectTab?(.agents)
                             }
                         }
                         .dsPrimaryButton()
@@ -395,6 +407,8 @@ struct ProviderDetailGridView: View {
                                     onSelectTab?(.workflows)
                                 } else if selectedTab == .rules {
                                     onSelectTab?(.rules)
+                                } else if selectedTab == .agents {
+                                    onSelectTab?(.agents)
                                 }
                             } else {
                                 isAddingCodexProvider = true
@@ -423,6 +437,8 @@ struct ProviderDetailGridView: View {
             folder = .prompts
         case .rules:
             folder = .rules
+        case .agents:
+            folder = nil
         default:
             folder = nil
         }

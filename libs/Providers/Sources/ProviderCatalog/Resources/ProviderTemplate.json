@@ -11,7 +11,9 @@
         "defaultMcpConfigPath": "config.toml",
         "vendorTabs": [
             "usage",
-            "binary"
+            "rules",
+            "binary",
+            "agents"
         ],
         "defaultSkillsPaths": [
             "skills"
@@ -28,7 +30,9 @@
         "mcpDocumentationURL": "https://developer.apple.com/documentation/xcode/setting-up-coding-intelligence",
         "defaultMcpConfigPath": "config.toml",
         "vendorTabs": [
-            "binary"
+            "rules",
+            "binary",
+            "agents"
         ],
         "defaultSkillsPaths": [
             "skills"

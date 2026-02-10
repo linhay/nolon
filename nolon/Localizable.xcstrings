@@ -230,8 +230,8 @@
         },
         "zh-Hans" : {
           "stringUnit" : {
-            "state" : "translated",
-            "value" : "你确定要删除此工作流吗？此操作无法撤销。"
+            "state" : "needs_review",
+            "value" : "你确定要删除此项目吗？此操作无法撤销。"
           }
         }
       }
@@ -913,6 +913,114 @@
         }
       }
     },
+    "agents.create.base" : {
+      "comment" : "Create base agents",
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Create AGENTS.md"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "创建 AGENTS.md"
+          }
+        }
+      }
+    },
+    "agents.create.override" : {
+      "comment" : "Create override agents",
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Create AGENTS.override.md"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "创建 AGENTS.override.md"
+          }
+        }
+      }
+    },
+    "agents.empty" : {
+      "comment" : "No AGENTS files",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "No AGENTS.md Files"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没有 AGENTS.md 文件"
+          }
+        }
+      }
+    },
+    "agents.empty_desc" : {
+      "comment" : "No agents docs",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "No AGENTS.md files found in Codex home"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 Codex Home 中未找到 AGENTS.md 文件"
+          }
+        }
+      }
+    },
+    "agents.priority.base" : {
+      "comment" : "Base priority hint",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Base priority"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "基础优先级"
+          }
+        }
+      }
+    },
+    "agents.priority.override" : {
+      "comment" : "Override priority hint",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Higher priority (override)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更高优先级（override）"
+          }
+        }
+      }
+    },
     "app.title" : {
       "comment" : "nolon",
       "localizations" : {
@@ -1042,6 +1150,9 @@
           }
         }
       }
+    },
+    "Cached" : {
+
     },
     "Cancel" : {
       "comment" : "Cancel",
@@ -3772,7 +3883,7 @@
     },
     "codex.usage.range.all" : {
       "comment" : "Usage range",
-      "extractionState" : "stale",
+      "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -3808,7 +3919,7 @@
     },
     "codex.usage.range.today" : {
       "comment" : "Usage range",
-      "extractionState" : "stale",
+      "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -4516,11 +4627,18 @@
       }
     },
     "generic.error" : {
-      "comment" : "Error",
+      "comment" : "Error\nGeneric error title",
+      "extractionState" : "extracted_with_value",
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Error"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "错误"
           }
         }
@@ -4603,6 +4721,9 @@
           }
         }
       }
+    },
+    "Input" : {
+
     },
     "Install" : {
       "comment" : "Install",
@@ -4819,6 +4940,9 @@
           }
         }
       }
+    },
+    "Last %d days" : {
+      "comment" : "Rolling usage days"
     },
     "Latest Changes" : {
       "comment" : "Latest changes",
@@ -5883,6 +6007,9 @@
         }
       }
     },
+    "Output" : {
+
+    },
     "Path (e.g., skills, .agent)" : {
       "localizations" : {
         "zh-Hans" : {
@@ -6656,6 +6783,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "在 Finder 中显示"
+          }
+        }
+      }
+    },
+    "rules.empty" : {
+      "comment" : "No rules",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "No Rules"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "无规则"
+          }
+        }
+      }
+    },
+    "rules.empty_desc" : {
+      "comment" : "No rules in provider",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "No rules in this provider"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "此 Provider 中无规则"
           }
         }
       }
@@ -7825,6 +7988,24 @@
         }
       }
     },
+    "tab.agents" : {
+      "comment" : "Agents",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Agents"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "代理说明"
+          }
+        }
+      }
+    },
     "tab.binary" : {
       "comment" : "Binary",
       "extractionState" : "extracted_with_value",
@@ -7855,6 +8036,24 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "MCP"
+          }
+        }
+      }
+    },
+    "tab.rules" : {
+      "comment" : "Rules",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Rules"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "规则"
           }
         }
       }
@@ -7909,6 +8108,9 @@
         }
       }
     },
+    "Tokens" : {
+
+    },
     "toolbar.clawdhub" : {
       "comment" : "Clawdhub",
       "localizations" : {
@@ -7919,6 +8121,9 @@
           }
         }
       }
+    },
+    "Total" : {
+
     },
     "Unable to read file" : {
       "comment" : "Unable to read file",
@@ -8244,7 +8449,7 @@
     },
     "usage.metric.cost.last30_format" : {
       "comment" : "Last 30 days cost format",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {

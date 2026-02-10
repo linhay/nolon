@@ -119,7 +119,7 @@ struct ProviderUsageSnapshotView: View {
                 creditsRow(credits, refreshedAt: creditsRefreshedAt)
             }
 
-            if let cost = result.cost, cost.todayCostUSD != nil || cost.last30DaysCostUSD != nil {
+            if let cost = result.cost, cost.todayCostUSD != nil || cost.rangeCostUSD != nil {
                 Divider()
                 costRow(cost)
             }
@@ -267,6 +267,8 @@ struct ProviderUsageSnapshotView: View {
                     .font(.caption)
                     .dsTertiaryText(font: .caption)
             }
+
+            usageTokensTable(cost)
         }
     }
 
@@ -286,18 +288,80 @@ struct ProviderUsageSnapshotView: View {
     }
 
     private func costLineLast30(_ cost: CostSnapshot) -> String? {
-        guard let dollars = cost.last30DaysCostUSD else { return nil }
-        let tokens = cost.last30DaysTokens
+        guard let dollars = cost.rangeCostUSD else { return nil }
+        let tokens = cost.rangeTokens
         let tokenText = tokens.map { " • \(tokenCountText($0))" } ?? ""
+        let label = rangeLabel(cost.rangeDays)
         return String(
-            format: NSLocalizedString(
-                "usage.metric.cost.last30_format",
-                value: "Last 30 days: $%.2f%@",
-                comment: "Last 30 days cost format"
-            ),
+            format: "%@: $%.2f%@",
+            label,
             dollars,
             tokenText
         )
+    }
+
+    @ViewBuilder
+    private func usageTokensTable(_ cost: CostSnapshot) -> some View {
+        let today = UsageBreakdown(
+            title: NSLocalizedString("codex.usage.range.today", value: "Today", comment: "Usage range"),
+            total: cost.todayTokens,
+            input: cost.todayInputTokens,
+            output: cost.todayOutputTokens,
+            cached: cost.todayCachedInputTokens
+        )
+        let range = UsageBreakdown(
+            title: rangeLabel(cost.rangeDays),
+            total: cost.rangeTokens,
+            input: cost.rangeInputTokens,
+            output: cost.rangeOutputTokens,
+            cached: cost.rangeCachedInputTokens
+        )
+        if today.hasData || range.hasData {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Tokens")
+                    .font(.caption)
+                    .dsSecondaryText(font: .caption)
+
+                Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 8, verticalSpacing: 3) {
+                    GridRow {
+                        Text("")
+                        Text("Total")
+                        Text("Input")
+                        Text("Output")
+                        Text("Cached")
+                    }
+                    .font(.caption2)
+                    .dsTertiaryText(font: .caption2)
+
+                    GridRow {
+                        Text(today.title)
+                        Text(today.totalText)
+                        Text(today.inputText)
+                        Text(today.outputText)
+                        Text(today.cachedText)
+                    }
+                    GridRow {
+                        Text(range.title)
+                        Text(range.totalText)
+                        Text(range.inputText)
+                        Text(range.outputText)
+                        Text(range.cachedText)
+                    }
+                }
+                .font(.caption)
+                .dsTertiaryText(font: .caption)
+            }
+        }
+    }
+
+    private func rangeLabel(_ rangeDays: Int?) -> String {
+        if let rangeDays {
+            if rangeDays == 1 {
+                return NSLocalizedString("codex.usage.range.today", value: "Today", comment: "Usage range")
+            }
+            return String(format: NSLocalizedString("Last %d days", value: "Last %d days", comment: "Rolling usage days"), rangeDays)
+        }
+        return NSLocalizedString("codex.usage.range.all", value: "All time", comment: "Usage range")
     }
 
     private func tokenCountText(_ value: Int) -> String {
@@ -310,6 +374,28 @@ struct ProviderUsageSnapshotView: View {
             return String(format: NSLocalizedString("usage.metric.tokens_k", value: "%.0fK tokens", comment: "Token count in thousands"), thousands)
         }
         return String(format: NSLocalizedString("usage.metric.tokens", value: "%d tokens", comment: "Token count"), value)
+    }
+}
+
+private struct UsageBreakdown {
+    let title: String
+    let total: Int?
+    let input: Int?
+    let output: Int?
+    let cached: Int?
+
+    var hasData: Bool {
+        total != nil || input != nil || output != nil || cached != nil
+    }
+
+    var totalText: String { text(total) }
+    var inputText: String { text(input) }
+    var outputText: String { text(output) }
+    var cachedText: String { text(cached) }
+
+    private func text(_ value: Int?) -> String {
+        guard let value else { return "-" }
+        return "\(value)"
     }
 }
 

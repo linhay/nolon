@@ -15,6 +15,7 @@ struct SkillCardView: View {
     let onTap: () -> Void
     
     @State private var showingUninstallConfirmation = false
+    private let descriptionHeight: CGFloat = 44
     
     var body: some View {
         cardContainer
@@ -80,7 +81,8 @@ struct SkillCardView: View {
             .font(.caption)
             .dsSecondaryText(font: .caption)
             .lineLimit(3)
-            .frame(maxHeight: .infinity)
+            .truncationMode(.tail)
+            .frame(maxWidth: .infinity, minHeight: descriptionHeight, maxHeight: descriptionHeight, alignment: .topLeading)
     }
 
     @ViewBuilder

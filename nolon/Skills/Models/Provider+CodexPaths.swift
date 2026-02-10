@@ -13,4 +13,12 @@ extension Provider {
     var codexDefaultRulesFileURL: URL {
         codexRulesURL.appendingPathComponent("default.rules", isDirectory: false)
     }
+
+    var codexAgentsFileURL: URL {
+        codexHomeURL.appendingPathComponent("AGENTS.md", isDirectory: false)
+    }
+
+    var codexAgentsOverrideFileURL: URL {
+        codexHomeURL.appendingPathComponent("AGENTS.override.md", isDirectory: false)
+    }
 }
