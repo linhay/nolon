@@ -172,6 +172,9 @@ final class ProviderDetailGridViewModel {
     var workflows: [WorkflowInfo] = []
     var selectedWorkflowForDetail: WorkflowInfo?
     var workflowIds: Set<String> = []
+    
+    // Rules
+    var rules: [RuleInfo] = []
 
     // MCPs
     var mcps: [MCP] = []
@@ -215,6 +218,7 @@ final class ProviderDetailGridViewModel {
         guard let provider = provider else {
             installedSkills = []
             workflows = []
+            rules = []
             mcps = []
             codexModelOptions = []
             selectedCodexModel = nil
@@ -269,6 +273,9 @@ final class ProviderDetailGridViewModel {
         
         // Load workflows
         loadWorkflows(for: provider)
+        
+        // Load rules
+        loadRules(for: provider)
         
         // Load MCPs
         loadMCPs(for: provider)
@@ -368,6 +375,10 @@ final class ProviderDetailGridViewModel {
     
     var filteredWorkflows: [WorkflowInfo] {
         filtered(workflows, searchIn: \.name, \.description)
+    }
+    
+    var filteredRules: [RuleInfo] {
+        filtered(rules, searchIn: \.name, \.preview, \.relativePath)
     }
     
     var filteredMcps: [MCP] {
@@ -1039,6 +1050,40 @@ final class ProviderDetailGridViewModel {
         }
     }
     
+    private func loadRules(for provider: Provider) {
+        guard provider.templateId == "codex" || provider.templateId == "codexXcode" else {
+            rules = []
+            return
+        }
+
+        let baseURL = provider.codexRulesURL
+        let fileManager = FileManager.default
+        guard fileManager.fileExists(atPath: baseURL.path) else {
+            rules = []
+            return
+        }
+
+        let enumerator = fileManager.enumerator(
+            at: baseURL,
+            includingPropertiesForKeys: [.isRegularFileKey],
+            options: [.skipsHiddenFiles]
+        )
+
+        var parsedRules: [RuleInfo] = []
+        while let entry = enumerator?.nextObject() as? URL {
+            guard entry.pathExtension.lowercased() == "rules" else { continue }
+            guard let values = try? entry.resourceValues(forKeys: [.isRegularFileKey]),
+                  values.isRegularFile == true else {
+                continue
+            }
+            if let rule = RuleInfo.parse(from: entry, baseDirectory: baseURL) {
+                parsedRules.append(rule)
+            }
+        }
+
+        rules = parsedRules.sorted { $0.relativePath.localizedStandardCompare($1.relativePath) == .orderedAscending }
+    }
+    
     // MARK: - Actions
     
     func revealSkillInFinder(_ skill: Skill) {
@@ -1109,6 +1154,10 @@ final class ProviderDetailGridViewModel {
         NSWorkspace.shared.selectFile(workflow.path, inFileViewerRootedAtPath: "")
     }
     
+    func revealRuleInFinder(_ rule: RuleInfo) {
+        NSWorkspace.shared.selectFile(rule.path, inFileViewerRootedAtPath: "")
+    }
+    
     func deleteWorkflow(_ workflow: WorkflowInfo) async {
         guard let provider = provider else { return }
         
@@ -1141,6 +1190,35 @@ final class ProviderDetailGridViewModel {
         }
         
         loadWorkflows(for: provider)
+    }
+    
+    func deleteRule(_ rule: RuleInfo) async {
+        guard let provider else { return }
+        try? STPath(rule.path).deleteIncludingBrokenSymlink()
+        loadRules(for: provider)
+    }
+
+    func createRuleDraft() -> URL? {
+        guard let provider else { return nil }
+        guard provider.templateId == "codex" || provider.templateId == "codexXcode" else { return nil }
+
+        let rulesDirectory = provider.codexRulesURL
+        do {
+            try FileManager.default.createDirectory(at: rulesDirectory, withIntermediateDirectories: true)
+            var index = 1
+            var candidateURL = rulesDirectory.appendingPathComponent("new-rule-\(index).rules")
+            while FileManager.default.fileExists(atPath: candidateURL.path) {
+                index += 1
+                candidateURL = rulesDirectory.appendingPathComponent("new-rule-\(index).rules")
+            }
+
+            try "".write(to: candidateURL, atomically: true, encoding: .utf8)
+            loadRules(for: provider)
+            return candidateURL
+        } catch {
+            errorMessage = error.localizedDescription
+            return nil
+        }
     }
     
     func installRemoteSkill(_ skill: RemoteSkill, to provider: Provider) async {
