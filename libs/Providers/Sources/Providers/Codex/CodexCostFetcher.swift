@@ -54,8 +54,8 @@ public struct CodexCostFetcher: Sendable {
         return CodexCostSnapshot(
             todayCostUSD: token.sessionCostUSD,
             todayTokens: token.sessionTokens,
-            last30DaysCostUSD: token.last30DaysCostUSD,
-            last30DaysTokens: token.last30DaysTokens,
+            last30DaysCostUSD: token.rangeCostUSD,
+            last30DaysTokens: token.rangeTokens,
             windowDays: windowDays,
             dailyCosts: token.daily.map { entry in
                 CodexCostSnapshot.DailyCost(date: entry.date, costUSD: entry.costUSD, tokens: entry.totalTokens)

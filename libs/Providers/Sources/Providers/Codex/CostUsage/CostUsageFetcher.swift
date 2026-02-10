@@ -54,15 +54,21 @@ public struct CostUsageFetcher: Sendable {
             now: now,
             options: options)
 
-        return Self.tokenSnapshot(from: daily, now: now)
+        return Self.tokenSnapshot(from: daily, now: now, rangeDays: trailingDays)
     }
 
-    static func tokenSnapshot(from daily: CostUsageDailyReport, now: Date) -> CostUsageTokenSnapshot {
-        // Pick the most recent day; break ties by cost/tokens to keep a stable "session" row.
-        let currentDay = daily.data.max { lhs, rhs in
-            let lDate = CostUsageDateParser.parse(lhs.date) ?? .distantPast
-            let rDate = CostUsageDateParser.parse(rhs.date) ?? .distantPast
-            if lDate != rDate { return lDate < rDate }
+    static func tokenSnapshot(
+        from daily: CostUsageDailyReport,
+        now: Date,
+        rangeDays: Int? = nil
+    ) -> CostUsageTokenSnapshot {
+        // Session fields should represent "today" only.
+        let currentDay = daily.data
+            .filter { entry in
+                guard let date = CostUsageDateParser.parse(entry.date) else { return false }
+                return Calendar.current.isDate(date, inSameDayAs: now)
+            }
+            .max { lhs, rhs in
             let lCost = lhs.costUSD ?? -1
             let rCost = rhs.costUSD ?? -1
             if lCost != rCost { return lCost < rCost }
@@ -70,20 +76,27 @@ public struct CostUsageFetcher: Sendable {
             let rTokens = rhs.totalTokens ?? -1
             if lTokens != rTokens { return lTokens < rTokens }
             return lhs.date < rhs.date
-        }
+            }
         // Prefer summary totals when present; fall back to summing daily entries.
         let totalFromSummary = daily.summary?.totalCostUSD
         let totalFromEntries = daily.data.compactMap(\.costUSD).reduce(0, +)
-        let last30DaysCostUSD = totalFromSummary ?? (totalFromEntries > 0 ? totalFromEntries : nil)
+        let rangeCostUSD = totalFromSummary ?? (totalFromEntries > 0 ? totalFromEntries : nil)
         let totalTokensFromSummary = daily.summary?.totalTokens
         let totalTokensFromEntries = daily.data.compactMap(\.totalTokens).reduce(0, +)
-        let last30DaysTokens = totalTokensFromSummary ?? (totalTokensFromEntries > 0 ? totalTokensFromEntries : nil)
+        let rangeTokens = totalTokensFromSummary ?? (totalTokensFromEntries > 0 ? totalTokensFromEntries : nil)
 
         return CostUsageTokenSnapshot(
             sessionTokens: currentDay?.totalTokens,
             sessionCostUSD: currentDay?.costUSD,
-            last30DaysTokens: last30DaysTokens,
-            last30DaysCostUSD: last30DaysCostUSD,
+            todayInputTokens: currentDay?.inputTokens,
+            todayOutputTokens: currentDay?.outputTokens,
+            todayCachedInputTokens: currentDay?.cacheReadTokens,
+            rangeDays: rangeDays,
+            rangeTokens: rangeTokens,
+            rangeCostUSD: rangeCostUSD,
+            rangeInputTokens: daily.summary?.totalInputTokens,
+            rangeOutputTokens: daily.summary?.totalOutputTokens,
+            rangeCachedInputTokens: daily.summary?.cacheReadTokens,
             daily: daily.data,
             updatedAt: now)
     }
