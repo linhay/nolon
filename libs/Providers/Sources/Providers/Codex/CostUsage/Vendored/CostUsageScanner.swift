@@ -200,22 +200,6 @@ enum CostUsageScanner {
         return String(describing: identifier)
     }
 
-    private static func parseCodexLineParts(_ obj: [String: Any])
-        -> (type: String, payload: [String: Any], timestamp: String?)?
-    {
-        let timestamp = obj["timestamp"] as? String
-        if let type = obj["type"] as? String {
-            let payload = obj["payload"] as? [String: Any] ?? [:]
-            return (type: type, payload: payload, timestamp: timestamp)
-        }
-        if let item = obj["item"] as? [String: Any], let type = item["type"] as? String {
-            let payload = item["payload"] as? [String: Any] ?? item
-            let itemTimestamp = item["timestamp"] as? String
-            return (type: type, payload: payload, timestamp: timestamp ?? itemTimestamp)
-        }
-        return nil
-    }
-
     static func parseCodexFile(
         fileURL: URL,
         range: CostUsageDayRange,
@@ -265,98 +249,51 @@ enum CostUsageScanner {
                     return
                 }
 
-                guard let obj = (try? JSONSerialization.jsonObject(with: line.bytes)) as? [String: Any] else {
-                    return
-                }
-                guard let parts = Self.parseCodexLineParts(obj) else { return }
-                let type = parts.type
-                let payload = parts.payload
+                guard let parsedLine = try? CodexGeneratedFilesParser.parseRolloutLine(data: line.bytes) else { return }
 
-                if type == "session_meta" {
+                switch parsedLine.item {
+                case let .sessionMeta(meta):
                     if sessionId == nil {
-                        sessionId = payload["session_id"] as? String
-                            ?? payload["sessionId"] as? String
-                            ?? payload["id"] as? String
-                            ?? obj["session_id"] as? String
-                            ?? obj["sessionId"] as? String
-                            ?? obj["id"] as? String
+                        sessionId = meta.id
                     }
                     return
-                }
-
-                guard let tsText = parts.timestamp ?? obj["timestamp"] as? String else { return }
-                guard let dayKey = Self.dayKeyFromTimestamp(tsText) ?? Self.dayKeyFromParsedISO(tsText) else { return }
-
-                if type == "turn_context" {
-                    if let model = payload["model"] as? String {
+                case let .turnContext(context):
+                    if let model = context.model, !model.isEmpty {
                         currentModel = model
-                    } else if let model = payload["model_name"] as? String {
-                        currentModel = model
-                    } else if let info = payload["info"] as? [String: Any] {
-                        if let model = info["model"] as? String {
-                            currentModel = model
-                        } else if let model = info["model_name"] as? String {
-                            currentModel = model
-                        }
                     }
                     return
-                }
+                case let .tokenCount(tokenCount):
+                    guard let tsText = parsedLine.timestamp else { return }
+                    guard let dayKey = Self.dayKeyFromTimestamp(tsText) ?? Self.dayKeyFromParsedISO(tsText) else { return }
 
-                var tokenPayload: [String: Any]? = nil
-                if type == "event_msg" {
-                    if let payloadType = payload["type"] as? String, payloadType == "token_count" {
-                        tokenPayload = payload
-                    } else if let nested = payload["payload"] as? [String: Any],
-                              let nestedType = nested["type"] as? String,
-                              nestedType == "token_count"
-                    {
-                        tokenPayload = nested
+                    let model = tokenCount.model ?? currentModel ?? "gpt-5"
+                    var deltaInput = 0
+                    var deltaCached = 0
+                    var deltaOutput = 0
+
+                    if let total = tokenCount.totalUsage {
+                        let prev = previousTotals
+                        deltaInput = max(0, total.inputTokens - (prev?.input ?? 0))
+                        deltaCached = max(0, total.cachedInputTokens - (prev?.cached ?? 0))
+                        deltaOutput = max(0, total.outputTokens - (prev?.output ?? 0))
+                        previousTotals = CostUsageCodexTotals(
+                            input: total.inputTokens,
+                            cached: total.cachedInputTokens,
+                            output: total.outputTokens)
+                    } else if let last = tokenCount.lastUsage {
+                        deltaInput = max(0, last.inputTokens)
+                        deltaCached = max(0, last.cachedInputTokens)
+                        deltaOutput = max(0, last.outputTokens)
+                    } else {
+                        return
                     }
-                } else if type == "token_count" {
-                    tokenPayload = payload.isEmpty ? obj : payload
-                }
-                guard let tokenPayload else { return }
 
-                let info = tokenPayload["info"] as? [String: Any]
-                let modelFromInfo = info?["model"] as? String
-                    ?? info?["model_name"] as? String
-                    ?? tokenPayload["model"] as? String
-                    ?? obj["model"] as? String
-                let model = modelFromInfo ?? currentModel ?? "gpt-5"
-
-                func toInt(_ v: Any?) -> Int {
-                    if let n = v as? NSNumber { return n.intValue }
-                    return 0
-                }
-
-                let total = (info?["total_token_usage"] as? [String: Any])
-                let last = (info?["last_token_usage"] as? [String: Any])
-
-                var deltaInput = 0
-                var deltaCached = 0
-                var deltaOutput = 0
-
-                if let total {
-                    let input = toInt(total["input_tokens"])
-                    let cached = toInt(total["cached_input_tokens"] ?? total["cache_read_input_tokens"])
-                    let output = toInt(total["output_tokens"])
-
-                    let prev = previousTotals
-                    deltaInput = max(0, input - (prev?.input ?? 0))
-                    deltaCached = max(0, cached - (prev?.cached ?? 0))
-                    deltaOutput = max(0, output - (prev?.output ?? 0))
-                    previousTotals = CostUsageCodexTotals(input: input, cached: cached, output: output)
-                } else if let last {
-                    deltaInput = max(0, toInt(last["input_tokens"]))
-                    deltaCached = max(0, toInt(last["cached_input_tokens"] ?? last["cache_read_input_tokens"]))
-                    deltaOutput = max(0, toInt(last["output_tokens"]))
-                } else {
+                    if deltaInput == 0, deltaCached == 0, deltaOutput == 0 { return }
+                    let cachedClamp = min(deltaCached, deltaInput)
+                    add(dayKey: dayKey, model: model, input: deltaInput, cached: cachedClamp, output: deltaOutput)
+                case .other:
                     return
                 }
-
-                if deltaInput == 0, deltaCached == 0, deltaOutput == 0 { return }
-                let cachedClamp = min(deltaCached, deltaInput)
-                add(dayKey: dayKey, model: model, input: deltaInput, cached: cachedClamp, output: deltaOutput)
             })) ?? startOffset
 
         return CodexParseResult(

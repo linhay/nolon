@@ -5,6 +5,7 @@
 - `JsonRPCKit`: generic JSON-RPC 2.0 line transport/session/models.
 - `CodexAppServerKit`: codex app-server protocol adapter (method registry + account APIs + runtime switching + notification waiters).
 - `CodexCLIKit/Shared`: errors, shared models.
+- `CodexProvider/CodexGeneratedFiles`: parser for codex-generated local files (`auth.json`, `sessions/*.jsonl` rollout lines), aligned with upstream `libs/codex` protocol/auth field names.
 
 ## Runtime Switch Flow
 1. App selects account.
@@ -25,3 +26,12 @@
 - Protocol: malformed JSON-RPC / response mismatch.
 - Domain: login/account level errors.
 - Compatibility mode: runtime switch is primary, plus provider `auth.json` sync for standalone CLI usage.
+
+## Generated File Parsing
+- `auth.json`: parse `auth_mode`, `OPENAI_API_KEY`, `tokens(id_token/access_token/refresh_token/account_id)`, `last_refresh`.
+- `id_token` claims: decode JWT payload for `email`, `chatgpt_plan_type`, `chatgpt_user_id`, `chatgpt_account_id`.
+- `rollout jsonl`: parse line envelope (`timestamp`, `type`, `payload`) and normalize:
+  - `session_meta`
+  - `turn_context`
+  - `event_msg(token_count)` / top-level `token_count`
+- Cost usage scanner consumes normalized rollout parse result, no longer relies on ad-hoc dictionary field probing.

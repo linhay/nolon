@@ -6,6 +6,10 @@
 - app-server initialize/account read happy path
 - app-server `account/updated` waiter behavior with mock server
 - runtime account switch request shape + notification success gating validation
+- generated files parser:
+  - `auth.json` parse + JWT claim extraction (`chatgpt_plan_type`, account/user ids)
+  - rollout `session_meta` / `event_msg(token_count)` line parse
+  - cost scanner token aggregation driven by normalized rollout parse output
 
 ## Nolon Tests
 - orchestrator prefers runtime switch
