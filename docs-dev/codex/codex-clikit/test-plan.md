@@ -8,7 +8,10 @@
 - runtime account switch request shape + notification success gating validation
 - generated files parser:
   - `auth.json` parse + JWT claim extraction (`chatgpt_plan_type`, account/user ids)
-  - rollout `session_meta` / `event_msg(token_count)` line parse
+  - `history.jsonl` parse (`session_id` and backward-compatible `conversation_id`)
+  - `config.toml` / `managed_config.toml` typed parse
+  - rollout full item parse (`session_meta`, `response_item`, `compacted`, `turn_context`, `event_msg`, `token_count`)
+  - `sessions/**/*.jsonl` + `archived_sessions/**/*.jsonl` file loading and parse
   - cost scanner token aggregation driven by normalized rollout parse output
 
 ## Nolon Tests

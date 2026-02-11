@@ -1,8 +1,10 @@
 import Foundation
+import TOML
 
 public enum CodexGeneratedFilesError: LocalizedError, Sendable, Equatable {
     case invalidUTF8
     case invalidJSON(String)
+    case invalidTOML(String)
     case invalidJWT
 
     public var errorDescription: String? {
@@ -11,11 +13,78 @@ public enum CodexGeneratedFilesError: LocalizedError, Sendable, Equatable {
             return "Invalid UTF-8 content."
         case let .invalidJSON(message):
             return "Invalid JSON content: \(message)"
+        case let .invalidTOML(message):
+            return "Invalid TOML content: \(message)"
         case .invalidJWT:
             return "Invalid JWT token format."
         }
     }
 }
+
+public enum CodexJSONValue: Codable, Equatable, Sendable {
+    case string(String)
+    case number(Double)
+    case bool(Bool)
+    case object([String: CodexJSONValue])
+    case array([CodexJSONValue])
+    case null
+
+    public var stringValue: String? {
+        if case let .string(value) = self { return value }
+        return nil
+    }
+
+    public var intValue: Int? {
+        if case let .number(value) = self { return Int(value) }
+        return nil
+    }
+
+    public var objectValue: [String: CodexJSONValue]? {
+        if case let .object(value) = self { return value }
+        return nil
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        if container.decodeNil() {
+            self = .null
+        } else if let value = try? container.decode(Bool.self) {
+            self = .bool(value)
+        } else if let value = try? container.decode(Double.self) {
+            self = .number(value)
+        } else if let value = try? container.decode(String.self) {
+            self = .string(value)
+        } else if let value = try? container.decode([String: CodexJSONValue].self) {
+            self = .object(value)
+        } else if let value = try? container.decode([CodexJSONValue].self) {
+            self = .array(value)
+        } else {
+            throw DecodingError.typeMismatch(
+                CodexJSONValue.self,
+                .init(codingPath: decoder.codingPath, debugDescription: "Unsupported JSON value"))
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        switch self {
+        case let .string(value):
+            try container.encode(value)
+        case let .number(value):
+            try container.encode(value)
+        case let .bool(value):
+            try container.encode(value)
+        case let .object(value):
+            try container.encode(value)
+        case let .array(value):
+            try container.encode(value)
+        case .null:
+            try container.encodeNil()
+        }
+    }
+}
+
+// MARK: - auth.json
 
 public struct CodexAuthFile: Sendable, Equatable {
     public enum AuthMode: String, Sendable, Equatable, Codable {
@@ -78,6 +147,153 @@ public struct CodexAuthFile: Sendable, Equatable {
     }
 }
 
+// MARK: - history.jsonl
+
+public struct CodexHistoryEntry: Sendable, Equatable, Codable {
+    public let sessionID: String
+    public let timestamp: UInt64
+    public let text: String
+
+    public init(sessionID: String, timestamp: UInt64, text: String) {
+        self.sessionID = sessionID
+        self.timestamp = timestamp
+        self.text = text
+    }
+}
+
+// MARK: - config.toml / managed_config.toml
+
+public struct CodexConfigToml: Sendable, Equatable, Codable {
+    public struct SandboxWorkspaceWrite: Sendable, Equatable, Codable {
+        public let writableRoots: [String]?
+        public let networkAccess: Bool?
+
+        enum CodingKeys: String, CodingKey {
+            case writableRoots = "writable_roots"
+            case networkAccess = "network_access"
+        }
+    }
+
+    public struct History: Sendable, Equatable, Codable {
+        public let persistence: String?
+        public let maxBytes: Int?
+
+        enum CodingKeys: String, CodingKey {
+            case persistence
+            case maxBytes = "max_bytes"
+        }
+    }
+
+    public struct McpServer: Sendable, Equatable, Codable {
+        public let type: String?
+        public let command: String?
+        public let args: [String]?
+        public let env: [String: String]?
+        public let url: String?
+        public let enabled: Bool?
+        public let startupTimeoutSec: Int?
+        public let toolTimeoutSec: Int?
+        public let bearerTokenEnvVar: String?
+        public let headers: [String: String]?
+
+        enum CodingKeys: String, CodingKey {
+            case type
+            case command
+            case args
+            case env
+            case url
+            case enabled
+            case startupTimeoutSec = "startup_timeout_sec"
+            case toolTimeoutSec = "tool_timeout_sec"
+            case bearerTokenEnvVar = "bearer_token_env_var"
+            case headers
+        }
+    }
+
+    public struct Profile: Sendable, Equatable, Codable {
+        public let model: String?
+        public let approvalPolicy: String?
+        public let sandboxMode: String?
+        public let mcpServers: [String: McpServer]?
+
+        enum CodingKeys: String, CodingKey {
+            case model
+            case approvalPolicy = "approval_policy"
+            case sandboxMode = "sandbox_mode"
+            case mcpServers = "mcp_servers"
+        }
+    }
+
+    public let model: String?
+    public let modelProvider: String?
+    public let profile: String?
+    public let approvalPolicy: String?
+    public let sandboxMode: String?
+    public let sandboxWorkspaceWrite: SandboxWorkspaceWrite?
+    public let chatgptBaseURL: String?
+    public let features: [String: Bool]?
+    public let history: History?
+    public let mcpServers: [String: McpServer]
+    public let profiles: [String: Profile]
+
+    enum CodingKeys: String, CodingKey {
+        case model
+        case modelProvider = "model_provider"
+        case profile
+        case approvalPolicy = "approval_policy"
+        case sandboxMode = "sandbox_mode"
+        case sandboxWorkspaceWrite = "sandbox_workspace_write"
+        case chatgptBaseURL = "chatgpt_base_url"
+        case features
+        case history
+        case mcpServers = "mcp_servers"
+        case profiles
+    }
+
+    public init(
+        model: String? = nil,
+        modelProvider: String? = nil,
+        profile: String? = nil,
+        approvalPolicy: String? = nil,
+        sandboxMode: String? = nil,
+        sandboxWorkspaceWrite: SandboxWorkspaceWrite? = nil,
+        chatgptBaseURL: String? = nil,
+        features: [String: Bool]? = nil,
+        history: History? = nil,
+        mcpServers: [String: McpServer] = [:],
+        profiles: [String: Profile] = [:]
+    ) {
+        self.model = model
+        self.modelProvider = modelProvider
+        self.profile = profile
+        self.approvalPolicy = approvalPolicy
+        self.sandboxMode = sandboxMode
+        self.sandboxWorkspaceWrite = sandboxWorkspaceWrite
+        self.chatgptBaseURL = chatgptBaseURL
+        self.features = features
+        self.history = history
+        self.mcpServers = mcpServers
+        self.profiles = profiles
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.model = try container.decodeIfPresent(String.self, forKey: .model)
+        self.modelProvider = try container.decodeIfPresent(String.self, forKey: .modelProvider)
+        self.profile = try container.decodeIfPresent(String.self, forKey: .profile)
+        self.approvalPolicy = try container.decodeIfPresent(String.self, forKey: .approvalPolicy)
+        self.sandboxMode = try container.decodeIfPresent(String.self, forKey: .sandboxMode)
+        self.sandboxWorkspaceWrite = try container.decodeIfPresent(SandboxWorkspaceWrite.self, forKey: .sandboxWorkspaceWrite)
+        self.chatgptBaseURL = try container.decodeIfPresent(String.self, forKey: .chatgptBaseURL)
+        self.features = try container.decodeIfPresent([String: Bool].self, forKey: .features)
+        self.history = try container.decodeIfPresent(History.self, forKey: .history)
+        self.mcpServers = try container.decodeIfPresent([String: McpServer].self, forKey: .mcpServers) ?? [:]
+        self.profiles = try container.decodeIfPresent([String: Profile].self, forKey: .profiles) ?? [:]
+    }
+}
+
+// MARK: - rollout sessions
+
 public struct CodexRolloutLine: Sendable, Equatable {
     public struct SessionMetaLine: Sendable, Equatable {
         public struct GitInfo: Sendable, Equatable {
@@ -122,17 +338,66 @@ public struct CodexRolloutLine: Sendable, Equatable {
         public let model: String?
         public let totalUsage: TokenUsage?
         public let lastUsage: TokenUsage?
+    }
 
-        public init(model: String?, totalUsage: TokenUsage?, lastUsage: TokenUsage?) {
-            self.model = model
-            self.totalUsage = totalUsage
-            self.lastUsage = lastUsage
+    public struct ResponseItem: Sendable, Equatable {
+        public enum Content: Sendable, Equatable {
+            case inputText(String)
+            case outputText(String)
+            case inputImage(String)
+            case other(type: String, raw: CodexJSONValue?)
         }
+
+        public enum Kind: Sendable, Equatable {
+            case message(role: String?, content: [Content], phase: String?)
+            case functionCall(name: String?, arguments: String?, callID: String?)
+            case functionCallOutput(callID: String?, output: CodexJSONValue?)
+            case localShellCall(status: String?, action: CodexJSONValue?)
+            case customToolCall(name: String?, callID: String?, input: String?)
+            case customToolCallOutput(callID: String?, output: String?)
+            case reasoning(summary: CodexJSONValue?, content: CodexJSONValue?)
+            case webSearchCall(status: String?, action: CodexJSONValue?)
+            case compaction(encryptedContent: String?)
+            case ghostSnapshot(ghostCommit: CodexJSONValue?)
+            case other(type: String, raw: CodexJSONValue?)
+        }
+
+        public let kind: Kind
+    }
+
+    public struct EventMessage: Sendable, Equatable {
+        public struct UserMessage: Sendable, Equatable {
+            public let message: String?
+            public let images: [String]?
+            public let localImages: [String]
+            public let textElements: CodexJSONValue?
+        }
+
+        public enum Kind: Sendable, Equatable {
+            case tokenCount(TokenCount)
+            case userMessage(UserMessage)
+            case agentMessage(String?)
+            case error(String?)
+            case warning(String?)
+            case turnStarted(modelContextWindow: Int?)
+            case turnComplete(lastAgentMessage: String?)
+            case other(type: String, payload: CodexJSONValue?)
+        }
+
+        public let kind: Kind
+    }
+
+    public struct CompactedItem: Sendable, Equatable {
+        public let message: String?
+        public let replacementHistory: [ResponseItem]?
     }
 
     public enum Item: Sendable, Equatable {
         case sessionMeta(SessionMetaLine)
+        case responseItem(ResponseItem)
+        case compacted(CompactedItem)
         case turnContext(TurnContext)
+        case eventMsg(EventMessage)
         case tokenCount(TokenCount)
         case other(type: String)
     }
@@ -141,7 +406,19 @@ public struct CodexRolloutLine: Sendable, Equatable {
     public let item: Item
 }
 
+public struct CodexRolloutFile: Sendable, Equatable {
+    public let path: String
+    public let lines: [CodexRolloutLine]
+
+    public init(path: String, lines: [CodexRolloutLine]) {
+        self.path = path
+        self.lines = lines
+    }
+}
+
 public enum CodexGeneratedFilesParser {
+    // MARK: auth
+
     public static func parseAuth(data: Data) throws -> CodexAuthFile {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
@@ -202,11 +479,65 @@ public enum CodexGeneratedFilesParser {
         return try parseAuth(data: data)
     }
 
+    // MARK: history
+
+    public static func parseHistoryLine(data: Data) throws -> CodexHistoryEntry {
+        struct Raw: Decodable {
+            let sessionID: String?
+            let conversationID: String?
+            let timestamp: UInt64
+            let text: String
+
+            enum CodingKeys: String, CodingKey {
+                case sessionID = "session_id"
+                case conversationID = "conversation_id"
+                case timestamp = "ts"
+                case text
+            }
+        }
+
+        let raw: Raw
+        do {
+            raw = try JSONDecoder().decode(Raw.self, from: data)
+        } catch {
+            throw CodexGeneratedFilesError.invalidJSON(error.localizedDescription)
+        }
+        let sessionID = raw.sessionID ?? raw.conversationID ?? ""
+        return CodexHistoryEntry(sessionID: sessionID, timestamp: raw.timestamp, text: raw.text)
+    }
+
+    public static func parseHistoryLines(data: Data) throws -> [CodexHistoryEntry] {
+        guard let text = String(data: data, encoding: .utf8) else {
+            throw CodexGeneratedFilesError.invalidUTF8
+        }
+        return try text
+            .split(whereSeparator: \.isNewline)
+            .filter { !$0.isEmpty }
+            .map { line in
+                guard let lineData = String(line).data(using: .utf8) else {
+                    throw CodexGeneratedFilesError.invalidUTF8
+                }
+                return try parseHistoryLine(data: lineData)
+            }
+    }
+
+    // MARK: config
+
+    public static func parseConfigToml(data: Data) throws -> CodexConfigToml {
+        do {
+            return try TOMLDecoder().decode(CodexConfigToml.self, from: data)
+        } catch {
+            throw CodexGeneratedFilesError.invalidTOML(error.localizedDescription)
+        }
+    }
+
+    // MARK: rollout
+
     public static func parseRolloutLine(data: Data) throws -> CodexRolloutLine {
         struct RawLine: Decodable {
             let timestamp: String?
             let type: String
-            let payload: JSONValue?
+            let payload: CodexJSONValue?
         }
 
         let raw: RawLine
@@ -218,21 +549,23 @@ public enum CodexGeneratedFilesParser {
 
         switch raw.type {
         case "session_meta":
-            let meta = parseSessionMeta(payload: raw.payload)
-            return CodexRolloutLine(timestamp: raw.timestamp, item: .sessionMeta(meta))
+            return .init(timestamp: raw.timestamp, item: .sessionMeta(parseSessionMeta(payload: raw.payload)))
+        case "response_item":
+            return .init(timestamp: raw.timestamp, item: .responseItem(parseResponseItem(payload: raw.payload)))
+        case "compacted":
+            return .init(timestamp: raw.timestamp, item: .compacted(parseCompacted(payload: raw.payload)))
         case "turn_context":
-            let context = parseTurnContext(payload: raw.payload)
-            return CodexRolloutLine(timestamp: raw.timestamp, item: .turnContext(context))
+            return .init(timestamp: raw.timestamp, item: .turnContext(parseTurnContext(payload: raw.payload)))
         case "event_msg":
             if let tokenCount = parseTokenCountFromEventMessage(payload: raw.payload) {
-                return CodexRolloutLine(timestamp: raw.timestamp, item: .tokenCount(tokenCount))
+                return .init(timestamp: raw.timestamp, item: .tokenCount(tokenCount))
             }
-            return CodexRolloutLine(timestamp: raw.timestamp, item: .other(type: raw.type))
+            return .init(timestamp: raw.timestamp, item: .eventMsg(parseEventMessage(payload: raw.payload)))
         case "token_count":
             let tokenCount = parseTokenCount(payload: raw.payload?.objectValue ?? [:], fallbackModel: nil)
-            return CodexRolloutLine(timestamp: raw.timestamp, item: .tokenCount(tokenCount))
+            return .init(timestamp: raw.timestamp, item: .tokenCount(tokenCount))
         default:
-            return CodexRolloutLine(timestamp: raw.timestamp, item: .other(type: raw.type))
+            return .init(timestamp: raw.timestamp, item: .other(type: raw.type))
         }
     }
 
@@ -243,7 +576,43 @@ public enum CodexGeneratedFilesParser {
         return try parseRolloutLine(data: data)
     }
 
-    private static func parseSessionMeta(payload: JSONValue?) -> CodexRolloutLine.SessionMetaLine {
+    public static func parseRolloutLines(data: Data) throws -> [CodexRolloutLine] {
+        guard let text = String(data: data, encoding: .utf8) else {
+            throw CodexGeneratedFilesError.invalidUTF8
+        }
+        return try text
+            .split(whereSeparator: \.isNewline)
+            .filter { !$0.isEmpty }
+            .map { line in
+                try parseRolloutLine(text: String(line))
+            }
+    }
+
+    public static func loadRolloutFiles(
+        codexHome: URL,
+        includeArchived: Bool = true
+    ) throws -> [CodexRolloutFile] {
+        let sessionsRoot = codexHome.appendingPathComponent("sessions", isDirectory: true)
+        var roots = [sessionsRoot]
+        if includeArchived {
+            roots.append(codexHome.appendingPathComponent("archived_sessions", isDirectory: true))
+        }
+
+        var files: [CodexRolloutFile] = []
+        for root in roots {
+            let lineFiles = findJSONLFiles(root: root)
+            for file in lineFiles {
+                let data = try Data(contentsOf: file)
+                let lines = (try? parseRolloutLines(data: data)) ?? []
+                files.append(.init(path: file.path, lines: lines))
+            }
+        }
+        return files.sorted { $0.path < $1.path }
+    }
+
+    // MARK: internals
+
+    private static func parseSessionMeta(payload: CodexJSONValue?) -> CodexRolloutLine.SessionMetaLine {
         let object = payload?.objectValue ?? [:]
         let gitObject = object["git"]?.objectValue
         let git: CodexRolloutLine.SessionMetaLine.GitInfo? = gitObject.map {
@@ -266,7 +635,7 @@ public enum CodexGeneratedFilesParser {
         )
     }
 
-    private static func parseTurnContext(payload: JSONValue?) -> CodexRolloutLine.TurnContext {
+    private static func parseTurnContext(payload: CodexJSONValue?) -> CodexRolloutLine.TurnContext {
         let object = payload?.objectValue ?? [:]
         return .init(
             cwd: object["cwd"]?.stringValue,
@@ -276,7 +645,125 @@ public enum CodexGeneratedFilesParser {
         )
     }
 
-    private static func parseTokenCountFromEventMessage(payload: JSONValue?) -> CodexRolloutLine.TokenCount? {
+    private static func parseCompacted(payload: CodexJSONValue?) -> CodexRolloutLine.CompactedItem {
+        let object = payload?.objectValue ?? [:]
+        let historyValues = object["replacement_history"]?.arrayValue ?? []
+        let history = historyValues.map { parseResponseItem(payload: $0) }
+        return .init(
+            message: object["message"]?.stringValue,
+            replacementHistory: history.isEmpty ? nil : history
+        )
+    }
+
+    private static func parseResponseItem(payload: CodexJSONValue?) -> CodexRolloutLine.ResponseItem {
+        let object = payload?.objectValue ?? [:]
+        let type = object["type"]?.stringValue ?? "unknown"
+
+        func parseContent(_ value: CodexJSONValue?) -> [CodexRolloutLine.ResponseItem.Content] {
+            guard let items = value?.arrayValue else { return [] }
+            return items.map { item in
+                let raw = item.objectValue ?? [:]
+                let contentType = raw["type"]?.stringValue ?? "unknown"
+                switch contentType {
+                case "input_text":
+                    return .inputText(raw["text"]?.stringValue ?? "")
+                case "output_text":
+                    return .outputText(raw["text"]?.stringValue ?? "")
+                case "input_image":
+                    return .inputImage(raw["image_url"]?.stringValue ?? "")
+                default:
+                    return .other(type: contentType, raw: item)
+                }
+            }
+        }
+
+        let kind: CodexRolloutLine.ResponseItem.Kind
+        switch type {
+        case "message":
+            kind = .message(
+                role: object["role"]?.stringValue,
+                content: parseContent(object["content"]),
+                phase: object["phase"]?.stringValue
+            )
+        case "function_call":
+            kind = .functionCall(
+                name: object["name"]?.stringValue,
+                arguments: object["arguments"]?.stringValue,
+                callID: object["call_id"]?.stringValue
+            )
+        case "function_call_output":
+            kind = .functionCallOutput(
+                callID: object["call_id"]?.stringValue,
+                output: object["output"]
+            )
+        case "local_shell_call":
+            kind = .localShellCall(
+                status: object["status"]?.stringValue,
+                action: object["action"]
+            )
+        case "custom_tool_call":
+            kind = .customToolCall(
+                name: object["name"]?.stringValue,
+                callID: object["call_id"]?.stringValue,
+                input: object["input"]?.stringValue
+            )
+        case "custom_tool_call_output":
+            kind = .customToolCallOutput(
+                callID: object["call_id"]?.stringValue,
+                output: object["output"]?.stringValue
+            )
+        case "reasoning":
+            kind = .reasoning(summary: object["summary"], content: object["content"])
+        case "web_search_call":
+            kind = .webSearchCall(
+                status: object["status"]?.stringValue,
+                action: object["action"]
+            )
+        case "compaction", "compaction_summary":
+            kind = .compaction(encryptedContent: object["encrypted_content"]?.stringValue)
+        case "ghost_snapshot":
+            kind = .ghostSnapshot(ghostCommit: object["ghost_commit"])
+        default:
+            kind = .other(type: type, raw: payload)
+        }
+        return .init(kind: kind)
+    }
+
+    private static func parseEventMessage(payload: CodexJSONValue?) -> CodexRolloutLine.EventMessage {
+        let object = payload?.objectValue ?? [:]
+        let type = object["type"]?.stringValue ?? "unknown"
+
+        let kind: CodexRolloutLine.EventMessage.Kind
+        switch type {
+        case "token_count":
+            kind = .tokenCount(parseTokenCount(payload: object, fallbackModel: nil))
+        case "user_message":
+            let localImages = object["local_images"]?.arrayValue?.compactMap { $0.stringValue } ?? []
+            let images = object["images"]?.arrayValue?.compactMap { $0.stringValue }
+            kind = .userMessage(.init(
+                message: object["message"]?.stringValue,
+                images: images,
+                localImages: localImages,
+                textElements: object["text_elements"]
+            ))
+        case "agent_message":
+            kind = .agentMessage(object["message"]?.stringValue)
+        case "error":
+            kind = .error(object["message"]?.stringValue)
+        case "warning":
+            kind = .warning(object["message"]?.stringValue)
+        case "task_started", "turn_started":
+            kind = .turnStarted(modelContextWindow: object["model_context_window"]?.intValue)
+        case "task_complete", "turn_complete":
+            kind = .turnComplete(lastAgentMessage: object["last_agent_message"]?.stringValue)
+        default:
+            kind = .other(type: type, payload: payload)
+        }
+
+        return .init(kind: kind)
+    }
+
+    private static func parseTokenCountFromEventMessage(payload: CodexJSONValue?) -> CodexRolloutLine.TokenCount? {
         let object = payload?.objectValue ?? [:]
         if object["type"]?.stringValue == "token_count" {
             return parseTokenCount(payload: object, fallbackModel: nil)
@@ -287,7 +774,7 @@ public enum CodexGeneratedFilesParser {
         return nil
     }
 
-    private static func parseTokenCount(payload: [String: JSONValue], fallbackModel: String?) -> CodexRolloutLine.TokenCount {
+    private static func parseTokenCount(payload: [String: CodexJSONValue], fallbackModel: String?) -> CodexRolloutLine.TokenCount {
         let info = payload["info"]?.objectValue
         let model = info?["model"]?.stringValue
             ?? info?["model_name"]?.stringValue
@@ -299,7 +786,7 @@ public enum CodexGeneratedFilesParser {
         return .init(model: model, totalUsage: total, lastUsage: last)
     }
 
-    private static func parseTokenUsage(_ object: [String: JSONValue]?) -> CodexRolloutLine.TokenUsage? {
+    private static func parseTokenUsage(_ object: [String: CodexJSONValue]?) -> CodexRolloutLine.TokenUsage? {
         guard let object else { return nil }
         let input = object["input_tokens"]?.intValue ?? 0
         let cached = object["cached_input_tokens"]?.intValue
@@ -317,7 +804,7 @@ public enum CodexGeneratedFilesParser {
         }
         let payloadPart = String(parts[1])
         guard let payloadData = base64URLDecode(payloadPart),
-              let payload = try? JSONDecoder().decode([String: JSONValue].self, from: payloadData)
+              let payload = try? JSONDecoder().decode([String: CodexJSONValue].self, from: payloadData)
         else {
             throw CodexGeneratedFilesError.invalidJWT
         }
@@ -341,67 +828,28 @@ public enum CodexGeneratedFilesParser {
         }
         return Data(base64Encoded: normalized)
     }
+
+    private static func findJSONLFiles(root: URL) -> [URL] {
+        guard FileManager.default.fileExists(atPath: root.path) else { return [] }
+        let enumerator = FileManager.default.enumerator(
+            at: root,
+            includingPropertiesForKeys: [.isRegularFileKey],
+            options: [.skipsHiddenFiles, .skipsPackageDescendants]
+        )
+        guard let enumerator else { return [] }
+
+        var files: [URL] = []
+        for case let fileURL as URL in enumerator {
+            guard fileURL.pathExtension.lowercased() == "jsonl" else { continue }
+            files.append(fileURL)
+        }
+        return files
+    }
 }
 
-private enum JSONValue: Codable, Equatable, Sendable {
-    case string(String)
-    case number(Double)
-    case bool(Bool)
-    case object([String: JSONValue])
-    case array([JSONValue])
-    case null
-
-    var stringValue: String? {
-        if case let .string(value) = self { return value }
+private extension CodexJSONValue {
+    var arrayValue: [CodexJSONValue]? {
+        if case let .array(values) = self { return values }
         return nil
-    }
-
-    var intValue: Int? {
-        if case let .number(value) = self { return Int(value) }
-        return nil
-    }
-
-    var objectValue: [String: JSONValue]? {
-        if case let .object(value) = self { return value }
-        return nil
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.singleValueContainer()
-        if container.decodeNil() {
-            self = .null
-        } else if let value = try? container.decode(Bool.self) {
-            self = .bool(value)
-        } else if let value = try? container.decode(Double.self) {
-            self = .number(value)
-        } else if let value = try? container.decode(String.self) {
-            self = .string(value)
-        } else if let value = try? container.decode([String: JSONValue].self) {
-            self = .object(value)
-        } else if let value = try? container.decode([JSONValue].self) {
-            self = .array(value)
-        } else {
-            throw DecodingError.typeMismatch(
-                JSONValue.self,
-                DecodingError.Context(codingPath: decoder.codingPath, debugDescription: "Unsupported JSON value"))
-        }
-    }
-
-    func encode(to encoder: Encoder) throws {
-        var container = encoder.singleValueContainer()
-        switch self {
-        case let .string(value):
-            try container.encode(value)
-        case let .number(value):
-            try container.encode(value)
-        case let .bool(value):
-            try container.encode(value)
-        case let .object(value):
-            try container.encode(value)
-        case let .array(value):
-            try container.encode(value)
-        case .null:
-            try container.encodeNil()
-        }
     }
 }

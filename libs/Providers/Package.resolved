@@ -1,5 +1,5 @@
 {
-  "originHash" : "5e1e9b7b5933896d1b39e9cbefbcb0a4b93b2a86b60814f5e0d3eae10b06acaa",
+  "originHash" : "b21dda77ae650cd2496dd658928202924fd386524582e839fcaf94feadaf63b6",
   "pins" : [
     {
       "identity" : "skprocessrunner",
@@ -17,6 +17,15 @@
       "state" : {
         "revision" : "4d5b71ffbb296937dc5ee8472f64721bca771cf0",
         "version" : "0.4.0"
+      }
+    },
+    {
+      "identity" : "swift-toml",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/mattt/swift-toml",
+      "state" : {
+        "revision" : "827506c90475e82d5a7f191f950fb3025cbdc0d6",
+        "version" : "2.0.0"
       }
     }
   ],

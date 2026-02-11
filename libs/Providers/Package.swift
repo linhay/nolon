@@ -41,6 +41,7 @@ let package = Package(
     dependencies: [
         .package(url: "https://github.com/linhay/SKProcessRunner", from: "0.0.5"),
         .package(url: "https://github.com/steipete/SweetCookieKit", from: "0.4.0"),
+        .package(url: "https://github.com/mattt/swift-toml", from: "2.0.0"),
     ],
     targets: [
         // Shared Provider utilities
@@ -82,6 +83,7 @@ let package = Package(
                 .product(name: "SKProcessRunner", package: "SKProcessRunner"),
                 "CodexBarProviderCatalog",
                 .product(name: "SweetCookieKit", package: "SweetCookieKit"),
+                .product(name: "TOML", package: "swift-toml"),
             ],
             path: "Sources/Providers/Codex"
         ),

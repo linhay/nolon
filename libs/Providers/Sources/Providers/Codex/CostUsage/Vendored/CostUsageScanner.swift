@@ -257,6 +257,8 @@ enum CostUsageScanner {
                         sessionId = meta.id
                     }
                     return
+                case .responseItem, .compacted, .eventMsg:
+                    return
                 case let .turnContext(context):
                     if let model = context.model, !model.isEmpty {
                         currentModel = model

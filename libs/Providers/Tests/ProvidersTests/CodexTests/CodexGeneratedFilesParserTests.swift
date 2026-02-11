@@ -102,6 +102,179 @@ struct CodexGeneratedFilesParserTests {
         }
     }
 
+    @Test("Parse rollout response_item, event_msg(user_message), compacted")
+    func parseRolloutAdditionalItems() throws {
+        let responseLine = """
+        {
+          "timestamp": "2026-02-11T12:00:01Z",
+          "type": "response_item",
+          "payload": {
+            "type": "message",
+            "role": "assistant",
+            "phase": "final_answer",
+            "content": [
+              { "type": "output_text", "text": "Done" }
+            ]
+          }
+        }
+        """
+        let parsedResponse = try CodexGeneratedFilesParser.parseRolloutLine(text: responseLine)
+        if case let .responseItem(item) = parsedResponse.item {
+            if case let .message(role, content, phase) = item.kind {
+                #expect(role == "assistant")
+                #expect(phase == "final_answer")
+                #expect(content.count == 1)
+            } else {
+                Issue.record("Expected response_item.message")
+            }
+        } else {
+            Issue.record("Expected response_item")
+        }
+
+        let userMessageLine = """
+        {
+          "timestamp": "2026-02-11T12:00:02Z",
+          "type": "event_msg",
+          "payload": {
+            "type": "user_message",
+            "message": "hello",
+            "images": ["https://a.example/img.png"],
+            "local_images": ["/tmp/a.png"],
+            "text_elements": [{"kind":"text","start":0,"end":5}]
+          }
+        }
+        """
+        let parsedEvent = try CodexGeneratedFilesParser.parseRolloutLine(text: userMessageLine)
+        if case let .eventMsg(event) = parsedEvent.item {
+            if case let .userMessage(user) = event.kind {
+                #expect(user.message == "hello")
+                #expect(user.images?.count == 1)
+                #expect(user.localImages.count == 1)
+            } else {
+                Issue.record("Expected event_msg.user_message")
+            }
+        } else {
+            Issue.record("Expected event_msg")
+        }
+
+        let compactedLine = """
+        {
+          "timestamp": "2026-02-11T12:00:03Z",
+          "type": "compacted",
+          "payload": {
+            "message": "summary",
+            "replacement_history": [
+              {
+                "type": "message",
+                "role": "assistant",
+                "content": [{ "type": "output_text", "text": "R" }]
+              }
+            ]
+          }
+        }
+        """
+        let parsedCompacted = try CodexGeneratedFilesParser.parseRolloutLine(text: compactedLine)
+        if case let .compacted(item) = parsedCompacted.item {
+            #expect(item.message == "summary")
+            #expect(item.replacementHistory?.count == 1)
+        } else {
+            Issue.record("Expected compacted")
+        }
+    }
+
+    @Test("Parse history.jsonl entries with session_id and conversation_id")
+    func parseHistoryJSONL() throws {
+        let history = """
+        {"session_id":"s-1","ts":1739275200,"text":"hello"}
+        {"conversation_id":"s-2","ts":1739275201,"text":"world"}
+        """
+        let entries = try CodexGeneratedFilesParser.parseHistoryLines(data: Data(history.utf8))
+        #expect(entries.count == 2)
+        #expect(entries[0].sessionID == "s-1")
+        #expect(entries[1].sessionID == "s-2")
+        #expect(entries[1].text == "world")
+    }
+
+    @Test("Parse config.toml and managed_config.toml")
+    func parseConfigToml() throws {
+        let toml = """
+        model = "gpt-5"
+        profile = "work"
+        approval_policy = "on-request"
+        sandbox_mode = "workspace-write"
+        chatgpt_base_url = "https://chatgpt.com/backend-api"
+
+        [features]
+        web_search_request = true
+        shell_tool = false
+
+        [history]
+        persistence = "save-all"
+        max_bytes = 1024
+
+        [sandbox_workspace_write]
+        network_access = true
+        writable_roots = ["/tmp/project"]
+
+        [mcp_servers.docs]
+        command = "npx"
+        args = ["-y", "@acme/docs-mcp"]
+        enabled = true
+
+        [profiles.work]
+        model = "gpt-5-codex"
+        approval_policy = "on-request"
+        """
+        let parsed = try CodexGeneratedFilesParser.parseConfigToml(data: Data(toml.utf8))
+        #expect(parsed.model == "gpt-5")
+        #expect(parsed.profile == "work")
+        #expect(parsed.features?["web_search_request"] == true)
+        #expect(parsed.history?.maxBytes == 1024)
+        #expect(parsed.sandboxWorkspaceWrite?.networkAccess == true)
+        #expect(parsed.mcpServers["docs"]?.command == "npx")
+        #expect(parsed.profiles["work"]?.model == "gpt-5-codex")
+
+        let managedToml = """
+        model = "gpt-5.2-codex"
+
+        [features]
+        unified_exec = true
+        """
+        let managed = try CodexGeneratedFilesParser.parseConfigToml(data: Data(managedToml.utf8))
+        #expect(managed.model == "gpt-5.2-codex")
+        #expect(managed.features?["unified_exec"] == true)
+    }
+
+    @Test("Load sessions and archived_sessions rollout files")
+    func loadRolloutFilesFromHome() throws {
+        let tempRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codex-home-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: tempRoot, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempRoot) }
+
+        let sessionsDir = tempRoot
+            .appendingPathComponent("sessions/2026/02/11", isDirectory: true)
+        try FileManager.default.createDirectory(at: sessionsDir, withIntermediateDirectories: true)
+        let archivedDir = tempRoot
+            .appendingPathComponent("archived_sessions/2026/02/11", isDirectory: true)
+        try FileManager.default.createDirectory(at: archivedDir, withIntermediateDirectories: true)
+
+        let sessionFile = sessionsDir.appendingPathComponent("rollout-a.jsonl")
+        try """
+        {"timestamp":"2026-02-11T12:00:00Z","type":"session_meta","payload":{"id":"s1","cwd":"/tmp"}}
+        """.write(to: sessionFile, atomically: true, encoding: .utf8)
+
+        let archivedFile = archivedDir.appendingPathComponent("rollout-b.jsonl")
+        try """
+        {"timestamp":"2026-02-11T12:00:00Z","type":"session_meta","payload":{"id":"s2","cwd":"/tmp"}}
+        """.write(to: archivedFile, atomically: true, encoding: .utf8)
+
+        let files = try CodexGeneratedFilesParser.loadRolloutFiles(codexHome: tempRoot, includeArchived: true)
+        #expect(files.count == 2)
+        #expect(files.contains(where: { $0.path.hasSuffix("rollout-a.jsonl") }))
+        #expect(files.contains(where: { $0.path.hasSuffix("rollout-b.jsonl") }))
+    }
+
     private static func makeJWT(payload: String) -> String {
         let header = #"{"alg":"none","typ":"JWT"}"#
         func encode(_ raw: String) -> String {
