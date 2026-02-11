@@ -697,26 +697,10 @@ final class ProviderUsageViewModel {
                 return
             }
 
-            let email = codexAuthService.deriveEmail(fromAuthJSONString: raw)
-            var matched: CodexAuthAccount?
-            if let preferredId = cliLoginPreferredAccountId,
-               let preferred = codexAccounts.first(where: { $0.id == preferredId }) {
-                // Right-click "CLI Login" is scoped to a specific card; update that account first.
-                matched = preferred
-            } else if let email {
-                matched = try await codexAuthService.findAccountByEmail(email)
-            } else {
-                matched = try await codexAuthService.matchAccountByAuthData(data)
-            }
-
-            let account: CodexAuthAccount
-            if let matched {
-                try await codexAuthService.updateAccount(matched, authJSONString: raw)
-                account = matched
-            } else {
-                let finalName = codexAuthService.deriveAccountName(fromAuthJSONString: raw)
-                account = try await codexAuthService.addAccount(name: finalName, authJSONString: raw)
-            }
+            let account = try await codexAuthService.upsertAccountFromCLILogin(
+                authJSONString: raw,
+                preferredAccountID: cliLoginPreferredAccountId
+            )
 
             let loginAt = Date()
             try? await codexAuthService.updateLoginSuccess(for: account, date: loginAt)
@@ -759,12 +743,35 @@ final class ProviderUsageViewModel {
     func confirmActivate() async {
         guard let account = pendingActivateCodexAccount else { return }
         do {
+            guard let tokenPair = try await codexAuthService.readTokenPair(for: account) else {
+                throw NSError(
+                    domain: "CodexRuntimeActivation",
+                    code: 1,
+                    userInfo: [NSLocalizedDescriptionKey: "Missing idToken/accessToken for selected account"]
+                )
+            }
+
+            var env = ProcessInfo.processInfo.environment
+            if let managedEnv = try? await CodexBinaryManager.shared.launchEnvironmentVariables() {
+                env.merge(managedEnv) { _, new in new }
+            }
+            if let codexCLIPath = await CodexBinaryManager.shared.activeCLIPathIfAvailable() {
+                env["CODEX_CLI_PATH"] = codexCLIPath
+            }
+
+            _ = try await CodexRuntimeAccountSwitcher.shared.switchAccount(
+                tokens: CodexTokenPair(idToken: tokenPair.idToken, accessToken: tokenPair.accessToken),
+                environment: env
+            )
             try await codexAuthService.activateAccount(account, for: provider)
+            try await codexAuthService.setActiveAccount(account, for: provider)
+            Self.logger.info("Codex runtime account switch and auth.json sync succeeded. accountId=\(account.id.uuidString, privacy: .public)")
+
             pendingActivateCodexAccount = nil
             await load()
         } catch {
             alertTitle = NSLocalizedString("codex.accounts.title", value: "Accounts", comment: "Codex accounts title")
-            alertMessage = NSLocalizedString("codex.accounts.error.activate", value: "Failed to activate this account.", comment: "Error message")
+            alertMessage = error.localizedDescription
         }
     }
 

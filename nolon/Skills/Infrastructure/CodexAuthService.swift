@@ -48,6 +48,10 @@ actor CodexAuthService {
         nolonCodexRootFolder().folder("auth")
     }
 
+    nonisolated func activeAccountsFile() -> STFile {
+        nolonCodexRootFolder().file("active-accounts.json")
+    }
+
     nonisolated func accountAuthFile(relativeAuthPath: String) -> STFile {
         nolonCodexRootFolder().file(relativeAuthPath)
     }
@@ -82,7 +86,7 @@ actor CodexAuthService {
     func addAccount(name: String, authJSONString: String) async throws -> CodexAuthAccount {
         try await migrateLegacyIfNeeded()
 
-        nolonCodexAuthFolder().createIfNotExists()
+        _ = nolonCodexAuthFolder().createIfNotExists()
 
         let fileName = uniqueAuthFileName(for: name, existing: existingAuthRelativePaths())
         let relativePath = "auth/\(fileName)"
@@ -133,11 +137,48 @@ actor CodexAuthService {
         return matchAccount(authData: data, accounts: accounts)
     }
 
+    /// Upsert account snapshot from a successful `codex login` output.
+    /// - If `preferredAccountID` is provided and exists, update that account first.
+    /// - Else, try to match by email, then by auth data hash/content.
+    /// - If no match, create a new snapshot account.
+    func upsertAccountFromCLILogin(authJSONString: String, preferredAccountID: UUID?) async throws -> CodexAuthAccount {
+        let data = Data(authJSONString.utf8)
+
+        if let preferredAccountID {
+            let accounts = try await loadAccounts()
+            if let preferred = accounts.first(where: { $0.id == preferredAccountID }) {
+                try await updateAccount(preferred, authJSONString: authJSONString)
+                return preferred
+            }
+        }
+
+        if let email = deriveEmail(fromAuthJSONString: authJSONString),
+           let matchedByEmail = try await findAccountByEmail(email) {
+            try await updateAccount(matchedByEmail, authJSONString: authJSONString)
+            return matchedByEmail
+        }
+
+        if let matchedByAuth = try await matchAccountByAuthData(data) {
+            try await updateAccount(matchedByAuth, authJSONString: authJSONString)
+            return matchedByAuth
+        }
+
+        let finalName = deriveAccountName(fromAuthJSONString: authJSONString)
+        return try await addAccount(name: finalName, authJSONString: authJSONString)
+    }
+
     func deleteAccount(id: UUID) async throws {
         let accounts = try await loadAccounts()
         guard let account = accounts.first(where: { $0.id == id }) else { return }
         let file = accountAuthFile(account)
         try? file.delete()
+
+        var map = loadActiveAccountMap()
+        let before = map.count
+        map = map.filter { $0.value != id.uuidString }
+        if map.count != before {
+            try saveActiveAccountMap(map)
+        }
     }
 
     // MARK: - Accounts (folder-backed)
@@ -169,6 +210,32 @@ actor CodexAuthService {
         guard file.isExists else { return nil }
         let raw = try file.read()
         return raw
+    }
+
+    func readTokenPair(for account: CodexAuthAccount) throws -> (idToken: String, accessToken: String)? {
+        let data = try accountAuthFile(account).data()
+        guard !data.isEmpty,
+              let authJSON = try? JSON(data: data)
+        else { return nil }
+
+        let trimmed: (String?) -> String? = { value in
+            guard let value = value?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !value.isEmpty
+            else { return nil }
+            return value
+        }
+
+        let idToken = trimmed(authJSON["tokens"]["id_token"].string)
+            ?? trimmed(authJSON["tokens"]["idToken"].string)
+            ?? trimmed(authJSON["id_token"].string)
+            ?? trimmed(authJSON["idToken"].string)
+        let accessToken = trimmed(authJSON["tokens"]["access_token"].string)
+            ?? trimmed(authJSON["tokens"]["accessToken"].string)
+            ?? trimmed(authJSON["access_token"].string)
+            ?? trimmed(authJSON["accessToken"].string)
+
+        guard let idToken, let accessToken else { return nil }
+        return (idToken: idToken, accessToken: accessToken)
     }
 
     func loadUsageCache(for account: CodexAuthAccount) throws -> CodexAuthUsageCache? {
@@ -244,8 +311,10 @@ actor CodexAuthService {
     }
 
     func activeAccountId(for provider: Provider) async -> UUID? {
-        guard let authFile = authFile(for: provider) else { return nil }
         let accounts = (try? await loadAccounts()) ?? []
+        guard let authFile = authFile(for: provider) else {
+            return activeAccountIdFromRegistry(for: provider, accounts: accounts)
+        }
 
         // Symlink form (older behavior / user created): resolve target and match by file URL.
         if let destination = resolveSymlinkTarget(for: authFile) {
@@ -260,9 +329,19 @@ actor CodexAuthService {
         // Regular file: match by cleaned content (ignore Nolon metadata).
         guard let currentData = try? authFile.data(),
               !currentData.isEmpty
-        else { return nil }
+        else { return activeAccountIdFromRegistry(for: provider, accounts: accounts) }
 
-        return matchAccount(authData: currentData, accounts: accounts)?.id
+        if let matched = matchAccount(authData: currentData, accounts: accounts)?.id {
+            return matched
+        }
+
+        return activeAccountIdFromRegistry(for: provider, accounts: accounts)
+    }
+
+    func setActiveAccount(_ account: CodexAuthAccount, for provider: Provider) throws {
+        var map = loadActiveAccountMap()
+        map[provider.id] = account.id.uuidString
+        try saveActiveAccountMap(map)
     }
 
     /// Sync token fields from the active `~/.codex/auth.json` into the matching snapshot under `~/.nolon/codex/auth/`.
@@ -300,7 +379,7 @@ actor CodexAuthService {
 
     func activateAccount(_ account: CodexAuthAccount, for provider: Provider) throws {
         guard let authFile = authFile(for: provider) else { return }
-        authFile.parentFolder()?.createIfNotExists()
+        _ = authFile.parentFolder()?.createIfNotExists()
 
         // Replace existing auth.json (file or symlink) with a clean copy.
         if authFile.isExists {
@@ -341,7 +420,7 @@ actor CodexAuthService {
         try await migrateLegacyIfNeeded()
 
         guard let codexHome = codexHomeFolder(for: provider) else { throw CLILoginError.codexHomeUnavailable }
-        codexHome.createIfNotExists()
+        _ = codexHome.createIfNotExists()
 
         guard let authFile = authFile(for: provider) else { throw CLILoginError.codexHomeUnavailable }
         guard authFile.isExists else { return }
@@ -366,7 +445,7 @@ actor CodexAuthService {
     }
 
     /// After the user finishes `codex login`, call this to snapshot the freshly created `auth.json`
-    /// into `~/.nolon/codex/auth/` and then activate it as the current account.
+    /// into `~/.nolon/codex/auth/`, then sync provider `auth.json` and mark active in runtime registry.
     @discardableResult
     func finalizeCLILogin(provider: Provider, newAccountName: String) async throws -> CodexAuthAccount {
         guard let authFile = authFile(for: provider) else { throw CLILoginError.codexHomeUnavailable }
@@ -378,6 +457,7 @@ actor CodexAuthService {
 
         let account = try await addAccount(name: name, authJSONString: raw)
         try activateAccount(account, for: provider)
+        try setActiveAccount(account, for: provider)
         return account
     }
 
@@ -434,7 +514,7 @@ actor CodexAuthService {
         decoder.dateDecodingStrategy = .iso8601
         guard let legacy = try? decoder.decode([LegacyCodexAuthAccount].self, from: data) else { return }
 
-        nolonCodexAuthFolder().createIfNotExists()
+        _ = nolonCodexAuthFolder().createIfNotExists()
 
         let existing = existingAuthRelativePaths()
         var used = existing
@@ -587,6 +667,42 @@ private extension CodexAuthService {
             .filter { $0.attributes.nameComponents.extension?.lowercased() == "json" }
             .map { "auth/\($0.attributes.name)" }
         return Set(rels)
+    }
+
+    private func activeAccountIdFromRegistry(for provider: Provider, accounts: [CodexAuthAccount]) -> UUID? {
+        let map = loadActiveAccountMap()
+        guard let raw = map[provider.id], let id = UUID(uuidString: raw) else { return nil }
+        return accounts.contains(where: { $0.id == id }) ? id : nil
+    }
+
+    private func loadActiveAccountMap() -> [String: String] {
+        let file = activeAccountsFile()
+        guard file.isExists,
+              let data = try? file.data(),
+              !data.isEmpty,
+              let root = Self.decodeJSONObject(from: data),
+              let providers = root["providers"] as? JSONObject
+        else { return [:] }
+
+        return providers.reduce(into: [String: String]()) { result, element in
+            if let value = element.value as? String,
+               UUID(uuidString: value) != nil {
+                result[element.key] = value
+            }
+        }
+    }
+
+    private func saveActiveAccountMap(_ map: [String: String]) throws {
+        let file = activeAccountsFile()
+        _ = file.parentFolder()?.createIfNotExists()
+
+        let root: JSONObject
+        if map.isEmpty {
+            root = ["providers": JSONObject()]
+        } else {
+            root = ["providers": map]
+        }
+        try file.overlay(with: Self.encodeJSONObject(root))
     }
 
     func matchAccount(authData: Data, accounts: [CodexAuthAccount]) -> CodexAuthAccount? {

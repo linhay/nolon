@@ -65,6 +65,7 @@ Nolon is a macOS skill manager for AI coding assistants. It centralizes skill ma
 - **Concurrency**: Use `async/await`, `Sendable`, and `@MainActor` for all UI/State updates.
 - **State**: `@StateObject` for view models, `@AppStorage` for simple settings.
 - **Localization**: All UI strings MUST be localized.
+- **Codex CLI Boundary**: Codex CLI / app-server process & JSON-RPC logic must live under `libs/Providers` (`CodexCLIKit` / `CodexProvider`). `nolon` app layer only orchestrates calls.
 
 ## ANTI-PATTERNS (THIS PROJECT)
 - **Forbidden Colors**: `Color.blue`, `Color.white`, `Color.label`. **USE** `DesignSystem.Colors.Brand`, `DesignSystem.Colors.Background`, etc.

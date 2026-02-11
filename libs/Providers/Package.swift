@@ -26,6 +26,15 @@ let package = Package(
             name: "CodexProvider",
             targets: ["CodexProvider"]),
         .library(
+            name: "CodexCLIKit",
+            targets: ["CodexCLIKit"]),
+        .library(
+            name: "JsonRPCKit",
+            targets: ["JsonRPCKit"]),
+        .library(
+            name: "CodexAppServerKit",
+            targets: ["CodexAppServerKit"]),
+        .library(
             name: "CopilotProvider",
             targets: ["CopilotProvider"]),
     ],
@@ -42,9 +51,34 @@ let package = Package(
 
         // Codex Provider
         .target(
+            name: "CodexCLIKit",
+            dependencies: [
+                "ProvidersShared",
+                .product(name: "SKProcessRunner", package: "SKProcessRunner"),
+            ],
+            path: "Sources/CodexCLIKit"
+        ),
+
+        .target(
+            name: "JsonRPCKit",
+            path: "Sources/JsonRPCKit"
+        ),
+
+        .target(
+            name: "CodexAppServerKit",
+            dependencies: [
+                "CodexCLIKit",
+                "JsonRPCKit",
+            ],
+            path: "Sources/CodexAppServerKit"
+        ),
+
+        .target(
             name: "CodexProvider",
             dependencies: [
                 "ProvidersShared",
+                "CodexCLIKit",
+                "CodexAppServerKit",
                 .product(name: "SKProcessRunner", package: "SKProcessRunner"),
                 "CodexBarProviderCatalog",
                 .product(name: "SweetCookieKit", package: "SweetCookieKit"),
