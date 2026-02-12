@@ -378,3 +378,18 @@
 ### 验证
 - `xcodebuild test -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' -only-testing:nolonTests/UsageMonitorServiceTests`
 - `swift test --package-path libs/Providers --filter ProviderUsageMonitorServiceTests`
+
+## Phase 1.16：删除 app 层 UsageMonitor 遗留包装文件
+
+### BDD 场景
+- Given `ProviderUsageViewModel` 已直接依赖 `ProviderUsageMonitorService`，When 清理迁移遗留，Then app 层不应再保留未被使用的 `UsageMonitorService` 包装文件。
+
+### TDD（回归守卫）
+- 迁移守卫检查：`rg -n "\\bUsageMonitorService\\b" nolon nolonTests -g '*.swift'`
+  - 清理前仅命中 `nolon/Skills/Infrastructure/UsageMonitorService.swift` 自身定义。
+  - 删除后无代码调用点残留。
+- 最小实现：
+  - 删除 `nolon/Skills/Infrastructure/UsageMonitorService.swift`。
+
+### 验证
+- `xcodebuild test -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' -only-testing:nolonTests/UsageMonitorServiceTests`
