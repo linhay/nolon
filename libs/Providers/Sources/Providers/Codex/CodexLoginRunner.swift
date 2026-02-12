@@ -1,5 +1,5 @@
 import Foundation
-import ProvidersShared
+import CodexCLIKit
 import SKProcessRunner
 
 public enum CodexLoginError: LocalizedError, Sendable, Equatable {
@@ -43,7 +43,8 @@ public struct CodexLoginRunner: Sendable {
         codexHome: URL
     ) throws -> CodexLoginHandle {
         let env = Self.mergedEnvironment(environment: environment, codexHome: codexHome)
-        guard let resolved = Self.resolveExecutable(binary, environment: env) else {
+        let resolver = CodexCommandExecutor(executable: binary, environment: env)
+        guard let resolved = resolver.resolveExecutable() else {
             throw CodexLoginError.binaryNotFound(binary)
         }
 
@@ -75,15 +76,5 @@ public struct CodexLoginRunner: Sendable {
         }
         env["CODEX_HOME"] = codexHome.path
         return env
-    }
-
-    private static func resolveExecutable(_ executable: String, environment: [String: String]) -> String? {
-        if executable.contains("/") {
-            return FileManager.default.isExecutableFile(atPath: executable) ? executable : nil
-        }
-        if let url = SKProcessRunner.resolveExecutableInPath(named: executable, environment: environment) {
-            return url.path
-        }
-        return SKProcessRunner.resolveExecutableInUserShellSync(named: executable, environment: environment)?.path
     }
 }

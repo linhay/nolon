@@ -42,11 +42,12 @@ public actor CodexRuntimeAccountSwitcher {
     }
 
     private func serviceFor(executable: String, environment: [String: String]) async throws -> CodexAccountRuntimeService {
-        let key = cacheKey(executable: executable, environment: environment)
+        let resolvedBinary = CodexRuntimeSupport.resolvedBinary(preferredBinary: executable, environment: environment)
+        let key = cacheKey(executable: resolvedBinary, environment: environment)
         if let existing = services[key] {
             return existing
         }
-        let created = CodexAccountRuntimeService(executable: executable, environment: environment)
+        let created = CodexAccountRuntimeService(executable: resolvedBinary, environment: environment)
         do {
             try await created.initialize(clientName: "nolon", clientVersion: "1.0.0")
         } catch {

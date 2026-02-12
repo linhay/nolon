@@ -45,3 +45,8 @@
 
 ## 后续建议
 - 如果后续要支持更多 app-server 方法，优先在 `CodexAppServerKit` 增加 typed API，避免回到 Provider 层手工 JSON 解析。
+
+## 增量（继续推进）
+- `CodexLoginRunner` 可执行解析改为复用 `CodexCommandExecutor`，避免与 CLI 解析规则分叉。
+- 新增测试 `CodexLoginRunnerTests`，覆盖 `CODEX_CLI_PATH` 优先级与 `CODEX_HOME` 注入行为。
+- `CodexRuntimeAccountSwitcher` 改为先归一化解析 binary 再做 service cache key，减少同环境重复会话实例。
