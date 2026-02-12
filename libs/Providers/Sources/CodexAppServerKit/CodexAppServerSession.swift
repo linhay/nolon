@@ -1,6 +1,7 @@
 import Foundation
 import JsonRPCKit
 import CodexCLIKit
+import STFilePath
 
 public actor CodexAppServerSession {
     public typealias NotificationHandler = @Sendable (CodexRPCNotificationMessage) async -> Void
@@ -20,7 +21,7 @@ public actor CodexAppServerSession {
         let resolved = commandExecutor.resolveExecutable()
 
         // Delay failure to first request/initialize for compatibility with current callers.
-        let executableURL = URL(fileURLWithPath: resolved ?? executable)
+        let executableURL = STFile(resolved ?? executable).url
         self.rpcSession = JsonRPCLineProcessSession(
             executableURL: executableURL,
             environment: environment,

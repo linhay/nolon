@@ -53,6 +53,22 @@ let helper = CopilotHelper(token: "ghp_xxxx")
 let usage = try await helper.fetchUsage()
 ```
 
+### Option 3: Use `nolon-core` CLI
+
+```bash
+# plan repository import
+swift run --package-path libs/Providers nolon-core \
+  skills repo plan \
+  --source vercel/agent-skills/skills/react-best-practices \
+  --repositories-root /tmp/nolon-repos
+
+# discover repository resources (skills/workflows/mcp)
+swift run --package-path libs/Providers nolon-core \
+  resources discover \
+  --path libs/agent-skills \
+  --max-depth 5
+```
+
 ## Providers
 
 ### CodexProvider

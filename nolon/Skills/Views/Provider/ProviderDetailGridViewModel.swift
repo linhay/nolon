@@ -1064,27 +1064,31 @@ final class ProviderDetailGridViewModel {
             return
         }
 
-        let baseURL = provider.codexRulesURL
-        let fileManager = FileManager.default
-        guard fileManager.fileExists(atPath: baseURL.path) else {
+        let baseFolder = STFolder(provider.codexRulesURL)
+        guard baseFolder.isExists else {
             rules = []
             return
         }
 
-        let enumerator = fileManager.enumerator(
-            at: baseURL,
-            includingPropertiesForKeys: [.isRegularFileKey],
-            options: [.skipsHiddenFiles]
-        )
+        func collectRuleFiles(in folder: STFolder) -> [URL] {
+            var result: [URL] = []
+            let files = (try? folder.files()) ?? []
+            for file in files where !file.url.lastPathComponent.hasPrefix(".") {
+                if file.url.pathExtension.lowercased() == "rules" {
+                    result.append(file.url)
+                }
+            }
+
+            let childFolders = (try? folder.folders()) ?? []
+            for child in childFolders where !child.url.lastPathComponent.hasPrefix(".") {
+                result.append(contentsOf: collectRuleFiles(in: child))
+            }
+            return result
+        }
 
         var parsedRules: [RuleInfo] = []
-        while let entry = enumerator?.nextObject() as? URL {
-            guard entry.pathExtension.lowercased() == "rules" else { continue }
-            guard let values = try? entry.resourceValues(forKeys: [.isRegularFileKey]),
-                  values.isRegularFile == true else {
-                continue
-            }
-            if let rule = RuleInfo.parse(from: entry, baseDirectory: baseURL) {
+        for fileURL in collectRuleFiles(in: baseFolder) {
+            if let rule = RuleInfo.parse(from: fileURL, baseDirectory: baseFolder.url) {
                 parsedRules.append(rule)
             }
         }
@@ -1098,18 +1102,17 @@ final class ProviderDetailGridViewModel {
             return
         }
 
-        let fileManager = FileManager.default
-        let overrideURL = provider.codexAgentsOverrideFileURL
-        let baseURL = provider.codexAgentsFileURL
+        let overridePath = STFile(provider.codexAgentsOverrideFileURL)
+        let basePath = STFile(provider.codexAgentsFileURL)
         var docs: [AgentDocInfo] = []
 
-        if fileManager.fileExists(atPath: overrideURL.path),
-           let doc = AgentDocInfo.parse(url: overrideURL, kind: .override) {
+        if overridePath.isExists,
+           let doc = AgentDocInfo.parse(url: overridePath.url, kind: .override) {
             docs.append(doc)
         }
 
-        if fileManager.fileExists(atPath: baseURL.path),
-           let doc = AgentDocInfo.parse(url: baseURL, kind: .base) {
+        if basePath.isExists,
+           let doc = AgentDocInfo.parse(url: basePath.url, kind: .base) {
             docs.append(doc)
         }
 
@@ -1244,29 +1247,25 @@ final class ProviderDetailGridViewModel {
         guard let provider else { return nil }
         guard provider.templateId == "codex" || provider.templateId == "codexXcode" else { return nil }
 
-        let fileManager = FileManager.default
-        let baseURL = provider.codexAgentsFileURL
-        let overrideURL = provider.codexAgentsOverrideFileURL
+        let basePath = STPath(provider.codexAgentsFileURL)
+        let overridePath = STPath(provider.codexAgentsOverrideFileURL)
 
-        let targetURL: URL
-        if !fileManager.fileExists(atPath: baseURL.path) {
-            targetURL = baseURL
-        } else if !fileManager.fileExists(atPath: overrideURL.path) {
-            targetURL = overrideURL
+        let targetPath: STPath
+        if !basePath.isExists {
+            targetPath = basePath
+        } else if !overridePath.isExists {
+            targetPath = overridePath
         } else {
-            targetURL = overrideURL
+            targetPath = overridePath
         }
 
         do {
-            try FileManager.default.createDirectory(
-                at: targetURL.deletingLastPathComponent(),
-                withIntermediateDirectories: true
-            )
-            if !fileManager.fileExists(atPath: targetURL.path) {
-                try "".write(to: targetURL, atomically: true, encoding: .utf8)
+            _ = STFolder(targetPath.url.deletingLastPathComponent()).createIfNotExists()
+            if !targetPath.isExists {
+                try "".write(to: targetPath.url, atomically: true, encoding: .utf8)
             }
             loadAgentsFiles(for: provider)
-            return targetURL
+            return targetPath.url
         } catch {
             errorMessage = error.localizedDescription
             return nil
@@ -1277,19 +1276,19 @@ final class ProviderDetailGridViewModel {
         guard let provider else { return nil }
         guard provider.templateId == "codex" || provider.templateId == "codexXcode" else { return nil }
 
-        let rulesDirectory = provider.codexRulesURL
+        let rulesFolder = STFolder(provider.codexRulesURL)
         do {
-            try FileManager.default.createDirectory(at: rulesDirectory, withIntermediateDirectories: true)
+            _ = rulesFolder.createIfNotExists()
             var index = 1
-            var candidateURL = rulesDirectory.appendingPathComponent("new-rule-\(index).rules")
-            while FileManager.default.fileExists(atPath: candidateURL.path) {
+            var candidateFile = rulesFolder.file("new-rule-\(index).rules")
+            while candidateFile.isExists {
                 index += 1
-                candidateURL = rulesDirectory.appendingPathComponent("new-rule-\(index).rules")
+                candidateFile = rulesFolder.file("new-rule-\(index).rules")
             }
 
-            try "".write(to: candidateURL, atomically: true, encoding: .utf8)
+            try "".write(to: candidateFile.url, atomically: true, encoding: .utf8)
             loadRules(for: provider)
-            return candidateURL
+            return candidateFile.url
         } catch {
             errorMessage = error.localizedDescription
             return nil
@@ -1301,15 +1300,13 @@ final class ProviderDetailGridViewModel {
             if let localPath = skill.localPath {
                 try installer.installLocal(from: localPath, slug: skill.slug, to: provider)
             } else {
-                let clawdhubRepo = ClawdhubRepository(
-                    repository: settings.remoteRepositories.first { $0.templateType == .clawdhub }
-                        ?? RepositoryTemplate.clawdhub.createRepository()
-                )
-
-                let zipURL = try await clawdhubRepo.downloadSkill(
+                let zipURL = try await SkillsRepositoryFacade.downloadRemoteResource(
+                    kind: .skill,
                     slug: skill.slug,
-                    version: skill.latestVersion?.version
+                    version: skill.latestVersion?.version,
+                    baseURL: currentRemoteBaseURL()
                 )
+                defer { try? STPath(zipURL).deleteIncludingBrokenSymlink() }
                 try installer.installRemote(zipURL: zipURL, slug: skill.slug, to: provider)
             }
         }
@@ -1319,20 +1316,18 @@ final class ProviderDetailGridViewModel {
         await performAsync {
             if let localPath = workflow.localPath {
                 try installer.installLocalWorkflow(
-                    fileURL: URL(fileURLWithPath: localPath),
+                    fileURL: STPath(localPath).url,
                     slug: workflow.slug,
                     to: provider
                 )
             } else {
-                let clawdhubRepo = ClawdhubRepository(
-                    repository: settings.remoteRepositories.first { $0.templateType == .clawdhub }
-                        ?? RepositoryTemplate.clawdhub.createRepository()
-                )
-
-                let fileURL = try await clawdhubRepo.downloadWorkflow(
+                let fileURL = try await SkillsRepositoryFacade.downloadRemoteResource(
+                    kind: .workflow,
                     slug: workflow.slug,
-                    version: workflow.latestVersion?.version
+                    version: workflow.latestVersion?.version,
+                    baseURL: currentRemoteBaseURL()
                 )
+                defer { try? STPath(fileURL).deleteIncludingBrokenSymlink() }
                 try installer.installRemoteWorkflow(fileURL: fileURL, slug: workflow.slug, to: provider)
             }
         }
@@ -1344,19 +1339,21 @@ final class ProviderDetailGridViewModel {
 
             if let localPath = mcp.localPath {
                 try await resourceInstaller.installFromLocal(
-                    resourceURL: URL(fileURLWithPath: localPath),
+                    resourceURL: STPath(localPath).url,
                     resourceSlug: mcp.slug,
                     resourceType: .mcp,
                     to: provider
                 )
             } else {
-                let clawdhubRepo = ClawdhubRepository(
-                    repository: settings.remoteRepositories.first { $0.templateType == .clawdhub }
-                        ?? RepositoryTemplate.clawdhub.createRepository()
+                let resourceURL = try await SkillsRepositoryFacade.downloadRemoteResource(
+                    kind: .mcp,
+                    slug: mcp.slug,
+                    version: mcp.latestVersion?.version,
+                    baseURL: currentRemoteBaseURL()
                 )
-
-                try await resourceInstaller.installFromRemote(
-                    repository: clawdhubRepo,
+                defer { try? STPath(resourceURL).deleteIncludingBrokenSymlink() }
+                try await resourceInstaller.installFromLocal(
+                    resourceURL: resourceURL,
                     resourceSlug: mcp.slug,
                     resourceType: .mcp,
                     to: provider
@@ -1365,24 +1362,30 @@ final class ProviderDetailGridViewModel {
         }
     }
 
+    private func currentRemoteBaseURL() -> String {
+        settings.remoteRepositories.first { $0.templateType == .clawdhub }?.baseURL
+            ?? RepositoryTemplate.clawdhub.createRepository().baseURL
+    }
+
     private func modelsCacheURLs(for provider: Provider) -> [URL] {
         var urls: [URL] = []
-        let providerHome = URL(fileURLWithPath: provider.defaultSkillsPath, isDirectory: true)
-            .deletingLastPathComponent()
-            .appendingPathComponent("models_cache.json", isDirectory: false)
-        urls.append(providerHome)
+        let providerSkillsFolder = STFolder(provider.defaultSkillsPath)
+        let providerHome = STFolder(providerSkillsFolder.url.deletingLastPathComponent())
+        let providerCache = STFile(providerHome.url.appendingPathComponent("models_cache.json"))
+        urls.append(providerCache.url)
 
-        let userCodexHome = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".codex", isDirectory: true)
-            .appendingPathComponent("models_cache.json", isDirectory: false)
-        if userCodexHome.path != providerHome.path {
-            urls.append(userCodexHome)
+        let userCodexHome = STFolder("\(NSHomeDirectory())/.codex")
+        let userCache = STFile(userCodexHome.url.appendingPathComponent("models_cache.json"))
+        if userCache.url.path != providerCache.url.path {
+            urls.append(userCache.url)
         }
         return urls
     }
 
     private func loadVisibleModelSlugs(_ cacheURL: URL) -> [String] {
-        guard let data = try? Data(contentsOf: cacheURL),
+        let cacheFile = STFile(cacheURL)
+        guard cacheFile.isExists,
+              let data = try? Data(contentsOf: cacheFile.url),
               let cache = try? JSONDecoder().decode(CodexModelsCacheLite.self, from: data)
         else {
             return []
@@ -1408,15 +1411,17 @@ final class ProviderDetailGridViewModel {
         }
 
         let configPath = template.defaultMcpConfigPath
+        let configFile = STFile(configPath)
         guard configPath.pathExtension.lowercased() == "toml",
-              let data = try? Data(contentsOf: configPath),
+              configFile.isExists,
+              let data = try? Data(contentsOf: configFile.url),
               !data.isEmpty,
               let config = try? TOMLDecoder().decode(CodexMCPConfig.self, from: data)
         else {
             return nil
         }
 
-        let trimmed = config.model?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = config.model?.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
         guard let trimmed, !trimmed.isEmpty else { return nil }
         return trimmed
     }

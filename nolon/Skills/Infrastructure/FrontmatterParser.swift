@@ -9,6 +9,12 @@ public enum FrontmatterParser: Sendable {
         guard let frontmatter = extractFrontmatter(from: content) else { return [:] }
         return parseYAMLFrontmatter(frontmatter)
     }
+
+    /// Parse raw metadata object from content with YAML frontmatter.
+    public nonisolated static func parseMetadataObject(from content: String) -> [String: Any]? {
+        guard let frontmatter = extractFrontmatter(from: content) else { return nil }
+        return parseYAMLFrontmatterObject(frontmatter)
+    }
     
     /// Remove YAML frontmatter from content.
     public nonisolated static func stripFrontmatter(from content: String) -> String {
@@ -40,7 +46,7 @@ public enum FrontmatterParser: Sendable {
     
     /// Parse YAML frontmatter using Yams.
     private nonisolated static func parseYAMLFrontmatter(_ yaml: String) -> [String: String] {
-        guard let decoded = try? Yams.load(yaml: yaml) as? [String: Any] else {
+        guard let decoded = parseYAMLFrontmatterObject(yaml) else {
             return [:]
         }
         
@@ -49,5 +55,9 @@ public enum FrontmatterParser: Sendable {
             result[key] = "\(value)"
         }
         return result
+    }
+
+    private nonisolated static func parseYAMLFrontmatterObject(_ yaml: String) -> [String: Any]? {
+        return try? Yams.load(yaml: yaml) as? [String: Any]
     }
 }

@@ -1,6 +1,7 @@
 import SwiftUI
 import ProviderCatalog
 import Observation
+import STFilePath
 
 /// Detail 区域 - Grid 布局显示 Skills 或 Workflows
 struct ProviderDetailGridView: View {
@@ -460,19 +461,18 @@ struct ProviderDetailGridView: View {
     }
 
     private func codexSourceURL(for folder: CodexLinkFolder) -> URL {
-        FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".codex", isDirectory: true)
+        STFolder("\(NSHomeDirectory())/.codex")
+            .url
             .appendingPathComponent(folder.rawValue, isDirectory: true)
     }
 
     private func isTargetLinked(to sourceURL: URL, targetURL: URL) -> Bool {
-        guard (try? targetURL.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink) == true else {
+        let targetPath = STPath(targetURL)
+        guard targetPath.isSymbolicLink else {
             return false
         }
         do {
-            let destination = try FileManager.default.destinationOfSymbolicLink(atPath: targetURL.path)
-            let resolved = URL(fileURLWithPath: destination, relativeTo: targetURL.deletingLastPathComponent())
-                .standardizedFileURL
+            let resolved = try targetPath.destinationOfSymbolicLink().url.standardizedFileURL
             return resolved.path == sourceURL.standardizedFileURL.path
         } catch {
             return false

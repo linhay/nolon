@@ -11,6 +11,7 @@
   - app-server JSON-RPC 会话封装（`JsonRPCKit` + `CodexAppServerKit`）
   - Provider 侧统一调用与运行时切换（`CodexProvider` / `ProviderUsage`）
   - Codex 生成文件解析（`auth.json`、`models_cache.json`、`history.jsonl`、`config.toml`、`managed_config.toml`、`sessions/**/*.jsonl`、`archived_sessions/**/*.jsonl`）
+  - 解析与存储路径能力统一到 STFilePath（优先 `STFile` / `STFolder` / `STPath`，保留 URL 兼容入口）
 - 不包含：
   - 改造 Codex 官方二进制行为
   - 通过 app 层直接操纵 RPC 细节（禁止）
@@ -36,6 +37,26 @@
 4. Given 读取 Codex 生成文件  
    When 解析 `response_item` / `event_msg` / `compacted` 等 rollout 事件  
    Then 输出 typed 结构，不丢失结构化字段（含 custom tool input/output）。
+
+6. Given Provider 层读取/写入 token 账号与 Codex 生成文件  
+   When 调用 `FileTokenAccountStore`、`CodexModelsCache`、`CodexGeneratedFilesParser`  
+   Then 优先走 STFilePath 类型入口（`STFile`/`STFolder`/`STPath`），并与 URL 旧入口行为一致。
+
+7. Given Provider 层需要推导 `CODEX_HOME` 或发起 `codex login`  
+   When 调用 `CodexCommandExecutor` / `CodexLoginRunner`  
+   Then 支持 `STFolder` 类型入口（URL 入口兼容），避免上层依赖裸路径字符串或本地 URL 拼接。
+
+8. Given Provider 层执行 CLI 探测/TTY 命令  
+   When 调用 `TTYCommandRunner.which` 与 `run`  
+   Then 本地可执行文件判定与 executable 路径传递优先走 STFilePath，并保持现有命令行为不变。
+
+9. Given ProviderCatalog 需要暴露 provider 路径给上层编排  
+   When 读取 `Provider.path/pathURL` 与 `additionalPaths/additionalPathURLs`  
+   Then 以 STPath 作为内部语义基线，同时保留 URL 兼容访问。
+
+10. Given CostUsage 存储未显式传入 cacheRoot  
+    When 走默认缓存目录推导  
+    Then 通过 STFilePath 组合路径定位到 `~/Library/Caches/CodexBar/cost-usage/*.json`，不依赖 `FileManager` 目录枚举。
 
 5. Given app 层需要打开 `nolon://` 或 `nln://` 链接  
    When URL 进入处理链路  

@@ -1,46 +1,62 @@
 import Foundation
 import CodexBarProviderCatalog
+import STFilePath
 
 enum CostUsageCacheIO {
-    private static func defaultCacheRoot() -> URL {
-        let root = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
-        return root.appendingPathComponent("CodexBar", isDirectory: true)
+    private static func defaultCacheRoot() -> STFolder {
+        if let cache = try? STFolder(sanbox: .cache) {
+            return cache.folder("CodexBar")
+        }
+        return STFolder(NSHomeDirectory())
+            .folder("Library")
+            .folder("Caches")
+            .folder("CodexBar")
+    }
+
+    static func cacheFile(provider: UsageProvider, cacheRoot: STFolder? = nil) -> STFile {
+        let root = cacheRoot ?? self.defaultCacheRoot()
+        return root
+            .folder("cost-usage")
+            .file("\(provider.rawValue)-v1.json")
     }
 
     static func cacheFileURL(provider: UsageProvider, cacheRoot: URL? = nil) -> URL {
-        let root = cacheRoot ?? self.defaultCacheRoot()
-        return root
-            .appendingPathComponent("cost-usage", isDirectory: true)
-            .appendingPathComponent("\(provider.rawValue)-v1.json", isDirectory: false)
+        cacheFile(provider: provider, cacheRoot: cacheRoot.map(STFolder.init)).url
     }
 
-    static func load(provider: UsageProvider, cacheRoot: URL? = nil) -> CostUsageCache {
-        let url = self.cacheFileURL(provider: provider, cacheRoot: cacheRoot)
-        if let decoded = self.loadCache(at: url) { return decoded }
+    static func load(provider: UsageProvider, cacheRoot: STFolder? = nil) -> CostUsageCache {
+        let file = self.cacheFile(provider: provider, cacheRoot: cacheRoot)
+        if let decoded = self.loadCache(file: file) { return decoded }
         return CostUsageCache()
     }
 
-    private static func loadCache(at url: URL) -> CostUsageCache? {
-        guard let data = try? Data(contentsOf: url) else { return nil }
+    static func load(provider: UsageProvider, cacheRoot: URL? = nil) -> CostUsageCache {
+        load(provider: provider, cacheRoot: cacheRoot.map(STFolder.init))
+    }
+
+    private static func loadCache(file: STFile) -> CostUsageCache? {
+        guard let data = try? file.data() else { return nil }
         guard let decoded = try? JSONDecoder().decode(CostUsageCache.self, from: data)
         else { return nil }
         guard decoded.version == 1 else { return nil }
         return decoded
     }
 
-    static func save(provider: UsageProvider, cache: CostUsageCache, cacheRoot: URL? = nil) {
-        let url = self.cacheFileURL(provider: provider, cacheRoot: cacheRoot)
-        let dir = url.deletingLastPathComponent()
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-
-        let tmp = dir.appendingPathComponent(".tmp-\(UUID().uuidString).json", isDirectory: false)
+    static func save(provider: UsageProvider, cache: CostUsageCache, cacheRoot: STFolder? = nil) {
+        let file = self.cacheFile(provider: provider, cacheRoot: cacheRoot)
+        let dir = file.parentFolder()?.createIfNotExists() ?? STFolder(file.url.deletingLastPathComponent())
+        let tmp = dir.file(".tmp-\(UUID().uuidString).json")
         let data = (try? JSONEncoder().encode(cache)) ?? Data()
         do {
-            try data.write(to: tmp, options: [.atomic])
-            _ = try FileManager.default.replaceItemAt(url, withItemAt: tmp)
+            try tmp.overlay(with: data)
+            _ = try tmp.move(to: file, isOverlay: true)
         } catch {
-            try? FileManager.default.removeItem(at: tmp)
+            try? tmp.delete()
         }
+    }
+
+    static func save(provider: UsageProvider, cache: CostUsageCache, cacheRoot: URL? = nil) {
+        save(provider: provider, cache: cache, cacheRoot: cacheRoot.map(STFolder.init))
     }
 }
 

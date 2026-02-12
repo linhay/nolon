@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import STFilePath
 @testable import CodexCLIKit
 
 @Suite("CodexCLIKit Environment")
@@ -9,6 +10,13 @@ struct CodexCLIKitEnvironmentTests {
         let env = ["CODEX_HOME": "/tmp/custom-codex-home"]
         let home = CodexCommandExecutor.codexHomeDirectoryURL(environment: env)
         #expect(home.path == "/tmp/custom-codex-home")
+    }
+
+    @Test("codex home STFolder uses CODEX_HOME override")
+    func codexHomeFolderOverride() {
+        let env = ["CODEX_HOME": "/tmp/custom-codex-home"]
+        let home = CodexCommandExecutor.codexHomeDirectory(environment: env)
+        #expect(home.url.path == "/tmp/custom-codex-home")
     }
 
     @Test("codex home defaults to ~/.codex")

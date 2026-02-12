@@ -2,23 +2,36 @@ import Foundation
 import CodexCLIKit
 import CodexBarProviderCatalog
 import ProvidersShared
+import STFilePath
 
 enum CostUsageScanner {
     struct Options: Sendable {
-        var codexSessionsRoot: URL?
-        var cacheRoot: URL?
+        var codexSessionsRoot: STFolder?
+        var cacheRoot: STFolder?
         var refreshMinIntervalSeconds: TimeInterval = 60
         // Force a full rescan, ignoring per-file cache and incremental offsets.
         var forceRescan: Bool = false
 
         init(
-            codexSessionsRoot: URL? = nil,
-            cacheRoot: URL? = nil,
+            codexSessionsRoot: STFolder? = nil,
+            cacheRoot: STFolder? = nil,
             forceRescan: Bool = false)
         {
             self.codexSessionsRoot = codexSessionsRoot
             self.cacheRoot = cacheRoot
             self.forceRescan = forceRescan
+        }
+
+        init(
+            codexSessionsRootURL: URL?,
+            cacheRootURL: URL?,
+            forceRescan: Bool = false)
+        {
+            self.init(
+                codexSessionsRoot: codexSessionsRootURL.map(STFolder.init),
+                cacheRoot: cacheRootURL.map(STFolder.init),
+                forceRescan: forceRescan
+            )
         }
     }
 
@@ -85,14 +98,13 @@ enum CostUsageScanner {
 
     // MARK: - Codex
 
-    private static func defaultCodexSessionsRoot(options: Options) -> URL {
+    private static func defaultCodexSessionsRoot(options: Options) -> STFolder {
         if let override = options.codexSessionsRoot { return override }
-        return CodexCommandExecutor
-            .codexHomeDirectoryURL()
-            .appendingPathComponent("sessions", isDirectory: true)
+        return STFolder(CodexCommandExecutor.codexHomeDirectoryURL())
+            .folder("sessions")
     }
 
-    private static func codexSessionsRoots(options: Options) -> [URL] {
+    private static func codexSessionsRoots(options: Options) -> [STFolder] {
         let root = self.defaultCodexSessionsRoot(options: options)
         if let archived = self.codexArchivedSessionsRoot(sessionsRoot: root) {
             return [root, archived]
@@ -100,35 +112,33 @@ enum CostUsageScanner {
         return [root]
     }
 
-    private static func codexArchivedSessionsRoot(sessionsRoot: URL) -> URL? {
-        guard sessionsRoot.lastPathComponent == "sessions" else { return nil }
-        return sessionsRoot
-            .deletingLastPathComponent()
-            .appendingPathComponent("archived_sessions", isDirectory: true)
+    private static func codexArchivedSessionsRoot(sessionsRoot: STFolder) -> STFolder? {
+        guard sessionsRoot.url.lastPathComponent == "sessions" else { return nil }
+        return sessionsRoot.parentFolder()?.folder("archived_sessions")
     }
 
-    private static func listCodexSessionFiles(root: URL, scanSinceKey: String, scanUntilKey: String) -> [URL] {
+    private static func listCodexSessionFiles(root: STFolder, scanSinceKey: String, scanUntilKey: String) -> [STFile] {
         let partitioned = self.listCodexSessionFilesByDatePartition(
             root: root,
             scanSinceKey: scanSinceKey,
             scanUntilKey: scanUntilKey)
         let flat = self.listCodexSessionFilesFlat(root: root, scanSinceKey: scanSinceKey, scanUntilKey: scanUntilKey)
         var seen: Set<String> = []
-        var out: [URL] = []
-        for item in partitioned + flat where !seen.contains(item.path) {
-            seen.insert(item.path)
+        var out: [STFile] = []
+        for item in partitioned + flat where !seen.contains(item.url.path) {
+            seen.insert(item.url.path)
             out.append(item)
         }
         return out
     }
 
     private static func listCodexSessionFilesByDatePartition(
-        root: URL,
+        root: STFolder,
         scanSinceKey: String,
-        scanUntilKey: String) -> [URL]
+        scanUntilKey: String) -> [STFile]
     {
-        guard FileManager.default.fileExists(atPath: root.path) else { return [] }
-        var out: [URL] = []
+        guard root.isExists else { return [] }
+        var out: [STFile] = []
         var date = Self.parseDayKey(scanSinceKey) ?? Date()
         let untilDate = Self.parseDayKey(scanUntilKey) ?? date
 
@@ -138,16 +148,10 @@ enum CostUsageScanner {
             let m = String(format: "%02d", comps.month ?? 1)
             let d = String(format: "%02d", comps.day ?? 1)
 
-            let dayDir = root.appendingPathComponent(y, isDirectory: true)
-                .appendingPathComponent(m, isDirectory: true)
-                .appendingPathComponent(d, isDirectory: true)
+            let dayDir = root.folder(y).folder(m).folder(d)
 
-            if let items = try? FileManager.default.contentsOfDirectory(
-                at: dayDir,
-                includingPropertiesForKeys: [.isRegularFileKey],
-                options: [.skipsHiddenFiles])
-            {
-                for item in items where item.pathExtension.lowercased() == "jsonl" {
+            if let items = try? dayDir.files([.skipsHiddenFiles]) {
+                for item in items where item.url.pathExtension.lowercased() == "jsonl" {
                     out.append(item)
                 }
             }
@@ -158,17 +162,13 @@ enum CostUsageScanner {
         return out
     }
 
-    private static func listCodexSessionFilesFlat(root: URL, scanSinceKey: String, scanUntilKey: String) -> [URL] {
-        guard FileManager.default.fileExists(atPath: root.path) else { return [] }
-        guard let items = try? FileManager.default.contentsOfDirectory(
-            at: root,
-            includingPropertiesForKeys: [.isRegularFileKey],
-            options: [.skipsHiddenFiles, .skipsPackageDescendants])
-        else { return [] }
+    private static func listCodexSessionFilesFlat(root: STFolder, scanSinceKey: String, scanUntilKey: String) -> [STFile] {
+        guard root.isExists else { return [] }
+        guard let items = try? root.files([.skipsHiddenFiles, .skipsPackageDescendants]) else { return [] }
 
-        var out: [URL] = []
-        for item in items where item.pathExtension.lowercased() == "jsonl" {
-            if let dayKey = Self.dayKeyFromFilename(item.lastPathComponent) {
+        var out: [STFile] = []
+        for item in items where item.url.pathExtension.lowercased() == "jsonl" {
+            if let dayKey = Self.dayKeyFromFilename(item.url.lastPathComponent) {
                 if !CostUsageDayRange.isInRange(dayKey: dayKey, since: scanSinceKey, until: scanUntilKey) {
                     continue
                 }
@@ -188,13 +188,29 @@ enum CostUsageScanner {
         return String(filename[matchRange])
     }
 
-    private static func fileIdentityString(fileURL: URL) -> String? {
-        guard let values = try? fileURL.resourceValues(forKeys: [.fileResourceIdentifierKey]) else { return nil }
+    private static func fileIdentityString(file: STFile) -> String? {
+        guard let values = try? file.url.resourceValues(forKeys: [.fileResourceIdentifierKey]) else { return nil }
         guard let identifier = values.fileResourceIdentifier else { return nil }
         if let data = identifier as? Data {
             return data.base64EncodedString()
         }
         return String(describing: identifier)
+    }
+
+    static func parseCodexFile(
+        file: STFile,
+        range: CostUsageDayRange,
+        startOffset: Int64 = 0,
+        initialModel: String? = nil,
+        initialTotals: CostUsageCodexTotals? = nil) -> CodexParseResult
+    {
+        parseCodexFile(
+            fileURL: file.url,
+            range: range,
+            startOffset: startOffset,
+            initialModel: initialModel,
+            initialTotals: initialTotals
+        )
     }
 
     static func parseCodexFile(
@@ -304,17 +320,16 @@ enum CostUsageScanner {
     }
 
     private static func scanCodexFile(
-        fileURL: URL,
+        file: STFile,
         range: CostUsageDayRange,
         cache: inout CostUsageCache,
         state: inout CodexScanState)
     {
-        let path = fileURL.path
-        let attrs = (try? FileManager.default.attributesOfItem(atPath: path)) ?? [:]
-        let mtime = (attrs[.modificationDate] as? Date)?.timeIntervalSince1970 ?? 0
-        let size = (attrs[.size] as? NSNumber)?.int64Value ?? 0
+        let path = file.path
+        let mtime = file.attributes.modificationDate.timeIntervalSince1970
+        let size = Int64(file.attributes.size)
         let mtimeMs = Int64(mtime * 1000)
-        let fileId = Self.fileIdentityString(fileURL: fileURL)
+        let fileId = Self.fileIdentityString(file: file)
 
         func dropCachedFile(_ cached: CostUsageFileUsage?) {
             if let cached {
@@ -355,7 +370,7 @@ enum CostUsageScanner {
                 && cached.lastTotals != nil
             if canIncremental {
                 let delta = Self.parseCodexFile(
-                    fileURL: fileURL,
+                    file: file,
                     range: range,
                     startOffset: startOffset,
                     initialModel: cached.lastModel,
@@ -394,7 +409,7 @@ enum CostUsageScanner {
             Self.applyFileDays(cache: &cache, fileDays: cached.days, sign: -1)
         }
 
-        let parsed = Self.parseCodexFile(fileURL: fileURL, range: range)
+        let parsed = Self.parseCodexFile(file: file, range: range)
         let sessionId = parsed.sessionId ?? cached?.sessionId
         if let sessionId, state.seenSessionIds.contains(sessionId) {
             cache.files.removeValue(forKey: path)
@@ -428,15 +443,15 @@ enum CostUsageScanner {
 
         let roots = self.codexSessionsRoots(options: options)
         var seenPaths: Set<String> = []
-        var files: [URL] = []
+        var files: [STFile] = []
         for root in roots {
             let rootFiles = Self.listCodexSessionFiles(
                 root: root,
                 scanSinceKey: range.scanSinceKey,
                 scanUntilKey: range.scanUntilKey)
-            for fileURL in rootFiles.sorted(by: { $0.path < $1.path }) where !seenPaths.contains(fileURL.path) {
-                seenPaths.insert(fileURL.path)
-                files.append(fileURL)
+            for file in rootFiles.sorted(by: { $0.url.path < $1.url.path }) where !seenPaths.contains(file.url.path) {
+                seenPaths.insert(file.url.path)
+                files.append(file)
             }
         }
         let filePathsInScan = Set(files.map(\.path))
@@ -446,9 +461,9 @@ enum CostUsageScanner {
                 cache = CostUsageCache()
             }
             var scanState = CodexScanState()
-            for fileURL in files {
+            for file in files {
                 Self.scanCodexFile(
-                    fileURL: fileURL,
+                    file: file,
                     range: range,
                     cache: &cache,
                     state: &scanState)

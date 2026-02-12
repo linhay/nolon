@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 @testable import CodexProvider
+import STFilePath
 
 @Suite("Codex Generated Files Parser")
 struct CodexGeneratedFilesParserTests {
@@ -750,6 +751,24 @@ struct CodexGeneratedFilesParserTests {
         let snapshot = try CodexGeneratedFilesParser.loadAllGeneratedFiles(codexHome: tempRoot, includeArchived: false)
         #expect(snapshot.rolloutFiles.count == 1)
         #expect(snapshot.rolloutFiles.first?.path.hasSuffix("live.jsonl") == true)
+    }
+
+    @Test("Load all generated files from STFolder root")
+    func loadAllGeneratedFilesFromSTFolder() throws {
+        let root = STFolder(FileManager.default.temporaryDirectory
+            .appendingPathComponent("codex-home-stfolder-\(UUID().uuidString)", isDirectory: true))
+        _ = root.createIfNotExists()
+        defer { try? root.delete() }
+
+        let sessions = root.folder("sessions").folder("2026").folder("02").folder("12")
+        _ = sessions.createIfNotExists()
+        try sessions.file("rollout.jsonl").overlay(with: """
+        {"timestamp":"2026-02-12T12:00:00Z","type":"session_meta","payload":{"id":"st-root"}}
+        """)
+
+        let snapshot = try CodexGeneratedFilesParser.loadAllGeneratedFiles(codexHome: root, includeArchived: false)
+        #expect(snapshot.rolloutFiles.count == 1)
+        #expect(snapshot.rolloutFiles.first?.lines.count == 1)
     }
 
     private static func makeJWT(payload: String) -> String {

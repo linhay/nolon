@@ -85,15 +85,15 @@ final class RemoteRepositorySidebarViewModel {
                     showingDirectoryPicker = true
                 } else if repo.skillsPaths.isEmpty && result.detectedDirectories.isEmpty {
                     // No paths specified and no directories detected - use repository root
-                    // Rescan to detect skills at root level
+                    // Rescan repository resources via shared facade entrypoint
                     let clonePath = repo.localClonePath
                     if STPath(clonePath).isExists {
-                        let detected = GitRepository.detectSkillsDirectories(at: clonePath)
-                        if !detected.isEmpty {
-                            updatedRepo.detectedDirectories = detected.map { $0.path }
+                        let resources = GitRepository.detectRepositoryResources(at: clonePath)
+                        if !resources.skillsDirectories.isEmpty {
+                            updatedRepo.detectedDirectories = resources.skillsDirectories.map { $0.path }
                             pendingRepository = updatedRepo
-                            detectedCandidates = detected
-                            selectedDirectoryIndices = Set(0..<detected.count)
+                            detectedCandidates = resources.skillsDirectories
+                            selectedDirectoryIndices = Set(0..<resources.skillsDirectories.count)
                             showingDirectoryPicker = true
                         }
                     }

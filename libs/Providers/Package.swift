@@ -17,6 +17,9 @@ let package = Package(
         .library(
             name: "ProviderUsage",
             targets: ["ProviderUsage"]),
+        .library(
+            name: "NolonCoreCLIKit",
+            targets: ["NolonCoreCLIKit"]),
         // Unified library with all providers
         .library(
             name: "Providers",
@@ -37,16 +40,23 @@ let package = Package(
         .library(
             name: "CopilotProvider",
             targets: ["CopilotProvider"]),
+        .executable(
+            name: "nolon-core",
+            targets: ["NolonCoreCLI"]),
     ],
     dependencies: [
         .package(url: "https://github.com/linhay/SKProcessRunner", from: "0.0.5"),
         .package(url: "https://github.com/steipete/SweetCookieKit", from: "0.4.0"),
         .package(url: "https://github.com/mattt/swift-toml", from: "2.0.0"),
+        .package(url: "https://github.com/linhay/STFilePath.git", from: "1.3.4"),
     ],
     targets: [
         // Shared Provider utilities
         .target(
             name: "ProvidersShared",
+            dependencies: [
+                .product(name: "STFilePath", package: "STFilePath"),
+            ],
             path: "Sources/Providers/Shared"
         ),
 
@@ -56,6 +66,7 @@ let package = Package(
             dependencies: [
                 "ProvidersShared",
                 .product(name: "SKProcessRunner", package: "SKProcessRunner"),
+                .product(name: "STFilePath", package: "STFilePath"),
             ],
             path: "Sources/CodexCLIKit"
         ),
@@ -70,6 +81,7 @@ let package = Package(
             dependencies: [
                 "CodexCLIKit",
                 "JsonRPCKit",
+                .product(name: "STFilePath", package: "STFilePath"),
             ],
             path: "Sources/CodexAppServerKit"
         ),
@@ -84,6 +96,7 @@ let package = Package(
                 "CodexBarProviderCatalog",
                 .product(name: "SweetCookieKit", package: "SweetCookieKit"),
                 .product(name: "TOML", package: "swift-toml"),
+                .product(name: "STFilePath", package: "STFilePath"),
             ],
             path: "Sources/Providers/Codex"
         ),
@@ -96,6 +109,9 @@ let package = Package(
 
         .target(
             name: "ProviderCatalog",
+            dependencies: [
+                .product(name: "STFilePath", package: "STFilePath"),
+            ],
             path: "Sources/ProviderCatalog",
             resources: [
                 .process("Resources")
@@ -116,8 +132,24 @@ let package = Package(
                 "CodexBarProviderCatalog",
                 "CodexProvider",
                 "CopilotProvider",
+                .product(name: "STFilePath", package: "STFilePath"),
             ],
             path: "Sources/ProviderUsage"
+        ),
+
+        .target(
+            name: "NolonCoreCLIKit",
+            dependencies: [
+                "ProviderCatalog",
+                .product(name: "STFilePath", package: "STFilePath"),
+            ],
+            path: "Sources/NolonCoreCLIKit"
+        ),
+
+        .executableTarget(
+            name: "NolonCoreCLI",
+            dependencies: ["NolonCoreCLIKit"],
+            path: "Sources/NolonCoreCLI"
         ),
 
         // Unified Providers module (re-exports both)
@@ -132,7 +164,16 @@ let package = Package(
         // Tests
         .testTarget(
             name: "ProvidersTests",
-            dependencies: ["Providers", "ProviderCatalog", "CodexBarProviderCatalog", "ProviderUsage", "CodexProvider", "CopilotProvider"],
+            dependencies: [
+                "Providers",
+                "ProviderCatalog",
+                "CodexBarProviderCatalog",
+                "ProviderUsage",
+                "CodexProvider",
+                "CopilotProvider",
+                "NolonCoreCLIKit",
+                .product(name: "STFilePath", package: "STFilePath"),
+            ],
             swiftSettings: [
                 .enableUpcomingFeature("StrictConcurrency"),
                 .enableExperimentalFeature("SwiftTesting"),

@@ -1,4 +1,5 @@
 import Foundation
+import STFilePath
 import TOML
 
 public enum CodexGeneratedFilesError: LocalizedError, Sendable, Equatable {
@@ -604,6 +605,13 @@ public enum CodexGeneratedFilesParser {
         codexHome: URL,
         includeArchived: Bool = true
     ) throws -> CodexGeneratedFilesSnapshot {
+        try loadAllGeneratedFiles(codexHome: STFolder(codexHome), includeArchived: includeArchived)
+    }
+
+    public static func loadAllGeneratedFiles(
+        codexHome: STFolder,
+        includeArchived: Bool = true
+    ) throws -> CodexGeneratedFilesSnapshot {
         let auth = try loadAuthFile(codexHome: codexHome)
         let history = try loadHistoryFile(codexHome: codexHome)
         let config = try loadConfigFile(codexHome: codexHome, managed: false)
@@ -618,7 +626,18 @@ public enum CodexGeneratedFilesParser {
         )
     }
 
+    public static func loadAllGeneratedFiles(
+        codexHome: STPath,
+        includeArchived: Bool = true
+    ) throws -> CodexGeneratedFilesSnapshot {
+        try loadAllGeneratedFiles(codexHome: STFolder(codexHome.url), includeArchived: includeArchived)
+    }
+
     public static func loadAuthFile(codexHome: URL) throws -> CodexAuthFile? {
+        try loadAuthFile(codexHome: STFolder(codexHome))
+    }
+
+    public static func loadAuthFile(codexHome: STFolder) throws -> CodexAuthFile? {
         try loadOptionalParsedFile(
             codexHome: codexHome,
             filename: FileName.auth,
@@ -627,6 +646,10 @@ public enum CodexGeneratedFilesParser {
     }
 
     public static func loadHistoryFile(codexHome: URL) throws -> [CodexHistoryEntry] {
+        try loadHistoryFile(codexHome: STFolder(codexHome))
+    }
+
+    public static func loadHistoryFile(codexHome: STFolder) throws -> [CodexHistoryEntry] {
         try loadParsedListFile(
             codexHome: codexHome,
             filename: FileName.history,
@@ -635,6 +658,10 @@ public enum CodexGeneratedFilesParser {
     }
 
     public static func loadConfigFile(codexHome: URL, managed: Bool = false) throws -> CodexConfigToml? {
+        try loadConfigFile(codexHome: STFolder(codexHome), managed: managed)
+    }
+
+    public static func loadConfigFile(codexHome: STFolder, managed: Bool = false) throws -> CodexConfigToml? {
         let filename = managed ? FileName.managedConfig : FileName.config
         return try loadOptionalParsedFile(
             codexHome: codexHome,
@@ -647,19 +674,26 @@ public enum CodexGeneratedFilesParser {
         codexHome: URL,
         includeArchived: Bool = true
     ) throws -> [CodexRolloutFile] {
-        let sessionsRoot = codexHome.appendingPathComponent(FileName.sessionsDirectory, isDirectory: true)
+        try loadRolloutFiles(codexHome: STFolder(codexHome), includeArchived: includeArchived)
+    }
+
+    public static func loadRolloutFiles(
+        codexHome: STFolder,
+        includeArchived: Bool = true
+    ) throws -> [CodexRolloutFile] {
+        let sessionsRoot = codexHome.folder(FileName.sessionsDirectory)
         var roots = [sessionsRoot]
         if includeArchived {
-            roots.append(codexHome.appendingPathComponent(FileName.archivedSessionsDirectory, isDirectory: true))
+            roots.append(codexHome.folder(FileName.archivedSessionsDirectory))
         }
 
         var files: [CodexRolloutFile] = []
         for root in roots {
             let lineFiles = findJSONLFiles(root: root)
             for file in lineFiles {
-                let data = try Data(contentsOf: file)
+                let data = try file.data()
                 let lines = (try? parseRolloutLines(data: data)) ?? []
-                files.append(.init(path: file.path, lines: lines))
+                files.append(.init(path: file.url.path, lines: lines))
             }
         }
         return files.sorted { $0.path < $1.path }
@@ -884,21 +918,13 @@ public enum CodexGeneratedFilesParser {
         return Data(base64Encoded: normalized)
     }
 
-    private static func findJSONLFiles(root: URL) -> [URL] {
-        guard FileManager.default.fileExists(atPath: root.path) else { return [] }
-        let enumerator = FileManager.default.enumerator(
-            at: root,
-            includingPropertiesForKeys: [.isRegularFileKey],
-            options: [.skipsHiddenFiles, .skipsPackageDescendants]
-        )
-        guard let enumerator else { return [] }
-
-        var files: [URL] = []
-        for case let fileURL as URL in enumerator {
-            guard fileURL.pathExtension.lowercased() == "jsonl" else { continue }
-            files.append(fileURL)
-        }
-        return files
+    private static func findJSONLFiles(root: STFolder) -> [STFile] {
+        guard root.isExists else { return [] }
+        let paths = (try? root.allSubFilePaths([.skipsHiddenFiles, .skipsPackageDescendants])) ?? []
+        return paths
+            .compactMap(\.asFile)
+            .filter { $0.url.pathExtension.lowercased() == "jsonl" }
+            .sorted { $0.url.path < $1.url.path }
     }
 
     private static func parseJSONLLines<T>(
@@ -918,28 +944,28 @@ public enum CodexGeneratedFilesParser {
     }
 
     private static func loadOptionalParsedFile<T>(
-        codexHome: URL,
+        codexHome: STFolder,
         filename: String,
         parser: (Data) throws -> T
     ) throws -> T? {
-        let fileURL = codexHome.appendingPathComponent(filename, isDirectory: false)
-        guard let data = try readDataIfPresent(fileURL: fileURL) else { return nil }
+        let file = codexHome.file(filename)
+        guard let data = try readDataIfPresent(file: file) else { return nil }
         return try parser(data)
     }
 
     private static func loadParsedListFile<T>(
-        codexHome: URL,
+        codexHome: STFolder,
         filename: String,
         parser: (Data) throws -> [T]
     ) throws -> [T] {
         try loadOptionalParsedFile(codexHome: codexHome, filename: filename, parser: parser) ?? []
     }
 
-    private static func readDataIfPresent(fileURL: URL) throws -> Data? {
-        guard FileManager.default.fileExists(atPath: fileURL.path) else {
+    private static func readDataIfPresent(file: STFile) throws -> Data? {
+        guard file.isExists else {
             return nil
         }
-        return try Data(contentsOf: fileURL)
+        return try file.data()
     }
 }
 

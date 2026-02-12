@@ -2,6 +2,7 @@ import Foundation
 import CodexCLIKit
 import CodexAppServerKit
 import ProvidersShared
+import STFilePath
 
 /// Convenience wrapper around `CodexCreditsFetcher`.
 public struct CodexHelper: Sendable {
@@ -111,8 +112,7 @@ public struct CodexHelper: Sendable {
     }
 
     public func loadModelsCache() throws -> ModelListSnapshot {
-        let cacheURL = self.modelsCacheFileURL()
-        let cache = try CodexModelsCache.load(from: cacheURL)
+        let cache = try CodexModelsCache.load(from: self.modelsCacheFile())
         return ModelListSnapshot(
             fetchedAt: cache.fetchedAt,
             etag: cache.etag,
@@ -129,9 +129,9 @@ public struct CodexHelper: Sendable {
         }
     }
 
-    private func modelsCacheFileURL() -> URL {
-        return CodexCommandExecutor
-            .codexHomeDirectoryURL(environment: self.environment)
-            .appendingPathComponent("models_cache.json", isDirectory: false)
+    private func modelsCacheFile() -> STFile {
+        CodexCommandExecutor
+            .codexHomeDirectory(environment: self.environment)
+            .file("models_cache.json")
     }
 }

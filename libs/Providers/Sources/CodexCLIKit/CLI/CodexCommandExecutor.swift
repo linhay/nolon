@@ -1,5 +1,6 @@
 import Foundation
 import SKProcessRunner
+import STFilePath
 
 public struct CodexCommandExecutor: Sendable {
     private let executable: String
@@ -13,14 +14,19 @@ public struct CodexCommandExecutor: Sendable {
     public static func codexHomeDirectoryURL(
         environment: [String: String] = ProcessInfo.processInfo.environment
     ) -> URL {
+        codexHomeDirectory(environment: environment).url
+    }
+
+    public static func codexHomeDirectory(
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> STFolder {
         if let override = environment["CODEX_HOME"]?.trimmingCharacters(in: .whitespacesAndNewlines),
            !override.isEmpty
         {
-            return URL(fileURLWithPath: override, isDirectory: true)
+            return STFolder(override)
         }
 
-        return FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".codex", isDirectory: true)
+        return STFolder(NSHomeDirectory()).folder(".codex")
     }
 
     public static func codexHomeDirectoryPath(
@@ -31,10 +37,10 @@ public struct CodexCommandExecutor: Sendable {
 
     public func resolveExecutable() -> String? {
         if executable.contains("/") {
-            return FileManager.default.isExecutableFile(atPath: executable) ? executable : nil
+            return Self.isExecutable(path: executable) ? executable : nil
         }
 
-        if let override = environment["CODEX_CLI_PATH"], FileManager.default.isExecutableFile(atPath: override) {
+        if let override = environment["CODEX_CLI_PATH"], Self.isExecutable(path: override) {
             return override
         }
 
@@ -47,7 +53,7 @@ public struct CodexCommandExecutor: Sendable {
         }
 
         for candidate in Self.fallbackExecutablePaths(for: executable) {
-            if FileManager.default.isExecutableFile(atPath: candidate) {
+            if Self.isExecutable(path: candidate) {
                 return candidate
             }
         }
@@ -62,6 +68,12 @@ public struct CodexCommandExecutor: Sendable {
             "\(NSHomeDirectory())/.bun/bin/\(executable)",
             "\(NSHomeDirectory())/.npm-global/bin/\(executable)",
         ]
+    }
+
+    private static func isExecutable(path: String) -> Bool {
+        let file = STFile(path)
+        guard file.isExists else { return false }
+        return file.permission.contains(.executable)
     }
 
     public func requireResolvedExecutable() throws -> String {
@@ -89,7 +101,7 @@ public struct CodexCommandExecutor: Sendable {
         let resolved = try requireResolvedExecutable()
         let startedAt = Date()
 
-        var payload = SKProcessPayload.executableURL(URL(fileURLWithPath: resolved))
+        var payload = SKProcessPayload.executableURL(STFile(resolved).url)
         payload.arguments = args
         payload.environment = SKProcessEnvironment(environment)
         payload.timeoutMs = Int(max(1.0, timeout) * 1000.0)
@@ -131,7 +143,7 @@ public struct CodexCommandExecutor: Sendable {
         let stdoutPipe = Pipe()
         let stderrPipe = Pipe()
 
-        process.executableURL = URL(fileURLWithPath: resolved)
+        process.executableURL = STFile(resolved).url
         process.arguments = args
         process.environment = environment
         process.standardOutput = stdoutPipe

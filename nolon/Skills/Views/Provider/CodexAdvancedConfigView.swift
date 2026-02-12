@@ -167,19 +167,14 @@ final class CodexAdvancedConfigViewModel {
 
     func openModelConfig() {
         let configFile = resolvedConfigFile()
-        let configURL = configFile?.url
-            ?? FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".codex/config.toml")
+        let configPath = configFile ?? STFile("\(NSHomeDirectory())/.codex/config.toml")
         do {
-            try FileManager.default.createDirectory(
-                at: configURL.deletingLastPathComponent(),
-                withIntermediateDirectories: true
-            )
-            if !FileManager.default.fileExists(atPath: configURL.path) {
+            _ = STFolder(configPath.url.deletingLastPathComponent()).createIfNotExists()
+            if !configPath.isExists {
                 let initialModel = preferredModelDraft.nonEmpty ?? "gpt-5.3-codex"
-                try "model = \"\(initialModel)\"\n".write(to: configURL, atomically: true, encoding: .utf8)
+                try "model = \"\(initialModel)\"\n".write(to: configPath.url, atomically: true, encoding: .utf8)
             }
-            NSWorkspace.shared.open(configURL)
+            NSWorkspace.shared.open(configPath.url)
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -278,20 +273,16 @@ final class CodexAdvancedConfigViewModel {
         let pair = linkURLPair(for: folder)
         do {
             if enabled {
-                try FileManager.default.createDirectory(at: pair.sourceURL, withIntermediateDirectories: true)
+                _ = STFolder(pair.sourceURL).createIfNotExists()
                 try STPath(pair.targetURL).deleteIncludingBrokenSymlink()
-                try FileManager.default.createSymbolicLink(
-                    at: pair.targetURL,
-                    withDestinationURL: pair.sourceURL
-                )
+                try STPath(pair.targetURL).createSymbolicLink(to: STPath(pair.sourceURL))
             } else {
                 if isSymbolicLink(pair.targetURL) {
                     try STPath(pair.targetURL).deleteIncludingBrokenSymlink()
-                } else if FileManager.default.fileExists(atPath: pair.targetURL.path),
-                          !(try pair.targetURL.resourceValues(forKeys: [.isDirectoryKey]).isDirectory ?? false) {
+                } else if STPath(pair.targetURL).isExists && !STFolder(pair.targetURL).isExists {
                     try STPath(pair.targetURL).deleteIncludingBrokenSymlink()
                 }
-                try FileManager.default.createDirectory(at: pair.targetURL, withIntermediateDirectories: true)
+                _ = STFolder(pair.targetURL).createIfNotExists()
             }
             refreshLinkStates()
         } catch {
@@ -323,16 +314,15 @@ final class CodexAdvancedConfigViewModel {
 
     private func modelsCacheURLs() -> [URL] {
         var urls: [URL] = []
-        let providerHome = URL(fileURLWithPath: provider.defaultSkillsPath, isDirectory: true)
-            .deletingLastPathComponent()
-            .appendingPathComponent("models_cache.json", isDirectory: false)
-        urls.append(providerHome)
+        let providerSkillsFolder = STFolder(provider.defaultSkillsPath)
+        let providerHome = STFolder(providerSkillsFolder.url.deletingLastPathComponent())
+        let providerCache = STFile(providerHome.url.appendingPathComponent("models_cache.json"))
+        urls.append(providerCache.url)
 
-        let userCodexHome = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".codex", isDirectory: true)
-            .appendingPathComponent("models_cache.json", isDirectory: false)
-        if userCodexHome.path != providerHome.path {
-            urls.append(userCodexHome)
+        let userCodexHome = STFolder("\(NSHomeDirectory())/.codex")
+        let userCache = STFile(userCodexHome.url.appendingPathComponent("models_cache.json"))
+        if userCache.url.path != providerCache.url.path {
+            urls.append(userCache.url)
         }
         return urls
     }
@@ -340,14 +330,12 @@ final class CodexAdvancedConfigViewModel {
     private func resolvedConfigFile() -> STFile? {
         let rawSkillsPath = (provider.defaultSkillsPath as NSString).expandingTildeInPath
         if !rawSkillsPath.isEmpty {
-            let skillsURL = URL(fileURLWithPath: rawSkillsPath, isDirectory: true)
-            let codexHome = skillsURL.deletingLastPathComponent()
-            return STFile(codexHome.appendingPathComponent("config.toml").path)
+            let skillsFolder = STFolder(rawSkillsPath)
+            let codexHome = STFolder(skillsFolder.url.deletingLastPathComponent())
+            return STFile(codexHome.url.appendingPathComponent("config.toml"))
         }
 
-        let fallback = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".codex/config.toml")
-        return STFile(fallback.path)
+        return STFile("\(NSHomeDirectory())/.codex/config.toml")
     }
 
     private func loadSelectionsFromConfig() {
@@ -365,8 +353,8 @@ final class CodexAdvancedConfigViewModel {
 
     private func loadConfigContent() -> String? {
         guard let configFile = resolvedConfigFile(),
-              FileManager.default.fileExists(atPath: configFile.url.path),
-              let content = try? String(contentsOf: configFile.url, encoding: .utf8) else {
+              configFile.isExists,
+              let content = try? configFile.read() else {
             return nil
         }
         return content
@@ -412,22 +400,19 @@ final class CodexAdvancedConfigViewModel {
     }
 
     private func linkURLPair(for folder: CodexLinkFolder) -> (sourceURL: URL, targetURL: URL) {
-        let sourceRoot = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".codex", isDirectory: true)
-        let targetRoot = URL(fileURLWithPath: provider.defaultSkillsPath, isDirectory: true)
-            .deletingLastPathComponent()
+        let sourceRoot = STFolder("\(NSHomeDirectory())/.codex")
+        let targetRoot = STFolder(STFolder(provider.defaultSkillsPath).url.deletingLastPathComponent())
         return (
-            sourceRoot.appendingPathComponent(folder.rawValue, isDirectory: true),
-            targetRoot.appendingPathComponent(folder.rawValue, isDirectory: true)
+            sourceRoot.url.appendingPathComponent(folder.rawValue, isDirectory: true),
+            targetRoot.url.appendingPathComponent(folder.rawValue, isDirectory: true)
         )
     }
 
     private func isTargetLinked(to sourceURL: URL, targetURL: URL) -> Bool {
-        guard isSymbolicLink(targetURL) else { return false }
+        let targetPath = STPath(targetURL)
+        guard targetPath.isSymbolicLink else { return false }
         do {
-            let destination = try FileManager.default.destinationOfSymbolicLink(atPath: targetURL.path)
-            let resolved = URL(fileURLWithPath: destination, relativeTo: targetURL.deletingLastPathComponent())
-                .standardizedFileURL
+            let resolved = try targetPath.destinationOfSymbolicLink().url.standardizedFileURL
             return resolved.path == sourceURL.standardizedFileURL.path
         } catch {
             return false
@@ -435,19 +420,15 @@ final class CodexAdvancedConfigViewModel {
     }
 
     private func isSymbolicLink(_ url: URL) -> Bool {
-        (try? url.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink) ?? false
+        STPath(url).isSymbolicLink
     }
 
     private func hasVisibleContents(at targetURL: URL) -> Bool {
-        let fileManager = FileManager.default
-        guard fileManager.fileExists(atPath: targetURL.path) else { return false }
-        guard (try? targetURL.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true else { return true }
-        let contents = (try? fileManager.contentsOfDirectory(
-            at: targetURL,
-            includingPropertiesForKeys: nil,
-            options: [.skipsSubdirectoryDescendants]
-        )) ?? []
-        return contents.contains { !$0.lastPathComponent.hasPrefix(".") }
+        let targetPath = STPath(targetURL)
+        guard targetPath.isExists else { return false }
+        guard STFolder(targetURL).isExists else { return true }
+        let contents = (try? STFolder(targetURL).subFilePaths()) ?? []
+        return contents.contains { !$0.url.lastPathComponent.hasPrefix(".") }
     }
 }
 

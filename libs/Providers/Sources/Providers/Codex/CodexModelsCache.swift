@@ -1,4 +1,5 @@
 import Foundation
+import STFilePath
 
 public enum CodexModelsCacheError: LocalizedError, Sendable, Equatable {
     case fileNotFound(String)
@@ -182,12 +183,16 @@ extension CodexModelsCache {
     }
 
     public static func load(from fileURL: URL) throws -> CodexModelsCache {
-        guard FileManager.default.fileExists(atPath: fileURL.path) else {
-            throw CodexModelsCacheError.fileNotFound(fileURL.path)
+        try load(from: STFile(fileURL))
+    }
+
+    public static func load(from file: STFile) throws -> CodexModelsCache {
+        guard file.isExists else {
+            throw CodexModelsCacheError.fileNotFound(file.url.path)
         }
         let data: Data
         do {
-            data = try Data(contentsOf: fileURL)
+            data = try file.data()
         } catch {
             throw CodexModelsCacheError.unreadable(error.localizedDescription)
         }
@@ -196,6 +201,10 @@ extension CodexModelsCache {
         } catch {
             throw CodexModelsCacheError.invalidJSON(error.localizedDescription)
         }
+    }
+
+    public static func load(from path: STPath) throws -> CodexModelsCache {
+        try load(from: STFile(path.url))
     }
 
     private static func parseDate(_ raw: String) -> Date? {

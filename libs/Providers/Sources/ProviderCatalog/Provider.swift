@@ -1,4 +1,5 @@
 import Foundation
+import STFilePath
 
 public enum ProviderKind: String, Codable, Sendable {
     /// Vendor-level provider (predefined locations; typically under the user's home directory).
@@ -34,12 +35,20 @@ public struct Provider: Codable, Identifiable, Hashable, Sendable {
     public var isProject: Bool { kind == .project }
     public var canEditPaths: Bool { kind == .project }
 
+    public var path: STPath {
+        STPath(defaultSkillsPath)
+    }
+
+    public var additionalPaths: [STPath] {
+        additionalSkillsPaths?.map(STPath.init) ?? []
+    }
+
     public var pathURL: URL {
-        URL(fileURLWithPath: defaultSkillsPath)
+        path.url
     }
 
     public var additionalPathURLs: [URL] {
-        additionalSkillsPaths?.map { URL(fileURLWithPath: $0) } ?? []
+        additionalPaths.map(\.url)
     }
 
     public var documentationURL: URL?

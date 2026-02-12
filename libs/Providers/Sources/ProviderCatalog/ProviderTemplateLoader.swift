@@ -1,5 +1,6 @@
 import Foundation
 import OSLog
+import STFilePath
 
 /// Singleton loader for `ProviderTemplate` configurations from JSON.
 public final class ProviderTemplateLoader: @unchecked Sendable {
@@ -26,7 +27,7 @@ public final class ProviderTemplateLoader: @unchecked Sendable {
         }
 
         do {
-            let data = try Data(contentsOf: url)
+            let data = try STFile(url).data()
             let decoded = try JSONDecoder().decode([String: ProviderTemplateConfig].self, from: data)
             self.lock.lock()
             self.configs = decoded

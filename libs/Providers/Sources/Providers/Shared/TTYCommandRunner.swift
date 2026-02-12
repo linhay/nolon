@@ -4,6 +4,7 @@ import Darwin
 import Glibc
 #endif
 import Foundation
+import STFilePath
 
 /// Executes an interactive CLI inside a pseudo-terminal and returns all captured text.
 public struct TTYCommandRunner: Sendable {
@@ -81,11 +82,11 @@ public struct TTYCommandRunner: Sendable {
     ) -> String?
     {
         if command.contains("/") {
-            return FileManager.default.isExecutableFile(atPath: command) ? command : nil
+            return isExecutable(command) ? command : nil
         }
 
         let task = Process()
-        task.executableURL = URL(fileURLWithPath: "/usr/bin/which")
+        task.executableURL = STFile("/usr/bin/which").url
         task.arguments = [command]
 
         let pipe = Pipe()
@@ -106,6 +107,12 @@ public struct TTYCommandRunner: Sendable {
         return trimmed.isEmpty ? nil : trimmed
     }
 
+    private static func isExecutable(_ path: String) -> Bool {
+        let file = STFile(path)
+        guard file.isExists else { return false }
+        return file.permission.contains(.executable)
+    }
+
     public func run(binary: String, send: String, options: Options = Options()) throws -> Result {
         let resolvedBinary: String
         if let located = Self.which(binary) {
@@ -115,7 +122,7 @@ public struct TTYCommandRunner: Sendable {
         }
 
         let process = Process()
-        process.executableURL = URL(fileURLWithPath: resolvedBinary)
+        process.executableURL = STFile(resolvedBinary).url
         
         var env = ProcessInfo.processInfo.environment
         env["PATH"] = env["PATH"] ?? "/usr/local/bin:/usr/bin:/bin"

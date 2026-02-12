@@ -1,4 +1,5 @@
 import Foundation
+import STFilePath
 
 /// Built-in provider templates for quick setup.
 /// These are templates used when adding a new provider, not actual providers.
@@ -72,7 +73,7 @@ public enum ProviderTemplate: String, CaseIterable, Sendable, Identifiable {
 
     /// Additional default skills paths for this template (penetration reading).
     public var defaultSkillsPaths: [URL] {
-        let homeURL = URL(fileURLWithPath: NSHomeDirectory())
+        let homeURL = STFolder(NSHomeDirectory()).url
         return (config?.defaultSkillsPaths ?? []).map { path in
             let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
             if trimmed.hasPrefix(".") {
@@ -126,7 +127,7 @@ public enum ProviderTemplate: String, CaseIterable, Sendable, Identifiable {
     // MARK: - Helpers
 
     private var vendorBaseURL: URL {
-        vendorHomeURL(projectRoot: URL(fileURLWithPath: NSHomeDirectory()))
+        vendorHomeURL(projectRoot: STFolder(NSHomeDirectory()).url)
     }
 
     private func vendorHomeURL(projectRoot: URL) -> URL {

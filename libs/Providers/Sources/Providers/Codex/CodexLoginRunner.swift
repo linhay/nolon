@@ -1,6 +1,7 @@
 import Foundation
 import CodexCLIKit
 import SKProcessRunner
+import STFilePath
 
 public enum CodexLoginError: LocalizedError, Sendable, Equatable {
     case binaryNotFound(String)
@@ -42,6 +43,14 @@ public struct CodexLoginRunner: Sendable {
         environment: [String: String],
         codexHome: URL
     ) throws -> CodexLoginHandle {
+        try startLogin(binary: binary, environment: environment, codexHome: STFolder(codexHome))
+    }
+
+    public func startLogin(
+        binary: String = "codex",
+        environment: [String: String],
+        codexHome: STFolder
+    ) throws -> CodexLoginHandle {
         let env = Self.mergedEnvironment(environment: environment, codexHome: codexHome)
         let resolver = CodexCommandExecutor(executable: binary, environment: env)
         guard let resolved = resolver.resolveExecutable() else {
@@ -49,7 +58,7 @@ public struct CodexLoginRunner: Sendable {
         }
 
         let process = Process()
-        process.executableURL = URL(fileURLWithPath: resolved)
+        process.executableURL = STFile(resolved).url
         process.arguments = ["login"]
         process.environment = env
         process.standardInput = nil
@@ -65,7 +74,7 @@ public struct CodexLoginRunner: Sendable {
         return CodexLoginHandle(process: process)
     }
 
-    private static func mergedEnvironment(environment: [String: String], codexHome: URL) -> [String: String] {
+    private static func mergedEnvironment(environment: [String: String], codexHome: STFolder) -> [String: String] {
         let processEnv = ProcessInfo.processInfo.environment
         let shellEnv = SKProcessRunner.loadUserShellEnvironmentSync(environment: processEnv)
         var env = processEnv.merging(shellEnv, uniquingKeysWith: { _, shell in shell })
@@ -74,7 +83,7 @@ public struct CodexLoginRunner: Sendable {
            let shellPATH = SKProcessRunner.loadUserShellPATHSync(environment: processEnv) {
             env["PATH"] = shellPATH
         }
-        env["CODEX_HOME"] = codexHome.path
+        env["CODEX_HOME"] = codexHome.url.path
         return env
     }
 }
