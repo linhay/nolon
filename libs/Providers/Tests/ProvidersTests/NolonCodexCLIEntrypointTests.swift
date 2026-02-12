@@ -4,6 +4,38 @@ import Testing
 
 @Suite("Nolon Codex CLI Entrypoint")
 struct NolonCodexCLIEntrypointTests {
+    @Test("routes auth list")
+    func routesAuthList() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: [
+                "codex", "auth", "list",
+                "--provider", "codex",
+            ],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stdout.contains("\"command\":\"codex.auth.list\""))
+        #expect(await mock.lastCall() == "authList")
+    }
+
+    @Test("routes auth status")
+    func routesAuthStatus() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: [
+                "codex", "auth", "status",
+                "--provider", "codex",
+            ],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stdout.contains("\"command\":\"codex.auth.status\""))
+        #expect(await mock.lastCall() == "authStatus")
+    }
+
     @Test("routes auth activate via argument parser")
     func routesAuthActivate() async {
         let mock = MockCodexCLIService()
@@ -38,6 +70,38 @@ struct NolonCodexCLIEntrypointTests {
         #expect(result.stderr.contains("\"code\":\"invalid_arguments\""))
     }
 
+    @Test("invalid preferred account UUID returns structured error")
+    func invalidPreferredUUIDError() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: [
+                "codex", "auth", "login",
+                "--preferred-account-id", "bad-uuid",
+            ],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 2)
+        #expect(result.stderr.contains("\"code\":\"invalid_arguments\""))
+    }
+
+    @Test("routes auth login")
+    func routesAuthLogin() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: [
+                "codex", "auth", "login",
+                "--provider", "codex",
+                "--preferred-account-id", "11111111-1111-1111-1111-111111111111",
+            ],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stdout.contains("\"command\":\"codex.auth.login\""))
+        #expect(await mock.lastCall() == "authLogin")
+    }
+
     @Test("routes binary install set-default")
     func routesBinaryInstall() async {
         let mock = MockCodexCLIService()
@@ -55,6 +119,52 @@ struct NolonCodexCLIEntrypointTests {
         #expect(await mock.lastCall() == "binaryInstall")
     }
 
+    @Test("routes binary current")
+    func routesBinaryCurrent() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: [
+                "codex", "binary", "current",
+            ],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stdout.contains("\"command\":\"codex.binary.current\""))
+        #expect(await mock.lastCall() == "binaryCurrent")
+    }
+
+    @Test("routes binary use")
+    func routesBinaryUse() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: [
+                "codex", "binary", "use",
+                "--version", "0.26.0",
+            ],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stdout.contains("\"command\":\"codex.binary.use\""))
+        #expect(await mock.lastCall() == "binaryUse")
+    }
+
+    @Test("routes binary doctor")
+    func routesBinaryDoctor() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: [
+                "codex", "binary", "doctor",
+            ],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stdout.contains("\"command\":\"codex.binary.doctor\""))
+        #expect(await mock.lastCall() == "binaryDoctor")
+    }
+
     @Test("routes status probe")
     func routesStatusProbe() async {
         let mock = MockCodexCLIService()
@@ -69,6 +179,20 @@ struct NolonCodexCLIEntrypointTests {
         #expect(result.exitCode == 0)
         #expect(result.stdout.contains("\"command\":\"codex.status.probe\""))
         #expect(await mock.lastCall() == "statusProbe")
+    }
+
+    @Test("unsupported command returns invalid arguments")
+    func unsupportedCommandError() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: [
+                "codex", "status", "unknown",
+            ],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 2)
+        #expect(result.stderr.contains("\"code\":\"invalid_arguments\""))
     }
 }
 
