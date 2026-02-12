@@ -356,3 +356,25 @@
 - `swift test --package-path libs/Providers --filter ProviderUsageTokenAccountsTests`
 - `swift test --package-path libs/Providers --filter ProviderUsageMonitorServiceTests`
 - `xcodebuild test -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' -only-testing:nolonTests/UsageMonitorServiceTests`
+
+## Phase 1.15：ProviderUsageViewModel 直接依赖库侧 monitor
+
+### BDD 场景
+- Given app 需要拉取 usage outcomes，When 执行 `ProviderUsageViewModel.load()`，Then 应直接调用 `ProviderUsageMonitorService`，不再经过 app 包装 actor。
+- Given 视图层传入的 `codexCostWindowDays` 为空，When 计算拉取窗口，Then 应回退到 `settings.costWindowDays`。
+
+### TDD（红 -> 绿）
+- 先补红灯：
+  - `UsageMonitorServiceTests` 新增：
+    - `testEffectiveCostWindowDays_GivenSelection_WhenResolving_ThenSelectedValueWins`
+    - `testEffectiveCostWindowDays_GivenNilSelection_WhenResolving_ThenFallbackToSettings`
+  - 初始失败原因：`ProviderUsageViewModel` 尚无 `resolveCostWindowDays(...)`。
+- 最小实现（绿灯）：
+  - `ProviderUsageViewModel` 新增依赖：`private let usageMonitor: ProviderUsageMonitorService`
+  - 初始化时默认构造：`ProviderUsageMonitorService(tokenAccountStore: FileTokenAccountStore(fileURL: ProviderUsagePaths.defaultTokenAccountsFileURL()))`
+  - `load()` 中直接调用 `usageMonitor.fetchOutcomes(...)`
+  - 新增 `resolveCostWindowDays(selectedCostWindowDays:settings:)`，收敛窗口回退规则。
+
+### 验证
+- `xcodebuild test -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' -only-testing:nolonTests/UsageMonitorServiceTests`
+- `swift test --package-path libs/Providers --filter ProviderUsageMonitorServiceTests`

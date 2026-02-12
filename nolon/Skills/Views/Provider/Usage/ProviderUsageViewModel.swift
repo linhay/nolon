@@ -17,7 +17,7 @@ final class ProviderUsageViewModel {
     typealias CodexActivateAction = @MainActor @Sendable (CodexAuthAccount, Provider) async throws -> CodexAuthActivationResult
     typealias AsyncVoidAction = @MainActor @Sendable () async -> Void
 
-    private let service = UsageMonitorService()
+    private let usageMonitor: ProviderUsageMonitorService
     private let settingsStore = UsageMonitorSettingsStore.shared
     private let codexAuthManager = CodexAuthManager()
     private let codexActivateAction: CodexActivateAction
@@ -73,9 +73,12 @@ final class ProviderUsageViewModel {
 
     init(
         provider: Provider,
+        usageMonitor: ProviderUsageMonitorService? = nil,
         codexActivateAction: CodexActivateAction? = nil,
         postActivationLoadAction: AsyncVoidAction? = nil
     ) {
+        let tokenStore = FileTokenAccountStore(fileURL: ProviderUsagePaths.defaultTokenAccountsFileURL())
+        self.usageMonitor = usageMonitor ?? ProviderUsageMonitorService(tokenAccountStore: tokenStore)
         self.provider = provider
         self.usageProvider = ProviderUsageViewModel.mapToUsageProvider(provider)
         let initialSettings = settingsStore.settings(for: provider)
@@ -195,10 +198,14 @@ final class ProviderUsageViewModel {
         if usageProvider == .codex, isMultiAccountEnabled {
             outcomes = []
         } else {
-            outcomes = await service.fetchOutcomes(
+            let effectiveCostWindowDays = Self.resolveCostWindowDays(
+                selectedCostWindowDays: codexCostWindowDays,
+                settings: settings
+            )
+            outcomes = await usageMonitor.fetchOutcomes(
                 provider: usageProvider,
                 settings: settings,
-                costWindowDays: codexCostWindowDays
+                costWindowDays: effectiveCostWindowDays
             )
             lastUsageRefreshAt = Date()
         }
@@ -521,6 +528,13 @@ final class ProviderUsageViewModel {
             return mapped
         }
         return nil
+    }
+
+    static func resolveCostWindowDays(
+        selectedCostWindowDays: Int?,
+        settings: UsageMonitorProviderSettings
+    ) -> Int? {
+        selectedCostWindowDays ?? settings.costWindowDays
     }
 
     var dashboardURL: URL? {
