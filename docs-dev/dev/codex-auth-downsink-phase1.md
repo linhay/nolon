@@ -277,3 +277,21 @@
 - `swift test --package-path libs/Providers --filter CodexSessionEventParserTests`
 - `swift test --package-path libs/Providers --filter CostUsageStoragePathTests`
 - `swift test --package-path libs/Providers --filter CostUsageFetcherTests`
+
+## Phase 1.11：修复 JSONL EOF 最后一行扫描边界
+
+### BDD 场景
+- Given `rollout.jsonl` 最后一行没有 trailing newline，When 扫描 usage 文件，Then 最后一行 token 事件也应被计入聚合。
+
+### TDD（红 -> 绿）
+- 先补红灯：
+  - `CostUsageStoragePathTests.costUsageScannerParsesLastLineWithoutTrailingNewline`
+  - 期望无尾换行时仍能统计最后一条 `last_token_usage`。
+- 最小实现（绿灯）：
+  - `CostUsageJsonl.scan(...)` 在 EOF 且 `buffer` 非空时，先把残留 bytes 作为最后一行拼接，再统一 `flushLine()`。
+  - 抽出 `appendLinePart(...)`，复用换行行与 EOF 残留行处理逻辑，保持 truncation 规则一致。
+
+### 验证
+- `swift test --package-path libs/Providers --filter CostUsageStoragePathTests`
+- `swift test --package-path libs/Providers --filter CodexSessionEventParserTests`
+- `swift test --package-path libs/Providers --filter CostUsageFetcherTests`
