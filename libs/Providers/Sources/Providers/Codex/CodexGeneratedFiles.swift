@@ -353,8 +353,8 @@ public struct CodexRolloutLine: Sendable, Equatable {
             case functionCall(name: String?, arguments: String?, callID: String?)
             case functionCallOutput(callID: String?, output: CodexJSONValue?)
             case localShellCall(status: String?, action: CodexJSONValue?)
-            case customToolCall(name: String?, callID: String?, input: String?)
-            case customToolCallOutput(callID: String?, output: String?)
+            case customToolCall(name: String?, callID: String?, input: CodexJSONValue?)
+            case customToolCallOutput(callID: String?, output: CodexJSONValue?)
             case reasoning(summary: CodexJSONValue?, content: CodexJSONValue?)
             case webSearchCall(status: String?, action: CodexJSONValue?)
             case compaction(encryptedContent: String?)
@@ -705,12 +705,12 @@ public enum CodexGeneratedFilesParser {
             kind = .customToolCall(
                 name: object["name"]?.stringValue,
                 callID: object["call_id"]?.stringValue,
-                input: object["input"]?.stringValue
+                input: object["input"]
             )
         case "custom_tool_call_output":
             kind = .customToolCallOutput(
                 callID: object["call_id"]?.stringValue,
-                output: object["output"]?.stringValue
+                output: object["output"]
             )
         case "reasoning":
             kind = .reasoning(summary: object["summary"], content: object["content"])

@@ -55,3 +55,14 @@
 - `CodexRuntimeAccountSwitcher` 引入内部 service 抽象与 factory 注入（public API 不变），用于隔离会话缓存逻辑测试。
 - 新增 `CodexRuntimeAccountSwitcherTests`：验证同一 resolved binary 命中同一缓存 service，不重复初始化。
 - 修正 `CodexRuntimeSupport.resolvedBinary`：优先通过 `CodexCommandExecutor` 解析（含 `CODEX_CLI_PATH` 规则），解析失败再回落 candidate。
+
+## 增量（2026-02-12，继续推进）
+- `CodexGeneratedFilesParser` 的 `response_item.custom_tool_call` / `custom_tool_call_output` 从字符串收窄改为 `CodexJSONValue`，避免结构化 payload 信息丢失。
+- 新增测试 `CodexGeneratedFilesParserTests.parseRolloutCustomToolItems`，覆盖 structured input/output 解析。
+- app 层 `URLSchemeHandler` 抽出 `normalizeIncomingURL(_:)` 纯函数，补齐 `URLSchemeHandlerTests`（nolon/nln -> https、query 保留、非目标 scheme 过滤）。
+- 清理 app 层残留 `print()`，统一使用 `OSLog`（`URLSchemeHandler` / `AppDelegate`）。
+
+### 本轮验证
+- `swift test --package-path libs/Providers`
+- `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' -only-testing:nolonTests/URLSchemeHandlerTests test`
+- `./build.sh`

@@ -182,6 +182,61 @@ struct CodexGeneratedFilesParserTests {
         }
     }
 
+    @Test("Parse rollout response_item custom_tool_call and output as structured JSON")
+    func parseRolloutCustomToolItems() throws {
+        let callLine = """
+        {
+          "timestamp": "2026-02-11T12:00:04Z",
+          "type": "response_item",
+          "payload": {
+            "type": "custom_tool_call",
+            "name": "docs.search",
+            "call_id": "call-1",
+            "input": {
+              "query": "swift testing"
+            }
+          }
+        }
+        """
+        let parsedCall = try CodexGeneratedFilesParser.parseRolloutLine(text: callLine)
+        if case let .responseItem(item) = parsedCall.item {
+            if case let .customToolCall(name, callID, input) = item.kind {
+                #expect(name == "docs.search")
+                #expect(callID == "call-1")
+                #expect(input?.objectValue?["query"]?.stringValue == "swift testing")
+            } else {
+                Issue.record("Expected response_item.custom_tool_call")
+            }
+        } else {
+            Issue.record("Expected response_item")
+        }
+
+        let outputLine = """
+        {
+          "timestamp": "2026-02-11T12:00:05Z",
+          "type": "response_item",
+          "payload": {
+            "type": "custom_tool_call_output",
+            "call_id": "call-1",
+            "output": {
+              "hits": 3
+            }
+          }
+        }
+        """
+        let parsedOutput = try CodexGeneratedFilesParser.parseRolloutLine(text: outputLine)
+        if case let .responseItem(item) = parsedOutput.item {
+            if case let .customToolCallOutput(callID, output) = item.kind {
+                #expect(callID == "call-1")
+                #expect(output?.objectValue?["hits"]?.intValue == 3)
+            } else {
+                Issue.record("Expected response_item.custom_tool_call_output")
+            }
+        } else {
+            Issue.record("Expected response_item")
+        }
+    }
+
     @Test("Parse history.jsonl entries with session_id and conversation_id")
     func parseHistoryJSONL() throws {
         let history = """
