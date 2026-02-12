@@ -379,21 +379,25 @@ public enum NolonCLIEntrypoint {
         switch route {
         case "codex.auth.list":
             let args = try parseArguments(NolonCodexAuthListArguments.self, optionArgs)
-            let payload = try await context.codexService().authList(providerID: args.provider)
+            let providerID = try parseCodexProviderID(args.provider)
+            let payload = try await context.codexService().authList(providerID: providerID)
             return try context.successJSON(command: "codex.auth.list", data: payload)
         case "codex.auth.status":
             let args = try parseArguments(NolonCodexAuthStatusArguments.self, optionArgs)
-            let payload = try await context.codexService().authStatus(providerID: args.provider)
+            let providerID = try parseCodexProviderID(args.provider)
+            let payload = try await context.codexService().authStatus(providerID: providerID)
             return try context.successJSON(command: "codex.auth.status", data: payload)
         case "codex.auth.activate":
             let args = try parseArguments(NolonCodexAuthActivateArguments.self, optionArgs)
+            let providerID = try parseCodexProviderID(args.provider)
             guard let accountID = UUID(uuidString: args.accountID) else {
                 throw NolonCoreCLIError.invalidArguments("Invalid --account-id: \(args.accountID)")
             }
-            let payload = try await context.codexService().authActivate(providerID: args.provider, accountID: accountID)
+            let payload = try await context.codexService().authActivate(providerID: providerID, accountID: accountID)
             return try context.successJSON(command: "codex.auth.activate", data: payload)
         case "codex.auth.login":
             let args = try parseArguments(NolonCodexAuthLoginArguments.self, optionArgs)
+            let providerID = try parseCodexProviderID(args.provider)
             let preferred: UUID?
             if let preferredAccountID = args.preferredAccountID {
                 guard let parsed = UUID(uuidString: preferredAccountID) else {
@@ -403,7 +407,7 @@ public enum NolonCLIEntrypoint {
             } else {
                 preferred = nil
             }
-            let payload = try await context.codexService().authLogin(providerID: args.provider, preferredAccountID: preferred)
+            let payload = try await context.codexService().authLogin(providerID: providerID, preferredAccountID: preferred)
             return try context.successJSON(command: "codex.auth.login", data: payload)
         case "codex.binary.list":
             let _: NolonCodexNoArguments = try parseArguments(NolonCodexNoArguments.self, optionArgs)

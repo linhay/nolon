@@ -20,6 +20,21 @@ struct NolonCodexCLIEntrypointTests {
         #expect(await mock.lastCall() == "authList")
     }
 
+    @Test("auth list rejects unsupported provider")
+    func authListRejectsUnsupportedProvider() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: [
+                "codex", "auth", "list",
+                "--provider", "claude",
+            ],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 2)
+        #expect(result.stderr.contains("\"code\":\"invalid_arguments\""))
+    }
+
     @Test("routes auth status")
     func routesAuthStatus() async {
         let mock = MockCodexCLIService()
@@ -34,6 +49,21 @@ struct NolonCodexCLIEntrypointTests {
         #expect(result.exitCode == 0)
         #expect(result.stdout.contains("\"command\":\"codex.auth.status\""))
         #expect(await mock.lastCall() == "authStatus")
+    }
+
+    @Test("auth status rejects unsupported provider")
+    func authStatusRejectsUnsupportedProvider() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: [
+                "codex", "auth", "status",
+                "--provider", "cursor",
+            ],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 2)
+        #expect(result.stderr.contains("\"code\":\"invalid_arguments\""))
     }
 
     @Test("routes auth activate via argument parser")
