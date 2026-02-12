@@ -293,6 +293,9 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
     }
 
     public func statusProbe(providerID: String?) async throws -> NolonCodexStatusProbePayload {
+        if let providerID {
+            _ = try Self.provider(for: providerID)
+        }
         var env = environment
         if let codexPath = await binaryManager.activeCLIPathIfAvailable() {
             env["CODEX_CLI_PATH"] = codexPath
@@ -424,6 +427,9 @@ public enum NolonCLIEntrypoint {
             return try context.successJSON(command: "codex.binary.doctor", data: payload)
         case "codex.status.probe":
             let args = try parseArguments(NolonCodexStatusProbeArguments.self, optionArgs)
+            if let provider = args.provider {
+                _ = try parseCodexProviderID(provider)
+            }
             let payload = try await context.codexService().statusProbe(providerID: args.provider)
             return try context.successJSON(command: "codex.status.probe", data: payload)
         default:
@@ -436,6 +442,16 @@ public enum NolonCLIEntrypoint {
             return try T.parse(arguments)
         } catch {
             throw NolonCoreCLIError.invalidArguments(error.localizedDescription)
+        }
+    }
+
+    private static func parseCodexProviderID(_ providerID: String) throws -> String {
+        let normalized = providerID.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        switch normalized {
+        case "codex", "codexxcode", "codex-xcode":
+            return normalized
+        default:
+            throw NolonCoreCLIError.invalidArguments("Unsupported --provider: \(providerID)")
         }
     }
 }

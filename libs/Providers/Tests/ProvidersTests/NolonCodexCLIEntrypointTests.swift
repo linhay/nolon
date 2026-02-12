@@ -181,6 +181,21 @@ struct NolonCodexCLIEntrypointTests {
         #expect(await mock.lastCall() == "statusProbe")
     }
 
+    @Test("status probe rejects unsupported provider")
+    func statusProbeRejectsUnsupportedProvider() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: [
+                "codex", "status", "probe",
+                "--provider", "claude",
+            ],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 2)
+        #expect(result.stderr.contains("\"code\":\"invalid_arguments\""))
+    }
+
     @Test("unsupported command returns invalid arguments")
     func unsupportedCommandError() async {
         let mock = MockCodexCLIService()
