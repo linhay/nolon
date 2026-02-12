@@ -92,6 +92,7 @@ public enum NolonCoreCLICommand: Sendable, Equatable {
 public enum NolonCoreCLIError: LocalizedError, Equatable, Sendable {
     case invalidArguments(String)
     case executionFailed(String)
+    case domainFailed(code: String, message: String)
     case syncFailed(code: String, message: String, detail: NolonGitSyncErrorDetail)
 
     public var errorDescription: String? {
@@ -99,6 +100,8 @@ public enum NolonCoreCLIError: LocalizedError, Equatable, Sendable {
         case let .invalidArguments(message):
             message
         case let .executionFailed(message):
+            message
+        case let .domainFailed(_, message):
             message
         case let .syncFailed(_, message, _):
             message
@@ -109,13 +112,14 @@ public enum NolonCoreCLIError: LocalizedError, Equatable, Sendable {
         switch self {
         case .invalidArguments: "invalid_arguments"
         case .executionFailed: "execution_failed"
+        case let .domainFailed(code, _): code
         case let .syncFailed(code, _, _): code
         }
     }
 
     var detail: NolonGitSyncErrorDetail? {
         switch self {
-        case .invalidArguments, .executionFailed:
+        case .invalidArguments, .executionFailed, .domainFailed:
             return nil
         case let .syncFailed(_, _, detail):
             return detail

@@ -194,6 +194,21 @@ struct NolonCodexCLIEntrypointTests {
         #expect(result.exitCode == 2)
         #expect(result.stderr.contains("\"code\":\"invalid_arguments\""))
     }
+
+    @Test("domain error keeps structured code")
+    func domainErrorCode() async {
+        let mock = DomainErrorCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: [
+                "codex", "binary", "use",
+                "--version", "missing",
+            ],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 2)
+        #expect(result.stderr.contains("\"code\":\"codex_binary_not_found\""))
+    }
 }
 
 private actor MockCodexCLIService: NolonCodexCLIServing {
@@ -281,5 +296,22 @@ private actor MockCodexCLIService: NolonCodexCLIServing {
             fiveHourResetDescription: nil,
             weeklyResetDescription: nil
         )
+    }
+}
+
+private actor DomainErrorCodexCLIService: NolonCodexCLIServing {
+    func authList(providerID: String) async throws -> NolonCodexAuthListPayload { throw makeError() }
+    func authStatus(providerID: String) async throws -> NolonCodexAuthStatusPayload { throw makeError() }
+    func authActivate(providerID: String, accountID: UUID) async throws -> NolonCodexAuthActivatePayload { throw makeError() }
+    func authLogin(providerID: String, preferredAccountID: UUID?) async throws -> NolonCodexAuthLoginPayload { throw makeError() }
+    func binaryList() async throws -> NolonCodexBinaryListPayload { throw makeError() }
+    func binaryCurrent() async throws -> NolonCodexBinaryCurrentPayload { throw makeError() }
+    func binaryInstall(version: String, setDefault: Bool) async throws -> NolonCodexBinaryInstallPayload { throw makeError() }
+    func binaryUse(version: String) async throws -> NolonCodexBinaryUsePayload { throw makeError() }
+    func binaryDoctor() async throws -> NolonCodexBinaryDoctorPayload { throw makeError() }
+    func statusProbe(providerID: String?) async throws -> NolonCodexStatusProbePayload { throw makeError() }
+
+    private func makeError() -> NolonCoreCLIError {
+        .domainFailed(code: "codex_binary_not_found", message: "missing")
     }
 }

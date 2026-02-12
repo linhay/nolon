@@ -160,7 +160,10 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
         let provider = try Self.provider(for: providerID)
         let accounts = try await authManager.loadAccounts()
         guard let account = accounts.first(where: { $0.id == accountID }) else {
-            throw NolonCoreCLIError.executionFailed("codex_auth_account_not_found")
+            throw NolonCoreCLIError.domainFailed(
+                code: "codex_auth_account_not_found",
+                message: "Codex account not found: \(accountID.uuidString)"
+            )
         }
 
         let result = try await CodexAuthActivationCoordinator.shared.activate(account: account, provider: provider)
@@ -177,7 +180,10 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
         try await authManager.prepareForCLILogin(provider: provider, archiveAccountName: nil)
 
         guard let codexHome = await authManager.codexHomeFolder(for: provider) else {
-            throw NolonCoreCLIError.executionFailed("codex_home_unavailable")
+            throw NolonCoreCLIError.domainFailed(
+                code: "codex_home_unavailable",
+                message: "Codex home path is unavailable for provider: \(providerID)"
+            )
         }
 
         let handle = try loginRunner.startLogin(
@@ -190,7 +196,10 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
         }
 
         guard let authJSONString = try await authManager.readAuthJSONString(from: provider), !authJSONString.isEmpty else {
-            throw NolonCoreCLIError.executionFailed("codex_login_auth_missing")
+            throw NolonCoreCLIError.domainFailed(
+                code: "codex_login_auth_missing",
+                message: "No auth.json generated after codex login."
+            )
         }
 
         let account = try await authManager.recordCLILoginSnapshot(
@@ -238,7 +247,10 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
         let manifest = try await binaryManager.loadManifest()
         let releases = try await binaryManager.fetchRemoteReleases(includePrerelease: manifest.includeBetaVersions)
         guard let matched = releases.first(where: { $0.version == version || $0.tag == version }) else {
-            throw NolonCoreCLIError.executionFailed("codex_binary_not_found")
+            throw NolonCoreCLIError.domainFailed(
+                code: "codex_binary_not_found",
+                message: "Requested Codex version not found: \(version)"
+            )
         }
         let managed = try await binaryManager.downloadAndImport(from: matched.assetURL, displayName: "Codex \(matched.version)")
         if setDefault {
@@ -255,7 +267,10 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
     public func binaryUse(version: String) async throws -> NolonCodexBinaryUsePayload {
         let versions = try await binaryManager.listVersions()
         guard let target = versions.first(where: { $0.detectedVersion == version || $0.id == version }) else {
-            throw NolonCoreCLIError.executionFailed("codex_binary_not_found")
+            throw NolonCoreCLIError.domainFailed(
+                code: "codex_binary_not_found",
+                message: "Managed Codex version not found: \(version)"
+            )
         }
         try await binaryManager.activate(versionId: target.id)
         return NolonCodexBinaryUsePayload(selectedVersionID: target.id)
