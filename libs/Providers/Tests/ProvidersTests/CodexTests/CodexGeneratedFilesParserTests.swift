@@ -237,6 +237,229 @@ struct CodexGeneratedFilesParserTests {
         }
     }
 
+    @Test("Parse rollout response_item function/local-shell/web-search/ghost-snapshot")
+    func parseRolloutResponseItemVariants() throws {
+        let functionOutputLine = """
+        {
+          "timestamp": "2026-02-11T12:00:06Z",
+          "type": "response_item",
+          "payload": {
+            "type": "function_call_output",
+            "call_id": "call-fn-1",
+            "output": { "ok": true }
+          }
+        }
+        """
+        let parsedFunctionOutput = try CodexGeneratedFilesParser.parseRolloutLine(text: functionOutputLine)
+        if case let .responseItem(item) = parsedFunctionOutput.item {
+            if case let .functionCallOutput(callID, output) = item.kind {
+                #expect(callID == "call-fn-1")
+                #expect(output?.objectValue?["ok"]?.stringValue == nil)
+                if case let .bool(ok)? = output?.objectValue?["ok"] {
+                    #expect(ok == true)
+                } else {
+                    Issue.record("Expected bool output.ok")
+                }
+            } else {
+                Issue.record("Expected response_item.function_call_output")
+            }
+        } else {
+            Issue.record("Expected response_item")
+        }
+
+        let localShellLine = """
+        {
+          "timestamp": "2026-02-11T12:00:07Z",
+          "type": "response_item",
+          "payload": {
+            "type": "local_shell_call",
+            "status": "completed",
+            "action": { "command": "ls -la" }
+          }
+        }
+        """
+        let parsedLocalShell = try CodexGeneratedFilesParser.parseRolloutLine(text: localShellLine)
+        if case let .responseItem(item) = parsedLocalShell.item {
+            if case let .localShellCall(status, action) = item.kind {
+                #expect(status == "completed")
+                #expect(action?.objectValue?["command"]?.stringValue == "ls -la")
+            } else {
+                Issue.record("Expected response_item.local_shell_call")
+            }
+        } else {
+            Issue.record("Expected response_item")
+        }
+
+        let webSearchLine = """
+        {
+          "timestamp": "2026-02-11T12:00:08Z",
+          "type": "response_item",
+          "payload": {
+            "type": "web_search_call",
+            "status": "running",
+            "action": { "query": "swift testing" }
+          }
+        }
+        """
+        let parsedWebSearch = try CodexGeneratedFilesParser.parseRolloutLine(text: webSearchLine)
+        if case let .responseItem(item) = parsedWebSearch.item {
+            if case let .webSearchCall(status, action) = item.kind {
+                #expect(status == "running")
+                #expect(action?.objectValue?["query"]?.stringValue == "swift testing")
+            } else {
+                Issue.record("Expected response_item.web_search_call")
+            }
+        } else {
+            Issue.record("Expected response_item")
+        }
+
+        let ghostLine = """
+        {
+          "timestamp": "2026-02-11T12:00:09Z",
+          "type": "response_item",
+          "payload": {
+            "type": "ghost_snapshot",
+            "ghost_commit": { "sha": "abc123" }
+          }
+        }
+        """
+        let parsedGhost = try CodexGeneratedFilesParser.parseRolloutLine(text: ghostLine)
+        if case let .responseItem(item) = parsedGhost.item {
+            if case let .ghostSnapshot(ghostCommit) = item.kind {
+                #expect(ghostCommit?.objectValue?["sha"]?.stringValue == "abc123")
+            } else {
+                Issue.record("Expected response_item.ghost_snapshot")
+            }
+        } else {
+            Issue.record("Expected response_item")
+        }
+    }
+
+    @Test("Parse rollout event_msg variants and unknown fallback")
+    func parseRolloutEventMessageVariantsAndFallback() throws {
+        let agentLine = """
+        {
+          "timestamp": "2026-02-11T12:00:10Z",
+          "type": "event_msg",
+          "payload": {
+            "type": "agent_message",
+            "message": "working..."
+          }
+        }
+        """
+        let parsedAgent = try CodexGeneratedFilesParser.parseRolloutLine(text: agentLine)
+        if case let .eventMsg(event) = parsedAgent.item {
+            if case let .agentMessage(message) = event.kind {
+                #expect(message == "working...")
+            } else {
+                Issue.record("Expected event_msg.agent_message")
+            }
+        } else {
+            Issue.record("Expected event_msg")
+        }
+
+        let warningLine = """
+        {
+          "timestamp": "2026-02-11T12:00:11Z",
+          "type": "event_msg",
+          "payload": {
+            "type": "warning",
+            "message": "be careful"
+          }
+        }
+        """
+        let parsedWarning = try CodexGeneratedFilesParser.parseRolloutLine(text: warningLine)
+        if case let .eventMsg(event) = parsedWarning.item {
+            if case let .warning(message) = event.kind {
+                #expect(message == "be careful")
+            } else {
+                Issue.record("Expected event_msg.warning")
+            }
+        } else {
+            Issue.record("Expected event_msg")
+        }
+
+        let errorLine = """
+        {
+          "timestamp": "2026-02-11T12:00:11Z",
+          "type": "event_msg",
+          "payload": {
+            "type": "error",
+            "message": "boom"
+          }
+        }
+        """
+        let parsedError = try CodexGeneratedFilesParser.parseRolloutLine(text: errorLine)
+        if case let .eventMsg(event) = parsedError.item {
+            if case let .error(message) = event.kind {
+                #expect(message == "boom")
+            } else {
+                Issue.record("Expected event_msg.error")
+            }
+        } else {
+            Issue.record("Expected event_msg")
+        }
+
+        let turnCompleteLine = """
+        {
+          "timestamp": "2026-02-11T12:00:12Z",
+          "type": "event_msg",
+          "payload": {
+            "type": "turn_complete",
+            "last_agent_message": "done"
+          }
+        }
+        """
+        let parsedTurnComplete = try CodexGeneratedFilesParser.parseRolloutLine(text: turnCompleteLine)
+        if case let .eventMsg(event) = parsedTurnComplete.item {
+            if case let .turnComplete(lastAgentMessage) = event.kind {
+                #expect(lastAgentMessage == "done")
+            } else {
+                Issue.record("Expected event_msg.turn_complete")
+            }
+        } else {
+            Issue.record("Expected event_msg")
+        }
+
+        let unknownEventLine = """
+        {
+          "timestamp": "2026-02-11T12:00:13Z",
+          "type": "event_msg",
+          "payload": {
+            "type": "custom_unknown_event",
+            "x": 1
+          }
+        }
+        """
+        let parsedUnknownEvent = try CodexGeneratedFilesParser.parseRolloutLine(text: unknownEventLine)
+        if case let .eventMsg(event) = parsedUnknownEvent.item {
+            if case let .other(type, payload) = event.kind {
+                #expect(type == "custom_unknown_event")
+                #expect(payload?.objectValue?["x"]?.intValue == 1)
+            } else {
+                Issue.record("Expected event_msg.other fallback")
+            }
+        } else {
+            Issue.record("Expected event_msg")
+        }
+
+        let unknownTopLevelLine = """
+        {
+          "timestamp": "2026-02-11T12:00:14Z",
+          "type": "brand_new_line_type",
+          "payload": {
+            "ignored": true
+          }
+        }
+        """
+        let parsedUnknownTopLevel = try CodexGeneratedFilesParser.parseRolloutLine(text: unknownTopLevelLine)
+        if case let .other(type) = parsedUnknownTopLevel.item {
+            #expect(type == "brand_new_line_type")
+        } else {
+            Issue.record("Expected top-level other(type:) fallback")
+        }
+    }
+
     @Test("Parse history.jsonl entries with session_id and conversation_id")
     func parseHistoryJSONL() throws {
         let history = """

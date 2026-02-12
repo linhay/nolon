@@ -56,14 +56,16 @@
   - `session_meta`
   - `token_count`（event_msg）
   - `response_item.message`
+  - `response_item.function_call_output/local_shell_call/web_search_call/ghost_snapshot`
   - `response_item.custom_tool_call/custom_tool_call_output`（结构化）
-  - `event_msg.user_message`
+  - `event_msg.user_message/agent_message/error/warning/turn_complete`
+  - unknown fallback（`event_msg.other`、top-level `.other(type:)`）
   - `compacted`
   - `history.jsonl`
   - `config.toml` / `managed_config.toml`
   - `sessions` + `archived_sessions` 文件加载
 
 ## 待补强建议
-1. 增加 `response_item.function_call_output/local_shell_call/web_search_call/ghost_snapshot` 的显式断言测试。
-2. 增加 `event_msg.agent_message/error/warning/turn_complete` 的细粒度断言。
-3. 增加 unknown type 回退行为测试，确保升级兼容不回归。
+1. 增加 `event_msg.task_started/task_complete` 的细粒度断言测试。
+2. 增加 `response_item.reasoning/compaction/compaction_summary` 的断言测试。
+3. 增加 `event_msg.token_count(payload 嵌套形态)` 的显式回归用例。
