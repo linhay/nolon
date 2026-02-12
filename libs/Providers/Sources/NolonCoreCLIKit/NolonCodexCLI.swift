@@ -460,7 +460,10 @@ public enum NolonCLIEntrypoint {
             let payload = try await context.codexService().statusProbe(providerID: providerID)
             return try context.successJSON(command: "codex.status.probe", data: payload)
         default:
-            throw NolonCoreCLIError.invalidArguments("Unsupported command: \(route)")
+            throw NolonCoreCLIError.domainFailed(
+                code: "unsupported_command",
+                message: "Unsupported command: \(route)"
+            )
         }
     }
 

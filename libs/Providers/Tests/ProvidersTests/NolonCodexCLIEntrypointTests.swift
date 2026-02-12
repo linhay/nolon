@@ -267,7 +267,7 @@ struct NolonCodexCLIEntrypointTests {
         )
 
         #expect(result.exitCode == 2)
-        #expect(result.stderr.contains("\"code\":\"invalid_arguments\""))
+        #expect(result.stderr.contains("\"code\":\"unsupported_command\""))
     }
 
     @Test("domain error keeps structured code")
