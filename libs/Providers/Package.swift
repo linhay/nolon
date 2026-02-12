@@ -49,6 +49,7 @@ let package = Package(
         .package(url: "https://github.com/steipete/SweetCookieKit", from: "0.4.0"),
         .package(url: "https://github.com/mattt/swift-toml", from: "2.0.0"),
         .package(url: "https://github.com/linhay/STFilePath.git", from: "1.3.4"),
+        .package(path: "../STJSON"),
         .package(url: "https://github.com/jpsim/Yams", from: "6.2.1"),
     ],
     targets: [
@@ -131,9 +132,11 @@ let package = Package(
         .target(
             name: "ProviderUsage",
             dependencies: [
+                "ProviderCatalog",
                 "CodexBarProviderCatalog",
                 "CodexProvider",
                 "CopilotProvider",
+                .product(name: "STJSON", package: "STJSON"),
                 .product(name: "STFilePath", package: "STFilePath"),
             ],
             path: "Sources/ProviderUsage"

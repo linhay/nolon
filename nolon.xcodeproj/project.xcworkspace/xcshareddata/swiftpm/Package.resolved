@@ -1,5 +1,5 @@
 {
-  "originHash" : "e197871603c08055fc9df314960f3db96734fa2accefcde354d12e968f32d94a",
+  "originHash" : "4985ba5a9275e14ac47eaaab4551394faea15ce5c9ffd9caf34551cfe9caa360",
   "pins" : [
     {
       "identity" : "grdb.swift",
@@ -44,15 +44,6 @@
       "state" : {
         "revision" : "3bbcb9ec909e787b473310f17257d1378e1f5b17",
         "version" : "1.3.4"
-      }
-    },
-    {
-      "identity" : "stjson",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/linhay/STJSON",
-      "state" : {
-        "revision" : "fee967f4641b6fc49c8847d168ba34dcf5ffd15d",
-        "version" : "1.4.4"
       }
     },
     {

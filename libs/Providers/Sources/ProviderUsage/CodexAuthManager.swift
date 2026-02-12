@@ -2,16 +2,15 @@ import Foundation
 import OSLog
 import STFilePath
 import ProviderCatalog
-import ProviderUsage
 import STJSON
 
-actor CodexAuthService {
-    private static let logger = Logger(subsystem: "com.nolon", category: "CodexAuthService")
-    private static let isoFormatter: ISO8601DateFormatter = {
+public actor CodexAuthManager {
+    private static let logger = Logger(subsystem: "com.nolon", category: "CodexAuthManager")
+    private static func makeISOFormatter() -> ISO8601DateFormatter {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return formatter
-    }()
+    }
     private static let jsonEncoder: JSONEncoder = {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
@@ -36,27 +35,27 @@ actor CodexAuthService {
 
     private nonisolated let rootFolder: STFolder
 
-    init(rootURL: URL = STFolder("~").folder(".nolon").url) {
+    public init(rootURL: URL = STFolder("~").folder(".nolon").url) {
         self.rootFolder = STFolder(rootURL)
     }
 
-    nonisolated func nolonCodexRootFolder() -> STFolder {
+    public nonisolated func nolonCodexRootFolder() -> STFolder {
         rootFolder.folder("codex")
     }
 
-    nonisolated func nolonCodexAuthFolder() -> STFolder {
+    public nonisolated func nolonCodexAuthFolder() -> STFolder {
         nolonCodexRootFolder().folder("auth")
     }
 
-    nonisolated func activeAccountsFile() -> STFile {
+    public nonisolated func activeAccountsFile() -> STFile {
         nolonCodexRootFolder().file("active-accounts.json")
     }
 
-    nonisolated func accountAuthFile(relativeAuthPath: String) -> STFile {
+    public nonisolated func accountAuthFile(relativeAuthPath: String) -> STFile {
         nolonCodexRootFolder().file(relativeAuthPath)
     }
 
-    nonisolated static func cleanedAuthJSONData(from data: Data) -> Data? {
+    public nonisolated static func cleanedAuthJSONData(from data: Data) -> Data? {
         guard var dict = decodeJSONObject(from: data) else { return nil }
         dict.removeValue(forKey: "nolon")
         return try? encodeJSONObject(dict)
@@ -64,26 +63,26 @@ actor CodexAuthService {
 
     // Usage cache encoding helpers are defined on CodexAuthUsageCache in ProviderUsage.
 
-    func codexHomeFolder(for provider: Provider) -> STFolder? {
+    public func codexHomeFolder(for provider: Provider) -> STFolder? {
         guard provider.templateId == ProviderTemplate.codex.rawValue else { return nil }
         let skillsPath = STPath(URL(fileURLWithPath: provider.defaultSkillsPath))
         return skillsPath.parentFolder()
     }
 
-    func authFile(for provider: Provider) -> STFile? {
+    public func authFile(for provider: Provider) -> STFile? {
         codexHomeFolder(for: provider)?.file("auth.json")
     }
 
-    func accountAuthFile(_ account: CodexAuthAccount) -> STFile {
+    public func accountAuthFile(_ account: CodexAuthAccount) -> STFile {
         accountAuthFile(relativeAuthPath: account.relativeAuthPath)
     }
 
-    func loadAccounts() async throws -> [CodexAuthAccount] {
+    public func loadAccounts() async throws -> [CodexAuthAccount] {
         try await migrateLegacyIfNeeded()
         return try loadAccountsFromAuthFolder()
     }
 
-    func addAccount(name: String, authJSONString: String) async throws -> CodexAuthAccount {
+    public func addAccount(name: String, authJSONString: String) async throws -> CodexAuthAccount {
         try await migrateLegacyIfNeeded()
 
         _ = nolonCodexAuthFolder().createIfNotExists()
@@ -102,7 +101,7 @@ actor CodexAuthService {
         return try loadAccount(file: file, relativeAuthPath: relativePath)
     }
 
-    func updateAccount(_ account: CodexAuthAccount, authJSONString: String) async throws {
+    public func updateAccount(_ account: CodexAuthAccount, authJSONString: String) async throws {
         try await migrateLegacyIfNeeded()
         let file = accountAuthFile(account)
         try writeAccountFile(
@@ -115,7 +114,7 @@ actor CodexAuthService {
         )
     }
 
-    func findAccountByEmail(_ email: String) async throws -> CodexAuthAccount? {
+    public func findAccountByEmail(_ email: String) async throws -> CodexAuthAccount? {
         let normalized = normalizedEmail(email)
         guard let normalized else { return nil }
         let accounts = try await loadAccounts()
@@ -132,7 +131,7 @@ actor CodexAuthService {
         return nil
     }
 
-    func matchAccountByAuthData(_ data: Data) async throws -> CodexAuthAccount? {
+    public func matchAccountByAuthData(_ data: Data) async throws -> CodexAuthAccount? {
         let accounts = try await loadAccounts()
         return matchAccount(authData: data, accounts: accounts)
     }
@@ -141,7 +140,7 @@ actor CodexAuthService {
     /// - If `preferredAccountID` is provided and exists, update that account first.
     /// - Else, try to match by email, then by auth data hash/content.
     /// - If no match, create a new snapshot account.
-    func upsertAccountFromCLILogin(authJSONString: String, preferredAccountID: UUID?) async throws -> CodexAuthAccount {
+    public func upsertAccountFromCLILogin(authJSONString: String, preferredAccountID: UUID?) async throws -> CodexAuthAccount {
         let data = Data(authJSONString.utf8)
 
         if let preferredAccountID {
@@ -167,7 +166,23 @@ actor CodexAuthService {
         return try await addAccount(name: finalName, authJSONString: authJSONString)
     }
 
-    func deleteAccount(id: UUID) async throws {
+    /// Persist CLI login payload to snapshots, then refresh login/sync metadata.
+    @discardableResult
+    public func recordCLILoginSnapshot(
+        authJSONString: String,
+        preferredAccountID: UUID?,
+        loginAt: Date = Date()
+    ) async throws -> CodexAuthAccount {
+        let account = try await upsertAccountFromCLILogin(
+            authJSONString: authJSONString,
+            preferredAccountID: preferredAccountID
+        )
+        try updateLoginSuccess(for: account, date: loginAt)
+        try updateSyncSuccess(for: account, date: loginAt)
+        return account
+    }
+
+    public func deleteAccount(id: UUID) async throws {
         let accounts = try await loadAccounts()
         guard let account = accounts.first(where: { $0.id == id }) else { return }
         let file = accountAuthFile(account)
@@ -205,14 +220,14 @@ actor CodexAuthService {
         return accounts
     }
 
-    func readAuthJSONString(from provider: Provider) throws -> String? {
+    public func readAuthJSONString(from provider: Provider) throws -> String? {
         guard let file = authFile(for: provider) else { return nil }
         guard file.isExists else { return nil }
         let raw = try file.read()
         return raw
     }
 
-    func readTokenPair(for account: CodexAuthAccount) throws -> (idToken: String, accessToken: String)? {
+    public func readTokenPair(for account: CodexAuthAccount) throws -> (idToken: String, accessToken: String)? {
         let data = try accountAuthFile(account).data()
         guard !data.isEmpty,
               let authJSON = try? JSON(data: data)
@@ -238,7 +253,7 @@ actor CodexAuthService {
         return (idToken: idToken, accessToken: accessToken)
     }
 
-    func loadUsageCache(for account: CodexAuthAccount) throws -> CodexAuthUsageCache? {
+    public func loadUsageCache(for account: CodexAuthAccount) throws -> CodexAuthUsageCache? {
         let data = try accountAuthFile(account).data()
         guard !data.isEmpty else { return nil }
 
@@ -252,7 +267,7 @@ actor CodexAuthService {
         return wrapped.usageCache
     }
 
-    func storeUsageCache(_ cache: CodexAuthUsageCache, for account: CodexAuthAccount) throws {
+    public func storeUsageCache(_ cache: CodexAuthUsageCache, for account: CodexAuthAccount) throws {
         let file = accountAuthFile(account)
         var rootObject = (try? file.data()).flatMap { Self.decodeJSONObject(from: $0) } ?? [:]
         var nolonObject = (rootObject["nolon"] as? JSONObject) ?? [:]
@@ -267,7 +282,7 @@ actor CodexAuthService {
         try file.overlay(with: Self.encodeJSONObject(rootObject))
     }
 
-    func updateSyncSuccess(for account: CodexAuthAccount, date: Date = Date()) throws {
+    public func updateSyncSuccess(for account: CodexAuthAccount, date: Date = Date()) throws {
         let file = accountAuthFile(account)
         try updateSyncMetadata(
             file: file,
@@ -279,7 +294,7 @@ actor CodexAuthService {
         )
     }
 
-    func updateSyncFailure(for account: CodexAuthAccount, message: String, date: Date = Date()) throws {
+    public func updateSyncFailure(for account: CodexAuthAccount, message: String, date: Date = Date()) throws {
         let file = accountAuthFile(account)
         let trimmed = message.trimmingCharacters(in: .whitespacesAndNewlines)
         let clipped = String(trimmed.prefix(220))
@@ -293,7 +308,7 @@ actor CodexAuthService {
         )
     }
 
-    func updateLoginSuccess(for account: CodexAuthAccount, date: Date = Date()) throws {
+    public func updateLoginSuccess(for account: CodexAuthAccount, date: Date = Date()) throws {
         let file = accountAuthFile(account)
         try updateSyncMetadata(
             file: file,
@@ -305,12 +320,12 @@ actor CodexAuthService {
         )
     }
 
-    func currentAuthHashHex(for provider: Provider) -> String? {
+    public func currentAuthHashHex(for provider: Provider) -> String? {
         guard let raw = try? readAuthJSONString(from: provider) else { return nil }
         return CodexAuthAccount.hashHex(for: raw)
     }
 
-    func activeAccountId(for provider: Provider) async -> UUID? {
+    public func activeAccountId(for provider: Provider) async -> UUID? {
         let accounts = (try? await loadAccounts()) ?? []
         guard let authFile = authFile(for: provider) else {
             return activeAccountIdFromRegistry(for: provider, accounts: accounts)
@@ -338,7 +353,7 @@ actor CodexAuthService {
         return activeAccountIdFromRegistry(for: provider, accounts: accounts)
     }
 
-    func setActiveAccount(_ account: CodexAuthAccount, for provider: Provider) throws {
+    public func setActiveAccount(_ account: CodexAuthAccount, for provider: Provider) throws {
         var map = loadActiveAccountMap()
         map[provider.id] = account.id.uuidString
         try saveActiveAccountMap(map)
@@ -346,7 +361,7 @@ actor CodexAuthService {
 
     /// Sync token fields from the active `~/.codex/auth.json` into the matching snapshot under `~/.nolon/codex/auth/`.
     /// Returns the updated snapshot file when a change is applied.
-    func syncActiveAuthTokensIfNeeded(for provider: Provider) async -> STFile? {
+    public func syncActiveAuthTokensIfNeeded(for provider: Provider) async -> STFile? {
         guard let authFile = authFile(for: provider) else { return nil }
         guard authFile.isExists else { return nil }
 
@@ -377,7 +392,7 @@ actor CodexAuthService {
         return targetFile
     }
 
-    func activateAccount(_ account: CodexAuthAccount, for provider: Provider) throws {
+    public func activateAccount(_ account: CodexAuthAccount, for provider: Provider) throws {
         guard let authFile = authFile(for: provider) else { return }
         _ = authFile.parentFolder()?.createIfNotExists()
 
@@ -394,14 +409,20 @@ actor CodexAuthService {
         Self.logger.info("Activated Codex auth by writing clean auth.json for provider: \(provider.id, privacy: .public)")
     }
 
+    /// Activate snapshot into provider auth and persist active-account registry in one step.
+    public func activateAccountAndMarkActive(_ account: CodexAuthAccount, for provider: Provider) throws {
+        try activateAccount(account, for: provider)
+        try setActiveAccount(account, for: provider)
+    }
+
     // MARK: - CLI Login Flow
 
-    enum CLILoginError: LocalizedError, Sendable {
+    public enum CLILoginError: LocalizedError, Sendable {
         case codexHomeUnavailable
         case authFileNotFound
         case authFileInvalidEncoding
 
-        var errorDescription: String? {
+        public var errorDescription: String? {
             switch self {
             case .codexHomeUnavailable:
                 return "Codex home path is unavailable."
@@ -416,7 +437,7 @@ actor CodexAuthService {
     /// Prepare for running `codex login` in a terminal:
     /// - If `auth.json` is a symlink, remove it so `codex login` writes a fresh file.
     /// - If `auth.json` is a regular file, snapshot it into `~/.nolon/codex/auth/` and then remove it.
-    func prepareForCLILogin(provider: Provider, archiveAccountName: String?) async throws {
+    public func prepareForCLILogin(provider: Provider, archiveAccountName: String?) async throws {
         try await migrateLegacyIfNeeded()
 
         guard let codexHome = codexHomeFolder(for: provider) else { throw CLILoginError.codexHomeUnavailable }
@@ -447,7 +468,7 @@ actor CodexAuthService {
     /// After the user finishes `codex login`, call this to snapshot the freshly created `auth.json`
     /// into `~/.nolon/codex/auth/`, then sync provider `auth.json` and mark active in runtime registry.
     @discardableResult
-    func finalizeCLILogin(provider: Provider, newAccountName: String) async throws -> CodexAuthAccount {
+    public func finalizeCLILogin(provider: Provider, newAccountName: String) async throws -> CodexAuthAccount {
         guard let authFile = authFile(for: provider) else { throw CLILoginError.codexHomeUnavailable }
         guard authFile.isExists else { throw CLILoginError.authFileNotFound }
         let raw = try authFile.read()
@@ -539,7 +560,7 @@ actor CodexAuthService {
         try legacyFile.move(to: backupFile)
     }
 
-    nonisolated func deriveAccountName(fromAuthJSONString authJSONString: String) -> String {
+    public nonisolated func deriveAccountName(fromAuthJSONString authJSONString: String) -> String {
         let summary = CodexAuthSummary.fromJSONString(authJSONString)
         if let email = summary.email?.trimmingCharacters(in: .whitespacesAndNewlines),
            !email.isEmpty
@@ -552,7 +573,7 @@ actor CodexAuthService {
         return "account"
     }
 
-    nonisolated func deriveEmail(fromAuthJSONString authJSONString: String) -> String? {
+    public nonisolated func deriveEmail(fromAuthJSONString authJSONString: String) -> String? {
         guard let data = authJSONString.data(using: .utf8),
               let json = try? JSON(data: data)
         else { return nil }
@@ -560,7 +581,7 @@ actor CodexAuthService {
     }
 }
 
-private extension CodexAuthService {
+private extension CodexAuthManager {
     struct CodexAuthUsageCacheWrapper: Codable {
         let usageCache: CodexAuthUsageCache
 
@@ -782,13 +803,13 @@ private extension CodexAuthService {
         var accountObject = (nolonObject["account"] as? JSONObject) ?? [:]
 
         if let loginAt {
-            accountObject["lastLoginAt"] = Self.isoFormatter.string(from: loginAt)
+            accountObject["lastLoginAt"] = Self.makeISOFormatter().string(from: loginAt)
         }
         if let successAt {
-            accountObject["lastSyncSucceededAt"] = Self.isoFormatter.string(from: successAt)
+            accountObject["lastSyncSucceededAt"] = Self.makeISOFormatter().string(from: successAt)
         }
         if let failureAt {
-            accountObject["lastSyncFailedAt"] = Self.isoFormatter.string(from: failureAt)
+            accountObject["lastSyncFailedAt"] = Self.makeISOFormatter().string(from: failureAt)
         }
         if let failureMessage {
             accountObject["lastSyncFailureMessage"] = failureMessage
@@ -853,10 +874,10 @@ private extension CodexAuthService {
             changed = true
         }
 
-        let existingCreatedAt = getString(rootObject, path: ["nolon", "account", "createdAt"]).flatMap { Self.isoFormatter.date(from: $0) }
+        let existingCreatedAt = getString(rootObject, path: ["nolon", "account", "createdAt"]).flatMap { Self.makeISOFormatter().date(from: $0) }
         let createdAt = existingCreatedAt ?? fallbackCreatedAt
         if existingCreatedAt == nil {
-            setValue(Self.isoFormatter.string(from: createdAt), path: ["nolon", "account", "createdAt"], dict: &rootObject)
+            setValue(Self.makeISOFormatter().string(from: createdAt), path: ["nolon", "account", "createdAt"], dict: &rootObject)
             changed = true
         }
 
@@ -909,7 +930,7 @@ private extension CodexAuthService {
 
         setValue(preferredId.uuidString, path: ["nolon", "account", "id"], dict: &rootObject)
         setValue(preferredName, path: ["nolon", "account", "name"], dict: &rootObject)
-        setValue(Self.isoFormatter.string(from: preferredCreatedAt), path: ["nolon", "account", "createdAt"], dict: &rootObject)
+        setValue(Self.makeISOFormatter().string(from: preferredCreatedAt), path: ["nolon", "account", "createdAt"], dict: &rootObject)
         setValue(relativeAuthPath, path: ["nolon", "account", "relativeAuthPath"], dict: &rootObject)
 
         if let email = deriveEmail(from: rootJSON) {
@@ -988,7 +1009,7 @@ private extension CodexAuthService {
             changed = true
         }
         if getString(rootObject, path: ["nolon", "account", "createdAt"]) == nil {
-            setValue(Self.isoFormatter.string(from: preferredCreatedAt), path: ["nolon", "account", "createdAt"], dict: &rootObject)
+            setValue(Self.makeISOFormatter().string(from: preferredCreatedAt), path: ["nolon", "account", "createdAt"], dict: &rootObject)
             changed = true
         }
         if getString(rootObject, path: ["nolon", "account", "relativeAuthPath"]) == nil {

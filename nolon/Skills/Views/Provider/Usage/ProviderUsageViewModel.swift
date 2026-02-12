@@ -14,10 +14,14 @@ import OSLog
 @Observable
 final class ProviderUsageViewModel {
     private static let logger = Logger(subsystem: "com.nolon", category: "ProviderUsageViewModel")
+    typealias CodexActivateAction = @MainActor @Sendable (CodexAuthAccount, Provider) async throws -> CodexAuthActivationResult
+    typealias AsyncVoidAction = @MainActor @Sendable () async -> Void
 
     private let service = UsageMonitorService()
     private let settingsStore = UsageMonitorSettingsStore.shared
-    private let codexAuthService = CodexAuthService()
+    private let codexAuthManager = CodexAuthManager()
+    private let codexActivateAction: CodexActivateAction
+    private let postActivationLoadAction: AsyncVoidAction?
     @ObservationIgnored private var usageWatcher: UsageMonitorFileWatcher? = nil
 
     let provider: Provider
@@ -59,7 +63,7 @@ final class ProviderUsageViewModel {
 
     private var cliLoginTask: Task<Void, Never>?
     private var cliLoginSessionId: UUID?
-    private var codexAuthChangeSuppressions: [String: Date] = [:]
+    private var codexAuthChangeSuppressor = CodexAuthChangeSuppressionStore()
     private let codexAuthChangeSuppressionWindow: TimeInterval = 2.5
     private var codexUsageCacheWriteCount = 0
     private var hasTriggeredAppearRefresh = false
@@ -67,13 +71,21 @@ final class ProviderUsageViewModel {
     private var lastUsageRefreshAt: Date?
     private let cliLoginTimeoutSeconds: TimeInterval = 10 * 60
 
-    init(provider: Provider) {
+    init(
+        provider: Provider,
+        codexActivateAction: CodexActivateAction? = nil,
+        postActivationLoadAction: AsyncVoidAction? = nil
+    ) {
         self.provider = provider
         self.usageProvider = ProviderUsageViewModel.mapToUsageProvider(provider)
         let initialSettings = settingsStore.settings(for: provider)
         self.settings = initialSettings
         self.codexCostWindowDays = initialSettings.costWindowDays
         self.isMultiAccountEnabled = settingsStore.isMultiAccountEnabled(for: provider)
+        self.codexActivateAction = codexActivateAction ?? { account, provider in
+            try await CodexAuthActivationCoordinator.shared.activate(account: account, provider: provider)
+        }
+        self.postActivationLoadAction = postActivationLoadAction
         self.updateSupportedModes()
         let watcher = UsageMonitorFileWatcher { [weak self] change in
             Task { await self?.handleUsageFileChange(change) }
@@ -196,10 +208,10 @@ final class ProviderUsageViewModel {
             return
         }
         do {
-            codexAuthFilePath = await codexAuthService.authFile(for: provider)?.url.path
-            currentCodexAuthHashHex = await codexAuthService.currentAuthHashHex(for: provider)
+            codexAuthFilePath = await codexAuthManager.authFile(for: provider)?.url.path
+            currentCodexAuthHashHex = await codexAuthManager.currentAuthHashHex(for: provider)
 
-            let loadedAccounts = try await codexAuthService.loadAccounts()
+            let loadedAccounts = try await codexAuthManager.loadAccounts()
 
             guard isMultiAccountEnabled else {
                 if let outcome = outcomes.first(where: { outcome in
@@ -218,7 +230,7 @@ final class ProviderUsageViewModel {
 
             codexAccounts = loadedAccounts
             codexAccountSummaries = loadCodexAccountSummaries(accounts: codexAccounts)
-            activeCodexAccountId = await codexAuthService.activeAccountId(for: provider)
+            activeCodexAccountId = await codexAuthManager.activeAccountId(for: provider)
             codexAccountOutcomes = await loadCachedCodexAccountOutcomes(accounts: codexAccounts)
 
             Task { [weak self] in
@@ -269,10 +281,10 @@ final class ProviderUsageViewModel {
 
         if usageProvider == .codex {
             if isMultiAccountEnabled {
-                paths.append(codexAuthService.nolonCodexAuthFolder().url.path)
+                paths.append(codexAuthManager.nolonCodexAuthFolder().url.path)
             }
             if !isMultiAccountEnabled,
-               let authFile = await codexAuthService.authFile(for: provider) {
+               let authFile = await codexAuthManager.authFile(for: provider) {
                 paths.append(authFile.url.path)
             }
         }
@@ -307,12 +319,12 @@ final class ProviderUsageViewModel {
             return
         }
 
-        let authFolderPath = codexAuthService.nolonCodexAuthFolder().url.standardizedFileURL.path
+        let authFolderPath = codexAuthManager.nolonCodexAuthFolder().url.standardizedFileURL.path
         let authFilePath: String? = await {
             if let current = codexAuthFilePath {
                 return normalizedPath(current)
             }
-            if let refreshed = await codexAuthService.authFile(for: provider)?.url.path {
+            if let refreshed = await codexAuthManager.authFile(for: provider)?.url.path {
                 codexAuthFilePath = refreshed
                 return normalizedPath(refreshed)
             }
@@ -327,15 +339,18 @@ final class ProviderUsageViewModel {
         )
         guard isAuthFolderChange || isAuthFileChange else { return }
 
-        if isAuthFolderChange, change.kind == .renamed, !isAuthFileChange {
-            let fileName = (changedPath as NSString).lastPathComponent
-            if isKnownCodexAuthFile(named: fileName) {
-                Self.logger.debug("Ignored auth rename for known account file. path=\(changedPath, privacy: .public)")
-                return
-            }
+        if CodexAuthEventPolicy.shouldIgnoreKnownAuthRename(
+            changedPath: changedPath,
+            kind: change.kind == .renamed ? .renamed : .other,
+            isAuthFolderChange: isAuthFolderChange,
+            isAuthFileChange: isAuthFileChange,
+            knownAuthFileNames: Set(codexAccounts.map { ($0.relativeAuthPath as NSString).lastPathComponent })
+        ) {
+            Self.logger.debug("Ignored auth rename for known account file. path=\(changedPath, privacy: .public)")
+            return
         }
 
-        if isAuthFileChange, let updatedFile = await codexAuthService.syncActiveAuthTokensIfNeeded(for: provider) {
+        if isAuthFileChange, let updatedFile = await codexAuthManager.syncActiveAuthTokensIfNeeded(for: provider) {
             markAuthCacheWrite(at: updatedFile.url)
         }
 
@@ -364,13 +379,13 @@ final class ProviderUsageViewModel {
 
     private func reloadCodexFromDisk(refreshUsage: Bool) async {
         do {
-            codexAuthFilePath = await codexAuthService.authFile(for: provider)?.url.path
-            currentCodexAuthHashHex = await codexAuthService.currentAuthHashHex(for: provider)
+            codexAuthFilePath = await codexAuthManager.authFile(for: provider)?.url.path
+            currentCodexAuthHashHex = await codexAuthManager.currentAuthHashHex(for: provider)
 
-            let loadedAccounts = try await codexAuthService.loadAccounts()
+            let loadedAccounts = try await codexAuthManager.loadAccounts()
             codexAccounts = loadedAccounts
             codexAccountSummaries = loadCodexAccountSummaries(accounts: codexAccounts)
-            activeCodexAccountId = await codexAuthService.activeAccountId(for: provider)
+            activeCodexAccountId = await codexAuthManager.activeAccountId(for: provider)
             codexAccountOutcomes = await loadCachedCodexAccountOutcomes(accounts: codexAccounts)
 
             Self.logger.debug(
@@ -398,12 +413,6 @@ final class ProviderUsageViewModel {
             return true
         }
         return false
-    }
-
-    private func isKnownCodexAuthFile(named fileName: String) -> Bool {
-        guard !fileName.isEmpty else { return false }
-        let relative = "auth/\(fileName)"
-        return codexAccounts.contains { $0.relativeAuthPath == relative }
     }
 
     private func activeCodexAccountForRefresh() -> CodexAuthAccount? {
@@ -446,7 +455,7 @@ final class ProviderUsageViewModel {
                 lastUsed: nil
             )
 
-            if let cache = try? await codexAuthService.loadUsageCache(for: account) {
+            if let cache = try? await codexAuthManager.loadUsageCache(for: account) {
                 if let credits = cache.credits, !credits.remaining.isNaN {
                     creditsRefreshedAt[account.id] = cache.creditsRefreshedAt ?? cache.cachedAt
                 }
@@ -547,7 +556,7 @@ final class ProviderUsageViewModel {
             let authJSONString: String
             switch addAccountSource {
             case .current:
-                guard let raw = try await codexAuthService.readAuthJSONString(from: provider) else {
+                guard let raw = try await codexAuthManager.readAuthJSONString(from: provider) else {
                     alertTitle = NSLocalizedString("codex.accounts.add.title", value: "Add Account", comment: "Add account title")
                     alertMessage = NSLocalizedString("codex.accounts.current.none", value: "Current: No auth.json found.", comment: "Current auth summary")
                     return
@@ -564,8 +573,8 @@ final class ProviderUsageViewModel {
                 return
             }
 
-            let finalName = codexAuthService.deriveAccountName(fromAuthJSONString: authJSONString)
-            _ = try await codexAuthService.addAccount(name: finalName, authJSONString: authJSONString)
+            let finalName = codexAuthManager.deriveAccountName(fromAuthJSONString: authJSONString)
+            _ = try await codexAuthManager.addAccount(name: finalName, authJSONString: authJSONString)
             await load()
         } catch {
             alertTitle = NSLocalizedString("codex.accounts.add.title", value: "Add Account", comment: "Add account title")
@@ -702,29 +711,11 @@ final class ProviderUsageViewModel {
                 return
             }
 
-            let email = codexAuthService.deriveEmail(fromAuthJSONString: raw)
-            var matched: CodexAuthAccount?
-            if let email {
-                matched = try await codexAuthService.findAccountByEmail(email)
-            } else if let preferredId = cliLoginPreferredAccountId,
-                      let preferred = codexAccounts.first(where: { $0.id == preferredId }) {
-                matched = preferred
-            } else {
-                matched = try await codexAuthService.matchAccountByAuthData(data)
-            }
-
-            let account: CodexAuthAccount
-            if let matched {
-                try await codexAuthService.updateAccount(matched, authJSONString: raw)
-                account = matched
-            } else {
-                let finalName = codexAuthService.deriveAccountName(fromAuthJSONString: raw)
-                account = try await codexAuthService.addAccount(name: finalName, authJSONString: raw)
-            }
-
-            let loginAt = Date()
-            try? await codexAuthService.updateLoginSuccess(for: account, date: loginAt)
-            try? await codexAuthService.updateSyncSuccess(for: account, date: loginAt)
+            let account = try await codexAuthManager.recordCLILoginSnapshot(
+                authJSONString: raw,
+                preferredAccountID: cliLoginPreferredAccountId,
+                loginAt: Date()
+            )
             Self.logger.info("CLI login completed; account updated without activation. accountId=\(account.id.uuidString, privacy: .public)")
 
             cliLoginHandle?.cancel()
@@ -763,9 +754,16 @@ final class ProviderUsageViewModel {
     func confirmActivate() async {
         guard let account = pendingActivateCodexAccount else { return }
         do {
-            try await codexAuthService.activateAccount(account, for: provider)
+            let activation = try await codexActivateAction(account, provider)
+            if let runtimeError = activation.runtimeErrorDescription {
+                Self.logger.error("Codex runtime switch after activation failed: \(runtimeError, privacy: .public)")
+            }
             pendingActivateCodexAccount = nil
-            await load()
+            if let postActivationLoadAction {
+                await postActivationLoadAction()
+            } else {
+                await load()
+            }
         } catch {
             alertTitle = NSLocalizedString("codex.accounts.title", value: "Accounts", comment: "Codex accounts title")
             alertMessage = NSLocalizedString("codex.accounts.error.activate", value: "Failed to activate this account.", comment: "Error message")
@@ -777,7 +775,7 @@ final class ProviderUsageViewModel {
             return account.id == activeCodexAccountId
         }
         guard let currentCodexAuthHashHex else { return false }
-        let file = codexAuthService.accountAuthFile(relativeAuthPath: account.relativeAuthPath)
+        let file = codexAuthManager.accountAuthFile(relativeAuthPath: account.relativeAuthPath)
         guard let data = try? file.data(),
               let raw = String(data: data, encoding: .utf8)
         else { return false }
@@ -788,7 +786,7 @@ final class ProviderUsageViewModel {
         var summaries: [UUID: CodexAuthSummary] = [:]
         summaries.reserveCapacity(accounts.count)
         for account in accounts {
-            let file = codexAuthService.accountAuthFile(relativeAuthPath: account.relativeAuthPath)
+            let file = codexAuthManager.accountAuthFile(relativeAuthPath: account.relativeAuthPath)
             if let data = try? file.data() {
                 summaries[account.id] = CodexAuthSummary.fromJSONData(data)
             }
@@ -801,9 +799,9 @@ final class ProviderUsageViewModel {
         accounts: [CodexAuthAccount]
     ) async -> ProviderAccountUsageOutcome {
         guard case let .success(result) = outcome.outcome.result else { return outcome }
-        guard let activeId = await codexAuthService.activeAccountId(for: provider),
+        guard let activeId = await codexAuthManager.activeAccountId(for: provider),
               let activeAccount = accounts.first(where: { $0.id == activeId }),
-              let cache = try? await codexAuthService.loadUsageCache(for: activeAccount)
+              let cache = try? await codexAuthManager.loadUsageCache(for: activeAccount)
         else { return outcome }
 
         let mergedUsage = mergeUsageSnapshot(live: result.usage, cached: cache.usage)
@@ -849,7 +847,7 @@ final class ProviderUsageViewModel {
 
     func revealCodexAccountInFinder(id: UUID) {
         guard let account = codexAccounts.first(where: { $0.id == id }) else { return }
-        let file = codexAuthService.accountAuthFile(relativeAuthPath: account.relativeAuthPath)
+        let file = codexAuthManager.accountAuthFile(relativeAuthPath: account.relativeAuthPath)
         NSWorkspace.shared.activateFileViewerSelecting([file.url])
     }
 
@@ -891,7 +889,7 @@ final class ProviderUsageViewModel {
 
         if case let .success(result) = outcome.outcome.result {
             let now = Date()
-            try? await codexAuthService.updateSyncSuccess(for: account, date: now)
+            try? await codexAuthManager.updateSyncSuccess(for: account, date: now)
             let creditsRefreshedAt: Date? = {
                 guard let credits = result.credits, !credits.remaining.isNaN else { return nil }
                 return now
@@ -912,11 +910,11 @@ final class ProviderUsageViewModel {
                     credits: result.credits,
                     cost: result.cost
                 )
-                let targetFile = codexAuthService.accountAuthFile(relativeAuthPath: account.relativeAuthPath)
+                let targetFile = codexAuthManager.accountAuthFile(relativeAuthPath: account.relativeAuthPath)
                 markAuthCacheWrite(at: targetFile.url)
                 codexUsageCacheWriteCount += 1
                 defer { codexUsageCacheWriteCount = max(0, codexUsageCacheWriteCount - 1) }
-                try await codexAuthService.storeUsageCache(cache, for: account)
+                try await codexAuthManager.storeUsageCache(cache, for: account)
             } catch {
                 // Best-effort cache write; ignore.
             }
@@ -943,7 +941,7 @@ final class ProviderUsageViewModel {
         } else if case let .failure(error) = outcome.outcome.result {
             let now = Date()
             let message = error.localizedDescription
-            try? await codexAuthService.updateSyncFailure(for: account, message: message, date: now)
+            try? await codexAuthManager.updateSyncFailure(for: account, message: message, date: now)
             var summary = codexAccountSummaries[accountId] ?? CodexAuthSummary()
             summary.lastSyncFailedAt = now
             summary.lastSyncFailureMessage = message
@@ -957,7 +955,7 @@ final class ProviderUsageViewModel {
     ) async {
         guard case let .success(result) = outcome.outcome.result else { return }
         guard !accounts.isEmpty else { return }
-        guard let activeId = await codexAuthService.activeAccountId(for: provider),
+        guard let activeId = await codexAuthManager.activeAccountId(for: provider),
               let activeAccount = accounts.first(where: { $0.id == activeId })
         else { return }
 
@@ -982,31 +980,30 @@ final class ProviderUsageViewModel {
                 credits: result.credits,
                 cost: result.cost
             )
-            let targetFile = codexAuthService.accountAuthFile(relativeAuthPath: activeAccount.relativeAuthPath)
+            let targetFile = codexAuthManager.accountAuthFile(relativeAuthPath: activeAccount.relativeAuthPath)
             markAuthCacheWrite(at: targetFile.url)
             codexUsageCacheWriteCount += 1
             defer { codexUsageCacheWriteCount = max(0, codexUsageCacheWriteCount - 1) }
-            try await codexAuthService.storeUsageCache(cache, for: activeAccount)
+            try await codexAuthManager.storeUsageCache(cache, for: activeAccount)
         } catch {
             // Best-effort cache write; ignore.
         }
     }
 
     private func markAuthCacheWrite(at url: URL) {
-        let expiry = Date().addingTimeInterval(codexAuthChangeSuppressionWindow)
         let filePath = url.standardizedFileURL.path
-        codexAuthChangeSuppressions[filePath] = expiry
+        let folderPath = codexAuthManager.nolonCodexAuthFolder().url.standardizedFileURL.path
+        codexAuthChangeSuppressor.mark(
+            filePath: filePath,
+            folderPath: folderPath,
+            ttl: codexAuthChangeSuppressionWindow
+        )
 
-        let folderPath = codexAuthService.nolonCodexAuthFolder().url.standardizedFileURL.path
-        codexAuthChangeSuppressions[folderPath] = expiry
-
-        Self.logger.debug("Auth cache write suppression set. file=\(filePath, privacy: .public) until=\(String(describing: expiry), privacy: .public)")
+        Self.logger.debug("Auth cache write suppression set. file=\(filePath, privacy: .public)")
     }
 
     private func shouldIgnoreAuthChange(path: String, kind: STPathChangeKind) -> Bool {
-        let now = Date()
-        codexAuthChangeSuppressions = codexAuthChangeSuppressions.filter { $0.value > now }
-        let authFolderPath = codexAuthService.nolonCodexAuthFolder().url.standardizedFileURL.path
+        let authFolderPath = codexAuthManager.nolonCodexAuthFolder().url.standardizedFileURL.path
         let isAuthFolderChange = path == authFolderPath || path.hasPrefix(authFolderPath + "/")
         if isAuthFolderChange {
             if codexUsageCacheWriteCount > 0 {
@@ -1019,15 +1016,9 @@ final class ProviderUsageViewModel {
             }
         }
 
-        guard !codexAuthChangeSuppressions.isEmpty else { return false }
-
-        if let expiry = codexAuthChangeSuppressions[path], expiry > now {
+        if codexAuthChangeSuppressor.shouldSuppress(path: path) {
             Self.logger.debug("Ignoring auth change (suppressed). kind=\(String(describing: kind), privacy: .public) path=\(path, privacy: .public)")
             return true
-        }
-
-        for (key, expiry) in codexAuthChangeSuppressions where expiry > now {
-            if path.hasPrefix(key + "/") { return true }
         }
 
         return false
@@ -1089,9 +1080,9 @@ final class ProviderUsageViewModel {
             try FileManager.default.createDirectory(at: tempRoot, withIntermediateDirectories: true, attributes: nil)
             defer { try? FileManager.default.removeItem(at: tempRoot) }
             let authURL = tempRoot.appendingPathComponent("auth.json")
-            let file = codexAuthService.accountAuthFile(relativeAuthPath: account.relativeAuthPath)
+            let file = codexAuthManager.accountAuthFile(relativeAuthPath: account.relativeAuthPath)
             let data = try file.data()
-            let cleanData = CodexAuthService.cleanedAuthJSONData(from: data) ?? data
+            let cleanData = CodexAuthManager.cleanedAuthJSONData(from: data) ?? data
             try STFile(authURL).overlay(with: cleanData)
 
             var environment = ProcessInfo.processInfo.environment

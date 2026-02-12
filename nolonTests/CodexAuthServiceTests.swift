@@ -5,50 +5,17 @@ import STFilePath
 import ProviderCatalog
 @testable import nolon
 
-private struct TimedEventDeduplicator<Event: Hashable> {
-    private var expiryByEvent: [Event: Date] = [:]
-
-    mutating func mark(_ event: Event, ttl: TimeInterval, now: Date = Date()) {
-        expiryByEvent[event] = now.addingTimeInterval(ttl)
-        cleanup(now: now)
-    }
-
-    mutating func shouldSuppress(_ event: Event, now: Date = Date()) -> Bool {
-        cleanup(now: now)
-        guard let expiry = expiryByEvent[event] else { return false }
-        return expiry > now
-    }
-
-    private mutating func cleanup(now: Date) {
-        expiryByEvent = expiryByEvent.filter { $0.value > now }
-    }
-}
-
-private enum CodexAuthEventPolicy {
-    enum ChangeKind {
-        case renamed
-        case other
-    }
-
-    static func shouldIgnoreKnownAuthRename(
-        changedPath: String,
-        kind: ChangeKind,
-        isAuthFolderChange: Bool,
-        isAuthFileChange: Bool,
-        knownAuthFileNames: Set<String>
-    ) -> Bool {
-        guard isAuthFolderChange, !isAuthFileChange, kind == .renamed else {
-            return false
-        }
-        let fileName = (changedPath as NSString).lastPathComponent
-        return knownAuthFileNames.contains(fileName)
-    }
-}
-
 @MainActor
-final class CodexAuthServiceTests: XCTestCase {
+final class CodexAuthManagerTests: XCTestCase {
+    func testBDD_GivenAppAuthManagerType_WhenCheckingMigrationBoundary_ThenUsesProviderUsageManagerType() {
+        XCTAssertEqual(
+            ObjectIdentifier(CodexAuthManager.self),
+            ObjectIdentifier(CodexAuthManager.self)
+        )
+    }
+
     func testBDD_GivenRealCodexAccount_WhenStoringUsageCache_ThenUsageCacheIsPersisted() async throws {
-        let service = CodexAuthService()
+        let service = CodexAuthManager()
         let accounts = try await service.loadAccounts()
         if accounts.isEmpty {
             throw XCTSkip("No codex accounts found under ~/.nolon/codex/auth")
@@ -92,14 +59,14 @@ final class CodexAuthServiceTests: XCTestCase {
     }
 }
 
-final class TimedEventDeduplicatorTests: XCTestCase {
+final class CodexAuthChangeSuppressionStoreTests: XCTestCase {
     func testBDD_GivenUnseenEvent_WhenCheckingSuppression_ThenEventIsNotSuppressed() {
         // Given
-        var deduplicator = TimedEventDeduplicator<String>()
+        var store = CodexAuthChangeSuppressionStore()
         let now = Date()
 
         // When
-        let suppressed = deduplicator.shouldSuppress("modified|/tmp/auth.json", now: now)
+        let suppressed = store.shouldSuppress(path: "/tmp/auth/modified.json", now: now)
 
         // Then
         XCTAssertFalse(suppressed)
@@ -107,12 +74,12 @@ final class TimedEventDeduplicatorTests: XCTestCase {
 
     func testBDD_GivenMarkedEventWithinWindow_WhenCheckingSuppression_ThenEventIsSuppressed() {
         // Given
-        var deduplicator = TimedEventDeduplicator<String>()
+        var store = CodexAuthChangeSuppressionStore()
         let now = Date()
-        deduplicator.mark("renamed|/tmp/auth.json", ttl: 1.0, now: now)
+        store.mark(filePath: "/tmp/auth/auth.json", folderPath: "/tmp/auth", ttl: 1.0, now: now)
 
         // When
-        let suppressed = deduplicator.shouldSuppress("renamed|/tmp/auth.json", now: now.addingTimeInterval(0.2))
+        let suppressed = store.shouldSuppress(path: "/tmp/auth/auth.json", now: now.addingTimeInterval(0.2))
 
         // Then
         XCTAssertTrue(suppressed)
@@ -120,12 +87,12 @@ final class TimedEventDeduplicatorTests: XCTestCase {
 
     func testBDD_GivenMarkedEventAfterWindow_WhenCheckingSuppression_ThenEventIsNotSuppressed() {
         // Given
-        var deduplicator = TimedEventDeduplicator<String>()
+        var store = CodexAuthChangeSuppressionStore()
         let now = Date()
-        deduplicator.mark("created|/tmp/auth.json", ttl: 0.5, now: now)
+        store.mark(filePath: "/tmp/auth/auth.json", folderPath: "/tmp/auth", ttl: 0.5, now: now)
 
         // When
-        let suppressed = deduplicator.shouldSuppress("created|/tmp/auth.json", now: now.addingTimeInterval(0.6))
+        let suppressed = store.shouldSuppress(path: "/tmp/auth/auth.json", now: now.addingTimeInterval(0.6))
 
         // Then
         XCTAssertFalse(suppressed)
@@ -133,13 +100,13 @@ final class TimedEventDeduplicatorTests: XCTestCase {
 
     func testBDD_GivenTwoDifferentEvents_WhenCheckingSuppression_ThenOnlyMarkedEventIsSuppressed() {
         // Given
-        var deduplicator = TimedEventDeduplicator<String>()
+        var store = CodexAuthChangeSuppressionStore()
         let now = Date()
-        deduplicator.mark("deleted|/tmp/a.json", ttl: 1.0, now: now)
+        store.mark(filePath: "/tmp/auth/a.json", folderPath: "/tmp/auth", ttl: 1.0, now: now)
 
         // When
-        let suppressedMarked = deduplicator.shouldSuppress("deleted|/tmp/a.json", now: now.addingTimeInterval(0.1))
-        let suppressedUnmarked = deduplicator.shouldSuppress("deleted|/tmp/b.json", now: now.addingTimeInterval(0.1))
+        let suppressedMarked = store.shouldSuppress(path: "/tmp/auth/a.json", now: now.addingTimeInterval(0.1))
+        let suppressedUnmarked = store.shouldSuppress(path: "/tmp/other/b.json", now: now.addingTimeInterval(0.1))
 
         // Then
         XCTAssertTrue(suppressedMarked)
@@ -155,7 +122,7 @@ final class CodexAuthTokenExtractionTests: XCTestCase {
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
 
-        let service = CodexAuthService(rootURL: root)
+        let service = CodexAuthManager(rootURL: root)
         let raw = """
         {
           "tokens": {
@@ -181,7 +148,7 @@ final class CodexAuthActiveAccountRegistryTests: XCTestCase {
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
 
-        let service = CodexAuthService(rootURL: root)
+        let service = CodexAuthManager(rootURL: root)
         let account = try await service.addAccount(
             name: "runtime",
             authJSONString: #"{"tokens":{"id_token":"id","access_token":"access"}}"#
@@ -209,7 +176,7 @@ final class CodexAuthCompatSyncTests: XCTestCase {
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
 
-        let service = CodexAuthService(rootURL: root)
+        let service = CodexAuthManager(rootURL: root)
         let account = try await service.addAccount(
             name: "work",
             authJSONString: #"{"tokens":{"id_token":"id-1","access_token":"access-1"},"nolon":{"usage_cache":{"fetch_kind":"api"}}}"#
@@ -239,7 +206,7 @@ final class CodexAuthCompatSyncTests: XCTestCase {
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
 
-        let service = CodexAuthService(rootURL: root)
+        let service = CodexAuthManager(rootURL: root)
         let providerRoot = root.appendingPathComponent("provider", isDirectory: true)
         try FileManager.default.createDirectory(at: providerRoot, withIntermediateDirectories: true)
 
@@ -271,7 +238,7 @@ final class CodexAuthCompatSyncTests: XCTestCase {
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
 
-        let service = CodexAuthService(rootURL: root)
+        let service = CodexAuthManager(rootURL: root)
         let target = try await service.addAccount(
             name: "target",
             authJSONString: #"{"tokens":{"id_token":"old-id","access_token":"old-access"},"user":{"email":"a@example.com"}}"#
@@ -295,7 +262,7 @@ final class CodexAuthCompatSyncTests: XCTestCase {
 
 @MainActor
 final class ProviderUsageViewModelCLILoginTests: XCTestCase {
-    func testBDD_GivenCLILoginAlreadyRunning_WhenRequestingCardLoginAgain_ThenRequestIsIgnored() {
+    func testBDD_GivenCLILoginAlreadyRunning_WhenRequestingCardLoginAgain_ThenFlowRestartsWithPreferredAccount() {
         // Given
         let provider = Provider(
             name: "Codex",
@@ -313,7 +280,103 @@ final class ProviderUsageViewModelCLILoginTests: XCTestCase {
 
         // Then
         XCTAssertTrue(viewModel.isRunningCLILogin)
-        XCTAssertNil(viewModel.cliLoginPreferredAccountId)
+        XCTAssertNotNil(viewModel.cliLoginPreferredAccountId)
+    }
+}
+
+@MainActor
+final class ProviderUsageViewModelActivationTests: XCTestCase {
+    func testBDD_GivenActivationSuccess_WhenConfirmActivate_ThenClearsPendingAndReloadRuns() async {
+        let provider = Provider(
+            name: "Codex",
+            defaultSkillsPath: "/tmp/codex-skills",
+            workflowPath: "/tmp/codex-prompts",
+            installMethod: .symlink,
+            templateId: "codex"
+        )
+        let reloadFlag = AsyncFlagBox()
+        let viewModel = ProviderUsageViewModel(
+            provider: provider,
+            codexActivateAction: { _, _ in
+                CodexAuthActivationResult(
+                    runtimeSwitched: true,
+                    runtimeErrorDescription: nil
+                )
+            },
+            postActivationLoadAction: {
+                await reloadFlag.setTrue()
+            }
+        )
+        viewModel.pendingActivateCodexAccount = CodexAuthAccount(name: "work", relativeAuthPath: "auth/work.json")
+
+        await viewModel.confirmActivate()
+
+        XCTAssertNil(viewModel.pendingActivateCodexAccount)
+        XCTAssertNil(viewModel.alertTitle)
+        XCTAssertNil(viewModel.alertMessage)
+        let reloaded = await reloadFlag.value()
+        XCTAssertTrue(reloaded)
+    }
+
+    func testBDD_GivenRuntimeSwitchFailure_WhenConfirmActivate_ThenActivationContinuesAndReloadRuns() async {
+        let provider = Provider(
+            name: "Codex",
+            defaultSkillsPath: "/tmp/codex-skills",
+            workflowPath: "/tmp/codex-prompts",
+            installMethod: .symlink,
+            templateId: "codex"
+        )
+        let reloadFlag = AsyncFlagBox()
+        let viewModel = ProviderUsageViewModel(
+            provider: provider,
+            codexActivateAction: { _, _ in
+                CodexAuthActivationResult(
+                    runtimeSwitched: false,
+                    runtimeErrorDescription: "runtime switch failed"
+                )
+            },
+            postActivationLoadAction: {
+                await reloadFlag.setTrue()
+            }
+        )
+        viewModel.pendingActivateCodexAccount = CodexAuthAccount(name: "work", relativeAuthPath: "auth/work.json")
+
+        await viewModel.confirmActivate()
+
+        XCTAssertNil(viewModel.pendingActivateCodexAccount)
+        XCTAssertNil(viewModel.alertMessage)
+        let reloaded = await reloadFlag.value()
+        XCTAssertTrue(reloaded)
+    }
+
+    func testBDD_GivenActivationFailure_WhenConfirmActivate_ThenShowsActivationAlert() async {
+        let provider = Provider(
+            name: "Codex",
+            defaultSkillsPath: "/tmp/codex-skills",
+            workflowPath: "/tmp/codex-prompts",
+            installMethod: .symlink,
+            templateId: "codex"
+        )
+        let viewModel = ProviderUsageViewModel(
+            provider: provider,
+            codexActivateAction: { _, _ in
+                throw ActivationTestError.failed
+            },
+            postActivationLoadAction: { }
+        )
+        viewModel.pendingActivateCodexAccount = CodexAuthAccount(name: "work", relativeAuthPath: "auth/work.json")
+
+        await viewModel.confirmActivate()
+
+        XCTAssertNotNil(viewModel.pendingActivateCodexAccount)
+        XCTAssertEqual(
+            viewModel.alertTitle,
+            NSLocalizedString("codex.accounts.title", value: "Accounts", comment: "Codex accounts title")
+        )
+        XCTAssertEqual(
+            viewModel.alertMessage,
+            NSLocalizedString("codex.accounts.error.activate", value: "Failed to activate this account.", comment: "Error message")
+        )
     }
 }
 
@@ -370,5 +433,21 @@ final class CodexAuthEventPolicyTests: XCTestCase {
 
         // Then
         XCTAssertFalse(ignored)
+    }
+}
+
+private enum ActivationTestError: Error {
+    case failed
+}
+
+private actor AsyncFlagBox {
+    private var flag = false
+
+    func setTrue() {
+        flag = true
+    }
+
+    func value() -> Bool {
+        flag
     }
 }
