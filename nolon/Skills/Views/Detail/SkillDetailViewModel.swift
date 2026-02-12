@@ -3,6 +3,7 @@ import ProviderCatalog
 import MarkdownUI
 import Observation
 import STFilePath
+import OSLog
 
 /// Model representing a file in the skill directory
 struct SkillFile: Identifiable, Hashable {
@@ -22,6 +23,8 @@ struct SkillFile: Identifiable, Hashable {
 @MainActor
 @Observable
 final class SkillDetailViewModel {
+    private static let logger = Logger(subsystem: "nolon", category: "SkillDetail")
+
     // MARK: - State
     var skill: Skill
     var files: [SkillFile] = []
@@ -124,7 +127,7 @@ final class SkillDetailViewModel {
             // Update state safely
             await checkInstallationStatus(providers: [provider])
         } catch {
-            print("Failed to toggle installation for \(provider.name): \(error)")
+            Self.logger.error("Failed to toggle installation for \(provider.name, privacy: .public): \(error.localizedDescription, privacy: .public)")
         }
     }
     
@@ -148,7 +151,7 @@ final class SkillDetailViewModel {
         do {
             try installer.installWorkflow(skill: skill, to: provider)
         } catch {
-            print("Failed to create workflow: \(error)")
+            Self.logger.error("Failed to create workflow for \(provider.name, privacy: .public): \(error.localizedDescription, privacy: .public)")
         }
     }
     
@@ -156,7 +159,7 @@ final class SkillDetailViewModel {
         do {
             try installer.uninstallWorkflow(skill: skill, from: provider)
         } catch {
-            print("Failed to delete workflow: \(error)")
+            Self.logger.error("Failed to delete workflow for \(provider.name, privacy: .public): \(error.localizedDescription, privacy: .public)")
         }
     }
 }

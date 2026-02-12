@@ -1,5 +1,6 @@
 import SwiftUI
 import STJSON
+import OSLog
 
 /// Remote 内容 Tab 类型 - 可扩展设计
 enum RemoteContentTabType: String, CaseIterable, Identifiable {
@@ -30,6 +31,8 @@ enum RemoteContentTabType: String, CaseIterable, Identifiable {
 @MainActor
 @Observable
 final class RemoteContentTabViewModel {
+    private static let logger = Logger(subsystem: "nolon", category: "RemoteContentTab")
+
     var skillsCount: Int = 0
     var workflowsCount: Int = 0
     var mcpsCount: Int = 0
@@ -113,7 +116,7 @@ final class RemoteContentTabViewModel {
                 }
             }
         } catch {
-            print("Failed to count skills: \(error)")
+            Self.logger.error("Failed to count remote items: \(error.localizedDescription, privacy: .public)")
             skillsCount = 0
             workflowsCount = 0
             mcpsCount = 0

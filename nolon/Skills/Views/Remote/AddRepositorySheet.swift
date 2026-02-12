@@ -1,8 +1,11 @@
 import SwiftUI
 import Observation
+import OSLog
 
 @Observable
 final class AddRepositoryViewModel {
+    private static let logger = Logger(subsystem: "nolon", category: "AddRepository")
+
     /// The repository being edited, if any
     var repositoryToEdit: RemoteRepository?
     
@@ -53,13 +56,13 @@ final class AddRepositoryViewModel {
             
             // Handle pending URL import
             if let importURL = settings.pendingImportURL {
-                print("[AddRepositoryViewModel] Handling pending import URL: \(importURL)")
+                Self.logger.info("Handling pending import URL: \(importURL, privacy: .public)")
                 selectedTemplate = .git
                 
                 // Extract subpath if present before normalization might strip it
                 if let subpath = RemoteRepository.extractSubpath(from: importURL) {
                     newSkillsPaths = [subpath]
-                    print("[AddRepositoryViewModel] Extracted subpath: \(subpath)")
+                    Self.logger.info("Extracted subpath: \(subpath, privacy: .public)")
                 }
                 
                 let normalized = RemoteRepository.normalizeGitURL(importURL)
@@ -71,7 +74,7 @@ final class AddRepositoryViewModel {
                     newRepoName = extractedName
                 }
                 
-                print("[AddRepositoryViewModel] Normalized URL: \(normalized), Name: \(newRepoName)")
+                Self.logger.info("Normalized URL: \(normalized, privacy: .public), name: \(self.newRepoName, privacy: .public)")
                 
                 validateInput()
                 
@@ -180,13 +183,13 @@ final class AddRepositoryViewModel {
         guard !isEditing else { return }
         guard let importURL = settings.pendingImportURL else { return }
         
-        print("[AddRepositoryViewModel] checkPendingImportURL: \(importURL)")
+        Self.logger.info("checkPendingImportURL: \(importURL, privacy: .public)")
         selectedTemplate = .git
         
         // Extract subpath if present
         if let subpath = RemoteRepository.extractSubpath(from: importURL) {
             newSkillsPaths = [subpath]
-            print("[AddRepositoryViewModel] Extracted subpath: \(subpath)")
+            Self.logger.info("Extracted subpath: \(subpath, privacy: .public)")
         }
         
         let normalized = RemoteRepository.normalizeGitURL(importURL)
@@ -197,7 +200,7 @@ final class AddRepositoryViewModel {
             newRepoName = extractedName
         }
         
-        print("[AddRepositoryViewModel] Loaded URL: \(normalized), Name: \(newRepoName)")
+        Self.logger.info("Loaded URL: \(normalized, privacy: .public), name: \(self.newRepoName, privacy: .public)")
         
         validateInput()
         
