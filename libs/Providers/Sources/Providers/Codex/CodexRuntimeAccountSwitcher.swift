@@ -2,12 +2,33 @@ import Foundation
 import CodexCLIKit
 import CodexAppServerKit
 
+protocol CodexRuntimeAccountServing: Sendable {
+    func initialize(clientName: String, clientVersion: String) async throws
+    func switchAccount(idToken: String, accessToken: String) async throws
+    func readAccount(refreshToken: Bool) async throws -> CodexRuntimeAccountState
+    func logout() async throws
+    func shutdown() async
+}
+
+extension CodexAccountRuntimeService: CodexRuntimeAccountServing {}
+
 public actor CodexRuntimeAccountSwitcher {
+    typealias ServiceFactory = @Sendable (String, [String: String]) -> any CodexRuntimeAccountServing
+
     public static let shared = CodexRuntimeAccountSwitcher()
 
-    private var services: [String: CodexAccountRuntimeService] = [:]
+    private var services: [String: any CodexRuntimeAccountServing] = [:]
+    private let serviceFactory: ServiceFactory
 
-    public init() {}
+    public init() {
+        self.serviceFactory = { executable, environment in
+            CodexAccountRuntimeService(executable: executable, environment: environment)
+        }
+    }
+
+    init(serviceFactory: @escaping ServiceFactory) {
+        self.serviceFactory = serviceFactory
+    }
 
     public func switchAccount(
         tokens: CodexTokenPair,
@@ -41,13 +62,13 @@ public actor CodexRuntimeAccountSwitcher {
         }
     }
 
-    private func serviceFor(executable: String, environment: [String: String]) async throws -> CodexAccountRuntimeService {
+    private func serviceFor(executable: String, environment: [String: String]) async throws -> any CodexRuntimeAccountServing {
         let resolvedBinary = CodexRuntimeSupport.resolvedBinary(preferredBinary: executable, environment: environment)
         let key = cacheKey(executable: resolvedBinary, environment: environment)
         if let existing = services[key] {
             return existing
         }
-        let created = CodexAccountRuntimeService(executable: resolvedBinary, environment: environment)
+        let created = serviceFactory(resolvedBinary, environment)
         do {
             try await created.initialize(clientName: "nolon", clientVersion: "1.0.0")
         } catch {

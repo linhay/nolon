@@ -7,15 +7,12 @@ enum CodexRuntimeSupport {
         preferredBinary: String?,
         environment: [String: String]
     ) -> String {
-        if let preferredBinary, !preferredBinary.isEmpty {
-            return preferredBinary
-        }
-
-        if let resolved = CodexCommandExecutor(executable: "codex", environment: environment).resolveExecutable() {
+        let candidate = (preferredBinary?.isEmpty == false) ? preferredBinary! : "codex"
+        if let resolved = CodexCommandExecutor(executable: candidate, environment: environment).resolveExecutable() {
             return resolved
         }
 
-        return "codex"
+        return candidate
     }
 
     static func withRuntimeService<T>(

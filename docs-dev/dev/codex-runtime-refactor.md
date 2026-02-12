@@ -50,3 +50,8 @@
 - `CodexLoginRunner` 可执行解析改为复用 `CodexCommandExecutor`，避免与 CLI 解析规则分叉。
 - 新增测试 `CodexLoginRunnerTests`，覆盖 `CODEX_CLI_PATH` 优先级与 `CODEX_HOME` 注入行为。
 - `CodexRuntimeAccountSwitcher` 改为先归一化解析 binary 再做 service cache key，减少同环境重复会话实例。
+
+## 增量（switcher 可测试性）
+- `CodexRuntimeAccountSwitcher` 引入内部 service 抽象与 factory 注入（public API 不变），用于隔离会话缓存逻辑测试。
+- 新增 `CodexRuntimeAccountSwitcherTests`：验证同一 resolved binary 命中同一缓存 service，不重复初始化。
+- 修正 `CodexRuntimeSupport.resolvedBinary`：优先通过 `CodexCommandExecutor` 解析（含 `CODEX_CLI_PATH` 规则），解析失败再回落 candidate。

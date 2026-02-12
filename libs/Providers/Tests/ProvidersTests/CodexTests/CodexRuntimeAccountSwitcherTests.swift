@@ -1,0 +1,60 @@
+import Foundation
+import Testing
+@testable import CodexCLIKit
+@testable import CodexAppServerKit
+@testable import CodexProvider
+
+private actor FakeRuntimeAccountService: CodexRuntimeAccountServing {
+    private(set) var initializeCalls = 0
+    private(set) var logoutCalls = 0
+
+    func initialize(clientName: String, clientVersion: String) async throws {
+        initializeCalls += 1
+    }
+
+    func switchAccount(idToken: String, accessToken: String) async throws {}
+
+    func readAccount(refreshToken: Bool) async throws -> CodexRuntimeAccountState {
+        CodexRuntimeAccountState(email: nil, planType: nil, requiresOpenaiAuth: false, authMode: nil)
+    }
+
+    func readRateLimits() async throws -> CodexRuntimeRateLimitsSnapshot {
+        CodexRuntimeRateLimitsSnapshot(primary: nil, secondary: nil, credits: nil)
+    }
+
+    func logout() async throws {
+        logoutCalls += 1
+    }
+
+    func shutdown() async {}
+
+    func counts() -> (initialize: Int, logout: Int) {
+        (initializeCalls, logoutCalls)
+    }
+}
+
+@Suite("CodexRuntimeAccountSwitcher")
+struct CodexRuntimeAccountSwitcherTests {
+    @Test("Reuses cached service for same resolved binary")
+    func reusesServiceByResolvedBinary() async throws {
+        let fake = FakeRuntimeAccountService()
+        let switcher = CodexRuntimeAccountSwitcher(serviceFactory: { _, _ in fake })
+
+        let tempRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codex-switcher-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: tempRoot, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempRoot) }
+
+        let fakeBinary = tempRoot.appendingPathComponent("codex", isDirectory: false)
+        FileManager.default.createFile(atPath: fakeBinary.path, contents: Data("#!/bin/sh\nexit 0\n".utf8))
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fakeBinary.path)
+
+        let env = ["CODEX_CLI_PATH": fakeBinary.path]
+        try await switcher.logout(executable: "codex", environment: env)
+        try await switcher.logout(executable: fakeBinary.path, environment: env)
+
+        let counts = await fake.counts()
+        #expect(counts.initialize == 1)
+        #expect(counts.logout == 2)
+    }
+}
