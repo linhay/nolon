@@ -20,6 +20,21 @@ struct NolonCodexCLIEntrypointTests {
         #expect(await mock.lastCall() == "authList")
     }
 
+    @Test("normalizes codexxcode provider alias")
+    func normalizesCodexXcodeProviderAlias() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: [
+                "codex", "auth", "list",
+                "--provider", "codexxcode",
+            ],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stdout.contains("\"providerID\":\"codex-xcode\""))
+    }
+
     @Test("auth list rejects unsupported provider")
     func authListRejectsUnsupportedProvider() async {
         let mock = MockCodexCLIService()
@@ -209,6 +224,21 @@ struct NolonCodexCLIEntrypointTests {
         #expect(result.exitCode == 0)
         #expect(result.stdout.contains("\"command\":\"codex.status.probe\""))
         #expect(await mock.lastCall() == "statusProbe")
+    }
+
+    @Test("normalizes provider alias in status probe")
+    func normalizesProviderAliasInStatusProbe() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: [
+                "codex", "status", "probe",
+                "--provider", "codexxcode",
+            ],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stdout.contains("\"providerID\":\"codex-xcode\""))
     }
 
     @Test("status probe rejects unsupported provider")

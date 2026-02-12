@@ -319,12 +319,12 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
     }
 
     private static func provider(for providerID: String) throws -> Provider {
-        let normalized = providerID.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let canonicalID = try canonicalProviderID(providerID)
         let template: ProviderTemplate
-        switch normalized {
+        switch canonicalID {
         case "codex":
             template = .codex
-        case "codexxcode", "codex-xcode":
+        case "codex-xcode":
             template = .codexXcode
         default:
             throw NolonCoreCLIError.invalidArguments("Unsupported --provider: \(providerID)")
@@ -332,7 +332,7 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
 
         let base = template.createProvider()
         return Provider(
-            id: normalized,
+            id: canonicalID,
             kind: base.kind,
             name: base.name,
             projectRootPath: base.projectRootPath,
@@ -345,6 +345,18 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
             additionalSkillsPaths: base.additionalSkillsPaths,
             documentationURL: base.documentationURL
         )
+    }
+
+    private static func canonicalProviderID(_ providerID: String) throws -> String {
+        let normalized = providerID.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        switch normalized {
+        case "codex":
+            return "codex"
+        case "codexxcode", "codex-xcode":
+            return "codex-xcode"
+        default:
+            throw NolonCoreCLIError.invalidArguments("Unsupported --provider: \(providerID)")
+        }
     }
 }
 
@@ -431,10 +443,13 @@ public enum NolonCLIEntrypoint {
             return try context.successJSON(command: "codex.binary.doctor", data: payload)
         case "codex.status.probe":
             let args = try parseArguments(NolonCodexStatusProbeArguments.self, optionArgs)
+            let providerID: String?
             if let provider = args.provider {
-                _ = try parseCodexProviderID(provider)
+                providerID = try parseCodexProviderID(provider)
+            } else {
+                providerID = nil
             }
-            let payload = try await context.codexService().statusProbe(providerID: args.provider)
+            let payload = try await context.codexService().statusProbe(providerID: providerID)
             return try context.successJSON(command: "codex.status.probe", data: payload)
         default:
             throw NolonCoreCLIError.invalidArguments("Unsupported command: \(route)")
@@ -450,10 +465,16 @@ public enum NolonCLIEntrypoint {
     }
 
     private static func parseCodexProviderID(_ providerID: String) throws -> String {
+        try canonicalCodexProviderID(providerID)
+    }
+
+    private static func canonicalCodexProviderID(_ providerID: String) throws -> String {
         let normalized = providerID.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         switch normalized {
-        case "codex", "codexxcode", "codex-xcode":
-            return normalized
+        case "codex":
+            return "codex"
+        case "codexxcode", "codex-xcode":
+            return "codex-xcode"
         default:
             throw NolonCoreCLIError.invalidArguments("Unsupported --provider: \(providerID)")
         }
