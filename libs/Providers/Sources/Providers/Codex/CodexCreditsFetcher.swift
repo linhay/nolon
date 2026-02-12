@@ -1,5 +1,4 @@
 import Foundation
-import SKProcessRunner
 
 // MARK: - Credits Helper
 
@@ -26,12 +25,12 @@ public actor CodexCreditsFetcher {
 
     /// Fetch credits via Codex RPC interface
     private func fetchRPCCredits() async throws -> CreditsSnapshot {
-        let binaryPath = self.resolveCodexBinary()
-        let rpc = try CodexRPCClient(executable: binaryPath, environment: environment)
-        defer { rpc.shutdown() }
-
-        try await rpc.initialize(clientName: "codexhelper", clientVersion: "1.0.0")
-        let limits = try await rpc.fetchRateLimits().rateLimits
+        let limits = try await CodexRuntimeSupport.withRuntimeService(
+            preferredBinary: self.codexBinary,
+            environment: self.environment
+        ) { service in
+            try await service.readRateLimits()
+        }
 
         guard let credits = limits.credits else {
             throw CreditsFetchError.parseFailed("No credits field in rate limits")
@@ -52,10 +51,13 @@ public actor CodexCreditsFetcher {
 
     /// Fetch credits via TTY status probe
     private func fetchTTYCredits(keepCLISessionsAlive: Bool) async throws -> CreditsSnapshot {
-        let binaryPath = self.resolveCodexBinary()
         let probe = CodexStatusProbe(
-            codexBinary: binaryPath,
-            keepCLISessionsAlive: keepCLISessionsAlive
+            codexBinary: CodexRuntimeSupport.resolvedBinary(
+                preferredBinary: self.codexBinary,
+                environment: self.environment
+            ),
+            keepCLISessionsAlive: keepCLISessionsAlive,
+            environment: self.environment
         )
 
         let status = try await probe.fetch()
@@ -65,53 +67,6 @@ public actor CodexCreditsFetcher {
         }
 
         return CreditsSnapshot(remaining: credits, events: [], updatedAt: Date())
-    }
-
-    /// Resolve Codex binary path with fallback strategies
-    private func resolveCodexBinary() -> String {
-        // Try custom path first
-        if let customPath = self.codexBinary {
-            return customPath
-        }
-
-        // Try environment override
-        if let override = self.environment["CODEX_CLI_PATH"] {
-            return override
-        }
-
-        // Try PATH
-        if let path = self.findInPATH("codex") {
-            return path
-        }
-
-        // Fallback to simple name
-        return "codex"
-    }
-
-    /// Find binary in PATH environment
-    private func findInPATH(_ name: String) -> String? {
-        if let url = SKProcessRunner.resolveExecutableInPath(named: name, environment: self.environment) {
-            return url.path
-        }
-
-        if let url = SKProcessRunner.resolveExecutableInUserShellSync(named: name, environment: self.environment) {
-            return url.path
-        }
-
-        // Common macOS PATH additions (when app PATH is minimal).
-        let fallbacks = [
-            "/opt/homebrew/bin/\(name)",
-            "/usr/local/bin/\(name)",
-            "\(NSHomeDirectory())/.bun/bin/\(name)",
-            "\(NSHomeDirectory())/.npm-global/bin/\(name)",
-        ]
-        for candidate in fallbacks {
-            if FileManager.default.isExecutableFile(atPath: candidate) {
-                return candidate
-            }
-        }
-
-        return nil
     }
 
     /// Fallback helper: try primary, on failure try secondary

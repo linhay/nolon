@@ -125,7 +125,7 @@ let package = Package(
             name: "Providers",
             dependencies: ["CodexProvider", "CopilotProvider", "ProviderCatalog", "CodexBarProviderCatalog", "ProviderUsage"],
             path: "Sources/Providers",
-            exclude: ["Codex", "Copilot"],
+            exclude: ["Codex", "Copilot", "Shared"],
             sources: ["Providers.swift"]
         ),
         

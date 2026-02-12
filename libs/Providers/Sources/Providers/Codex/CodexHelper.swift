@@ -1,6 +1,7 @@
 import Foundation
+import CodexCLIKit
+import CodexAppServerKit
 import ProvidersShared
-import SKProcessRunner
 
 /// Convenience wrapper around `CodexCreditsFetcher`.
 public struct CodexHelper: Sendable {
@@ -66,16 +67,7 @@ public struct CodexHelper: Sendable {
     }
 
     public var isCLIAvailable: Bool {
-        if let path = codexBinary, FileManager.default.isExecutableFile(atPath: path) {
-            return true
-        }
-        if let override = environment["CODEX_CLI_PATH"], FileManager.default.isExecutableFile(atPath: override) {
-            return true
-        }
-        if TTYCommandRunner.which("codex", env: environment) != nil {
-            return true
-        }
-        return SKProcessRunner.resolveExecutableInUserShellSync(named: "codex", environment: environment) != nil
+        CodexCommandExecutor(executable: codexBinary ?? "codex", environment: environment).resolveExecutable() != nil
     }
 
     public func fetchCredits(keepCLISessionsAlive: Bool = false) async throws -> CreditsSnapshot {
@@ -83,14 +75,14 @@ public struct CodexHelper: Sendable {
     }
 
     public func fetchRateLimits() async throws -> RateLimitsSnapshot {
-        let binary = self.codexBinary ?? "codex"
-        let rpc = try CodexRPCClient(executable: binary, environment: environment)
-        defer { rpc.shutdown() }
+        let limits = try await CodexRuntimeSupport.withRuntimeService(
+            preferredBinary: self.codexBinary,
+            environment: self.environment
+        ) { service in
+            try await service.readRateLimits()
+        }
 
-        try await rpc.initialize(clientName: "codexhelper", clientVersion: "1.0.0")
-        let limits = try await rpc.fetchRateLimits().rateLimits
-
-        func window(_ w: RPCRateLimitWindow?) -> RateLimitWindow? {
+        func window(_ w: CodexRuntimeRateLimitWindow?) -> RateLimitWindow? {
             guard let w else { return nil }
             let resetsAt: Date? = w.resetsAt.map { Date(timeIntervalSince1970: TimeInterval($0)) }
             return RateLimitWindow(usedPercent: w.usedPercent, windowDurationMins: w.windowDurationMins, resetsAt: resetsAt)
@@ -100,23 +92,22 @@ public struct CodexHelper: Sendable {
     }
 
     public func fetchAccountInfo() async throws -> AccountInfo {
-        let binary = self.codexBinary ?? "codex"
-        let rpc = try CodexRPCClient(executable: binary, environment: environment)
-        defer { rpc.shutdown() }
-
-        try await rpc.initialize(clientName: "codexhelper", clientVersion: "1.0.0")
-        let response = try await rpc.fetchAccount()
-
-        let info: AccountInfo = switch response.account {
-        case .none:
-            AccountInfo(email: nil, plan: nil)
-        case .apiKey:
-            AccountInfo(email: nil, plan: "api_key")
-        case let .chatgpt(email, planType):
-            AccountInfo(email: email, plan: planType)
+        let account = try await CodexRuntimeSupport.withRuntimeService(
+            preferredBinary: self.codexBinary,
+            environment: self.environment
+        ) { service in
+            try await service.readAccount(refreshToken: false)
         }
 
-        return info
+        let plan: String?
+        switch account.authMode {
+        case .apikey:
+            plan = "api_key"
+        default:
+            plan = account.planType
+        }
+
+        return AccountInfo(email: account.email, plan: plan)
     }
 
     public func loadModelsCache() throws -> ModelListSnapshot {
@@ -139,15 +130,8 @@ public struct CodexHelper: Sendable {
     }
 
     private func modelsCacheFileURL() -> URL {
-        if let override = self.environment["CODEX_HOME"]?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !override.isEmpty
-        {
-            return URL(fileURLWithPath: override, isDirectory: true)
-                .appendingPathComponent("models_cache.json", isDirectory: false)
-        }
-
-        return FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".codex", isDirectory: true)
+        return CodexCommandExecutor
+            .codexHomeDirectoryURL(environment: self.environment)
             .appendingPathComponent("models_cache.json", isDirectory: false)
     }
 }

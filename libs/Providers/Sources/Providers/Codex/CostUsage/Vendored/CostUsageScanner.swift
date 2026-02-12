@@ -1,4 +1,5 @@
 import Foundation
+import CodexCLIKit
 import CodexBarProviderCatalog
 import ProvidersShared
 
@@ -86,12 +87,8 @@ enum CostUsageScanner {
 
     private static func defaultCodexSessionsRoot(options: Options) -> URL {
         if let override = options.codexSessionsRoot { return override }
-        let env = ProcessInfo.processInfo.environment["CODEX_HOME"]?.trimmingCharacters(in: .whitespacesAndNewlines)
-        if let env, !env.isEmpty {
-            return URL(fileURLWithPath: env).appendingPathComponent("sessions", isDirectory: true)
-        }
-        return FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".codex", isDirectory: true)
+        return CodexCommandExecutor
+            .codexHomeDirectoryURL()
             .appendingPathComponent("sessions", isDirectory: true)
     }
 

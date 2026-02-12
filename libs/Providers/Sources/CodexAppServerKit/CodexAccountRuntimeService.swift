@@ -5,6 +5,21 @@ public protocol CodexTokenRefreshing: Sendable {
     func refreshedTokens(reason: CodexRefreshReason) async throws -> CodexTokenPair
 }
 
+private struct AccountReadPayload: Decodable {
+    let account: AccountDetailsPayload?
+    let requiresOpenaiAuth: Bool?
+}
+
+private struct AccountDetailsPayload: Decodable {
+    let type: String?
+    let email: String?
+    let planType: String?
+}
+
+private struct RateLimitsReadPayload: Decodable {
+    let rateLimits: CodexRuntimeRateLimitsSnapshot
+}
+
 public actor CodexAccountRuntimeService {
     private let session: CodexAppServerSession
     private var tokenRefresher: (any CodexTokenRefreshing)?
@@ -67,31 +82,22 @@ public actor CodexAccountRuntimeService {
             "refreshToken": refreshToken,
         ])
         let response = try await session.request(method: CodexAppServerMethod.accountRead.rawValue, paramsData: params)
-        let raw = response.result
-
-        guard let dict = raw as? [String: Any] else {
-            throw CodexCLIError.invalidOutput("account/read result is not object")
-        }
-
-        let requiresOpenaiAuth = (dict["requiresOpenaiAuth"] as? Bool) ?? false
-        let account = dict["account"] as? [String: Any]
-        let email = account?["email"] as? String
-        let plan = account?["planType"] as? String
-
-        // account/read does not always return authMode; best effort from account type.
-        let mode: CodexRuntimeAuthMode?
-        if let accountType = (account?["type"] as? String)?.lowercased() {
-            mode = CodexRuntimeAuthMode(rawValue: accountType)
-        } else {
-            mode = nil
-        }
+        let payload: AccountReadPayload = try decodeResult(response.result)
+        let account = payload.account
+        let mode = account?.type.flatMap(Self.parseAuthMode)
 
         return CodexRuntimeAccountState(
-            email: email,
-            planType: plan,
-            requiresOpenaiAuth: requiresOpenaiAuth,
+            email: account?.email,
+            planType: account?.planType,
+            requiresOpenaiAuth: payload.requiresOpenaiAuth ?? false,
             authMode: mode
         )
+    }
+
+    public func readRateLimits() async throws -> CodexRuntimeRateLimitsSnapshot {
+        let response = try await session.request(method: CodexAppServerMethod.accountRateLimitsRead.rawValue)
+        let payload: RateLimitsReadPayload = try decodeResult(response.result)
+        return payload.rateLimits
     }
 
     public func logout() async throws {
@@ -101,5 +107,31 @@ public actor CodexAccountRuntimeService {
 
     public func shutdown() async {
         await session.shutdown()
+    }
+
+    private func decodeResult<T: Decodable>(_ raw: Any?) throws -> T {
+        let object = raw ?? [:]
+        do {
+            let data = try JSONSerialization.data(withJSONObject: object)
+            return try JSONDecoder().decode(T.self, from: data)
+        } catch {
+            throw CodexCLIError.invalidOutput(error.localizedDescription)
+        }
+    }
+
+    private static func parseAuthMode(_ raw: String) -> CodexRuntimeAuthMode? {
+        if let mode = CodexRuntimeAuthMode(rawValue: raw) {
+            return mode
+        }
+        switch raw.lowercased() {
+        case "apikey":
+            return .apikey
+        case "chatgpt":
+            return .chatgpt
+        case "chatgptauthtokens":
+            return .chatgptAuthTokens
+        default:
+            return nil
+        }
     }
 }

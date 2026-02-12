@@ -10,6 +10,25 @@ public struct CodexCommandExecutor: Sendable {
         self.environment = environment
     }
 
+    public static func codexHomeDirectoryURL(
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> URL {
+        if let override = environment["CODEX_HOME"]?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !override.isEmpty
+        {
+            return URL(fileURLWithPath: override, isDirectory: true)
+        }
+
+        return FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".codex", isDirectory: true)
+    }
+
+    public static func codexHomeDirectoryPath(
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> String {
+        codexHomeDirectoryURL(environment: environment).path
+    }
+
     public func resolveExecutable() -> String? {
         if executable.contains("/") {
             return FileManager.default.isExecutableFile(atPath: executable) ? executable : nil
@@ -27,7 +46,22 @@ public struct CodexCommandExecutor: Sendable {
             return url.path
         }
 
+        for candidate in Self.fallbackExecutablePaths(for: executable) {
+            if FileManager.default.isExecutableFile(atPath: candidate) {
+                return candidate
+            }
+        }
+
         return nil
+    }
+
+    private static func fallbackExecutablePaths(for executable: String) -> [String] {
+        [
+            "/opt/homebrew/bin/\(executable)",
+            "/usr/local/bin/\(executable)",
+            "\(NSHomeDirectory())/.bun/bin/\(executable)",
+            "\(NSHomeDirectory())/.npm-global/bin/\(executable)",
+        ]
     }
 
     public func requireResolvedExecutable() throws -> String {

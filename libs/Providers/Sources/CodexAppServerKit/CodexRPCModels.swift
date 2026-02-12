@@ -41,3 +41,43 @@ public struct CodexRuntimeAccountState: Sendable, Equatable {
         self.authMode = authMode
     }
 }
+
+public struct CodexRuntimeRateLimitsSnapshot: Sendable, Equatable, Codable {
+    public let primary: CodexRuntimeRateLimitWindow?
+    public let secondary: CodexRuntimeRateLimitWindow?
+    public let credits: CodexRuntimeCreditsSnapshot?
+
+    public init(
+        primary: CodexRuntimeRateLimitWindow?,
+        secondary: CodexRuntimeRateLimitWindow?,
+        credits: CodexRuntimeCreditsSnapshot?
+    ) {
+        self.primary = primary
+        self.secondary = secondary
+        self.credits = credits
+    }
+}
+
+public struct CodexRuntimeRateLimitWindow: Sendable, Equatable, Codable {
+    public let usedPercent: Double
+    public let windowDurationMins: Int?
+    public let resetsAt: Int?
+
+    public init(usedPercent: Double, windowDurationMins: Int?, resetsAt: Int?) {
+        self.usedPercent = usedPercent
+        self.windowDurationMins = windowDurationMins
+        self.resetsAt = resetsAt
+    }
+}
+
+public struct CodexRuntimeCreditsSnapshot: Sendable, Equatable, Codable {
+    public let hasCredits: Bool
+    public let unlimited: Bool
+    public let balance: String?
+
+    public init(hasCredits: Bool, unlimited: Bool, balance: String?) {
+        self.hasCredits = hasCredits
+        self.unlimited = unlimited
+        self.balance = balance
+    }
+}

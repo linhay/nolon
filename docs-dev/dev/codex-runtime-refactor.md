@@ -1,0 +1,47 @@
+# Codex Runtime Refactor（2026-02-12）
+
+## 背景
+在完成 Codex CLI + app-server 全覆盖后，`libs/Providers` 内出现了多处重复实现：
+- 二进制路径解析（`CODEX_CLI_PATH` / PATH / fallback）
+- `CODEX_HOME` 推导
+- account/rateLimits 的 RPC DTO 与 decode
+- runtime service 生命周期（initialize/shutdown）
+
+这会提高维护成本，也容易产生行为漂移。
+
+## 本轮收敛
+1. 统一路径与 home 解析
+- 下沉到 `CodexCLIKit.CodexCommandExecutor`
+- 新增 `codexHomeDirectoryURL` / `codexHomeDirectoryPath`
+
+2. 统一 runtime account/rateLimits 协议模型
+- 下沉到 `CodexAppServerKit`：
+  - `CodexRuntimeRateLimitsSnapshot`
+  - `CodexRuntimeRateLimitWindow`
+  - `CodexRuntimeCreditsSnapshot`
+- `CodexAccountRuntimeService` 增加 `readRateLimits()`
+
+3. 删除 Provider 内重复 RPC 客户端
+- 删除 `CodexProvider/CodexRPCClient.swift`
+- `CodexHelper` 与 `CodexCreditsFetcher` 改为复用 `CodexAccountRuntimeService`
+
+4. 提供 Provider 侧统一调用辅助
+- 新增 `CodexRuntimeSupport`，统一：
+  - `resolvedBinary(preferredBinary:environment:)`
+  - `withRuntimeService(...)`
+
+5. 消除构建噪音
+- `Package.swift` 中 `Providers` target 增加 `exclude: ["Shared"]`
+- 清除 `swift test` unhandled files 警告
+
+## 行为边界
+- 不改变外部 API 行为，仅做内部下沉与去重。
+- 保持“RPC 优先，TTY 回退”的 credits 读取策略。
+- 保持 app 层只负责编排，CLI/RPC 逻辑都在 `libs/Providers`。
+
+## 验证
+- `swift test --package-path libs/Providers`
+- 全部通过（35 tests）。
+
+## 后续建议
+- 如果后续要支持更多 app-server 方法，优先在 `CodexAppServerKit` 增加 typed API，避免回到 Provider 层手工 JSON 解析。
