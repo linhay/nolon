@@ -198,10 +198,7 @@ final class ProviderUsageViewModel {
         if usageProvider == .codex, isMultiAccountEnabled {
             outcomes = []
         } else {
-            let effectiveCostWindowDays = Self.resolveCostWindowDays(
-                selectedCostWindowDays: codexCostWindowDays,
-                settings: settings
-            )
+            let effectiveCostWindowDays = settings.effectiveCostWindowDays(selected: codexCostWindowDays)
             outcomes = await usageMonitor.fetchOutcomes(
                 provider: usageProvider,
                 settings: settings,
@@ -528,13 +525,6 @@ final class ProviderUsageViewModel {
             return mapped
         }
         return nil
-    }
-
-    static func resolveCostWindowDays(
-        selectedCostWindowDays: Int?,
-        settings: UsageMonitorProviderSettings
-    ) -> Int? {
-        selectedCostWindowDays ?? settings.costWindowDays
     }
 
     var dashboardURL: URL? {

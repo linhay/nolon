@@ -23,6 +23,10 @@ public struct ProviderUsageMonitorSettings: Sendable, Codable, Equatable {
         self.costWindowDays = costWindowDays
     }
 
+    public func effectiveCostWindowDays(selected: Int?) -> Int? {
+        selected ?? costWindowDays
+    }
+
     private enum CodingKeys: String, CodingKey {
         case sourceMode
         case includeCredits

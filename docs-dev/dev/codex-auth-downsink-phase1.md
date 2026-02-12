@@ -393,3 +393,24 @@
 
 ### 验证
 - `xcodebuild test -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' -only-testing:nolonTests/UsageMonitorServiceTests`
+
+## Phase 1.17：cost window 回退规则下沉到 ProviderUsage
+
+### BDD 场景
+- Given monitor settings 带有默认 `costWindowDays`，When 调用方传入 selected 值，Then 应优先使用 selected。
+- Given 调用方 selected 为空，When 计算 effective window，Then 应回退到 settings 默认值。
+
+### TDD（红 -> 绿）
+- 先补库侧红灯：
+  - 新增 `ProviderUsageMonitorSettingsTests`
+  - 直接调用 `ProviderUsageMonitorSettings.effectiveCostWindowDays(selected:)`，初始编译失败（方法不存在）。
+- 最小实现（绿灯）：
+  - `ProviderUsageMonitorSettings` 新增 `effectiveCostWindowDays(selected:)`。
+  - app 侧 `ProviderUsageViewModel.load()` 改为调用 `settings.effectiveCostWindowDays(selected: codexCostWindowDays)`。
+  - 删除 `ProviderUsageViewModel.resolveCostWindowDays(...)` 的重复实现。
+  - `UsageMonitorServiceTests` 断言迁移为调用库侧 settings API。
+
+### 验证
+- `swift test --package-path libs/Providers --filter ProviderUsageMonitorSettingsTests`
+- `swift test --package-path libs/Providers --filter ProviderUsageMonitorServiceTests`
+- `xcodebuild test -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' -only-testing:nolonTests/UsageMonitorServiceTests`
