@@ -41,10 +41,11 @@ let package = Package(
             name: "CopilotProvider",
             targets: ["CopilotProvider"]),
         .executable(
-            name: "nolon-core",
-            targets: ["NolonCoreCLI"]),
+            name: "nolon",
+            targets: ["NolonCLI"]),
     ],
     dependencies: [
+        .package(url: "https://github.com/apple/swift-argument-parser", from: "1.3.0"),
         .package(url: "https://github.com/linhay/SKProcessRunner", from: "0.0.5"),
         .package(url: "https://github.com/steipete/SweetCookieKit", from: "0.4.0"),
         .package(url: "https://github.com/mattt/swift-toml", from: "2.0.0"),
@@ -146,15 +147,19 @@ let package = Package(
             name: "NolonCoreCLIKit",
             dependencies: [
                 "ProviderCatalog",
+                "ProviderUsage",
+                "CodexProvider",
+                "CodexCLIKit",
+                .product(name: "ArgumentParser", package: "swift-argument-parser"),
                 .product(name: "STFilePath", package: "STFilePath"),
             ],
             path: "Sources/NolonCoreCLIKit"
         ),
 
         .executableTarget(
-            name: "NolonCoreCLI",
+            name: "NolonCLI",
             dependencies: ["NolonCoreCLIKit"],
-            path: "Sources/NolonCoreCLI"
+            path: "Sources/NolonCLI"
         ),
 
         // Unified Providers module (re-exports both)

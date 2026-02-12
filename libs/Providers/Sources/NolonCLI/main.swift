@@ -2,11 +2,10 @@ import Foundation
 import NolonCoreCLIKit
 
 @main
-struct NolonCoreCLIApp {
+struct NolonCLIApp {
     static func main() async {
-        let runner = NolonCoreCLIRunner()
         let args = Array(CommandLine.arguments.dropFirst())
-        let result = await runner.execute(arguments: args)
+        let result = await NolonCLIEntrypoint.execute(arguments: args)
 
         if !result.stdout.isEmpty {
             FileHandle.standardOutput.write(Data((result.stdout + "\n").utf8))
