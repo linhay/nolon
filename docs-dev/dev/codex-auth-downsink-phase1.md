@@ -318,3 +318,22 @@
 - `swift test --package-path libs/Providers --filter ProviderUsageTokenAccountsTests`
 - `swift test --package-path libs/Providers --filter ProviderUsageRegistryTests`
 - `xcodebuild test -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' -only-testing:nolonTests/UsageMonitorServiceTests`
+
+## Phase 1.13：Token account 默认路径规则下沉
+
+### BDD 场景
+- Given app 需要 token account 存储路径，When 读取默认路径，Then 应由 `ProviderUsage` 统一给出 `/Nolon/token-accounts.json` 规则。
+
+### TDD（红 -> 绿）
+- 先补红灯：
+  - `ProviderUsageTokenAccountsTests.defaultTokenAccountsFilePathLayout`
+  - 期望库侧存在 `ProviderUsagePaths.defaultTokenAccountsFileURL(baseDirectory:)`
+- 最小实现（绿灯）：
+  - `ProviderUsage.TokenAccounts` 新增 `ProviderUsagePaths`：
+    - `defaultTokenAccountsFileURL(baseDirectory:)`
+  - `UsageMonitorService.defaultTokenAccountsFileURL()` 改为委托 `ProviderUsagePaths`，删除 app 层重复路径拼装逻辑。
+
+### 验证
+- `swift test --package-path libs/Providers --filter ProviderUsageTokenAccountsTests`
+- `swift test --package-path libs/Providers --filter ProviderUsageMonitorServiceTests`
+- `xcodebuild test -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' -only-testing:nolonTests/UsageMonitorServiceTests`
