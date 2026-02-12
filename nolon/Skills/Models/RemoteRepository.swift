@@ -1,5 +1,6 @@
 import Foundation
 import ProviderCatalog
+import STFilePath
 
 /// Git hosting provider type
 public enum GitProvider: String, CaseIterable, Identifiable, Codable, Sendable {
@@ -271,7 +272,7 @@ public struct RemoteRepository: Identifiable, Codable, Hashable, Sendable {
         case .clawdhub:
             return []
         case .globalSkills:
-            let globalPath = URL(fileURLWithPath: NSHomeDirectory())
+            let globalPath = STFolder(NSHomeDirectory()).url
                 .appendingPathComponent(".nolon/skills").path
             return [globalPath]
         }
@@ -280,7 +281,7 @@ public struct RemoteRepository: Identifiable, Codable, Hashable, Sendable {
     /// Get the local clone path for this repository
     /// Format for git repos: ~/.nolon/repositories/{domain}/{owner}@{repo}
     nonisolated public var localClonePath: URL {
-        let repositoriesPath = URL(fileURLWithPath: NSHomeDirectory())
+        let repositoriesPath = STFolder(NSHomeDirectory()).url
             .appendingPathComponent(".nolon/repositories")
         switch templateType {
         case .localFolder:

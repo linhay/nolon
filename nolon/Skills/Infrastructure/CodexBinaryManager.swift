@@ -15,7 +15,7 @@ public actor CodexBinaryManager {
     private let homeFolder: STFolder
     private let throttlingInterval: TimeInterval = 24 * 60 * 60
 
-    public init(fileManager: FileManager = .default, homeURL: URL = FileManager.default.homeDirectoryForCurrentUser) {
+    public init(fileManager: FileManager = .default, homeURL: URL = STFolder(NSHomeDirectory()).url) {
         self.fileManager = fileManager
         self.homeFolder = STFolder(homeURL)
     }

@@ -120,4 +120,38 @@ final class RemoteRepositoryTests: XCTestCase {
             .bitbucket
         )
     }
+
+    func testGlobalSkillsPath_UsesNolonSkillsFolder() {
+        let repo = RemoteRepository(
+            id: "global",
+            name: "Global",
+            baseURL: "https://example.com",
+            iconName: "globe",
+            logoName: nil,
+            templateType: .globalSkills,
+            isBuiltIn: true
+        )
+
+        XCTAssertEqual(repo.effectiveSkillsPaths.count, 1)
+        XCTAssertTrue(repo.effectiveSkillsPaths[0].hasSuffix("/.nolon/skills"))
+    }
+
+    func testLocalClonePath_ForGitRepository_UsesRepositoriesLayout() {
+        let repo = RemoteRepository(
+            id: "git",
+            name: "Git",
+            baseURL: "https://example.com",
+            iconName: "globe",
+            logoName: nil,
+            templateType: .git,
+            isBuiltIn: false,
+            localPath: nil,
+            gitURL: "vercel/agent-skills",
+            provider: .github
+        )
+
+        let path = repo.localClonePath.path
+        XCTAssertTrue(path.contains("/.nolon/repositories/"))
+        XCTAssertTrue(path.hasSuffix("/github.com/vercel@agent-skills"))
+    }
 }
