@@ -125,11 +125,12 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
     }
 
     public func authList(providerID: String) async throws -> NolonCodexAuthListPayload {
-        let provider = try Self.provider(for: providerID)
+        let canonicalProviderID = try Self.canonicalProviderID(providerID)
+        let provider = try Self.provider(for: canonicalProviderID)
         let accounts = try await authManager.loadAccounts()
         let activeID = await authManager.activeAccountId(for: provider)
         return NolonCodexAuthListPayload(
-            providerID: providerID,
+            providerID: canonicalProviderID,
             activeAccountID: activeID,
             accounts: accounts.map { account in
                 NolonCodexAuthAccountView(
@@ -144,12 +145,13 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
     }
 
     public func authStatus(providerID: String) async throws -> NolonCodexAuthStatusPayload {
-        let provider = try Self.provider(for: providerID)
+        let canonicalProviderID = try Self.canonicalProviderID(providerID)
+        let provider = try Self.provider(for: canonicalProviderID)
         let accounts = try await authManager.loadAccounts()
         let activeID = await authManager.activeAccountId(for: provider)
         let authHashHex = await authManager.currentAuthHashHex(for: provider)
         return NolonCodexAuthStatusPayload(
-            providerID: providerID,
+            providerID: canonicalProviderID,
             activeAccountID: activeID,
             accountCount: accounts.count,
             authHashHex: authHashHex
@@ -157,7 +159,8 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
     }
 
     public func authActivate(providerID: String, accountID: UUID) async throws -> NolonCodexAuthActivatePayload {
-        let provider = try Self.provider(for: providerID)
+        let canonicalProviderID = try Self.canonicalProviderID(providerID)
+        let provider = try Self.provider(for: canonicalProviderID)
         let accounts = try await authManager.loadAccounts()
         guard let account = accounts.first(where: { $0.id == accountID }) else {
             throw NolonCoreCLIError.domainFailed(
@@ -168,7 +171,7 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
 
         let result = try await CodexAuthActivationCoordinator.shared.activate(account: account, provider: provider)
         return NolonCodexAuthActivatePayload(
-            providerID: providerID,
+            providerID: canonicalProviderID,
             accountID: accountID,
             runtimeSwitched: result.runtimeSwitched,
             runtimeErrorDescription: result.runtimeErrorDescription
@@ -176,13 +179,14 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
     }
 
     public func authLogin(providerID: String, preferredAccountID: UUID?) async throws -> NolonCodexAuthLoginPayload {
-        let provider = try Self.provider(for: providerID)
+        let canonicalProviderID = try Self.canonicalProviderID(providerID)
+        let provider = try Self.provider(for: canonicalProviderID)
         try await authManager.prepareForCLILogin(provider: provider, archiveAccountName: nil)
 
         guard let codexHome = await authManager.codexHomeFolder(for: provider) else {
             throw NolonCoreCLIError.domainFailed(
                 code: "codex_home_unavailable",
-                message: "Codex home path is unavailable for provider: \(providerID)"
+                message: "Codex home path is unavailable for provider: \(canonicalProviderID)"
             )
         }
 
@@ -208,7 +212,7 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
         )
         let activation = try await CodexAuthActivationCoordinator.shared.activate(account: account, provider: provider)
         return NolonCodexAuthLoginPayload(
-            providerID: providerID,
+            providerID: canonicalProviderID,
             accountID: account.id,
             accountName: account.name,
             runtimeSwitched: activation.runtimeSwitched,
@@ -293,8 +297,12 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
     }
 
     public func statusProbe(providerID: String?) async throws -> NolonCodexStatusProbePayload {
+        let canonicalProviderID: String?
         if let providerID {
+            canonicalProviderID = try Self.canonicalProviderID(providerID)
             _ = try Self.provider(for: providerID)
+        } else {
+            canonicalProviderID = nil
         }
         var env = environment
         if let codexPath = await binaryManager.activeCLIPathIfAvailable() {
@@ -308,7 +316,7 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
         let snapshot = try await probe.fetch()
         let resolvedExecutable = CodexCommandExecutor(executable: "codex", environment: env).resolveExecutable()
         return NolonCodexStatusProbePayload(
-            providerID: providerID,
+            providerID: canonicalProviderID,
             resolvedExecutable: resolvedExecutable,
             credits: snapshot.credits,
             fiveHourPercentLeft: snapshot.fiveHourPercentLeft,

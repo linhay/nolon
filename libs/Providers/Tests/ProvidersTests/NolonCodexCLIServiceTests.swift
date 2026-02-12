@@ -1,0 +1,51 @@
+import Foundation
+import Testing
+@testable import NolonCoreCLIKit
+@testable import ProviderUsage
+@testable import CodexProvider
+
+@Suite("Nolon Codex CLI Service")
+struct NolonCodexCLIServiceTests {
+    @Test("auth list canonicalizes codexxcode provider id")
+    func authListCanonicalProviderID() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("nolon-codex-cli-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let service = NolonLiveCodexCLIService(
+            authManager: CodexAuthManager(rootURL: root),
+            binaryManager: CodexBinaryManager(homeURL: root),
+            loginRunner: .init(),
+            environment: [:]
+        )
+
+        let payload = try await service.authList(providerID: "codexxcode")
+        #expect(payload.providerID == "codex-xcode")
+    }
+
+    @Test("status probe rejects unsupported provider in service")
+    func statusProbeRejectsUnsupportedProvider() async {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("nolon-codex-cli-\(UUID().uuidString)", isDirectory: true)
+        try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let service = NolonLiveCodexCLIService(
+            authManager: CodexAuthManager(rootURL: root),
+            binaryManager: CodexBinaryManager(homeURL: root),
+            loginRunner: .init(),
+            environment: [:]
+        )
+
+        do {
+            _ = try await service.statusProbe(providerID: "claude")
+            Issue.record("Expected invalidArguments error")
+        } catch let error as NolonCoreCLIError {
+            guard case .invalidArguments = error else {
+                Issue.record("Unexpected error: \(error)")
+                return
+            }
+        } catch {
+            Issue.record("Unexpected error type: \(error)")
+        }
+    }
+}
