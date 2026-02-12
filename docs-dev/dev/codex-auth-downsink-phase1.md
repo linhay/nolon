@@ -295,3 +295,26 @@
 - `swift test --package-path libs/Providers --filter CostUsageStoragePathTests`
 - `swift test --package-path libs/Providers --filter CodexSessionEventParserTests`
 - `swift test --package-path libs/Providers --filter CostUsageFetcherTests`
+
+## Phase 1.12：UsageMonitor 环境拼装下沉到 ProviderUsage
+
+### BDD 场景
+- Given provider 为 codex，When 执行 usage 拉取，Then 运行环境应自动合并 managed binary env 并注入 `CODEX_CLI_PATH`。
+- Given provider 非 codex，When 执行 usage 拉取，Then 使用基础环境且不注入 codex 专有变量。
+
+### TDD（红 -> 绿）
+- 先补库侧测试：
+  - `ProviderUsageMonitorServiceTests.resolveCodexEnvironmentMergesManagedValues`
+  - `ProviderUsageMonitorServiceTests.resolveNonCodexEnvironmentKeepsBase`
+- 最小实现：
+  - `ProviderUsageMonitorService` 内置 codex 环境解析：
+    - `resolveEnvironmentForFetch(provider:)`
+    - 默认通过 `CodexBinaryManager.shared` 读取 managed env 与 active cli path
+  - `fetchOutcomes(...)` 统一使用解析后的环境创建 `ProviderFetchContext`
+  - app 侧 `UsageMonitorService` 删除本地 codex 环境拼装，改为直接委托 `ProviderUsageMonitorService`
+
+### 验证
+- `swift test --package-path libs/Providers --filter ProviderUsageMonitorServiceTests`
+- `swift test --package-path libs/Providers --filter ProviderUsageTokenAccountsTests`
+- `swift test --package-path libs/Providers --filter ProviderUsageRegistryTests`
+- `xcodebuild test -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' -only-testing:nolonTests/UsageMonitorServiceTests`
