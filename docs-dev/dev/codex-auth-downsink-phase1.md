@@ -337,3 +337,22 @@
 - `swift test --package-path libs/Providers --filter ProviderUsageTokenAccountsTests`
 - `swift test --package-path libs/Providers --filter ProviderUsageMonitorServiceTests`
 - `xcodebuild test -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' -only-testing:nolonTests/UsageMonitorServiceTests`
+
+## Phase 1.14：app 层去除 token path 静态桥接
+
+### BDD 场景
+- Given app 需要监听 token account 文件变更，When 构建 watcher 路径，Then 应直接依赖库侧 `ProviderUsagePaths`，不再经 app 层静态桥接。
+
+### TDD（红 -> 绿）
+- 依赖已有库侧路径测试：
+  - `ProviderUsageTokenAccountsTests.defaultTokenAccountsFilePathLayout`
+- 最小实现：
+  - `ProviderUsageViewModel.updateUsageFileWatcher()` 改为直接使用 `ProviderUsagePaths.defaultTokenAccountsFileURL().path`
+  - `UsageMonitorService` 初始化直接使用 `ProviderUsagePaths.defaultTokenAccountsFileURL()`
+  - 删除 `UsageMonitorService.defaultTokenAccountsFileURL()` 静态桥接
+  - `UsageMonitorServiceTests` 改为直接断言 `ProviderUsagePaths` 输出
+
+### 验证
+- `swift test --package-path libs/Providers --filter ProviderUsageTokenAccountsTests`
+- `swift test --package-path libs/Providers --filter ProviderUsageMonitorServiceTests`
+- `xcodebuild test -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' -only-testing:nolonTests/UsageMonitorServiceTests`
