@@ -100,6 +100,33 @@ struct CostUsageStoragePathTests {
         #expect(parsed.days["2026-02-12"]?["gpt-5"] == [123, 103, 37])
     }
 
+    @Test("CostUsageScanner parses last JSONL line without trailing newline")
+    func costUsageScannerParsesLastLineWithoutTrailingNewline() throws {
+        let root = STFolder(FileManager.default.temporaryDirectory
+            .appendingPathComponent("cost-usage-no-newline-\(UUID().uuidString)", isDirectory: true))
+        _ = root.createIfNotExists()
+        defer { try? root.delete() }
+
+        let sessionsRoot = root.folder("sessions")
+        _ = sessionsRoot.createIfNotExists()
+        let file = sessionsRoot.file("2026-02-12-rollout.jsonl")
+
+        let lines = [
+            #"{"timestamp":"2026-02-12T10:00:00Z","type":"turn_context","payload":{"model":"gpt-5"}}"#,
+            #"{"timestamp":"2026-02-12T10:00:01Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":100,"cached_input_tokens":80,"output_tokens":20,"total_tokens":120}}}}"#,
+            #"{"timestamp":"2026-02-12T10:00:02Z","type":"event_msg","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":3,"cached_input_tokens":10,"output_tokens":2,"total_tokens":5}}}}"#
+        ]
+        // Intentionally do not append trailing newline to the last line.
+        try file.overlay(with: lines.joined(separator: "\n"))
+
+        let since = Date(timeIntervalSince1970: 0)
+        let until = Self.makeLocalDate(year: 2100, month: 1, day: 1, hour: 0, minute: 0)
+        let range = CostUsageScanner.CostUsageDayRange(since: since, until: until)
+
+        let parsed = CostUsageScanner.parseCodexFile(file: file, range: range)
+        #expect(parsed.days["2026-02-12"]?["gpt-5"] == [103, 83, 22])
+    }
+
     private static func makeLocalDate(year: Int, month: Int, day: Int, hour: Int, minute: Int) -> Date {
         var comps = DateComponents()
         comps.calendar = Calendar.current
