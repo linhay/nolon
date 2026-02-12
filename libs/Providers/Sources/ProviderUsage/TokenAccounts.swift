@@ -2,6 +2,17 @@ import Foundation
 import CodexBarProviderCatalog
 import STFilePath
 
+public enum ProviderUsagePaths {
+    public static func defaultTokenAccountsFileURL(
+        baseDirectory: URL? = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+    ) -> URL {
+        let base = baseDirectory ?? STFolder(NSHomeDirectory()).url
+        return base
+            .appendingPathComponent("Nolon", isDirectory: true)
+            .appendingPathComponent("token-accounts.json")
+    }
+}
+
 public struct ProviderTokenAccount: Identifiable, Codable, Sendable, Equatable {
     public let id: UUID
     public let label: String

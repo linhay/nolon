@@ -1,7 +1,6 @@
 import Foundation
 import ProviderUsage
 import CodexBarProviderCatalog
-import STFilePath
 
 actor UsageMonitorService {
     private let tokenStore: FileTokenAccountStore
@@ -22,10 +21,6 @@ actor UsageMonitorService {
     }
 
     static func defaultTokenAccountsFileURL() -> URL {
-        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
-            ?? STFolder(NSHomeDirectory()).url
-        return base
-            .appendingPathComponent("Nolon", isDirectory: true)
-            .appendingPathComponent("token-accounts.json")
+        ProviderUsagePaths.defaultTokenAccountsFileURL()
     }
 }
