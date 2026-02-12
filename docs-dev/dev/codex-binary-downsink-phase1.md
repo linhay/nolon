@@ -24,3 +24,22 @@
   2. `MainSplitView` / `ProviderDetailGridViewModel` / `UsageMonitorService`
   3. `nolonTests/CodexBinaryAutoUpdateBehaviorTests` 与相关测试 import 收敛
 - 完成后删除 app 侧重复实现，保留单一来源（`libs/Providers`）。
+
+## 第四十三轮推进（Binary 双实现清理 + 回归）
+- BDD 场景：
+  - Given app 与库都存在 Codex Binary 定义，When 执行下沉收敛，Then app 应仅依赖 `CodexProvider` 的单一实现来源。
+- TDD 过程：
+  - 先新增迁移守卫测试 `CodexBinaryDownsinkMigrationTests`，锁定 app 类型应与 `CodexProvider` 类型一致。
+  - 清理后首次回归暴露 `String.nonEmpty` 被连带删除导致的编译失败（红灯）。
+  - 最小修复：新增 `nolon/Skills/Models/String+Nolon.swift` 恢复公共扩展；`CodexBinaryAutoUpdateBehaviorTests` 显式 `import CodexProvider`；回归转绿。
+- 代码变更：
+  - 删除遗留重复实现：
+    - `nolon/Skills/Infrastructure/CodexBinaryManager.swift`
+    - `nolon/Skills/Models/CodexBinaryManifest.swift`
+  - 新增：
+    - `nolonTests/CodexBinaryDownsinkMigrationTests.swift`
+    - `nolon/Skills/Models/String+Nolon.swift`
+  - 调整：
+    - `nolonTests/CodexBinaryAutoUpdateBehaviorTests.swift`（显式依赖库侧类型）
+- 验证通过：
+  - `xcodebuild test -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' -only-testing:nolonTests/CodexBinaryDownsinkMigrationTests -only-testing:nolonTests/CodexBinaryAutoUpdateBehaviorTests -only-testing:nolonTests/CodexAuthServiceTests`

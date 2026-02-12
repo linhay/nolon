@@ -1,6 +1,7 @@
 import XCTest
 @testable import nolon
 import STFilePath
+import CodexProvider
 
 final class CodexBinaryAutoUpdateBehaviorTests: XCTestCase {
     func testBDD_GivenLastUpdateCheckIsWithin24Hours_WhenCheckingForUpdates_ThenSkipsRemoteRequest() async throws {
