@@ -553,6 +553,205 @@ struct CodexGeneratedFilesParserTests {
         #expect(files.contains(where: { $0.path.hasSuffix("rollout-b.jsonl") }))
     }
 
+    @Test("Parse rollout reasoning/compaction_summary and nested token_count/task lifecycle")
+    func parseRolloutReasoningCompactionAndNestedEvents() throws {
+        let reasoningLine = """
+        {
+          "timestamp": "2026-02-11T12:00:15Z",
+          "type": "response_item",
+          "payload": {
+            "type": "reasoning",
+            "summary": {"text": "thinking"},
+            "content": [{"kind": "reasoning_text", "text": "detail"}]
+          }
+        }
+        """
+        let parsedReasoning = try CodexGeneratedFilesParser.parseRolloutLine(text: reasoningLine)
+        if case let .responseItem(item) = parsedReasoning.item {
+            if case let .reasoning(summary, content) = item.kind {
+                #expect(summary?.objectValue?["text"]?.stringValue == "thinking")
+                if case let .array(values)? = content {
+                    #expect(values.count == 1)
+                } else {
+                    Issue.record("Expected reasoning content to be array")
+                }
+            } else {
+                Issue.record("Expected response_item.reasoning")
+            }
+        } else {
+            Issue.record("Expected response_item")
+        }
+
+        let compactionSummaryLine = """
+        {
+          "timestamp": "2026-02-11T12:00:16Z",
+          "type": "response_item",
+          "payload": {
+            "type": "compaction_summary",
+            "encrypted_content": "enc-1"
+          }
+        }
+        """
+        let parsedCompaction = try CodexGeneratedFilesParser.parseRolloutLine(text: compactionSummaryLine)
+        if case let .responseItem(item) = parsedCompaction.item {
+            if case let .compaction(encryptedContent) = item.kind {
+                #expect(encryptedContent == "enc-1")
+            } else {
+                Issue.record("Expected response_item.compaction_summary")
+            }
+        } else {
+            Issue.record("Expected response_item")
+        }
+
+        let nestedTokenLine = """
+        {
+          "timestamp": "2026-02-11T12:00:17Z",
+          "type": "event_msg",
+          "payload": {
+            "payload": {
+              "type": "token_count",
+              "info": {
+                "model_name": "gpt-5.2-codex",
+                "total_token_usage": { "input_tokens": 10, "output_tokens": 5, "total_tokens": 15 }
+              }
+            }
+          }
+        }
+        """
+        let parsedNestedToken = try CodexGeneratedFilesParser.parseRolloutLine(text: nestedTokenLine)
+        if case let .tokenCount(tokenCount) = parsedNestedToken.item {
+            #expect(tokenCount.model == "gpt-5.2-codex")
+            #expect(tokenCount.totalUsage?.totalTokens == 15)
+        } else {
+            Issue.record("Expected top-level tokenCount for nested event_msg payload.token_count")
+        }
+
+        let taskStartedLine = """
+        {
+          "timestamp": "2026-02-11T12:00:18Z",
+          "type": "event_msg",
+          "payload": {
+            "type": "task_started",
+            "model_context_window": 272000
+          }
+        }
+        """
+        let parsedTaskStarted = try CodexGeneratedFilesParser.parseRolloutLine(text: taskStartedLine)
+        if case let .eventMsg(event) = parsedTaskStarted.item {
+            if case let .turnStarted(modelContextWindow) = event.kind {
+                #expect(modelContextWindow == 272000)
+            } else {
+                Issue.record("Expected event_msg.task_started as turnStarted")
+            }
+        } else {
+            Issue.record("Expected event_msg")
+        }
+
+        let taskCompleteLine = """
+        {
+          "timestamp": "2026-02-11T12:00:19Z",
+          "type": "event_msg",
+          "payload": {
+            "type": "task_complete",
+            "last_agent_message": "all done"
+          }
+        }
+        """
+        let parsedTaskComplete = try CodexGeneratedFilesParser.parseRolloutLine(text: taskCompleteLine)
+        if case let .eventMsg(event) = parsedTaskComplete.item {
+            if case let .turnComplete(lastAgentMessage) = event.kind {
+                #expect(lastAgentMessage == "all done")
+            } else {
+                Issue.record("Expected event_msg.task_complete as turnComplete")
+            }
+        } else {
+            Issue.record("Expected event_msg")
+        }
+    }
+
+    @Test("Load all codex generated files from CODEX_HOME")
+    func loadAllGeneratedFilesFromHome() throws {
+        let tempRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codex-home-all-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: tempRoot, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempRoot) }
+
+        let jwt = Self.makeJWT(payload: """
+        {
+          "email": "all@example.com",
+          "https://api.openai.com/auth": {
+            "chatgpt_plan_type": "plus",
+            "chatgpt_account_id": "org-all"
+          }
+        }
+        """)
+        try """
+        {
+          "auth_mode": "chatgpt",
+          "tokens": {
+            "id_token": "\(jwt)",
+            "access_token": "access-all",
+            "refresh_token": "refresh-all",
+            "account_id": "org-all"
+          }
+        }
+        """.write(to: tempRoot.appendingPathComponent("auth.json"), atomically: true, encoding: .utf8)
+
+        try """
+        {"session_id":"h-1","ts":1739275200,"text":"hi"}
+        """.write(to: tempRoot.appendingPathComponent("history.jsonl"), atomically: true, encoding: .utf8)
+
+        try """
+        model = "gpt-5"
+        [features]
+        web_search_request = true
+        """.write(to: tempRoot.appendingPathComponent("config.toml"), atomically: true, encoding: .utf8)
+
+        try """
+        model = "gpt-5.2-codex"
+        """.write(to: tempRoot.appendingPathComponent("managed_config.toml"), atomically: true, encoding: .utf8)
+
+        let sessionsDir = tempRoot
+            .appendingPathComponent("sessions/2026/02/11", isDirectory: true)
+        try FileManager.default.createDirectory(at: sessionsDir, withIntermediateDirectories: true)
+        try """
+        {"timestamp":"2026-02-11T12:00:00Z","type":"session_meta","payload":{"id":"s-all"}}
+        """.write(to: sessionsDir.appendingPathComponent("rollout.jsonl"), atomically: true, encoding: .utf8)
+
+        let snapshot = try CodexGeneratedFilesParser.loadAllGeneratedFiles(codexHome: tempRoot, includeArchived: true)
+        #expect(snapshot.auth?.tokens?.accessToken == "access-all")
+        #expect(snapshot.history.count == 1)
+        #expect(snapshot.history.first?.sessionID == "h-1")
+        #expect(snapshot.config?.model == "gpt-5")
+        #expect(snapshot.managedConfig?.model == "gpt-5.2-codex")
+        #expect(snapshot.rolloutFiles.count == 1)
+        #expect(snapshot.rolloutFiles.first?.lines.count == 1)
+    }
+
+    @Test("Load all generated files can exclude archived_sessions")
+    func loadAllGeneratedFilesExcludeArchived() throws {
+        let tempRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codex-home-no-archived-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: tempRoot, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempRoot) }
+
+        let sessionsDir = tempRoot.appendingPathComponent("sessions/2026/02/11", isDirectory: true)
+        let archivedDir = tempRoot.appendingPathComponent("archived_sessions/2026/02/11", isDirectory: true)
+        try FileManager.default.createDirectory(at: sessionsDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: archivedDir, withIntermediateDirectories: true)
+
+        try """
+        {"timestamp":"2026-02-11T12:00:00Z","type":"session_meta","payload":{"id":"s-live"}}
+        """.write(to: sessionsDir.appendingPathComponent("live.jsonl"), atomically: true, encoding: .utf8)
+        try """
+        {"timestamp":"2026-02-11T12:00:00Z","type":"session_meta","payload":{"id":"s-archived"}}
+        """.write(to: archivedDir.appendingPathComponent("archived.jsonl"), atomically: true, encoding: .utf8)
+
+        let snapshot = try CodexGeneratedFilesParser.loadAllGeneratedFiles(codexHome: tempRoot, includeArchived: false)
+        #expect(snapshot.rolloutFiles.count == 1)
+        #expect(snapshot.rolloutFiles.first?.path.hasSuffix("live.jsonl") == true)
+    }
+
     private static func makeJWT(payload: String) -> String {
         let header = #"{"alg":"none","typ":"JWT"}"#
         func encode(_ raw: String) -> String {

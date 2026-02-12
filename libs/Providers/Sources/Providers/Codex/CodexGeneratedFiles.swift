@@ -416,7 +416,38 @@ public struct CodexRolloutFile: Sendable, Equatable {
     }
 }
 
+public struct CodexGeneratedFilesSnapshot: Sendable, Equatable {
+    public let auth: CodexAuthFile?
+    public let history: [CodexHistoryEntry]
+    public let config: CodexConfigToml?
+    public let managedConfig: CodexConfigToml?
+    public let rolloutFiles: [CodexRolloutFile]
+
+    public init(
+        auth: CodexAuthFile?,
+        history: [CodexHistoryEntry],
+        config: CodexConfigToml?,
+        managedConfig: CodexConfigToml?,
+        rolloutFiles: [CodexRolloutFile]
+    ) {
+        self.auth = auth
+        self.history = history
+        self.config = config
+        self.managedConfig = managedConfig
+        self.rolloutFiles = rolloutFiles
+    }
+}
+
 public enum CodexGeneratedFilesParser {
+    private enum FileName {
+        static let auth = "auth.json"
+        static let history = "history.jsonl"
+        static let config = "config.toml"
+        static let managedConfig = "managed_config.toml"
+        static let sessionsDirectory = "sessions"
+        static let archivedSessionsDirectory = "archived_sessions"
+    }
+
     // MARK: auth
 
     public static func parseAuth(data: Data) throws -> CodexAuthFile {
@@ -507,18 +538,7 @@ public enum CodexGeneratedFilesParser {
     }
 
     public static func parseHistoryLines(data: Data) throws -> [CodexHistoryEntry] {
-        guard let text = String(data: data, encoding: .utf8) else {
-            throw CodexGeneratedFilesError.invalidUTF8
-        }
-        return try text
-            .split(whereSeparator: \.isNewline)
-            .filter { !$0.isEmpty }
-            .map { line in
-                guard let lineData = String(line).data(using: .utf8) else {
-                    throw CodexGeneratedFilesError.invalidUTF8
-                }
-                return try parseHistoryLine(data: lineData)
-            }
+        return try parseJSONLLines(data: data, parser: parseHistoryLine(data:))
     }
 
     // MARK: config
@@ -577,25 +597,60 @@ public enum CodexGeneratedFilesParser {
     }
 
     public static func parseRolloutLines(data: Data) throws -> [CodexRolloutLine] {
-        guard let text = String(data: data, encoding: .utf8) else {
-            throw CodexGeneratedFilesError.invalidUTF8
-        }
-        return try text
-            .split(whereSeparator: \.isNewline)
-            .filter { !$0.isEmpty }
-            .map { line in
-                try parseRolloutLine(text: String(line))
-            }
+        return try parseJSONLLines(data: data, parser: parseRolloutLine(data:))
+    }
+
+    public static func loadAllGeneratedFiles(
+        codexHome: URL,
+        includeArchived: Bool = true
+    ) throws -> CodexGeneratedFilesSnapshot {
+        let auth = try loadAuthFile(codexHome: codexHome)
+        let history = try loadHistoryFile(codexHome: codexHome)
+        let config = try loadConfigFile(codexHome: codexHome, managed: false)
+        let managedConfig = try loadConfigFile(codexHome: codexHome, managed: true)
+        let rolloutFiles = try loadRolloutFiles(codexHome: codexHome, includeArchived: includeArchived)
+        return .init(
+            auth: auth,
+            history: history,
+            config: config,
+            managedConfig: managedConfig,
+            rolloutFiles: rolloutFiles
+        )
+    }
+
+    public static func loadAuthFile(codexHome: URL) throws -> CodexAuthFile? {
+        try loadOptionalParsedFile(
+            codexHome: codexHome,
+            filename: FileName.auth,
+            parser: parseAuth(data:)
+        )
+    }
+
+    public static func loadHistoryFile(codexHome: URL) throws -> [CodexHistoryEntry] {
+        try loadParsedListFile(
+            codexHome: codexHome,
+            filename: FileName.history,
+            parser: parseHistoryLines(data:)
+        )
+    }
+
+    public static func loadConfigFile(codexHome: URL, managed: Bool = false) throws -> CodexConfigToml? {
+        let filename = managed ? FileName.managedConfig : FileName.config
+        return try loadOptionalParsedFile(
+            codexHome: codexHome,
+            filename: filename,
+            parser: parseConfigToml(data:)
+        )
     }
 
     public static func loadRolloutFiles(
         codexHome: URL,
         includeArchived: Bool = true
     ) throws -> [CodexRolloutFile] {
-        let sessionsRoot = codexHome.appendingPathComponent("sessions", isDirectory: true)
+        let sessionsRoot = codexHome.appendingPathComponent(FileName.sessionsDirectory, isDirectory: true)
         var roots = [sessionsRoot]
         if includeArchived {
-            roots.append(codexHome.appendingPathComponent("archived_sessions", isDirectory: true))
+            roots.append(codexHome.appendingPathComponent(FileName.archivedSessionsDirectory, isDirectory: true))
         }
 
         var files: [CodexRolloutFile] = []
@@ -844,6 +899,47 @@ public enum CodexGeneratedFilesParser {
             files.append(fileURL)
         }
         return files
+    }
+
+    private static func parseJSONLLines<T>(
+        data: Data,
+        parser: (Data) throws -> T
+    ) throws -> [T] {
+        guard let text = String(data: data, encoding: .utf8) else {
+            throw CodexGeneratedFilesError.invalidUTF8
+        }
+        return try text
+            .split(whereSeparator: \.isNewline)
+            .filter { !$0.isEmpty }
+            .map { line in
+                let lineData = Data(line.utf8)
+                return try parser(lineData)
+            }
+    }
+
+    private static func loadOptionalParsedFile<T>(
+        codexHome: URL,
+        filename: String,
+        parser: (Data) throws -> T
+    ) throws -> T? {
+        let fileURL = codexHome.appendingPathComponent(filename, isDirectory: false)
+        guard let data = try readDataIfPresent(fileURL: fileURL) else { return nil }
+        return try parser(data)
+    }
+
+    private static func loadParsedListFile<T>(
+        codexHome: URL,
+        filename: String,
+        parser: (Data) throws -> [T]
+    ) throws -> [T] {
+        try loadOptionalParsedFile(codexHome: codexHome, filename: filename, parser: parser) ?? []
+    }
+
+    private static func readDataIfPresent(fileURL: URL) throws -> Data? {
+        guard FileManager.default.fileExists(atPath: fileURL.path) else {
+            return nil
+        }
+        return try Data(contentsOf: fileURL)
     }
 }
 

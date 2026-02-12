@@ -54,18 +54,21 @@
 - 文件：`libs/Providers/Tests/ProvidersTests/CodexTests/CodexGeneratedFilesParserTests.swift`
 - 已覆盖场景：
   - `session_meta`
-  - `token_count`（event_msg）
+  - `token_count`（event_msg + nested event payload）
   - `response_item.message`
   - `response_item.function_call_output/local_shell_call/web_search_call/ghost_snapshot`
   - `response_item.custom_tool_call/custom_tool_call_output`（结构化）
-  - `event_msg.user_message/agent_message/error/warning/turn_complete`
+  - `response_item.reasoning/compaction_summary`
+  - `event_msg.user_message/agent_message/error/warning/task_started/task_complete/turn_complete`
   - unknown fallback（`event_msg.other`、top-level `.other(type:)`）
   - `compacted`
   - `history.jsonl`
   - `config.toml` / `managed_config.toml`
   - `sessions` + `archived_sessions` 文件加载
+  - `CODEX_HOME` 全量文件入口加载（auth/history/config/managed_config/sessions）
 
-## 待补强建议
-1. 增加 `event_msg.task_started/task_complete` 的细粒度断言测试。
-2. 增加 `response_item.reasoning/compaction/compaction_summary` 的断言测试。
-3. 增加 `event_msg.token_count(payload 嵌套形态)` 的显式回归用例。
+## 当前状态
+- 本轮待补强项已全部落地（task lifecycle、reasoning/compaction_summary、nested token_count）。
+- 解析器新增 `loadAllGeneratedFiles(codexHome:includeArchived:)`，统一装配 Codex 生成文件解析入口，降低调用侧重复拼装逻辑。
+- 补充 `includeArchived=false` 回归：统一入口在仅需活跃会话时不会读取 `archived_sessions`。
+- 解析器内部增加 `FileName` 常量与通用文件加载 helper（`loadOptionalParsedFile` / `loadParsedListFile`），进一步减少重复路径与读取逻辑。
