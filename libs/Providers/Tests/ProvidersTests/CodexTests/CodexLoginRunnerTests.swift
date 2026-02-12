@@ -43,11 +43,7 @@ struct CodexLoginRunnerTests {
             codexHome: codexHome
         )
 
-        let deadline = Date().addingTimeInterval(2.0)
-        while handle.isRunning, Date() < deadline {
-            Thread.sleep(forTimeInterval: 0.05)
-        }
-        let out = try String(contentsOf: marker, encoding: .utf8)
+        let out = try awaitMarkerOutput(at: marker, handle: handle, timeout: 5.0)
         #expect(out.contains("ARGS:login"))
         #expect(out.contains("CODEX_HOME:\(codexHome.path)"))
     }
@@ -79,11 +75,27 @@ struct CodexLoginRunnerTests {
             codexHome: codexHomeFolder
         )
 
-        let deadline = Date().addingTimeInterval(2.0)
-        while handle.isRunning, Date() < deadline {
+        let out = try awaitMarkerOutput(at: marker, handle: handle, timeout: 5.0)
+        #expect(out.contains("CODEX_HOME:\(codexHomeFolder.url.path)"))
+    }
+
+    private func awaitMarkerOutput(at marker: URL, handle: CodexLoginHandle, timeout: TimeInterval) throws -> String {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if let out = try? String(contentsOf: marker, encoding: .utf8), !out.isEmpty {
+                if handle.isRunning {
+                    handle.cancel()
+                }
+                return out
+            }
+            if !handle.isRunning {
+                break
+            }
             Thread.sleep(forTimeInterval: 0.05)
         }
-        let out = try String(contentsOf: marker, encoding: .utf8)
-        #expect(out.contains("CODEX_HOME:\(codexHomeFolder.url.path)"))
+        if handle.isRunning {
+            handle.cancel()
+        }
+        return try String(contentsOf: marker, encoding: .utf8)
     }
 }
