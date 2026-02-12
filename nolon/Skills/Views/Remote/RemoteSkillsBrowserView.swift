@@ -4,6 +4,7 @@ import Observation
 import STFilePath
 import STJSON
 import TOML
+import OSLog
 
 enum RemoteMCPInstallStatusResolver {
     static func slugsFromGlobalCache(at mcpsURL: URL) -> Set<String> {
@@ -52,6 +53,8 @@ enum RemoteMCPInstallStatusResolver {
 
 @Observable
 final class RemoteSkillsBrowserViewModel {
+    private static let logger = Logger(subsystem: "nolon", category: "RemoteSkillsBrowser")
+
     var selectedRepository: RemoteRepository?
     var selectedTab: RemoteContentTabType? = .skills
     var searchText = ""
@@ -78,7 +81,7 @@ final class RemoteSkillsBrowserViewModel {
                 let states = try installer.scanProvider(provider: provider)
                 installedSlugs = Set(states.filter { $0.state == .installed }.map { $0.skillName })
             } catch {
-                print("Failed to scan provider: \(error)")
+                Self.logger.error("Failed to scan provider: \(error.localizedDescription, privacy: .public)")
                 installedSlugs = []
             }
         } else {
@@ -87,7 +90,7 @@ final class RemoteSkillsBrowserViewModel {
                 let skills = try repository.listSkills()
                 installedSlugs = Set(skills.map { $0.id })
             } catch {
-                print("Failed to load installed skills: \(error)")
+                Self.logger.error("Failed to load installed skills: \(error.localizedDescription, privacy: .public)")
                 installedSlugs = []
             }
         }
@@ -353,7 +356,8 @@ struct RemoteSkillsBrowserView: View {
             repository: SkillRepository(),
             selectedTab: .skills,
             onInstall: { skill, provider in
-                print("Install \(skill.displayName) to \(provider.name)")
+                _ = skill
+                _ = provider
             }
         )
         .frame(width: 900, height: 600)
