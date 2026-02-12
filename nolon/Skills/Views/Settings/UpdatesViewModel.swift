@@ -17,7 +17,6 @@ final class UpdatesViewModel {
     var updateProgress: String?
     
     private let updateChecker = SkillUpdateChecker()
-    private let clawdhubRepository = ClawdhubRepository()
     private let settings = ProviderSettings()
     
     var updatableCount: Int {
@@ -74,7 +73,12 @@ final class UpdatesViewModel {
     }
     
     private func updateClawdhubSkill(_ update: SkillUpdateInfo) async throws {
-        let zipURL = try await clawdhubRepository.downloadSkill(slug: update.id)
+        let zipURL = try await SkillsRepositoryFacade.downloadRemoteResource(
+            kind: .skill,
+            slug: update.id,
+            version: nil,
+            baseURL: RepositoryTemplate.clawdhub.createRepository().baseURL
+        )
         defer {
             try? STPath(zipURL).deleteIncludingBrokenSymlink()
         }

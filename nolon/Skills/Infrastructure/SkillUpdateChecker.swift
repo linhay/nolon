@@ -1,24 +1,25 @@
 import Foundation
+import ProviderCatalog
 
 public actor SkillUpdateChecker {
     private let lockFileManager: SkillLockFileManager
     private let gitHubAPI: GitHubAPIService
-    private let clawdhubRepository: ClawdhubRepository
+    private let remoteBaseURL: String
     
     public init() {
         self.lockFileManager = SkillLockFileManager()
         self.gitHubAPI = GitHubAPIService()
-        self.clawdhubRepository = ClawdhubRepository()
+        self.remoteBaseURL = "https://clawdhub.com"
     }
     
     public init(
         lockFileManager: SkillLockFileManager,
         gitHubAPI: GitHubAPIService,
-        clawdhubRepository: ClawdhubRepository
+        remoteBaseURL: String
     ) {
         self.lockFileManager = lockFileManager
         self.gitHubAPI = gitHubAPI
-        self.clawdhubRepository = clawdhubRepository
+        self.remoteBaseURL = remoteBaseURL
     }
     
     public func checkForUpdates() async -> [SkillUpdateInfo] {
@@ -56,19 +57,24 @@ public actor SkillUpdateChecker {
     
     private func checkClawdhubSkill(slug: String, entry: SkillLockEntry) async -> SkillUpdateInfo? {
         do {
-            let remoteSkills = try await clawdhubRepository.fetchSkills(query: slug, limit: 10)
+            let remoteSkills = try await SkillsRepositoryFacade.listRemoteResources(
+                kind: .skill,
+                query: slug,
+                limit: 10,
+                baseURL: remoteBaseURL
+            ).items
             
             guard let remoteSkill = remoteSkills.first(where: { $0.slug == slug }) else {
                 return nil
             }
             
-            let hasUpdate = remoteSkill.latestVersion?.version != entry.version
+            let hasUpdate = remoteSkill.latestVersion != entry.version
             
             return SkillUpdateInfo(
                 id: slug,
                 skillName: entry.displayName ?? slug,
                 currentVersion: entry.version,
-                latestVersion: remoteSkill.latestVersion?.version,
+                latestVersion: remoteSkill.latestVersion,
                 hasUpdate: hasUpdate,
                 currentHash: entry.skillFolderHash,
                 latestHash: nil,

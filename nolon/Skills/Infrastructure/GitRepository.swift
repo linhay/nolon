@@ -210,7 +210,7 @@ public actor GitRepository: RemoteResourceRepository {
             )
             logger.info("✅ Git sync mode: \(String(describing: outcome.mode), privacy: .public)")
             lastSyncDate = outcome.updatedAt
-        } catch let error as RemoteGitRepositorySupport.SyncError {
+        } catch let error as SkillsRepositoryFacade.SyncError {
             throw Self.mapSyncError(error)
         }
 
@@ -245,7 +245,7 @@ public actor GitRepository: RemoteResourceRepository {
                 workflowPaths: resources.workflows.map(\.path),
                 mcpPaths: resources.mcps.map(\.path)
             )
-        } catch let error as RemoteGitRepositorySupport.SyncError {
+        } catch let error as SkillsRepositoryFacade.SyncError {
             let mapped = mapSyncError(error)
             switch mapped {
             case .sshNotAvailable:
@@ -392,10 +392,12 @@ public actor GitRepository: RemoteResourceRepository {
         )
     }
     
-    private static func mapSyncError(_ error: RemoteGitRepositorySupport.SyncError) -> SyncError {
+    private static func mapSyncError(_ error: SkillsRepositoryFacade.SyncError) -> SyncError {
         switch error {
         case .invalidURL:
             return .invalidURL
+        case .accessTokenRequired:
+            return .cloneFailed("Access token is required for token-only credential strategy")
         case let .sshNotAvailable(host):
             return .sshNotAvailable(host: host)
         case let .cloneFailed(message):

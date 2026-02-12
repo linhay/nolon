@@ -1,5 +1,5 @@
 {
-  "originHash" : "2e0de45ccd7c068b8a9cbc04408875a73fa3b337190c703ba4e96305d47326c4",
+  "originHash" : "fbb4cff5f5564c48944057af958bcc45b5d80d4c607372682b987f4471bd7201",
   "pins" : [
     {
       "identity" : "skprocessrunner",
@@ -35,6 +35,15 @@
       "state" : {
         "revision" : "827506c90475e82d5a7f191f950fb3025cbdc0d6",
         "version" : "2.0.0"
+      }
+    },
+    {
+      "identity" : "yams",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/jpsim/Yams",
+      "state" : {
+        "revision" : "deaf82e867fa2cbd3cd865978b079bfcf384ac28",
+        "version" : "6.2.1"
       }
     }
   ],

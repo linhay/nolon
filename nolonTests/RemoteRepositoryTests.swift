@@ -81,4 +81,43 @@ final class RemoteRepositoryTests: XCTestCase {
         XCTAssertNil(RemoteRepository.extractSubpath(from: "./local/path"))
         XCTAssertNil(RemoteRepository.extractSubpath(from: "/absolute/path"))
     }
+
+    // MARK: - Repository Identity Tests
+
+    func testExtractRepoName_FromShorthandAndSSH() {
+        XCTAssertEqual(
+            RemoteRepository.extractRepoName(from: "vercel/agent-skills"),
+            "agent-skills"
+        )
+        XCTAssertEqual(
+            RemoteRepository.extractRepoName(from: "git@gitlab.example.com:team/repo.git"),
+            "repo"
+        )
+    }
+
+    func testExtractRepoFullName_FromShorthandAndHTTPS() {
+        XCTAssertEqual(
+            RemoteRepository.extractRepoFullName(from: "vercel/agent-skills"),
+            "vercel@agent-skills"
+        )
+        XCTAssertEqual(
+            RemoteRepository.extractRepoFullName(from: "https://github.com/openai/codex.git"),
+            "openai@codex"
+        )
+    }
+
+    func testDetectProvider_UsesFacadeSemantics() {
+        XCTAssertEqual(
+            RemoteRepository.detectProvider(from: "https://github.com/openai/codex.git"),
+            .github
+        )
+        XCTAssertEqual(
+            RemoteRepository.detectProvider(from: "git@gitlab.example.com:team/repo.git"),
+            .gitlab
+        )
+        XCTAssertEqual(
+            RemoteRepository.detectProvider(from: "https://bitbucket.org/team/repo.git"),
+            .bitbucket
+        )
+    }
 }

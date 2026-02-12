@@ -49,6 +49,7 @@ let package = Package(
         .package(url: "https://github.com/steipete/SweetCookieKit", from: "0.4.0"),
         .package(url: "https://github.com/mattt/swift-toml", from: "2.0.0"),
         .package(url: "https://github.com/linhay/STFilePath.git", from: "1.3.4"),
+        .package(url: "https://github.com/jpsim/Yams", from: "6.2.1"),
     ],
     targets: [
         // Shared Provider utilities
@@ -111,6 +112,7 @@ let package = Package(
             name: "ProviderCatalog",
             dependencies: [
                 .product(name: "STFilePath", package: "STFilePath"),
+                .product(name: "Yams", package: "Yams"),
             ],
             path: "Sources/ProviderCatalog",
             resources: [

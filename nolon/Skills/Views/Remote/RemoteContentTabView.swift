@@ -1,6 +1,7 @@
 import SwiftUI
 import STJSON
 import OSLog
+import ProviderCatalog
 
 /// Remote 内容 Tab 类型 - 可扩展设计
 enum RemoteContentTabType: String, CaseIterable, Identifiable {
@@ -57,15 +58,29 @@ final class RemoteContentTabViewModel {
         do {
             switch repository.templateType {
             case .clawdhub:
-                let repo = ClawdhubRepository(repository: repository)
-                let skills = try await repo.fetchSkills(query: nil, limit: 100)
-                skillsCount = skills.count
-                
-                let workflows = try await repo.fetchWorkflows(query: nil, limit: 100)
-                workflowsCount = workflows.count
-                
-                let mcps = try await repo.fetchMCPs(query: nil, limit: 100)
-                mcpsCount = mcps.count
+                let skillList = try await SkillsRepositoryFacade.listRemoteResources(
+                    kind: .skill,
+                    query: nil,
+                    limit: 100,
+                    baseURL: repository.baseURL
+                )
+                skillsCount = skillList.items.count
+
+                let workflowList = try await SkillsRepositoryFacade.listRemoteResources(
+                    kind: .workflow,
+                    query: nil,
+                    limit: 100,
+                    baseURL: repository.baseURL
+                )
+                workflowsCount = workflowList.items.count
+
+                let mcpList = try await SkillsRepositoryFacade.listRemoteResources(
+                    kind: .mcp,
+                    query: nil,
+                    limit: 100,
+                    baseURL: repository.baseURL
+                )
+                mcpsCount = mcpList.items.count
                 
             case .globalSkills:
                 let cacheRepo = GlobalCacheRepository()

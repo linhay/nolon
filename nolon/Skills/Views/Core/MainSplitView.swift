@@ -2,6 +2,7 @@ import SwiftUI
 import ProviderCatalog
 import Combine
 import OSLog
+import STFilePath
 
 /// Main three-column split view for the app
 /// Left 1: Provider sidebar (collapsible)
@@ -62,15 +63,13 @@ final class MainSplitViewModel {
                 try installer.installLocal(from: localPath, slug: skill.slug, to: provider)
                 Self.logger.info("Installed skill \(skill.slug, privacy: .public) from local path")
             } else {
-                let clawdhubRepo = ClawdhubRepository(
-                    repository: settings.remoteRepositories.first { $0.templateType == .clawdhub }
-                        ?? RepositoryTemplate.clawdhub.createRepository()
-                )
-
-                let zipURL = try await clawdhubRepo.downloadSkill(
+                let zipURL = try await SkillsRepositoryFacade.downloadRemoteResource(
+                    kind: .skill,
                     slug: skill.slug,
-                    version: skill.latestVersion?.version
+                    version: skill.latestVersion?.version,
+                    baseURL: currentRemoteBaseURL()
                 )
+                defer { try? STPath(zipURL).deleteIncludingBrokenSymlink() }
                 try installer.installRemote(zipURL: zipURL, slug: skill.slug, to: provider)
                 Self.logger.info("Installed skill \(skill.slug, privacy: .public) from Clawdhub to \(provider.name, privacy: .public)")
             }
@@ -86,30 +85,25 @@ final class MainSplitViewModel {
     @MainActor
     func installRemoteWorkflow(_ workflow: RemoteWorkflow, to provider: Provider) async {
         do {
-            let resourceInstaller = ResourceInstaller(globalCache: GlobalCacheRepository())
-
             if let localPath = workflow.localPath {
                 guard let installer else { return }
                 Self.logger.info("Installing workflow from local path: \(localPath, privacy: .public)")
                 try installer.installLocalWorkflow(
-                    fileURL: URL(fileURLWithPath: localPath),
+                    fileURL: STPath(localPath).url,
                     slug: workflow.slug,
                     to: provider
                 )
                 Self.logger.info("Installed workflow \(workflow.slug, privacy: .public) from local path")
             } else {
-                // Download from remote repository and install
-                let clawdhubRepo = ClawdhubRepository(
-                    repository: settings.remoteRepositories.first { $0.templateType == .clawdhub }
-                        ?? RepositoryTemplate.clawdhub.createRepository()
+                let fileURL = try await SkillsRepositoryFacade.downloadRemoteResource(
+                    kind: .workflow,
+                    slug: workflow.slug,
+                    version: workflow.latestVersion?.version,
+                    baseURL: currentRemoteBaseURL()
                 )
-                
-                try await resourceInstaller.installFromRemote(
-                    repository: clawdhubRepo,
-                    resourceSlug: workflow.slug,
-                    resourceType: .workflow,
-                    to: provider
-                )
+                defer { try? STPath(fileURL).deleteIncludingBrokenSymlink() }
+                guard let installer else { return }
+                try installer.installRemoteWorkflow(fileURL: fileURL, slug: workflow.slug, to: provider)
                 Self.logger.info("Installed workflow \(workflow.slug, privacy: .public) to \(provider.name, privacy: .public)")
             }
             
@@ -130,21 +124,22 @@ final class MainSplitViewModel {
                 // Install from local path (GitHub or Local Folder)
                 Self.logger.info("Installing MCP from local path: \(localPath, privacy: .public)")
                 try await resourceInstaller.installFromLocal(
-                    resourceURL: URL(fileURLWithPath: localPath),
+                    resourceURL: STPath(localPath).url,
                     resourceSlug: mcp.slug,
                     resourceType: .mcp,
                     to: provider
                 )
                 Self.logger.info("Installed MCP \(mcp.slug, privacy: .public) from local path")
             } else {
-                // Download from remote repository and install
-                let clawdhubRepo = ClawdhubRepository(
-                    repository: settings.remoteRepositories.first { $0.templateType == .clawdhub }
-                        ?? RepositoryTemplate.clawdhub.createRepository()
+                let resourceURL = try await SkillsRepositoryFacade.downloadRemoteResource(
+                    kind: .mcp,
+                    slug: mcp.slug,
+                    version: mcp.latestVersion?.version,
+                    baseURL: currentRemoteBaseURL()
                 )
-                
-                try await resourceInstaller.installFromRemote(
-                    repository: clawdhubRepo,
+                defer { try? STPath(resourceURL).deleteIncludingBrokenSymlink() }
+                try await resourceInstaller.installFromLocal(
+                    resourceURL: resourceURL,
                     resourceSlug: mcp.slug,
                     resourceType: .mcp,
                     to: provider
@@ -163,6 +158,11 @@ final class MainSplitViewModel {
     @MainActor
     func onClawdhubDismissed() {
         refreshTrigger += 1
+    }
+
+    private func currentRemoteBaseURL() -> String {
+        settings.remoteRepositories.first { $0.templateType == .clawdhub }?.baseURL
+            ?? RepositoryTemplate.clawdhub.createRepository().baseURL
     }
 }
 

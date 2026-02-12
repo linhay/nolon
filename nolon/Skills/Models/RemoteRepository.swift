@@ -292,13 +292,19 @@ public struct RemoteRepository: Identifiable, Codable, Hashable, Sendable {
             guard let gitURL = gitURL else {
                 return repositoriesPath.appendingPathComponent("unknown")
             }
-            if let suggested = RemoteGitRepositorySupport.suggestedClonePath(
+            if let suggested = SkillsRepositoryFacade.suggestedClonePath(
                 gitURL: gitURL,
                 repositoriesRoot: repositoriesPath
             ) {
                 return suggested
             }
-            // Fallback to old format if parsing fails
+            // Fallback: keep deterministic path layout based on façade identity if available.
+            if let identity = SkillsRepositoryFacade.parseRepositoryIdentity(from: gitURL) {
+                return repositoriesPath
+                    .appendingPathComponent(identity.host)
+                    .appendingPathComponent(identity.repoFullName)
+            }
+            // Final fallback to legacy provider-based parsing.
             let components = provider.extractComponents(from: gitURL)
             let repoFullName = "\(components.owner)@\(components.repoName)"
             return
@@ -314,8 +320,8 @@ public struct RemoteRepository: Identifiable, Codable, Hashable, Sendable {
 
     /// Extract repository name from Git URL
     public static func extractRepoName(from url: String) -> String {
-        if let provider = detectProvider(from: url) {
-            return provider.extractComponents(from: url).repoName
+        if let identity = SkillsRepositoryFacade.parseRepositoryIdentity(from: url) {
+            return identity.repo
         }
         let cleaned =
             url
@@ -327,26 +333,24 @@ public struct RemoteRepository: Identifiable, Codable, Hashable, Sendable {
 
     /// Extract full repository identifier in "owner@repo" format
     public static func extractRepoFullName(from url: String) -> String {
-        guard let provider = detectProvider(from: url) else {
-            return extractRepoName(from: url)
+        if let identity = SkillsRepositoryFacade.parseRepositoryIdentity(from: url) {
+            return identity.repoFullName
         }
-        let components = provider.extractComponents(from: url)
-        return "\(components.owner)@\(components.repoName)"
+        return extractRepoName(from: url)
     }
 
     /// Detect Git provider from URL
     public static func detectProvider(from url: String) -> GitProvider? {
-        let lowercased = url.lowercased()
-        if lowercased.contains("gitlab.com") || lowercased.contains("git@gitlab") {
-            return .gitlab
-        }
-        if lowercased.contains("bitbucket.org") || lowercased.contains("git@bitbucket") {
-            return .bitbucket
-        }
-        if lowercased.contains("github.com") || lowercased.contains("git@github") {
+        switch SkillsRepositoryFacade.detectGitProvider(from: url) {
+        case .github:
             return .github
+        case .gitlab:
+            return .gitlab
+        case .bitbucket:
+            return .bitbucket
+        case .unknown:
+            return nil
         }
-        return nil
     }
 
     /// Extract host, owner and repo from a Git URL (HTTPS or SSH)
@@ -355,7 +359,7 @@ public struct RemoteRepository: Identifiable, Codable, Hashable, Sendable {
     public nonisolated static func extractURLComponents(from url: String) -> (
         host: String, owner: String, repo: String
     )? {
-        guard let components = RemoteGitRepositorySupport.extractURLComponents(from: url) else {
+        guard let components = SkillsRepositoryFacade.extractURLComponents(from: url) else {
             return nil
         }
         return (components.host, components.owner, components.repo)
@@ -370,12 +374,12 @@ public struct RemoteRepository: Identifiable, Codable, Hashable, Sendable {
     /// - "owner/repo/subpath" -> "https://github.com/owner/repo.git"
     /// - "https://github.com/owner/repo/subpath" -> "https://github.com/owner/repo.git"
     public static func normalizeGitURL(_ input: String) -> String {
-        RemoteGitRepositorySupport.normalizeGitURL(input)
+        SkillsRepositoryFacade.normalizeGitURL(input)
     }
     
     /// 从各种格式的输入中提取 subpath
     public static func extractSubpath(from input: String) -> String? {
-        RemoteGitRepositorySupport.extractSubpath(from: input)
+        SkillsRepositoryFacade.extractSubpath(from: input)
     }
 
     /// Built-in Clawdhub repository

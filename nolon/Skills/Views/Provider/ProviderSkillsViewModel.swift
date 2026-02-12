@@ -127,8 +127,12 @@ final class ProviderSkillsViewModel {
         do {
             switch update.updateSource {
             case .clawdhub:
-                let clawdhubRepo = ClawdhubRepository()
-                let zipURL = try await clawdhubRepo.downloadSkill(slug: update.id)
+                let zipURL = try await SkillsRepositoryFacade.downloadRemoteResource(
+                    kind: .skill,
+                    slug: update.id,
+                    version: nil,
+                    baseURL: RepositoryTemplate.clawdhub.createRepository().baseURL
+                )
                 defer {
                     try? STPath(zipURL).deleteIncludingBrokenSymlink()
                 }

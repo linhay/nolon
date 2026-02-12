@@ -40,6 +40,54 @@ final class RemoteSkillsGridViewModel {
     private var currentLoadID: UUID?
     private let pageSize: Int = 20
     private let maxLimit: Int = 200
+
+    private func mapKind(_ tab: RemoteContentTabType) -> SkillsRepositoryFacade.RemoteCatalogKind {
+        switch tab {
+        case .skills:
+            return .skill
+        case .workflows:
+            return .workflow
+        case .mcps:
+            return .mcp
+        }
+    }
+
+    private func mapSkill(_ item: SkillsRepositoryFacade.RemoteCatalogItem) -> RemoteSkill {
+        RemoteSkill(
+            slug: item.slug,
+            displayName: item.displayName,
+            summary: item.summary,
+            latestVersion: item.latestVersion,
+            updatedAt: item.updatedAt,
+            downloads: item.downloads,
+            stars: item.stars
+        )
+    }
+
+    private func mapWorkflow(_ item: SkillsRepositoryFacade.RemoteCatalogItem) -> RemoteWorkflow {
+        RemoteWorkflow(
+            slug: item.slug,
+            displayName: item.displayName,
+            summary: item.summary,
+            latestVersion: item.latestVersion,
+            updatedAt: item.updatedAt,
+            downloads: item.downloads,
+            stars: item.stars
+        )
+    }
+
+    private func mapMCP(_ item: SkillsRepositoryFacade.RemoteCatalogItem) -> RemoteMCP {
+        RemoteMCP(
+            slug: item.slug,
+            displayName: item.displayName,
+            summary: item.summary,
+            latestVersion: item.latestVersion,
+            updatedAt: item.updatedAt,
+            downloads: item.downloads,
+            stars: item.stars,
+            installs: item.installs
+        )
+    }
     
     // 过滤逻辑现在在这里
     func filteredSkills(searchText: String) -> [RemoteSkill] {
@@ -119,24 +167,30 @@ final class RemoteSkillsGridViewModel {
             let cachedLimit = cache[cacheKey]?.limit ?? pageSize
             switch repository.templateType {
             case .clawdhub:
-                let repo = ClawdhubRepository(repository: repository)
+                let kind = mapKind(tab)
+                let listResult = try await SkillsRepositoryFacade.listRemoteResources(
+                    kind: kind,
+                    query: hasQuery ? trimmedQuery : nil,
+                    limit: cachedLimit,
+                    baseURL: repository.baseURL
+                )
                 switch tab {
                 case .skills:
-                    let result = try await repo.fetchSkills(query: hasQuery ? trimmedQuery : nil, limit: cachedLimit)
+                    let result = listResult.items.map(mapSkill)
                     guard currentLoadID == loadID else { return }
                     skills = result
                     let canLoad = result.count >= cachedLimit && cachedLimit < maxLimit
                     canLoadMore = canLoad
                     cache[cacheKey] = CacheEntry(skills: result, workflows: [], mcps: [], errorMessage: nil, cacheBuster: cacheBuster, limit: cachedLimit, canLoadMore: canLoad)
                 case .workflows:
-                    let result = try await repo.fetchWorkflows(query: hasQuery ? trimmedQuery : nil, limit: cachedLimit)
+                    let result = listResult.items.map(mapWorkflow)
                     guard currentLoadID == loadID else { return }
                     workflows = result
                     let canLoad = result.count >= cachedLimit && cachedLimit < maxLimit
                     canLoadMore = canLoad
                     cache[cacheKey] = CacheEntry(skills: [], workflows: result, mcps: [], errorMessage: nil, cacheBuster: cacheBuster, limit: cachedLimit, canLoadMore: canLoad)
                 case .mcps:
-                    let result = try await repo.fetchMCPs(query: hasQuery ? trimmedQuery : nil, limit: cachedLimit)
+                    let result = listResult.items.map(mapMCP)
                     guard currentLoadID == loadID else { return }
                     mcps = result
                     let canLoad = result.count >= cachedLimit && cachedLimit < maxLimit
@@ -264,24 +318,30 @@ final class RemoteSkillsGridViewModel {
         }
 
         do {
-            let repo = ClawdhubRepository(repository: repository)
+            let kind = mapKind(tab)
+            let listResult = try await SkillsRepositoryFacade.listRemoteResources(
+                kind: kind,
+                query: trimmedQuery.isEmpty ? nil : trimmedQuery,
+                limit: nextLimit,
+                baseURL: repository.baseURL
+            )
             switch tab {
             case .skills:
-                let result = try await repo.fetchSkills(query: trimmedQuery.isEmpty ? nil : trimmedQuery, limit: nextLimit)
+                let result = listResult.items.map(mapSkill)
                 guard currentLoadID == loadID else { return }
                 skills = result
                 let canLoad = result.count >= nextLimit && nextLimit < maxLimit
                 canLoadMore = canLoad
                 cache[cacheKey] = CacheEntry(skills: result, workflows: [], mcps: [], errorMessage: nil, cacheBuster: cache[cacheKey]?.cacheBuster ?? "", limit: nextLimit, canLoadMore: canLoad)
             case .workflows:
-                let result = try await repo.fetchWorkflows(query: trimmedQuery.isEmpty ? nil : trimmedQuery, limit: nextLimit)
+                let result = listResult.items.map(mapWorkflow)
                 guard currentLoadID == loadID else { return }
                 workflows = result
                 let canLoad = result.count >= nextLimit && nextLimit < maxLimit
                 canLoadMore = canLoad
                 cache[cacheKey] = CacheEntry(skills: [], workflows: result, mcps: [], errorMessage: nil, cacheBuster: cache[cacheKey]?.cacheBuster ?? "", limit: nextLimit, canLoadMore: canLoad)
             case .mcps:
-                let result = try await repo.fetchMCPs(query: trimmedQuery.isEmpty ? nil : trimmedQuery, limit: nextLimit)
+                let result = listResult.items.map(mapMCP)
                 guard currentLoadID == loadID else { return }
                 mcps = result
                 let canLoad = result.count >= nextLimit && nextLimit < maxLimit
