@@ -76,8 +76,7 @@ struct RuleCardView: View {
                     .truncationMode(.tail)
                     .frame(maxWidth: .infinity, minHeight: descriptionHeight, maxHeight: descriptionHeight, alignment: .topLeading)
             } else {
-                Text(" ")
-                    .font(.caption)
+                Color.clear
                     .frame(maxWidth: .infinity, minHeight: descriptionHeight, maxHeight: descriptionHeight, alignment: .topLeading)
             }
 

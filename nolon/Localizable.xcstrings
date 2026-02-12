@@ -1746,7 +1746,7 @@
     },
     "codex.accounts.error.activate" : {
       "comment" : "Error message",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {

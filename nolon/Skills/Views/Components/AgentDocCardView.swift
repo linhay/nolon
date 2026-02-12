@@ -73,8 +73,8 @@ struct AgentDocCardView: View {
                     .lineLimit(3)
                     .frame(maxHeight: .infinity, alignment: .topLeading)
             } else {
-                Text(" ")
-                    .font(.caption)
+                Color.clear
+                    .frame(height: 16)
                     .frame(maxHeight: .infinity, alignment: .topLeading)
             }
         }
