@@ -22,6 +22,7 @@
 		CD9ECB202F21F6C0009248CB /* SwiftGit in Frameworks */ = {isa = PBXBuildFile; productRef = CD9ECB1F2F21F6C0009248CB /* SwiftGit */; };
 		CD9EDAC52F2320BC009248CB /* SwiftGit in Frameworks */ = {isa = PBXBuildFile; productRef = CD9EDAC42F2320BC009248CB /* SwiftGit */; };
 		CD9EE2702F2677A0009248CB /* Yams in Frameworks */ = {isa = PBXBuildFile; productRef = CD9EE26F2F2677A0009248CB /* Yams */; };
+		CDA1B2012F8A111100AA00B1 /* DGCharts in Frameworks */ = {isa = PBXBuildFile; productRef = CDA1B2022F8A111100AA00B1 /* DGCharts */; };
 		CDFA67412F3599FB0053E30A /* STFilePath in Frameworks */ = {isa = PBXBuildFile; productRef = CDFA67402F3599FB0053E30A /* STFilePath */; };
 		CDFA67442F359A110053E30A /* STJSON in Frameworks */ = {isa = PBXBuildFile; productRef = CDFA67432F359A110053E30A /* STJSON */; };
 /* End PBXBuildFile section */
@@ -84,6 +85,7 @@
 				CD68A7082F371C8E008772E7 /* SKProcessRunner in Frameworks */,
 				CD4538DA2F3448850090D8F7 /* STJSON in Frameworks */,
 				CD8C9B6A2F7A1C3E00A1B2C3 /* ProviderUsage in Frameworks */,
+				CDA1B2012F8A111100AA00B1 /* DGCharts in Frameworks */,
 				CD8D47612F2E606000428E7B /* GRDB in Frameworks */,
 				CD9EDAC52F2320BC009248CB /* SwiftGit in Frameworks */,
 				CD447BF32F1F79890056366B /* MarkdownUI in Frameworks */,
@@ -168,6 +170,7 @@
 				CDFA67432F359A110053E30A /* STJSON */,
 				CD68A7072F371C8E008772E7 /* SKProcessRunner */,
 				CD68A7422F37AB0F008772E7 /* SwiftGitUniversal */,
+				CDA1B2022F8A111100AA00B1 /* DGCharts */,
 			);
 			productName = nolon;
 			productReference = CD2B1A922F1F624900DF4A2B /* nolon.app */;
@@ -233,6 +236,7 @@
 				CD9EE26E2F2677A0009248CB /* XCRemoteSwiftPackageReference "Yams" */,
 				CD702B9D2F29FBC700E22535 /* XCRemoteSwiftPackageReference "swift-toml" */,
 				CD8D475F2F2E606000428E7B /* XCRemoteSwiftPackageReference "GRDB.swift" */,
+				CDA1B2032F8A111100AA00B1 /* XCRemoteSwiftPackageReference "Charts" */,
 				CDFA673F2F3599FB0053E30A /* XCRemoteSwiftPackageReference "STFilePath" */,
 				CDFA67422F359A110053E30A /* XCRemoteSwiftPackageReference "STJSON" */,
 				CD68A7062F371C8E008772E7 /* XCRemoteSwiftPackageReference "SKProcessRunner" */,
@@ -430,7 +434,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 202602091313;
+				CURRENT_PROJECT_VERSION = 202602110142;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = 3L8RM3MDLS;
 				ENABLE_APP_SANDBOX = NO;
@@ -445,7 +449,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.3.2;
+				MARKETING_VERSION = 1.3.6;
 				PRODUCT_BUNDLE_IDENTIFIER = nolon.overloaded.com;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -465,7 +469,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 202602091313;
+				CURRENT_PROJECT_VERSION = 202602110142;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = 3L8RM3MDLS;
 				ENABLE_APP_SANDBOX = NO;
@@ -480,7 +484,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.3.2;
+				MARKETING_VERSION = 1.3.6;
 				PRODUCT_BUNDLE_IDENTIFIER = nolon.overloaded.com;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -498,10 +502,10 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 202602091313;
+				CURRENT_PROJECT_VERSION = 202602110142;
 				DEVELOPMENT_TEAM = 3L8RM3MDLS;
 				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 1.3.2;
+				MARKETING_VERSION = 1.3.6;
 				PRODUCT_BUNDLE_IDENTIFIER = nolon.overloaded.com.nolonTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
@@ -518,10 +522,10 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 202602091313;
+				CURRENT_PROJECT_VERSION = 202602110142;
 				DEVELOPMENT_TEAM = 3L8RM3MDLS;
 				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 1.3.2;
+				MARKETING_VERSION = 1.3.6;
 				PRODUCT_BUNDLE_IDENTIFIER = nolon.overloaded.com.nolonTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
@@ -629,6 +633,14 @@
 				minimumVersion = 6.2.0;
 			};
 		};
+		CDA1B2032F8A111100AA00B1 /* XCRemoteSwiftPackageReference "Charts" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/ChartsOrg/Charts";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 5.1.0;
+			};
+		};
 		CDFA673F2F3599FB0053E30A /* XCRemoteSwiftPackageReference "STFilePath" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/linhay/STFilePath";
@@ -718,6 +730,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = CD9EE26E2F2677A0009248CB /* XCRemoteSwiftPackageReference "Yams" */;
 			productName = Yams;
+		};
+		CDA1B2022F8A111100AA00B1 /* DGCharts */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = CDA1B2032F8A111100AA00B1 /* XCRemoteSwiftPackageReference "Charts" */;
+			productName = DGCharts;
 		};
 		CDFA67402F3599FB0053E30A /* STFilePath */ = {
 			isa = XCSwiftPackageProductDependency;

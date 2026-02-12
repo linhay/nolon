@@ -12,6 +12,11 @@
 #   SKIP_BUILD=1            Skip ./scripts/build-dmg.sh all
 #   UPLOAD_RETRIES=5        Retry count for each asset upload
 #   UPLOAD_SLEEP_BASE=5     Base sleep seconds between retries (exponential-ish)
+#   UPLOAD_TIMEOUT_SECONDS=1800  Per-asset upload timeout in seconds (30 min default)
+#   PAGES_WAIT_TIMEOUT_SECONDS=600  Max seconds to wait for Pages/appcast propagation
+#   PAGES_WAIT_INTERVAL_SECONDS=5   Poll interval when waiting for Pages/appcast
+#   PAGES_WAIT_STRICT=1             If 1, stop before publish when appcast is not live
+#   APPCAST_URL=https://linhay.github.io/nolon/appcast.xml
 
 set -euo pipefail
 
@@ -325,15 +330,42 @@ fi
 
 UPLOAD_RETRIES="${UPLOAD_RETRIES:-5}"
 UPLOAD_SLEEP_BASE="${UPLOAD_SLEEP_BASE:-5}"
+UPLOAD_TIMEOUT_SECONDS="${UPLOAD_TIMEOUT_SECONDS:-1800}"
+
+UPLOAD_TIMEOUT_CMD=()
+if command -v gtimeout >/dev/null 2>&1; then
+    UPLOAD_TIMEOUT_CMD=(gtimeout "${UPLOAD_TIMEOUT_SECONDS}")
+elif command -v timeout >/dev/null 2>&1; then
+    UPLOAD_TIMEOUT_CMD=(timeout "${UPLOAD_TIMEOUT_SECONDS}")
+fi
 
 upload_asset() {
     local file="$1"
     local attempt=1
     while true; do
         echo -e "${YELLOW}⬆️  Uploading $(basename "$file") (attempt ${attempt}/${UPLOAD_RETRIES})...${NC}"
-        if gh release upload "$TAG" "$file" --clobber; then
+        local upload_status=0
+        if [ "${#UPLOAD_TIMEOUT_CMD[@]}" -gt 0 ]; then
+            if "${UPLOAD_TIMEOUT_CMD[@]}" gh release upload "$TAG" "$file" --clobber; then
+                upload_status=0
+            else
+                upload_status=$?
+            fi
+        else
+            if gh release upload "$TAG" "$file" --clobber; then
+                upload_status=0
+            else
+                upload_status=$?
+            fi
+        fi
+
+        if [ "$upload_status" -eq 0 ]; then
             echo -e "${GREEN}✅ Uploaded $(basename "$file")${NC}"
             return 0
+        fi
+
+        if [ "$upload_status" -eq 124 ]; then
+            echo -e "${YELLOW}⏱️  Upload timed out after ${UPLOAD_TIMEOUT_SECONDS}s.${NC}"
         fi
 
         if [ "$attempt" -ge "$UPLOAD_RETRIES" ]; then
@@ -351,13 +383,68 @@ upload_asset() {
 upload_asset "$DMG_ARM64"
 upload_asset "$DMG_X86_64"
 
+PAGES_WAIT_TIMEOUT_SECONDS="${PAGES_WAIT_TIMEOUT_SECONDS:-600}"
+PAGES_WAIT_INTERVAL_SECONDS="${PAGES_WAIT_INTERVAL_SECONDS:-5}"
+PAGES_WAIT_STRICT="${PAGES_WAIT_STRICT:-1}"
+APPCAST_URL="${APPCAST_URL:-https://linhay.github.io/nolon/appcast.xml}"
+
+wait_for_pages_and_appcast() {
+    local waited=0
+    local build_status=""
+
+    echo -e "${YELLOW}⚙️  Ensuring GitHub Pages is configured...${NC}"
+    gh api repos/:owner/:repo/pages -X POST -f source='{"branch":"main","path":"/docs"}' --silent || true
+
+    echo -e "${YELLOW}🚧 Triggering GitHub Pages build...${NC}"
+    gh api -X POST repos/:owner/:repo/pages/builds --silent >/dev/null 2>&1 || true
+
+    echo -e "${YELLOW}⏳ Waiting for Pages build (timeout: ${PAGES_WAIT_TIMEOUT_SECONDS}s)...${NC}"
+    waited=0
+    while [ "$waited" -lt "$PAGES_WAIT_TIMEOUT_SECONDS" ]; do
+        build_status="$(gh api repos/:owner/:repo/pages/builds/latest --jq '.status' 2>/dev/null || echo unknown)"
+        if [ "$build_status" = "built" ]; then
+            echo -e "${GREEN}✅ GitHub Pages build completed.${NC}"
+            break
+        fi
+        if [ "$build_status" = "errored" ] || [ "$build_status" = "failed" ]; then
+            echo -e "${RED}❌ GitHub Pages build status: ${build_status}${NC}"
+            return 1
+        fi
+        sleep "$PAGES_WAIT_INTERVAL_SECONDS"
+        waited=$((waited + PAGES_WAIT_INTERVAL_SECONDS))
+    done
+
+    if [ "$build_status" != "built" ]; then
+        echo -e "${RED}❌ Timeout waiting for GitHub Pages build.${NC}"
+        return 1
+    fi
+
+    echo -e "${YELLOW}🔎 Verifying online appcast contains ${VERSION}...${NC}"
+    waited=0
+    while [ "$waited" -lt "$PAGES_WAIT_TIMEOUT_SECONDS" ]; do
+        if curl -fsSL "${APPCAST_URL}?t=$(date +%s)" | grep -q "<sparkle:shortVersionString>${VERSION}</sparkle:shortVersionString>"; then
+            echo -e "${GREEN}✅ Online appcast is updated for ${VERSION}.${NC}"
+            return 0
+        fi
+        sleep "$PAGES_WAIT_INTERVAL_SECONDS"
+        waited=$((waited + PAGES_WAIT_INTERVAL_SECONDS))
+    done
+
+    echo -e "${RED}❌ Timeout waiting for online appcast to include ${VERSION}.${NC}"
+    return 1
+}
+
+if ! wait_for_pages_and_appcast; then
+    if [ "$PAGES_WAIT_STRICT" = "1" ]; then
+        echo -e "${RED}❌ Release kept as draft: appcast is not ready yet.${NC}"
+        echo -e "${YELLOW}Tip: once appcast is live, publish manually:${NC} gh release edit ${TAG} --draft=false --latest"
+        exit 1
+    fi
+    echo -e "${YELLOW}⚠️  Continuing despite Pages/appcast not ready (PAGES_WAIT_STRICT=0).${NC}"
+fi
+
 echo -e "${YELLOW}✅ Assets uploaded. Publishing release ${TAG}...${NC}"
 gh release edit "$TAG" --draft=false --latest
 
 echo -e "${GREEN}✅ Release ${TAG} published successfully!${NC}"
 echo -e "${GREEN}📍 View at: $(gh repo view --json url -q .url)/releases/tag/${TAG}${NC}"
-
-# Enable GitHub Pages if not already enabled
-echo -e "${YELLOW}⚙️  Check GitHub Pages...${NC}"
-gh api repos/:owner/:repo/pages -X POST -f source='{"branch":"main","path":"/docs"}' --silent || true
-echo -e "${GREEN}✅ GitHub Pages configured!${NC}"

@@ -30,6 +30,16 @@ if [ -f ".env" ]; then
     set +a
 fi
 
+# Optional: reduce network dependency during weak connectivity.
+XCODEBUILD_PACKAGE_FLAGS=()
+if [ "${NO_SPM_UPDATE:-0}" = "1" ]; then
+    echo -e "${YELLOW}📦 NO_SPM_UPDATE=1, using resolved package versions only...${NC}"
+    XCODEBUILD_PACKAGE_FLAGS+=(
+        -disableAutomaticPackageResolution
+        -onlyUsePackageVersionsFromResolvedFile
+    )
+fi
+
 # Get architecture argument
 ARCH="${1:-}"
 
@@ -103,7 +113,8 @@ build_for_arch() {
     echo -e "${YELLOW}🔨 Building ${APP_NAME} for ${arch}...${NC}"
     
     # Clean and build for specific architecture
-    xcodebuild -project "$PROJECT" \
+    xcodebuild "${XCODEBUILD_PACKAGE_FLAGS[@]}" \
+        -project "$PROJECT" \
         -scheme "$SCHEME" \
         -configuration Release \
         -derivedDataPath "${BUILD_DIR}-${build_suffix}" \
@@ -214,7 +225,8 @@ case "$ARCH" in
         DMG_NAME="${RELEASE_DIR}/${APP_NAME}.dmg"
         echo -e "${YELLOW}🔨 Building ${APP_NAME} for Release...${NC}"
         
-        xcodebuild -project "$PROJECT" \
+        xcodebuild "${XCODEBUILD_PACKAGE_FLAGS[@]}" \
+            -project "$PROJECT" \
             -scheme "$SCHEME" \
             -configuration Release \
             -derivedDataPath "$BUILD_DIR" \

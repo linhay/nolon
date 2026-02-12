@@ -2,44 +2,41 @@ import Foundation
 import CodexBarProviderCatalog
 
 public struct CodexCostSnapshot: Sendable, Equatable {
+    public struct DailyCost: Sendable, Equatable {
+        public let date: String
+        public let costUSD: Double?
+        public let tokens: Int?
+
+        public init(date: String, costUSD: Double?, tokens: Int? = nil) {
+            self.date = date
+            self.costUSD = costUSD
+            self.tokens = tokens
+        }
+    }
+
     public let todayCostUSD: Double?
     public let todayTokens: Int?
-    public let todayInputTokens: Int?
-    public let todayOutputTokens: Int?
-    public let todayCachedInputTokens: Int?
-    public let rangeDays: Int?
-    public let rangeCostUSD: Double?
-    public let rangeTokens: Int?
-    public let rangeInputTokens: Int?
-    public let rangeOutputTokens: Int?
-    public let rangeCachedInputTokens: Int?
+    public let last30DaysCostUSD: Double?
+    public let last30DaysTokens: Int?
+    public let windowDays: Int?
+    public let dailyCosts: [DailyCost]
     public let updatedAt: Date
 
     public init(
         todayCostUSD: Double?,
         todayTokens: Int?,
-        todayInputTokens: Int?,
-        todayOutputTokens: Int?,
-        todayCachedInputTokens: Int?,
-        rangeDays: Int?,
-        rangeCostUSD: Double?,
-        rangeTokens: Int?,
-        rangeInputTokens: Int?,
-        rangeOutputTokens: Int?,
-        rangeCachedInputTokens: Int?,
+        last30DaysCostUSD: Double?,
+        last30DaysTokens: Int?,
+        windowDays: Int? = 30,
+        dailyCosts: [DailyCost],
         updatedAt: Date
     ) {
         self.todayCostUSD = todayCostUSD
         self.todayTokens = todayTokens
-        self.todayInputTokens = todayInputTokens
-        self.todayOutputTokens = todayOutputTokens
-        self.todayCachedInputTokens = todayCachedInputTokens
-        self.rangeDays = rangeDays
-        self.rangeCostUSD = rangeCostUSD
-        self.rangeTokens = rangeTokens
-        self.rangeInputTokens = rangeInputTokens
-        self.rangeOutputTokens = rangeOutputTokens
-        self.rangeCachedInputTokens = rangeCachedInputTokens
+        self.last30DaysCostUSD = last30DaysCostUSD
+        self.last30DaysTokens = last30DaysTokens
+        self.windowDays = windowDays
+        self.dailyCosts = dailyCosts
         self.updatedAt = updatedAt
     }
 }
@@ -49,28 +46,20 @@ public struct CodexCostFetcher: Sendable {
 
     public func fetchCostSnapshot(
         now: Date = Date(),
-        rangeDays: Int? = nil,
+        windowDays: Int? = 30,
         forceRefresh: Bool = false
     ) async throws -> CodexCostSnapshot {
         let fetcher = CostUsageFetcher()
-        let token = try await fetcher.loadTokenSnapshot(
-            provider: .codex,
-            now: now,
-            trailingDays: rangeDays,
-            forceRefresh: forceRefresh
-        )
+        let token = try await fetcher.loadTokenSnapshot(provider: .codex, now: now, trailingDays: windowDays, forceRefresh: forceRefresh)
         return CodexCostSnapshot(
             todayCostUSD: token.sessionCostUSD,
             todayTokens: token.sessionTokens,
-            todayInputTokens: token.todayInputTokens,
-            todayOutputTokens: token.todayOutputTokens,
-            todayCachedInputTokens: token.todayCachedInputTokens,
-            rangeDays: token.rangeDays,
-            rangeCostUSD: token.rangeCostUSD,
-            rangeTokens: token.rangeTokens,
-            rangeInputTokens: token.rangeInputTokens,
-            rangeOutputTokens: token.rangeOutputTokens,
-            rangeCachedInputTokens: token.rangeCachedInputTokens,
+            last30DaysCostUSD: token.rangeCostUSD,
+            last30DaysTokens: token.rangeTokens,
+            windowDays: windowDays,
+            dailyCosts: token.daily.map { entry in
+                CodexCostSnapshot.DailyCost(date: entry.date, costUSD: entry.costUSD, tokens: entry.totalTokens)
+            },
             updatedAt: token.updatedAt
         )
     }

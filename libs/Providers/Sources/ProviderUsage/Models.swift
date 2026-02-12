@@ -102,44 +102,41 @@ public struct CreditsSnapshot: Codable, Sendable, Equatable {
 }
 
 public struct CostSnapshot: Codable, Sendable, Equatable {
+    public struct DailyCost: Codable, Sendable, Equatable {
+        public let date: String
+        public let costUSD: Double?
+        public let tokens: Int?
+
+        public init(date: String, costUSD: Double?, tokens: Int? = nil) {
+            self.date = date
+            self.costUSD = costUSD
+            self.tokens = tokens
+        }
+    }
+
     public let todayCostUSD: Double?
     public let todayTokens: Int?
-    public let todayInputTokens: Int?
-    public let todayOutputTokens: Int?
-    public let todayCachedInputTokens: Int?
-    public let rangeDays: Int?
-    public let rangeCostUSD: Double?
-    public let rangeTokens: Int?
-    public let rangeInputTokens: Int?
-    public let rangeOutputTokens: Int?
-    public let rangeCachedInputTokens: Int?
+    public let last30DaysCostUSD: Double?
+    public let last30DaysTokens: Int?
+    public let windowDays: Int?
+    public let dailyCosts: [DailyCost]?
     public let updatedAt: Date
 
     public init(
         todayCostUSD: Double?,
         todayTokens: Int?,
-        todayInputTokens: Int?,
-        todayOutputTokens: Int?,
-        todayCachedInputTokens: Int?,
-        rangeDays: Int?,
-        rangeCostUSD: Double?,
-        rangeTokens: Int?,
-        rangeInputTokens: Int?,
-        rangeOutputTokens: Int?,
-        rangeCachedInputTokens: Int?,
+        last30DaysCostUSD: Double?,
+        last30DaysTokens: Int?,
+        windowDays: Int? = 30,
+        dailyCosts: [DailyCost]? = nil,
         updatedAt: Date = Date()
     ) {
         self.todayCostUSD = todayCostUSD
         self.todayTokens = todayTokens
-        self.todayInputTokens = todayInputTokens
-        self.todayOutputTokens = todayOutputTokens
-        self.todayCachedInputTokens = todayCachedInputTokens
-        self.rangeDays = rangeDays
-        self.rangeCostUSD = rangeCostUSD
-        self.rangeTokens = rangeTokens
-        self.rangeInputTokens = rangeInputTokens
-        self.rangeOutputTokens = rangeOutputTokens
-        self.rangeCachedInputTokens = rangeCachedInputTokens
+        self.last30DaysCostUSD = last30DaysCostUSD
+        self.last30DaysTokens = last30DaysTokens
+        self.windowDays = windowDays
+        self.dailyCosts = dailyCosts
         self.updatedAt = updatedAt
     }
 }
@@ -203,6 +200,7 @@ public struct ProviderFetchContext: Sendable {
     public let sourceMode: ProviderSourceMode
     public let includeCredits: Bool
     public let timeout: TimeInterval
+    public let costWindowDays: Int?
     public let environment: [String: String]
     public let token: String?
 
@@ -211,6 +209,7 @@ public struct ProviderFetchContext: Sendable {
         sourceMode: ProviderSourceMode,
         includeCredits: Bool,
         timeout: TimeInterval,
+        costWindowDays: Int? = 30,
         environment: [String: String],
         token: String?
     ) {
@@ -218,6 +217,7 @@ public struct ProviderFetchContext: Sendable {
         self.sourceMode = sourceMode
         self.includeCredits = includeCredits
         self.timeout = timeout
+        self.costWindowDays = costWindowDays
         self.environment = environment
         self.token = token
     }
