@@ -894,7 +894,7 @@ public actor CodexBinaryManager {
         #endif
     }
 
-    static func compareVersion(_ lhsRaw: String, _ rhsRaw: String) -> Int {
+    public static func compareVersion(_ lhsRaw: String, _ rhsRaw: String) -> Int {
         guard let lhs = parseVersion(from: lhsRaw), let rhs = parseVersion(from: rhsRaw) else {
             return lhsRaw.compare(rhsRaw, options: .numeric).rawValue
         }
@@ -903,7 +903,7 @@ public actor CodexBinaryManager {
         return 0
     }
 
-    static func isStableVersion(_ raw: String) -> Bool {
+    public static func isStableVersion(_ raw: String) -> Bool {
         guard let version = parseVersion(from: raw) else { return false }
         return version.prereleaseIdentifiers.isEmpty
     }

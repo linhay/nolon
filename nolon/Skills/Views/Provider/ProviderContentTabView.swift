@@ -1,6 +1,7 @@
 import SwiftUI
 import AppKit
 import ProviderCatalog
+import CodexProvider
 import STJSON
 import TOML
 import STFilePath

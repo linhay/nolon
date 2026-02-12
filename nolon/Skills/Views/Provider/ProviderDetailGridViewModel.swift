@@ -1,5 +1,6 @@
 import SwiftUI
 import ProviderCatalog
+import CodexProvider
 import Observation
 import STJSON
 import TOML

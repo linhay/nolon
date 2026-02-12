@@ -1,6 +1,7 @@
 import Foundation
 import ProviderUsage
 import CodexBarProviderCatalog
+import CodexProvider
 import STFilePath
 
 actor UsageMonitorService {

@@ -1,5 +1,6 @@
 import Observation
 import ProviderCatalog
+import CodexProvider
 import SwiftUI
 import AppKit
 import UniformTypeIdentifiers
