@@ -7,7 +7,7 @@ actor UsageMonitorService {
     private let monitor: ProviderUsageMonitorService
 
     init() {
-        self.tokenStore = FileTokenAccountStore(fileURL: Self.defaultTokenAccountsFileURL())
+        self.tokenStore = FileTokenAccountStore(fileURL: ProviderUsagePaths.defaultTokenAccountsFileURL())
         self.monitor = ProviderUsageMonitorService(tokenAccountStore: tokenStore)
     }
 
@@ -18,9 +18,5 @@ actor UsageMonitorService {
     ) async -> [ProviderAccountUsageOutcome] {
         let effectiveWindow = costWindowDays ?? settings.costWindowDays
         return await monitor.fetchOutcomes(provider: provider, settings: settings, costWindowDays: effectiveWindow)
-    }
-
-    static func defaultTokenAccountsFileURL() -> URL {
-        ProviderUsagePaths.defaultTokenAccountsFileURL()
     }
 }

@@ -277,7 +277,7 @@ final class ProviderUsageViewModel {
         }
 
         var paths: [String] = []
-        paths.append(UsageMonitorService.defaultTokenAccountsFileURL().path)
+        paths.append(ProviderUsagePaths.defaultTokenAccountsFileURL().path)
 
         if usageProvider == .codex {
             if isMultiAccountEnabled {
