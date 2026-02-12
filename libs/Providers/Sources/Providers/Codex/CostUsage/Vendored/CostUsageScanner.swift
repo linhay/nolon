@@ -251,64 +251,40 @@ enum CostUsageScanner {
             onLine: { line in
                 guard !line.bytes.isEmpty else { return }
                 guard !line.wasTruncated else { return }
-
-                let hasEventMsg = line.bytes.containsAscii(#"event_msg"#)
-                let hasTokenCount = line.bytes.containsAscii(#"token_count"#)
-                let hasTurnContext = line.bytes.containsAscii(#"turn_context"#)
-                let hasSessionMeta = line.bytes.containsAscii(#"session_meta"#)
-
-                guard hasEventMsg || hasTurnContext || hasSessionMeta || hasTokenCount else { return }
-                if hasEventMsg && !hasTokenCount {
-                    return
+                let parserTotals = previousTotals.map {
+                    CodexSessionTokenTotals(
+                        inputTokens: $0.input,
+                        cachedInputTokens: $0.cached,
+                        outputTokens: $0.output)
                 }
 
-                guard let parsedLine = try? CodexGeneratedFilesParser.parseRolloutLine(data: line.bytes) else { return }
+                guard let reduced = CodexSessionEventParser.reduceUsageLine(
+                    data: line.bytes,
+                    currentModel: currentModel,
+                    previousTotals: parserTotals)
+                else { return }
 
-                switch parsedLine.item {
-                case let .sessionMeta(meta):
-                    if sessionId == nil {
-                        sessionId = meta.id
-                    }
-                    return
-                case .responseItem, .compacted, .eventMsg:
-                    return
-                case let .turnContext(context):
-                    if let model = context.model, !model.isEmpty {
-                        currentModel = model
-                    }
-                    return
-                case let .tokenCount(tokenCount):
-                    guard let tsText = parsedLine.timestamp else { return }
-                    guard let dayKey = Self.dayKeyFromTimestamp(tsText) ?? Self.dayKeyFromParsedISO(tsText) else { return }
-
-                    let model = tokenCount.model ?? currentModel ?? "gpt-5"
-                    var deltaInput = 0
-                    var deltaCached = 0
-                    var deltaOutput = 0
-
-                    if let total = tokenCount.totalUsage {
-                        let prev = previousTotals
-                        deltaInput = max(0, total.inputTokens - (prev?.input ?? 0))
-                        deltaCached = max(0, total.cachedInputTokens - (prev?.cached ?? 0))
-                        deltaOutput = max(0, total.outputTokens - (prev?.output ?? 0))
-                        previousTotals = CostUsageCodexTotals(
-                            input: total.inputTokens,
-                            cached: total.cachedInputTokens,
-                            output: total.outputTokens)
-                    } else if let last = tokenCount.lastUsage {
-                        deltaInput = max(0, last.inputTokens)
-                        deltaCached = max(0, last.cachedInputTokens)
-                        deltaOutput = max(0, last.outputTokens)
-                    } else {
-                        return
-                    }
-
-                    if deltaInput == 0, deltaCached == 0, deltaOutput == 0 { return }
-                    let cachedClamp = min(deltaCached, deltaInput)
-                    add(dayKey: dayKey, model: model, input: deltaInput, cached: cachedClamp, output: deltaOutput)
-                case .other:
-                    return
+                if sessionId == nil {
+                    sessionId = reduced.sessionID
                 }
+                currentModel = reduced.updatedModel
+
+                if let totals = reduced.updatedTotals {
+                    previousTotals = CostUsageCodexTotals(
+                        input: totals.inputTokens,
+                        cached: totals.cachedInputTokens,
+                        output: totals.outputTokens)
+                }
+
+                guard let delta = reduced.tokenDelta else { return }
+                guard let tsText = delta.timestamp else { return }
+                guard let dayKey = Self.dayKeyFromTimestamp(tsText) ?? Self.dayKeyFromParsedISO(tsText) else { return }
+                add(
+                    dayKey: dayKey,
+                    model: delta.model,
+                    input: delta.inputTokens,
+                    cached: delta.cachedInputTokens,
+                    output: delta.outputTokens)
             })) ?? startOffset
 
         return CodexParseResult(
