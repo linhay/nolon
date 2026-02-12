@@ -33,7 +33,7 @@
 import Foundation
 
 /// A version according to the semantic versioning specification.
-public struct STVersion {
+public nonisolated struct STVersion {
 
     /// The major version according to the semantic versioning standard.
     public let major: Int
@@ -105,7 +105,7 @@ public struct STVersion {
     }
 }
 
-extension STVersion: Comparable {
+nonisolated extension STVersion: Comparable {
     @inlinable
     public static func == (lhs: STVersion, rhs: STVersion) -> Bool {
         !(lhs < rhs) && !(lhs > rhs)
@@ -150,7 +150,7 @@ extension STVersion: Comparable {
     }
 }
 
-extension STVersion: CustomStringConvertible {
+nonisolated extension STVersion: CustomStringConvertible {
     public var description: String {
         var base = "\(major).\(minor).\(patch)"
         if !prereleaseIdentifiers.isEmpty {

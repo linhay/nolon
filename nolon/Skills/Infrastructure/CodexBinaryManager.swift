@@ -202,10 +202,13 @@ public actor CodexBinaryManager {
     }
 
     private func downloadFile(from downloadURL: URL, progress: ((CodexDownloadProgress) -> Void)?) async throws -> (URL, URLResponse) {
-        try await withCheckedThrowingContinuation { continuation in
+        final class DownloadObservationBox: @unchecked Sendable {
             var observation: NSKeyValueObservation?
+        }
+        return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<(URL, URLResponse), Error>) in
+            let box = DownloadObservationBox()
             let task = URLSession.shared.downloadTask(with: downloadURL) { url, response, error in
-                _ = observation
+                _ = box.observation
                 if let error {
                     continuation.resume(throwing: error)
                     return
@@ -219,7 +222,7 @@ public actor CodexBinaryManager {
                 }
                 continuation.resume(returning: (url, response))
             }
-            observation = task.progress.observe(\.fractionCompleted) { progressValue, _ in
+            box.observation = task.progress.observe(\.fractionCompleted) { progressValue, _ in
                 let total = progressValue.totalUnitCount
                 let fraction = total > 0 ? progressValue.fractionCompleted : nil
                 let totalBytes = total > 0 ? total : nil
@@ -941,7 +944,7 @@ public actor CodexBinaryManager {
 
 }
 
-public struct CodexDownloadProgress: Sendable {
+public nonisolated struct CodexDownloadProgress: Sendable {
     public let fractionCompleted: Double?
     public let completedBytes: Int64?
     public let totalBytes: Int64?
@@ -953,7 +956,7 @@ public struct CodexDownloadProgress: Sendable {
     }
 }
 
-public struct CodexRemoteRelease: Sendable, Identifiable, Hashable {
+public nonisolated struct CodexRemoteRelease: Sendable, Identifiable, Hashable {
     public let id: String
     public let tag: String
     public let version: String
@@ -969,7 +972,7 @@ public struct CodexRemoteRelease: Sendable, Identifiable, Hashable {
     }
 }
 
-private struct GitHubRelease: Decodable {
+private nonisolated struct GitHubRelease: Decodable {
     let tagName: String
     let draft: Bool
     let prerelease: Bool
@@ -983,7 +986,7 @@ private struct GitHubRelease: Decodable {
     }
 }
 
-private struct GitHubAsset: Decodable {
+private nonisolated struct GitHubAsset: Decodable {
     let name: String
     let browserDownloadURL: URL
 
@@ -993,7 +996,7 @@ private struct GitHubAsset: Decodable {
     }
 }
 
-private extension JSONEncoder {
+private nonisolated extension JSONEncoder {
     static var pretty: JSONEncoder {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
@@ -1002,7 +1005,7 @@ private extension JSONEncoder {
 }
 
 
-extension String {
+nonisolated extension String {
     var nonEmpty: String? {
         isEmpty ? nil : self
     }

@@ -397,8 +397,7 @@ public actor GitRepository: RemoteResourceRepository {
         
         do {
             let parent = localClonePath.deletingLastPathComponent()
-            STFolder(parent).createIfNotExists()
-
+            _ = STFolder(parent).createIfNotExists()
             logger.info("⏳ Starting git clone with depth=1...")
             try await git.clone([.depth(1)], repository: repositoryURL, directory: localClonePath.path)
             logger.info("✅ Clone completed successfully")

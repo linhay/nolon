@@ -150,8 +150,7 @@ public actor ResourceInstaller {
         try STPath(targetPath).deleteIncludingBrokenSymlink()
         
         // Ensure provider directory exists
-        STFolder(providerPath).createIfNotExists()
-        
+        _ = STFolder(providerPath).createIfNotExists()        
         // Install based on provider method
         switch provider.installMethod {
         case .symlink:
@@ -176,8 +175,7 @@ public actor ResourceInstaller {
         try STPath(targetPath).deleteIncludingBrokenSymlink()
         
         // Ensure provider workflow directory exists
-        STFolder(providerWorkflowPath).createIfNotExists()
-        
+        _ = STFolder(providerWorkflowPath).createIfNotExists()        
         // Install based on provider method
         switch provider.installMethod {
         case .symlink where !isOpenCode:
@@ -290,8 +288,7 @@ public actor ResourceInstaller {
         
         // Ensure MCP config directory exists
         let configDir = (mcpConfigPath as NSString).deletingLastPathComponent
-        STFolder(configDir).createIfNotExists()
-        
+        _ = STFolder(configDir).createIfNotExists()        
         if mcpConfigPath.lowercased().hasSuffix(".toml") {
             var configTable: CodexMCPConfig
             if let existingData = try? Data(contentsOf: URL(fileURLWithPath: mcpConfigPath)),

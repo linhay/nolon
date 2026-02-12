@@ -1,6 +1,6 @@
 import Foundation
 
-public enum CodexTerminalApp: String, Codable, CaseIterable, Sendable, Identifiable {
+public nonisolated enum CodexTerminalApp: String, Codable, CaseIterable, Sendable, Identifiable {
     case terminal = "com.apple.Terminal"
     case iTerm = "com.googlecode.iterm2"
     case warp = "dev.warp.Warp"
@@ -37,7 +37,7 @@ public enum CodexTerminalApp: String, Codable, CaseIterable, Sendable, Identifia
     }
 }
 
-public enum CodexBinaryUpdateState: String, Codable, Sendable {
+public nonisolated enum CodexBinaryUpdateState: String, Codable, Sendable {
     case idle
     case checking
     case upToDate
@@ -45,7 +45,7 @@ public enum CodexBinaryUpdateState: String, Codable, Sendable {
     case checkFailed
 }
 
-public struct ManagedCodexVersion: Codable, Hashable, Sendable, Identifiable {
+public nonisolated struct ManagedCodexVersion: Codable, Hashable, Sendable, Identifiable {
     public let id: String
     public var displayName: String
     public let detectedVersion: String
@@ -79,7 +79,7 @@ public struct ManagedCodexVersion: Codable, Hashable, Sendable, Identifiable {
     }
 }
 
-public struct CodexBinaryManifest: Codable, Sendable {
+public nonisolated struct CodexBinaryManifest: Codable, Sendable {
     public var schemaVersion: Int
     public var selectedVersionId: String?
     public var syncModelOnSwitch: Bool

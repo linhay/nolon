@@ -212,17 +212,17 @@ public struct CodexAuthSummary: Hashable, Sendable {
 }
 
 private extension CodexAuthSummary {
-    nonisolated static let isoFormatter: ISO8601DateFormatter = {
+    nonisolated static func parseISODate(_ value: String) -> Date? {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return formatter
-    }()
+        return formatter.date(from: value)
+    }
 
     nonisolated static func readSyncMetadata(json: JSON) -> (Date?, Date?, Date?, String?) {
         let account = json["nolon"]["account"]
-        let login = account["lastLoginAt"].string.flatMap { isoFormatter.date(from: $0) }
-        let success = account["lastSyncSucceededAt"].string.flatMap { isoFormatter.date(from: $0) }
-        let failed = account["lastSyncFailedAt"].string.flatMap { isoFormatter.date(from: $0) }
+        let login = account["lastLoginAt"].string.flatMap(parseISODate)
+        let success = account["lastSyncSucceededAt"].string.flatMap(parseISODate)
+        let failed = account["lastSyncFailedAt"].string.flatMap(parseISODate)
         let failureMessage = account["lastSyncFailureMessage"].string?.trimmingCharacters(in: .whitespacesAndNewlines)
         return (login, success, failed, failureMessage?.isEmpty == true ? nil : failureMessage)
     }

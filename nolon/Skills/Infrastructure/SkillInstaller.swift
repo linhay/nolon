@@ -51,8 +51,7 @@ public final class SkillInstaller {
         try STPath(targetPath).deleteIncludingBrokenSymlink()
 
         // Ensure provider directory exists
-        STFolder(providerPath).createIfNotExists()
-
+        _ = STFolder(providerPath).createIfNotExists()
         // Check installation method
         let method = provider.installMethod
 
@@ -77,8 +76,7 @@ public final class SkillInstaller {
         // If not in global storage, extract there first
         if !skillExistsInGlobal {
             // Ensure global skills directory exists
-            STFolder(globalSkillsPath).createIfNotExists()
-
+            _ = STFolder(globalSkillsPath).createIfNotExists()
             // Create temp directory for extraction
             let tempDir = try STFolder(sanbox: .temporary).folder(UUID().uuidString).create()
 
@@ -171,8 +169,7 @@ public final class SkillInstaller {
         
         try STPath(globalPath).deleteIncludingBrokenSymlink()
         
-        STFolder(globalSkillsPath).createIfNotExists()
-        
+        _ = STFolder(globalSkillsPath).createIfNotExists()        
         let tempDir = try STFolder(sanbox: .temporary).folder(UUID().uuidString).create()
         
         defer {
@@ -239,8 +236,7 @@ public final class SkillInstaller {
         let lockSource = inferLockSourceInfo(sourceURL: sourceURL, slug: slug)
 
         // Ensure global skills directory exists
-        STFolder(globalSkillsPath).createIfNotExists()
-
+        _ = STFolder(globalSkillsPath).createIfNotExists()
         // Register in global storage (copy to ~/.nolon/skills).
         // If it already exists (including broken symlinks), replace it.
         if sourceURL != globalURL {
@@ -384,8 +380,7 @@ public final class SkillInstaller {
 
     private func writeClawdhubOrigin(at skillRoot: URL, slug: String) throws {
         let originDir = skillRoot.appendingPathComponent(".clawdhub")
-        STFolder(originDir).createIfNotExists()
-
+        _ = STFolder(originDir).createIfNotExists()
         let originURL = originDir.appendingPathComponent("origin.json")
         let payload: [String: Any] = [
             "slug": slug,
@@ -413,8 +408,7 @@ public final class SkillInstaller {
         let targetPath = "\(providerWorkflowPath)/\(skill.id).md"
         
         // Ensure provider workflow directory exists
-        STFolder(providerWorkflowPath).createIfNotExists()
-        
+        _ = STFolder(providerWorkflowPath).createIfNotExists()        
         // Ensure global workflow exists
         let globalWorkflowPath = try repository.createGlobalWorkflow(for: skill)
         
@@ -440,10 +434,9 @@ public final class SkillInstaller {
         let targetPath = "\(providerWorkflowPath)/\(mcp.name).md"
         
         // 1. Ensure provider workflow directory exists
-        STFolder(providerWorkflowPath).createIfNotExists()
-        
+        _ = STFolder(providerWorkflowPath).createIfNotExists()
         // 2. Ensure global MCP workflow exists in ~/.nolon/mcps-workflows
-        STFolder(nolonManager.mcpsWorkflowsPath).createIfNotExists()
+        _ = STFolder(nolonManager.mcpsWorkflowsPath).createIfNotExists()
         if STPath(globalMcpWorkflowPath).isExists {
             // Repair legacy/invalid workflow format (missing required YAML frontmatter).
             if let content = try? STFile(globalMcpWorkflowPath).read() {
@@ -794,8 +787,7 @@ public final class SkillInstaller {
         let targetPath = "\(workflowPath)/\(slug).md"
         
         // Ensure workflow directory exists
-        STFolder(workflowPath).createIfNotExists()
-        
+        _ = STFolder(workflowPath).createIfNotExists()        
         // If already exists, remove it first
         try STPath(targetPath).deleteIncludingBrokenSymlink()
         
@@ -816,8 +808,7 @@ public final class SkillInstaller {
         let targetPath = "\(workflowPath)/\(slug).md"
 
         // Ensure workflow directory exists
-        STFolder(workflowPath).createIfNotExists()
-
+        _ = STFolder(workflowPath).createIfNotExists()
         // If already exists, remove it first
         try STPath(targetPath).deleteIncludingBrokenSymlink()
 

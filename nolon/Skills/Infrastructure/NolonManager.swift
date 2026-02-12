@@ -56,6 +56,6 @@ public final class NolonManager: Sendable {
             STFolder(mcpsWorkflowsURL),
         ]
 
-        folders.forEach { $0.createIfNotExists() }
+        folders.forEach { _ = $0.createIfNotExists() }
     }
 }

@@ -694,8 +694,7 @@ final class ProviderDetailGridViewModel {
         }
 
         let manager = NolonManager.shared
-        STFolder(manager.mcpsURL).createIfNotExists()
-
+        _ = STFolder(manager.mcpsURL).createIfNotExists()
         var migrated = 0
         var skipped = 0
 
@@ -722,8 +721,7 @@ final class ProviderDetailGridViewModel {
 
     func migrateMcpToGlobalCache(_ mcp: MCP) async throws {
         let manager = NolonManager.shared
-        STFolder(manager.mcpsURL).createIfNotExists()
-
+        _ = STFolder(manager.mcpsURL).createIfNotExists()
         let targetURL = mcpCacheFileURL(for: mcp.name)
         guard !STFile(targetURL).isExists else {
             refreshMcpCacheStates()
@@ -742,8 +740,7 @@ final class ProviderDetailGridViewModel {
 
     func updateCachedMcpIfNeeded(_ mcp: MCP) async throws {
         let manager = NolonManager.shared
-        STFolder(manager.mcpsURL).createIfNotExists()
-
+        _ = STFolder(manager.mcpsURL).createIfNotExists()
         let targetURL = mcpCacheFileURL(for: mcp.name)
         guard STFile(targetURL).isExists else {
             try await migrateMcpToGlobalCache(mcp)

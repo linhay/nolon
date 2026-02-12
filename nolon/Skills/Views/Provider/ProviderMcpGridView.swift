@@ -35,7 +35,7 @@ struct ProviderMcpGridView: View {
                 } actions: {
                     Button("Create Configuration") {
                         // Create directory if needed
-                        STFolder(configPath.deletingLastPathComponent()).createIfNotExists()
+                        _ = STFolder(configPath.deletingLastPathComponent()).createIfNotExists()
                         // Create minimal config based on extension
                         if configPath.pathExtension.lowercased() == "toml" {
                             let template = """
