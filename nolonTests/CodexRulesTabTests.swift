@@ -47,6 +47,32 @@ final class CodexRulesTabTests: XCTestCase {
         XCTAssertEqual(viewModel.rules.first?.preview, "use swift")
     }
 
+    func testBDD_GivenHiddenRulesFile_WhenLoadingData_ThenHiddenRulesAreIgnored() async throws {
+        // Given
+        let codexHome = fixture.tempRoot.appendingPathComponent(".codex")
+        let skills = codexHome.appendingPathComponent("skills")
+        let rules = codexHome.appendingPathComponent("rules")
+        try fixture.fileManager.createDirectory(at: skills, withIntermediateDirectories: true)
+        try fixture.fileManager.createDirectory(at: rules, withIntermediateDirectories: true)
+        try "visible".write(to: rules.appendingPathComponent("visible.rules"), atomically: true, encoding: .utf8)
+        try "hidden".write(to: rules.appendingPathComponent(".hidden.rules"), atomically: true, encoding: .utf8)
+
+        let provider = Provider(
+            name: "Codex",
+            defaultSkillsPath: skills.path,
+            workflowPath: codexHome.appendingPathComponent("prompts").path,
+            installMethod: .symlink,
+            templateId: "codex"
+        )
+        viewModel = ProviderDetailGridViewModel(provider: provider, settings: fixture.providerSettings)
+
+        // When
+        await viewModel.loadData()
+
+        // Then
+        XCTAssertEqual(viewModel.rules.map(\.relativePath), ["visible.rules"])
+    }
+
     func testBDD_GivenRule_WhenDeleting_ThenFileIsRemovedAndStateRefreshed() async throws {
         // Given
         let codexHome = fixture.tempRoot.appendingPathComponent(".codex")

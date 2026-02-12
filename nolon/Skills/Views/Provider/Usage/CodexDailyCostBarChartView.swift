@@ -1,7 +1,9 @@
 import SwiftUI
 import AppKit
 import ProviderUsage
+#if canImport(DGCharts)
 import DGCharts
+#endif
 
 enum CostChartGranularity: String, Hashable {
     case day
@@ -21,6 +23,7 @@ struct CostChartSelection: Equatable {
     let tokens: Int?
 }
 
+#if canImport(DGCharts)
 struct CodexDailyCostLineChartView: NSViewRepresentable {
     let entries: [CostSnapshot.DailyCost]
     var granularity: CostChartGranularity = .day
@@ -384,3 +387,53 @@ struct CodexDailyCostLineChartView: NSViewRepresentable {
         }
     }
 }
+#else
+struct CodexDailyCostLineChartView: View {
+    let entries: [CostSnapshot.DailyCost]
+    var granularity: CostChartGranularity = .day
+    var valueDisplayMode: CostChartValueDisplayMode = .both
+    var selectedID: String? = nil
+    var onSelect: ((CostChartSelection) -> Void)? = nil
+
+    func granularity(_ granularity: CostChartGranularity) -> Self {
+        var copy = self
+        copy.granularity = granularity
+        return copy
+    }
+
+    func onSelect(_ handler: @escaping (CostChartSelection) -> Void) -> Self {
+        var copy = self
+        copy.onSelect = handler
+        return copy
+    }
+
+    func selectedID(_ id: String?) -> Self {
+        var copy = self
+        copy.selectedID = id
+        return copy
+    }
+
+    func valueDisplayMode(_ mode: CostChartValueDisplayMode) -> Self {
+        var copy = self
+        copy.valueDisplayMode = mode
+        return copy
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            ForEach(Array(entries.suffix(8).enumerated()), id: \.offset) { _, entry in
+                HStack(spacing: 8) {
+                    Text(entry.date)
+                        .font(.caption)
+                        .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                    Spacer()
+                    Text(String(format: "$%.2f", entry.costUSD ?? 0))
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(DesignSystem.Colors.Text.primary)
+                }
+            }
+        }
+        .padding(.vertical, 4)
+    }
+}
+#endif

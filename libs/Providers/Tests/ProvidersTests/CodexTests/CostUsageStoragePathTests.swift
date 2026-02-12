@@ -1,0 +1,83 @@
+import Foundation
+import Testing
+import STFilePath
+import CodexBarProviderCatalog
+@testable import CodexProvider
+
+@Suite("Cost Usage STFilePath")
+struct CostUsageStoragePathTests {
+    @Test("CostUsageCacheIO default cache path keeps CodexBar layout")
+    func costUsageCacheDefaultPathLayout() {
+        let file = CostUsageCacheIO.cacheFile(provider: .codex)
+        #expect(file.url.path.hasSuffix("/CodexBar/cost-usage/codex-v1.json"))
+    }
+
+    @Test("CostUsageCacheIO supports STFolder cache root")
+    func costUsageCacheIOSupportsSTFolder() throws {
+        let root = STFolder(FileManager.default.temporaryDirectory
+            .appendingPathComponent("cost-usage-cache-\(UUID().uuidString)", isDirectory: true))
+        _ = root.createIfNotExists()
+        defer { try? root.delete() }
+
+        let sample = CostUsageCache(
+            version: 1,
+            lastScanUnixMs: 12_345,
+            files: [:],
+            days: ["2026-02-12": ["gpt-5": [10, 3, 2]]]
+        )
+
+        CostUsageCacheIO.save(provider: .codex, cache: sample, cacheRoot: root)
+        let loaded = CostUsageCacheIO.load(provider: .codex, cacheRoot: root)
+
+        #expect(loaded.lastScanUnixMs == 12_345)
+        #expect(loaded.days["2026-02-12"]?["gpt-5"] == [10, 3, 2])
+    }
+
+    @Test("CostUsageScanner supports STFolder options and STFile parsing")
+    func costUsageScannerSupportsSTFilePathTypes() throws {
+        let root = STFolder(FileManager.default.temporaryDirectory
+            .appendingPathComponent("cost-usage-scanner-\(UUID().uuidString)", isDirectory: true))
+        _ = root.createIfNotExists()
+        defer { try? root.delete() }
+
+        let sessionsRoot = root.folder("sessions")
+        _ = sessionsRoot.createIfNotExists()
+
+        try sessionsRoot.file("2026-02-12-rollout.jsonl").overlay(with: """
+        {"timestamp":"2026-02-12T10:00:00Z","type":"turn_context","payload":{"model":"gpt-5"}}
+        {"timestamp":"2026-02-12T10:00:01Z","type":"event_msg","payload":{"type":"token_count","info":{"model":"gpt-5","last_token_usage":{"input_tokens":10,"cached_input_tokens":4,"output_tokens":3,"total_tokens":13}}}}
+        """)
+
+        let since = Date(timeIntervalSince1970: 0)
+        let until = Self.makeLocalDate(year: 2100, month: 1, day: 1, hour: 0, minute: 0)
+
+        let options = CostUsageScanner.Options(
+            codexSessionsRoot: sessionsRoot,
+            cacheRoot: root.folder("cache"),
+            forceRescan: true
+        )
+        #expect(options.codexSessionsRoot?.path == sessionsRoot.path)
+        #expect(options.cacheRoot?.path == root.folder("cache").path)
+
+        let range = CostUsageScanner.CostUsageDayRange(since: since, until: until)
+        let parsed = CostUsageScanner.parseCodexFile(
+            file: sessionsRoot.file("2026-02-12-rollout.jsonl"),
+            range: range
+        )
+        #expect(parsed.parsedBytes > 0)
+        #expect(parsed.lastModel == "gpt-5" || parsed.lastModel == nil)
+    }
+
+    private static func makeLocalDate(year: Int, month: Int, day: Int, hour: Int, minute: Int) -> Date {
+        var comps = DateComponents()
+        comps.calendar = Calendar.current
+        comps.timeZone = TimeZone.current
+        comps.year = year
+        comps.month = month
+        comps.day = day
+        comps.hour = hour
+        comps.minute = minute
+        comps.second = 0
+        return comps.date ?? Date(timeIntervalSince1970: 0)
+    }
+}

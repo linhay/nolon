@@ -5,6 +5,46 @@ import STFilePath
 import ProviderCatalog
 @testable import nolon
 
+private struct TimedEventDeduplicator<Event: Hashable> {
+    private var expiryByEvent: [Event: Date] = [:]
+
+    mutating func mark(_ event: Event, ttl: TimeInterval, now: Date = Date()) {
+        expiryByEvent[event] = now.addingTimeInterval(ttl)
+        cleanup(now: now)
+    }
+
+    mutating func shouldSuppress(_ event: Event, now: Date = Date()) -> Bool {
+        cleanup(now: now)
+        guard let expiry = expiryByEvent[event] else { return false }
+        return expiry > now
+    }
+
+    private mutating func cleanup(now: Date) {
+        expiryByEvent = expiryByEvent.filter { $0.value > now }
+    }
+}
+
+private enum CodexAuthEventPolicy {
+    enum ChangeKind {
+        case renamed
+        case other
+    }
+
+    static func shouldIgnoreKnownAuthRename(
+        changedPath: String,
+        kind: ChangeKind,
+        isAuthFolderChange: Bool,
+        isAuthFileChange: Bool,
+        knownAuthFileNames: Set<String>
+    ) -> Bool {
+        guard isAuthFolderChange, !isAuthFileChange, kind == .renamed else {
+            return false
+        }
+        let fileName = (changedPath as NSString).lastPathComponent
+        return knownAuthFileNames.contains(fileName)
+    }
+}
+
 @MainActor
 final class CodexAuthServiceTests: XCTestCase {
     func testBDD_GivenRealCodexAccount_WhenStoringUsageCache_ThenUsageCacheIsPersisted() async throws {
