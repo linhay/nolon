@@ -7,4 +7,5 @@
 - `release-notes/`：版本发布说明
 - `metrics.md`：关键指标与观测口径
 
-当前状态：待补充 Nolon / Providers 的发布与回归 runbook。
+当前可用文档：
+- `docs-dev/ops/codex-runtime-runbook.md`：Codex 运行与排障手册（含回归门禁）。
