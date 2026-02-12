@@ -55,6 +55,42 @@ struct ProviderUsageMonitorServiceTests {
         #expect(env["KEEP"] == "1")
         #expect(env["CODEX_CLI_PATH"] == nil)
     }
+
+    @Test("Resolve cost window falls back to settings when override missing")
+    func resolveCostWindowFallsBackToSettings() async {
+        let service = ProviderUsageMonitorService(
+            tokenAccountStore: EmptyTokenAccountStore(),
+            baseEnvironment: [:],
+            codexManagedEnvironmentLoader: { [:] },
+            codexCLIPathLoader: { nil }
+        )
+        let settings = ProviderUsageMonitorSettings(costWindowDays: 21)
+
+        let window = await service.resolveCostWindowDaysForFetch(
+            settings: settings,
+            overrideCostWindowDays: nil
+        )
+
+        #expect(window == 21)
+    }
+
+    @Test("Resolve cost window prefers override value")
+    func resolveCostWindowPrefersOverride() async {
+        let service = ProviderUsageMonitorService(
+            tokenAccountStore: EmptyTokenAccountStore(),
+            baseEnvironment: [:],
+            codexManagedEnvironmentLoader: { [:] },
+            codexCLIPathLoader: { nil }
+        )
+        let settings = ProviderUsageMonitorSettings(costWindowDays: 21)
+
+        let window = await service.resolveCostWindowDaysForFetch(
+            settings: settings,
+            overrideCostWindowDays: 7
+        )
+
+        #expect(window == 7)
+    }
 }
 
 private struct EmptyTokenAccountStore: ProviderTokenAccountStoring {

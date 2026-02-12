@@ -414,3 +414,23 @@
 - `swift test --package-path libs/Providers --filter ProviderUsageMonitorSettingsTests`
 - `swift test --package-path libs/Providers --filter ProviderUsageMonitorServiceTests`
 - `xcodebuild test -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' -only-testing:nolonTests/UsageMonitorServiceTests`
+
+## Phase 1.18：fetchOutcomes 窗口回退统一收敛到 monitor
+
+### BDD 场景
+- Given `fetchOutcomes` 未传 `costWindowDays` override，When monitor 构建 `ProviderFetchContext`，Then 应使用 `settings.costWindowDays`。
+- Given `fetchOutcomes` 传入 override，When monitor 构建 `ProviderFetchContext`，Then 应优先使用 override。
+
+### TDD（红 -> 绿）
+- 先补库侧测试：
+  - `ProviderUsageMonitorServiceTests.resolveCostWindowFallsBackToSettings`
+  - `ProviderUsageMonitorServiceTests.resolveCostWindowPrefersOverride`
+- 最小实现：
+  - `ProviderUsageMonitorService` 新增 `resolveCostWindowDaysForFetch(settings:overrideCostWindowDays:)`。
+  - `fetchOutcomes(...)` 默认参数从 `costWindowDays: Int? = 30` 改为 `nil`，并统一通过 `resolveCostWindowDaysForFetch` 计算 effective window。
+  - app 侧 `ProviderUsageViewModel.load()` 删除本地 effective window 计算，直接传 `codexCostWindowDays` 作为 override。
+
+### 验证
+- `swift test --package-path libs/Providers --filter ProviderUsageMonitorServiceTests`
+- `swift test --package-path libs/Providers --filter ProviderUsageMonitorSettingsTests`
+- `xcodebuild test -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' -only-testing:nolonTests/UsageMonitorServiceTests`

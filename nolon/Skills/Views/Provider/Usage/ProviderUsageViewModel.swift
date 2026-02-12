@@ -198,11 +198,10 @@ final class ProviderUsageViewModel {
         if usageProvider == .codex, isMultiAccountEnabled {
             outcomes = []
         } else {
-            let effectiveCostWindowDays = settings.effectiveCostWindowDays(selected: codexCostWindowDays)
             outcomes = await usageMonitor.fetchOutcomes(
                 provider: usageProvider,
                 settings: settings,
-                costWindowDays: effectiveCostWindowDays
+                costWindowDays: codexCostWindowDays
             )
             lastUsageRefreshAt = Date()
         }

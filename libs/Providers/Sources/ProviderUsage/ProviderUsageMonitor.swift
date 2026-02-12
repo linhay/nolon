@@ -135,12 +135,23 @@ public actor ProviderUsageMonitorService {
         return environment
     }
 
+    func resolveCostWindowDaysForFetch(
+        settings: ProviderUsageMonitorSettings,
+        overrideCostWindowDays: Int?
+    ) -> Int? {
+        settings.effectiveCostWindowDays(selected: overrideCostWindowDays)
+    }
+
     public func fetchOutcomes(
         provider: UsageProvider,
         settings: ProviderUsageMonitorSettings,
-        costWindowDays: Int? = 30
+        costWindowDays: Int? = nil
     ) async -> [ProviderAccountUsageOutcome] {
         let resolvedEnvironment = await resolveEnvironmentForFetch(provider: provider)
+        let effectiveCostWindowDays = resolveCostWindowDaysForFetch(
+            settings: settings,
+            overrideCostWindowDays: costWindowDays
+        )
         let tokenAccounts: [ProviderTokenAccount] = (try? tokenAccountStore.loadAccounts()[provider]?.accounts) ?? []
         var accountKinds: [ProviderAccountUsageOutcome.AccountKind] = [.default]
         accountKinds.append(contentsOf: tokenAccounts.map { .tokenAccount($0) })
@@ -161,7 +172,7 @@ public actor ProviderUsageMonitorService {
                         sourceMode: settings.sourceMode,
                         includeCredits: settings.includeCredits,
                         timeout: TimeInterval(settings.webTimeoutSeconds),
-                        costWindowDays: costWindowDays,
+                        costWindowDays: effectiveCostWindowDays,
                         environment: resolvedEnvironment,
                         token: token
                     )
