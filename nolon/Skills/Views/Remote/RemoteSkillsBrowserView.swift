@@ -2,6 +2,53 @@ import SwiftUI
 import ProviderCatalog
 import Observation
 import STFilePath
+import STJSON
+import TOML
+
+enum RemoteMCPInstallStatusResolver {
+    static func slugsFromGlobalCache(at mcpsURL: URL) -> Set<String> {
+        let folder = STFolder(mcpsURL)
+        guard folder.isExists, let files = try? folder.files() else { return [] }
+
+        return Set(
+            files.compactMap { file in
+                let name = file.url.lastPathComponent
+                guard !name.hasPrefix(".") else { return nil }
+                if file.url.pathExtension.lowercased() == "json" {
+                    return file.url.deletingPathExtension().lastPathComponent
+                }
+                return name
+            }
+        )
+    }
+
+    static func slugsFromProviderConfig(at configURL: URL, templateId: String) -> Set<String> {
+        guard STFile(configURL).isExists, let data = try? Data(contentsOf: configURL), !data.isEmpty else {
+            return []
+        }
+
+        if configURL.pathExtension.lowercased() == "toml" {
+            guard let config = try? TOMLDecoder().decode(CodexMCPConfig.self, from: data) else {
+                return []
+            }
+            return Set((config.mcpServers ?? [:]).keys)
+        }
+
+        guard let root = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
+            return []
+        }
+
+        if templateId == "opencode" {
+            return Set((root["mcp"] as? [String: Any] ?? [:]).keys)
+        }
+
+        if let servers = root["mcpServers"] as? [String: Any] {
+            return Set(servers.keys)
+        }
+
+        return Set((root["mcp_servers"] as? [String: Any] ?? [:]).keys)
+    }
+}
 
 @Observable
 final class RemoteSkillsBrowserViewModel {
@@ -11,6 +58,7 @@ final class RemoteSkillsBrowserViewModel {
     var columnVisibility: NavigationSplitViewVisibility = .all
     var installedSlugs: Set<String> = []
     var installedWorkflowSlugs: Set<String> = []
+    var installedMcpSlugs: Set<String> = []
     var refreshTrigger: Int = 0
     
     /// 刷新已安装技能列表
@@ -73,6 +121,26 @@ final class RemoteSkillsBrowserViewModel {
         }
     }
 
+    /// 刷新已安装 MCP 列表
+    @MainActor
+    func refreshInstalledMCPs(targetProvider: Provider?) {
+        guard let provider = targetProvider else {
+            installedMcpSlugs = RemoteMCPInstallStatusResolver.slugsFromGlobalCache(at: NolonManager.shared.mcpsURL)
+            return
+        }
+
+        guard let templateId = provider.templateId,
+              let template = ProviderTemplate(rawValue: templateId) else {
+            installedMcpSlugs = []
+            return
+        }
+
+        installedMcpSlugs = RemoteMCPInstallStatusResolver.slugsFromProviderConfig(
+            at: template.defaultMcpConfigPath,
+            templateId: templateId
+        )
+    }
+
     /// 根据搜索文本过滤技能
     func filterSkills(_ skills: [RemoteSkill]) -> [RemoteSkill] {
         if searchText.isEmpty {
@@ -127,6 +195,7 @@ struct RemoteSkillsBrowserView: View {
     private func refreshData() {
         viewModel.refreshInstalledSkills(repository: repository, targetProvider: targetProvider, settings: settings)
         viewModel.refreshInstalledWorkflows(targetProvider: targetProvider)
+        viewModel.refreshInstalledMCPs(targetProvider: targetProvider)
         viewModel.refreshTrigger += 1
     }
     
@@ -172,6 +241,7 @@ struct RemoteSkillsBrowserView: View {
                         searchText: $viewModel.searchText,
                         installedSlugs: viewModel.installedSlugs,
                         installedWorkflowSlugs: viewModel.installedWorkflowSlugs,
+                        installedMcpSlugs: viewModel.installedMcpSlugs,
                         providers: settings.providers,
                         refreshTrigger: viewModel.refreshTrigger,
                         targetProvider: targetProvider,
@@ -195,6 +265,7 @@ struct RemoteSkillsBrowserView: View {
                             onInstallMCP?(mcp, provider)
                             // Refresh after install attempt
                             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                                viewModel.refreshInstalledMCPs(targetProvider: targetProvider)
                                 viewModel.refreshTrigger += 1
                             }
                         }
@@ -224,6 +295,7 @@ struct RemoteSkillsBrowserView: View {
                         searchText: $viewModel.searchText,
                         installedSlugs: viewModel.installedSlugs,
                         installedWorkflowSlugs: viewModel.installedWorkflowSlugs,
+                        installedMcpSlugs: viewModel.installedMcpSlugs,
                         providers: settings.providers,
                         refreshTrigger: viewModel.refreshTrigger,
                         targetProvider: targetProvider,
@@ -247,6 +319,7 @@ struct RemoteSkillsBrowserView: View {
                             onInstallMCP?(mcp, provider)
                             // Refresh after install attempt
                             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                                viewModel.refreshInstalledMCPs(targetProvider: targetProvider)
                                 viewModel.refreshTrigger += 1
                             }
                         }

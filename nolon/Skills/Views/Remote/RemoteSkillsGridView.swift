@@ -332,6 +332,7 @@ struct RemoteSkillsGridView: View {
     @Binding var searchText: String
     let installedSlugs: Set<String>
     let installedWorkflowSlugs: Set<String>
+    let installedMcpSlugs: Set<String>
     let providers: [Provider]
     var refreshTrigger: Int
     let targetProvider: Provider?
@@ -352,6 +353,7 @@ struct RemoteSkillsGridView: View {
         searchText: Binding<String>,
         installedSlugs: Set<String>,
         installedWorkflowSlugs: Set<String>,
+        installedMcpSlugs: Set<String>,
         providers: [Provider],
         refreshTrigger: Int,
         targetProvider: Provider?,
@@ -364,6 +366,7 @@ struct RemoteSkillsGridView: View {
         self._searchText = searchText
         self.installedSlugs = installedSlugs
         self.installedWorkflowSlugs = installedWorkflowSlugs
+        self.installedMcpSlugs = installedMcpSlugs
         self.providers = providers
         self.refreshTrigger = refreshTrigger
         self.targetProvider = targetProvider
@@ -659,7 +662,7 @@ struct RemoteSkillsGridView: View {
                         ForEach(filtered) { mcp in
                             RemoteMCPCardView(
                                 mcp: mcp,
-                                isInstalled: false, // TODO: Track MCP installation status
+                                isInstalled: installedMcpSlugs.contains(mcp.slug),
                                 targetProvider: targetProvider,
                                 providers: providers,
                                 onInstall: { provider in
