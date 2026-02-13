@@ -286,7 +286,10 @@ struct NolonCodexCLIEntrypointTests {
         )
 
         #expect(result.exitCode == 0)
-        #expect(result.stdout.contains("provider: codex"))
+        #expect(result.stdout.contains("邮箱"))
+        #expect(result.stdout.contains("状态"))
+        #expect(result.stdout.contains("用量"))
+        #expect(result.stdout.contains("刷新时间"))
         #expect(await mock.lastCall() == "authList")
     }
 
@@ -300,13 +303,26 @@ struct NolonCodexCLIEntrypointTests {
 
         #expect(result.exitCode == 0)
         #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("accounts:"))
         let lines = result.stdout.split(separator: "\n").map(String.init)
-        let rows = lines.filter { $0.hasPrefix("* ") || ($0.hasPrefix("  ") && $0.contains(" | ")) }
+        #expect(lines.first?.contains("邮箱") == true)
+        let rows = lines.dropFirst().filter { $0.hasPrefix("* ") || ($0.hasPrefix("  ") && $0.contains(" | ")) }
         #expect(rows.count == 2)
         let firstPipeIndices = rows[0].indicesOfPipes()
         #expect(firstPipeIndices.count == 3)
         #expect(rows[1].indicesOfPipes() == firstPipeIndices)
+    }
+
+    @Test("auth list shows dash when email usage refresh are missing")
+    func authListShowsDashForMissingFields() async {
+        let service = AuthListMissingFieldsCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["codex", "auth", "list", "--provider", "codex"],
+            codexService: service
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("| -"))
     }
 
     @Test("normalizes codexxcode provider alias")
@@ -321,7 +337,7 @@ struct NolonCodexCLIEntrypointTests {
         )
 
         #expect(result.exitCode == 0)
-        #expect(result.stdout.contains("provider: codex-xcode"))
+        #expect(result.stdout.contains("邮箱"))
     }
 
     @Test("auth list rejects unsupported provider")
@@ -855,14 +871,56 @@ private actor AuthListTableCodexCLIService: NolonCodexCLIServing {
                     name: "long-account-name",
                     createdAt: .distantPast,
                     relativeAuthPath: "accounts/long-name/auth.json",
-                    isActive: true
+                    isActive: true,
+                    email: "long-account@example.com",
+                    usageDisplay: "5h 81% / 7d 55%",
+                    refreshedAt: Date(timeIntervalSince1970: 1_734_000_000)
                 ),
                 NolonCodexAuthAccountView(
                     id: UUID(uuidString: "22222222-2222-2222-2222-222222222222")!,
                     name: "x",
                     createdAt: .distantPast,
                     relativeAuthPath: "a.json",
-                    isActive: false
+                    isActive: false,
+                    email: "x@example.com",
+                    usageDisplay: "5h 40%",
+                    refreshedAt: Date(timeIntervalSince1970: 1_733_900_000)
+                ),
+            ]
+        )
+    }
+
+    private func unsupported() -> NolonCoreCLIError {
+        .invalidArguments("unsupported")
+    }
+}
+
+private actor AuthListMissingFieldsCodexCLIService: NolonCodexCLIServing {
+    func authStatus(providerID: String) async throws -> NolonCodexAuthStatusPayload { throw unsupported() }
+    func authActivate(providerID: String, accountID: UUID) async throws -> NolonCodexAuthActivatePayload { throw unsupported() }
+    func authLogin(providerID: String, preferredAccountID: UUID?) async throws -> NolonCodexAuthLoginPayload { throw unsupported() }
+    func authDelete(providerID: String, accountID: UUID) async throws -> NolonCodexAuthDeletePayload { throw unsupported() }
+    func binaryList() async throws -> NolonCodexBinaryListPayload { throw unsupported() }
+    func binaryCurrent() async throws -> NolonCodexBinaryCurrentPayload { throw unsupported() }
+    func binaryInstall(version: String, setDefault: Bool) async throws -> NolonCodexBinaryInstallPayload { throw unsupported() }
+    func binaryUse(version: String) async throws -> NolonCodexBinaryUsePayload { throw unsupported() }
+    func binaryDoctor() async throws -> NolonCodexBinaryDoctorPayload { throw unsupported() }
+    func statusProbe(providerID: String?) async throws -> NolonCodexStatusProbePayload { throw unsupported() }
+
+    func authList(providerID: String) async throws -> NolonCodexAuthListPayload {
+        NolonCodexAuthListPayload(
+            providerID: providerID,
+            activeAccountID: nil,
+            accounts: [
+                NolonCodexAuthAccountView(
+                    id: UUID(uuidString: "33333333-3333-3333-3333-333333333333")!,
+                    name: "unknown",
+                    createdAt: .distantPast,
+                    relativeAuthPath: "auth/missing.json",
+                    isActive: false,
+                    email: nil,
+                    usageDisplay: nil,
+                    refreshedAt: nil
                 ),
             ]
         )

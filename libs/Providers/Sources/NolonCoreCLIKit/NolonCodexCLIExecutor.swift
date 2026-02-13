@@ -194,25 +194,34 @@ enum NolonCodexCLIExecutor {
     }
 
     private static func formatAuthList(_ payload: NolonCodexAuthListPayload) -> String {
-        let header = [
-            "provider: \(payload.providerID)",
-            "active_account_id: \(payload.activeAccountID?.uuidString ?? "-")",
-            "account_count: \(payload.accounts.count)",
-        ].joined(separator: "\n")
-        guard !payload.accounts.isEmpty else {
-            return "\(header)\naccounts:\n  (none)"
-        }
-        let formatter = ISO8601DateFormatter()
-        let nameWidth = payload.accounts.map { $0.name.count }.max() ?? 0
-        let pathWidth = payload.accounts.map { $0.relativeAuthPath.count }.max() ?? 0
-        let body = payload.accounts.map { account in
+        let title = "邮箱 | 状态 | 用量 | 刷新时间"
+        guard !payload.accounts.isEmpty else { return title }
+
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd HH:mm"
+
+        let rows: [(marker: String, email: String, status: String, usage: String, refresh: String)] = payload.accounts.map { account in
             let marker = account.isActive ? "*" : " "
-            let createdAt = formatter.string(from: account.createdAt)
-            let nameColumn = padRight(account.name, to: nameWidth)
-            let pathColumn = padRight(account.relativeAuthPath, to: pathWidth)
-            return "\(marker) \(nameColumn) | \(account.id.uuidString) | \(createdAt) | \(pathColumn)"
+            let emailRaw = account.email?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let email = (emailRaw?.isEmpty == false) ? (emailRaw ?? "-") : "-"
+            let status = account.isActive ? "已激活" : "未激活"
+            let usageRaw = account.usageDisplay?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let usage = (usageRaw?.isEmpty == false) ? (usageRaw ?? "-") : "-"
+            let refresh = account.refreshedAt.map { formatter.string(from: $0) } ?? "-"
+            return (marker, email, status, usage, refresh)
+        }
+
+        let emailWidth = max("邮箱".count, rows.map { $0.email.count }.max() ?? 0)
+        let statusWidth = max("状态".count, rows.map { $0.status.count }.max() ?? 0)
+        let usageWidth = max("用量".count, rows.map { $0.usage.count }.max() ?? 0)
+        let refreshWidth = max("刷新时间".count, rows.map { $0.refresh.count }.max() ?? 0)
+
+        let header = "\(padRight("邮箱", to: emailWidth)) | \(padRight("状态", to: statusWidth)) | \(padRight("用量", to: usageWidth)) | \(padRight("刷新时间", to: refreshWidth))"
+        let body = rows.map { row in
+            "\(row.marker) \(padRight(row.email, to: emailWidth)) | \(padRight(row.status, to: statusWidth)) | \(padRight(row.usage, to: usageWidth)) | \(padRight(row.refresh, to: refreshWidth))"
         }.joined(separator: "\n")
-        return "\(header)\naccounts:\n\(body)"
+        return "\(header)\n\(body)"
     }
 
     private static func formatAuthStatus(_ payload: NolonCodexAuthStatusPayload) -> String {

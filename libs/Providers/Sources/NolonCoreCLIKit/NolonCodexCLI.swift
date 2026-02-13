@@ -26,6 +26,9 @@ public struct NolonCodexAuthAccountView: Codable, Sendable, Equatable {
     public let createdAt: Date
     public let relativeAuthPath: String
     public let isActive: Bool
+    public let email: String?
+    public let usageDisplay: String?
+    public let refreshedAt: Date?
 }
 
 public struct NolonCodexAuthListPayload: Codable, Sendable, Equatable {
@@ -136,18 +139,28 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
         let provider = try Self.provider(for: canonicalProviderID)
         let accounts = try await authManager.loadAccounts()
         let activeID = await authManager.activeAccountId(for: provider)
-        return NolonCodexAuthListPayload(
-            providerID: canonicalProviderID,
-            activeAccountID: activeID,
-            accounts: accounts.map { account in
+        var views: [NolonCodexAuthAccountView] = []
+        views.reserveCapacity(accounts.count)
+        for account in accounts {
+            let email = Self.loadEmail(for: account, authManager: authManager)
+            let usageCache = try? await authManager.loadUsageCache(for: account)
+            views.append(
                 NolonCodexAuthAccountView(
                     id: account.id,
                     name: account.name,
                     createdAt: account.createdAt,
                     relativeAuthPath: account.relativeAuthPath,
-                    isActive: account.id == activeID
+                    isActive: account.id == activeID,
+                    email: email,
+                    usageDisplay: Self.makeUsageDisplay(from: usageCache),
+                    refreshedAt: Self.resolveRefreshTime(from: usageCache)
                 )
-            }
+            )
+        }
+        return NolonCodexAuthListPayload(
+            providerID: canonicalProviderID,
+            activeAccountID: activeID,
+            accounts: views
         )
     }
 
@@ -381,6 +394,33 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
         default:
             throw NolonCoreCLIError.invalidArguments("Unsupported --provider: \(providerID)")
         }
+    }
+
+    private static func loadEmail(for account: CodexAuthAccount, authManager: CodexAuthManager) -> String? {
+        guard let data = try? authManager.accountAuthFile(relativeAuthPath: account.relativeAuthPath).data(), !data.isEmpty else { return nil }
+        let summary = CodexAuthSummary.fromJSONData(data)
+        return summary.email
+    }
+
+    private static func makeUsageDisplay(from cache: CodexAuthUsageCache?) -> String? {
+        guard let cache else { return nil }
+        let primary = cache.usage.primary.map { Int($0.remainingPercent.rounded()) }
+        let secondary = cache.usage.secondary.map { Int($0.remainingPercent.rounded()) }
+        switch (primary, secondary) {
+        case let (p?, s?):
+            return "5h \(p)% / 7d \(s)%"
+        case let (p?, nil):
+            return "5h \(p)%"
+        case let (nil, s?):
+            return "7d \(s)%"
+        case (nil, nil):
+            return nil
+        }
+    }
+
+    private static func resolveRefreshTime(from cache: CodexAuthUsageCache?) -> Date? {
+        guard let cache else { return nil }
+        return cache.creditsRefreshedAt ?? cache.usage.updatedAt
     }
 }
 

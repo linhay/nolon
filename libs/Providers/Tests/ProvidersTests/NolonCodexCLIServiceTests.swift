@@ -78,4 +78,91 @@ struct NolonCodexCLIServiceTests {
             Issue.record("Unexpected error type: \(error)")
         }
     }
+
+    @Test("auth list includes email usage display and refreshed time from local cache")
+    func authListIncludesEmailUsageAndRefresh() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("nolon-codex-cli-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let authManager = CodexAuthManager(rootURL: root)
+        let account = try await authManager.addAccount(
+            name: "demo",
+            authJSONString: #"{"user":{"email":"dev@example.com"}}"#
+        )
+
+        let cache = CodexAuthUsageCache(
+            cachedAt: Date(timeIntervalSince1970: 1_733_000_000),
+            creditsRefreshedAt: Date(timeIntervalSince1970: 1_734_000_000),
+            fetchKind: .cli,
+            strategyKind: .direct,
+            sourceLabel: "CLI",
+            usage: UsageSnapshot(
+                identity: nil,
+                primary: RateWindow(usedPercent: 17),
+                secondary: RateWindow(usedPercent: 50),
+                tertiary: nil,
+                updatedAt: Date(timeIntervalSince1970: 1_733_500_000)
+            ),
+            credits: nil,
+            cost: nil
+        )
+        try await authManager.storeUsageCache(cache, for: account)
+
+        let service = NolonLiveCodexCLIService(
+            authManager: authManager,
+            binaryManager: CodexBinaryManager(homeURL: root),
+            loginRunner: .init(),
+            environment: [:]
+        )
+
+        let payload = try await service.authList(providerID: "codex")
+        #expect(payload.accounts.count == 1)
+        #expect(payload.accounts[0].email == "dev@example.com")
+        #expect(payload.accounts[0].usageDisplay == "5h 83% / 7d 50%")
+        #expect(payload.accounts[0].refreshedAt == Date(timeIntervalSince1970: 1_734_000_000))
+    }
+
+    @Test("auth list usage display falls back when only weekly window exists")
+    func authListUsageDisplayWeeklyOnly() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("nolon-codex-cli-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let authManager = CodexAuthManager(rootURL: root)
+        let account = try await authManager.addAccount(
+            name: "demo",
+            authJSONString: #"{"user":{"email":"weekly@example.com"}}"#
+        )
+
+        let cache = CodexAuthUsageCache(
+            cachedAt: Date(timeIntervalSince1970: 1_733_000_000),
+            creditsRefreshedAt: nil,
+            fetchKind: .cli,
+            strategyKind: .direct,
+            sourceLabel: "CLI",
+            usage: UsageSnapshot(
+                identity: nil,
+                primary: nil,
+                secondary: RateWindow(usedPercent: 13.4),
+                tertiary: nil,
+                updatedAt: Date(timeIntervalSince1970: 1_733_500_000)
+            ),
+            credits: nil,
+            cost: nil
+        )
+        try await authManager.storeUsageCache(cache, for: account)
+
+        let service = NolonLiveCodexCLIService(
+            authManager: authManager,
+            binaryManager: CodexBinaryManager(homeURL: root),
+            loginRunner: .init(),
+            environment: [:]
+        )
+
+        let payload = try await service.authList(providerID: "codex")
+        #expect(payload.accounts.count == 1)
+        #expect(payload.accounts[0].usageDisplay == "7d 87%")
+        #expect(payload.accounts[0].refreshedAt == Date(timeIntervalSince1970: 1_733_500_000))
+    }
 }
