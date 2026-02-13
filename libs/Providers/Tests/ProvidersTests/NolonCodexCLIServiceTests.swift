@@ -123,7 +123,7 @@ struct NolonCodexCLIServiceTests {
         #expect(payload.accounts[0].refreshedAt == Date(timeIntervalSince1970: 1_734_000_000))
     }
 
-    @Test("auth list usage display falls back when only weekly window exists")
+    @Test("auth list usage display keeps slash-aligned template when only weekly window exists")
     func authListUsageDisplayWeeklyOnly() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("nolon-codex-cli-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
@@ -162,7 +162,7 @@ struct NolonCodexCLIServiceTests {
 
         let payload = try await service.authList(providerID: "codex")
         #expect(payload.accounts.count == 1)
-        #expect(payload.accounts[0].usageDisplay == "7d 87%")
+        #expect(payload.accounts[0].usageDisplay == "5h - / 7d 87%")
         #expect(payload.accounts[0].refreshedAt == Date(timeIntervalSince1970: 1_733_500_000))
     }
 }

@@ -406,16 +406,9 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
         guard let cache else { return nil }
         let primary = cache.usage.primary.map { Int($0.remainingPercent.rounded()) }
         let secondary = cache.usage.secondary.map { Int($0.remainingPercent.rounded()) }
-        switch (primary, secondary) {
-        case let (p?, s?):
-            return "5h \(p)% / 7d \(s)%"
-        case let (p?, nil):
-            return "5h \(p)%"
-        case let (nil, s?):
-            return "7d \(s)%"
-        case (nil, nil):
-            return nil
-        }
+        let left = primary.map { "\($0)%" } ?? "-"
+        let right = secondary.map { "\($0)%" } ?? "-"
+        return "5h \(left) / 7d \(right)"
     }
 
     private static func resolveRefreshTime(from cache: CodexAuthUsageCache?) -> Date? {
