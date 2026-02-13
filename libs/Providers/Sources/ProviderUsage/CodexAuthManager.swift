@@ -3,6 +3,7 @@ import OSLog
 import STFilePath
 import ProviderCatalog
 import STJSON
+import ProvidersShared
 
 public actor CodexAuthManager {
     private static let logger = Logger(subsystem: "com.nolon", category: "CodexAuthManager")
@@ -35,8 +36,15 @@ public actor CodexAuthManager {
 
     private nonisolated let rootFolder: STFolder
 
-    public init(rootURL: URL = STFolder("~").folder(".nolon").url) {
-        self.rootFolder = STFolder(rootURL)
+    public init(
+        rootURL: URL? = nil,
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) {
+        if let rootURL {
+            self.rootFolder = STFolder(rootURL)
+        } else {
+            self.rootFolder = NolonHomeEnvironment.resolveNolonHomeFolder(environment: environment)
+        }
     }
 
     public nonisolated func nolonCodexRootFolder() -> STFolder {

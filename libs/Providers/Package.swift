@@ -133,6 +133,7 @@ let package = Package(
         .target(
             name: "ProviderUsage",
             dependencies: [
+                "ProvidersShared",
                 "ProviderCatalog",
                 "CodexBarProviderCatalog",
                 "CodexProvider",

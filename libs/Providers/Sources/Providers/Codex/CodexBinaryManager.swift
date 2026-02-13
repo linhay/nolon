@@ -2,6 +2,7 @@ import CryptoKit
 import Foundation
 import OSLog
 import STFilePath
+import ProvidersShared
 
 public actor CodexBinaryManager {
     public static let shared = CodexBinaryManager()
@@ -9,19 +10,32 @@ public actor CodexBinaryManager {
     private static let logger = Logger(subsystem: "com.nolon", category: "CodexBinaryManager")
     private static let pathMarkerStart = "# >>> Nolon Codex PATH >>>"
     private static let pathMarkerEnd = "# <<< Nolon Codex PATH <<<"
-    private static let pathExportLine = "export PATH=\"$HOME/.nolon/codex/bin:$PATH\""
 
     private let fileManager: FileManager
-    private let homeFolder: STFolder
+    private let userHomeFolder: STFolder
+    private let nolonHomeFolder: STFolder
     private let throttlingInterval: TimeInterval = 24 * 60 * 60
 
-    public init(fileManager: FileManager = .default, homeURL: URL = STFolder(NSHomeDirectory()).url) {
+    public init(
+        fileManager: FileManager = .default,
+        homeURL: URL = STFolder(NSHomeDirectory()).url,
+        nolonHomeURL: URL? = nil,
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) {
         self.fileManager = fileManager
-        self.homeFolder = STFolder(homeURL)
+        self.userHomeFolder = STFolder(homeURL)
+        if let nolonHomeURL {
+            self.nolonHomeFolder = STFolder(nolonHomeURL)
+        } else {
+            self.nolonHomeFolder = NolonHomeEnvironment.resolveNolonHomeFolder(
+                environment: environment,
+                userHomeURL: homeURL
+            )
+        }
     }
 
     public var rootFolder: STFolder {
-        STFolder(homeFolder.url.appendingPathComponent(".nolon/codex", isDirectory: true))
+        STFolder(nolonHomeFolder.url.appendingPathComponent("codex", isDirectory: true))
     }
 
     public var versionsFolder: STFolder {
@@ -41,7 +55,7 @@ public actor CodexBinaryManager {
     }
 
     private var xcodeAgentsVersionsFolder: STFolder {
-        STFolder(homeFolder.url.appendingPathComponent("Library/Developer/Xcode/CodingAssistant/Agents/Versions", isDirectory: true))
+        STFolder(userHomeFolder.url.appendingPathComponent("Library/Developer/Xcode/CodingAssistant/Agents/Versions", isDirectory: true))
     }
 
     public func xcodeAgentCodexBinaryURL() -> URL? {
@@ -71,11 +85,22 @@ public actor CodexBinaryManager {
     }
 
     public var xcodeFixedCodexBinaryURL: URL {
-        homeFolder.url.appendingPathComponent("Library/Developer/Xcode/CodingAssistant/Agents/Versions/26.3/codex")
+        userHomeFolder.url.appendingPathComponent("Library/Developer/Xcode/CodingAssistant/Agents/Versions/26.3/codex")
     }
 
     private var xcodeCodexConfigFile: STFile {
-        STFile(homeFolder.url.appendingPathComponent("Library/Developer/Xcode/CodingAssistant/codex/config.toml"))
+        STFile(userHomeFolder.url.appendingPathComponent("Library/Developer/Xcode/CodingAssistant/codex/config.toml"))
+    }
+
+    private var pathExportLine: String {
+        let codexBinPath = rootFolder.url.appendingPathComponent("bin", isDirectory: true).standardizedFileURL.path
+        let homePath = userHomeFolder.url.standardizedFileURL.path
+        if codexBinPath.hasPrefix(homePath + "/") {
+            let suffix = String(codexBinPath.dropFirst(homePath.count))
+            return "export PATH=\"$HOME\(suffix):$PATH\""
+        }
+        let escaped = codexBinPath.replacingOccurrences(of: "\"", with: "\\\"")
+        return "export PATH=\"\(escaped):$PATH\""
     }
 
     public func listVersions() throws -> [ManagedCodexVersion] {
@@ -94,12 +119,13 @@ public actor CodexBinaryManager {
         let shellPath = ProcessInfo.processInfo.environment["SHELL"] ?? ""
         let shellName = URL(fileURLWithPath: shellPath).lastPathComponent.nonEmpty ?? "shell"
         let profileRelative = resolveShellProfilePath(shellPath: shellPath)
-        let profileURL = homeFolder.url.appendingPathComponent(profileRelative)
+        let profileURL = userHomeFolder.url.appendingPathComponent(profileRelative)
         let profileDisplay = displayPath(profileURL.path)
         let contents = (try? String(contentsOf: profileURL, encoding: .utf8)) ?? ""
+        let codexBinPath = rootFolder.url.appendingPathComponent("bin", isDirectory: true).standardizedFileURL.path
         let configured = contents.contains(Self.pathMarkerStart)
-            || contents.contains(Self.pathExportLine)
-            || contents.contains(".nolon/codex/bin")
+            || contents.contains(pathExportLine)
+            || contents.contains(codexBinPath)
         let active = isCodexBinInPATH()
         return CodexPathStatus(shellName: shellName, profilePath: profileDisplay, configured: configured, active: active)
     }
@@ -107,12 +133,12 @@ public actor CodexBinaryManager {
     public func installCodexPathToShellProfile() throws {
         let shellPath = ProcessInfo.processInfo.environment["SHELL"] ?? ""
         let profileRelative = resolveShellProfilePath(shellPath: shellPath)
-        let profileURL = homeFolder.url.appendingPathComponent(profileRelative)
+        let profileURL = userHomeFolder.url.appendingPathComponent(profileRelative)
         let existing = (try? String(contentsOf: profileURL, encoding: .utf8)) ?? ""
 
         let block = [
             Self.pathMarkerStart,
-            Self.pathExportLine,
+            pathExportLine,
             Self.pathMarkerEnd
         ].joined(separator: "\n")
 
@@ -712,7 +738,7 @@ public actor CodexBinaryManager {
     }
 
     private func isCodexBinInPATH() -> Bool {
-        let codexBin = homeFolder.url.appendingPathComponent(".nolon/codex/bin").standardizedFileURL.path
+        let codexBin = rootFolder.url.appendingPathComponent("bin", isDirectory: true).standardizedFileURL.path
         let path = ProcessInfo.processInfo.environment["PATH"] ?? ""
         return path.split(separator: ":").contains { item in
             let expanded = expandTilde(String(item))
@@ -723,11 +749,11 @@ public actor CodexBinaryManager {
 
     private func expandTilde(_ path: String) -> String {
         guard path.hasPrefix("~") else { return path }
-        return homeFolder.url.path + String(path.dropFirst())
+        return userHomeFolder.url.path + String(path.dropFirst())
     }
 
     private func displayPath(_ path: String) -> String {
-        let home = homeFolder.url.path
+        let home = userHomeFolder.url.path
         if path.hasPrefix(home) {
             return "~" + path.dropFirst(home.count)
         }
@@ -742,7 +768,7 @@ public actor CodexBinaryManager {
             return contents.replacingCharacters(in: replaceRange, with: block)
         }
 
-        if contents.contains(Self.pathExportLine) {
+        if contents.contains(pathExportLine) {
             return contents
         }
 

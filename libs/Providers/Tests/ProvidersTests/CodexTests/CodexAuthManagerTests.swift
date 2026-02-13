@@ -1,10 +1,26 @@
 import Foundation
 import Testing
 import ProviderCatalog
+import STFilePath
 @testable import ProviderUsage
 
 @Suite("CodexAuthManager")
 struct CodexAuthManagerTests {
+    @Test("Given NOLON_HOME env, when manager uses default root, then snapshots root is isolated to env path")
+    func defaultRootRespectsNolonHomeEnv() async throws {
+        let isolatedRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("nolon-home-auth-\(UUID().uuidString)", isDirectory: true)
+            .standardizedFileURL
+
+        let manager = CodexAuthManager(
+            environment: ["NOLON_HOME": isolatedRoot.path]
+        )
+
+        let codexRoot = manager.nolonCodexRootFolder()
+        let expected = STFolder(isolatedRoot).folder("codex")
+        #expect(codexRoot == expected)
+    }
+
     @Test("Given account snapshot, when reading token pair, then returns id/access token")
     func readTokenPairFromSnapshot() async throws {
         let root = FileManager.default.temporaryDirectory

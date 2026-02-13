@@ -21,6 +21,10 @@
   - 新可执行：`nolon`（target: `NolonCLI`）
   - 删除 `NolonCoreCLI` target/product
 - 新增执行入口：`Sources/NolonCLI/main.swift`
+- 新增环境变量：`NOLON_HOME`
+  - 用途：覆盖默认 `~/.nolon` 根目录，便于多项目隔离和测试沙盒。
+  - 生效模块：`CodexAuthManager`、`CodexBinaryManager`。
+  - 优先级：显式传入 `rootURL/nolonHomeURL` > `NOLON_HOME` > 默认 `~/.nolon`。
 
 ## BDD 验收
 1. Given `auth activate` 参数有效，When 执行命令，Then 路由到 auth 激活并返回 `codex.auth.activate`。
