@@ -537,12 +537,20 @@ struct NolonCodexCLIEntrypointTests {
 
         #expect(result.exitCode == 0)
         #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("* 0.26.0 | Codex 0.26.0 | release | v0.26.0"))
-        #expect(result.stdout.contains("  0.25.0 | Codex 0.25.0 | release | v0.25.0"))
-        #expect(!result.stdout.contains("\n  id:"))
-        #expect(!result.stdout.contains("\n  name:"))
+        let lines = result.stdout.split(separator: "\n").map(String.init)
+        #expect(lines.count == 2)
+        #expect(lines[0].contains("* 0.26.0"))
+        #expect(lines[1].contains("  0.9.0"))
+        #expect(lines[0].contains("Codex 0.26.0"))
+        #expect(lines[1].contains("X"))
+        #expect(lines[0].contains("v0.26.0"))
+        #expect(lines[1].contains("v0.9.0"))
         #expect(!result.stdout.contains("\"command\":\"codex.binary.list\""))
         #expect(!result.stdout.contains("\"ok\":true"))
+
+        let firstPipeIndices = lines[0].indicesOfPipes()
+        #expect(firstPipeIndices.count == 3)
+        #expect(lines[1].indicesOfPipes() == firstPipeIndices)
     }
 
     @Test("routes status probe")
@@ -618,6 +626,12 @@ struct NolonCodexCLIEntrypointTests {
 
         #expect(result.exitCode == 2)
         #expect(result.stderr.contains("\"code\":\"codex_binary_not_found\""))
+    }
+}
+
+private extension String {
+    func indicesOfPipes() -> [Int] {
+        enumerated().compactMap { index, char in char == "|" ? index : nil }
     }
 }
 
@@ -761,9 +775,9 @@ private actor BinaryListPlainTextCodexCLIService: NolonCodexCLIServing {
                     isSelected: true
                 ),
                 NolonCodexManagedVersionView(
-                    id: "v0.25.0",
-                    displayName: "Codex 0.25.0",
-                    detectedVersion: "0.25.0",
+                    id: "v0.9.0",
+                    displayName: "X",
+                    detectedVersion: "0.9.0",
                     source: "release",
                     importedAt: .distantPast,
                     isSelected: false

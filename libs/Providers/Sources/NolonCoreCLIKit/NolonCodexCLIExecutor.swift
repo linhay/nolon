@@ -173,12 +173,24 @@ enum NolonCodexCLIExecutor {
 
     private static func formatBinaryList(_ payload: NolonCodexBinaryListPayload) -> String {
         guard !payload.versions.isEmpty else { return "" }
+        let versionWidth = payload.versions.map { $0.detectedVersion.count }.max() ?? 0
+        let nameWidth = payload.versions.map { $0.displayName.count }.max() ?? 0
+        let sourceWidth = payload.versions.map { $0.source.count }.max() ?? 0
+
         return payload.versions
             .map { version in
                 let marker = version.isSelected ? "*" : " "
-                return "\(marker) \(version.detectedVersion) | \(version.displayName) | \(version.source) | \(version.id)"
+                let versionColumn = padRight(version.detectedVersion, to: versionWidth)
+                let nameColumn = padRight(version.displayName, to: nameWidth)
+                let sourceColumn = padRight(version.source, to: sourceWidth)
+                return "\(marker) \(versionColumn) | \(nameColumn) | \(sourceColumn) | \(version.id)"
             }
             .joined(separator: "\n")
+    }
+
+    private static func padRight(_ value: String, to width: Int) -> String {
+        guard value.count < width else { return value }
+        return value + String(repeating: " ", count: width - value.count)
     }
 
     private static func formatAuthList(_ payload: NolonCodexAuthListPayload) -> String {
