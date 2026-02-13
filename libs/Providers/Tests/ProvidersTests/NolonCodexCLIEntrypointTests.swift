@@ -527,8 +527,8 @@ struct NolonCodexCLIEntrypointTests {
         #expect(await mock.lastCall() == "binaryDoctor")
     }
 
-    @Test("binary list prints plain text instead of json")
-    func binaryListPrintsPlainText() async {
+    @Test("binary list prints detailed plain text instead of json")
+    func binaryListPrintsDetailedPlainText() async {
         let service = BinaryListPlainTextCodexCLIService()
         let result = await NolonCLIEntrypoint.execute(
             arguments: ["codex", "binary", "list"],
@@ -537,8 +537,14 @@ struct NolonCodexCLIEntrypointTests {
 
         #expect(result.exitCode == 0)
         #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("* 0.26.0"))
-        #expect(result.stdout.contains("  0.25.0"))
+        #expect(result.stdout.contains("* version: 0.26.0"))
+        #expect(result.stdout.contains("  version: 0.25.0"))
+        #expect(result.stdout.contains("id: v0.26.0"))
+        #expect(result.stdout.contains("name: Codex 0.26.0"))
+        #expect(result.stdout.contains("source: release"))
+        #expect(result.stdout.contains("selected: true"))
+        #expect(result.stdout.contains("selected: false"))
+        #expect(result.stdout.contains("imported_at:"))
         #expect(!result.stdout.contains("\"command\":\"codex.binary.list\""))
         #expect(!result.stdout.contains("\"ok\":true"))
     }
