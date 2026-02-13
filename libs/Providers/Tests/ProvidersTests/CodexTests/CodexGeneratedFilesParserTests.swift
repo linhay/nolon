@@ -592,6 +592,32 @@ struct CodexGeneratedFilesParserTests {
         }
     }
 
+    @Test("Parse rollout event_msg thread_name_updated as typed compatibility event")
+    func parseRolloutThreadNameUpdated() throws {
+        let threadNameLine = """
+        {
+          "timestamp": "2026-02-11T12:00:26Z",
+          "type": "event_msg",
+          "payload": {
+            "type": "thread_name_updated",
+            "thread_id": "thread-xyz",
+            "thread_name": "Fix parser"
+          }
+        }
+        """
+        let parsedThreadName = try CodexGeneratedFilesParser.parseRolloutLine(text: threadNameLine)
+        if case let .eventMsg(event) = parsedThreadName.item {
+            if case let .threadNameUpdated(threadID, threadName) = event.kind {
+                #expect(threadID == "thread-xyz")
+                #expect(threadName == "Fix parser")
+            } else {
+                Issue.record("Expected event_msg.thread_name_updated")
+            }
+        } else {
+            Issue.record("Expected event_msg")
+        }
+    }
+
     @Test("Parse history.jsonl entries with session_id and conversation_id")
     func parseHistoryJSONL() throws {
         let history = """
