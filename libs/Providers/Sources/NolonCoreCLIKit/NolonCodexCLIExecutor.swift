@@ -203,10 +203,14 @@ enum NolonCodexCLIExecutor {
             return "\(header)\naccounts:\n  (none)"
         }
         let formatter = ISO8601DateFormatter()
+        let nameWidth = payload.accounts.map { $0.name.count }.max() ?? 0
+        let pathWidth = payload.accounts.map { $0.relativeAuthPath.count }.max() ?? 0
         let body = payload.accounts.map { account in
             let marker = account.isActive ? "*" : " "
             let createdAt = formatter.string(from: account.createdAt)
-            return "\(marker) id: \(account.id.uuidString)\n  name: \(account.name)\n  created_at: \(createdAt)\n  auth_path: \(account.relativeAuthPath)"
+            let nameColumn = padRight(account.name, to: nameWidth)
+            let pathColumn = padRight(account.relativeAuthPath, to: pathWidth)
+            return "\(marker) \(nameColumn) | \(account.id.uuidString) | \(createdAt) | \(pathColumn)"
         }.joined(separator: "\n")
         return "\(header)\naccounts:\n\(body)"
     }
