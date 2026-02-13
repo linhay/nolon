@@ -1,0 +1,89 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+SCRIPT_PATH="${ROOT_DIR}/scripts/install-nolon-cli.sh"
+PACKAGE_PATH="${ROOT_DIR}/libs/Providers"
+
+fail() {
+  echo "FAIL: $*" >&2
+  exit 1
+}
+
+assert_file_executable() {
+  local path="$1"
+  [[ -x "${path}" ]] || fail "expected executable file: ${path}"
+}
+
+run_case_default_install() {
+  local tmp_home
+  tmp_home="$(mktemp -d)"
+  local target="${tmp_home}/.nolon/bin/nolon"
+
+  HOME="${tmp_home}" bash "${SCRIPT_PATH}" --package-path "${PACKAGE_PATH}" --configuration debug >/dev/null
+  assert_file_executable "${target}"
+}
+
+run_case_nolon_home_install() {
+  local tmp_root
+  tmp_root="$(mktemp -d)"
+  local target="${tmp_root}/isolated/bin/nolon"
+
+  NOLON_HOME="${tmp_root}/isolated" bash "${SCRIPT_PATH}" --package-path "${PACKAGE_PATH}" --configuration debug >/dev/null
+  assert_file_executable "${target}"
+}
+
+run_case_existing_without_force_fails() {
+  local tmp_root
+  tmp_root="$(mktemp -d)"
+  local target_root="${tmp_root}/isolated"
+  local target="${target_root}/bin/nolon"
+
+  bash "${SCRIPT_PATH}" --nolon-home "${target_root}" --package-path "${PACKAGE_PATH}" --configuration debug >/dev/null
+  if bash "${SCRIPT_PATH}" --nolon-home "${target_root}" --package-path "${PACKAGE_PATH}" --configuration debug >/tmp/install_nolon_cli_smoke.err 2>&1; then
+    fail "expected second install without --force to fail"
+  fi
+
+  grep -q "already exists" /tmp/install_nolon_cli_smoke.err || fail "expected conflict error message"
+  assert_file_executable "${target}"
+}
+
+run_case_force_overwrite() {
+  local tmp_root
+  tmp_root="$(mktemp -d)"
+  local target_root="${tmp_root}/isolated"
+  local target="${target_root}/bin/nolon"
+
+  bash "${SCRIPT_PATH}" --nolon-home "${target_root}" --package-path "${PACKAGE_PATH}" --configuration debug >/dev/null
+  printf '#!/usr/bin/env bash\necho stale\n' > "${target}"
+  chmod +x "${target}"
+
+  bash "${SCRIPT_PATH}" --nolon-home "${target_root}" --package-path "${PACKAGE_PATH}" --configuration debug --force >/dev/null
+  assert_file_executable "${target}"
+  if "${target}" 2>/dev/null | grep -q "stale"; then
+    fail "expected --force install to overwrite stale file"
+  fi
+}
+
+run_case_print_path() {
+  local tmp_root
+  tmp_root="$(mktemp -d)"
+  local target_root="${tmp_root}/isolated"
+  local expected="${target_root}/bin/nolon"
+  local output
+
+  output="$(bash "${SCRIPT_PATH}" --nolon-home "${target_root}" --package-path "${PACKAGE_PATH}" --configuration debug --print-path)"
+  [[ "${output}" == "${expected}" ]] || fail "expected print-path output ${expected}, got ${output}"
+}
+
+main() {
+  [[ -f "${SCRIPT_PATH}" ]] || fail "install script missing: ${SCRIPT_PATH}"
+  run_case_default_install
+  run_case_nolon_home_install
+  run_case_existing_without_force_fails
+  run_case_force_overwrite
+  run_case_print_path
+  echo "PASS: install-nolon-cli smoke"
+}
+
+main "$@"
