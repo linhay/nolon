@@ -176,15 +176,7 @@ enum NolonCodexCLIExecutor {
         return payload.versions
             .map { version in
                 let marker = version.isSelected ? "*" : " "
-                let importedAt = ISO8601DateFormatter().string(from: version.importedAt)
-                return """
-                \(marker) version: \(version.detectedVersion)
-                  id: \(version.id)
-                  name: \(version.displayName)
-                  source: \(version.source)
-                  imported_at: \(importedAt)
-                  selected: \(version.isSelected)
-                """
+                return "\(marker) \(version.detectedVersion) | \(version.displayName) | \(version.source) | \(version.id)"
             }
             .joined(separator: "\n")
     }
