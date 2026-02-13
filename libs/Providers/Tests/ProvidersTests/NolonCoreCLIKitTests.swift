@@ -60,6 +60,47 @@ struct NolonCoreCLIKitTests {
         #expect(result.stderr.isEmpty)
     }
 
+    @Test("json contract snapshot for remote list success")
+    func jsonContractSnapshotRemoteListSuccess() async throws {
+        let runner = NolonCoreCLIRunner(
+            service: MockSkillsRepositoryService(),
+            fileReader: { _ in "" }
+        )
+
+        let result = await runner.execute(
+            arguments: [
+                "remote", "list",
+                "--kind", "skill",
+            ]
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+
+        let expected = #"{"command":"remote.list","data":{"result":{"base_url":"https:\/\/clawdhub.com","items":[],"kind":"skill","limit":20}},"ok":true}"#
+        #expect(try canonicalJSON(result.stdout) == expected)
+    }
+
+    @Test("json contract snapshot for missing required option")
+    func jsonContractSnapshotMissingRequiredOption() async throws {
+        let runner = NolonCoreCLIRunner(
+            service: MockSkillsRepositoryService(),
+            fileReader: { _ in "" }
+        )
+
+        let result = await runner.execute(
+            arguments: [
+                "remote", "list",
+            ]
+        )
+
+        #expect(result.exitCode == 2)
+        #expect(result.stdout.isEmpty)
+
+        let expected = #"{"error":{"code":"invalid_arguments","message":"Missing required option: --kind"},"ok":false}"#
+        #expect(try canonicalJSON(result.stderr) == expected)
+    }
+
     @Test("runner renders sync output with repository resources")
     func runnerRendersSyncWithResources() async {
         let runner = NolonCoreCLIRunner(
@@ -332,6 +373,272 @@ struct NolonCoreCLIKitTests {
         #expect(baseURL == "https://clawdhub.com")
     }
 
+    @Test("parse remote sync command")
+    func parseRemoteSync() throws {
+        let command = try NolonCoreCLICommandParser.parse(
+            [
+                "remote", "sync",
+                "--source", "vercel/agent-skills",
+                "--repositories-root", "/tmp/repos",
+                "--pull-strategy", "rebase",
+                "--credential-strategy", "token-only",
+                "--max-depth", "6",
+            ]
+        )
+        guard case let .remoteSync(source, repositoriesRoot, accessToken, pullStrategy, credentialStrategy, maxDepth) = command else {
+            Issue.record("Expected .remoteSync")
+            return
+        }
+        #expect(source == "vercel/agent-skills")
+        #expect(repositoriesRoot == "/tmp/repos")
+        #expect(accessToken == nil)
+        #expect(pullStrategy == .rebase)
+        #expect(credentialStrategy == .tokenOnly)
+        #expect(maxDepth == 6)
+    }
+
+    @Test("parse remote sync-install skill command")
+    func parseRemoteSyncInstallSkill() throws {
+        let command = try NolonCoreCLICommandParser.parse(
+            [
+                "remote", "sync-install",
+                "--kind", "skill",
+                "--source", "vercel/agent-skills",
+                "--repositories-root", "/tmp/repos",
+                "--path", "skills/react-best-practices",
+                "--provider-id", "codex",
+                "--install-method", "copy",
+                "--skill-id", "react-best-practices",
+            ]
+        )
+        guard case let .remoteSyncInstallSkill(source, repositoriesRoot, accessToken, pullStrategy, credentialStrategy, maxDepth, path, slug, strictSelector, providerPath, providerID, installMethod, skillID) = command else {
+            Issue.record("Expected .remoteSyncInstallSkill")
+            return
+        }
+        #expect(source == "vercel/agent-skills")
+        #expect(repositoriesRoot == "/tmp/repos")
+        #expect(accessToken == nil)
+        #expect(pullStrategy == .ffOnly)
+        #expect(credentialStrategy == .automatic)
+        #expect(maxDepth == 5)
+        #expect(path == "skills/react-best-practices")
+        #expect(slug == nil)
+        #expect(strictSelector == false)
+        #expect(providerPath == nil)
+        #expect(providerID == "codex")
+        #expect(installMethod == .copy)
+        #expect(skillID == "react-best-practices")
+    }
+
+    @Test("parse remote sync-install workflow command with slug selector")
+    func parseRemoteSyncInstallWorkflowWithSlugSelector() throws {
+        let command = try NolonCoreCLICommandParser.parse(
+            [
+                "remote", "sync-install",
+                "--kind", "workflow",
+                "--source", "vercel/agent-skills",
+                "--repositories-root", "/tmp/repos",
+                "--slug", "review",
+                "--provider-id", "opencode",
+            ]
+        )
+        guard case let .remoteSyncInstallResource(kind, source, repositoriesRoot, accessToken, pullStrategy, credentialStrategy, maxDepth, path, slug, strictSelector, targetPath, providerID, installMethod, resourceName) = command else {
+            Issue.record("Expected .remoteSyncInstallResource")
+            return
+        }
+        #expect(kind == .workflow)
+        #expect(source == "vercel/agent-skills")
+        #expect(repositoriesRoot == "/tmp/repos")
+        #expect(accessToken == nil)
+        #expect(pullStrategy == .ffOnly)
+        #expect(credentialStrategy == .automatic)
+        #expect(maxDepth == 5)
+        #expect(path == nil)
+        #expect(slug == "review")
+        #expect(strictSelector == false)
+        #expect(targetPath == nil)
+        #expect(providerID == "opencode")
+        #expect(installMethod == .symlink)
+        #expect(resourceName == nil)
+    }
+
+    @Test("parse remote sync-install workflow command with strict selector")
+    func parseRemoteSyncInstallWorkflowWithStrictSelector() throws {
+        let command = try NolonCoreCLICommandParser.parse(
+            [
+                "remote", "sync-install",
+                "--kind", "workflow",
+                "--source", "vercel/agent-skills",
+                "--repositories-root", "/tmp/repos",
+                "--slug", "review",
+                "--strict-selector", "true",
+                "--provider-id", "opencode",
+            ]
+        )
+        guard case let .remoteSyncInstallResource(kind, _, _, _, _, _, _, _, slug, strictSelector, _, _, _, _) = command else {
+            Issue.record("Expected .remoteSyncInstallResource")
+            return
+        }
+        #expect(kind == .workflow)
+        #expect(slug == "review")
+        #expect(strictSelector == true)
+    }
+
+    @Test("parse remote sync-install rejects missing selector")
+    func parseRemoteSyncInstallRejectsMissingSelector() {
+        #expect(throws: NolonCoreCLIError.invalidArguments("Missing required option: --path or --slug")) {
+            _ = try NolonCoreCLICommandParser.parse(
+                [
+                    "remote", "sync-install",
+                    "--kind", "skill",
+                    "--source", "vercel/agent-skills",
+                    "--repositories-root", "/tmp/repos",
+                    "--provider-id", "codex",
+                ]
+            )
+        }
+    }
+
+    @Test("parse remote sync-install rejects duplicate selector")
+    func parseRemoteSyncInstallRejectsDuplicateSelector() {
+        #expect(throws: NolonCoreCLIError.invalidArguments("Use only one selector: --path or --slug")) {
+            _ = try NolonCoreCLICommandParser.parse(
+                [
+                    "remote", "sync-install",
+                    "--kind", "skill",
+                    "--source", "vercel/agent-skills",
+                    "--repositories-root", "/tmp/repos",
+                    "--path", "skills/agent-browser",
+                    "--slug", "agent-browser",
+                    "--provider-id", "codex",
+                ]
+            )
+        }
+    }
+
+    @Test("parse remote install skill command")
+    func parseRemoteInstallSkill() throws {
+        let command = try NolonCoreCLICommandParser.parse(
+            [
+                "remote", "install",
+                "--kind", "skill",
+                "--slug", "react-best-practices",
+                "--provider-path", "/tmp/provider",
+                "--install-method", "copy",
+                "--skill-id", "react-skill",
+            ]
+        )
+        guard case let .remoteInstallSkill(slug, version, baseURL, providerPath, providerID, installMethod, skillID) = command else {
+            Issue.record("Expected .remoteInstallSkill")
+            return
+        }
+        #expect(slug == "react-best-practices")
+        #expect(version == nil)
+        #expect(baseURL == "https://clawdhub.com")
+        #expect(providerPath == "/tmp/provider")
+        #expect(providerID == nil)
+        #expect(installMethod == .copy)
+        #expect(skillID == "react-skill")
+    }
+
+    @Test("parse remote install workflow command")
+    func parseRemoteInstallWorkflow() throws {
+        let command = try NolonCoreCLICommandParser.parse(
+            [
+                "remote", "install",
+                "--kind", "workflow",
+                "--slug", "daily-review",
+                "--target-path", "/tmp/provider/workflows",
+                "--resource-name", "daily.md",
+            ]
+        )
+        guard case let .remoteInstallResource(kind, slug, version, baseURL, targetPath, providerID, installMethod, resourceName) = command else {
+            Issue.record("Expected .remoteInstallResource")
+            return
+        }
+        #expect(kind == .workflow)
+        #expect(slug == "daily-review")
+        #expect(version == nil)
+        #expect(baseURL == "https://clawdhub.com")
+        #expect(targetPath == "/tmp/provider/workflows")
+        #expect(providerID == nil)
+        #expect(installMethod == .symlink)
+        #expect(resourceName == "daily.md")
+    }
+
+    @Test("parse remote install skill command with provider id")
+    func parseRemoteInstallSkillWithProviderID() throws {
+        let command = try NolonCoreCLICommandParser.parse(
+            [
+                "remote", "install",
+                "--kind", "skill",
+                "--slug", "react-best-practices",
+                "--provider-id", "codex",
+            ]
+        )
+        guard case let .remoteInstallSkill(slug, version, baseURL, providerPath, providerID, installMethod, skillID) = command else {
+            Issue.record("Expected .remoteInstallSkill")
+            return
+        }
+        #expect(slug == "react-best-practices")
+        #expect(version == nil)
+        #expect(baseURL == "https://clawdhub.com")
+        #expect(providerPath == nil)
+        #expect(providerID == "codex")
+        #expect(installMethod == .symlink)
+        #expect(skillID == nil)
+    }
+
+    @Test("parse remote install workflow command with provider id")
+    func parseRemoteInstallWorkflowWithProviderID() throws {
+        let command = try NolonCoreCLICommandParser.parse(
+            [
+                "remote", "install",
+                "--kind", "workflow",
+                "--slug", "daily-review",
+                "--provider-id", "opencode",
+            ]
+        )
+        guard case let .remoteInstallResource(kind, slug, version, baseURL, targetPath, providerID, installMethod, resourceName) = command else {
+            Issue.record("Expected .remoteInstallResource")
+            return
+        }
+        #expect(kind == .workflow)
+        #expect(slug == "daily-review")
+        #expect(version == nil)
+        #expect(baseURL == "https://clawdhub.com")
+        #expect(targetPath == nil)
+        #expect(providerID == "opencode")
+        #expect(installMethod == .symlink)
+        #expect(resourceName == nil)
+    }
+
+    @Test("parse remote install skill rejects missing provider selector")
+    func parseRemoteInstallSkillRejectsMissingProviderSelector() {
+        #expect(throws: NolonCoreCLIError.invalidArguments("Missing required option: --provider-path or --provider-id")) {
+            _ = try NolonCoreCLICommandParser.parse(
+                [
+                    "remote", "install",
+                    "--kind", "skill",
+                    "--slug", "react-best-practices",
+                ]
+            )
+        }
+    }
+
+    @Test("parse remote install workflow rejects missing target selector")
+    func parseRemoteInstallWorkflowRejectsMissingTargetSelector() {
+        #expect(throws: NolonCoreCLIError.invalidArguments("Missing required option: --target-path or --provider-id")) {
+            _ = try NolonCoreCLICommandParser.parse(
+                [
+                    "remote", "install",
+                    "--kind", "workflow",
+                    "--slug", "daily-review",
+                ]
+            )
+        }
+    }
+
     @Test("parse skills install command")
     func parseSkillsInstall() throws {
         let command = try NolonCoreCLICommandParser.parse(
@@ -586,6 +893,273 @@ struct NolonCoreCLIKitTests {
         #expect(result.stdout.contains("\"file_path\""))
         #expect(result.stdout.contains("\"kind\":\"mcp\""))
     }
+
+    @Test("runner renders remote sync result")
+    func runnerRendersRemoteSyncResult() async {
+        let runner = NolonCoreCLIRunner(
+            service: MockSkillsRepositoryService(),
+            fileReader: { _ in "" }
+        )
+        let result = await runner.execute(
+            arguments: [
+                "remote", "sync",
+                "--source", "vercel/agent-skills",
+                "--repositories-root", "/tmp/repos",
+                "--max-depth", "7",
+            ]
+        )
+        #expect(result.exitCode == 0)
+        #expect(result.stdout.contains("\"command\":\"remote.sync\""))
+        #expect(result.stdout.contains("\"plan\""))
+        #expect(result.stdout.contains("\"resources\""))
+        #expect(result.stdout.contains("\"workflows\""))
+        #expect(result.stdout.contains("\"mcps\""))
+    }
+
+    @Test("runner renders remote sync-install skill result")
+    func runnerRendersRemoteSyncInstallSkillResult() async {
+        let runner = NolonCoreCLIRunner(
+            service: MockSkillsRepositoryService(),
+            fileReader: { _ in "" }
+        )
+        let result = await runner.execute(
+            arguments: [
+                "remote", "sync-install",
+                "--kind", "skill",
+                "--source", "vercel/agent-skills",
+                "--repositories-root", "/tmp/repos",
+                "--path", "skills/react-best-practices",
+                "--provider-id", "codex",
+                "--install-method", "copy",
+            ]
+        )
+        #expect(result.exitCode == 0)
+        #expect(result.stdout.contains("\"command\":\"remote.sync-install\""))
+        #expect(result.stdout.contains("\"install\""))
+        #expect(result.stdout.contains("\"kind\":\"skill\""))
+        #expect(result.stdout.contains("\"repository_file_path\""))
+        #expect(result.stdout.contains("skills\\/react-best-practices"))
+        #expect(result.stdout.contains("\"install_method\":\"copy\""))
+    }
+
+    @Test("runner renders remote sync-install workflow result")
+    func runnerRendersRemoteSyncInstallWorkflowResult() async {
+        let runner = NolonCoreCLIRunner(
+            service: MockSkillsRepositoryService(),
+            fileReader: { _ in "" }
+        )
+        let result = await runner.execute(
+            arguments: [
+                "remote", "sync-install",
+                "--kind", "workflow",
+                "--source", "vercel/agent-skills",
+                "--repositories-root", "/tmp/repos",
+                "--path", "workflows/review.md",
+                "--provider-id", "opencode",
+            ]
+        )
+        #expect(result.exitCode == 0)
+        #expect(result.stdout.contains("\"command\":\"remote.sync-install\""))
+        #expect(result.stdout.contains("\"kind\":\"workflow\""))
+        #expect(result.stdout.contains("workflows\\/review.md"))
+        #expect(result.stdout.contains("\"resource_name\":\"review.md\""))
+    }
+
+    @Test("runner renders remote sync-install workflow result with slug selector")
+    func runnerRendersRemoteSyncInstallWorkflowResultWithSlugSelector() async {
+        let runner = NolonCoreCLIRunner(
+            service: MockSkillsRepositoryService(),
+            fileReader: { _ in "" }
+        )
+        let result = await runner.execute(
+            arguments: [
+                "remote", "sync-install",
+                "--kind", "workflow",
+                "--source", "vercel/agent-skills",
+                "--repositories-root", "/tmp/repos",
+                "--slug", "review",
+                "--provider-id", "opencode",
+            ]
+        )
+        #expect(result.exitCode == 0)
+        #expect(result.stdout.contains("\"command\":\"remote.sync-install\""))
+        #expect(result.stdout.contains("\"kind\":\"workflow\""))
+        #expect(result.stdout.contains("workflows\\/review.md"))
+        #expect(result.stdout.contains("\"resource_name\":\"review.md\""))
+        #expect(result.stdout.contains("\"warnings\""))
+        #expect(result.stdout.contains("Ambiguous --slug 'review'"))
+    }
+
+    @Test("runner rejects ambiguous slug when strict selector enabled")
+    func runnerRejectsAmbiguousSlugWhenStrictSelectorEnabled() async {
+        let runner = NolonCoreCLIRunner(
+            service: MockSkillsRepositoryService(),
+            fileReader: { _ in "" }
+        )
+        let result = await runner.execute(
+            arguments: [
+                "remote", "sync-install",
+                "--kind", "workflow",
+                "--source", "vercel/agent-skills",
+                "--repositories-root", "/tmp/repos",
+                "--slug", "review",
+                "--strict-selector", "true",
+                "--provider-id", "opencode",
+            ]
+        )
+        #expect(result.exitCode == 2)
+        #expect(result.stderr.contains("\"code\":\"invalid_arguments\""))
+        #expect(result.stderr.contains("Ambiguous --slug"))
+    }
+
+    @Test("runner renders remote sync-install skill result with slug selector warning")
+    func runnerRendersRemoteSyncInstallSkillResultWithSlugSelectorWarning() async {
+        let resources = NolonRepositoryResources(
+            skillsDirectories: [
+                NolonSkillsDirectoryCandidate(path: "skills", skillCount: 1, skillNames: ["agent-browser"]),
+                NolonSkillsDirectoryCandidate(path: "community/skills", skillCount: 1, skillNames: ["agent-browser"]),
+            ],
+            workflows: [],
+            mcps: []
+        )
+        let runner = NolonCoreCLIRunner(
+            service: MockSkillsRepositoryService(repositoryResources: resources),
+            fileReader: { _ in "" }
+        )
+        let result = await runner.execute(
+            arguments: [
+                "remote", "sync-install",
+                "--kind", "skill",
+                "--source", "vercel/agent-skills",
+                "--repositories-root", "/tmp/repos",
+                "--slug", "agent-browser",
+                "--provider-id", "codex",
+            ]
+        )
+        #expect(result.exitCode == 0)
+        #expect(result.stdout.contains("\"command\":\"remote.sync-install\""))
+        #expect(result.stdout.contains("\"kind\":\"skill\""))
+        #expect(result.stdout.contains("skills\\/agent-browser"))
+        #expect(result.stdout.contains("\"warnings\""))
+        #expect(result.stdout.contains("Ambiguous --slug 'agent-browser'"))
+    }
+
+    @Test("runner rejects ambiguous skill slug when strict selector enabled")
+    func runnerRejectsAmbiguousSkillSlugWhenStrictSelectorEnabled() async {
+        let resources = NolonRepositoryResources(
+            skillsDirectories: [
+                NolonSkillsDirectoryCandidate(path: "skills", skillCount: 1, skillNames: ["agent-browser"]),
+                NolonSkillsDirectoryCandidate(path: "community/skills", skillCount: 1, skillNames: ["agent-browser"]),
+            ],
+            workflows: [],
+            mcps: []
+        )
+        let runner = NolonCoreCLIRunner(
+            service: MockSkillsRepositoryService(repositoryResources: resources),
+            fileReader: { _ in "" }
+        )
+        let result = await runner.execute(
+            arguments: [
+                "remote", "sync-install",
+                "--kind", "skill",
+                "--source", "vercel/agent-skills",
+                "--repositories-root", "/tmp/repos",
+                "--slug", "agent-browser",
+                "--strict-selector", "true",
+                "--provider-id", "codex",
+            ]
+        )
+        #expect(result.exitCode == 2)
+        #expect(result.stderr.contains("\"code\":\"invalid_arguments\""))
+        #expect(result.stderr.contains("Ambiguous --slug"))
+    }
+
+    @Test("runner renders remote install skill result")
+    func runnerRendersRemoteInstallSkillResult() async {
+        let runner = NolonCoreCLIRunner(
+            service: MockSkillsRepositoryService(),
+            fileReader: { _ in "" }
+        )
+        let result = await runner.execute(
+            arguments: [
+                "remote", "install",
+                "--kind", "skill",
+                "--slug", "react-best-practices",
+                "--provider-path", "/tmp/provider",
+                "--install-method", "copy",
+            ]
+        )
+        #expect(result.exitCode == 0)
+        #expect(result.stdout.contains("\"command\":\"remote.install\""))
+        #expect(result.stdout.contains("\"kind\":\"skill\""))
+        #expect(result.stdout.contains("\"downloaded_file_path\""))
+        #expect(result.stdout.contains("\"installed_path\""))
+        #expect(result.stdout.contains("\"install_method\":\"copy\""))
+        #expect(result.stdout.contains("\"skill_id\":\"react-best-practices\""))
+    }
+
+    @Test("runner renders remote install workflow result with provider id")
+    func runnerRendersRemoteInstallWorkflowResultWithProviderID() async {
+        let runner = NolonCoreCLIRunner(
+            service: MockSkillsRepositoryService(),
+            fileReader: { _ in "" }
+        )
+        let result = await runner.execute(
+            arguments: [
+                "remote", "install",
+                "--kind", "workflow",
+                "--slug", "daily-review",
+                "--provider-id", "opencode",
+            ]
+        )
+        #expect(result.exitCode == 0)
+        #expect(result.stdout.contains("\"command\":\"remote.install\""))
+        #expect(result.stdout.contains("\"kind\":\"workflow\""))
+        #expect(result.stdout.contains("\"installed_path\""))
+        #expect(result.stdout.contains("opencode\\/commands"))
+        #expect(result.stdout.contains("\"resource_name\":\"daily-review.bin\""))
+    }
+
+    @Test("runner renders remote install mcp result with provider id")
+    func runnerRendersRemoteInstallMCPResultWithProviderID() async {
+        let runner = NolonCoreCLIRunner(
+            service: MockSkillsRepositoryService(),
+            fileReader: { _ in "" }
+        )
+        let result = await runner.execute(
+            arguments: [
+                "remote", "install",
+                "--kind", "mcp",
+                "--slug", "cursor-mcp",
+                "--provider-id", "codex",
+            ]
+        )
+        #expect(result.exitCode == 0)
+        #expect(result.stdout.contains("\"command\":\"remote.install\""))
+        #expect(result.stdout.contains("\"kind\":\"mcp\""))
+        #expect(result.stdout.contains("\"installed_path\""))
+        #expect(result.stdout.contains(".codex"))
+        #expect(result.stdout.contains("\"resource_name\":\"cursor-mcp.bin\""))
+    }
+
+    @Test("runner rejects unsupported provider id for remote install skill")
+    func runnerRejectsUnsupportedProviderIDForRemoteInstallSkill() async {
+        let runner = NolonCoreCLIRunner(
+            service: MockSkillsRepositoryService(),
+            fileReader: { _ in "" }
+        )
+        let result = await runner.execute(
+            arguments: [
+                "remote", "install",
+                "--kind", "skill",
+                "--slug", "react-best-practices",
+                "--provider-id", "unknown-provider",
+            ]
+        )
+        #expect(result.exitCode == 2)
+        #expect(result.stderr.contains("\"code\":\"invalid_arguments\""))
+        #expect(result.stderr.contains("Unsupported --provider-id"))
+    }
 }
 
 private struct SyncErrorMockSkillsRepositoryService: NolonSkillsRepositoryServing {
@@ -761,6 +1335,19 @@ private struct SyncErrorMockSkillsRepositoryService: NolonSkillsRepositoryServin
 }
 
 private struct MockSkillsRepositoryService: NolonSkillsRepositoryServing {
+    let repositoryResources: NolonRepositoryResources
+
+    init(repositoryResources: NolonRepositoryResources? = nil) {
+        self.repositoryResources = repositoryResources ?? NolonRepositoryResources(
+            skillsDirectories: [NolonSkillsDirectoryCandidate(path: "skills", skillCount: 1, skillNames: ["agent-browser"])],
+            workflows: [
+                NolonResourceFile(path: "workflows/review.md", kind: "workflow"),
+                NolonResourceFile(path: "prompts/review.md", kind: "workflow"),
+            ],
+            mcps: [NolonResourceFile(path: "mcp_settings.json", kind: "mcp")]
+        )
+    }
+
     func planGitImport(source: String, repositoriesRoot: STFolder) throws -> NolonGitImportPlan {
         NolonGitImportPlan(
             source: source,
@@ -815,7 +1402,7 @@ private struct MockSkillsRepositoryService: NolonSkillsRepositoryServing {
     }
 
     func discoverSkillsDirectories(at repositoryPath: STFolder, maxDepth: Int) -> [NolonSkillsDirectoryCandidate] {
-        [NolonSkillsDirectoryCandidate(path: "skills", skillCount: 1, skillNames: ["agent-browser"])]
+        repositoryResources.skillsDirectories
     }
 
     func parseSkillMetadata(content: String, directoryName: String?) -> NolonSkillStandardMetadata? {
@@ -834,11 +1421,7 @@ private struct MockSkillsRepositoryService: NolonSkillsRepositoryServing {
     }
 
     func discoverRepositoryResources(at repositoryPath: STFolder, maxDepth: Int) -> NolonRepositoryResources {
-        NolonRepositoryResources(
-            skillsDirectories: [NolonSkillsDirectoryCandidate(path: "skills", skillCount: 1, skillNames: ["agent-browser"])],
-            workflows: [NolonResourceFile(path: "workflows/review.md", kind: "workflow")],
-            mcps: [NolonResourceFile(path: "mcp_settings.json", kind: "mcp")]
-        )
+        repositoryResources
     }
 
     func installSkill(
@@ -932,4 +1515,14 @@ private struct MockSkillsRepositoryService: NolonSkillsRepositoryServing {
     ) async throws -> NolonRemoteDownloadResult {
         NolonRemoteDownloadResult(kind: kind, slug: slug, version: version, baseURL: baseURL, filePath: "/tmp/\(slug).bin")
     }
+}
+
+private func canonicalJSON(_ raw: String) throws -> String {
+    let data = Data(raw.utf8)
+    let object = try JSONSerialization.jsonObject(with: data)
+    let normalized = try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])
+    guard let string = String(data: normalized, encoding: .utf8) else {
+        throw NolonCoreCLIError.domainFailed(code: "json_encoding_failed", message: "Failed to encode canonical JSON")
+    }
+    return string
 }

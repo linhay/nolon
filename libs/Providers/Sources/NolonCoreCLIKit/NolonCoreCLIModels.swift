@@ -482,6 +482,80 @@ public struct NolonRemoteDownloadResult: Sendable, Equatable, Codable {
     }
 }
 
+public struct NolonRemoteInstallResult: Sendable, Equatable, Codable {
+    public let kind: NolonRemoteCatalogKind
+    public let slug: String
+    public let version: String?
+    public let baseURL: String
+    public let downloadedFilePath: String
+    public let installedPath: String
+    public let installMethod: NolonSkillInstallMethod
+    public let skillID: String?
+    public let resourceName: String?
+
+    enum CodingKeys: String, CodingKey {
+        case kind
+        case slug
+        case version
+        case baseURL = "base_url"
+        case downloadedFilePath = "downloaded_file_path"
+        case installedPath = "installed_path"
+        case installMethod = "install_method"
+        case skillID = "skill_id"
+        case resourceName = "resource_name"
+    }
+}
+
+public struct NolonRemoteSyncInstallResult: Sendable, Equatable, Codable {
+    public let kind: NolonRemoteCatalogKind
+    public let source: String
+    public let repositoriesRoot: String
+    public let path: String
+    public let repositoryFilePath: String
+    public let installedPath: String
+    public let installMethod: NolonSkillInstallMethod
+    public let skillID: String?
+    public let resourceName: String?
+    public let warnings: [String]
+
+    enum CodingKeys: String, CodingKey {
+        case kind
+        case source
+        case repositoriesRoot = "repositories_root"
+        case path
+        case repositoryFilePath = "repository_file_path"
+        case installedPath = "installed_path"
+        case installMethod = "install_method"
+        case skillID = "skill_id"
+        case resourceName = "resource_name"
+        case warnings
+    }
+
+    public init(
+        kind: NolonRemoteCatalogKind,
+        source: String,
+        repositoriesRoot: String,
+        path: String,
+        repositoryFilePath: String,
+        installedPath: String,
+        installMethod: NolonSkillInstallMethod,
+        skillID: String?,
+        resourceName: String?,
+        warnings: [String] = []
+    ) {
+        self.kind = kind
+        self.source = source
+        self.repositoriesRoot = repositoriesRoot
+        self.path = path
+        self.repositoryFilePath = repositoryFilePath
+        self.installedPath = installedPath
+        self.installMethod = installMethod
+        self.skillID = skillID
+        self.resourceName = resourceName
+        self.warnings = warnings
+    }
+}
+
 public struct NolonRepositoryResources: Sendable, Equatable, Codable {
     public let skillsDirectories: [NolonSkillsDirectoryCandidate]
     public let workflows: [NolonResourceFile]

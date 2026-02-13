@@ -13,6 +13,9 @@ struct NolonCodexCLIEntrypointTests {
         #expect(result.stderr.isEmpty)
         #expect(result.stdout.contains("Usage: nolon <provider> <group> <action>"))
         #expect(result.stdout.contains("nolon codex auth list"))
+        #expect(result.stdout.contains("skills"))
+        #expect(result.stdout.contains("resources"))
+        #expect(result.stdout.contains("remote"))
     }
 
     @Test("codex --help prints codex help")
@@ -207,6 +210,49 @@ struct NolonCodexCLIEntrypointTests {
         #expect(result.stdout.contains("Usage: nolon provider <action>"))
     }
 
+    @Test("skills --help prints skills help")
+    func skillsHelpPrintsHelp() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["skills", "--help"],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("Usage: nolon skills <subcommand>"))
+        #expect(result.stdout.contains("repo"))
+    }
+
+    @Test("resources --help prints resources help")
+    func resourcesHelpPrintsHelp() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["resources", "--help"],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("Usage: nolon resources <action>"))
+        #expect(result.stdout.contains("discover"))
+    }
+
+    @Test("remote --help prints remote help")
+    func remoteHelpPrintsHelp() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["remote", "--help"],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("Usage: nolon remote <action>"))
+        #expect(result.stdout.contains("download"))
+        #expect(result.stdout.contains("install"))
+    }
+
     @Test("provider list routes successfully")
     func providerListRoutesSuccessfully() async {
         let mock = MockCodexCLIService()
@@ -220,6 +266,40 @@ struct NolonCodexCLIEntrypointTests {
         #expect(result.stdout.contains("provider"))
         #expect(result.stdout.contains("installed"))
         #expect(await mock.lastCall() == "providerList")
+    }
+
+    @Test("remote root routes through core runner parser")
+    func remoteRoutesThroughCoreRunnerParser() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: [
+                "remote", "list",
+            ],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 2)
+        #expect(result.stderr.contains("\"code\":\"invalid_arguments\""))
+        #expect(result.stderr.contains("Missing required option: --kind"))
+        #expect(await mock.lastCall() == nil)
+    }
+
+    @Test("skills repo plan routes through core runner")
+    func skillsRepoPlanRoutesThroughCoreRunner() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: [
+                "skills", "repo", "plan",
+                "--source", "vercel/agent-skills",
+                "--repositories-root", "/tmp/repos",
+            ],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("\"command\":\"skills.repo.plan\""))
+        #expect(await mock.lastCall() == nil)
     }
 
     @Test("codex auth list --help prints action help")
@@ -1046,6 +1126,36 @@ struct NolonCodexCLIEntrypointTests {
         #expect(result.stdout.contains("\"versions\""))
     }
 
+    @Test("json contract snapshot for codex binary list success")
+    func jsonContractSnapshotBinaryListSuccess() async throws {
+        let service = JSONContractCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["codex", "binary", "list", "--json"],
+            codexService: service
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+
+        let expected = #"{"command":"codex.binary.list","data":{"selectedVersionID":"v1","versions":[{"detectedVersion":"1.0.0","displayName":"Codex 1.0.0","id":"v1","importedAt":"1970-01-01T00:00:00Z","isSelected":true,"source":"download"}]},"ok":true}"#
+        #expect(try canonicalJSON(result.stdout) == expected)
+    }
+
+    @Test("json contract snapshot for unknown codex group error")
+    func jsonContractSnapshotUnknownGroupError() async throws {
+        let service = JSONContractCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["codex", "oops", "list"],
+            codexService: service
+        )
+
+        #expect(result.exitCode == 2)
+        #expect(result.stdout.isEmpty)
+
+        let expected = #"{"error":{"code":"invalid_arguments","message":"Unknown group 'oops'. Available groups: auth, binary, provider, runtime, status."},"ok":false}"#
+        #expect(try canonicalJSON(result.stderr) == expected)
+    }
+
     @Test("domain error keeps structured code")
     func domainErrorCode() async {
         let mock = DomainErrorCodexCLIService()
@@ -1066,6 +1176,16 @@ private extension String {
     func indicesOfPipes() -> [Int] {
         enumerated().compactMap { index, char in char == "|" ? index : nil }
     }
+}
+
+private func canonicalJSON(_ raw: String) throws -> String {
+    let data = Data(raw.utf8)
+    let object = try JSONSerialization.jsonObject(with: data)
+    let normalized = try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])
+    guard let string = String(data: normalized, encoding: .utf8) else {
+        throw NolonCoreCLIError.domainFailed(code: "json_encoding_failed", message: "Failed to encode canonical JSON")
+    }
+    return string
 }
 
 private actor MockCodexCLIService: NolonCodexCLIServing {
@@ -1383,6 +1503,43 @@ private actor BinaryListPlainTextCodexCLIService: NolonCodexCLIServing {
                     importedAt: .distantPast,
                     isSelected: false
                 ),
+            ]
+        )
+    }
+
+    private func unsupported() -> NolonCoreCLIError {
+        .invalidArguments("unsupported")
+    }
+}
+
+private actor JSONContractCodexCLIService: NolonCodexCLIServing {
+    func authList(providerID: String) async throws -> NolonCodexAuthListPayload { throw unsupported() }
+    func authStatus(providerID: String) async throws -> NolonCodexAuthStatusPayload { throw unsupported() }
+    func authActivate(providerID: String, accountID: UUID) async throws -> NolonCodexAuthActivatePayload { throw unsupported() }
+    func authLogin(providerID: String, preferredAccountID: UUID?) async throws -> NolonCodexAuthLoginPayload { throw unsupported() }
+    func authDelete(providerID: String, accountID: UUID) async throws -> NolonCodexAuthDeletePayload { throw unsupported() }
+    func binaryCurrent() async throws -> NolonCodexBinaryCurrentPayload { throw unsupported() }
+    func binaryInstall(version: String, setDefault: Bool) async throws -> NolonCodexBinaryInstallPayload { throw unsupported() }
+    func binaryUse(version: String) async throws -> NolonCodexBinaryUsePayload { throw unsupported() }
+    func binaryDoctor() async throws -> NolonCodexBinaryDoctorPayload { throw unsupported() }
+    func statusProbe(providerID: String?) async throws -> NolonCodexStatusProbePayload { throw unsupported() }
+    func runtimeList(providerID: String?) async throws -> NolonCodexRuntimeListPayload { throw unsupported() }
+    func runtimeStop(pid: Int32, force: Bool, timeoutSeconds: Int) async throws -> NolonCodexRuntimeStopPayload { throw unsupported() }
+    func providerList() async throws -> NolonProviderListPayload { throw unsupported() }
+    func providerDiscover() async throws -> NolonCodexProviderDiscoverPayload { throw unsupported() }
+
+    func binaryList() async throws -> NolonCodexBinaryListPayload {
+        NolonCodexBinaryListPayload(
+            selectedVersionID: "v1",
+            versions: [
+                NolonCodexManagedVersionView(
+                    id: "v1",
+                    displayName: "Codex 1.0.0",
+                    detectedVersion: "1.0.0",
+                    source: "download",
+                    importedAt: Date(timeIntervalSince1970: 0),
+                    isSelected: true
+                )
             ]
         )
     }

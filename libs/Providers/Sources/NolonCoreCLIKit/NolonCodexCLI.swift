@@ -679,6 +679,14 @@ public enum NolonCLIEntrypoint {
         arguments: [String],
         codexService: any NolonCodexCLIServing = NolonLiveCodexCLIService()
     ) async -> NolonCLIExecutionResult {
+        if let helpText = NolonCoreCLIHelpResolver.resolvedHelpText(arguments: arguments) {
+            return NolonCLIExecutionResult(exitCode: 0, stdout: helpText, stderr: "")
+        }
+
+        if shouldRouteToCoreCLI(arguments: arguments) {
+            return await NolonCoreCLIRunner().execute(arguments: arguments)
+        }
+
         if let helpText = NolonCodexCLIHelpResolver.resolvedHelpText(arguments: arguments) {
             return NolonCLIExecutionResult(exitCode: 0, stdout: helpText, stderr: "")
         }
@@ -693,6 +701,16 @@ public enum NolonCLIEntrypoint {
             let wrapped = NolonCoreCLIError.invalidArguments(error.localizedDescription)
             return NolonCLIExecutionResult(exitCode: 2, stdout: "", stderr: context.errorJSON(for: wrapped))
         }
+    }
+
+    private static func shouldRouteToCoreCLI(arguments: [String]) -> Bool {
+        guard let root = arguments.first?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        else {
+            return false
+        }
+        return root == "skills" || root == "resources" || root == "remote"
     }
 }
 

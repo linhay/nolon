@@ -85,9 +85,15 @@ run_case_installed_binary_executes_codex_help() {
   bash "${SCRIPT_PATH}" --nolon-home "${target_root}" --package-path "${PACKAGE_PATH}" --configuration debug >/dev/null
   assert_file_executable "${target}"
 
+  local root_help
+  root_help="$("${target}" --help)"
+  grep -q "Usage: nolon <provider> <group> <action> \[options\]" <<<"${root_help}" || fail "expected root help usage output"
+
   local codex_help
   codex_help="$("${target}" codex --help)"
-  grep -q "Usage: nolon codex" <<<"${codex_help}" || fail "expected codex help usage output"
+  grep -q "Providers:" <<<"${codex_help}" || fail "expected codex help providers section"
+  grep -q "Groups:" <<<"${codex_help}" || fail "expected codex help groups section"
+  grep -q "nolon codex status probe --provider codex" <<<"${codex_help}" || fail "expected codex help examples section"
 
   local probe_help
   probe_help="$("${target}" codex status probe --help)"

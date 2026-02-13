@@ -68,6 +68,64 @@ public enum NolonCoreCLICommand: Sendable, Equatable {
         version: String?,
         baseURL: String
     )
+    case remoteSync(
+        source: String,
+        repositoriesRoot: String,
+        accessToken: String?,
+        pullStrategy: NolonGitPullStrategy,
+        credentialStrategy: NolonGitCredentialStrategy,
+        maxDepth: Int
+    )
+    case remoteInstallSkill(
+        slug: String,
+        version: String?,
+        baseURL: String,
+        providerPath: String?,
+        providerID: String?,
+        installMethod: NolonSkillInstallMethod,
+        skillID: String?
+    )
+    case remoteInstallResource(
+        kind: NolonResourceKind,
+        slug: String,
+        version: String?,
+        baseURL: String,
+        targetPath: String?,
+        providerID: String?,
+        installMethod: NolonSkillInstallMethod,
+        resourceName: String?
+    )
+    case remoteSyncInstallSkill(
+        source: String,
+        repositoriesRoot: String,
+        accessToken: String?,
+        pullStrategy: NolonGitPullStrategy,
+        credentialStrategy: NolonGitCredentialStrategy,
+        maxDepth: Int,
+        path: String?,
+        slug: String?,
+        strictSelector: Bool,
+        providerPath: String?,
+        providerID: String?,
+        installMethod: NolonSkillInstallMethod,
+        skillID: String?
+    )
+    case remoteSyncInstallResource(
+        kind: NolonResourceKind,
+        source: String,
+        repositoriesRoot: String,
+        accessToken: String?,
+        pullStrategy: NolonGitPullStrategy,
+        credentialStrategy: NolonGitCredentialStrategy,
+        maxDepth: Int,
+        path: String?,
+        slug: String?,
+        strictSelector: Bool,
+        targetPath: String?,
+        providerID: String?,
+        installMethod: NolonSkillInstallMethod,
+        resourceName: String?
+    )
 
     var commandID: String {
         switch self {
@@ -85,6 +143,9 @@ public enum NolonCoreCLICommand: Sendable, Equatable {
         case .resourcesUninstall: "resources.uninstall"
         case .remoteList: "remote.list"
         case .remoteDownload: "remote.download"
+        case .remoteSync: "remote.sync"
+        case .remoteInstallSkill, .remoteInstallResource: "remote.install"
+        case .remoteSyncInstallSkill, .remoteSyncInstallResource: "remote.sync-install"
         }
     }
 }
@@ -309,7 +370,7 @@ public enum NolonCoreCLICommandParser {
 
     private static func parseRemote(_ arguments: [String]) throws -> NolonCoreCLICommand {
         guard let action = arguments.first else {
-            throw NolonCoreCLIError.invalidArguments("Missing remote action: list|download")
+            throw NolonCoreCLIError.invalidArguments("Missing remote action: list|download|sync|install|sync-install")
         }
         let options = Array(arguments.dropFirst())
         if action == "list" {
@@ -325,6 +386,135 @@ public enum NolonCoreCLICommandParser {
             let version = readOption("--version", in: options)
             let baseURL = readOption("--base-url", in: options) ?? "https://clawdhub.com"
             return .remoteDownload(kind: kind, slug: slug, version: version, baseURL: baseURL)
+        }
+        if action == "sync" {
+            let source = try readRequiredOption("--source", in: options)
+            let repositoriesRoot = try readRequiredOption("--repositories-root", in: options)
+            let accessToken = readOption("--access-token", in: options)
+            let pullStrategy = try parsePullStrategy(readOption("--pull-strategy", in: options) ?? "ff-only")
+            let credentialStrategy = try parseCredentialStrategy(
+                readOption("--credential-strategy", in: options) ?? "automatic"
+            )
+            let maxDepth = Int(readOption("--max-depth", in: options) ?? "5") ?? 5
+            return .remoteSync(
+                source: source,
+                repositoriesRoot: repositoriesRoot,
+                accessToken: accessToken,
+                pullStrategy: pullStrategy,
+                credentialStrategy: credentialStrategy,
+                maxDepth: maxDepth
+            )
+        }
+        if action == "install" {
+            let kind = try parseRemoteKind(try readRequiredOption("--kind", in: options))
+            let slug = try readRequiredOption("--slug", in: options)
+            let version = readOption("--version", in: options)
+            let baseURL = readOption("--base-url", in: options) ?? "https://clawdhub.com"
+            let installMethod = try parseInstallMethod(readOption("--install-method", in: options) ?? "symlink")
+            let providerID = readOption("--provider-id", in: options)
+            switch kind {
+            case .skill:
+                let providerPath = readOption("--provider-path", in: options)
+                if providerPath == nil && providerID == nil {
+                    throw NolonCoreCLIError.invalidArguments("Missing required option: --provider-path or --provider-id")
+                }
+                let skillID = readOption("--skill-id", in: options)
+                return .remoteInstallSkill(
+                    slug: slug,
+                    version: version,
+                    baseURL: baseURL,
+                    providerPath: providerPath,
+                    providerID: providerID,
+                    installMethod: installMethod,
+                    skillID: skillID
+                )
+            case .workflow, .mcp:
+                let targetPath = readOption("--target-path", in: options)
+                if targetPath == nil && providerID == nil {
+                    throw NolonCoreCLIError.invalidArguments("Missing required option: --target-path or --provider-id")
+                }
+                let resourceName = readOption("--resource-name", in: options)
+                let resourceKind: NolonResourceKind = kind == .workflow ? .workflow : .mcp
+                return .remoteInstallResource(
+                    kind: resourceKind,
+                    slug: slug,
+                    version: version,
+                    baseURL: baseURL,
+                    targetPath: targetPath,
+                    providerID: providerID,
+                    installMethod: installMethod,
+                    resourceName: resourceName
+                )
+            }
+        }
+        if action == "sync-install" {
+            let kind = try parseRemoteKind(try readRequiredOption("--kind", in: options))
+            let source = try readRequiredOption("--source", in: options)
+            let repositoriesRoot = try readRequiredOption("--repositories-root", in: options)
+            let accessToken = readOption("--access-token", in: options)
+            let pullStrategy = try parsePullStrategy(readOption("--pull-strategy", in: options) ?? "ff-only")
+            let credentialStrategy = try parseCredentialStrategy(
+                readOption("--credential-strategy", in: options) ?? "automatic"
+            )
+            let maxDepth = Int(readOption("--max-depth", in: options) ?? "5") ?? 5
+            let path = readOption("--path", in: options)
+            let slug = readOption("--slug", in: options)
+            if path == nil && slug == nil {
+                throw NolonCoreCLIError.invalidArguments("Missing required option: --path or --slug")
+            }
+            if path != nil && slug != nil {
+                throw NolonCoreCLIError.invalidArguments("Use only one selector: --path or --slug")
+            }
+            let strictSelector = try parseBoolOption(readOption("--strict-selector", in: options) ?? "false", key: "--strict-selector")
+            let installMethod = try parseInstallMethod(readOption("--install-method", in: options) ?? "symlink")
+            let providerID = readOption("--provider-id", in: options)
+
+            switch kind {
+            case .skill:
+                let providerPath = readOption("--provider-path", in: options)
+                if providerPath == nil && providerID == nil {
+                    throw NolonCoreCLIError.invalidArguments("Missing required option: --provider-path or --provider-id")
+                }
+                let skillID = readOption("--skill-id", in: options)
+                return .remoteSyncInstallSkill(
+                    source: source,
+                    repositoriesRoot: repositoriesRoot,
+                    accessToken: accessToken,
+                    pullStrategy: pullStrategy,
+                    credentialStrategy: credentialStrategy,
+                    maxDepth: maxDepth,
+                    path: path,
+                    slug: slug,
+                    strictSelector: strictSelector,
+                    providerPath: providerPath,
+                    providerID: providerID,
+                    installMethod: installMethod,
+                    skillID: skillID
+                )
+            case .workflow, .mcp:
+                let targetPath = readOption("--target-path", in: options)
+                if targetPath == nil && providerID == nil {
+                    throw NolonCoreCLIError.invalidArguments("Missing required option: --target-path or --provider-id")
+                }
+                let resourceName = readOption("--resource-name", in: options)
+                let resourceKind: NolonResourceKind = kind == .workflow ? .workflow : .mcp
+                return .remoteSyncInstallResource(
+                    kind: resourceKind,
+                    source: source,
+                    repositoriesRoot: repositoriesRoot,
+                    accessToken: accessToken,
+                    pullStrategy: pullStrategy,
+                    credentialStrategy: credentialStrategy,
+                    maxDepth: maxDepth,
+                    path: path,
+                    slug: slug,
+                    strictSelector: strictSelector,
+                    targetPath: targetPath,
+                    providerID: providerID,
+                    installMethod: installMethod,
+                    resourceName: resourceName
+                )
+            }
         }
         throw NolonCoreCLIError.invalidArguments("Unsupported remote action: \(action)")
     }
@@ -367,6 +557,13 @@ public enum NolonCoreCLICommandParser {
             throw NolonCoreCLIError.invalidArguments("Unsupported --kind: \(raw)")
         }
         return value
+    }
+
+    private static func parseBoolOption(_ raw: String, key: String) throws -> Bool {
+        let normalized = raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if ["true", "1", "yes", "y", "on"].contains(normalized) { return true }
+        if ["false", "0", "no", "n", "off"].contains(normalized) { return false }
+        throw NolonCoreCLIError.invalidArguments("Unsupported \(key): \(raw)")
     }
 
     private static func parseRemoteKind(_ raw: String) throws -> NolonRemoteCatalogKind {

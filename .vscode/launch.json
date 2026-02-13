@@ -11,6 +11,26 @@
             "preLaunchTask": "Build Debug (install)",
             "program": "${env:HOME}/Applications/Dev Builds/nolon.app/Contents/MacOS/nolon",
             "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:codex-version-manager}/libs/Providers",
+            "name": "Debug nolon (libs/Providers)",
+            "target": "nolon",
+            "configuration": "debug",
+            "preLaunchTask": "swift: Build Debug nolon (libs/Providers)"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:codex-version-manager}/libs/Providers",
+            "name": "Release nolon (libs/Providers)",
+            "target": "nolon",
+            "configuration": "release",
+            "preLaunchTask": "swift: Build Release nolon (libs/Providers)"
         }
     ]
 }

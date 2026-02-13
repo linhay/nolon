@@ -1,4 +1,5 @@
 import Foundation
+import ProviderCatalog
 import STFilePath
 
 public struct NolonCoreCLIRunner: Sendable {
@@ -175,6 +176,240 @@ public struct NolonCoreCLIRunner: Sendable {
                 baseURL: baseURL
             )
             return try encodeSuccess(command: command.commandID, data: RemoteDownloadPayload(result: result))
+
+        case let .remoteSync(source, repositoriesRoot, accessToken, pullStrategy, credentialStrategy, maxDepth):
+            let plan = try service.planGitImport(
+                source: source,
+                repositoriesRoot: STFolder(repositoriesRoot)
+            )
+            let result = try await service.syncGitRepository(
+                plan: plan,
+                accessToken: accessToken,
+                pullStrategy: pullStrategy,
+                credentialStrategy: credentialStrategy
+            )
+            let resources = service.discoverRepositoryResources(
+                at: STFolder(plan.localClonePath),
+                maxDepth: maxDepth
+            )
+            return try encodeSuccess(
+                command: command.commandID,
+                data: SyncPayload(plan: plan, result: result, resources: resources)
+            )
+
+        case let .remoteSyncInstallSkill(
+            source,
+            repositoriesRoot,
+            accessToken,
+            pullStrategy,
+            credentialStrategy,
+            maxDepth,
+            path,
+            slug,
+            strictSelector,
+            providerPath,
+            providerID,
+            installMethod,
+            skillID
+        ):
+            let plan = try service.planGitImport(
+                source: source,
+                repositoriesRoot: STFolder(repositoriesRoot)
+            )
+            let result = try await service.syncGitRepository(
+                plan: plan,
+                accessToken: accessToken,
+                pullStrategy: pullStrategy,
+                credentialStrategy: credentialStrategy
+            )
+            let resources = service.discoverRepositoryResources(
+                at: STFolder(plan.localClonePath),
+                maxDepth: maxDepth
+            )
+            let repositorySelection = try Self.resolveRepositoryInstallPath(
+                kind: .skill,
+                repositoryRoot: plan.localClonePath,
+                path: path,
+                slug: slug,
+                strictSelector: strictSelector,
+                resources: resources
+            )
+            let resolvedProviderPath = try Self.resolveSkillProviderPath(
+                explicitProviderPath: providerPath,
+                providerID: providerID
+            )
+            let install = try service.installSkill(
+                skillPath: STPath(repositorySelection.path),
+                skillID: skillID,
+                providerPath: STFolder(resolvedProviderPath),
+                installMethod: installMethod
+            )
+            return try encodeSuccess(
+                command: command.commandID,
+                data: RemoteSyncInstallPayload(
+                    plan: plan,
+                    result: result,
+                    resources: resources,
+                    install: NolonRemoteSyncInstallResult(
+                        kind: .skill,
+                        source: source,
+                        repositoriesRoot: repositoriesRoot,
+                        path: path ?? slug ?? "",
+                        repositoryFilePath: repositorySelection.path,
+                        installedPath: install.targetPath,
+                        installMethod: installMethod,
+                        skillID: install.skillID,
+                        resourceName: nil,
+                        warnings: repositorySelection.warnings
+                    )
+                )
+            )
+
+        case let .remoteSyncInstallResource(
+            kind,
+            source,
+            repositoriesRoot,
+            accessToken,
+            pullStrategy,
+            credentialStrategy,
+            maxDepth,
+            path,
+            slug,
+            strictSelector,
+            targetPath,
+            providerID,
+            installMethod,
+            resourceName
+        ):
+            let plan = try service.planGitImport(
+                source: source,
+                repositoriesRoot: STFolder(repositoriesRoot)
+            )
+            let result = try await service.syncGitRepository(
+                plan: plan,
+                accessToken: accessToken,
+                pullStrategy: pullStrategy,
+                credentialStrategy: credentialStrategy
+            )
+            let resources = service.discoverRepositoryResources(
+                at: STFolder(plan.localClonePath),
+                maxDepth: maxDepth
+            )
+            let repositorySelection = try Self.resolveRepositoryInstallPath(
+                kind: kind == .workflow ? .workflow : .mcp,
+                repositoryRoot: plan.localClonePath,
+                path: path,
+                slug: slug,
+                strictSelector: strictSelector,
+                resources: resources
+            )
+            let resolvedTargetPath = try Self.resolveResourceTargetPath(
+                kind: kind,
+                explicitTargetPath: targetPath,
+                providerID: providerID
+            )
+            let install = try service.installResource(
+                kind: kind,
+                filePath: STPath(repositorySelection.path),
+                resourceName: resourceName,
+                targetPath: STFolder(resolvedTargetPath),
+                installMethod: installMethod
+            )
+            let remoteKind: NolonRemoteCatalogKind = kind == .workflow ? .workflow : .mcp
+            return try encodeSuccess(
+                command: command.commandID,
+                data: RemoteSyncInstallPayload(
+                    plan: plan,
+                    result: result,
+                    resources: resources,
+                    install: NolonRemoteSyncInstallResult(
+                        kind: remoteKind,
+                        source: source,
+                        repositoriesRoot: repositoriesRoot,
+                        path: path ?? slug ?? "",
+                        repositoryFilePath: repositorySelection.path,
+                        installedPath: install.targetPath,
+                        installMethod: installMethod,
+                        skillID: nil,
+                        resourceName: install.resourceName,
+                        warnings: repositorySelection.warnings
+                    )
+                )
+            )
+
+        case let .remoteInstallSkill(slug, version, baseURL, providerPath, providerID, installMethod, skillID):
+            let download = try await service.downloadRemoteResource(
+                kind: .skill,
+                slug: slug,
+                version: version,
+                baseURL: baseURL
+            )
+            let resolvedProviderPath = try Self.resolveSkillProviderPath(
+                explicitProviderPath: providerPath,
+                providerID: providerID
+            )
+            let effectiveSkillID = (skillID?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false)
+                ? skillID
+                : slug
+            let install = try service.installSkill(
+                skillPath: STPath(download.filePath),
+                skillID: effectiveSkillID,
+                providerPath: STFolder(resolvedProviderPath),
+                installMethod: installMethod
+            )
+            return try encodeSuccess(
+                command: command.commandID,
+                data: RemoteInstallPayload(
+                    result: NolonRemoteInstallResult(
+                        kind: .skill,
+                        slug: slug,
+                        version: version,
+                        baseURL: baseURL,
+                        downloadedFilePath: download.filePath,
+                        installedPath: install.targetPath,
+                        installMethod: installMethod,
+                        skillID: install.skillID,
+                        resourceName: nil
+                    )
+                )
+            )
+
+        case let .remoteInstallResource(kind, slug, version, baseURL, targetPath, providerID, installMethod, resourceName):
+            let remoteKind: NolonRemoteCatalogKind = kind == .workflow ? .workflow : .mcp
+            let download = try await service.downloadRemoteResource(
+                kind: remoteKind,
+                slug: slug,
+                version: version,
+                baseURL: baseURL
+            )
+            let resolvedTargetPath = try Self.resolveResourceTargetPath(
+                kind: kind,
+                explicitTargetPath: targetPath,
+                providerID: providerID
+            )
+            let install = try service.installResource(
+                kind: kind,
+                filePath: STPath(download.filePath),
+                resourceName: resourceName,
+                targetPath: STFolder(resolvedTargetPath),
+                installMethod: installMethod
+            )
+            return try encodeSuccess(
+                command: command.commandID,
+                data: RemoteInstallPayload(
+                    result: NolonRemoteInstallResult(
+                        kind: remoteKind,
+                        slug: slug,
+                        version: version,
+                        baseURL: baseURL,
+                        downloadedFilePath: download.filePath,
+                        installedPath: install.targetPath,
+                        installMethod: installMethod,
+                        skillID: nil,
+                        resourceName: install.resourceName
+                    )
+                )
+            )
         }
     }
 
@@ -201,6 +436,187 @@ public struct NolonCoreCLIRunner: Sendable {
         let data = try encoder.encode(value)
         return String(decoding: data, as: UTF8.self)
     }
+
+    private static func resolveSkillProviderPath(
+        explicitProviderPath: String?,
+        providerID: String?
+    ) throws -> String {
+        if let explicitProviderPath, !explicitProviderPath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return explicitProviderPath
+        }
+        guard let providerID, !providerID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw NolonCoreCLIError.invalidArguments("Missing required option: --provider-path or --provider-id")
+        }
+        guard let template = resolveProviderTemplate(providerID: providerID) else {
+            throw NolonCoreCLIError.invalidArguments("Unsupported --provider-id: \(providerID)")
+        }
+        return template.defaultSkillsPath.path
+    }
+
+    private static func resolveResourceTargetPath(
+        kind: NolonResourceKind,
+        explicitTargetPath: String?,
+        providerID: String?
+    ) throws -> String {
+        if let explicitTargetPath, !explicitTargetPath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return explicitTargetPath
+        }
+        guard let providerID, !providerID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw NolonCoreCLIError.invalidArguments("Missing required option: --target-path or --provider-id")
+        }
+        guard let template = resolveProviderTemplate(providerID: providerID) else {
+            throw NolonCoreCLIError.invalidArguments("Unsupported --provider-id: \(providerID)")
+        }
+        switch kind {
+        case .workflow:
+            return template.defaultCommandPath?.path ?? template.defaultWorkflowPath.path
+        case .mcp:
+            return template.defaultMcpConfigPath.deletingLastPathComponent().path
+        }
+    }
+
+    private static func resolveProviderTemplate(providerID: String) -> ProviderTemplate? {
+        let normalized = providerID.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if normalized == "codex-xcode" || normalized == "codexxcode" {
+            return .codexXcode
+        }
+        return ProviderTemplate.allCases.first { template in
+            let raw = template.rawValue.lowercased()
+            let stable = template.providerID.lowercased()
+            return normalized == raw || normalized == stable
+        }
+    }
+
+    private static func resolveRepositoryFilePath(repositoryRoot: URL, path: String) -> String {
+        if path.hasPrefix("/") {
+            return STPath(path).url.path
+        }
+        return repositoryRoot.appendingPathComponent(path).standardizedFileURL.path
+    }
+
+    private static func resolveRepositoryInstallPath(
+        kind: NolonRemoteCatalogKind,
+        repositoryRoot: URL,
+        path: String?,
+        slug: String?,
+        strictSelector: Bool,
+        resources: NolonRepositoryResources
+    ) throws -> RepositoryPathSelection {
+        if let path, !path.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return RepositoryPathSelection(
+                path: resolveRepositoryFilePath(repositoryRoot: repositoryRoot, path: path),
+                warnings: []
+            )
+        }
+        guard let slug, !slug.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw NolonCoreCLIError.invalidArguments("Missing required option: --path or --slug")
+        }
+
+        switch kind {
+        case .skill:
+            let skillMatches = resources.skillsDirectories.filter { $0.skillNames.contains(slug) }
+            if skillMatches.count > 1, strictSelector {
+                let candidates = skillMatches.map { "\($0.path)/\(slug)" }
+                throw NolonCoreCLIError.invalidArguments(
+                    "Ambiguous --slug '\(slug)' matched multiple files: \(candidates.joined(separator: ", "))"
+                )
+            }
+            if let dir = skillMatches.first {
+                let warnings: [String]
+                if skillMatches.count > 1 {
+                    warnings = ["Ambiguous --slug '\(slug)' matched multiple files; selected first: \(dir.path)/\(slug)"]
+                } else {
+                    warnings = []
+                }
+                return RepositoryPathSelection(
+                    path: resolveRepositoryFilePath(
+                        repositoryRoot: repositoryRoot,
+                        path: "\(dir.path)/\(slug)"
+                    ),
+                    warnings: warnings
+                )
+            }
+            return RepositoryPathSelection(
+                path: resolveRepositoryFilePath(repositoryRoot: repositoryRoot, path: "skills/\(slug)"),
+                warnings: []
+            )
+        case .workflow:
+            if let matched = try matchResourcePath(
+                slug: slug,
+                candidates: resources.workflows.map(\.path),
+                strictSelector: strictSelector
+            ) {
+                return RepositoryPathSelection(
+                    path: resolveRepositoryFilePath(repositoryRoot: repositoryRoot, path: matched.path),
+                    warnings: matched.warnings
+                )
+            }
+        case .mcp:
+            if let matched = try matchResourcePath(
+                slug: slug,
+                candidates: resources.mcps.map(\.path),
+                strictSelector: strictSelector
+            ) {
+                return RepositoryPathSelection(
+                    path: resolveRepositoryFilePath(repositoryRoot: repositoryRoot, path: matched.path),
+                    warnings: matched.warnings
+                )
+            }
+        }
+
+        throw NolonCoreCLIError.invalidArguments("Unable to resolve --slug '\(slug)' in synced repository")
+    }
+
+    private static func matchResourcePath(
+        slug: String,
+        candidates: [String],
+        strictSelector: Bool
+    ) throws -> RepositoryPathSelection? {
+        let normalized = slug.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if let exact = candidates.first(where: { $0.lowercased() == normalized }) {
+            return RepositoryPathSelection(path: exact, warnings: [])
+        }
+        let nameMatches = candidates.filter { STPath($0).url.lastPathComponent.lowercased() == normalized }
+        if nameMatches.count > 1, strictSelector {
+            throw NolonCoreCLIError.invalidArguments(
+                "Ambiguous --slug '\(slug)' matched multiple files: \(nameMatches.joined(separator: ", "))"
+            )
+        }
+        if let byName = nameMatches.first {
+            let warnings: [String]
+            if nameMatches.count > 1 {
+                warnings = ["Ambiguous --slug '\(slug)' matched multiple files; selected first: \(byName)"]
+            } else {
+                warnings = []
+            }
+            return RepositoryPathSelection(path: byName, warnings: warnings)
+        }
+        let stemMatches = candidates.filter {
+            let basename = STPath($0).url.lastPathComponent.lowercased()
+            let stem = basename.split(separator: ".").dropLast().joined(separator: ".")
+            return stem == normalized
+        }
+        if stemMatches.count > 1, strictSelector {
+            throw NolonCoreCLIError.invalidArguments(
+                "Ambiguous --slug '\(slug)' matched multiple files: \(stemMatches.joined(separator: ", "))"
+            )
+        }
+        if let byStem = stemMatches.first {
+            let warnings: [String]
+            if stemMatches.count > 1 {
+                warnings = ["Ambiguous --slug '\(slug)' matched multiple files; selected first: \(byStem)"]
+            } else {
+                warnings = []
+            }
+            return RepositoryPathSelection(path: byStem, warnings: warnings)
+        }
+        return nil
+    }
+}
+
+private struct RepositoryPathSelection: Sendable {
+    let path: String
+    let warnings: [String]
 }
 
 private struct PlanPayload: Encodable, Sendable {
@@ -265,4 +681,15 @@ private struct RemoteListPayload: Encodable, Sendable {
 
 private struct RemoteDownloadPayload: Encodable, Sendable {
     let result: NolonRemoteDownloadResult
+}
+
+private struct RemoteInstallPayload: Encodable, Sendable {
+    let result: NolonRemoteInstallResult
+}
+
+private struct RemoteSyncInstallPayload: Encodable, Sendable {
+    let plan: NolonGitImportPlan
+    let result: NolonGitSyncResult
+    let resources: NolonRepositoryResources
+    let install: NolonRemoteSyncInstallResult
 }

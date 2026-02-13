@@ -68,10 +68,14 @@ enum NolonCodexCLIHelpResolver {
         Top-level commands:
           codex       Codex CLI management
           provider    Installed provider CLI discovery
+          skills      Skill repository and install operations
+          resources   Workflow/MCP resource operations
+          remote      Remote catalog search and download
 
         Examples:
           nolon codex auth list --provider codex
           nolon provider list
+          nolon remote list --kind skill --limit 20
         """
     }
 
