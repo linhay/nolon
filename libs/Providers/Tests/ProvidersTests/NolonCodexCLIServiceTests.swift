@@ -3,6 +3,11 @@ import Testing
 @testable import NolonCoreCLIKit
 @testable import ProviderUsage
 @testable import CodexProvider
+#if canImport(Darwin)
+import Darwin
+#elseif canImport(Glibc)
+import Glibc
+#endif
 
 @Suite("Nolon Codex CLI Service")
 struct NolonCodexCLIServiceTests {
@@ -164,5 +169,121 @@ struct NolonCodexCLIServiceTests {
         #expect(payload.accounts.count == 1)
         #expect(payload.accounts[0].usageDisplay == "5h - / 7d 87%")
         #expect(payload.accounts[0].refreshedAt == Date(timeIntervalSince1970: 1_733_500_000))
+    }
+
+    @Test("runtime list filters codex processes and sorts by pid asc")
+    func runtimeListFiltersAndSorts() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("nolon-codex-cli-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let service = NolonLiveCodexCLIService(
+            authManager: CodexAuthManager(rootURL: root),
+            binaryManager: CodexBinaryManager(homeURL: root),
+            loginRunner: .init(),
+            environment: [:],
+            runtimeProcessInspector: StubRuntimeProcessInspector(
+                snapshots: [
+                    NolonRuntimeProcessSnapshot(pid: 400, ppid: 1, elapsed: "00:00:05", command: "/bin/zsh"),
+                    NolonRuntimeProcessSnapshot(pid: 220, ppid: 1, elapsed: "00:01:10", command: "/opt/homebrew/bin/codex"),
+                    NolonRuntimeProcessSnapshot(pid: 180, ppid: 1, elapsed: "00:03:00", command: "/usr/local/bin/codex-app-server --provider codex-xcode"),
+                ]
+            ),
+            runtimeSignalController: StubRuntimeSignalController(),
+            currentPIDProvider: { 999_999 },
+            sleep: { _ in }
+        )
+
+        let payload = try await service.runtimeList(providerID: nil)
+        #expect(payload.processes.map(\.pid) == [180, 220])
+        #expect(payload.processes[0].providerHint == "codex-xcode")
+        #expect(payload.processes[1].providerHint == "codex")
+    }
+
+    @Test("runtime stop escalates to kill when process does not exit after term")
+    func runtimeStopEscalatesToKill() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("nolon-codex-cli-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let signalController = StubRuntimeSignalController(
+            aliveSequenceByPID: [
+                12345: Array(repeating: true, count: 20),
+            ]
+        )
+        let service = NolonLiveCodexCLIService(
+            authManager: CodexAuthManager(rootURL: root),
+            binaryManager: CodexBinaryManager(homeURL: root),
+            loginRunner: .init(),
+            environment: [:],
+            runtimeProcessInspector: StubRuntimeProcessInspector(snapshots: []),
+            runtimeSignalController: signalController,
+            currentPIDProvider: { 999_999 },
+            sleep: { _ in }
+        )
+
+        let payload = try await service.runtimeStop(pid: 12345, force: false, timeoutSeconds: 1)
+        #expect(payload.requestedSignal == "term")
+        #expect(payload.didEscalateToKill == true)
+        #expect(payload.exited == true)
+        #expect(signalController.signals.map(\.pid) == [12345, 12345])
+        #expect(signalController.signals.map(\.signal) == [SIGTERM, SIGKILL])
+    }
+}
+
+private struct StubRuntimeProcessInspector: NolonCodexRuntimeProcessInspecting {
+    let snapshots: [NolonRuntimeProcessSnapshot]
+
+    func listProcesses() throws -> [NolonRuntimeProcessSnapshot] {
+        snapshots
+    }
+}
+
+private struct SentSignal: Equatable {
+    let pid: Int32
+    let signal: Int32
+}
+
+private final class StubRuntimeSignalController: NolonCodexRuntimeSignalControlling, @unchecked Sendable {
+    private let lock = NSLock()
+    private var signalStorage: [SentSignal] = []
+    private var aliveSequences: [Int32: [Bool]]
+    private var killedPIDs: Set<Int32> = []
+
+    init(aliveSequenceByPID: [Int32: [Bool]] = [:]) {
+        self.aliveSequences = aliveSequenceByPID
+    }
+
+    var signals: [SentSignal] {
+        lock.lock()
+        defer { lock.unlock() }
+        return signalStorage
+    }
+
+    func send(signal: Int32, to pid: Int32) throws {
+        lock.lock()
+        defer { lock.unlock() }
+        signalStorage.append(SentSignal(pid: pid, signal: signal))
+        if signal == SIGKILL {
+            killedPIDs.insert(pid)
+            aliveSequences[pid] = [false]
+        }
+    }
+
+    func isRunning(pid: Int32) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        guard var sequence = aliveSequences[pid] else {
+            return false
+        }
+        guard !sequence.isEmpty else {
+            if killedPIDs.contains(pid) {
+                return false
+            }
+            return true
+        }
+        let current = sequence.removeFirst()
+        aliveSequences[pid] = sequence
+        return current
     }
 }

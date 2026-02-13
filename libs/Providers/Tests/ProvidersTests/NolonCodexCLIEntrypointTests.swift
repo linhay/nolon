@@ -123,6 +123,48 @@ struct NolonCodexCLIEntrypointTests {
         #expect(result.stdout.contains("Usage: nolon codex status <action>"))
     }
 
+    @Test("codex runtime --help prints runtime help")
+    func codexRuntimeHelpPrintsHelp() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["codex", "runtime", "--help"],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("Usage: nolon codex runtime <action>"))
+        #expect(result.stdout.contains("list"))
+        #expect(result.stdout.contains("stop"))
+    }
+
+    @Test("codex runtime list --help prints action help")
+    func codexRuntimeListHelpPrintsHelp() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["codex", "runtime", "list", "--help"],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("Usage: nolon codex runtime list"))
+    }
+
+    @Test("codex runtime stop --help prints action help")
+    func codexRuntimeStopHelpPrintsHelp() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["codex", "runtime", "stop", "--help"],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("Usage: nolon codex runtime stop"))
+        #expect(result.stdout.contains("--pid"))
+    }
+
     @Test("codex auth list --help prints action help")
     func codexAuthListHelpPrintsHelp() async {
         let mock = MockCodexCLIService()
@@ -404,6 +446,58 @@ struct NolonCodexCLIEntrypointTests {
         #expect(await mock.lastCall() == "authActivate")
     }
 
+    @Test("auth activate supports tui selection by index")
+    func authActivateSupportsTUISelection() async throws {
+        let accounts: [NolonCodexAuthAccountView] = [
+            NolonCodexAuthAccountView(
+                id: UUID(uuidString: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")!,
+                name: "A",
+                createdAt: .distantPast,
+                relativeAuthPath: "a/auth.json",
+                isActive: true,
+                email: "a@example.com",
+                usageDisplay: nil,
+                refreshedAt: nil
+            ),
+            NolonCodexAuthAccountView(
+                id: UUID(uuidString: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")!,
+                name: "B",
+                createdAt: .distantPast,
+                relativeAuthPath: "b/auth.json",
+                isActive: false,
+                email: "b@example.com",
+                usageDisplay: nil,
+                refreshedAt: nil
+            ),
+        ]
+
+        let selected = try NolonCodexCLIExecutor.parseActivateSelection(
+            input: "2",
+            accounts: accounts
+        )
+        #expect(selected == UUID(uuidString: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")!)
+    }
+
+    @Test("auth activate tui selection rejects invalid index")
+    func authActivateTUISelectionRejectsInvalidIndex() {
+        let accounts: [NolonCodexAuthAccountView] = [
+            NolonCodexAuthAccountView(
+                id: UUID(uuidString: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")!,
+                name: "A",
+                createdAt: .distantPast,
+                relativeAuthPath: "a/auth.json",
+                isActive: true,
+                email: "a@example.com",
+                usageDisplay: nil,
+                refreshedAt: nil
+            ),
+        ]
+
+        #expect(throws: NolonCoreCLIError.invalidArguments("Invalid selection")) {
+            _ = try NolonCodexCLIExecutor.parseActivateSelection(input: "3", accounts: accounts)
+        }
+    }
+
     @Test("invalid UUID returns structured error")
     func invalidUUIDError() async {
         let mock = MockCodexCLIService()
@@ -449,6 +543,7 @@ struct NolonCodexCLIEntrypointTests {
 
         #expect(result.exitCode == 0)
         #expect(result.stdout.contains("account_name: mock"))
+        #expect(result.stdout.contains("login_url: https://auth.example.com/device"))
         #expect(await mock.lastCall() == "authLogin")
     }
 
@@ -605,6 +700,46 @@ struct NolonCodexCLIEntrypointTests {
         #expect(await mock.lastCall() == "statusProbe")
     }
 
+    @Test("routes runtime list")
+    func routesRuntimeList() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["codex", "runtime", "list"],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stdout.contains("PID"))
+        #expect(result.stdout.contains("运行时长"))
+        #expect(await mock.lastCall() == "runtimeList")
+    }
+
+    @Test("routes runtime stop")
+    func routesRuntimeStop() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["codex", "runtime", "stop", "--pid", "12345"],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stdout.contains("pid: 12345"))
+        #expect(result.stdout.contains("signal: term"))
+        #expect(await mock.lastCall() == "runtimeStop")
+    }
+
+    @Test("runtime stop rejects invalid pid")
+    func runtimeStopRejectsInvalidPID() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["codex", "runtime", "stop", "--pid", "0"],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 2)
+        #expect(result.stderr.contains("\"code\":\"invalid_arguments\""))
+    }
+
     @Test("status probe prints aligned table rows")
     func statusProbePrintsAlignedTableRows() async {
         let mock = MockCodexCLIService()
@@ -671,6 +806,18 @@ struct NolonCodexCLIEntrypointTests {
         #expect(result.stderr.contains("\"code\":\"unsupported_command\""))
     }
 
+    @Test("unsupported runtime command returns invalid arguments")
+    func unsupportedRuntimeCommandError() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["codex", "runtime", "unknown"],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 2)
+        #expect(result.stderr.contains("\"code\":\"unsupported_command\""))
+    }
+
     @Test("domain error keeps structured code")
     func domainErrorCode() async {
         let mock = DomainErrorCodexCLIService()
@@ -725,7 +872,8 @@ private actor MockCodexCLIService: NolonCodexCLIServing {
             accountID: UUID(uuidString: "11111111-1111-1111-1111-111111111111")!,
             accountName: "mock",
             runtimeSwitched: true,
-            runtimeErrorDescription: nil
+            runtimeErrorDescription: nil,
+            loginURL: "https://auth.example.com/device"
         )
     }
 
@@ -788,6 +936,31 @@ private actor MockCodexCLIService: NolonCodexCLIServing {
             weeklyResetDescription: nil
         )
     }
+
+    func runtimeList(providerID: String?) async throws -> NolonCodexRuntimeListPayload {
+        call = "runtimeList"
+        return NolonCodexRuntimeListPayload(
+            processes: [
+                NolonCodexRuntimeProcessView(
+                    pid: 12345,
+                    ppid: 1,
+                    elapsed: "00:01:02",
+                    providerHint: "codex",
+                    command: "/opt/homebrew/bin/codex"
+                )
+            ]
+        )
+    }
+
+    func runtimeStop(pid: Int32, force: Bool, timeoutSeconds: Int) async throws -> NolonCodexRuntimeStopPayload {
+        call = "runtimeStop"
+        return NolonCodexRuntimeStopPayload(
+            pid: pid,
+            requestedSignal: force ? "kill" : "term",
+            didEscalateToKill: false,
+            exited: true
+        )
+    }
 }
 
 private actor DomainErrorCodexCLIService: NolonCodexCLIServing {
@@ -802,6 +975,8 @@ private actor DomainErrorCodexCLIService: NolonCodexCLIServing {
     func binaryUse(version: String) async throws -> NolonCodexBinaryUsePayload { throw makeError() }
     func binaryDoctor() async throws -> NolonCodexBinaryDoctorPayload { throw makeError() }
     func statusProbe(providerID: String?) async throws -> NolonCodexStatusProbePayload { throw makeError() }
+    func runtimeList(providerID: String?) async throws -> NolonCodexRuntimeListPayload { throw makeError() }
+    func runtimeStop(pid: Int32, force: Bool, timeoutSeconds: Int) async throws -> NolonCodexRuntimeStopPayload { throw makeError() }
 
     private func makeError() -> NolonCoreCLIError {
         .domainFailed(code: "codex_binary_not_found", message: "missing")
@@ -819,6 +994,8 @@ private actor BinaryListPlainTextCodexCLIService: NolonCodexCLIServing {
     func binaryUse(version: String) async throws -> NolonCodexBinaryUsePayload { throw unsupported() }
     func binaryDoctor() async throws -> NolonCodexBinaryDoctorPayload { throw unsupported() }
     func statusProbe(providerID: String?) async throws -> NolonCodexStatusProbePayload { throw unsupported() }
+    func runtimeList(providerID: String?) async throws -> NolonCodexRuntimeListPayload { throw unsupported() }
+    func runtimeStop(pid: Int32, force: Bool, timeoutSeconds: Int) async throws -> NolonCodexRuntimeStopPayload { throw unsupported() }
 
     func binaryList() async throws -> NolonCodexBinaryListPayload {
         NolonCodexBinaryListPayload(
@@ -860,6 +1037,8 @@ private actor AuthListTableCodexCLIService: NolonCodexCLIServing {
     func binaryUse(version: String) async throws -> NolonCodexBinaryUsePayload { throw unsupported() }
     func binaryDoctor() async throws -> NolonCodexBinaryDoctorPayload { throw unsupported() }
     func statusProbe(providerID: String?) async throws -> NolonCodexStatusProbePayload { throw unsupported() }
+    func runtimeList(providerID: String?) async throws -> NolonCodexRuntimeListPayload { throw unsupported() }
+    func runtimeStop(pid: Int32, force: Bool, timeoutSeconds: Int) async throws -> NolonCodexRuntimeStopPayload { throw unsupported() }
 
     func authList(providerID: String) async throws -> NolonCodexAuthListPayload {
         NolonCodexAuthListPayload(
@@ -906,6 +1085,8 @@ private actor AuthListMissingFieldsCodexCLIService: NolonCodexCLIServing {
     func binaryUse(version: String) async throws -> NolonCodexBinaryUsePayload { throw unsupported() }
     func binaryDoctor() async throws -> NolonCodexBinaryDoctorPayload { throw unsupported() }
     func statusProbe(providerID: String?) async throws -> NolonCodexStatusProbePayload { throw unsupported() }
+    func runtimeList(providerID: String?) async throws -> NolonCodexRuntimeListPayload { throw unsupported() }
+    func runtimeStop(pid: Int32, force: Bool, timeoutSeconds: Int) async throws -> NolonCodexRuntimeStopPayload { throw unsupported() }
 
     func authList(providerID: String) async throws -> NolonCodexAuthListPayload {
         NolonCodexAuthListPayload(

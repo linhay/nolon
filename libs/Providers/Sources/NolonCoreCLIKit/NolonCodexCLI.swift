@@ -5,6 +5,11 @@ import Foundation
 import ProviderCatalog
 import ProviderUsage
 import STFilePath
+#if canImport(Darwin)
+import Darwin
+#elseif canImport(Glibc)
+import Glibc
+#endif
 
 public protocol NolonCodexCLIServing: Sendable {
     func authList(providerID: String) async throws -> NolonCodexAuthListPayload
@@ -18,6 +23,8 @@ public protocol NolonCodexCLIServing: Sendable {
     func binaryUse(version: String) async throws -> NolonCodexBinaryUsePayload
     func binaryDoctor() async throws -> NolonCodexBinaryDoctorPayload
     func statusProbe(providerID: String?) async throws -> NolonCodexStatusProbePayload
+    func runtimeList(providerID: String?) async throws -> NolonCodexRuntimeListPayload
+    func runtimeStop(pid: Int32, force: Bool, timeoutSeconds: Int) async throws -> NolonCodexRuntimeStopPayload
 }
 
 public struct NolonCodexAuthAccountView: Codable, Sendable, Equatable {
@@ -57,6 +64,7 @@ public struct NolonCodexAuthLoginPayload: Codable, Sendable, Equatable {
     public let accountName: String
     public let runtimeSwitched: Bool
     public let runtimeErrorDescription: String?
+    public let loginURL: String?
 }
 
 public struct NolonCodexAuthDeletePayload: Codable, Sendable, Equatable {
@@ -116,11 +124,34 @@ public struct NolonCodexStatusProbePayload: Codable, Sendable, Equatable {
     public let weeklyResetDescription: String?
 }
 
+public struct NolonCodexRuntimeProcessView: Codable, Sendable, Equatable {
+    public let pid: Int32
+    public let ppid: Int32?
+    public let elapsed: String
+    public let providerHint: String?
+    public let command: String
+}
+
+public struct NolonCodexRuntimeListPayload: Codable, Sendable, Equatable {
+    public let processes: [NolonCodexRuntimeProcessView]
+}
+
+public struct NolonCodexRuntimeStopPayload: Codable, Sendable, Equatable {
+    public let pid: Int32
+    public let requestedSignal: String
+    public let didEscalateToKill: Bool
+    public let exited: Bool
+}
+
 public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
     private let authManager: CodexAuthManager
     private let binaryManager: CodexBinaryManager
     private let loginRunner: CodexLoginRunner
     private let environment: [String: String]
+    private let runtimeProcessInspector: any NolonCodexRuntimeProcessInspecting
+    private let runtimeSignalController: any NolonCodexRuntimeSignalControlling
+    private let currentPIDProvider: @Sendable () -> Int32
+    private let sleep: @Sendable (UInt64) async throws -> Void
 
     public init(
         authManager: CodexAuthManager = CodexAuthManager(),
@@ -128,10 +159,38 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
         loginRunner: CodexLoginRunner = .init(),
         environment: [String: String] = ProcessInfo.processInfo.environment
     ) {
+        self.init(
+            authManager: authManager,
+            binaryManager: binaryManager,
+            loginRunner: loginRunner,
+            environment: environment,
+            runtimeProcessInspector: NolonCodexRuntimeProcessInspector(),
+            runtimeSignalController: NolonCodexRuntimeSignalController(),
+            currentPIDProvider: { getpid() },
+            sleep: { nanoseconds in
+                try await Task.sleep(nanoseconds: nanoseconds)
+            }
+        )
+    }
+
+    init(
+        authManager: CodexAuthManager,
+        binaryManager: CodexBinaryManager,
+        loginRunner: CodexLoginRunner,
+        environment: [String: String],
+        runtimeProcessInspector: any NolonCodexRuntimeProcessInspecting,
+        runtimeSignalController: any NolonCodexRuntimeSignalControlling,
+        currentPIDProvider: @escaping @Sendable () -> Int32,
+        sleep: @escaping @Sendable (UInt64) async throws -> Void
+    ) {
         self.authManager = authManager
         self.binaryManager = binaryManager
         self.loginRunner = loginRunner
         self.environment = environment
+        self.runtimeProcessInspector = runtimeProcessInspector
+        self.runtimeSignalController = runtimeSignalController
+        self.currentPIDProvider = currentPIDProvider
+        self.sleep = sleep
     }
 
     public func authList(providerID: String) async throws -> NolonCodexAuthListPayload {
@@ -210,14 +269,14 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
             )
         }
 
-        let authJSONString = try await loginRunner.loginAndAwaitAuthJSONString(
+        let loginResult = try await loginRunner.loginAndAwaitAuthResult(
             binary: "codex",
             environment: environment,
             codexHome: codexHome.url
         )
 
         let account = try await authManager.recordCLILoginSnapshot(
-            authJSONString: authJSONString,
+            authJSONString: loginResult.authJSONString,
             preferredAccountID: preferredAccountID
         )
         let activation = try await CodexAuthActivationCoordinator.shared.activate(account: account, provider: provider)
@@ -226,7 +285,8 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
             accountID: account.id,
             accountName: account.name,
             runtimeSwitched: activation.runtimeSwitched,
-            runtimeErrorDescription: activation.runtimeErrorDescription
+            runtimeErrorDescription: activation.runtimeErrorDescription,
+            loginURL: loginResult.loginURL
         )
     }
 
@@ -355,6 +415,79 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
         )
     }
 
+    public func runtimeList(providerID: String?) async throws -> NolonCodexRuntimeListPayload {
+        _ = providerID
+        let currentPID = currentPIDProvider()
+        let snapshots = try runtimeProcessInspector.listProcesses()
+        let views = snapshots
+            .filter { snapshot in
+                snapshot.pid != currentPID && Self.isCodexRuntimeCommand(snapshot.command)
+            }
+            .sorted(by: { $0.pid < $1.pid })
+            .map { snapshot in
+                NolonCodexRuntimeProcessView(
+                    pid: snapshot.pid,
+                    ppid: snapshot.ppid,
+                    elapsed: snapshot.elapsed,
+                    providerHint: Self.providerHint(from: snapshot.command),
+                    command: snapshot.command
+                )
+            }
+        return NolonCodexRuntimeListPayload(processes: views)
+    }
+
+    public func runtimeStop(pid: Int32, force: Bool, timeoutSeconds: Int) async throws -> NolonCodexRuntimeStopPayload {
+        guard pid > 1 else {
+            throw NolonCoreCLIError.invalidArguments("Invalid --pid: \(pid)")
+        }
+        guard timeoutSeconds > 0 else {
+            throw NolonCoreCLIError.invalidArguments("Invalid --timeout-seconds: \(timeoutSeconds)")
+        }
+        if pid == currentPIDProvider() {
+            throw NolonCoreCLIError.invalidArguments("Refusing to stop current nolon process: \(pid)")
+        }
+
+        if force {
+            try runtimeSignalController.send(signal: SIGKILL, to: pid)
+            let exited = !runtimeSignalController.isRunning(pid: pid)
+            return NolonCodexRuntimeStopPayload(
+                pid: pid,
+                requestedSignal: "kill",
+                didEscalateToKill: false,
+                exited: exited
+            )
+        }
+
+        try runtimeSignalController.send(signal: SIGTERM, to: pid)
+        let attempts = max(1, timeoutSeconds * 10)
+        for _ in 0..<attempts {
+            if !runtimeSignalController.isRunning(pid: pid) {
+                return NolonCodexRuntimeStopPayload(
+                    pid: pid,
+                    requestedSignal: "term",
+                    didEscalateToKill: false,
+                    exited: true
+                )
+            }
+            try await sleep(100_000_000)
+        }
+
+        try runtimeSignalController.send(signal: SIGKILL, to: pid)
+        for _ in 0..<20 {
+            if !runtimeSignalController.isRunning(pid: pid) {
+                break
+            }
+            try await sleep(100_000_000)
+        }
+        let exited = !runtimeSignalController.isRunning(pid: pid)
+        return NolonCodexRuntimeStopPayload(
+            pid: pid,
+            requestedSignal: "term",
+            didEscalateToKill: true,
+            exited: exited
+        )
+    }
+
     private static func provider(for providerID: String) throws -> Provider {
         let canonicalID = try canonicalProviderID(providerID)
         let template: ProviderTemplate
@@ -415,6 +548,22 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
         guard let cache else { return nil }
         return cache.creditsRefreshedAt ?? cache.usage.updatedAt
     }
+
+    private static func isCodexRuntimeCommand(_ command: String) -> Bool {
+        let normalized = command.lowercased()
+        return normalized.contains("codex-app-server") || normalized.contains("codex")
+    }
+
+    private static func providerHint(from command: String) -> String? {
+        let normalized = command.lowercased()
+        if normalized.contains("codex-xcode") || normalized.contains("codexxcode") {
+            return "codex-xcode"
+        }
+        if normalized.contains("codex") {
+            return "codex"
+        }
+        return nil
+    }
 }
 
 public enum NolonCLIEntrypoint {
@@ -436,5 +585,77 @@ public enum NolonCLIEntrypoint {
             let wrapped = NolonCoreCLIError.invalidArguments(error.localizedDescription)
             return NolonCLIExecutionResult(exitCode: 2, stdout: "", stderr: context.errorJSON(for: wrapped))
         }
+    }
+}
+
+struct NolonRuntimeProcessSnapshot: Sendable, Equatable {
+    let pid: Int32
+    let ppid: Int32?
+    let elapsed: String
+    let command: String
+}
+
+protocol NolonCodexRuntimeProcessInspecting: Sendable {
+    func listProcesses() throws -> [NolonRuntimeProcessSnapshot]
+}
+
+protocol NolonCodexRuntimeSignalControlling: Sendable {
+    func send(signal: Int32, to pid: Int32) throws
+    func isRunning(pid: Int32) -> Bool
+}
+
+struct NolonCodexRuntimeProcessInspector: NolonCodexRuntimeProcessInspecting {
+    func listProcesses() throws -> [NolonRuntimeProcessSnapshot] {
+        let process = Process()
+        let out = Pipe()
+        let err = Pipe()
+        process.executableURL = URL(fileURLWithPath: "/bin/ps")
+        process.arguments = ["-axo", "pid=,ppid=,etime=,command="]
+        process.standardOutput = out
+        process.standardError = err
+        try process.run()
+        let outputData = out.fileHandleForReading.readDataToEndOfFile()
+        let errorData = err.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+
+        guard process.terminationStatus == 0 else {
+            let message = String(data: errorData, encoding: .utf8) ?? "ps command failed"
+            throw NolonCoreCLIError.domainFailed(code: "runtime_ps_failed", message: message.trimmingCharacters(in: .whitespacesAndNewlines))
+        }
+
+        guard let content = String(data: outputData, encoding: .utf8) else {
+            return []
+        }
+
+        return content
+            .split(separator: "\n")
+            .compactMap { line in
+                let parts = line.split(omittingEmptySubsequences: true, whereSeparator: { $0.isWhitespace })
+                guard parts.count >= 4, let pid = Int32(parts[0]), let ppid = Int32(parts[1]) else {
+                    return nil
+                }
+                let elapsed = String(parts[2])
+                let command = parts.dropFirst(3).joined(separator: " ")
+                return NolonRuntimeProcessSnapshot(pid: pid, ppid: ppid, elapsed: elapsed, command: command)
+            }
+    }
+}
+
+struct NolonCodexRuntimeSignalController: NolonCodexRuntimeSignalControlling {
+    func send(signal: Int32, to pid: Int32) throws {
+        if kill(pid, signal) != 0 {
+            let code = errno
+            throw NolonCoreCLIError.domainFailed(
+                code: "runtime_signal_failed",
+                message: "Failed to send signal \(signal) to pid \(pid), errno=\(code)"
+            )
+        }
+    }
+
+    func isRunning(pid: Int32) -> Bool {
+        if kill(pid, 0) == 0 {
+            return true
+        }
+        return errno == EPERM
     }
 }

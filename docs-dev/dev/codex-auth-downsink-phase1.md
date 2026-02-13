@@ -434,3 +434,24 @@
 - `swift test --package-path libs/Providers --filter ProviderUsageMonitorServiceTests`
 - `swift test --package-path libs/Providers --filter ProviderUsageMonitorSettingsTests`
 - `xcodebuild test -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' -only-testing:nolonTests/UsageMonitorServiceTests`
+
+## Phase 1.19：`auth activate` 支持 TUI 账号选择
+
+### BDD 场景
+- Given 用户未提供 `--account-id` 且传入 `--tui`，When 执行 `nolon codex auth activate`，Then CLI 显示可选账号列表并允许输入序号/UUID 激活。
+- Given 用户输入非法序号，When 解析选择输入，Then 返回 `invalid_arguments`（`Invalid selection`）。
+- Given 用户未提供 `--account-id` 且未开启 `--tui`，When 执行 activate，Then 明确提示需要 `--account-id` 或 `--tui`。
+
+### TDD（红 -> 绿）
+- 先补红灯：
+  - `NolonCodexCLIEntrypointTests.authActivateSupportsTUISelection`
+  - `NolonCodexCLIEntrypointTests.authActivateTUISelectionRejectsInvalidIndex`
+- 最小实现（绿灯）：
+  - `NolonCodexAuthActivateCommand`：`accountID` 改可选，新增 `--tui`。
+  - `NolonCodexCLIExecutor.executeAuthActivate(...)`：无 `--account-id` 且 `--tui` 时进入交互；支持序号/UUID 解析。
+  - 新增 `parseActivateSelection(input:accounts:)` 作为可测试选择解析入口。
+  - `NolonCodexCLIHelp` 同步更新 activate 用法说明。
+
+### 验证
+- `swift test --package-path libs/Providers --filter 'NolonCodexCLIEntrypointTests/(routesAuthActivate|authActivateSupportsTUISelection|authActivateTUISelectionRejectsInvalidIndex|codexAuthActivateHelpPrintsHelp)'`
+- `swift test --package-path libs/Providers --filter 'NolonCodexCLIEntrypointTests|NolonCodexCLIServiceTests'`

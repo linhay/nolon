@@ -18,6 +18,8 @@ enum NolonCodexCLIHelpResolver {
             return codexBinaryHelpText()
         case .codexStatus:
             return codexStatusHelpText()
+        case .codexRuntime:
+            return codexRuntimeHelpText()
         case .codexAuthList:
             return codexAuthListHelpText()
         case .codexAuthStatus:
@@ -40,6 +42,10 @@ enum NolonCodexCLIHelpResolver {
             return codexBinaryUseHelpText()
         case .codexStatusProbe:
             return codexStatusProbeHelpText()
+        case .codexRuntimeList:
+            return codexRuntimeListHelpText()
+        case .codexRuntimeStop:
+            return codexRuntimeStopHelpText()
         default:
             return nil
         }
@@ -57,6 +63,7 @@ enum NolonCodexCLIHelpResolver {
           auth      list | status | activate | login | delete
           binary    list | current | install | use | doctor
           status    probe
+          runtime   list | stop
 
         Examples:
           nolon codex auth list --provider codex
@@ -72,7 +79,7 @@ enum NolonCodexCLIHelpResolver {
         Actions:
           list      [--provider codex|codex-xcode]
           status    [--provider codex|codex-xcode]
-          activate  --account-id <uuid> [--provider ...]
+          activate  [--account-id <uuid>] [--tui] [--provider ...]
           login     [--preferred-account-id <uuid>] [--provider ...]
           delete    --account-id <uuid> [--provider ...]
         """
@@ -100,6 +107,16 @@ enum NolonCodexCLIHelpResolver {
         """
     }
 
+    private static func codexRuntimeHelpText() -> String {
+        """
+        Usage: nolon codex runtime <action> [options]
+
+        Actions:
+          list
+          stop     --pid <pid> [--force] [--timeout-seconds <n>]
+        """
+    }
+
     private static func codexAuthListHelpText() -> String {
         """
         Usage: nolon codex auth list [options]
@@ -120,11 +137,12 @@ enum NolonCodexCLIHelpResolver {
 
     private static func codexAuthActivateHelpText() -> String {
         """
-        Usage: nolon codex auth activate --account-id <uuid> [--provider <id>]
+        Usage: nolon codex auth activate [--account-id <uuid>] [--tui] [--provider <id>]
 
         Options:
           --provider <id>     Provider id, default is codex.
           --account-id <id>   Account id UUID.
+          --tui               Use TUI picker when account id is omitted.
         """
     }
 
@@ -193,6 +211,23 @@ enum NolonCodexCLIHelpResolver {
           --provider <id>   Provider id for reporting context.
         """
     }
+
+    private static func codexRuntimeListHelpText() -> String {
+        """
+        Usage: nolon codex runtime list
+        """
+    }
+
+    private static func codexRuntimeStopHelpText() -> String {
+        """
+        Usage: nolon codex runtime stop --pid <pid> [--force] [--timeout-seconds <n>]
+
+        Options:
+          --pid <value>             Target runtime pid.
+          --force                   Send SIGKILL immediately.
+          --timeout-seconds <n>     Timeout seconds before escalating TERM to KILL.
+        """
+    }
 }
 
 private struct NolonCLIHelpPath: RawRepresentable, ExpressibleByStringLiteral, Equatable, Sendable {
@@ -201,6 +236,7 @@ private struct NolonCLIHelpPath: RawRepresentable, ExpressibleByStringLiteral, E
     static let codexAuth: Self = "help.codex.auth"
     static let codexBinary: Self = "help.codex.binary"
     static let codexStatus: Self = "help.codex.status"
+    static let codexRuntime: Self = "help.codex.runtime"
     static let codexAuthList: Self = "help.codex.auth.list"
     static let codexAuthStatus: Self = "help.codex.auth.status"
     static let codexAuthActivate: Self = "help.codex.auth.activate"
@@ -212,6 +248,8 @@ private struct NolonCLIHelpPath: RawRepresentable, ExpressibleByStringLiteral, E
     static let codexBinaryDoctor: Self = "help.codex.binary.doctor"
     static let codexBinaryUse: Self = "help.codex.binary.use"
     static let codexStatusProbe: Self = "help.codex.status.probe"
+    static let codexRuntimeList: Self = "help.codex.runtime.list"
+    static let codexRuntimeStop: Self = "help.codex.runtime.stop"
 
     let rawValue: String
 
@@ -244,6 +282,9 @@ private struct NolonCLIHelpPath: RawRepresentable, ExpressibleByStringLiteral, E
         case ["codex", "status"]:
             self = .codexStatus
             return
+        case ["codex", "runtime"]:
+            self = .codexRuntime
+            return
         default:
             break
         }
@@ -263,6 +304,8 @@ private struct NolonCLIHelpPath: RawRepresentable, ExpressibleByStringLiteral, E
             self = .codexBinary
         case ["codex", "status", "help"], ["codex", "status", "-h"], ["codex", "status", "--help"]:
             self = .codexStatus
+        case ["codex", "runtime", "help"], ["codex", "runtime", "-h"], ["codex", "runtime", "--help"]:
+            self = .codexRuntime
         case ["codex", "auth", "list", "help"], ["codex", "auth", "list", "-h"], ["codex", "auth", "list", "--help"]:
             self = .codexAuthList
         case ["codex", "auth", "status", "help"], ["codex", "auth", "status", "-h"], ["codex", "auth", "status", "--help"]:
@@ -285,6 +328,10 @@ private struct NolonCLIHelpPath: RawRepresentable, ExpressibleByStringLiteral, E
             self = .codexBinaryUse
         case ["codex", "status", "probe", "help"], ["codex", "status", "probe", "-h"], ["codex", "status", "probe", "--help"]:
             self = .codexStatusProbe
+        case ["codex", "runtime", "list", "help"], ["codex", "runtime", "list", "-h"], ["codex", "runtime", "list", "--help"]:
+            self = .codexRuntimeList
+        case ["codex", "runtime", "stop", "help"], ["codex", "runtime", "stop", "-h"], ["codex", "runtime", "stop", "--help"]:
+            self = .codexRuntimeStop
         default:
             return nil
         }

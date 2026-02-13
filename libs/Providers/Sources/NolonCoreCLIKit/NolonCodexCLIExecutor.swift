@@ -1,7 +1,18 @@
 import ArgumentParser
 import Foundation
+#if canImport(Darwin)
+import Darwin
+#elseif canImport(Glibc)
+import Glibc
+#endif
 
 enum NolonCodexCLIExecutor {
+    static let stdinIsTTY: @Sendable () -> Bool = { isatty(STDIN_FILENO) == 1 }
+    static let readInputLine: @Sendable () -> String? = { readLine(strippingNewline: true) }
+    static let writePrompt: @Sendable (String) -> Void = { prompt in
+        FileHandle.standardOutput.write(Data(prompt.utf8))
+    }
+
     static func execute(
         arguments: [String],
         context: NolonCLIExecutionContext
@@ -32,6 +43,10 @@ enum NolonCodexCLIExecutor {
             return try await executeBinaryDoctor(context: context)
         case let command as NolonCodexStatusProbeCommand:
             return try await executeStatusProbe(command: command, context: context)
+        case _ as NolonCodexRuntimeListCommand:
+            return try await executeRuntimeList(context: context)
+        case let command as NolonCodexRuntimeStopCommand:
+            return try await executeRuntimeStop(command: command, context: context)
         default:
             throw NolonCoreCLIError.invalidArguments("Unsupported parsed command type: \(type(of: parsed))")
         }
@@ -51,8 +66,31 @@ enum NolonCodexCLIExecutor {
 
     private static func executeAuthActivate(command: NolonCodexAuthActivateCommand, context: NolonCLIExecutionContext) async throws -> String {
         let providerID = try parseCodexProviderID(command.provider)
-        guard let accountID = UUID(uuidString: command.accountID) else {
-            throw NolonCoreCLIError.invalidArguments("Invalid --account-id: \(command.accountID)")
+        let accountID: UUID
+        if let rawAccountID = command.accountID {
+            guard let parsed = UUID(uuidString: rawAccountID) else {
+                throw NolonCoreCLIError.invalidArguments("Invalid --account-id: \(rawAccountID)")
+            }
+            accountID = parsed
+        } else {
+            guard command.tui else {
+                throw NolonCoreCLIError.invalidArguments("Missing --account-id. Use --tui for interactive selection.")
+            }
+            guard stdinIsTTY() else {
+                throw NolonCoreCLIError.invalidArguments("Interactive selection requires a TTY terminal.")
+            }
+            let list = try await context.codexService().authList(providerID: providerID)
+            guard !list.accounts.isEmpty else {
+                throw NolonCoreCLIError.domainFailed(
+                    code: "codex_auth_account_not_found",
+                    message: "No Codex accounts available for activation."
+                )
+            }
+            writePrompt(renderActivatePicker(accounts: list.accounts))
+            guard let input = readInputLine() else {
+                throw NolonCoreCLIError.invalidArguments("Activation cancelled")
+            }
+            accountID = try parseActivateSelection(input: input, accounts: list.accounts)
         }
         let payload = try await context.codexService().authActivate(providerID: providerID, accountID: accountID)
         return formatAuthActivate(payload)
@@ -120,6 +158,26 @@ enum NolonCodexCLIExecutor {
         return formatStatusProbe(payload)
     }
 
+    private static func executeRuntimeList(context: NolonCLIExecutionContext) async throws -> String {
+        let payload = try await context.codexService().runtimeList(providerID: nil)
+        return formatRuntimeList(payload)
+    }
+
+    private static func executeRuntimeStop(command: NolonCodexRuntimeStopCommand, context: NolonCLIExecutionContext) async throws -> String {
+        guard command.pid > 1 else {
+            throw NolonCoreCLIError.invalidArguments("Invalid --pid: \(command.pid)")
+        }
+        guard command.timeoutSeconds > 0 else {
+            throw NolonCoreCLIError.invalidArguments("Invalid --timeout-seconds: \(command.timeoutSeconds)")
+        }
+        let payload = try await context.codexService().runtimeStop(
+            pid: command.pid,
+            force: command.force,
+            timeoutSeconds: command.timeoutSeconds
+        )
+        return formatRuntimeStop(payload)
+    }
+
     private static func parseRootCommand(_ arguments: [String]) throws -> any ParsableCommand {
         do {
             return try NolonRootCommand.parseAsRoot(arguments)
@@ -138,6 +196,7 @@ enum NolonCodexCLIExecutor {
             "auth": ["list", "status", "activate", "login", "delete"],
             "binary": ["list", "current", "install", "use", "doctor"],
             "status": ["probe"],
+            "runtime": ["list", "stop"],
         ]
         if let actions = supportedByGroup[group], !actions.contains(action) {
             throw NolonCoreCLIError.domainFailed(
@@ -247,6 +306,7 @@ enum NolonCodexCLIExecutor {
             "provider: \(payload.providerID)",
             "account_id: \(payload.accountID.uuidString)",
             "account_name: \(payload.accountName)",
+            "login_url: \(payload.loginURL ?? "-")",
             "runtime_switched: \(payload.runtimeSwitched)",
             "runtime_error: \(payload.runtimeErrorDescription ?? "-")",
         ].joined(separator: "\n")
@@ -310,6 +370,60 @@ enum NolonCodexCLIExecutor {
             }
             .joined(separator: "\n")
     }
+
+    private static func formatRuntimeList(_ payload: NolonCodexRuntimeListPayload) -> String {
+        let title = "PID | PPID | 运行时长 | Provider | 命令"
+        guard !payload.processes.isEmpty else { return title }
+
+        let pidWidth = max("PID".count, payload.processes.map { String($0.pid).count }.max() ?? 0)
+        let ppidWidth = max("PPID".count, payload.processes.map { $0.ppid.map(String.init)?.count ?? 1 }.max() ?? 0)
+        let elapsedWidth = max("运行时长".count, payload.processes.map { $0.elapsed.count }.max() ?? 0)
+        let providerWidth = max("Provider".count, payload.processes.map { ($0.providerHint ?? "-").count }.max() ?? 0)
+
+        let header = "\(padRight("PID", to: pidWidth)) | \(padRight("PPID", to: ppidWidth)) | \(padRight("运行时长", to: elapsedWidth)) | \(padRight("Provider", to: providerWidth)) | 命令"
+        let body = payload.processes.map { process in
+            let ppidText = process.ppid.map(String.init) ?? "-"
+            let providerText = process.providerHint ?? "-"
+            return "\(padRight(String(process.pid), to: pidWidth)) | \(padRight(ppidText, to: ppidWidth)) | \(padRight(process.elapsed, to: elapsedWidth)) | \(padRight(providerText, to: providerWidth)) | \(process.command)"
+        }.joined(separator: "\n")
+        return "\(header)\n\(body)"
+    }
+
+    private static func formatRuntimeStop(_ payload: NolonCodexRuntimeStopPayload) -> String {
+        [
+            "pid: \(payload.pid)",
+            "signal: \(payload.requestedSignal)",
+            "escalated: \(payload.didEscalateToKill)",
+            "exited: \(payload.exited)",
+        ].joined(separator: "\n")
+    }
+
+    static func parseActivateSelection(input: String, accounts: [NolonCodexAuthAccountView]) throws -> UUID {
+        let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.lowercased() == "q" || trimmed.lowercased() == "quit" {
+            throw NolonCoreCLIError.invalidArguments("Activation cancelled")
+        }
+        if let parsedIndex = Int(trimmed), parsedIndex >= 1, parsedIndex <= accounts.count {
+            return accounts[parsedIndex - 1].id
+        }
+        if let uuid = UUID(uuidString: trimmed), accounts.contains(where: { $0.id == uuid }) {
+            return uuid
+        }
+        throw NolonCoreCLIError.invalidArguments("Invalid selection")
+    }
+
+    private static func renderActivatePicker(accounts: [NolonCodexAuthAccountView]) -> String {
+        let rows = accounts.enumerated().map { index, account -> String in
+            let marker = account.isActive ? "*" : " "
+            let email = account.email ?? "-"
+            return "\(index + 1). [\(marker)] \(account.name) <\(email)> \(account.id.uuidString)"
+        }
+        return """
+        请选择要激活的账号（输入编号 / 账号 UUID，q 取消）:
+        \(rows.joined(separator: "\n"))
+        > 
+        """
+    }
 }
 
 private struct NolonCodexCommandPath: RawRepresentable, ExpressibleByStringLiteral, Equatable, Sendable {
@@ -324,6 +438,8 @@ private struct NolonCodexCommandPath: RawRepresentable, ExpressibleByStringLiter
     static let binaryUse: Self = "codex.binary.use"
     static let binaryDoctor: Self = "codex.binary.doctor"
     static let statusProbe: Self = "codex.status.probe"
+    static let runtimeList: Self = "codex.runtime.list"
+    static let runtimeStop: Self = "codex.runtime.stop"
 
     let rawValue: String
 

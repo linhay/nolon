@@ -113,6 +113,41 @@ struct CodexLoginRunnerTests {
         #expect(raw.contains("\"access_token\":\"access-test\""))
     }
 
+    @Test("loginAndAwaitAuthResult captures login URL from CLI output")
+    func loginAndAwaitAuthResultCapturesLoginURL() async throws {
+        let tempRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codex-login-await-url-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: tempRoot, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempRoot) }
+
+        let fakeCLI = tempRoot.appendingPathComponent("codex")
+        let script = """
+        #!/bin/sh
+        echo "Open this URL to continue: https://auth.example.com/device?user_code=ABCD"
+        mkdir -p "$CODEX_HOME"
+        printf '{"tokens":{"id_token":"id-url","access_token":"access-url"}}' > "$CODEX_HOME/auth.json"
+        """
+        try script.data(using: .utf8)?.write(to: fakeCLI)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fakeCLI.path)
+
+        let codexHomeFolder = STFolder(tempRoot.appendingPathComponent("codex-home", isDirectory: true))
+        _ = codexHomeFolder.createIfNotExists()
+
+        let runner = CodexLoginRunner()
+        let result = try await runner.loginAndAwaitAuthResult(
+            binary: "codex",
+            environment: [
+                "CODEX_CLI_PATH": fakeCLI.path,
+            ],
+            codexHome: codexHomeFolder,
+            timeoutSeconds: 5,
+            pollIntervalSeconds: 0.05,
+            processExitGraceSeconds: 0.2
+        )
+        #expect(result.authJSONString.contains("\"id_token\":\"id-url\""))
+        #expect(result.loginURL == "https://auth.example.com/device?user_code=ABCD")
+    }
+
     @Test("loginAndAwaitAuthJSONString throws authNotCreated when login exits without auth.json")
     func loginAndAwaitAuthJSONStringThrowsWhenAuthMissing() async throws {
         let tempRoot = FileManager.default.temporaryDirectory

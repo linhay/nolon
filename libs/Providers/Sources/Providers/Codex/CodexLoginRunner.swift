@@ -3,6 +3,16 @@ import CodexCLIKit
 import SKProcessRunner
 import STFilePath
 
+public struct CodexLoginResult: Sendable, Equatable {
+    public let authJSONString: String
+    public let loginURL: String?
+
+    public init(authJSONString: String, loginURL: String?) {
+        self.authJSONString = authJSONString
+        self.loginURL = loginURL
+    }
+}
+
 public enum CodexLoginError: LocalizedError, Sendable, Equatable {
     case binaryNotFound(String)
     case launchFailed(String)
@@ -91,14 +101,14 @@ public struct CodexLoginRunner: Sendable {
         pollIntervalSeconds: TimeInterval = 0.25,
         processExitGraceSeconds: TimeInterval = 4
     ) async throws -> String {
-        try await loginAndAwaitAuthJSONString(
+        try await loginAndAwaitAuthResult(
             binary: binary,
             environment: environment,
             codexHome: STFolder(codexHome),
             timeoutSeconds: timeoutSeconds,
             pollIntervalSeconds: pollIntervalSeconds,
             processExitGraceSeconds: processExitGraceSeconds
-        )
+        ).authJSONString
     }
 
     public func loginAndAwaitAuthJSONString(
@@ -109,12 +119,71 @@ public struct CodexLoginRunner: Sendable {
         pollIntervalSeconds: TimeInterval = 0.25,
         processExitGraceSeconds: TimeInterval = 4
     ) async throws -> String {
-        let handle = try startLogin(
+        try await loginAndAwaitAuthResult(
             binary: binary,
             environment: environment,
-            codexHome: codexHome
+            codexHome: codexHome,
+            timeoutSeconds: timeoutSeconds,
+            pollIntervalSeconds: pollIntervalSeconds,
+            processExitGraceSeconds: processExitGraceSeconds
+        ).authJSONString
+    }
+
+    public func loginAndAwaitAuthResult(
+        binary: String = "codex",
+        environment: [String: String],
+        codexHome: URL,
+        timeoutSeconds: TimeInterval = 120,
+        pollIntervalSeconds: TimeInterval = 0.25,
+        processExitGraceSeconds: TimeInterval = 4
+    ) async throws -> CodexLoginResult {
+        try await loginAndAwaitAuthResult(
+            binary: binary,
+            environment: environment,
+            codexHome: STFolder(codexHome),
+            timeoutSeconds: timeoutSeconds,
+            pollIntervalSeconds: pollIntervalSeconds,
+            processExitGraceSeconds: processExitGraceSeconds
         )
+    }
+
+    public func loginAndAwaitAuthResult(
+        binary: String = "codex",
+        environment: [String: String],
+        codexHome: STFolder,
+        timeoutSeconds: TimeInterval = 120,
+        pollIntervalSeconds: TimeInterval = 0.25,
+        processExitGraceSeconds: TimeInterval = 4
+    ) async throws -> CodexLoginResult {
+        let env = Self.mergedEnvironment(environment: environment, codexHome: codexHome)
+        let resolver = CodexCommandExecutor(executable: binary, environment: env)
+        guard let resolved = resolver.resolveExecutable() else {
+            throw CodexLoginError.binaryNotFound(binary)
+        }
+
+        let process = Process()
+        process.executableURL = STFile(resolved).url
+        process.arguments = ["login"]
+        process.environment = env
+        process.standardInput = nil
+
+        let capture = LoginOutputCapture()
+        let stdoutPipe = Pipe()
+        let stderrPipe = Pipe()
+        process.standardOutput = stdoutPipe
+        process.standardError = stderrPipe
+        capture.attach(stdout: stdoutPipe.fileHandleForReading, stderr: stderrPipe.fileHandleForReading)
+
+        do {
+            try process.run()
+        } catch {
+            capture.detach(stdout: stdoutPipe.fileHandleForReading, stderr: stderrPipe.fileHandleForReading)
+            throw CodexLoginError.launchFailed(error.localizedDescription)
+        }
+
+        let handle = CodexLoginHandle(process: process)
         defer {
+            capture.detach(stdout: stdoutPipe.fileHandleForReading, stderr: stderrPipe.fileHandleForReading)
             if handle.isRunning {
                 handle.cancel()
             }
@@ -132,7 +201,7 @@ public struct CodexLoginRunner: Sendable {
                 guard let raw = String(data: data, encoding: .utf8) else {
                     throw CodexLoginError.authInvalidUTF8
                 }
-                return raw
+                return CodexLoginResult(authJSONString: raw, loginURL: capture.detectedURL)
             }
 
             if !handle.isRunning {
@@ -162,5 +231,55 @@ public struct CodexLoginRunner: Sendable {
         }
         env["CODEX_HOME"] = codexHome.url.path
         return env
+    }
+}
+
+private final class LoginOutputCapture: @unchecked Sendable {
+    private let lock = NSLock()
+    private var loginURLStorage: String?
+    private let regex = try? NSRegularExpression(pattern: #"https?://[^\s"'<>]+"#)
+
+    var detectedURL: String? {
+        lock.lock()
+        defer { lock.unlock() }
+        return loginURLStorage
+    }
+
+    func attach(stdout: FileHandle, stderr: FileHandle) {
+        stdout.readabilityHandler = { [weak self] handle in
+            self?.consume(data: handle.availableData, mirrorTo: .standardOutput)
+        }
+        stderr.readabilityHandler = { [weak self] handle in
+            self?.consume(data: handle.availableData, mirrorTo: .standardError)
+        }
+    }
+
+    func detach(stdout: FileHandle, stderr: FileHandle) {
+        stdout.readabilityHandler = nil
+        stderr.readabilityHandler = nil
+    }
+
+    private func consume(data: Data, mirrorTo output: FileHandle) {
+        guard !data.isEmpty else { return }
+        output.write(data)
+        guard let text = String(data: data, encoding: .utf8),
+              let url = firstURL(in: text) else {
+            return
+        }
+        lock.lock()
+        defer { lock.unlock() }
+        if loginURLStorage == nil {
+            loginURLStorage = url
+        }
+    }
+
+    private func firstURL(in text: String) -> String? {
+        guard let regex else { return nil }
+        let range = NSRange(text.startIndex..<text.endIndex, in: text)
+        guard let match = regex.firstMatch(in: text, options: [], range: range),
+              let matchRange = Range(match.range, in: text) else {
+            return nil
+        }
+        return String(text[matchRange]).trimmingCharacters(in: CharacterSet(charactersIn: ".,);]"))
     }
 }

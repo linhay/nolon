@@ -10,7 +10,12 @@ struct NolonRootCommand: ParsableCommand {
 struct NolonCodexRootCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "codex",
-        subcommands: [NolonCodexAuthGroupCommand.self, NolonCodexBinaryGroupCommand.self, NolonCodexStatusGroupCommand.self]
+        subcommands: [
+            NolonCodexAuthGroupCommand.self,
+            NolonCodexBinaryGroupCommand.self,
+            NolonCodexStatusGroupCommand.self,
+            NolonCodexRuntimeGroupCommand.self,
+        ]
     )
 }
 
@@ -47,6 +52,13 @@ struct NolonCodexStatusGroupCommand: ParsableCommand {
     )
 }
 
+struct NolonCodexRuntimeGroupCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "runtime",
+        subcommands: [NolonCodexRuntimeListCommand.self, NolonCodexRuntimeStopCommand.self]
+    )
+}
+
 struct NolonCodexAuthListCommand: ParsableCommand {
     static let configuration = CommandConfiguration(commandName: "list")
 
@@ -68,7 +80,10 @@ struct NolonCodexAuthActivateCommand: ParsableCommand {
     var provider: String = "codex"
 
     @Option(name: .long, help: "Account id UUID.")
-    var accountID: String
+    var accountID: String?
+
+    @Flag(name: .long, help: "Use TUI picker when account id is omitted.")
+    var tui: Bool = false
 }
 
 struct NolonCodexAuthLoginCommand: ParsableCommand {
@@ -125,4 +140,21 @@ struct NolonCodexStatusProbeCommand: ParsableCommand {
 
     @Option(name: .long, help: "Provider id for reporting context.")
     var provider: String?
+}
+
+struct NolonCodexRuntimeListCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(commandName: "list")
+}
+
+struct NolonCodexRuntimeStopCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(commandName: "stop")
+
+    @Option(name: .long, help: "Target runtime pid.")
+    var pid: Int32
+
+    @Flag(name: .long, help: "Send SIGKILL immediately.")
+    var force: Bool = false
+
+    @Option(name: .long, help: "Timeout seconds before escalating TERM to KILL.")
+    var timeoutSeconds: Int = 8
 }
