@@ -79,7 +79,7 @@ enum NolonCodexCLIHelpResolver {
         Actions:
           list      [--provider codex|codex-xcode]
           status    [--provider codex|codex-xcode]
-          activate  [--account-id <uuid>] [--tui] [--provider ...]
+          activate  [--account-id <uuid>] [--provider ...]
           login     [--preferred-account-id <uuid>] [--provider ...]
           delete    --account-id <uuid> [--provider ...]
         """
@@ -137,12 +137,12 @@ enum NolonCodexCLIHelpResolver {
 
     private static func codexAuthActivateHelpText() -> String {
         """
-        Usage: nolon codex auth activate [--account-id <uuid>] [--tui] [--provider <id>]
+        Usage: nolon codex auth activate [--account-id <uuid>] [--provider <id>]
 
         Options:
           --provider <id>     Provider id, default is codex.
-          --account-id <id>   Account id UUID.
-          --tui               Use TUI picker when account id is omitted.
+          --account-id <id>   Account id UUID. Omit to use default interactive picker.
+          --tui               Alias flag; interactive picker is already default when account id is omitted.
         """
     }
 

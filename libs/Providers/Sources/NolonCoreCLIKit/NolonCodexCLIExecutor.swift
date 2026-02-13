@@ -73,9 +73,7 @@ enum NolonCodexCLIExecutor {
             }
             accountID = parsed
         } else {
-            guard command.tui else {
-                throw NolonCoreCLIError.invalidArguments("Missing --account-id. Use --tui for interactive selection.")
-            }
+            _ = command.tui
             guard stdinIsTTY() else {
                 throw NolonCoreCLIError.invalidArguments("Interactive selection requires a TTY terminal.")
             }
@@ -408,6 +406,14 @@ enum NolonCodexCLIExecutor {
         }
         if let uuid = UUID(uuidString: trimmed), accounts.contains(where: { $0.id == uuid }) {
             return uuid
+        }
+        if let matchedByEmail = accounts.first(where: { account in
+            guard let email = account.email?.trimmingCharacters(in: .whitespacesAndNewlines), !email.isEmpty else {
+                return false
+            }
+            return email.caseInsensitiveCompare(trimmed) == .orderedSame
+        }) {
+            return matchedByEmail.id
         }
         throw NolonCoreCLIError.invalidArguments("Invalid selection")
     }

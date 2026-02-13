@@ -478,6 +478,38 @@ struct NolonCodexCLIEntrypointTests {
         #expect(selected == UUID(uuidString: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")!)
     }
 
+    @Test("auth activate supports tui selection by email")
+    func authActivateSupportsTUISelectionByEmail() throws {
+        let accounts: [NolonCodexAuthAccountView] = [
+            NolonCodexAuthAccountView(
+                id: UUID(uuidString: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")!,
+                name: "A",
+                createdAt: .distantPast,
+                relativeAuthPath: "a/auth.json",
+                isActive: true,
+                email: "a@example.com",
+                usageDisplay: nil,
+                refreshedAt: nil
+            ),
+            NolonCodexAuthAccountView(
+                id: UUID(uuidString: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")!,
+                name: "B",
+                createdAt: .distantPast,
+                relativeAuthPath: "b/auth.json",
+                isActive: false,
+                email: "b@example.com",
+                usageDisplay: nil,
+                refreshedAt: nil
+            ),
+        ]
+
+        let selected = try NolonCodexCLIExecutor.parseActivateSelection(
+            input: "B@Example.com",
+            accounts: accounts
+        )
+        #expect(selected == UUID(uuidString: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")!)
+    }
+
     @Test("auth activate tui selection rejects invalid index")
     func authActivateTUISelectionRejectsInvalidIndex() {
         let accounts: [NolonCodexAuthAccountView] = [
@@ -512,6 +544,21 @@ struct NolonCodexCLIEntrypointTests {
         #expect(result.exitCode == 2)
         #expect(result.stdout.isEmpty)
         #expect(result.stderr.contains("\"code\":\"invalid_arguments\""))
+    }
+
+    @Test("auth activate without account id defaults to interactive flow")
+    func authActivateDefaultsToInteractiveFlow() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: [
+                "codex", "auth", "activate",
+                "--provider", "codex",
+            ],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 2)
+        #expect(result.stderr.contains("Interactive selection requires a TTY terminal."))
     }
 
     @Test("invalid preferred account UUID returns structured error")
