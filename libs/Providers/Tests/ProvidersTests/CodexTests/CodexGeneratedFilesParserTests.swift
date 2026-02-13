@@ -461,6 +461,49 @@ struct CodexGeneratedFilesParserTests {
         }
     }
 
+    @Test("Parse rollout event_msg context_compacted and thread_rolled_back as typed compatibility events")
+    func parseRolloutContextCompactedAndThreadRolledBack() throws {
+        let compactedLine = """
+        {
+          "timestamp": "2026-02-11T12:00:20Z",
+          "type": "event_msg",
+          "payload": {
+            "type": "context_compacted"
+          }
+        }
+        """
+        let parsedCompacted = try CodexGeneratedFilesParser.parseRolloutLine(text: compactedLine)
+        if case let .eventMsg(event) = parsedCompacted.item {
+            if case .contextCompacted = event.kind {
+            } else {
+                Issue.record("Expected event_msg.context_compacted")
+            }
+        } else {
+            Issue.record("Expected event_msg")
+        }
+
+        let rolledBackLine = """
+        {
+          "timestamp": "2026-02-11T12:00:21Z",
+          "type": "event_msg",
+          "payload": {
+            "type": "thread_rolled_back",
+            "num_turns": 2
+          }
+        }
+        """
+        let parsedRolledBack = try CodexGeneratedFilesParser.parseRolloutLine(text: rolledBackLine)
+        if case let .eventMsg(event) = parsedRolledBack.item {
+            if case let .threadRolledBack(numTurns) = event.kind {
+                #expect(numTurns == 2)
+            } else {
+                Issue.record("Expected event_msg.thread_rolled_back")
+            }
+        } else {
+            Issue.record("Expected event_msg")
+        }
+    }
+
     @Test("Parse history.jsonl entries with session_id and conversation_id")
     func parseHistoryJSONL() throws {
         let history = """
