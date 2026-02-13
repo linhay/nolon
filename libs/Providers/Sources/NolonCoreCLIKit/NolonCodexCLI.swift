@@ -399,8 +399,8 @@ public enum NolonCLIEntrypoint {
         arguments: [String],
         codexService: any NolonCodexCLIServing = NolonLiveCodexCLIService()
     ) async -> NolonCLIExecutionResult {
-        if shouldReturnHelp(arguments: arguments) {
-            return NolonCLIExecutionResult(exitCode: 0, stdout: helpText(), stderr: "")
+        if let helpText = resolvedHelpText(arguments: arguments) {
+            return NolonCLIExecutionResult(exitCode: 0, stdout: helpText, stderr: "")
         }
 
         let context = NolonCLIExecutionContext(service: codexService)
@@ -415,14 +415,32 @@ public enum NolonCLIEntrypoint {
         }
     }
 
-    private static func shouldReturnHelp(arguments: [String]) -> Bool {
-        guard let first = arguments.first?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() else {
-            return true
+    private static func resolvedHelpText(arguments: [String]) -> String? {
+        let normalized = arguments.map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+
+        if normalized.isEmpty || normalized == ["help"] || normalized == ["-h"] || normalized == ["--help"] {
+            return rootHelpText()
         }
-        return first == "help" || first == "-h" || first == "--help"
+        if normalized == ["codex", "help"] || normalized == ["codex", "-h"] || normalized == ["codex", "--help"] {
+            return codexHelpText()
+        }
+        if normalized == ["codex", "auth", "help"] || normalized == ["codex", "auth", "-h"] || normalized == ["codex", "auth", "--help"] {
+            return codexAuthHelpText()
+        }
+        if normalized == ["codex", "binary", "help"] || normalized == ["codex", "binary", "-h"] || normalized == ["codex", "binary", "--help"] {
+            return codexBinaryHelpText()
+        }
+        if normalized == ["codex", "status", "help"] || normalized == ["codex", "status", "-h"] || normalized == ["codex", "status", "--help"] {
+            return codexStatusHelpText()
+        }
+        return nil
     }
 
-    private static func helpText() -> String {
+    private static func rootHelpText() -> String {
+        codexHelpText()
+    }
+
+    private static func codexHelpText() -> String {
         """
         Usage: nolon codex <group> <action> [options]
 
@@ -435,6 +453,41 @@ public enum NolonCLIEntrypoint {
           nolon codex auth list --provider codex
           nolon codex binary current
           nolon codex status probe --provider codex
+        """
+    }
+
+    private static func codexAuthHelpText() -> String {
+        """
+        Usage: nolon codex auth <action> [options]
+
+        Actions:
+          list      [--provider codex|codex-xcode]
+          status    [--provider codex|codex-xcode]
+          activate  --account-id <uuid> [--provider ...]
+          login     [--preferred-account-id <uuid>] [--provider ...]
+          delete    --account-id <uuid> [--provider ...]
+        """
+    }
+
+    private static func codexBinaryHelpText() -> String {
+        """
+        Usage: nolon codex binary <action> [options]
+
+        Actions:
+          list
+          current
+          install  --version <version-or-tag> [--set-default]
+          use      --version <version-or-id>
+          doctor
+        """
+    }
+
+    private static func codexStatusHelpText() -> String {
+        """
+        Usage: nolon codex status <action> [options]
+
+        Actions:
+          probe    [--provider codex|codex-xcode]
         """
     }
 

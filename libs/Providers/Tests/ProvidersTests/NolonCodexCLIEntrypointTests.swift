@@ -15,6 +15,34 @@ struct NolonCodexCLIEntrypointTests {
         #expect(result.stdout.contains("nolon codex auth list"))
     }
 
+    @Test("codex --help prints codex help")
+    func codexHelpPrintsHelp() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["codex", "--help"],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("Usage: nolon codex <group> <action>"))
+        #expect(result.stdout.contains("Groups:"))
+    }
+
+    @Test("codex auth --help prints auth help")
+    func codexAuthHelpPrintsHelp() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["codex", "auth", "--help"],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("Usage: nolon codex auth <action>"))
+        #expect(result.stdout.contains("Actions:"))
+    }
+
     @Test("routes auth list")
     func routesAuthList() async {
         let mock = MockCodexCLIService()
