@@ -139,3 +139,45 @@
 - 验证：
   - `swift test --package-path libs/Providers --filter 'NolonCodexCLIEntrypointTests|NolonCodexCLIServiceTests'`
   - 实测：`swift run --package-path libs/Providers nolon codex provider discover`
+
+## Phase 2.7（顶层 provider CLI 安装发现）
+- 目标：
+  - 新增顶层命令 `nolon provider list`，用于迁移 skill/workflow/mcp 前的 provider CLI 安装基线检查。
+- 命令面：
+  - 新增 top-level：`provider list`
+  - 兼容 `--json` envelope 输出（`command=provider.list`）
+- 数据来源：
+  - 使用 `CodexBarProviderPresets` 的 provider 元数据（`providerID/displayName/cliName`）作为全集。
+  - 使用 `CodexCommandExecutor.resolveExecutable()` 检测本机 CLI 是否可执行。
+- 文本输出列：
+  - `provider | name | cli | installed | executable_path`
+- 验证：
+  - `swift test --package-path libs/Providers --filter 'NolonCodexCLIEntrypointTests|NolonCodexCLIServiceTests'`
+  - `swift run --package-path libs/Providers nolon provider list`
+
+## Phase 2.8（provider list 卡顿修复：仅官方路径探测）
+- 问题：
+  - `nolon provider list` 在 provider 数量较多时出现“卡住/明显慢”，根因是每个 provider CLI 都走全 PATH + shell 解析。
+- 修复：
+  - CLI 探测改为仅检查固定官方路径：
+    - `/opt/homebrew/bin/<cli>`
+    - `/usr/local/bin/<cli>`
+    - `/usr/bin/<cli>`
+  - 不再遍历环境 PATH，不再触发 shell 解析。
+- 结果：
+  - `swift run --package-path libs/Providers nolon provider list` 实测约 `1.9s`（含 `swift run` 启动开销），列表稳定返回。
+
+## Phase 2.9（ProviderTemplate 配置内置化 + CLI Home 落盘）
+- 背景：用户要求二进制不再内置 JSON 资源文件，ProviderTemplate 数据应内置到 Swift，并在 CLI 启动后落盘到 `NOLON_HOME` 下供后续读取。
+- 变更：
+  1. 删除 `ProviderCatalog/Resources/ProviderTemplate.json`，移除 SPM `resources` 配置；
+  2. 新增 `ProviderTemplateEmbeddedJSON.swift`，以 Swift 常量承载内置模板配置（含 `cliName`）；
+  3. `ProviderTemplateLoader` 改为：
+     - 先把内置配置写入 `NOLON_HOME/cli/ProviderTemplate.json`（存在且内容不一致时覆盖）；
+     - 再从该文件读取并解析配置；
+  4. `provider list` 已基于模板配置 `cliName` 工作，无需再依赖 `CodexBarProviderPresets`。
+- 测试：
+  - 新增 `ProviderCatalogTemplateTests.loaderBootstrapsConfigFileToCLIHome`。
+  - 回归：`swift test --package-path libs/Providers --filter 'ProviderCatalogTemplateTests|NolonCodexCLIServiceTests'` 通过。
+- 实测：
+  - `swift run --package-path libs/Providers nolon provider list` 输出正常，且 `codex/gemini/opencode` 可见。
