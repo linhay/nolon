@@ -99,6 +99,48 @@ struct NolonCodexCLIEntrypointTests {
         #expect(result.stdout.contains("--provider"))
     }
 
+    @Test("codex auth activate --help prints action help")
+    func codexAuthActivateHelpPrintsHelp() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["codex", "auth", "activate", "--help"],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("Usage: nolon codex auth activate"))
+        #expect(result.stdout.contains("--account-id"))
+    }
+
+    @Test("codex auth login --help prints action help")
+    func codexAuthLoginHelpPrintsHelp() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["codex", "auth", "login", "--help"],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("Usage: nolon codex auth login"))
+        #expect(result.stdout.contains("--preferred-account-id"))
+    }
+
+    @Test("codex auth delete --help prints action help")
+    func codexAuthDeleteHelpPrintsHelp() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["codex", "auth", "delete", "--help"],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("Usage: nolon codex auth delete"))
+        #expect(result.stdout.contains("--account-id"))
+    }
+
     @Test("codex binary install --help prints action help")
     func codexBinaryInstallHelpPrintsHelp() async {
         let mock = MockCodexCLIService()

@@ -439,6 +439,15 @@ public enum NolonCLIEntrypoint {
         if normalized == ["codex", "auth", "status", "help"] || normalized == ["codex", "auth", "status", "-h"] || normalized == ["codex", "auth", "status", "--help"] {
             return codexAuthStatusHelpText()
         }
+        if normalized == ["codex", "auth", "activate", "help"] || normalized == ["codex", "auth", "activate", "-h"] || normalized == ["codex", "auth", "activate", "--help"] {
+            return codexAuthActivateHelpText()
+        }
+        if normalized == ["codex", "auth", "login", "help"] || normalized == ["codex", "auth", "login", "-h"] || normalized == ["codex", "auth", "login", "--help"] {
+            return codexAuthLoginHelpText()
+        }
+        if normalized == ["codex", "auth", "delete", "help"] || normalized == ["codex", "auth", "delete", "-h"] || normalized == ["codex", "auth", "delete", "--help"] {
+            return codexAuthDeleteHelpText()
+        }
         if normalized == ["codex", "binary", "install", "help"] || normalized == ["codex", "binary", "install", "-h"] || normalized == ["codex", "binary", "install", "--help"] {
             return codexBinaryInstallHelpText()
         }
@@ -518,6 +527,36 @@ public enum NolonCLIEntrypoint {
         """
     }
 
+    private static func codexAuthActivateHelpText() -> String {
+        """
+        Usage: nolon codex auth activate --account-id <uuid> [--provider <id>]
+
+        Options:
+          --provider <id>     Provider id, default is codex.
+          --account-id <id>   Account id UUID.
+        """
+    }
+
+    private static func codexAuthLoginHelpText() -> String {
+        """
+        Usage: nolon codex auth login [--provider <id>] [--preferred-account-id <uuid>]
+
+        Options:
+          --provider <id>               Provider id, default is codex.
+          --preferred-account-id <id>   Preferred account id UUID for snapshot update.
+        """
+    }
+
+    private static func codexAuthDeleteHelpText() -> String {
+        """
+        Usage: nolon codex auth delete --account-id <uuid> [--provider <id>]
+
+        Options:
+          --provider <id>     Provider id, default is codex.
+          --account-id <id>   Account id UUID.
+        """
+    }
+
     private static func codexBinaryInstallHelpText() -> String {
         """
         Usage: nolon codex binary install --version <version-or-tag> [--set-default]
@@ -589,7 +628,7 @@ public enum NolonCLIEntrypoint {
     }
 
     private static func executeAuthActivate(optionArgs: [String], context: NolonCLIExecutionContext) async throws -> String {
-        let args = try parseArguments(NolonCodexAuthActivateArguments.self, optionArgs)
+        let args = try parseCommand(NolonCodexAuthActivateCommand.self, optionArgs)
         let providerID = try parseCodexProviderID(args.provider)
         guard let accountID = UUID(uuidString: args.accountID) else {
             throw NolonCoreCLIError.invalidArguments("Invalid --account-id: \(args.accountID)")
@@ -599,7 +638,7 @@ public enum NolonCLIEntrypoint {
     }
 
     private static func executeAuthLogin(optionArgs: [String], context: NolonCLIExecutionContext) async throws -> String {
-        let args = try parseArguments(NolonCodexAuthLoginArguments.self, optionArgs)
+        let args = try parseCommand(NolonCodexAuthLoginCommand.self, optionArgs)
         let providerID = try parseCodexProviderID(args.provider)
         let preferred: UUID?
         if let preferredAccountID = args.preferredAccountID {
@@ -615,7 +654,7 @@ public enum NolonCLIEntrypoint {
     }
 
     private static func executeAuthDelete(optionArgs: [String], context: NolonCLIExecutionContext) async throws -> String {
-        let args = try parseArguments(NolonCodexAuthDeleteArguments.self, optionArgs)
+        let args = try parseCommand(NolonCodexAuthDeleteCommand.self, optionArgs)
         let providerID = try parseCodexProviderID(args.provider)
         guard let accountID = UUID(uuidString: args.accountID) else {
             throw NolonCoreCLIError.invalidArguments("Invalid --account-id: \(args.accountID)")
@@ -801,7 +840,9 @@ private struct NolonCodexAuthStatusCommand: ParsableCommand {
     var provider: String = "codex"
 }
 
-private struct NolonCodexAuthActivateArguments: ParsableArguments {
+private struct NolonCodexAuthActivateCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(commandName: "activate")
+
     @Option(name: .long, help: "Provider id, default is codex.")
     var provider: String = "codex"
 
@@ -809,7 +850,9 @@ private struct NolonCodexAuthActivateArguments: ParsableArguments {
     var accountID: String
 }
 
-private struct NolonCodexAuthLoginArguments: ParsableArguments {
+private struct NolonCodexAuthLoginCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(commandName: "login")
+
     @Option(name: .long, help: "Provider id, default is codex.")
     var provider: String = "codex"
 
@@ -817,7 +860,9 @@ private struct NolonCodexAuthLoginArguments: ParsableArguments {
     var preferredAccountID: String?
 }
 
-private struct NolonCodexAuthDeleteArguments: ParsableArguments {
+private struct NolonCodexAuthDeleteCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(commandName: "delete")
+
     @Option(name: .long, help: "Provider id, default is codex.")
     var provider: String = "codex"
 
