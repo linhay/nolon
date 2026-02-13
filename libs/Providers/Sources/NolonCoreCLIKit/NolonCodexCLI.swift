@@ -417,56 +417,46 @@ public enum NolonCLIEntrypoint {
 
     private static func resolvedHelpText(arguments: [String]) -> String? {
         let normalized = arguments.map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
-
-        if normalized.isEmpty || normalized == ["help"] || normalized == ["-h"] || normalized == ["--help"] {
+        if normalized.isEmpty {
             return rootHelpText()
         }
-        if normalized == ["codex", "help"] || normalized == ["codex", "-h"] || normalized == ["codex", "--help"] {
+        guard let key = NolonCLIHelpPath(arguments: normalized) else { return nil }
+        switch key {
+        case .root:
+            return rootHelpText()
+        case .codex:
             return codexHelpText()
-        }
-        if normalized == ["codex", "auth", "help"] || normalized == ["codex", "auth", "-h"] || normalized == ["codex", "auth", "--help"] {
+        case .codexAuth:
             return codexAuthHelpText()
-        }
-        if normalized == ["codex", "binary", "help"] || normalized == ["codex", "binary", "-h"] || normalized == ["codex", "binary", "--help"] {
+        case .codexBinary:
             return codexBinaryHelpText()
-        }
-        if normalized == ["codex", "status", "help"] || normalized == ["codex", "status", "-h"] || normalized == ["codex", "status", "--help"] {
+        case .codexStatus:
             return codexStatusHelpText()
-        }
-        if normalized == ["codex", "auth", "list", "help"] || normalized == ["codex", "auth", "list", "-h"] || normalized == ["codex", "auth", "list", "--help"] {
+        case .codexAuthList:
             return codexAuthListHelpText()
-        }
-        if normalized == ["codex", "auth", "status", "help"] || normalized == ["codex", "auth", "status", "-h"] || normalized == ["codex", "auth", "status", "--help"] {
+        case .codexAuthStatus:
             return codexAuthStatusHelpText()
-        }
-        if normalized == ["codex", "auth", "activate", "help"] || normalized == ["codex", "auth", "activate", "-h"] || normalized == ["codex", "auth", "activate", "--help"] {
+        case .codexAuthActivate:
             return codexAuthActivateHelpText()
-        }
-        if normalized == ["codex", "auth", "login", "help"] || normalized == ["codex", "auth", "login", "-h"] || normalized == ["codex", "auth", "login", "--help"] {
+        case .codexAuthLogin:
             return codexAuthLoginHelpText()
-        }
-        if normalized == ["codex", "auth", "delete", "help"] || normalized == ["codex", "auth", "delete", "-h"] || normalized == ["codex", "auth", "delete", "--help"] {
+        case .codexAuthDelete:
             return codexAuthDeleteHelpText()
-        }
-        if normalized == ["codex", "binary", "install", "help"] || normalized == ["codex", "binary", "install", "-h"] || normalized == ["codex", "binary", "install", "--help"] {
+        case .codexBinaryInstall:
             return codexBinaryInstallHelpText()
-        }
-        if normalized == ["codex", "binary", "list", "help"] || normalized == ["codex", "binary", "list", "-h"] || normalized == ["codex", "binary", "list", "--help"] {
+        case .codexBinaryList:
             return codexBinaryListHelpText()
-        }
-        if normalized == ["codex", "binary", "current", "help"] || normalized == ["codex", "binary", "current", "-h"] || normalized == ["codex", "binary", "current", "--help"] {
+        case .codexBinaryCurrent:
             return codexBinaryCurrentHelpText()
-        }
-        if normalized == ["codex", "binary", "doctor", "help"] || normalized == ["codex", "binary", "doctor", "-h"] || normalized == ["codex", "binary", "doctor", "--help"] {
+        case .codexBinaryDoctor:
             return codexBinaryDoctorHelpText()
-        }
-        if normalized == ["codex", "binary", "use", "help"] || normalized == ["codex", "binary", "use", "-h"] || normalized == ["codex", "binary", "use", "--help"] {
+        case .codexBinaryUse:
             return codexBinaryUseHelpText()
-        }
-        if normalized == ["codex", "status", "probe", "help"] || normalized == ["codex", "status", "probe", "-h"] || normalized == ["codex", "status", "probe", "--help"] {
+        case .codexStatusProbe:
             return codexStatusProbeHelpText()
+        default:
+            return nil
         }
-        return nil
     }
 
     private static func rootHelpText() -> String {
@@ -815,6 +805,82 @@ private struct NolonCodexCommandPath: RawRepresentable, ExpressibleByStringLiter
         self.rawValue = value
     }
 
+}
+
+private struct NolonCLIHelpPath: RawRepresentable, ExpressibleByStringLiteral, Equatable, Sendable {
+    static let root: Self = "help.root"
+    static let codex: Self = "help.codex"
+    static let codexAuth: Self = "help.codex.auth"
+    static let codexBinary: Self = "help.codex.binary"
+    static let codexStatus: Self = "help.codex.status"
+    static let codexAuthList: Self = "help.codex.auth.list"
+    static let codexAuthStatus: Self = "help.codex.auth.status"
+    static let codexAuthActivate: Self = "help.codex.auth.activate"
+    static let codexAuthLogin: Self = "help.codex.auth.login"
+    static let codexAuthDelete: Self = "help.codex.auth.delete"
+    static let codexBinaryInstall: Self = "help.codex.binary.install"
+    static let codexBinaryList: Self = "help.codex.binary.list"
+    static let codexBinaryCurrent: Self = "help.codex.binary.current"
+    static let codexBinaryDoctor: Self = "help.codex.binary.doctor"
+    static let codexBinaryUse: Self = "help.codex.binary.use"
+    static let codexStatusProbe: Self = "help.codex.status.probe"
+
+    let rawValue: String
+
+    init(rawValue: String) {
+        self.rawValue = rawValue
+    }
+
+    init(_ value: String) {
+        self.rawValue = value
+    }
+
+    init(stringLiteral value: String) {
+        self.rawValue = value
+    }
+
+    init?(arguments: [String]) {
+        let flag = arguments.last
+        guard flag == "help" || flag == "-h" || flag == "--help" else {
+            return nil
+        }
+        switch arguments {
+        case ["help"], ["-h"], ["--help"]:
+            self = .root
+        case ["codex", "help"], ["codex", "-h"], ["codex", "--help"]:
+            self = .codex
+        case ["codex", "auth", "help"], ["codex", "auth", "-h"], ["codex", "auth", "--help"]:
+            self = .codexAuth
+        case ["codex", "binary", "help"], ["codex", "binary", "-h"], ["codex", "binary", "--help"]:
+            self = .codexBinary
+        case ["codex", "status", "help"], ["codex", "status", "-h"], ["codex", "status", "--help"]:
+            self = .codexStatus
+        case ["codex", "auth", "list", "help"], ["codex", "auth", "list", "-h"], ["codex", "auth", "list", "--help"]:
+            self = .codexAuthList
+        case ["codex", "auth", "status", "help"], ["codex", "auth", "status", "-h"], ["codex", "auth", "status", "--help"]:
+            self = .codexAuthStatus
+        case ["codex", "auth", "activate", "help"], ["codex", "auth", "activate", "-h"], ["codex", "auth", "activate", "--help"]:
+            self = .codexAuthActivate
+        case ["codex", "auth", "login", "help"], ["codex", "auth", "login", "-h"], ["codex", "auth", "login", "--help"]:
+            self = .codexAuthLogin
+        case ["codex", "auth", "delete", "help"], ["codex", "auth", "delete", "-h"], ["codex", "auth", "delete", "--help"]:
+            self = .codexAuthDelete
+        case ["codex", "binary", "install", "help"], ["codex", "binary", "install", "-h"], ["codex", "binary", "install", "--help"]:
+            self = .codexBinaryInstall
+        case ["codex", "binary", "list", "help"], ["codex", "binary", "list", "-h"], ["codex", "binary", "list", "--help"]:
+            self = .codexBinaryList
+        case ["codex", "binary", "current", "help"], ["codex", "binary", "current", "-h"], ["codex", "binary", "current", "--help"]:
+            self = .codexBinaryCurrent
+        case ["codex", "binary", "doctor", "help"], ["codex", "binary", "doctor", "-h"], ["codex", "binary", "doctor", "--help"]:
+            self = .codexBinaryDoctor
+        case ["codex", "binary", "use", "help"], ["codex", "binary", "use", "-h"], ["codex", "binary", "use", "--help"]:
+            self = .codexBinaryUse
+        case ["codex", "status", "probe", "help"], ["codex", "status", "probe", "-h"], ["codex", "status", "probe", "--help"]:
+            self = .codexStatusProbe
+        default:
+            return nil
+        }
+    }
 }
 
 private final class NolonCLIExecutionContext: @unchecked Sendable {
