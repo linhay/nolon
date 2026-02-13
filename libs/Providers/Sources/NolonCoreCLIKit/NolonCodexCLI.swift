@@ -451,6 +451,15 @@ public enum NolonCLIEntrypoint {
         if normalized == ["codex", "binary", "install", "help"] || normalized == ["codex", "binary", "install", "-h"] || normalized == ["codex", "binary", "install", "--help"] {
             return codexBinaryInstallHelpText()
         }
+        if normalized == ["codex", "binary", "list", "help"] || normalized == ["codex", "binary", "list", "-h"] || normalized == ["codex", "binary", "list", "--help"] {
+            return codexBinaryListHelpText()
+        }
+        if normalized == ["codex", "binary", "current", "help"] || normalized == ["codex", "binary", "current", "-h"] || normalized == ["codex", "binary", "current", "--help"] {
+            return codexBinaryCurrentHelpText()
+        }
+        if normalized == ["codex", "binary", "doctor", "help"] || normalized == ["codex", "binary", "doctor", "-h"] || normalized == ["codex", "binary", "doctor", "--help"] {
+            return codexBinaryDoctorHelpText()
+        }
         if normalized == ["codex", "binary", "use", "help"] || normalized == ["codex", "binary", "use", "-h"] || normalized == ["codex", "binary", "use", "--help"] {
             return codexBinaryUseHelpText()
         }
@@ -570,6 +579,24 @@ public enum NolonCLIEntrypoint {
         Options:
           --version <value>   Version tag to install, e.g. 0.26.0 or rust-v0.26.0.
           --set-default       Activate this version after install.
+        """
+    }
+
+    private static func codexBinaryListHelpText() -> String {
+        """
+        Usage: nolon codex binary list
+        """
+    }
+
+    private static func codexBinaryCurrentHelpText() -> String {
+        """
+        Usage: nolon codex binary current
+        """
+    }
+
+    private static func codexBinaryDoctorHelpText() -> String {
+        """
+        Usage: nolon codex binary doctor
         """
     }
 

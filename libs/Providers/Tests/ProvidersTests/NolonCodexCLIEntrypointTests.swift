@@ -169,6 +169,45 @@ struct NolonCodexCLIEntrypointTests {
         #expect(result.stdout.contains("--version"))
     }
 
+    @Test("codex binary list --help prints action help")
+    func codexBinaryListHelpPrintsHelp() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["codex", "binary", "list", "--help"],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("Usage: nolon codex binary list"))
+    }
+
+    @Test("codex binary current --help prints action help")
+    func codexBinaryCurrentHelpPrintsHelp() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["codex", "binary", "current", "--help"],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("Usage: nolon codex binary current"))
+    }
+
+    @Test("codex binary doctor --help prints action help")
+    func codexBinaryDoctorHelpPrintsHelp() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["codex", "binary", "doctor", "--help"],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("Usage: nolon codex binary doctor"))
+    }
+
     @Test("codex status probe --help prints action help")
     func codexStatusProbeHelpPrintsHelp() async {
         let mock = MockCodexCLIService()
