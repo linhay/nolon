@@ -4,6 +4,17 @@ import Testing
 
 @Suite("Nolon Codex CLI Entrypoint")
 struct NolonCodexCLIEntrypointTests {
+    @Test("no arguments prints help instead of JSON error")
+    func noArgumentsPrintsHelp() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(arguments: [], codexService: mock)
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("Usage: nolon codex <group> <action>"))
+        #expect(result.stdout.contains("nolon codex auth list"))
+    }
+
     @Test("routes auth list")
     func routesAuthList() async {
         let mock = MockCodexCLIService()

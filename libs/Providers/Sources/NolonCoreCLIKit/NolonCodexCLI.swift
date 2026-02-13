@@ -399,6 +399,10 @@ public enum NolonCLIEntrypoint {
         arguments: [String],
         codexService: any NolonCodexCLIServing = NolonLiveCodexCLIService()
     ) async -> NolonCLIExecutionResult {
+        if shouldReturnHelp(arguments: arguments) {
+            return NolonCLIExecutionResult(exitCode: 0, stdout: helpText(), stderr: "")
+        }
+
         let context = NolonCLIExecutionContext(service: codexService)
         do {
             let output = try await executeCommand(arguments: arguments, context: context)
@@ -409,6 +413,29 @@ public enum NolonCLIEntrypoint {
             let wrapped = NolonCoreCLIError.invalidArguments(error.localizedDescription)
             return NolonCLIExecutionResult(exitCode: 2, stdout: "", stderr: context.errorJSON(for: wrapped))
         }
+    }
+
+    private static func shouldReturnHelp(arguments: [String]) -> Bool {
+        guard let first = arguments.first?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() else {
+            return true
+        }
+        return first == "help" || first == "-h" || first == "--help"
+    }
+
+    private static func helpText() -> String {
+        """
+        Usage: nolon codex <group> <action> [options]
+
+        Groups:
+          auth      list | status | activate | login | delete
+          binary    list | current | install | use | doctor
+          status    probe
+
+        Examples:
+          nolon codex auth list --provider codex
+          nolon codex binary current
+          nolon codex status probe --provider codex
+        """
     }
 
     private static func executeCommand(
