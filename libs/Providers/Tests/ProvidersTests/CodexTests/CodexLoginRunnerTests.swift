@@ -79,6 +79,76 @@ struct CodexLoginRunnerTests {
         #expect(out.contains("CODEX_HOME:\(codexHomeFolder.url.path)"))
     }
 
+    @Test("loginAndAwaitAuthJSONString returns auth content when login writes auth.json")
+    func loginAndAwaitAuthJSONStringReturnsAuth() async throws {
+        let tempRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codex-login-await-auth-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: tempRoot, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempRoot) }
+
+        let fakeCLI = tempRoot.appendingPathComponent("codex")
+        let script = """
+        #!/bin/sh
+        mkdir -p "$CODEX_HOME"
+        printf '{"tokens":{"id_token":"id-test","access_token":"access-test"}}' > "$CODEX_HOME/auth.json"
+        """
+        try script.data(using: .utf8)?.write(to: fakeCLI)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fakeCLI.path)
+
+        let codexHomeFolder = STFolder(tempRoot.appendingPathComponent("codex-home", isDirectory: true))
+        _ = codexHomeFolder.createIfNotExists()
+
+        let runner = CodexLoginRunner()
+        let raw = try await runner.loginAndAwaitAuthJSONString(
+            binary: "codex",
+            environment: [
+                "CODEX_CLI_PATH": fakeCLI.path,
+            ],
+            codexHome: codexHomeFolder,
+            timeoutSeconds: 5,
+            pollIntervalSeconds: 0.05,
+            processExitGraceSeconds: 0.2
+        )
+        #expect(raw.contains("\"id_token\":\"id-test\""))
+        #expect(raw.contains("\"access_token\":\"access-test\""))
+    }
+
+    @Test("loginAndAwaitAuthJSONString throws authNotCreated when login exits without auth.json")
+    func loginAndAwaitAuthJSONStringThrowsWhenAuthMissing() async throws {
+        let tempRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codex-login-await-missing-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: tempRoot, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempRoot) }
+
+        let fakeCLI = tempRoot.appendingPathComponent("codex")
+        let script = """
+        #!/bin/sh
+        exit 0
+        """
+        try script.data(using: .utf8)?.write(to: fakeCLI)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fakeCLI.path)
+
+        let codexHomeFolder = STFolder(tempRoot.appendingPathComponent("codex-home", isDirectory: true))
+        _ = codexHomeFolder.createIfNotExists()
+
+        let runner = CodexLoginRunner()
+        do {
+            _ = try await runner.loginAndAwaitAuthJSONString(
+                binary: "codex",
+                environment: [
+                    "CODEX_CLI_PATH": fakeCLI.path,
+                ],
+                codexHome: codexHomeFolder,
+                timeoutSeconds: 2,
+                pollIntervalSeconds: 0.05,
+                processExitGraceSeconds: 0.1
+            )
+            Issue.record("Expected authNotCreated")
+        } catch let error as CodexLoginError {
+            #expect(error == .authNotCreated)
+        }
+    }
+
     private func awaitMarkerOutput(at marker: URL, handle: CodexLoginHandle, timeout: TimeInterval) throws -> String {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {

@@ -197,21 +197,11 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
             )
         }
 
-        let handle = try loginRunner.startLogin(
+        let authJSONString = try await loginRunner.loginAndAwaitAuthJSONString(
             binary: "codex",
             environment: environment,
-            codexHome: codexHome
+            codexHome: codexHome.url
         )
-        while handle.isRunning {
-            try await Task.sleep(nanoseconds: 200_000_000)
-        }
-
-        guard let authJSONString = try await authManager.readAuthJSONString(from: provider), !authJSONString.isEmpty else {
-            throw NolonCoreCLIError.domainFailed(
-                code: "codex_login_auth_missing",
-                message: "No auth.json generated after codex login."
-            )
-        }
 
         let account = try await authManager.recordCLILoginSnapshot(
             authJSONString: authJSONString,
