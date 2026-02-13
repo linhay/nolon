@@ -39,15 +39,24 @@
 - 当前状态：`NolonCoreCLIKit` 的 `auth login` 等待 `auth.json` 逻辑已下沉到 `CodexLoginRunner.loginAndAwaitAuthJSONString(...)`，服务层重复轮询已移除。
 
 ### P1
-1. CLI 打包/安装 E2E
-- 覆盖 `scripts/install-nolon-cli.sh` 的实际可执行验证：
+1. CLI 打包/安装 E2E（已补齐）
+- `scripts/tests/install-nolon-cli-smoke.sh` 已覆盖：
   - 安装后 `nolon --help`
   - `nolon codex --help`
-  - `NOLON_HOME` 隔离多实例
+  - `nolon codex status probe --help`
+  - `NOLON_HOME` 隔离安装
+  - `--force` 覆盖与 `--print-path`
+- 已修复 help 断言漂移，避免因 usage 文案演进导致误报红灯。
 
-2. 输出契约稳定性
-- 为 CLI JSON 输出建立 schema snapshot（或 golden file）测试。
-- 防止字段变更影响 UI/外部调用方。
+2. 输出契约稳定性（已补齐第一批）
+- 新增 JSON 契约快照测试：
+  - `NolonCodexCLIEntrypointTests`
+    - `jsonContractSnapshotBinaryListSuccess`
+    - `jsonContractSnapshotUnknownGroupError`
+  - `NolonCoreCLIKitTests`
+    - `jsonContractSnapshotRemoteListSuccess`
+    - `jsonContractSnapshotMissingRequiredOption`
+- 防止 envelope/字段命名漂移影响 App/脚本调用方。
 
 ### P2
 1. STFilePath 渐进替换

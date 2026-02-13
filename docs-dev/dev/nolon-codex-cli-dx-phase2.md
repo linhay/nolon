@@ -181,3 +181,236 @@
   - 回归：`swift test --package-path libs/Providers --filter 'ProviderCatalogTemplateTests|NolonCodexCLIServiceTests'` 通过。
 - 实测：
   - `swift run --package-path libs/Providers nolon provider list` 输出正常，且 `codex/gemini/opencode` 可见。
+
+## Phase 2.10（nolon 主入口接入 skills/resources/remote 路由）
+- 背景：
+  - `libs/Providers` 已具备 `NolonCoreCLIRunner` 与 `NolonCoreCLICommandParser`，支持 `skills/resources/remote`；
+  - 但 `nolon` 主入口此前只接 Codex 命令树，导致远程仓库命令不可用。
+- 变更：
+  1. `NolonCLIEntrypoint.execute` 增加根命令分流：
+     - `skills/resources/remote` -> `NolonCoreCLIRunner`;
+     - 其他命令维持原 Codex 路由。
+  2. 新增入口测试覆盖：
+     - `remote` 根命令走 core parser；
+     - `skills repo plan` 走 core runner。
+- 验证：
+  - `swift test --package-path libs/Providers --filter NolonCodexCLIEntrypointTests`
+  - `swift test --package-path libs/Providers --filter NolonCoreCLIKitTests`
+
+## Phase 2.11（skills/resources/remote 帮助可发现性补齐）
+- 背景：
+  - 路由接入后，`skills/resources/remote` 可执行，但 `--help` 可发现性不足。
+- 变更：
+  1. 新增 `NolonCoreCLIHelpResolver`，支持：
+     - `nolon skills --help`
+     - `nolon skills repo --help`
+     - `nolon resources --help`
+     - `nolon remote --help`
+  2. `NolonCLIEntrypoint` 调整为先解析 core help，再路由到 core runner；
+  3. 根 help 增补 top-level 命令说明：`skills/resources/remote`。
+- 验证：
+  - `swift test --package-path libs/Providers --filter NolonCodexCLIEntrypointTests` 通过（73 tests）。
+  - 手动验证：
+    - `swift run --package-path libs/Providers nolon skills --help`
+    - `swift run --package-path libs/Providers nolon remote --help`
+
+## Phase 2.12（remote install 一键下载+安装）
+- 背景：
+  - 现有流程需先 `remote download` 再 `skills/resources install`，命令链较长。
+- 变更：
+  1. 新增 `remote install` 命令解析：
+     - skill：`--provider-path`（可选 `--skill-id`）
+     - workflow/mcp：`--target-path`（可选 `--resource-name`）
+  2. `NolonCoreCLIRunner` 增加 `remote.install` 执行：
+     - 先调用 `downloadRemoteResource`
+     - 再调用 `installSkill` / `installResource`
+  3. 新增 `NolonRemoteInstallResult` 输出模型。
+  4. skill 默认 `skill_id` 修正为 `slug`（未显式提供 `--skill-id` 时），避免临时 zip 文件名污染安装 ID。
+- 验证：
+  - `swift test --package-path libs/Providers --filter NolonCoreCLIKitTests`
+  - `swift test --package-path libs/Providers --filter NolonCodexCLIEntrypointTests`
+  - 手动：
+    - `swift run --package-path libs/Providers nolon remote install --kind skill --slug react-best-practices --provider-path /tmp/provider-test --install-method copy`
+
+## Phase 2.13（remote install 支持 provider-id 自动路径解析）
+- 背景：
+  - `remote install` 之前强依赖显式路径参数（`--provider-path` / `--target-path`），脚本化使用门槛较高。
+- 变更：
+  1. `NolonCoreCLICommand`：
+     - `remoteInstallSkill` 增加 `providerID`，`providerPath` 改可选；
+     - `remoteInstallResource` 增加 `providerID`，`targetPath` 改可选。
+  2. `NolonCoreCLICommandParser`：
+     - `skill` 要求 `--provider-path` 或 `--provider-id` 二选一；
+     - `workflow/mcp` 要求 `--target-path` 或 `--provider-id` 二选一。
+  3. `NolonCoreCLIRunner`：
+     - 新增 provider 模板路径解析逻辑：
+       - skill -> `defaultSkillsPath`
+       - workflow -> `defaultCommandPath ?? defaultWorkflowPath`
+       - mcp -> `dirname(defaultMcpConfigPath)`
+     - 兼容 `codex-xcode/codexxcode` 到 `.codexXcode`。
+  4. help 文案更新：
+     - `nolon remote --help` 明确显示 `--provider-id` 可替代路径参数。
+- 测试：
+  - 更新 `NolonCoreCLIKitTests`：
+    - 修复 `remoteInstall` 解析模式匹配签名；
+    - 新增 `--provider-id` 解析成功用例（skill/workflow）；
+    - 新增缺失二选一参数的报错用例；
+    - 新增 runner 用例验证 workflow + `--provider-id` 安装路径解析。
+- 验证：
+  - `swift test --package-path libs/Providers --filter NolonCoreCLIKitTests` 通过（37 tests）。
+  - `swift test --package-path libs/Providers --filter NolonCodexCLIEntrypointTests` 通过（73 tests）。
+
+## Phase 2.14（remote install provider-id 回归补强）
+- 背景：
+  - `provider-id` 主链路已可用，但 `mcp` 分支和非法 provider-id 错误分支缺少回归覆盖。
+- 变更：
+  - `NolonCoreCLIKitTests` 新增：
+    - `runnerRendersRemoteInstallMCPResultWithProviderID`
+    - `runnerRejectsUnsupportedProviderIDForRemoteInstallSkill`
+- 覆盖点：
+  - `mcp + provider-id` 时目标路径按模板 `defaultMcpConfigPath` 的父目录解析；
+  - 非法 `provider-id` 返回 `invalid_arguments`，错误消息包含 `Unsupported --provider-id`。
+- 验证：
+  - `swift test --package-path libs/Providers --filter NolonCoreCLIKitTests` 通过（39 tests）。
+  - `swift test --package-path libs/Providers --filter NolonCodexCLIEntrypointTests` 通过（73 tests）。
+
+## Phase 2.15（新增 remote sync 远程仓库拉取入口）
+- 背景：
+  - 远程仓库拉取能力原本仅通过 `skills repo sync` 暴露；`remote` 命令组缺少直接仓库同步入口。
+- 变更：
+  1. `NolonCoreCLICommand` 新增：
+     - `remoteSync(source, repositoriesRoot, accessToken, pullStrategy, credentialStrategy, maxDepth)`
+  2. `NolonCoreCLICommandParser` 新增 `remote sync` 解析：
+     - 必填：`--source`、`--repositories-root`
+     - 可选：`--access-token`、`--pull-strategy`、`--credential-strategy`、`--max-depth`
+  3. `NolonCoreCLIRunner` 新增执行链路：
+     - `planGitImport -> syncGitRepository -> discoverRepositoryResources(maxDepth)`
+     - 输出 `command=remote.sync`，数据为 `plan/result/resources`。
+  4. `NolonCoreCLIHelp` 更新：
+     - `nolon remote --help` 增加 `sync` 用法说明。
+- 测试：
+  - `NolonCoreCLIKitTests` 新增：
+    - `parseRemoteSync`
+    - `runnerRendersRemoteSyncResult`
+- 验证：
+  - `swift test --package-path libs/Providers --filter NolonCoreCLIKitTests` 通过（41 tests）。
+  - `swift test --package-path libs/Providers --filter NolonCodexCLIEntrypointTests` 通过（73 tests）。
+
+## Phase 2.16（新增 remote sync-install：同步后直接安装）
+- 背景：
+  - `remote sync` 已能拉取仓库，但还需用户手动拼接 `skills/resources install` 步骤。
+- 变更：
+  1. `NolonCoreCLICommand` 新增：
+     - `remoteSyncInstallSkill(...)`
+     - `remoteSyncInstallResource(...)`
+     - 统一命令 ID：`remote.sync-install`
+  2. `NolonCoreCLICommandParser` 新增 `remote sync-install`：
+     - 必填：`--kind`、`--source`、`--repositories-root`、`--path`
+     - `skill` 需 `--provider-path | --provider-id`
+     - `workflow/mcp` 需 `--target-path | --provider-id`
+  3. `NolonCoreCLIRunner` 新增执行链路：
+     - `planGitImport -> syncGitRepository -> discoverRepositoryResources -> install`
+     - `--path` 支持仓库相对路径和绝对路径；
+     - 新增输出模型 `NolonRemoteSyncInstallResult`，并回传 `plan/result/resources/install`。
+  4. `NolonCoreCLIHelp` 增加 `sync-install` 用法说明。
+- 测试：
+  - 新增 `parseRemoteSyncInstallSkill`
+  - 新增 `runnerRendersRemoteSyncInstallSkillResult`
+  - 新增 `runnerRendersRemoteSyncInstallWorkflowResult`
+- 验证：
+  - `swift test --package-path libs/Providers --filter NolonCoreCLIKitTests` 通过（44 tests）。
+  - `swift test --package-path libs/Providers --filter NolonCodexCLIEntrypointTests` 通过（73 tests）。
+
+## Phase 2.17（sync-install 支持 slug 自动选择）
+- 背景：
+  - `sync-install` 只支持 `--path`，脚本/人工调用仍需先定位仓库文件路径。
+- 变更：
+  1. `remote sync-install` 新增 `--slug` 选择器；
+  2. 选择器约束：必须且只能提供一个 `--path` 或 `--slug`；
+  3. `NolonCoreCLIRunner` 新增自动解析规则：
+     - skill：按 `skillsDirectories.skillNames` 匹配，回落 `skills/<slug>`；
+     - workflow/mcp：按路径/文件名/去扩展名顺序匹配 `resources.workflows|mcps`；
+  4. help 文案更新为 `(--path ... | --slug ...)`。
+- 测试：
+  - 新增 `parseRemoteSyncInstallWorkflowWithSlugSelector`
+  - 新增 `parseRemoteSyncInstallRejectsMissingSelector`
+  - 新增 `parseRemoteSyncInstallRejectsDuplicateSelector`
+  - 新增 `runnerRendersRemoteSyncInstallWorkflowResultWithSlugSelector`
+  - 更新 `parseRemoteSyncInstallSkill` 断言签名（含 `slug` 字段）
+- 验证：
+  - `swift test --package-path libs/Providers --filter NolonCoreCLIKitTests` 通过（48 tests）。
+  - `swift test --package-path libs/Providers --filter NolonCodexCLIEntrypointTests` 通过（73 tests）。
+
+## Phase 2.18（sync-install 增加 strict-selector）
+- 背景：
+  - `--slug` 自动选择在文件名重复时可能命中多个候选，需要可控的严格模式避免误装。
+- 变更：
+  1. `remote sync-install` 新增参数：`--strict-selector true|false`（默认 false）；
+  2. parser 增加布尔值解析（支持 true/false/1/0/yes/no）；
+  3. runner 在 workflow/mcp slug 匹配中加入歧义检测：
+     - strict=false：保留“首个命中”兼容行为；
+     - strict=true：多候选时报 `invalid_arguments`，并附候选路径列表。
+  4. help 文案更新 `sync-install` 参数说明。
+- 测试：
+  - 更新 `parseRemoteSyncInstallSkill` 与 `parseRemoteSyncInstallWorkflowWithSlugSelector` 断言签名；
+  - 新增 `parseRemoteSyncInstallWorkflowWithStrictSelector`；
+  - 新增 `runnerRejectsAmbiguousSlugWhenStrictSelectorEnabled`。
+- 验证：
+  - `swift test --package-path libs/Providers --filter NolonCoreCLIKitTests` 通过（50 tests）。
+  - `swift test --package-path libs/Providers --filter NolonCodexCLIEntrypointTests` 通过（73 tests）。
+
+## Phase 2.19（sync-install 非 strict 场景回传歧义警告）
+- 背景：
+  - `--strict-selector=false` 时，`--slug` 命中多个候选会自动选首个；调用方需要可观测信号来判断是否发生了自动降级选择。
+- 变更：
+  1. `NolonRemoteSyncInstallResult` 新增字段：`warnings: [String]`；
+  2. `NolonCoreCLIRunner` 的 `--slug` 匹配逻辑改为返回 `path + warnings`；
+  3. 当 workflow/mcp 出现多候选且 strict=false 时：
+     - 继续成功执行安装；
+     - 在 `install.warnings` 回传 `"Ambiguous --slug '...' matched multiple files; selected first: ..."`。
+  4. strict=true 行为保持不变（直接报错中止）。
+- 测试：
+  - 更新 `runnerRendersRemoteSyncInstallWorkflowResultWithSlugSelector`：
+    - 断言包含 `warnings` 字段；
+    - 断言包含歧义选择提示文案。
+- 验证：
+  - `swift test --package-path libs/Providers --filter NolonCoreCLIKitTests` 通过（50 tests）。
+  - `swift test --package-path libs/Providers --filter NolonCodexCLIEntrypointTests` 通过（73 tests）。
+
+## Phase 2.20（skill slug 多目录歧义与 strict-selector 对齐）
+- 背景：
+  - 之前 strict-selector 的歧义保护只覆盖 workflow/mcp；`skill --slug` 在多目录同名时仍是静默首项选择。
+- 变更：
+  1. `NolonCoreCLIRunner.resolveRepositoryInstallPath(kind: .skill, ...)` 增加多目录匹配检测；
+  2. `--strict-selector true`：
+     - 多目录命中时返回 `invalid_arguments`，错误包含候选 `dir/slug` 列表；
+  3. `--strict-selector false`：
+     - 保持兼容（选首个），但将歧义提示写入 `install.warnings`。
+  4. `NolonCoreCLIKitTests` 的 `MockSkillsRepositoryService` 支持注入 `repositoryResources`，用于覆盖多目录场景。
+- 测试：
+  - 新增 `runnerRendersRemoteSyncInstallSkillResultWithSlugSelectorWarning`
+  - 新增 `runnerRejectsAmbiguousSkillSlugWhenStrictSelectorEnabled`
+- 验证：
+  - `swift test --package-path libs/Providers --filter NolonCoreCLIKitTests` 通过（52 tests）。
+  - `swift test --package-path libs/Providers --filter NolonCodexCLIEntrypointTests` 通过（73 tests）。
+
+## Phase 2.21（安装脚本 E2E + JSON 契约快照）
+- 背景：
+  - 先前 capability gap 的 P1 仍缺两项：安装脚本回归稳定性与 JSON 输出契约防漂移。
+- 变更：
+  1. 安装脚本 smoke 用例修正：
+     - `scripts/tests/install-nolon-cli-smoke.sh` 的 help 断言改为匹配当前真实输出结构（`Usage/Providers/Groups/Examples`）；
+     - 新增 `nolon --help` 验证；
+     - 保留 `NOLON_HOME` 隔离、`--force`、`--print-path` 覆盖。
+  2. JSON 契约快照（第一批）：
+     - `NolonCodexCLIEntrypointTests`：
+       - `json contract snapshot for codex binary list success`
+       - `json contract snapshot for unknown codex group error`
+     - `NolonCoreCLIKitTests`：
+       - `json contract snapshot for remote list success`
+       - `json contract snapshot for missing required option`
+     - 使用 `canonicalJSON` 归一化后做严格字符串快照比较，锁定 key 命名与 envelope 结构。
+- 验证：
+  - `swift test --package-path libs/Providers --filter NolonCoreCLIKitTests` 通过（54 tests）。
+  - `swift test --package-path libs/Providers --filter NolonCodexCLIEntrypointTests` 通过（75 tests）。
+  - `bash scripts/tests/install-nolon-cli-smoke.sh` 通过。
