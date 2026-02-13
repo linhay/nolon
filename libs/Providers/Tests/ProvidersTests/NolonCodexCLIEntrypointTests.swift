@@ -510,6 +510,25 @@ struct NolonCodexCLIEntrypointTests {
         #expect(selected == UUID(uuidString: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")!)
     }
 
+    @Test("auth activate picker shows usage in rows")
+    func authActivatePickerShowsUsage() {
+        let accounts: [NolonCodexAuthAccountView] = [
+            NolonCodexAuthAccountView(
+                id: UUID(uuidString: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")!,
+                name: "A",
+                createdAt: .distantPast,
+                relativeAuthPath: "a/auth.json",
+                isActive: true,
+                email: "a@example.com",
+                usageDisplay: "5h 80% / 7d 50%",
+                refreshedAt: nil
+            ),
+        ]
+
+        let text = NolonCodexCLIExecutor.renderActivatePicker(accounts: accounts)
+        #expect(text.contains("用量: 5h 80% / 7d 50%"))
+    }
+
     @Test("auth activate tui selection rejects invalid index")
     func authActivateTUISelectionRejectsInvalidIndex() {
         let accounts: [NolonCodexAuthAccountView] = [

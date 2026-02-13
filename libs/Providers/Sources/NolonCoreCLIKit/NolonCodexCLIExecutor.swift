@@ -418,11 +418,13 @@ enum NolonCodexCLIExecutor {
         throw NolonCoreCLIError.invalidArguments("Invalid selection")
     }
 
-    private static func renderActivatePicker(accounts: [NolonCodexAuthAccountView]) -> String {
+    static func renderActivatePicker(accounts: [NolonCodexAuthAccountView]) -> String {
         let rows = accounts.enumerated().map { index, account -> String in
             let marker = account.isActive ? "*" : " "
             let email = account.email ?? "-"
-            return "\(index + 1). [\(marker)] \(account.name) <\(email)> \(account.id.uuidString)"
+            let usageRaw = account.usageDisplay?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let usage = (usageRaw?.isEmpty == false) ? (usageRaw ?? "-") : "-"
+            return "\(index + 1). [\(marker)] \(account.name) <\(email)> 用量: \(usage) \(account.id.uuidString)"
         }
         return """
         请选择要激活的账号（输入编号 / 账号 UUID，q 取消）:
