@@ -527,6 +527,22 @@ struct NolonCodexCLIEntrypointTests {
         #expect(await mock.lastCall() == "binaryDoctor")
     }
 
+    @Test("binary list prints plain text instead of json")
+    func binaryListPrintsPlainText() async {
+        let service = BinaryListPlainTextCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["codex", "binary", "list"],
+            codexService: service
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("* 0.26.0"))
+        #expect(result.stdout.contains("  0.25.0"))
+        #expect(!result.stdout.contains("\"command\":\"codex.binary.list\""))
+        #expect(!result.stdout.contains("\"ok\":true"))
+    }
+
     @Test("routes status probe")
     func routesStatusProbe() async {
         let mock = MockCodexCLIService()
@@ -715,5 +731,46 @@ private actor DomainErrorCodexCLIService: NolonCodexCLIServing {
 
     private func makeError() -> NolonCoreCLIError {
         .domainFailed(code: "codex_binary_not_found", message: "missing")
+    }
+}
+
+private actor BinaryListPlainTextCodexCLIService: NolonCodexCLIServing {
+    func authList(providerID: String) async throws -> NolonCodexAuthListPayload { throw unsupported() }
+    func authStatus(providerID: String) async throws -> NolonCodexAuthStatusPayload { throw unsupported() }
+    func authActivate(providerID: String, accountID: UUID) async throws -> NolonCodexAuthActivatePayload { throw unsupported() }
+    func authLogin(providerID: String, preferredAccountID: UUID?) async throws -> NolonCodexAuthLoginPayload { throw unsupported() }
+    func authDelete(providerID: String, accountID: UUID) async throws -> NolonCodexAuthDeletePayload { throw unsupported() }
+    func binaryCurrent() async throws -> NolonCodexBinaryCurrentPayload { throw unsupported() }
+    func binaryInstall(version: String, setDefault: Bool) async throws -> NolonCodexBinaryInstallPayload { throw unsupported() }
+    func binaryUse(version: String) async throws -> NolonCodexBinaryUsePayload { throw unsupported() }
+    func binaryDoctor() async throws -> NolonCodexBinaryDoctorPayload { throw unsupported() }
+    func statusProbe(providerID: String?) async throws -> NolonCodexStatusProbePayload { throw unsupported() }
+
+    func binaryList() async throws -> NolonCodexBinaryListPayload {
+        NolonCodexBinaryListPayload(
+            selectedVersionID: "v0.26.0",
+            versions: [
+                NolonCodexManagedVersionView(
+                    id: "v0.26.0",
+                    displayName: "Codex 0.26.0",
+                    detectedVersion: "0.26.0",
+                    source: "release",
+                    importedAt: .distantPast,
+                    isSelected: true
+                ),
+                NolonCodexManagedVersionView(
+                    id: "v0.25.0",
+                    displayName: "Codex 0.25.0",
+                    detectedVersion: "0.25.0",
+                    source: "release",
+                    importedAt: .distantPast,
+                    isSelected: false
+                ),
+            ]
+        )
+    }
+
+    private func unsupported() -> NolonCoreCLIError {
+        .invalidArguments("unsupported")
     }
 }

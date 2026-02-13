@@ -84,7 +84,7 @@ enum NolonCodexCLIExecutor {
 
     private static func executeBinaryList(context: NolonCLIExecutionContext) async throws -> String {
         let payload = try await context.codexService().binaryList()
-        return try context.successJSON(command: NolonCodexCommandPath.binaryList.rawValue, data: payload)
+        return formatBinaryList(payload)
     }
 
     private static func executeBinaryCurrent(context: NolonCLIExecutionContext) async throws -> String {
@@ -169,6 +169,16 @@ enum NolonCodexCLIExecutor {
         default:
             throw NolonCoreCLIError.invalidArguments("Unsupported --provider: \(providerID)")
         }
+    }
+
+    private static func formatBinaryList(_ payload: NolonCodexBinaryListPayload) -> String {
+        guard !payload.versions.isEmpty else { return "" }
+        return payload.versions
+            .map { version in
+                let marker = version.isSelected ? "*" : " "
+                return "\(marker) \(version.detectedVersion)"
+            }
+            .joined(separator: "\n")
     }
 }
 
