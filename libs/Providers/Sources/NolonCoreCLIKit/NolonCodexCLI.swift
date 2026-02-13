@@ -23,6 +23,7 @@ public protocol NolonCodexCLIServing: Sendable {
     func binaryUse(version: String) async throws -> NolonCodexBinaryUsePayload
     func binaryDoctor() async throws -> NolonCodexBinaryDoctorPayload
     func statusProbe(providerID: String?) async throws -> NolonCodexStatusProbePayload
+    func providerList() async throws -> NolonProviderListPayload
     func providerDiscover() async throws -> NolonCodexProviderDiscoverPayload
     func runtimeList(providerID: String?) async throws -> NolonCodexRuntimeListPayload
     func runtimeStop(pid: Int32, force: Bool, timeoutSeconds: Int) async throws -> NolonCodexRuntimeStopPayload
@@ -133,6 +134,18 @@ public struct NolonCodexRuntimeProcessView: Codable, Sendable, Equatable {
     public let elapsed: String
     public let providerHint: String?
     public let command: String
+}
+
+public struct NolonProviderCLIView: Codable, Sendable, Equatable {
+    public let providerID: String
+    public let name: String
+    public let cli: String
+    public let installed: Bool
+    public let executablePath: String?
+}
+
+public struct NolonProviderListPayload: Codable, Sendable, Equatable {
+    public let providers: [NolonProviderCLIView]
 }
 
 public struct NolonCodexProviderDiscoverView: Codable, Sendable, Equatable {
@@ -433,6 +446,26 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
         )
     }
 
+    public func providerList() async throws -> NolonProviderListPayload {
+        let templates = ProviderTemplate.allCases.sorted {
+            $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending
+        }
+        let providers: [NolonProviderCLIView] = templates.compactMap { template in
+            let executable = template.cliName.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !executable.isEmpty else { return nil }
+            let resolved = Self.resolveCLIInOfficialPaths(named: executable)
+            guard let resolved else { return nil }
+            return NolonProviderCLIView(
+                providerID: template.providerID,
+                name: template.displayName,
+                cli: executable,
+                installed: true,
+                executablePath: resolved
+            )
+        }
+        return NolonProviderListPayload(providers: providers)
+    }
+
     public func providerDiscover() async throws -> NolonCodexProviderDiscoverPayload {
         let providerIDs = ["codex", "codex-xcode"]
         var providers: [NolonCodexProviderDiscoverView] = []
@@ -619,6 +652,23 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
         }
         if normalized.contains("codex") {
             return "codex"
+        }
+        return nil
+    }
+
+    private static func resolveCLIInOfficialPaths(named executable: String) -> String? {
+        let candidates = [
+            "/opt/homebrew/bin/\(executable)",
+            "/usr/local/bin/\(executable)",
+            "/usr/bin/\(executable)",
+        ]
+
+        let fileManager = FileManager.default
+        for path in candidates {
+            guard fileManager.fileExists(atPath: path),
+                  fileManager.isExecutableFile(atPath: path)
+            else { continue }
+            return URL(fileURLWithPath: path).standardizedFileURL.path
         }
         return nil
     }

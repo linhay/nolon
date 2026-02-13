@@ -57,6 +57,8 @@ enum NolonCodexCLIExecutor {
             return try await executeRuntimeStop(command: command, context: context, outputMode: outputMode)
         case _ as NolonCodexProviderDiscoverCommand:
             return try await executeProviderDiscover(context: context, outputMode: outputMode)
+        case _ as NolonProviderListCommand:
+            return try await executeProviderList(context: context, outputMode: outputMode)
         default:
             throw NolonCoreCLIError.invalidArguments("Unsupported parsed command type: \(type(of: parsed))")
         }
@@ -239,6 +241,11 @@ enum NolonCodexCLIExecutor {
         return try renderOutput(command: .providerDiscover, payload: payload, outputMode: outputMode, textFormatter: formatProviderDiscover)
     }
 
+    private static func executeProviderList(context: NolonCLIExecutionContext, outputMode: OutputMode) async throws -> String {
+        let payload = try await context.codexService().providerList()
+        return try renderOutput(command: .providerList, payload: payload, outputMode: outputMode, textFormatter: formatProviderList)
+    }
+
     private static func shouldDowngradeStatusProbeError(_ error: Error) -> Bool {
         let message: String
         if let cliError = error as? NolonCoreCLIError {
@@ -307,6 +314,19 @@ enum NolonCodexCLIExecutor {
     private static func validateUnsupportedRoute(arguments: [String]) throws {
         guard arguments.count >= 2 else { return }
         let root = arguments[0].trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if root == "provider" {
+            let actions: Set<String> = ["list"]
+            guard arguments.count >= 2 else { return }
+            let action = arguments[1].trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            if !actions.contains(action) {
+                throw NolonCoreCLIError.domainFailed(
+                    code: "unsupported_command",
+                    message: "Unsupported command: provider.\(action). Available actions for provider: list."
+                )
+            }
+            return
+        }
+
         guard root == "codex" else { return }
         let group = arguments[1].trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         let supportedByGroup: [String: Set<String>] = [
@@ -601,6 +621,28 @@ enum NolonCodexCLIExecutor {
         return "\(header)\n\(body)"
     }
 
+    private static func formatProviderList(_ payload: NolonProviderListPayload) -> String {
+        guard !payload.providers.isEmpty else { return "No providers found." }
+        let rows = payload.providers.map { provider in
+            (
+                providerID: provider.providerID,
+                name: provider.name,
+                cli: provider.cli,
+                installed: provider.installed ? "yes" : "no",
+                path: provider.executablePath ?? "-"
+            )
+        }
+        let providerWidth = max("provider".count, rows.map(\.providerID.count).max() ?? 0)
+        let nameWidth = max("name".count, rows.map(\.name.count).max() ?? 0)
+        let cliWidth = max("cli".count, rows.map(\.cli.count).max() ?? 0)
+        let installedWidth = max("installed".count, rows.map(\.installed.count).max() ?? 0)
+        let header = "\(padRight("provider", to: providerWidth)) | \(padRight("name", to: nameWidth)) | \(padRight("cli", to: cliWidth)) | \(padRight("installed", to: installedWidth)) | executable_path"
+        let body = rows.map { row in
+            "\(padRight(row.providerID, to: providerWidth)) | \(padRight(row.name, to: nameWidth)) | \(padRight(row.cli, to: cliWidth)) | \(padRight(row.installed, to: installedWidth)) | \(row.path)"
+        }.joined(separator: "\n")
+        return "\(header)\n\(body)"
+    }
+
     static func parseActivateSelection(input: String, accounts: [NolonCodexAuthAccountView]) throws -> UUID {
         let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.lowercased() == "q" || trimmed.lowercased() == "quit" {
@@ -655,6 +697,7 @@ private struct NolonCodexCommandPath: RawRepresentable, ExpressibleByStringLiter
     static let runtimeList: Self = "codex.runtime.list"
     static let runtimeStop: Self = "codex.runtime.stop"
     static let providerDiscover: Self = "codex.provider.discover"
+    static let providerList: Self = "provider.list"
 
     let rawValue: String
 

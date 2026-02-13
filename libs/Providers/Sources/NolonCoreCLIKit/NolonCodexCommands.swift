@@ -3,7 +3,10 @@ import ArgumentParser
 struct NolonRootCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "nolon",
-        subcommands: [NolonCodexRootCommand.self]
+        subcommands: [
+            NolonCodexRootCommand.self,
+            NolonProviderRootCommand.self,
+        ]
     )
 }
 
@@ -179,4 +182,15 @@ struct NolonCodexRuntimeStopCommand: ParsableCommand {
 
 struct NolonCodexProviderDiscoverCommand: ParsableCommand {
     static let configuration = CommandConfiguration(commandName: "discover")
+}
+
+struct NolonProviderRootCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "provider",
+        subcommands: [NolonProviderListCommand.self]
+    )
+}
+
+struct NolonProviderListCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(commandName: "list")
 }

@@ -12,6 +12,8 @@ enum NolonCodexCLIHelpResolver {
             return rootHelpText()
         case .codex:
             return codexHelpText()
+        case .provider:
+            return providerHelpText()
         case .codexAuth:
             return codexAuthHelpText()
         case .codexBinary:
@@ -52,13 +54,25 @@ enum NolonCodexCLIHelpResolver {
             return codexRuntimeStopHelpText()
         case .codexProviderDiscover:
             return codexProviderDiscoverHelpText()
+        case .providerList:
+            return providerListHelpText()
         default:
             return nil
         }
     }
 
     private static func rootHelpText() -> String {
-        codexHelpText()
+        """
+        Usage: nolon <provider> <group> <action> [options]
+
+        Top-level commands:
+          codex       Codex CLI management
+          provider    Installed provider CLI discovery
+
+        Examples:
+          nolon codex auth list --provider codex
+          nolon provider list
+        """
     }
 
     private static func codexHelpText() -> String {
@@ -82,6 +96,15 @@ enum NolonCodexCLIHelpResolver {
           nolon codex auth list --provider codex
           nolon codex binary current
           nolon codex status probe --provider codex
+        """
+    }
+
+    private static func providerHelpText() -> String {
+        """
+        Usage: nolon provider <action> [options]
+
+        Actions:
+          list
         """
     }
 
@@ -264,6 +287,12 @@ enum NolonCodexCLIHelpResolver {
         Usage: nolon codex provider discover
         """
     }
+
+    private static func providerListHelpText() -> String {
+        """
+        Usage: nolon provider list
+        """
+    }
 }
 
 private struct NolonCLIHelpPath: RawRepresentable, ExpressibleByStringLiteral, Equatable, Sendable {
@@ -274,6 +303,7 @@ private struct NolonCLIHelpPath: RawRepresentable, ExpressibleByStringLiteral, E
     static let codexStatus: Self = "help.codex.status"
     static let codexRuntime: Self = "help.codex.runtime"
     static let codexProvider: Self = "help.codex.provider"
+    static let provider: Self = "help.provider"
     static let codexAuthList: Self = "help.codex.auth.list"
     static let codexAuthStatus: Self = "help.codex.auth.status"
     static let codexAuthActivate: Self = "help.codex.auth.activate"
@@ -289,6 +319,7 @@ private struct NolonCLIHelpPath: RawRepresentable, ExpressibleByStringLiteral, E
     static let codexRuntimeList: Self = "help.codex.runtime.list"
     static let codexRuntimeStop: Self = "help.codex.runtime.stop"
     static let codexProviderDiscover: Self = "help.codex.provider.discover"
+    static let providerList: Self = "help.provider.list"
 
     let rawValue: String
 
@@ -311,6 +342,9 @@ private struct NolonCLIHelpPath: RawRepresentable, ExpressibleByStringLiteral, E
             return
         case ["codex"]:
             self = .codex
+            return
+        case ["provider"]:
+            self = .provider
             return
         case ["codex", "auth"]:
             self = .codexAuth
@@ -340,6 +374,8 @@ private struct NolonCLIHelpPath: RawRepresentable, ExpressibleByStringLiteral, E
             self = .root
         case ["codex", "help"], ["codex", "-h"], ["codex", "--help"]:
             self = .codex
+        case ["provider", "help"], ["provider", "-h"], ["provider", "--help"]:
+            self = .provider
         case ["codex", "auth", "help"], ["codex", "auth", "-h"], ["codex", "auth", "--help"]:
             self = .codexAuth
         case ["codex", "binary", "help"], ["codex", "binary", "-h"], ["codex", "binary", "--help"]:
@@ -380,6 +416,8 @@ private struct NolonCLIHelpPath: RawRepresentable, ExpressibleByStringLiteral, E
             self = .codexRuntimeStop
         case ["codex", "provider", "discover", "help"], ["codex", "provider", "discover", "-h"], ["codex", "provider", "discover", "--help"]:
             self = .codexProviderDiscover
+        case ["provider", "list", "help"], ["provider", "list", "-h"], ["provider", "list", "--help"]:
+            self = .providerList
         default:
             return nil
         }
