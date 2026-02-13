@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 @testable import NolonCoreCLIKit
+@testable import ProviderCatalog
 @testable import ProviderUsage
 @testable import CodexProvider
 #if canImport(Darwin)
@@ -250,6 +251,28 @@ struct NolonCodexCLIServiceTests {
         #expect(payload.providers.first?.providerID == "codex")
         #expect(payload.providers.last?.providerID == "codex-xcode")
         #expect(payload.providers.first?.authPath.isEmpty == false)
+    }
+
+    @Test("provider list returns installed providers only")
+    func providerListReturnsInstalledOnly() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("nolon-provider-list-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let service = NolonLiveCodexCLIService(
+            authManager: CodexAuthManager(rootURL: root),
+            binaryManager: CodexBinaryManager(homeURL: root),
+            loginRunner: .init(),
+            environment: [:]
+        )
+
+        let payload = try await service.providerList()
+        #expect(payload.providers.allSatisfy { $0.installed })
+        #expect(payload.providers.allSatisfy { !($0.executablePath?.isEmpty ?? true) })
+        let expectedCLIByProviderID = Dictionary(
+            uniqueKeysWithValues: ProviderTemplate.allCases.map { ($0.providerID, $0.cliName) }
+        )
+        #expect(payload.providers.allSatisfy { expectedCLIByProviderID[$0.providerID] == $0.cli })
     }
 }
 

@@ -22,6 +22,33 @@ struct ProviderCatalogTemplateTests {
         #expect(template.defaultMcpConfigPath.path.hasSuffix(".codex/config.toml"))
     }
 
+    @Test("provider template exposes cliName from built-in config")
+    func providerTemplateCLIName() {
+        #expect(ProviderTemplate.codex.cliName == "codex")
+        #expect(ProviderTemplate.gemini.cliName == "gemini")
+        #expect(ProviderTemplate.opencode.cliName == "opencode")
+        #expect(ProviderTemplate.claudeCode.providerID == "claude")
+    }
+
+    @Test("loader bootstraps template config into NOLON_HOME cli directory")
+    func loaderBootstrapsConfigFileToCLIHome() {
+        let isolatedRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("provider-template-loader-\(UUID().uuidString)", isDirectory: true)
+        try? FileManager.default.createDirectory(at: isolatedRoot, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: isolatedRoot) }
+
+        let loader = ProviderTemplateLoader(
+            environment: ["NOLON_HOME": isolatedRoot.path],
+            userHomeURL: isolatedRoot
+        )
+        loader.load()
+
+        let configFile = STFile(isolatedRoot.appendingPathComponent("cli/ProviderTemplate.json", isDirectory: false))
+        #expect(configFile.isExists)
+        let data = try? configFile.data()
+        #expect(data?.isEmpty == false)
+    }
+
     @Test("provider exposes STPath views while keeping URL compatibility")
     func providerPathViews() {
         let provider = Provider(
