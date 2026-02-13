@@ -446,88 +446,136 @@ public enum NolonCLIEntrypoint {
             throw NolonCoreCLIError.invalidArguments("Missing command. Expected: codex <group> <action> ...")
         }
 
-        let route = "\(arguments[0]).\(arguments[1]).\(arguments[2])"
+        let route = try NolonCodexCommandPath(
+            root: arguments[0],
+            group: arguments[1],
+            action: arguments[2]
+        )
         let optionArgs = Array(arguments.dropFirst(3))
 
         switch route {
-        case "codex.auth.list":
-            let args = try parseArguments(NolonCodexAuthListArguments.self, optionArgs)
-            let providerID = try parseCodexProviderID(args.provider)
-            let payload = try await context.codexService().authList(providerID: providerID)
-            return try context.successJSON(command: "codex.auth.list", data: payload)
-        case "codex.auth.status":
-            let args = try parseArguments(NolonCodexAuthStatusArguments.self, optionArgs)
-            let providerID = try parseCodexProviderID(args.provider)
-            let payload = try await context.codexService().authStatus(providerID: providerID)
-            return try context.successJSON(command: "codex.auth.status", data: payload)
-        case "codex.auth.activate":
-            let args = try parseArguments(NolonCodexAuthActivateArguments.self, optionArgs)
-            let providerID = try parseCodexProviderID(args.provider)
-            guard let accountID = UUID(uuidString: args.accountID) else {
-                throw NolonCoreCLIError.invalidArguments("Invalid --account-id: \(args.accountID)")
-            }
-            let payload = try await context.codexService().authActivate(providerID: providerID, accountID: accountID)
-            return try context.successJSON(command: "codex.auth.activate", data: payload)
-        case "codex.auth.login":
-            let args = try parseArguments(NolonCodexAuthLoginArguments.self, optionArgs)
-            let providerID = try parseCodexProviderID(args.provider)
-            let preferred: UUID?
-            if let preferredAccountID = args.preferredAccountID {
-                guard let parsed = UUID(uuidString: preferredAccountID) else {
-                    throw NolonCoreCLIError.invalidArguments("Invalid --preferred-account-id: \(preferredAccountID)")
-                }
-                preferred = parsed
-            } else {
-                preferred = nil
-            }
-            let payload = try await context.codexService().authLogin(providerID: providerID, preferredAccountID: preferred)
-            return try context.successJSON(command: "codex.auth.login", data: payload)
-        case "codex.auth.delete":
-            let args = try parseArguments(NolonCodexAuthDeleteArguments.self, optionArgs)
-            let providerID = try parseCodexProviderID(args.provider)
-            guard let accountID = UUID(uuidString: args.accountID) else {
-                throw NolonCoreCLIError.invalidArguments("Invalid --account-id: \(args.accountID)")
-            }
-            let payload = try await context.codexService().authDelete(providerID: providerID, accountID: accountID)
-            return try context.successJSON(command: "codex.auth.delete", data: payload)
-        case "codex.binary.list":
-            let _: NolonCodexNoArguments = try parseArguments(NolonCodexNoArguments.self, optionArgs)
-            let payload = try await context.codexService().binaryList()
-            return try context.successJSON(command: "codex.binary.list", data: payload)
-        case "codex.binary.current":
-            let _: NolonCodexNoArguments = try parseArguments(NolonCodexNoArguments.self, optionArgs)
-            let payload = try await context.codexService().binaryCurrent()
-            return try context.successJSON(command: "codex.binary.current", data: payload)
-        case "codex.binary.install":
-            let args = try parseArguments(NolonCodexBinaryInstallArguments.self, optionArgs)
-            let version = try parseCodexVersionArgument(args.version, option: "--version")
-            let payload = try await context.codexService().binaryInstall(version: version, setDefault: args.setDefault)
-            return try context.successJSON(command: "codex.binary.install", data: payload)
-        case "codex.binary.use":
-            let args = try parseArguments(NolonCodexBinaryUseArguments.self, optionArgs)
-            let version = try parseCodexVersionArgument(args.version, option: "--version")
-            let payload = try await context.codexService().binaryUse(version: version)
-            return try context.successJSON(command: "codex.binary.use", data: payload)
-        case "codex.binary.doctor":
-            let _: NolonCodexNoArguments = try parseArguments(NolonCodexNoArguments.self, optionArgs)
-            let payload = try await context.codexService().binaryDoctor()
-            return try context.successJSON(command: "codex.binary.doctor", data: payload)
-        case "codex.status.probe":
-            let args = try parseArguments(NolonCodexStatusProbeArguments.self, optionArgs)
-            let providerID: String?
-            if let provider = args.provider {
-                providerID = try parseCodexProviderID(provider)
-            } else {
-                providerID = nil
-            }
-            let payload = try await context.codexService().statusProbe(providerID: providerID)
-            return try context.successJSON(command: "codex.status.probe", data: payload)
+        case .authList:
+            return try await executeAuthList(optionArgs: optionArgs, context: context)
+        case .authStatus:
+            return try await executeAuthStatus(optionArgs: optionArgs, context: context)
+        case .authActivate:
+            return try await executeAuthActivate(optionArgs: optionArgs, context: context)
+        case .authLogin:
+            return try await executeAuthLogin(optionArgs: optionArgs, context: context)
+        case .authDelete:
+            return try await executeAuthDelete(optionArgs: optionArgs, context: context)
+        case .binaryList:
+            return try await executeBinaryList(optionArgs: optionArgs, context: context)
+        case .binaryCurrent:
+            return try await executeBinaryCurrent(optionArgs: optionArgs, context: context)
+        case .binaryInstall:
+            return try await executeBinaryInstall(optionArgs: optionArgs, context: context)
+        case .binaryUse:
+            return try await executeBinaryUse(optionArgs: optionArgs, context: context)
+        case .binaryDoctor:
+            return try await executeBinaryDoctor(optionArgs: optionArgs, context: context)
+        case .statusProbe:
+            return try await executeStatusProbe(optionArgs: optionArgs, context: context)
         default:
             throw NolonCoreCLIError.domainFailed(
                 code: "unsupported_command",
-                message: "Unsupported command: \(route)"
+                message: "Unsupported command: \(route.rawValue)"
             )
         }
+    }
+
+    private static func executeAuthList(optionArgs: [String], context: NolonCLIExecutionContext) async throws -> String {
+        let args = try parseArguments(NolonCodexAuthListArguments.self, optionArgs)
+        let providerID = try parseCodexProviderID(args.provider)
+        let payload = try await context.codexService().authList(providerID: providerID)
+        return try context.successJSON(command: NolonCodexCommandPath.authList.rawValue, data: payload)
+    }
+
+    private static func executeAuthStatus(optionArgs: [String], context: NolonCLIExecutionContext) async throws -> String {
+        let args = try parseArguments(NolonCodexAuthStatusArguments.self, optionArgs)
+        let providerID = try parseCodexProviderID(args.provider)
+        let payload = try await context.codexService().authStatus(providerID: providerID)
+        return try context.successJSON(command: NolonCodexCommandPath.authStatus.rawValue, data: payload)
+    }
+
+    private static func executeAuthActivate(optionArgs: [String], context: NolonCLIExecutionContext) async throws -> String {
+        let args = try parseArguments(NolonCodexAuthActivateArguments.self, optionArgs)
+        let providerID = try parseCodexProviderID(args.provider)
+        guard let accountID = UUID(uuidString: args.accountID) else {
+            throw NolonCoreCLIError.invalidArguments("Invalid --account-id: \(args.accountID)")
+        }
+        let payload = try await context.codexService().authActivate(providerID: providerID, accountID: accountID)
+        return try context.successJSON(command: NolonCodexCommandPath.authActivate.rawValue, data: payload)
+    }
+
+    private static func executeAuthLogin(optionArgs: [String], context: NolonCLIExecutionContext) async throws -> String {
+        let args = try parseArguments(NolonCodexAuthLoginArguments.self, optionArgs)
+        let providerID = try parseCodexProviderID(args.provider)
+        let preferred: UUID?
+        if let preferredAccountID = args.preferredAccountID {
+            guard let parsed = UUID(uuidString: preferredAccountID) else {
+                throw NolonCoreCLIError.invalidArguments("Invalid --preferred-account-id: \(preferredAccountID)")
+            }
+            preferred = parsed
+        } else {
+            preferred = nil
+        }
+        let payload = try await context.codexService().authLogin(providerID: providerID, preferredAccountID: preferred)
+        return try context.successJSON(command: NolonCodexCommandPath.authLogin.rawValue, data: payload)
+    }
+
+    private static func executeAuthDelete(optionArgs: [String], context: NolonCLIExecutionContext) async throws -> String {
+        let args = try parseArguments(NolonCodexAuthDeleteArguments.self, optionArgs)
+        let providerID = try parseCodexProviderID(args.provider)
+        guard let accountID = UUID(uuidString: args.accountID) else {
+            throw NolonCoreCLIError.invalidArguments("Invalid --account-id: \(args.accountID)")
+        }
+        let payload = try await context.codexService().authDelete(providerID: providerID, accountID: accountID)
+        return try context.successJSON(command: NolonCodexCommandPath.authDelete.rawValue, data: payload)
+    }
+
+    private static func executeBinaryList(optionArgs: [String], context: NolonCLIExecutionContext) async throws -> String {
+        let _: NolonCodexNoArguments = try parseArguments(NolonCodexNoArguments.self, optionArgs)
+        let payload = try await context.codexService().binaryList()
+        return try context.successJSON(command: NolonCodexCommandPath.binaryList.rawValue, data: payload)
+    }
+
+    private static func executeBinaryCurrent(optionArgs: [String], context: NolonCLIExecutionContext) async throws -> String {
+        let _: NolonCodexNoArguments = try parseArguments(NolonCodexNoArguments.self, optionArgs)
+        let payload = try await context.codexService().binaryCurrent()
+        return try context.successJSON(command: NolonCodexCommandPath.binaryCurrent.rawValue, data: payload)
+    }
+
+    private static func executeBinaryInstall(optionArgs: [String], context: NolonCLIExecutionContext) async throws -> String {
+        let args = try parseArguments(NolonCodexBinaryInstallArguments.self, optionArgs)
+        let version = try parseCodexVersionArgument(args.version, option: "--version")
+        let payload = try await context.codexService().binaryInstall(version: version, setDefault: args.setDefault)
+        return try context.successJSON(command: NolonCodexCommandPath.binaryInstall.rawValue, data: payload)
+    }
+
+    private static func executeBinaryUse(optionArgs: [String], context: NolonCLIExecutionContext) async throws -> String {
+        let args = try parseArguments(NolonCodexBinaryUseArguments.self, optionArgs)
+        let version = try parseCodexVersionArgument(args.version, option: "--version")
+        let payload = try await context.codexService().binaryUse(version: version)
+        return try context.successJSON(command: NolonCodexCommandPath.binaryUse.rawValue, data: payload)
+    }
+
+    private static func executeBinaryDoctor(optionArgs: [String], context: NolonCLIExecutionContext) async throws -> String {
+        let _: NolonCodexNoArguments = try parseArguments(NolonCodexNoArguments.self, optionArgs)
+        let payload = try await context.codexService().binaryDoctor()
+        return try context.successJSON(command: NolonCodexCommandPath.binaryDoctor.rawValue, data: payload)
+    }
+
+    private static func executeStatusProbe(optionArgs: [String], context: NolonCLIExecutionContext) async throws -> String {
+        let args = try parseArguments(NolonCodexStatusProbeArguments.self, optionArgs)
+        let providerID: String?
+        if let provider = args.provider {
+            providerID = try parseCodexProviderID(provider)
+        } else {
+            providerID = nil
+        }
+        let payload = try await context.codexService().statusProbe(providerID: providerID)
+        return try context.successJSON(command: NolonCodexCommandPath.statusProbe.rawValue, data: payload)
     }
 
     private static func parseArguments<T: ParsableArguments>(_ type: T.Type, _ arguments: [String]) throws -> T {
@@ -560,6 +608,44 @@ public enum NolonCLIEntrypoint {
         default:
             throw NolonCoreCLIError.invalidArguments("Unsupported --provider: \(providerID)")
         }
+    }
+}
+
+private struct NolonCodexCommandPath: RawRepresentable, ExpressibleByStringLiteral, Equatable, Sendable {
+    static let authList: Self = "codex.auth.list"
+    static let authStatus: Self = "codex.auth.status"
+    static let authActivate: Self = "codex.auth.activate"
+    static let authLogin: Self = "codex.auth.login"
+    static let authDelete: Self = "codex.auth.delete"
+    static let binaryList: Self = "codex.binary.list"
+    static let binaryCurrent: Self = "codex.binary.current"
+    static let binaryInstall: Self = "codex.binary.install"
+    static let binaryUse: Self = "codex.binary.use"
+    static let binaryDoctor: Self = "codex.binary.doctor"
+    static let statusProbe: Self = "codex.status.probe"
+
+    let rawValue: String
+
+    init(rawValue: String) {
+        self.rawValue = rawValue
+    }
+
+    init(_ value: String) {
+        self.rawValue = value
+    }
+
+    init(stringLiteral value: String) {
+        self.rawValue = value
+    }
+
+    init(root: String, group: String, action: String) throws {
+        let normalizedRoot = root.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let normalizedGroup = group.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let normalizedAction = action.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !normalizedRoot.isEmpty, !normalizedGroup.isEmpty, !normalizedAction.isEmpty else {
+            throw NolonCoreCLIError.invalidArguments("Command path cannot contain empty segments.")
+        }
+        self.rawValue = "\(normalizedRoot).\(normalizedGroup).\(normalizedAction)"
     }
 }
 
