@@ -837,13 +837,13 @@ public enum CodexGeneratedFilesParser {
 
     private static func parseEventMessage(payload: CodexJSONValue?) -> CodexRolloutLine.EventMessage {
         let object = payload?.objectValue ?? [:]
-        let type = object["type"]?.stringValue ?? "unknown"
+        let type = CodexEventMessageType(object["type"]?.stringValue ?? "unknown")
 
         let kind: CodexRolloutLine.EventMessage.Kind
         switch type {
-        case "token_count":
+        case .tokenCount:
             kind = .tokenCount(parseTokenCount(payload: object, fallbackModel: nil))
-        case "user_message":
+        case .userMessage:
             let localImages = object["local_images"]?.arrayValue?.compactMap { $0.stringValue } ?? []
             let images = object["images"]?.arrayValue?.compactMap { $0.stringValue }
             kind = .userMessage(.init(
@@ -852,32 +852,32 @@ public enum CodexGeneratedFilesParser {
                 localImages: localImages,
                 textElements: object["text_elements"]
             ))
-        case "agent_message":
+        case .agentMessage:
             kind = .agentMessage(object["message"]?.stringValue)
-        case "error":
+        case .error:
             kind = .error(object["message"]?.stringValue)
-        case "warning":
+        case .warning:
             kind = .warning(object["message"]?.stringValue)
-        case "context_compacted":
+        case .contextCompacted:
             kind = .contextCompacted
-        case "thread_rolled_back":
+        case .threadRolledBack:
             kind = .threadRolledBack(numTurns: object["num_turns"]?.intValue)
-        case "plan_update":
+        case .planUpdate:
             kind = .planUpdate(plan: object["plan"])
-        case "plan_delta":
+        case .planDelta:
             kind = .planDelta(delta: object["delta"]?.stringValue)
-        case "turn_aborted":
+        case .turnAborted:
             kind = .turnAborted(reason: object["reason"]?.stringValue)
-        case "shutdown_complete":
+        case .shutdownComplete:
             kind = .shutdownComplete
-        case "thread_name_updated":
+        case .threadNameUpdated:
             kind = .threadNameUpdated(
                 threadID: object["thread_id"]?.stringValue,
                 threadName: object["thread_name"]?.stringValue
             )
-        case "undo_started":
+        case .undoStarted:
             kind = .undoStarted(message: object["message"]?.stringValue)
-        case "undo_completed":
+        case .undoCompleted:
             let success: Bool?
             if case let .bool(value)? = object["success"] {
                 success = value
@@ -888,14 +888,14 @@ public enum CodexGeneratedFilesParser {
                 success: success,
                 message: object["message"]?.stringValue
             )
-        case "mcp_startup_update":
+        case .mcpStartupUpdate:
             let statusObject = object["status"]?.objectValue ?? [:]
             kind = .mcpStartupUpdate(
                 server: object["server"]?.stringValue,
                 state: statusObject["state"]?.stringValue,
                 error: statusObject["error"]?.stringValue
             )
-        case "mcp_startup_complete":
+        case .mcpStartupComplete:
             let ready = object["ready"]?.arrayValue?.compactMap { $0.stringValue } ?? []
             let cancelled = object["cancelled"]?.arrayValue?.compactMap { $0.stringValue } ?? []
             let failedItems = object["failed"]?.arrayValue ?? []
@@ -911,92 +911,179 @@ public enum CodexGeneratedFilesParser {
                 failed: failed,
                 cancelled: cancelled
             )
-        case "task_started", "turn_started":
+        case .taskStarted, .turnStarted:
             kind = .turnStarted(modelContextWindow: object["model_context_window"]?.intValue)
-        case "task_complete", "turn_complete":
+        case .taskComplete, .turnComplete:
             kind = .turnComplete(lastAgentMessage: object["last_agent_message"]?.stringValue)
         case _ where knownCodexEventMessageTypes.contains(type):
-            kind = .known(type: type, payload: payload)
+            kind = .known(type: type.rawValue, payload: payload)
         default:
-            kind = .other(type: type, payload: payload)
+            kind = .other(type: type.rawValue, payload: payload)
         }
 
         return .init(kind: kind)
     }
 
-    private static let knownCodexEventMessageTypes: Set<String> = [
-        "context_compacted",
-        "thread_rolled_back",
-        "agent_message_delta",
-        "agent_reasoning",
-        "agent_reasoning_delta",
-        "agent_reasoning_raw_content",
-        "agent_reasoning_raw_content_delta",
-        "agent_reasoning_section_break",
-        "session_configured",
-        "thread_name_updated",
-        "mcp_startup_update",
-        "mcp_startup_complete",
-        "mcp_tool_call_begin",
-        "mcp_tool_call_end",
-        "web_search_begin",
-        "web_search_end",
-        "exec_command_begin",
-        "exec_command_output_delta",
-        "terminal_interaction",
-        "exec_command_end",
-        "view_image_tool_call",
-        "exec_approval_request",
-        "request_user_input",
-        "dynamic_tool_call_request",
-        "elicitation_request",
-        "apply_patch_approval_request",
-        "deprecation_notice",
-        "background_event",
-        "undo_started",
-        "undo_completed",
-        "stream_error",
-        "patch_apply_begin",
-        "patch_apply_end",
-        "turn_diff",
-        "get_history_entry_response",
-        "mcp_list_tools_response",
-        "list_custom_prompts_response",
-        "list_skills_response",
-        "list_remote_skills_response",
-        "remote_skill_downloaded",
-        "skills_update_available",
-        "plan_update",
-        "turn_aborted",
-        "shutdown_complete",
-        "entered_review_mode",
-        "exited_review_mode",
-        "raw_response_item",
-        "item_started",
-        "item_completed",
-        "agent_message_content_delta",
-        "plan_delta",
-        "reasoning_content_delta",
-        "reasoning_raw_content_delta",
-        "collab_agent_spawn_begin",
-        "collab_agent_spawn_end",
-        "collab_agent_interaction_begin",
-        "collab_agent_interaction_end",
-        "collab_waiting_begin",
-        "collab_waiting_end",
-        "collab_close_begin",
-        "collab_close_end",
+    private static let knownCodexEventMessageTypes: Set<CodexEventMessageType> = [
+        .contextCompacted,
+        .threadRolledBack,
+        .agentMessageDelta,
+        .agentReasoning,
+        .agentReasoningDelta,
+        .agentReasoningRawContent,
+        .agentReasoningRawContentDelta,
+        .agentReasoningSectionBreak,
+        .sessionConfigured,
+        .threadNameUpdated,
+        .mcpStartupUpdate,
+        .mcpStartupComplete,
+        .mcpToolCallBegin,
+        .mcpToolCallEnd,
+        .webSearchBegin,
+        .webSearchEnd,
+        .execCommandBegin,
+        .execCommandOutputDelta,
+        .terminalInteraction,
+        .execCommandEnd,
+        .viewImageToolCall,
+        .execApprovalRequest,
+        .requestUserInput,
+        .dynamicToolCallRequest,
+        .elicitationRequest,
+        .applyPatchApprovalRequest,
+        .deprecationNotice,
+        .backgroundEvent,
+        .undoStarted,
+        .undoCompleted,
+        .streamError,
+        .patchApplyBegin,
+        .patchApplyEnd,
+        .turnDiff,
+        .getHistoryEntryResponse,
+        .mcpListToolsResponse,
+        .listCustomPromptsResponse,
+        .listSkillsResponse,
+        .listRemoteSkillsResponse,
+        .remoteSkillDownloaded,
+        .skillsUpdateAvailable,
+        .planUpdate,
+        .turnAborted,
+        .shutdownComplete,
+        .enteredReviewMode,
+        .exitedReviewMode,
+        .rawResponseItem,
+        .itemStarted,
+        .itemCompleted,
+        .agentMessageContentDelta,
+        .planDelta,
+        .reasoningContentDelta,
+        .reasoningRawContentDelta,
+        .collabAgentSpawnBegin,
+        .collabAgentSpawnEnd,
+        .collabAgentInteractionBegin,
+        .collabAgentInteractionEnd,
+        .collabWaitingBegin,
+        .collabWaitingEnd,
+        .collabCloseBegin,
+        .collabCloseEnd,
     ]
 
     private static func parseTokenCountFromEventMessage(payload: CodexJSONValue?) -> CodexRolloutLine.TokenCount? {
         let object = payload?.objectValue ?? [:]
-        if object["type"]?.stringValue == "token_count" {
+        if CodexEventMessageType(object["type"]?.stringValue ?? "") == .tokenCount {
             return parseTokenCount(payload: object, fallbackModel: nil)
         }
-        if let nested = object["payload"]?.objectValue, nested["type"]?.stringValue == "token_count" {
+        if let nested = object["payload"]?.objectValue, CodexEventMessageType(nested["type"]?.stringValue ?? "") == .tokenCount {
             return parseTokenCount(payload: nested, fallbackModel: nil)
         }
         return nil
+    }
+
+    private struct CodexEventMessageType: RawRepresentable, ExpressibleByStringLiteral, Equatable, Hashable, Sendable {
+        static let error: Self = "error"
+        static let warning: Self = "warning"
+        static let contextCompacted: Self = "context_compacted"
+        static let threadRolledBack: Self = "thread_rolled_back"
+        static let taskStarted: Self = "task_started"
+        static let turnStarted: Self = "turn_started"
+        static let taskComplete: Self = "task_complete"
+        static let turnComplete: Self = "turn_complete"
+        static let tokenCount: Self = "token_count"
+        static let agentMessage: Self = "agent_message"
+        static let userMessage: Self = "user_message"
+        static let agentMessageDelta: Self = "agent_message_delta"
+        static let agentReasoning: Self = "agent_reasoning"
+        static let agentReasoningDelta: Self = "agent_reasoning_delta"
+        static let agentReasoningRawContent: Self = "agent_reasoning_raw_content"
+        static let agentReasoningRawContentDelta: Self = "agent_reasoning_raw_content_delta"
+        static let agentReasoningSectionBreak: Self = "agent_reasoning_section_break"
+        static let sessionConfigured: Self = "session_configured"
+        static let threadNameUpdated: Self = "thread_name_updated"
+        static let mcpStartupUpdate: Self = "mcp_startup_update"
+        static let mcpStartupComplete: Self = "mcp_startup_complete"
+        static let mcpToolCallBegin: Self = "mcp_tool_call_begin"
+        static let mcpToolCallEnd: Self = "mcp_tool_call_end"
+        static let webSearchBegin: Self = "web_search_begin"
+        static let webSearchEnd: Self = "web_search_end"
+        static let execCommandBegin: Self = "exec_command_begin"
+        static let execCommandOutputDelta: Self = "exec_command_output_delta"
+        static let terminalInteraction: Self = "terminal_interaction"
+        static let execCommandEnd: Self = "exec_command_end"
+        static let viewImageToolCall: Self = "view_image_tool_call"
+        static let execApprovalRequest: Self = "exec_approval_request"
+        static let requestUserInput: Self = "request_user_input"
+        static let dynamicToolCallRequest: Self = "dynamic_tool_call_request"
+        static let elicitationRequest: Self = "elicitation_request"
+        static let applyPatchApprovalRequest: Self = "apply_patch_approval_request"
+        static let deprecationNotice: Self = "deprecation_notice"
+        static let backgroundEvent: Self = "background_event"
+        static let undoStarted: Self = "undo_started"
+        static let undoCompleted: Self = "undo_completed"
+        static let streamError: Self = "stream_error"
+        static let patchApplyBegin: Self = "patch_apply_begin"
+        static let patchApplyEnd: Self = "patch_apply_end"
+        static let turnDiff: Self = "turn_diff"
+        static let getHistoryEntryResponse: Self = "get_history_entry_response"
+        static let mcpListToolsResponse: Self = "mcp_list_tools_response"
+        static let listCustomPromptsResponse: Self = "list_custom_prompts_response"
+        static let listSkillsResponse: Self = "list_skills_response"
+        static let listRemoteSkillsResponse: Self = "list_remote_skills_response"
+        static let remoteSkillDownloaded: Self = "remote_skill_downloaded"
+        static let skillsUpdateAvailable: Self = "skills_update_available"
+        static let planUpdate: Self = "plan_update"
+        static let turnAborted: Self = "turn_aborted"
+        static let shutdownComplete: Self = "shutdown_complete"
+        static let enteredReviewMode: Self = "entered_review_mode"
+        static let exitedReviewMode: Self = "exited_review_mode"
+        static let rawResponseItem: Self = "raw_response_item"
+        static let itemStarted: Self = "item_started"
+        static let itemCompleted: Self = "item_completed"
+        static let agentMessageContentDelta: Self = "agent_message_content_delta"
+        static let planDelta: Self = "plan_delta"
+        static let reasoningContentDelta: Self = "reasoning_content_delta"
+        static let reasoningRawContentDelta: Self = "reasoning_raw_content_delta"
+        static let collabAgentSpawnBegin: Self = "collab_agent_spawn_begin"
+        static let collabAgentSpawnEnd: Self = "collab_agent_spawn_end"
+        static let collabAgentInteractionBegin: Self = "collab_agent_interaction_begin"
+        static let collabAgentInteractionEnd: Self = "collab_agent_interaction_end"
+        static let collabWaitingBegin: Self = "collab_waiting_begin"
+        static let collabWaitingEnd: Self = "collab_waiting_end"
+        static let collabCloseBegin: Self = "collab_close_begin"
+        static let collabCloseEnd: Self = "collab_close_end"
+
+        let rawValue: String
+
+        init(rawValue: String) {
+            self.rawValue = rawValue
+        }
+
+        init(_ value: String) {
+            self.rawValue = value
+        }
+
+        init(stringLiteral value: String) {
+            self.rawValue = value
+        }
     }
 
     private static func parseTokenCount(payload: [String: CodexJSONValue], fallbackModel: String?) -> CodexRolloutLine.TokenCount {
