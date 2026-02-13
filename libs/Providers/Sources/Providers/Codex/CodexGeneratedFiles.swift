@@ -387,6 +387,8 @@ public struct CodexRolloutLine: Sendable, Equatable {
             case turnAborted(reason: String?)
             case shutdownComplete
             case threadNameUpdated(threadID: String?, threadName: String?)
+            case undoStarted(message: String?)
+            case undoCompleted(success: Bool?, message: String?)
             case turnStarted(modelContextWindow: Int?)
             case turnComplete(lastAgentMessage: String?)
             case known(type: String, payload: CodexJSONValue?)
@@ -865,6 +867,19 @@ public enum CodexGeneratedFilesParser {
             kind = .threadNameUpdated(
                 threadID: object["thread_id"]?.stringValue,
                 threadName: object["thread_name"]?.stringValue
+            )
+        case "undo_started":
+            kind = .undoStarted(message: object["message"]?.stringValue)
+        case "undo_completed":
+            let success: Bool?
+            if case let .bool(value)? = object["success"] {
+                success = value
+            } else {
+                success = nil
+            }
+            kind = .undoCompleted(
+                success: success,
+                message: object["message"]?.stringValue
             )
         case "task_started", "turn_started":
             kind = .turnStarted(modelContextWindow: object["model_context_window"]?.intValue)

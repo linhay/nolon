@@ -618,6 +618,53 @@ struct CodexGeneratedFilesParserTests {
         }
     }
 
+    @Test("Parse rollout event_msg undo_started and undo_completed as typed compatibility events")
+    func parseRolloutUndoEvents() throws {
+        let undoStartedLine = """
+        {
+          "timestamp": "2026-02-11T12:00:27Z",
+          "type": "event_msg",
+          "payload": {
+            "type": "undo_started",
+            "message": "Undo in progress"
+          }
+        }
+        """
+        let parsedUndoStarted = try CodexGeneratedFilesParser.parseRolloutLine(text: undoStartedLine)
+        if case let .eventMsg(event) = parsedUndoStarted.item {
+            if case let .undoStarted(message) = event.kind {
+                #expect(message == "Undo in progress")
+            } else {
+                Issue.record("Expected event_msg.undo_started")
+            }
+        } else {
+            Issue.record("Expected event_msg")
+        }
+
+        let undoCompletedLine = """
+        {
+          "timestamp": "2026-02-11T12:00:28Z",
+          "type": "event_msg",
+          "payload": {
+            "type": "undo_completed",
+            "success": true,
+            "message": "Undo applied"
+          }
+        }
+        """
+        let parsedUndoCompleted = try CodexGeneratedFilesParser.parseRolloutLine(text: undoCompletedLine)
+        if case let .eventMsg(event) = parsedUndoCompleted.item {
+            if case let .undoCompleted(success, message) = event.kind {
+                #expect(success == true)
+                #expect(message == "Undo applied")
+            } else {
+                Issue.record("Expected event_msg.undo_completed")
+            }
+        } else {
+            Issue.record("Expected event_msg")
+        }
+    }
+
     @Test("Parse history.jsonl entries with session_id and conversation_id")
     func parseHistoryJSONL() throws {
         let history = """
