@@ -31,10 +31,12 @@
 1. 会话事件与 codex 源继续对齐
 - 对 `libs/codex` 新增 `event_msg/response_item` 建立增量同步机制（清单 + 测试基线）。
 - 避免后续 schema 漂移导致 silently fallback 到 `.other`。
+- 当前状态：已新增 `CodexEventMsgSchemaDriftGuardTests`，可在 codex protocol 变更时直接红灯提示补齐。
 
 2. App 侧残余编排收口
 - 确认 nolon app 不再持有 auth/binary 细节实现。
 - 仅保留调用 `NolonCoreCLIKit` / Provider facade。
+- 当前状态：`NolonCoreCLIKit` 的 `auth login` 等待 `auth.json` 逻辑已下沉到 `CodexLoginRunner.loginAndAwaitAuthJSONString(...)`，服务层重复轮询已移除。
 
 ### P1
 1. CLI 打包/安装 E2E
