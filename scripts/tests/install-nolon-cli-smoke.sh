@@ -76,6 +76,24 @@ run_case_print_path() {
   [[ "${output}" == "${expected}" ]] || fail "expected print-path output ${expected}, got ${output}"
 }
 
+run_case_installed_binary_executes_codex_help() {
+  local tmp_root
+  tmp_root="$(mktemp -d)"
+  local target_root="${tmp_root}/isolated"
+  local target="${target_root}/bin/nolon"
+
+  bash "${SCRIPT_PATH}" --nolon-home "${target_root}" --package-path "${PACKAGE_PATH}" --configuration debug >/dev/null
+  assert_file_executable "${target}"
+
+  local codex_help
+  codex_help="$("${target}" codex --help)"
+  grep -q "Usage: nolon codex" <<<"${codex_help}" || fail "expected codex help usage output"
+
+  local probe_help
+  probe_help="$("${target}" codex status probe --help)"
+  grep -q "Usage: nolon codex status probe" <<<"${probe_help}" || fail "expected status probe help usage output"
+}
+
 main() {
   [[ -f "${SCRIPT_PATH}" ]] || fail "install script missing: ${SCRIPT_PATH}"
   run_case_default_install
@@ -83,6 +101,7 @@ main() {
   run_case_existing_without_force_fails
   run_case_force_overwrite
   run_case_print_path
+  run_case_installed_binary_executes_codex_help
   echo "PASS: install-nolon-cli smoke"
 }
 

@@ -107,10 +107,13 @@ build_binary() {
 }
 
 resolve_built_binary_path() {
-  local primary="${package_path}/.build/apple/Products/${configuration}/${INSTALL_BINARY_NAME}"
-  if [[ -x "${primary}" ]]; then
-    echo "${primary}"
-    return
+  local bin_path
+  if bin_path="$(swift build --package-path "${package_path}" -c "${configuration}" --show-bin-path 2>/dev/null)"; then
+    local primary="${bin_path}/${INSTALL_BINARY_NAME}"
+    if [[ -x "${primary}" ]]; then
+      echo "${primary}"
+      return
+    fi
   fi
 
   local fallback
