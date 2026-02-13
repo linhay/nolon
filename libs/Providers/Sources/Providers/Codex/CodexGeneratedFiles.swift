@@ -382,6 +382,8 @@ public struct CodexRolloutLine: Sendable, Equatable {
             case warning(String?)
             case contextCompacted
             case threadRolledBack(numTurns: Int?)
+            case planUpdate(plan: CodexJSONValue?)
+            case planDelta(delta: String?)
             case turnStarted(modelContextWindow: Int?)
             case turnComplete(lastAgentMessage: String?)
             case known(type: String, payload: CodexJSONValue?)
@@ -848,6 +850,10 @@ public enum CodexGeneratedFilesParser {
             kind = .contextCompacted
         case "thread_rolled_back":
             kind = .threadRolledBack(numTurns: object["num_turns"]?.intValue)
+        case "plan_update":
+            kind = .planUpdate(plan: object["plan"])
+        case "plan_delta":
+            kind = .planDelta(delta: object["delta"]?.stringValue)
         case "task_started", "turn_started":
             kind = .turnStarted(modelContextWindow: object["model_context_window"]?.intValue)
         case "task_complete", "turn_complete":

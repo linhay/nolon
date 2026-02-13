@@ -504,6 +504,51 @@ struct CodexGeneratedFilesParserTests {
         }
     }
 
+    @Test("Parse rollout event_msg plan_update and plan_delta as typed compatibility events")
+    func parseRolloutPlanEvents() throws {
+        let planUpdateLine = """
+        {
+          "timestamp": "2026-02-11T12:00:22Z",
+          "type": "event_msg",
+          "payload": {
+            "type": "plan_update",
+            "plan": [{"step":"A","status":"in_progress"}]
+          }
+        }
+        """
+        let parsedPlanUpdate = try CodexGeneratedFilesParser.parseRolloutLine(text: planUpdateLine)
+        if case let .eventMsg(event) = parsedPlanUpdate.item {
+            if case let .planUpdate(plan) = event.kind {
+                #expect(plan != nil)
+            } else {
+                Issue.record("Expected event_msg.plan_update")
+            }
+        } else {
+            Issue.record("Expected event_msg")
+        }
+
+        let planDeltaLine = """
+        {
+          "timestamp": "2026-02-11T12:00:23Z",
+          "type": "event_msg",
+          "payload": {
+            "type": "plan_delta",
+            "delta": "add step"
+          }
+        }
+        """
+        let parsedPlanDelta = try CodexGeneratedFilesParser.parseRolloutLine(text: planDeltaLine)
+        if case let .eventMsg(event) = parsedPlanDelta.item {
+            if case let .planDelta(delta) = event.kind {
+                #expect(delta == "add step")
+            } else {
+                Issue.record("Expected event_msg.plan_delta")
+            }
+        } else {
+            Issue.record("Expected event_msg")
+        }
+    }
+
     @Test("Parse history.jsonl entries with session_id and conversation_id")
     func parseHistoryJSONL() throws {
         let history = """
