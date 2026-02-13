@@ -24,6 +24,21 @@ public enum ProviderTemplate: String, CaseIterable, Sendable, Identifiable {
         config?.displayName ?? rawValue.capitalized
     }
 
+    /// CLI executable name for provider discovery (e.g. "codex", "claude").
+    public var cliName: String {
+        config?.cliName ?? rawValue
+    }
+
+    /// Stable provider id used by CLI output.
+    public var providerID: String {
+        switch self {
+        case .claudeCode:
+            return "claude"
+        default:
+            return rawValue
+        }
+    }
+
     /// Icon name for this template.
     public var iconName: String {
         config?.iconName ?? "questionmark.circle"

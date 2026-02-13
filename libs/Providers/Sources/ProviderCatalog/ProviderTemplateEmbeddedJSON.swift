@@ -1,6 +1,11 @@
+import Foundation
+
+enum ProviderTemplateEmbeddedJSON {
+    static let content = #"""
 {
     "codex": {
         "displayName": "Codex",
+        "cliName": "codex",
         "iconName": "terminal",
         "logoFile": "openai",
         "vendorHomeRelativePath": ".codex",
@@ -21,6 +26,7 @@
     },
     "codexXcode": {
         "displayName": "Codex (Xcode)",
+        "cliName": "codex",
         "iconName": "hammer",
         "logoFile": "openai",
         "vendorHomeRelativePath": "Library/Developer/Xcode/CodingAssistant/codex",
@@ -40,6 +46,7 @@
     },
     "claude": {
         "displayName": "Claude Code",
+        "cliName": "claude",
         "iconName": "bubble.left.and.bubble.right",
         "logoFile": "claude",
         "defaultSkillsPath": ".claude/skills",
@@ -50,6 +57,7 @@
     },
     "opencode": {
         "displayName": "OpenCode",
+        "cliName": "opencode",
         "iconName": "chevron.left.forwardslash.chevron.right",
         "logoFile": "opencode",
         "vendorHomeRelativePath": ".config/opencode",
@@ -66,6 +74,7 @@
     },
     "copilot": {
         "displayName": "GitHub Copilot",
+        "cliName": "copilot",
         "iconName": "airplane",
         "logoFile": "copilot",
         "vendorHomeRelativePath": ".copilot",
@@ -77,6 +86,7 @@
     },
     "gemini": {
         "displayName": "Gemini CLI",
+        "cliName": "gemini",
         "iconName": "sparkles",
         "logoFile": "gemini",
         "vendorHomeRelativePath": ".gemini",
@@ -88,6 +98,7 @@
     },
     "antigravity": {
         "displayName": "Antigravity",
+        "cliName": "antigravity",
         "iconName": "arrow.up.circle",
         "logoFile": "antigravity",
         "vendorHomeRelativePath": ".gemini/antigravity",
@@ -101,4 +112,6 @@
             ".gemini/skills"
         ]
     }
+}
+"""#
 }

@@ -116,10 +116,7 @@ let package = Package(
                 .product(name: "STFilePath", package: "STFilePath"),
                 .product(name: "Yams", package: "Yams"),
             ],
-            path: "Sources/ProviderCatalog",
-            resources: [
-                .process("Resources")
-            ]
+            path: "Sources/ProviderCatalog"
         ),
 
         .target(

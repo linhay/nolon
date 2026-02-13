@@ -3,6 +3,7 @@ import Foundation
 /// Configuration data for a `ProviderTemplate`, loaded from JSON.
 public struct ProviderTemplateConfig: Codable, Sendable {
     public let displayName: String
+    public let cliName: String
     public let iconName: String
     public let logoFile: String
     /// Optional vendor home relative path under user home (e.g. ".codex").
