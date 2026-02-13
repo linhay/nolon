@@ -11,6 +11,7 @@ public protocol NolonCodexCLIServing: Sendable {
     func authStatus(providerID: String) async throws -> NolonCodexAuthStatusPayload
     func authActivate(providerID: String, accountID: UUID) async throws -> NolonCodexAuthActivatePayload
     func authLogin(providerID: String, preferredAccountID: UUID?) async throws -> NolonCodexAuthLoginPayload
+    func authDelete(providerID: String, accountID: UUID) async throws -> NolonCodexAuthDeletePayload
     func binaryList() async throws -> NolonCodexBinaryListPayload
     func binaryCurrent() async throws -> NolonCodexBinaryCurrentPayload
     func binaryInstall(version: String, setDefault: Bool) async throws -> NolonCodexBinaryInstallPayload
@@ -53,6 +54,12 @@ public struct NolonCodexAuthLoginPayload: Codable, Sendable, Equatable {
     public let accountName: String
     public let runtimeSwitched: Bool
     public let runtimeErrorDescription: String?
+}
+
+public struct NolonCodexAuthDeletePayload: Codable, Sendable, Equatable {
+    public let providerID: String
+    public let accountID: UUID
+    public let wasActive: Bool
 }
 
 public struct NolonCodexManagedVersionView: Codable, Sendable, Equatable {
@@ -217,6 +224,25 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
             accountName: account.name,
             runtimeSwitched: activation.runtimeSwitched,
             runtimeErrorDescription: activation.runtimeErrorDescription
+        )
+    }
+
+    public func authDelete(providerID: String, accountID: UUID) async throws -> NolonCodexAuthDeletePayload {
+        let canonicalProviderID = try Self.canonicalProviderID(providerID)
+        let provider = try Self.provider(for: canonicalProviderID)
+        let accounts = try await authManager.loadAccounts()
+        guard accounts.contains(where: { $0.id == accountID }) else {
+            throw NolonCoreCLIError.domainFailed(
+                code: "codex_auth_account_not_found",
+                message: "Codex account not found: \(accountID.uuidString)"
+            )
+        }
+        let activeID = await authManager.activeAccountId(for: provider)
+        try await authManager.deleteAccount(id: accountID)
+        return NolonCodexAuthDeletePayload(
+            providerID: canonicalProviderID,
+            accountID: accountID,
+            wasActive: activeID == accountID
         )
     }
 
@@ -429,6 +455,14 @@ public enum NolonCLIEntrypoint {
             }
             let payload = try await context.codexService().authLogin(providerID: providerID, preferredAccountID: preferred)
             return try context.successJSON(command: "codex.auth.login", data: payload)
+        case "codex.auth.delete":
+            let args = try parseArguments(NolonCodexAuthDeleteArguments.self, optionArgs)
+            let providerID = try parseCodexProviderID(args.provider)
+            guard let accountID = UUID(uuidString: args.accountID) else {
+                throw NolonCoreCLIError.invalidArguments("Invalid --account-id: \(args.accountID)")
+            }
+            let payload = try await context.codexService().authDelete(providerID: providerID, accountID: accountID)
+            return try context.successJSON(command: "codex.auth.delete", data: payload)
         case "codex.binary.list":
             let _: NolonCodexNoArguments = try parseArguments(NolonCodexNoArguments.self, optionArgs)
             let payload = try await context.codexService().binaryList()
@@ -439,11 +473,13 @@ public enum NolonCLIEntrypoint {
             return try context.successJSON(command: "codex.binary.current", data: payload)
         case "codex.binary.install":
             let args = try parseArguments(NolonCodexBinaryInstallArguments.self, optionArgs)
-            let payload = try await context.codexService().binaryInstall(version: args.version, setDefault: args.setDefault)
+            let version = try parseCodexVersionArgument(args.version, option: "--version")
+            let payload = try await context.codexService().binaryInstall(version: version, setDefault: args.setDefault)
             return try context.successJSON(command: "codex.binary.install", data: payload)
         case "codex.binary.use":
             let args = try parseArguments(NolonCodexBinaryUseArguments.self, optionArgs)
-            let payload = try await context.codexService().binaryUse(version: args.version)
+            let version = try parseCodexVersionArgument(args.version, option: "--version")
+            let payload = try await context.codexService().binaryUse(version: version)
             return try context.successJSON(command: "codex.binary.use", data: payload)
         case "codex.binary.doctor":
             let _: NolonCodexNoArguments = try parseArguments(NolonCodexNoArguments.self, optionArgs)
@@ -477,6 +513,14 @@ public enum NolonCLIEntrypoint {
 
     private static func parseCodexProviderID(_ providerID: String) throws -> String {
         try canonicalCodexProviderID(providerID)
+    }
+
+    private static func parseCodexVersionArgument(_ raw: String, option: String) throws -> String {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            throw NolonCoreCLIError.invalidArguments("Invalid \(option): value cannot be empty")
+        }
+        return trimmed
     }
 
     private static func canonicalCodexProviderID(_ providerID: String) throws -> String {
@@ -552,6 +596,14 @@ private struct NolonCodexAuthLoginArguments: ParsableArguments {
 
     @Option(name: .long, help: "Preferred account id UUID for snapshot update.")
     var preferredAccountID: String?
+}
+
+private struct NolonCodexAuthDeleteArguments: ParsableArguments {
+    @Option(name: .long, help: "Provider id, default is codex.")
+    var provider: String = "codex"
+
+    @Option(name: .long, help: "Account id UUID.")
+    var accountID: String
 }
 
 private struct NolonCodexBinaryInstallArguments: ParsableArguments {

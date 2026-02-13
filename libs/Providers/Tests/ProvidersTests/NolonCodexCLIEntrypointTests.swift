@@ -147,6 +147,23 @@ struct NolonCodexCLIEntrypointTests {
         #expect(await mock.lastCall() == "authLogin")
     }
 
+    @Test("routes auth delete")
+    func routesAuthDelete() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: [
+                "codex", "auth", "delete",
+                "--provider", "codex",
+                "--account-id", "11111111-1111-1111-1111-111111111111",
+            ],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stdout.contains("\"command\":\"codex.auth.delete\""))
+        #expect(await mock.lastCall() == "authDelete")
+    }
+
     @Test("routes binary install set-default")
     func routesBinaryInstall() async {
         let mock = MockCodexCLIService()
@@ -162,6 +179,21 @@ struct NolonCodexCLIEntrypointTests {
         #expect(result.exitCode == 0)
         #expect(result.stdout.contains("\"command\":\"codex.binary.install\""))
         #expect(await mock.lastCall() == "binaryInstall")
+    }
+
+    @Test("binary install rejects empty version")
+    func binaryInstallRejectsEmptyVersion() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: [
+                "codex", "binary", "install",
+                "--version", "   ",
+            ],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 2)
+        #expect(result.stderr.contains("\"code\":\"invalid_arguments\""))
     }
 
     @Test("routes binary current")
@@ -193,6 +225,21 @@ struct NolonCodexCLIEntrypointTests {
         #expect(result.exitCode == 0)
         #expect(result.stdout.contains("\"command\":\"codex.binary.use\""))
         #expect(await mock.lastCall() == "binaryUse")
+    }
+
+    @Test("binary use rejects empty version")
+    func binaryUseRejectsEmptyVersion() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: [
+                "codex", "binary", "use",
+                "--version", "\t",
+            ],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 2)
+        #expect(result.stderr.contains("\"code\":\"invalid_arguments\""))
     }
 
     @Test("routes binary doctor")
@@ -322,6 +369,15 @@ private actor MockCodexCLIService: NolonCodexCLIServing {
         )
     }
 
+    func authDelete(providerID: String, accountID: UUID) async throws -> NolonCodexAuthDeletePayload {
+        call = "authDelete"
+        return NolonCodexAuthDeletePayload(
+            providerID: providerID,
+            accountID: accountID,
+            wasActive: false
+        )
+    }
+
     func binaryList() async throws -> NolonCodexBinaryListPayload {
         call = "binaryList"
         return NolonCodexBinaryListPayload(selectedVersionID: nil, versions: [])
@@ -379,6 +435,7 @@ private actor DomainErrorCodexCLIService: NolonCodexCLIServing {
     func authStatus(providerID: String) async throws -> NolonCodexAuthStatusPayload { throw makeError() }
     func authActivate(providerID: String, accountID: UUID) async throws -> NolonCodexAuthActivatePayload { throw makeError() }
     func authLogin(providerID: String, preferredAccountID: UUID?) async throws -> NolonCodexAuthLoginPayload { throw makeError() }
+    func authDelete(providerID: String, accountID: UUID) async throws -> NolonCodexAuthDeletePayload { throw makeError() }
     func binaryList() async throws -> NolonCodexBinaryListPayload { throw makeError() }
     func binaryCurrent() async throws -> NolonCodexBinaryCurrentPayload { throw makeError() }
     func binaryInstall(version: String, setDefault: Bool) async throws -> NolonCodexBinaryInstallPayload { throw makeError() }
