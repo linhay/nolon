@@ -85,6 +85,20 @@ struct NolonCodexCLIEntrypointTests {
         #expect(result.stdout.contains("--provider"))
     }
 
+    @Test("codex auth status --help prints action help")
+    func codexAuthStatusHelpPrintsHelp() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["codex", "auth", "status", "--help"],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("Usage: nolon codex auth status"))
+        #expect(result.stdout.contains("--provider"))
+    }
+
     @Test("codex binary install --help prints action help")
     func codexBinaryInstallHelpPrintsHelp() async {
         let mock = MockCodexCLIService()

@@ -436,6 +436,9 @@ public enum NolonCLIEntrypoint {
         if normalized == ["codex", "auth", "list", "help"] || normalized == ["codex", "auth", "list", "-h"] || normalized == ["codex", "auth", "list", "--help"] {
             return codexAuthListHelpText()
         }
+        if normalized == ["codex", "auth", "status", "help"] || normalized == ["codex", "auth", "status", "-h"] || normalized == ["codex", "auth", "status", "--help"] {
+            return codexAuthStatusHelpText()
+        }
         if normalized == ["codex", "binary", "install", "help"] || normalized == ["codex", "binary", "install", "-h"] || normalized == ["codex", "binary", "install", "--help"] {
             return codexBinaryInstallHelpText()
         }
@@ -506,6 +509,15 @@ public enum NolonCLIEntrypoint {
         """
     }
 
+    private static func codexAuthStatusHelpText() -> String {
+        """
+        Usage: nolon codex auth status [options]
+
+        Options:
+          --provider <id>   Provider id, default is codex.
+        """
+    }
+
     private static func codexBinaryInstallHelpText() -> String {
         """
         Usage: nolon codex binary install --version <version-or-tag> [--set-default]
@@ -563,14 +575,14 @@ public enum NolonCLIEntrypoint {
     }
 
     private static func executeAuthList(optionArgs: [String], context: NolonCLIExecutionContext) async throws -> String {
-        let args = try parseArguments(NolonCodexAuthListArguments.self, optionArgs)
+        let args = try parseCommand(NolonCodexAuthListCommand.self, optionArgs)
         let providerID = try parseCodexProviderID(args.provider)
         let payload = try await context.codexService().authList(providerID: providerID)
         return try context.successJSON(command: NolonCodexCommandPath.authList.rawValue, data: payload)
     }
 
     private static func executeAuthStatus(optionArgs: [String], context: NolonCLIExecutionContext) async throws -> String {
-        let args = try parseArguments(NolonCodexAuthStatusArguments.self, optionArgs)
+        let args = try parseCommand(NolonCodexAuthStatusCommand.self, optionArgs)
         let providerID = try parseCodexProviderID(args.provider)
         let payload = try await context.codexService().authStatus(providerID: providerID)
         return try context.successJSON(command: NolonCodexCommandPath.authStatus.rawValue, data: payload)
@@ -659,6 +671,18 @@ public enum NolonCLIEntrypoint {
     private static func parseArguments<T: ParsableArguments>(_ type: T.Type, _ arguments: [String]) throws -> T {
         do {
             return try T.parse(arguments)
+        } catch {
+            throw NolonCoreCLIError.invalidArguments(error.localizedDescription)
+        }
+    }
+
+    private static func parseCommand<T: ParsableCommand>(_ type: T.Type, _ arguments: [String]) throws -> T {
+        do {
+            let parsed = try T.parseAsRoot(arguments)
+            guard let typed = parsed as? T else {
+                throw NolonCoreCLIError.invalidArguments("Failed to parse command type: \(T.self)")
+            }
+            return typed
         } catch {
             throw NolonCoreCLIError.invalidArguments(error.localizedDescription)
         }
@@ -763,12 +787,16 @@ private final class NolonCLIExecutionContext: @unchecked Sendable {
     }
 }
 
-private struct NolonCodexAuthListArguments: ParsableArguments {
+private struct NolonCodexAuthListCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(commandName: "list")
+
     @Option(name: .long, help: "Provider id, default is codex.")
     var provider: String = "codex"
 }
 
-private struct NolonCodexAuthStatusArguments: ParsableArguments {
+private struct NolonCodexAuthStatusCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(commandName: "status")
+
     @Option(name: .long, help: "Provider id, default is codex.")
     var provider: String = "codex"
 }
