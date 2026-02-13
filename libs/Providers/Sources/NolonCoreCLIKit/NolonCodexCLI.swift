@@ -451,6 +451,12 @@ public enum NolonCLIEntrypoint {
         if normalized == ["codex", "binary", "install", "help"] || normalized == ["codex", "binary", "install", "-h"] || normalized == ["codex", "binary", "install", "--help"] {
             return codexBinaryInstallHelpText()
         }
+        if normalized == ["codex", "binary", "use", "help"] || normalized == ["codex", "binary", "use", "-h"] || normalized == ["codex", "binary", "use", "--help"] {
+            return codexBinaryUseHelpText()
+        }
+        if normalized == ["codex", "status", "probe", "help"] || normalized == ["codex", "status", "probe", "-h"] || normalized == ["codex", "status", "probe", "--help"] {
+            return codexStatusProbeHelpText()
+        }
         return nil
     }
 
@@ -567,6 +573,24 @@ public enum NolonCLIEntrypoint {
         """
     }
 
+    private static func codexBinaryUseHelpText() -> String {
+        """
+        Usage: nolon codex binary use --version <version-or-id>
+
+        Options:
+          --version <value>   Version id or semantic version.
+        """
+    }
+
+    private static func codexStatusProbeHelpText() -> String {
+        """
+        Usage: nolon codex status probe [--provider <id>]
+
+        Options:
+          --provider <id>   Provider id for reporting context.
+        """
+    }
+
     private static func executeCommand(
         arguments: [String],
         context: NolonCLIExecutionContext
@@ -676,14 +700,14 @@ public enum NolonCLIEntrypoint {
     }
 
     private static func executeBinaryInstall(optionArgs: [String], context: NolonCLIExecutionContext) async throws -> String {
-        let args = try parseArguments(NolonCodexBinaryInstallArguments.self, optionArgs)
+        let args = try parseCommand(NolonCodexBinaryInstallCommand.self, optionArgs)
         let version = try parseCodexVersionArgument(args.version, option: "--version")
         let payload = try await context.codexService().binaryInstall(version: version, setDefault: args.setDefault)
         return try context.successJSON(command: NolonCodexCommandPath.binaryInstall.rawValue, data: payload)
     }
 
     private static func executeBinaryUse(optionArgs: [String], context: NolonCLIExecutionContext) async throws -> String {
-        let args = try parseArguments(NolonCodexBinaryUseArguments.self, optionArgs)
+        let args = try parseCommand(NolonCodexBinaryUseCommand.self, optionArgs)
         let version = try parseCodexVersionArgument(args.version, option: "--version")
         let payload = try await context.codexService().binaryUse(version: version)
         return try context.successJSON(command: NolonCodexCommandPath.binaryUse.rawValue, data: payload)
@@ -696,7 +720,7 @@ public enum NolonCLIEntrypoint {
     }
 
     private static func executeStatusProbe(optionArgs: [String], context: NolonCLIExecutionContext) async throws -> String {
-        let args = try parseArguments(NolonCodexStatusProbeArguments.self, optionArgs)
+        let args = try parseCommand(NolonCodexStatusProbeCommand.self, optionArgs)
         let providerID: String?
         if let provider = args.provider {
             providerID = try parseCodexProviderID(provider)
@@ -870,7 +894,9 @@ private struct NolonCodexAuthDeleteCommand: ParsableCommand {
     var accountID: String
 }
 
-private struct NolonCodexBinaryInstallArguments: ParsableArguments {
+private struct NolonCodexBinaryInstallCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(commandName: "install")
+
     @Option(name: .long, help: "Version tag to install, e.g. 0.26.0 or rust-v0.26.0.")
     var version: String
 
@@ -878,12 +904,16 @@ private struct NolonCodexBinaryInstallArguments: ParsableArguments {
     var setDefault: Bool = false
 }
 
-private struct NolonCodexBinaryUseArguments: ParsableArguments {
+private struct NolonCodexBinaryUseCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(commandName: "use")
+
     @Option(name: .long, help: "Version id or semantic version.")
     var version: String
 }
 
-private struct NolonCodexStatusProbeArguments: ParsableArguments {
+private struct NolonCodexStatusProbeCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(commandName: "probe")
+
     @Option(name: .long, help: "Provider id for reporting context.")
     var provider: String?
 }
