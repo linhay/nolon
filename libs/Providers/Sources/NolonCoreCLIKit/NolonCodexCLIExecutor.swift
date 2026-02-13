@@ -40,13 +40,13 @@ enum NolonCodexCLIExecutor {
     private static func executeAuthList(command: NolonCodexAuthListCommand, context: NolonCLIExecutionContext) async throws -> String {
         let providerID = try parseCodexProviderID(command.provider)
         let payload = try await context.codexService().authList(providerID: providerID)
-        return try context.successJSON(command: NolonCodexCommandPath.authList.rawValue, data: payload)
+        return formatAuthList(payload)
     }
 
     private static func executeAuthStatus(command: NolonCodexAuthStatusCommand, context: NolonCLIExecutionContext) async throws -> String {
         let providerID = try parseCodexProviderID(command.provider)
         let payload = try await context.codexService().authStatus(providerID: providerID)
-        return try context.successJSON(command: NolonCodexCommandPath.authStatus.rawValue, data: payload)
+        return formatAuthStatus(payload)
     }
 
     private static func executeAuthActivate(command: NolonCodexAuthActivateCommand, context: NolonCLIExecutionContext) async throws -> String {
@@ -55,7 +55,7 @@ enum NolonCodexCLIExecutor {
             throw NolonCoreCLIError.invalidArguments("Invalid --account-id: \(command.accountID)")
         }
         let payload = try await context.codexService().authActivate(providerID: providerID, accountID: accountID)
-        return try context.successJSON(command: NolonCodexCommandPath.authActivate.rawValue, data: payload)
+        return formatAuthActivate(payload)
     }
 
     private static func executeAuthLogin(command: NolonCodexAuthLoginCommand, context: NolonCLIExecutionContext) async throws -> String {
@@ -70,7 +70,7 @@ enum NolonCodexCLIExecutor {
             preferred = nil
         }
         let payload = try await context.codexService().authLogin(providerID: providerID, preferredAccountID: preferred)
-        return try context.successJSON(command: NolonCodexCommandPath.authLogin.rawValue, data: payload)
+        return formatAuthLogin(payload)
     }
 
     private static func executeAuthDelete(command: NolonCodexAuthDeleteCommand, context: NolonCLIExecutionContext) async throws -> String {
@@ -79,7 +79,7 @@ enum NolonCodexCLIExecutor {
             throw NolonCoreCLIError.invalidArguments("Invalid --account-id: \(command.accountID)")
         }
         let payload = try await context.codexService().authDelete(providerID: providerID, accountID: accountID)
-        return try context.successJSON(command: NolonCodexCommandPath.authDelete.rawValue, data: payload)
+        return formatAuthDelete(payload)
     }
 
     private static func executeBinaryList(context: NolonCLIExecutionContext) async throws -> String {
@@ -89,24 +89,24 @@ enum NolonCodexCLIExecutor {
 
     private static func executeBinaryCurrent(context: NolonCLIExecutionContext) async throws -> String {
         let payload = try await context.codexService().binaryCurrent()
-        return try context.successJSON(command: NolonCodexCommandPath.binaryCurrent.rawValue, data: payload)
+        return formatBinaryCurrent(payload)
     }
 
     private static func executeBinaryInstall(command: NolonCodexBinaryInstallCommand, context: NolonCLIExecutionContext) async throws -> String {
         let version = try parseCodexVersionArgument(command.version, option: "--version")
         let payload = try await context.codexService().binaryInstall(version: version, setDefault: command.setDefault)
-        return try context.successJSON(command: NolonCodexCommandPath.binaryInstall.rawValue, data: payload)
+        return formatBinaryInstall(payload)
     }
 
     private static func executeBinaryUse(command: NolonCodexBinaryUseCommand, context: NolonCLIExecutionContext) async throws -> String {
         let version = try parseCodexVersionArgument(command.version, option: "--version")
         let payload = try await context.codexService().binaryUse(version: version)
-        return try context.successJSON(command: NolonCodexCommandPath.binaryUse.rawValue, data: payload)
+        return formatBinaryUse(payload)
     }
 
     private static func executeBinaryDoctor(context: NolonCLIExecutionContext) async throws -> String {
         let payload = try await context.codexService().binaryDoctor()
-        return try context.successJSON(command: NolonCodexCommandPath.binaryDoctor.rawValue, data: payload)
+        return formatBinaryDoctor(payload)
     }
 
     private static func executeStatusProbe(command: NolonCodexStatusProbeCommand, context: NolonCLIExecutionContext) async throws -> String {
@@ -117,7 +117,7 @@ enum NolonCodexCLIExecutor {
             providerID = nil
         }
         let payload = try await context.codexService().statusProbe(providerID: providerID)
-        return try context.successJSON(command: NolonCodexCommandPath.statusProbe.rawValue, data: payload)
+        return formatStatusProbe(payload)
     }
 
     private static func parseRootCommand(_ arguments: [String]) throws -> any ParsableCommand {
@@ -187,6 +187,105 @@ enum NolonCodexCLIExecutor {
                 """
             }
             .joined(separator: "\n")
+    }
+
+    private static func formatAuthList(_ payload: NolonCodexAuthListPayload) -> String {
+        let header = [
+            "provider: \(payload.providerID)",
+            "active_account_id: \(payload.activeAccountID?.uuidString ?? "-")",
+            "account_count: \(payload.accounts.count)",
+        ].joined(separator: "\n")
+        guard !payload.accounts.isEmpty else {
+            return "\(header)\naccounts:\n  (none)"
+        }
+        let formatter = ISO8601DateFormatter()
+        let body = payload.accounts.map { account in
+            let marker = account.isActive ? "*" : " "
+            let createdAt = formatter.string(from: account.createdAt)
+            return "\(marker) id: \(account.id.uuidString)\n  name: \(account.name)\n  created_at: \(createdAt)\n  auth_path: \(account.relativeAuthPath)"
+        }.joined(separator: "\n")
+        return "\(header)\naccounts:\n\(body)"
+    }
+
+    private static func formatAuthStatus(_ payload: NolonCodexAuthStatusPayload) -> String {
+        [
+            "provider: \(payload.providerID)",
+            "active_account_id: \(payload.activeAccountID?.uuidString ?? "-")",
+            "account_count: \(payload.accountCount)",
+            "auth_hash_hex: \(payload.authHashHex ?? "-")",
+        ].joined(separator: "\n")
+    }
+
+    private static func formatAuthActivate(_ payload: NolonCodexAuthActivatePayload) -> String {
+        [
+            "provider: \(payload.providerID)",
+            "account_id: \(payload.accountID.uuidString)",
+            "runtime_switched: \(payload.runtimeSwitched)",
+            "runtime_error: \(payload.runtimeErrorDescription ?? "-")",
+        ].joined(separator: "\n")
+    }
+
+    private static func formatAuthLogin(_ payload: NolonCodexAuthLoginPayload) -> String {
+        [
+            "provider: \(payload.providerID)",
+            "account_id: \(payload.accountID.uuidString)",
+            "account_name: \(payload.accountName)",
+            "runtime_switched: \(payload.runtimeSwitched)",
+            "runtime_error: \(payload.runtimeErrorDescription ?? "-")",
+        ].joined(separator: "\n")
+    }
+
+    private static func formatAuthDelete(_ payload: NolonCodexAuthDeletePayload) -> String {
+        [
+            "provider: \(payload.providerID)",
+            "account_id: \(payload.accountID.uuidString)",
+            "was_active: \(payload.wasActive)",
+        ].joined(separator: "\n")
+    }
+
+    private static func formatBinaryCurrent(_ payload: NolonCodexBinaryCurrentPayload) -> String {
+        [
+            "selected_version_id: \(payload.selectedVersionID ?? "-")",
+            "current_version: \(payload.currentVersion ?? "-")",
+            "active_cli_path: \(payload.activeCLIPath ?? "-")",
+        ].joined(separator: "\n")
+    }
+
+    private static func formatBinaryInstall(_ payload: NolonCodexBinaryInstallPayload) -> String {
+        [
+            "requested_version: \(payload.requestedVersion)",
+            "installed_version_id: \(payload.installedVersionID)",
+            "installed_detected_version: \(payload.installedDetectedVersion)",
+            "activated: \(payload.activated)",
+        ].joined(separator: "\n")
+    }
+
+    private static func formatBinaryUse(_ payload: NolonCodexBinaryUsePayload) -> String {
+        "selected_version_id: \(payload.selectedVersionID)"
+    }
+
+    private static func formatBinaryDoctor(_ payload: NolonCodexBinaryDoctorPayload) -> String {
+        [
+            "selected_version_id: \(payload.selectedVersionID ?? "-")",
+            "current_version: \(payload.currentVersion ?? "-")",
+            "active_cli_path: \(payload.activeCLIPath ?? "-")",
+            "managed_version_count: \(payload.managedVersionCount)",
+            "path_configured: \(payload.pathConfigured)",
+            "path_active: \(payload.pathActive)",
+            "profile_path: \(payload.profilePath)",
+        ].joined(separator: "\n")
+    }
+
+    private static func formatStatusProbe(_ payload: NolonCodexStatusProbePayload) -> String {
+        [
+            "provider: \(payload.providerID ?? "-")",
+            "resolved_executable: \(payload.resolvedExecutable ?? "-")",
+            "credits: \(payload.credits.map { String($0) } ?? "-")",
+            "five_hour_percent_left: \(payload.fiveHourPercentLeft.map { String($0) } ?? "-")",
+            "weekly_percent_left: \(payload.weeklyPercentLeft.map { String($0) } ?? "-")",
+            "five_hour_reset: \(payload.fiveHourResetDescription ?? "-")",
+            "weekly_reset: \(payload.weeklyResetDescription ?? "-")",
+        ].joined(separator: "\n")
     }
 }
 

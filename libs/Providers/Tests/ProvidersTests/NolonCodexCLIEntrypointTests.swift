@@ -286,7 +286,7 @@ struct NolonCodexCLIEntrypointTests {
         )
 
         #expect(result.exitCode == 0)
-        #expect(result.stdout.contains("\"command\":\"codex.auth.list\""))
+        #expect(result.stdout.contains("provider: codex"))
         #expect(await mock.lastCall() == "authList")
     }
 
@@ -302,7 +302,7 @@ struct NolonCodexCLIEntrypointTests {
         )
 
         #expect(result.exitCode == 0)
-        #expect(result.stdout.contains("\"providerID\":\"codex-xcode\""))
+        #expect(result.stdout.contains("provider: codex-xcode"))
     }
 
     @Test("auth list rejects unsupported provider")
@@ -332,7 +332,7 @@ struct NolonCodexCLIEntrypointTests {
         )
 
         #expect(result.exitCode == 0)
-        #expect(result.stdout.contains("\"command\":\"codex.auth.status\""))
+        #expect(result.stdout.contains("account_count: 0"))
         #expect(await mock.lastCall() == "authStatus")
     }
 
@@ -364,7 +364,7 @@ struct NolonCodexCLIEntrypointTests {
         )
 
         #expect(result.exitCode == 0)
-        #expect(result.stdout.contains("\"command\":\"codex.auth.activate\""))
+        #expect(result.stdout.contains("runtime_switched: true"))
         #expect(result.stderr.isEmpty)
         #expect(await mock.lastCall() == "authActivate")
     }
@@ -413,7 +413,7 @@ struct NolonCodexCLIEntrypointTests {
         )
 
         #expect(result.exitCode == 0)
-        #expect(result.stdout.contains("\"command\":\"codex.auth.login\""))
+        #expect(result.stdout.contains("account_name: mock"))
         #expect(await mock.lastCall() == "authLogin")
     }
 
@@ -430,7 +430,7 @@ struct NolonCodexCLIEntrypointTests {
         )
 
         #expect(result.exitCode == 0)
-        #expect(result.stdout.contains("\"command\":\"codex.auth.delete\""))
+        #expect(result.stdout.contains("was_active: false"))
         #expect(await mock.lastCall() == "authDelete")
     }
 
@@ -447,7 +447,7 @@ struct NolonCodexCLIEntrypointTests {
         )
 
         #expect(result.exitCode == 0)
-        #expect(result.stdout.contains("\"command\":\"codex.binary.install\""))
+        #expect(result.stdout.contains("requested_version: 0.26.0"))
         #expect(await mock.lastCall() == "binaryInstall")
     }
 
@@ -477,7 +477,7 @@ struct NolonCodexCLIEntrypointTests {
         )
 
         #expect(result.exitCode == 0)
-        #expect(result.stdout.contains("\"command\":\"codex.binary.current\""))
+        #expect(result.stdout.contains("current_version: -"))
         #expect(await mock.lastCall() == "binaryCurrent")
     }
 
@@ -493,7 +493,7 @@ struct NolonCodexCLIEntrypointTests {
         )
 
         #expect(result.exitCode == 0)
-        #expect(result.stdout.contains("\"command\":\"codex.binary.use\""))
+        #expect(result.stdout.contains("selected_version_id: 0.26.0"))
         #expect(await mock.lastCall() == "binaryUse")
     }
 
@@ -523,7 +523,7 @@ struct NolonCodexCLIEntrypointTests {
         )
 
         #expect(result.exitCode == 0)
-        #expect(result.stdout.contains("\"command\":\"codex.binary.doctor\""))
+        #expect(result.stdout.contains("profile_path: ~/.zshrc"))
         #expect(await mock.lastCall() == "binaryDoctor")
     }
 
@@ -561,7 +561,7 @@ struct NolonCodexCLIEntrypointTests {
         )
 
         #expect(result.exitCode == 0)
-        #expect(result.stdout.contains("\"command\":\"codex.status.probe\""))
+        #expect(result.stdout.contains("resolved_executable: /opt/homebrew/bin/codex"))
         #expect(await mock.lastCall() == "statusProbe")
     }
 
@@ -577,7 +577,7 @@ struct NolonCodexCLIEntrypointTests {
         )
 
         #expect(result.exitCode == 0)
-        #expect(result.stdout.contains("\"providerID\":\"codex-xcode\""))
+        #expect(result.stdout.contains("provider: codex-xcode"))
     }
 
     @Test("status probe rejects unsupported provider")
