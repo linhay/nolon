@@ -25,6 +25,10 @@
   - 用途：覆盖默认 `~/.nolon` 根目录，便于多项目隔离和测试沙盒。
   - 生效模块：`CodexAuthManager`、`CodexBinaryManager`。
   - 优先级：显式传入 `rootURL/nolonHomeURL` > `NOLON_HOME` > 默认 `~/.nolon`。
+- rollout 事件兼容策略（`CodexGeneratedFilesParser`）：
+  - 核心事件（token_count/user_message/agent_message/task_* 等）保持强类型解析。
+  - codex schema 内其他 `event_msg.type` 统一映射为 `.known(type:payload:)`。
+  - schema 外未知事件保留 `.other(type:payload:)`，避免解析中断。
 
 ## BDD 验收
 1. Given `auth activate` 参数有效，When 执行命令，Then 路由到 auth 激活并返回 `codex.auth.activate`。

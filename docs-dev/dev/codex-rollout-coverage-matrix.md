@@ -17,7 +17,7 @@
 | `compacted` | `.compacted` | 已类型化 | 含 replacement_history |
 | `turn_context` | `.turnContext` | 已类型化 | cwd/approval/sandbox/model |
 | `event_msg` + `token_count` | `.tokenCount` | 已类型化 | 支持嵌套 `payload.type=token_count` |
-| `event_msg` + 其他 | `.eventMsg` | 已类型化 | 常见 user/agent/error/warning/turn |
+| `event_msg` + 其他 | `.eventMsg` | 兼容类型化 | 已对齐 codex schema 事件类型集合 |
 | `token_count` | `.tokenCount` | 已类型化 | 顶层 token_count |
 | 其他未知 | `.other(type:)` | 兼容降级 | 不抛错，保留 type |
 
@@ -37,21 +37,23 @@
 | `ghost_snapshot` | 已类型化 | ghost_commit 结构保留 |
 | 其他未知 | 兼容降级 | `.other(type:raw:)` |
 
-## event_msg.type 覆盖
+## event_msg.type 覆盖（对齐 `libs/codex`）
 
 | event_msg.type | 覆盖状态 | 说明 |
 |---|---|---|
-| `token_count` | 已类型化 | 转 `.tokenCount` |
+| `token_count` | 已类型化 | 转 `.tokenCount`（含 nested payload） |
 | `user_message` | 已类型化 | message/images/local_images/text_elements |
 | `agent_message` | 已类型化 | 文本消息 |
 | `error` | 已类型化 | 错误消息 |
 | `warning` | 已类型化 | 警告消息 |
 | `task_started`/`turn_started` | 已类型化 | model_context_window |
 | `task_complete`/`turn_complete` | 已类型化 | last_agent_message |
-| 其他未知 | 兼容降级 | `.other(type:payload:)` |
+| schema 内其余 EventMsg（如 `context_compacted`、`exec_command_begin`、`plan_update`、`raw_response_item`、`collab_*` 等） | 兼容类型化 | `.known(type:payload:)` |
+| schema 外未知类型 | 兼容降级 | `.other(type:payload:)` |
 
 ## 测试覆盖快照
 - 文件：`libs/Providers/Tests/ProvidersTests/CodexTests/CodexGeneratedFilesParserTests.swift`
+- 文件：`libs/Providers/Tests/ProvidersTests/CodexTests/CodexEventMsgCompatibilityTests.swift`
 - 已覆盖场景：
   - `session_meta`
   - `token_count`（event_msg + nested event payload）
@@ -61,6 +63,8 @@
   - `response_item.reasoning/compaction_summary`
   - `event_msg.user_message/agent_message/error/warning/task_started/task_complete/turn_complete`
   - unknown fallback（`event_msg.other`、top-level `.other(type:)`）
+  - codex schema `EventMsg` 全量兼容映射（`token_count` 特判 + 非核心事件 `.known`）
+  - codex schema `ResponseItem` 全量兼容映射（`other` 保留兜底）
   - `compacted`
   - `history.jsonl`
   - `config.toml` / `managed_config.toml`

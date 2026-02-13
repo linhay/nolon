@@ -382,6 +382,7 @@ public struct CodexRolloutLine: Sendable, Equatable {
             case warning(String?)
             case turnStarted(modelContextWindow: Int?)
             case turnComplete(lastAgentMessage: String?)
+            case known(type: String, payload: CodexJSONValue?)
             case other(type: String, payload: CodexJSONValue?)
         }
 
@@ -845,12 +846,78 @@ public enum CodexGeneratedFilesParser {
             kind = .turnStarted(modelContextWindow: object["model_context_window"]?.intValue)
         case "task_complete", "turn_complete":
             kind = .turnComplete(lastAgentMessage: object["last_agent_message"]?.stringValue)
+        case _ where knownCodexEventMessageTypes.contains(type):
+            kind = .known(type: type, payload: payload)
         default:
             kind = .other(type: type, payload: payload)
         }
 
         return .init(kind: kind)
     }
+
+    private static let knownCodexEventMessageTypes: Set<String> = [
+        "context_compacted",
+        "thread_rolled_back",
+        "agent_message_delta",
+        "agent_reasoning",
+        "agent_reasoning_delta",
+        "agent_reasoning_raw_content",
+        "agent_reasoning_raw_content_delta",
+        "agent_reasoning_section_break",
+        "session_configured",
+        "thread_name_updated",
+        "mcp_startup_update",
+        "mcp_startup_complete",
+        "mcp_tool_call_begin",
+        "mcp_tool_call_end",
+        "web_search_begin",
+        "web_search_end",
+        "exec_command_begin",
+        "exec_command_output_delta",
+        "terminal_interaction",
+        "exec_command_end",
+        "view_image_tool_call",
+        "exec_approval_request",
+        "request_user_input",
+        "dynamic_tool_call_request",
+        "elicitation_request",
+        "apply_patch_approval_request",
+        "deprecation_notice",
+        "background_event",
+        "undo_started",
+        "undo_completed",
+        "stream_error",
+        "patch_apply_begin",
+        "patch_apply_end",
+        "turn_diff",
+        "get_history_entry_response",
+        "mcp_list_tools_response",
+        "list_custom_prompts_response",
+        "list_skills_response",
+        "list_remote_skills_response",
+        "remote_skill_downloaded",
+        "skills_update_available",
+        "plan_update",
+        "turn_aborted",
+        "shutdown_complete",
+        "entered_review_mode",
+        "exited_review_mode",
+        "raw_response_item",
+        "item_started",
+        "item_completed",
+        "agent_message_content_delta",
+        "plan_delta",
+        "reasoning_content_delta",
+        "reasoning_raw_content_delta",
+        "collab_agent_spawn_begin",
+        "collab_agent_spawn_end",
+        "collab_agent_interaction_begin",
+        "collab_agent_interaction_end",
+        "collab_waiting_begin",
+        "collab_waiting_end",
+        "collab_close_begin",
+        "collab_close_end",
+    ]
 
     private static func parseTokenCountFromEventMessage(payload: CodexJSONValue?) -> CodexRolloutLine.TokenCount? {
         let object = payload?.objectValue ?? [:]
