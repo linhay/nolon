@@ -228,6 +228,26 @@ private struct NolonCLIHelpPath: RawRepresentable, ExpressibleByStringLiteral, E
     }
 
     init?(arguments: [String]) {
+        switch arguments {
+        case []:
+            self = .root
+            return
+        case ["codex"]:
+            self = .codex
+            return
+        case ["codex", "auth"]:
+            self = .codexAuth
+            return
+        case ["codex", "binary"]:
+            self = .codexBinary
+            return
+        case ["codex", "status"]:
+            self = .codexStatus
+            return
+        default:
+            break
+        }
+
         let flag = arguments.last
         guard flag == "help" || flag == "-h" || flag == "--help" else {
             return nil
