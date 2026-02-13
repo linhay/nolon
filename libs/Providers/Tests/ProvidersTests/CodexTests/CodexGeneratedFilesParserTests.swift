@@ -549,6 +549,49 @@ struct CodexGeneratedFilesParserTests {
         }
     }
 
+    @Test("Parse rollout event_msg turn_aborted and shutdown_complete as typed compatibility events")
+    func parseRolloutTurnAbortedAndShutdownComplete() throws {
+        let abortedLine = """
+        {
+          "timestamp": "2026-02-11T12:00:24Z",
+          "type": "event_msg",
+          "payload": {
+            "type": "turn_aborted",
+            "reason": "user_interrupt"
+          }
+        }
+        """
+        let parsedAborted = try CodexGeneratedFilesParser.parseRolloutLine(text: abortedLine)
+        if case let .eventMsg(event) = parsedAborted.item {
+            if case let .turnAborted(reason) = event.kind {
+                #expect(reason == "user_interrupt")
+            } else {
+                Issue.record("Expected event_msg.turn_aborted")
+            }
+        } else {
+            Issue.record("Expected event_msg")
+        }
+
+        let shutdownLine = """
+        {
+          "timestamp": "2026-02-11T12:00:25Z",
+          "type": "event_msg",
+          "payload": {
+            "type": "shutdown_complete"
+          }
+        }
+        """
+        let parsedShutdown = try CodexGeneratedFilesParser.parseRolloutLine(text: shutdownLine)
+        if case let .eventMsg(event) = parsedShutdown.item {
+            if case .shutdownComplete = event.kind {
+            } else {
+                Issue.record("Expected event_msg.shutdown_complete")
+            }
+        } else {
+            Issue.record("Expected event_msg")
+        }
+    }
+
     @Test("Parse history.jsonl entries with session_id and conversation_id")
     func parseHistoryJSONL() throws {
         let history = """
