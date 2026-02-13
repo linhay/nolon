@@ -23,6 +23,7 @@ public protocol NolonCodexCLIServing: Sendable {
     func binaryUse(version: String) async throws -> NolonCodexBinaryUsePayload
     func binaryDoctor() async throws -> NolonCodexBinaryDoctorPayload
     func statusProbe(providerID: String?) async throws -> NolonCodexStatusProbePayload
+    func providerDiscover() async throws -> NolonCodexProviderDiscoverPayload
     func runtimeList(providerID: String?) async throws -> NolonCodexRuntimeListPayload
     func runtimeStop(pid: Int32, force: Bool, timeoutSeconds: Int) async throws -> NolonCodexRuntimeStopPayload
 }
@@ -132,6 +133,21 @@ public struct NolonCodexRuntimeProcessView: Codable, Sendable, Equatable {
     public let elapsed: String
     public let providerHint: String?
     public let command: String
+}
+
+public struct NolonCodexProviderDiscoverView: Codable, Sendable, Equatable {
+    public let providerID: String
+    public let name: String
+    public let templateID: String
+    public let codexHomePath: String
+    public let authPath: String
+    public let authExists: Bool
+    public let authIsSymlink: Bool
+    public let authSymlinkTargetPath: String?
+}
+
+public struct NolonCodexProviderDiscoverPayload: Codable, Sendable, Equatable {
+    public let providers: [NolonCodexProviderDiscoverView]
 }
 
 public struct NolonCodexRuntimeListPayload: Codable, Sendable, Equatable {
@@ -415,6 +431,38 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
             probeWarning: nil,
             probeHint: nil
         )
+    }
+
+    public func providerDiscover() async throws -> NolonCodexProviderDiscoverPayload {
+        let providerIDs = ["codex", "codex-xcode"]
+        var providers: [NolonCodexProviderDiscoverView] = []
+        providers.reserveCapacity(providerIDs.count)
+
+        for providerID in providerIDs {
+            let provider = try Self.provider(for: providerID)
+            let authFile = await authManager.authFile(for: provider)
+            let targetPath: String?
+            if let authFile, authFile.isSymbolicLink {
+                targetPath = try? authFile.destinationOfSymbolicLink().url.standardizedFileURL.path
+            } else {
+                targetPath = nil
+            }
+
+            providers.append(
+                NolonCodexProviderDiscoverView(
+                    providerID: providerID,
+                    name: provider.name,
+                    templateID: provider.templateId ?? providerID,
+                    codexHomePath: authFile?.parentFolder()?.url.standardizedFileURL.path ?? "-",
+                    authPath: authFile?.url.standardizedFileURL.path ?? "-",
+                    authExists: authFile?.isExists ?? false,
+                    authIsSymlink: authFile?.isSymbolicLink ?? false,
+                    authSymlinkTargetPath: targetPath
+                )
+            )
+        }
+
+        return NolonCodexProviderDiscoverPayload(providers: providers)
     }
 
     public func runtimeList(providerID: String?) async throws -> NolonCodexRuntimeListPayload {

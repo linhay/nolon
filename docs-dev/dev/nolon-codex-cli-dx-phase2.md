@@ -119,3 +119,23 @@
 - 测试：
   - 新增 `CodexAuthManagerTests.reconcileDetachedProviderAuthOverwritesByEmail`。
   - 回归：`swift test --package-path libs/Providers --filter CodexAuthManagerTests` 通过（9 tests）。
+
+## Phase 2.6（provider 发现命令）
+- 目标：
+  - 新增 `nolon codex provider discover`，用于快速发现 Codex 相关 provider 的 auth 绑定状态。
+- 命令面：
+  - 新增 group/action：`provider discover`
+  - 支持 `--json` 结构化输出（`command=codex.provider.discover`）
+- 输出字段：
+  - `providerID`、`name`、`templateID`
+  - `codexHomePath`、`authPath`
+  - `authExists`、`authIsSymlink`、`authSymlinkTargetPath`
+- 文本输出：
+  - 表格列：`provider | auth_state | auth_path | link_target`
+  - `auth_state`：`missing | file | symlink`
+- 测试：
+  - Entrypoint：新增 provider help / route 覆盖；
+  - Service：新增 `providerDiscoverReturnsCodexProviders`。
+- 验证：
+  - `swift test --package-path libs/Providers --filter 'NolonCodexCLIEntrypointTests|NolonCodexCLIServiceTests'`
+  - 实测：`swift run --package-path libs/Providers nolon codex provider discover`

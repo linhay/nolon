@@ -20,6 +20,8 @@ enum NolonCodexCLIHelpResolver {
             return codexStatusHelpText()
         case .codexRuntime:
             return codexRuntimeHelpText()
+        case .codexProvider:
+            return codexProviderHelpText()
         case .codexAuthList:
             return codexAuthListHelpText()
         case .codexAuthStatus:
@@ -48,6 +50,8 @@ enum NolonCodexCLIHelpResolver {
             return codexRuntimeListHelpText()
         case .codexRuntimeStop:
             return codexRuntimeStopHelpText()
+        case .codexProviderDiscover:
+            return codexProviderDiscoverHelpText()
         default:
             return nil
         }
@@ -69,6 +73,7 @@ enum NolonCodexCLIHelpResolver {
           binary    list | current | install | use | doctor
           status    probe | doctor
           runtime   list | stop
+          provider  discover
 
         Global options:
           --json    Output JSON envelope instead of table/text.
@@ -123,6 +128,15 @@ enum NolonCodexCLIHelpResolver {
         Actions:
           list
           stop     --pid <pid> [--force] [--timeout-seconds <n>]
+        """
+    }
+
+    private static func codexProviderHelpText() -> String {
+        """
+        Usage: nolon codex provider <action> [options]
+
+        Actions:
+          discover
         """
     }
 
@@ -244,6 +258,12 @@ enum NolonCodexCLIHelpResolver {
           --timeout-seconds <n>     Timeout seconds before escalating TERM to KILL.
         """
     }
+
+    private static func codexProviderDiscoverHelpText() -> String {
+        """
+        Usage: nolon codex provider discover
+        """
+    }
 }
 
 private struct NolonCLIHelpPath: RawRepresentable, ExpressibleByStringLiteral, Equatable, Sendable {
@@ -253,6 +273,7 @@ private struct NolonCLIHelpPath: RawRepresentable, ExpressibleByStringLiteral, E
     static let codexBinary: Self = "help.codex.binary"
     static let codexStatus: Self = "help.codex.status"
     static let codexRuntime: Self = "help.codex.runtime"
+    static let codexProvider: Self = "help.codex.provider"
     static let codexAuthList: Self = "help.codex.auth.list"
     static let codexAuthStatus: Self = "help.codex.auth.status"
     static let codexAuthActivate: Self = "help.codex.auth.activate"
@@ -267,6 +288,7 @@ private struct NolonCLIHelpPath: RawRepresentable, ExpressibleByStringLiteral, E
     static let codexStatusDoctor: Self = "help.codex.status.doctor"
     static let codexRuntimeList: Self = "help.codex.runtime.list"
     static let codexRuntimeStop: Self = "help.codex.runtime.stop"
+    static let codexProviderDiscover: Self = "help.codex.provider.discover"
 
     let rawValue: String
 
@@ -302,6 +324,9 @@ private struct NolonCLIHelpPath: RawRepresentable, ExpressibleByStringLiteral, E
         case ["codex", "runtime"]:
             self = .codexRuntime
             return
+        case ["codex", "provider"]:
+            self = .codexProvider
+            return
         default:
             break
         }
@@ -323,6 +348,8 @@ private struct NolonCLIHelpPath: RawRepresentable, ExpressibleByStringLiteral, E
             self = .codexStatus
         case ["codex", "runtime", "help"], ["codex", "runtime", "-h"], ["codex", "runtime", "--help"]:
             self = .codexRuntime
+        case ["codex", "provider", "help"], ["codex", "provider", "-h"], ["codex", "provider", "--help"]:
+            self = .codexProvider
         case ["codex", "auth", "list", "help"], ["codex", "auth", "list", "-h"], ["codex", "auth", "list", "--help"]:
             self = .codexAuthList
         case ["codex", "auth", "status", "help"], ["codex", "auth", "status", "-h"], ["codex", "auth", "status", "--help"]:
@@ -351,6 +378,8 @@ private struct NolonCLIHelpPath: RawRepresentable, ExpressibleByStringLiteral, E
             self = .codexRuntimeList
         case ["codex", "runtime", "stop", "help"], ["codex", "runtime", "stop", "-h"], ["codex", "runtime", "stop", "--help"]:
             self = .codexRuntimeStop
+        case ["codex", "provider", "discover", "help"], ["codex", "provider", "discover", "-h"], ["codex", "provider", "discover", "--help"]:
+            self = .codexProviderDiscover
         default:
             return nil
         }

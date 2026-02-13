@@ -230,6 +230,27 @@ struct NolonCodexCLIServiceTests {
         #expect(signalController.signals.map(\.pid) == [12345, 12345])
         #expect(signalController.signals.map(\.signal) == [SIGTERM, SIGKILL])
     }
+
+    @Test("provider discover returns codex providers and auth symlink state")
+    func providerDiscoverReturnsCodexProviders() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("nolon-codex-provider-discover-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let service = NolonLiveCodexCLIService(
+            authManager: CodexAuthManager(rootURL: root),
+            binaryManager: CodexBinaryManager(homeURL: root),
+            loginRunner: .init(),
+            environment: [:]
+        )
+
+        let payload = try await service.providerDiscover()
+        #expect(payload.providers.map(\.providerID) == ["codex", "codex-xcode"])
+        #expect(payload.providers.count == 2)
+        #expect(payload.providers.first?.providerID == "codex")
+        #expect(payload.providers.last?.providerID == "codex-xcode")
+        #expect(payload.providers.first?.authPath.isEmpty == false)
+    }
 }
 
 private struct StubRuntimeProcessInspector: NolonCodexRuntimeProcessInspecting {

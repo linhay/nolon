@@ -15,6 +15,7 @@ struct NolonCodexRootCommand: ParsableCommand {
             NolonCodexBinaryGroupCommand.self,
             NolonCodexStatusGroupCommand.self,
             NolonCodexRuntimeGroupCommand.self,
+            NolonCodexProviderGroupCommand.self,
         ]
     )
 }
@@ -59,6 +60,13 @@ struct NolonCodexRuntimeGroupCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "runtime",
         subcommands: [NolonCodexRuntimeListCommand.self, NolonCodexRuntimeStopCommand.self]
+    )
+}
+
+struct NolonCodexProviderGroupCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "provider",
+        subcommands: [NolonCodexProviderDiscoverCommand.self]
     )
 }
 
@@ -167,4 +175,8 @@ struct NolonCodexRuntimeStopCommand: ParsableCommand {
 
     @Option(name: .long, help: "Timeout seconds before escalating TERM to KILL.")
     var timeoutSeconds: Int = 8
+}
+
+struct NolonCodexProviderDiscoverCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(commandName: "discover")
 }

@@ -55,6 +55,8 @@ enum NolonCodexCLIExecutor {
             return try await executeRuntimeList(context: context, outputMode: outputMode)
         case let command as NolonCodexRuntimeStopCommand:
             return try await executeRuntimeStop(command: command, context: context, outputMode: outputMode)
+        case _ as NolonCodexProviderDiscoverCommand:
+            return try await executeProviderDiscover(context: context, outputMode: outputMode)
         default:
             throw NolonCoreCLIError.invalidArguments("Unsupported parsed command type: \(type(of: parsed))")
         }
@@ -232,6 +234,11 @@ enum NolonCodexCLIExecutor {
         return try renderOutput(command: .runtimeStop, payload: payload, outputMode: outputMode, textFormatter: formatRuntimeStop)
     }
 
+    private static func executeProviderDiscover(context: NolonCLIExecutionContext, outputMode: OutputMode) async throws -> String {
+        let payload = try await context.codexService().providerDiscover()
+        return try renderOutput(command: .providerDiscover, payload: payload, outputMode: outputMode, textFormatter: formatProviderDiscover)
+    }
+
     private static func shouldDowngradeStatusProbeError(_ error: Error) -> Bool {
         let message: String
         if let cliError = error as? NolonCoreCLIError {
@@ -307,6 +314,7 @@ enum NolonCodexCLIExecutor {
             "binary": ["list", "current", "install", "use", "doctor"],
             "status": ["probe", "doctor"],
             "runtime": ["list", "stop"],
+            "provider": ["discover"],
         ]
         guard let actions = supportedByGroup[group] else {
             throw NolonCoreCLIError.invalidArguments(
@@ -564,6 +572,35 @@ enum NolonCodexCLIExecutor {
         ].joined(separator: "\n")
     }
 
+    private static func formatProviderDiscover(_ payload: NolonCodexProviderDiscoverPayload) -> String {
+        guard !payload.providers.isEmpty else { return "No codex providers discovered." }
+        let rows = payload.providers.map { provider in
+            let state: String
+            if !provider.authExists {
+                state = "missing"
+            } else if provider.authIsSymlink {
+                state = "symlink"
+            } else {
+                state = "file"
+            }
+            return (
+                providerID: provider.providerID,
+                state: state,
+                authPath: provider.authPath,
+                target: provider.authSymlinkTargetPath ?? "-"
+            )
+        }
+
+        let providerWidth = max("provider".count, rows.map(\.providerID.count).max() ?? 0)
+        let stateWidth = max("auth_state".count, rows.map(\.state.count).max() ?? 0)
+        let authPathWidth = max("auth_path".count, rows.map(\.authPath.count).max() ?? 0)
+        let header = "\(padRight("provider", to: providerWidth)) | \(padRight("auth_state", to: stateWidth)) | \(padRight("auth_path", to: authPathWidth)) | link_target"
+        let body = rows.map { row in
+            "\(padRight(row.providerID, to: providerWidth)) | \(padRight(row.state, to: stateWidth)) | \(padRight(row.authPath, to: authPathWidth)) | \(row.target)"
+        }.joined(separator: "\n")
+        return "\(header)\n\(body)"
+    }
+
     static func parseActivateSelection(input: String, accounts: [NolonCodexAuthAccountView]) throws -> UUID {
         let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.lowercased() == "q" || trimmed.lowercased() == "quit" {
@@ -617,6 +654,7 @@ private struct NolonCodexCommandPath: RawRepresentable, ExpressibleByStringLiter
     static let statusDoctor: Self = "codex.status.doctor"
     static let runtimeList: Self = "codex.runtime.list"
     static let runtimeStop: Self = "codex.runtime.stop"
+    static let providerDiscover: Self = "codex.provider.discover"
 
     let rawValue: String
 

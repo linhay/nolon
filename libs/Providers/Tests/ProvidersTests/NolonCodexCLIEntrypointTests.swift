@@ -140,6 +140,20 @@ struct NolonCodexCLIEntrypointTests {
         #expect(result.stdout.contains("stop"))
     }
 
+    @Test("codex provider --help prints provider help")
+    func codexProviderHelpPrintsHelp() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["codex", "provider", "--help"],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("Usage: nolon codex provider <action>"))
+        #expect(result.stdout.contains("discover"))
+    }
+
     @Test("codex runtime list --help prints action help")
     func codexRuntimeListHelpPrintsHelp() async {
         let mock = MockCodexCLIService()
@@ -165,6 +179,19 @@ struct NolonCodexCLIEntrypointTests {
         #expect(result.stderr.isEmpty)
         #expect(result.stdout.contains("Usage: nolon codex runtime stop"))
         #expect(result.stdout.contains("--pid"))
+    }
+
+    @Test("codex provider discover --help prints action help")
+    func codexProviderDiscoverHelpPrintsHelp() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["codex", "provider", "discover", "--help"],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("Usage: nolon codex provider discover"))
     }
 
     @Test("codex auth list --help prints action help")
@@ -842,6 +869,20 @@ struct NolonCodexCLIEntrypointTests {
         #expect(await mock.lastCall() == "runtimeStop")
     }
 
+    @Test("routes provider discover")
+    func routesProviderDiscover() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["codex", "provider", "discover"],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stdout.contains("provider"))
+        #expect(result.stdout.contains("auth_state"))
+        #expect(await mock.lastCall() == "providerDiscover")
+    }
+
     @Test("runtime stop rejects invalid pid")
     func runtimeStopRejectsInvalidPID() async {
         let mock = MockCodexCLIService()
@@ -1122,6 +1163,24 @@ private actor MockCodexCLIService: NolonCodexCLIServing {
             exited: true
         )
     }
+
+    func providerDiscover() async throws -> NolonCodexProviderDiscoverPayload {
+        call = "providerDiscover"
+        return NolonCodexProviderDiscoverPayload(
+            providers: [
+                NolonCodexProviderDiscoverView(
+                    providerID: "codex",
+                    name: "Codex",
+                    templateID: "codex",
+                    codexHomePath: "/tmp/.codex",
+                    authPath: "/tmp/.codex/auth.json",
+                    authExists: true,
+                    authIsSymlink: true,
+                    authSymlinkTargetPath: "/tmp/.nolon/codex/auth/codex.json"
+                ),
+            ]
+        )
+    }
 }
 
 private actor DomainErrorCodexCLIService: NolonCodexCLIServing {
@@ -1138,6 +1197,7 @@ private actor DomainErrorCodexCLIService: NolonCodexCLIServing {
     func statusProbe(providerID: String?) async throws -> NolonCodexStatusProbePayload { throw makeError() }
     func runtimeList(providerID: String?) async throws -> NolonCodexRuntimeListPayload { throw makeError() }
     func runtimeStop(pid: Int32, force: Bool, timeoutSeconds: Int) async throws -> NolonCodexRuntimeStopPayload { throw makeError() }
+    func providerDiscover() async throws -> NolonCodexProviderDiscoverPayload { throw makeError() }
 
     private func makeError() -> NolonCoreCLIError {
         .domainFailed(code: "codex_binary_not_found", message: "missing")
@@ -1213,6 +1273,10 @@ private actor EmailActivateCodexCLIService: NolonCodexCLIServing {
     func runtimeStop(pid: Int32, force: Bool, timeoutSeconds: Int) async throws -> NolonCodexRuntimeStopPayload {
         NolonCodexRuntimeStopPayload(pid: pid, requestedSignal: "term", didEscalateToKill: false, exited: true)
     }
+
+    func providerDiscover() async throws -> NolonCodexProviderDiscoverPayload {
+        NolonCodexProviderDiscoverPayload(providers: [])
+    }
 }
 
 private actor StatusProbeParseErrorCodexCLIService: NolonCodexCLIServing {
@@ -1231,6 +1295,7 @@ private actor StatusProbeParseErrorCodexCLIService: NolonCodexCLIServing {
     }
     func runtimeList(providerID: String?) async throws -> NolonCodexRuntimeListPayload { NolonCodexRuntimeListPayload(processes: []) }
     func runtimeStop(pid: Int32, force: Bool, timeoutSeconds: Int) async throws -> NolonCodexRuntimeStopPayload { NolonCodexRuntimeStopPayload(pid: pid, requestedSignal: "term", didEscalateToKill: false, exited: true) }
+    func providerDiscover() async throws -> NolonCodexProviderDiscoverPayload { NolonCodexProviderDiscoverPayload(providers: []) }
 }
 
 private actor BinaryListPlainTextCodexCLIService: NolonCodexCLIServing {
@@ -1246,6 +1311,7 @@ private actor BinaryListPlainTextCodexCLIService: NolonCodexCLIServing {
     func statusProbe(providerID: String?) async throws -> NolonCodexStatusProbePayload { throw unsupported() }
     func runtimeList(providerID: String?) async throws -> NolonCodexRuntimeListPayload { throw unsupported() }
     func runtimeStop(pid: Int32, force: Bool, timeoutSeconds: Int) async throws -> NolonCodexRuntimeStopPayload { throw unsupported() }
+    func providerDiscover() async throws -> NolonCodexProviderDiscoverPayload { throw unsupported() }
 
     func binaryList() async throws -> NolonCodexBinaryListPayload {
         NolonCodexBinaryListPayload(
@@ -1289,6 +1355,7 @@ private actor AuthListTableCodexCLIService: NolonCodexCLIServing {
     func statusProbe(providerID: String?) async throws -> NolonCodexStatusProbePayload { throw unsupported() }
     func runtimeList(providerID: String?) async throws -> NolonCodexRuntimeListPayload { throw unsupported() }
     func runtimeStop(pid: Int32, force: Bool, timeoutSeconds: Int) async throws -> NolonCodexRuntimeStopPayload { throw unsupported() }
+    func providerDiscover() async throws -> NolonCodexProviderDiscoverPayload { throw unsupported() }
 
     func authList(providerID: String) async throws -> NolonCodexAuthListPayload {
         NolonCodexAuthListPayload(
@@ -1337,6 +1404,7 @@ private actor AuthListMissingFieldsCodexCLIService: NolonCodexCLIServing {
     func statusProbe(providerID: String?) async throws -> NolonCodexStatusProbePayload { throw unsupported() }
     func runtimeList(providerID: String?) async throws -> NolonCodexRuntimeListPayload { throw unsupported() }
     func runtimeStop(pid: Int32, force: Bool, timeoutSeconds: Int) async throws -> NolonCodexRuntimeStopPayload { throw unsupported() }
+    func providerDiscover() async throws -> NolonCodexProviderDiscoverPayload { throw unsupported() }
 
     func authList(providerID: String) async throws -> NolonCodexAuthListPayload {
         NolonCodexAuthListPayload(
