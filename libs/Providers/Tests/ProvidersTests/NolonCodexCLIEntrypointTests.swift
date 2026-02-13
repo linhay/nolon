@@ -584,8 +584,31 @@ struct NolonCodexCLIEntrypointTests {
         )
 
         #expect(result.exitCode == 0)
-        #expect(result.stdout.contains("resolved_executable: /opt/homebrew/bin/codex"))
+        #expect(result.stdout.contains("resolved_executable"))
+        #expect(result.stdout.contains("| /opt/homebrew/bin/codex"))
         #expect(await mock.lastCall() == "statusProbe")
+    }
+
+    @Test("status probe prints aligned table rows")
+    func statusProbePrintsAlignedTableRows() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: [
+                "codex", "status", "probe",
+                "--provider", "codex",
+            ],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        let rows = result.stdout.split(separator: "\n").map(String.init)
+        #expect(rows.count >= 6)
+        let firstPipeIndex = rows[0].firstIndex(of: "|")
+        #expect(firstPipeIndex != nil)
+        for row in rows {
+            #expect(row.firstIndex(of: "|") == firstPipeIndex)
+        }
     }
 
     @Test("normalizes provider alias in status probe")
@@ -600,7 +623,7 @@ struct NolonCodexCLIEntrypointTests {
         )
 
         #expect(result.exitCode == 0)
-        #expect(result.stdout.contains("provider: codex-xcode"))
+        #expect(result.stdout.contains("| codex-xcode"))
     }
 
     @Test("status probe rejects unsupported provider")

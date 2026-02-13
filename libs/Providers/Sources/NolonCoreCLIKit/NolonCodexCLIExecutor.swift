@@ -285,15 +285,21 @@ enum NolonCodexCLIExecutor {
     }
 
     private static func formatStatusProbe(_ payload: NolonCodexStatusProbePayload) -> String {
-        [
-            "provider: \(payload.providerID ?? "-")",
-            "resolved_executable: \(payload.resolvedExecutable ?? "-")",
-            "credits: \(payload.credits.map { String($0) } ?? "-")",
-            "five_hour_percent_left: \(payload.fiveHourPercentLeft.map { String($0) } ?? "-")",
-            "weekly_percent_left: \(payload.weeklyPercentLeft.map { String($0) } ?? "-")",
-            "five_hour_reset: \(payload.fiveHourResetDescription ?? "-")",
-            "weekly_reset: \(payload.weeklyResetDescription ?? "-")",
-        ].joined(separator: "\n")
+        let rows: [(String, String)] = [
+            ("provider", payload.providerID ?? "-"),
+            ("resolved_executable", payload.resolvedExecutable ?? "-"),
+            ("credits", payload.credits.map { String($0) } ?? "-"),
+            ("five_hour_percent_left", payload.fiveHourPercentLeft.map { String($0) } ?? "-"),
+            ("weekly_percent_left", payload.weeklyPercentLeft.map { String($0) } ?? "-"),
+            ("five_hour_reset", payload.fiveHourResetDescription ?? "-"),
+            ("weekly_reset", payload.weeklyResetDescription ?? "-"),
+        ]
+        let keyWidth = rows.map(\.0.count).max() ?? 0
+        return rows
+            .map { key, value in
+                "\(padRight(key, to: keyWidth)) | \(value)"
+            }
+            .joined(separator: "\n")
     }
 }
 
