@@ -367,6 +367,11 @@ public struct CodexRolloutLine: Sendable, Equatable {
     }
 
     public struct EventMessage: Sendable, Equatable {
+        public struct McpStartupFailure: Sendable, Equatable {
+            public let server: String?
+            public let error: String?
+        }
+
         public struct UserMessage: Sendable, Equatable {
             public let message: String?
             public let images: [String]?
@@ -389,6 +394,8 @@ public struct CodexRolloutLine: Sendable, Equatable {
             case threadNameUpdated(threadID: String?, threadName: String?)
             case undoStarted(message: String?)
             case undoCompleted(success: Bool?, message: String?)
+            case mcpStartupUpdate(server: String?, state: String?, error: String?)
+            case mcpStartupComplete(ready: [String], failed: [McpStartupFailure], cancelled: [String])
             case turnStarted(modelContextWindow: Int?)
             case turnComplete(lastAgentMessage: String?)
             case known(type: String, payload: CodexJSONValue?)
@@ -880,6 +887,29 @@ public enum CodexGeneratedFilesParser {
             kind = .undoCompleted(
                 success: success,
                 message: object["message"]?.stringValue
+            )
+        case "mcp_startup_update":
+            let statusObject = object["status"]?.objectValue ?? [:]
+            kind = .mcpStartupUpdate(
+                server: object["server"]?.stringValue,
+                state: statusObject["state"]?.stringValue,
+                error: statusObject["error"]?.stringValue
+            )
+        case "mcp_startup_complete":
+            let ready = object["ready"]?.arrayValue?.compactMap { $0.stringValue } ?? []
+            let cancelled = object["cancelled"]?.arrayValue?.compactMap { $0.stringValue } ?? []
+            let failedItems = object["failed"]?.arrayValue ?? []
+            let failed = failedItems.map { item in
+                let failedObject = item.objectValue ?? [:]
+                return CodexRolloutLine.EventMessage.McpStartupFailure(
+                    server: failedObject["server"]?.stringValue,
+                    error: failedObject["error"]?.stringValue
+                )
+            }
+            kind = .mcpStartupComplete(
+                ready: ready,
+                failed: failed,
+                cancelled: cancelled
             )
         case "task_started", "turn_started":
             kind = .turnStarted(modelContextWindow: object["model_context_window"]?.intValue)

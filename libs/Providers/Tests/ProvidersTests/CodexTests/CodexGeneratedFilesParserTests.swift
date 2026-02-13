@@ -665,6 +665,63 @@ struct CodexGeneratedFilesParserTests {
         }
     }
 
+    @Test("Parse rollout event_msg mcp_startup_update and mcp_startup_complete as typed compatibility events")
+    func parseRolloutMcpStartupEvents() throws {
+        let startupUpdateLine = """
+        {
+          "timestamp": "2026-02-11T12:00:29Z",
+          "type": "event_msg",
+          "payload": {
+            "type": "mcp_startup_update",
+            "server": "docs",
+            "status": {
+              "state": "failed",
+              "error": "spawn failed"
+            }
+          }
+        }
+        """
+        let parsedStartupUpdate = try CodexGeneratedFilesParser.parseRolloutLine(text: startupUpdateLine)
+        if case let .eventMsg(event) = parsedStartupUpdate.item {
+            if case let .mcpStartupUpdate(server, state, error) = event.kind {
+                #expect(server == "docs")
+                #expect(state == "failed")
+                #expect(error == "spawn failed")
+            } else {
+                Issue.record("Expected event_msg.mcp_startup_update")
+            }
+        } else {
+            Issue.record("Expected event_msg")
+        }
+
+        let startupCompleteLine = """
+        {
+          "timestamp": "2026-02-11T12:00:30Z",
+          "type": "event_msg",
+          "payload": {
+            "type": "mcp_startup_complete",
+            "ready": ["docs"],
+            "failed": [{"server": "github", "error": "timeout"}],
+            "cancelled": ["browser"]
+          }
+        }
+        """
+        let parsedStartupComplete = try CodexGeneratedFilesParser.parseRolloutLine(text: startupCompleteLine)
+        if case let .eventMsg(event) = parsedStartupComplete.item {
+            if case let .mcpStartupComplete(ready, failed, cancelled) = event.kind {
+                #expect(ready == ["docs"])
+                #expect(failed.count == 1)
+                #expect(failed.first?.server == "github")
+                #expect(failed.first?.error == "timeout")
+                #expect(cancelled == ["browser"])
+            } else {
+                Issue.record("Expected event_msg.mcp_startup_complete")
+            }
+        } else {
+            Issue.record("Expected event_msg")
+        }
+    }
+
     @Test("Parse history.jsonl entries with session_id and conversation_id")
     func parseHistoryJSONL() throws {
         let history = """
