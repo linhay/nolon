@@ -21,6 +21,21 @@ struct CodexAuthManagerTests {
         #expect(codexRoot == expected)
     }
 
+    @Test("Given provider id, when resolving isolated CLI login home, then path stays in NOLON_HOME codex sandbox")
+    func cliLoginCodexHomeFolderUsesNolonSandbox() async throws {
+        let isolatedRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("nolon-home-login-\(UUID().uuidString)", isDirectory: true)
+            .standardizedFileURL
+
+        let manager = CodexAuthManager(
+            environment: ["NOLON_HOME": isolatedRoot.path]
+        )
+
+        let folder = manager.cliLoginCodexHomeFolder(providerID: "codex")
+        let expected = STFolder(isolatedRoot).folder("codex").folder("cli-login-home").folder("codex")
+        #expect(folder == expected)
+    }
+
     @Test("Given account snapshot, when reading token pair, then returns id/access token")
     func readTokenPairFromSnapshot() async throws {
         let root = FileManager.default.temporaryDirectory
@@ -39,8 +54,8 @@ struct CodexAuthManagerTests {
         #expect(pair?.accessToken == "access-token-value")
     }
 
-    @Test("Given selected snapshot, when activating account, then provider auth is cleaned and synced")
-    func activateAccountWritesCleanProviderAuth() async throws {
+    @Test("Given selected snapshot, when activating account, then provider auth is symlinked to snapshot")
+    func activateAccountCreatesProviderAuthSymlink() async throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("codex-auth-clean-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
@@ -60,14 +75,11 @@ struct CodexAuthManagerTests {
         )
 
         try await manager.activateAccount(account, for: provider)
-        let raw = try #require(await manager.readAuthJSONString(from: provider))
-        let data = try #require(raw.data(using: .utf8))
-        let object = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
-        let tokens = try #require(object["tokens"] as? [String: Any])
-
-        #expect(tokens["id_token"] as? String == "id-1")
-        #expect(tokens["access_token"] as? String == "access-1")
-        #expect(object["nolon"] == nil)
+        let providerAuth = try #require(await manager.authFile(for: provider))
+        #expect(providerAuth.isSymbolicLink == true)
+        let destination = try providerAuth.destinationOfSymbolicLink()
+        let snapshot = await manager.accountAuthFile(account)
+        #expect(STPath.standardizedPath(destination.url.path).path == STPath.standardizedPath(snapshot.url.path).path)
     }
 
     @Test("Given activated snapshot via unified activation, when provider auth is deleted, then active account still resolves from registry")
@@ -171,5 +183,66 @@ struct CodexAuthManagerTests {
         #expect(summary.lastSyncSucceededAt == loginAt)
         #expect(summary.lastSyncFailedAt == nil)
         #expect(summary.lastSyncFailureMessage == nil)
+    }
+
+    @Test("Given existing snapshot with same email, when recording CLI login snapshot, then account is overwritten in-place")
+    func recordCLILoginSnapshotOverwritesByEmail() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codex-auth-record-email-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let manager = CodexAuthManager(rootURL: root)
+        let existing = try await manager.addAccount(
+            name: "existing",
+            authJSONString: #"{"tokens":{"id_token":"old-id","access_token":"old-access"},"user":{"email":"same@example.com"}}"#
+        )
+
+        let updated = try await manager.recordCLILoginSnapshot(
+            authJSONString: #"{"tokens":{"id_token":"new-id","access_token":"new-access"},"user":{"email":"same@example.com"}}"#,
+            preferredAccountID: nil
+        )
+
+        #expect(updated.id == existing.id)
+        let tokenPair = try await manager.readTokenPair(for: updated)
+        #expect(tokenPair?.idToken == "new-id")
+        #expect(tokenPair?.accessToken == "new-access")
+    }
+
+    @Test("Given detached provider auth file with same email, when reconciling detached auth, then matching snapshot is overwritten and marked active")
+    func reconcileDetachedProviderAuthOverwritesByEmail() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codex-auth-reconcile-detached-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let manager = CodexAuthManager(rootURL: root)
+        let existing = try await manager.addAccount(
+            name: "existing",
+            authJSONString: #"{"tokens":{"id_token":"old-id","access_token":"old-access"},"user":{"email":"same@example.com"}}"#
+        )
+        let providerRoot = root.appendingPathComponent("provider", isDirectory: true)
+        try FileManager.default.createDirectory(at: providerRoot, withIntermediateDirectories: true)
+        let provider = Provider(
+            name: "Codex",
+            defaultSkillsPath: providerRoot.appendingPathComponent("skills").path,
+            workflowPath: providerRoot.appendingPathComponent("prompts").path,
+            installMethod: .symlink,
+            templateId: "codex"
+        )
+
+        let detachedAuthURL = providerRoot.appendingPathComponent("auth.json")
+        let detachedRaw = #"{"tokens":{"id_token":"new-id","access_token":"new-access"},"user":{"email":"same@example.com"}}"#
+        try detachedRaw.write(to: detachedAuthURL, atomically: true, encoding: .utf8)
+
+        let reconciled = try await manager.reconcileDetachedProviderAuthIfNeeded(for: provider)
+        #expect(reconciled?.id == existing.id)
+
+        let tokenPair = try await manager.readTokenPair(for: existing)
+        #expect(tokenPair?.idToken == "new-id")
+        #expect(tokenPair?.accessToken == "new-access")
+
+        let activeId = await manager.activeAccountId(for: provider)
+        #expect(activeId == existing.id)
     }
 }

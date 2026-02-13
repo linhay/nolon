@@ -6,6 +6,28 @@ import STJSON
 import ProvidersShared
 
 public actor CodexAuthManager {
+    private struct PathName: RawRepresentable, ExpressibleByStringLiteral {
+        static let codexRoot: PathName = "codex"
+        static let authFolder: PathName = "auth"
+        static let cliLoginHomeFolder: PathName = "cli-login-home"
+        static let activeAccountsFile: PathName = "active-accounts.json"
+        static let authFile: PathName = "auth.json"
+
+        let rawValue: String
+
+        init(rawValue: String) {
+            self.rawValue = rawValue
+        }
+
+        init(_ value: String) {
+            self.rawValue = value
+        }
+
+        init(stringLiteral value: String) {
+            self.rawValue = value
+        }
+    }
+
     private static let logger = Logger(subsystem: "com.nolon", category: "CodexAuthManager")
     private static func makeISOFormatter() -> ISO8601DateFormatter {
         let formatter = ISO8601DateFormatter()
@@ -48,15 +70,24 @@ public actor CodexAuthManager {
     }
 
     public nonisolated func nolonCodexRootFolder() -> STFolder {
-        rootFolder.folder("codex")
+        rootFolder.folder(PathName.codexRoot.rawValue)
     }
 
     public nonisolated func nolonCodexAuthFolder() -> STFolder {
-        nolonCodexRootFolder().folder("auth")
+        nolonCodexRootFolder().folder(PathName.authFolder.rawValue)
+    }
+
+    public nonisolated func cliLoginCodexHomeFolder(providerID: String) -> STFolder {
+        let sanitized = providerID.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let fallback = "codex"
+        let normalized = sanitized.isEmpty ? fallback : sanitized
+        return nolonCodexRootFolder()
+            .folder(PathName.cliLoginHomeFolder.rawValue)
+            .folder(normalized)
     }
 
     public nonisolated func activeAccountsFile() -> STFile {
-        nolonCodexRootFolder().file("active-accounts.json")
+        nolonCodexRootFolder().file(PathName.activeAccountsFile.rawValue)
     }
 
     public nonisolated func accountAuthFile(relativeAuthPath: String) -> STFile {
@@ -78,7 +109,7 @@ public actor CodexAuthManager {
     }
 
     public func authFile(for provider: Provider) -> STFile? {
-        codexHomeFolder(for: provider)?.file("auth.json")
+        codexHomeFolder(for: provider)?.file(PathName.authFile.rawValue)
     }
 
     public func accountAuthFile(_ account: CodexAuthAccount) -> STFile {
@@ -404,23 +435,48 @@ public actor CodexAuthManager {
         guard let authFile = authFile(for: provider) else { return }
         _ = authFile.parentFolder()?.createIfNotExists()
 
-        // Replace existing auth.json (file or symlink) with a clean copy.
+        // Replace existing auth.json (file or symlink) with a symlink to the selected snapshot.
         if authFile.isExists {
             try authFile.delete()
         }
-        
-        let sourceFile = accountAuthFile(account)
-        let data = try sourceFile.data()
-        let cleanData = Self.cleanedAuthJSONData(from: data) ?? data
-        try authFile.overlay(with: cleanData)
 
-        Self.logger.info("Activated Codex auth by writing clean auth.json for provider: \(provider.id, privacy: .public)")
+        let sourceFile = accountAuthFile(account)
+        try authFile.createSymbolicLink(to: sourceFile)
+
+        Self.logger.info("Activated Codex auth by symlink for provider: \(provider.id, privacy: .public)")
     }
 
     /// Activate snapshot into provider auth and persist active-account registry in one step.
     public func activateAccountAndMarkActive(_ account: CodexAuthAccount, for provider: Provider) throws {
         try activateAccount(account, for: provider)
         try setActiveAccount(account, for: provider)
+        _ = try reconcileDetachedProviderAuthIfNeeded(for: provider)
+    }
+
+    /// Safety check after activation/login:
+    /// if provider auth becomes a regular file (instead of symlink), treat provider auth as source of truth
+    /// and overwrite the matching snapshot by email.
+    @discardableResult
+    public func reconcileDetachedProviderAuthIfNeeded(for provider: Provider) throws -> CodexAuthAccount? {
+        guard let providerAuthFile = authFile(for: provider),
+              providerAuthFile.isExists,
+              !providerAuthFile.isSymbolicLink
+        else { return nil }
+
+        let raw = try providerAuthFile.read()
+        guard let email = deriveEmail(fromAuthJSONString: raw) else { return nil }
+        guard let matched = try findSnapshotAccountByEmail(email) else { return nil }
+
+        try writeAccountFile(
+            file: accountAuthFile(matched),
+            relativeAuthPath: matched.relativeAuthPath,
+            authJSONString: raw,
+            preferredId: matched.id,
+            preferredName: matched.name,
+            preferredCreatedAt: matched.createdAt
+        )
+        try setActiveAccount(matched, for: provider)
+        return matched
     }
 
     // MARK: - CLI Login Flow
@@ -517,6 +573,22 @@ public actor CodexAuthManager {
             .replacingOccurrences(of: "-+", with: "-", options: .regularExpression)
             .trimmingCharacters(in: CharacterSet(charactersIn: "-"))
         return collapsed.isEmpty ? "account" : collapsed.lowercased()
+    }
+
+    private func findSnapshotAccountByEmail(_ email: String) throws -> CodexAuthAccount? {
+        guard let normalized = normalizedEmail(email) else { return nil }
+        let accounts = try loadAccountsFromAuthFolder()
+        for account in accounts {
+            let file = accountAuthFile(account)
+            guard let data = try? file.data(),
+                  !data.isEmpty
+            else { continue }
+            let summary = CodexAuthSummary.fromJSONData(data)
+            if let candidate = normalizedEmail(summary.email), candidate == normalized {
+                return account
+            }
+        }
+        return nil
     }
 
     private struct LegacyCodexAuthAccount: Codable, Sendable {
