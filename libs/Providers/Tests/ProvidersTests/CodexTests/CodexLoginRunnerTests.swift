@@ -184,6 +184,44 @@ struct CodexLoginRunnerTests {
         }
     }
 
+    @Test("cancel escalates to kill when login process ignores terminate")
+    func cancelEscalatesToKillWhenProcessIgnoresTerminate() throws {
+        let tempRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codex-login-cancel-kill-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: tempRoot, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempRoot) }
+
+        let fakeCLI = tempRoot.appendingPathComponent("codex")
+        let script = """
+        #!/bin/sh
+        trap '' TERM
+        while true; do
+          sleep 1
+        done
+        """
+        try script.data(using: .utf8)?.write(to: fakeCLI)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fakeCLI.path)
+
+        let codexHome = tempRoot.appendingPathComponent("codex-home", isDirectory: true)
+        try FileManager.default.createDirectory(at: codexHome, withIntermediateDirectories: true)
+
+        let runner = CodexLoginRunner()
+        let handle = try runner.startLogin(
+            binary: "codex",
+            environment: ["CODEX_CLI_PATH": fakeCLI.path],
+            codexHome: codexHome
+        )
+        #expect(handle.isRunning)
+
+        handle.cancel(graceSeconds: 0.1)
+        let deadline = Date().addingTimeInterval(2.0)
+        while handle.isRunning, Date() < deadline {
+            Thread.sleep(forTimeInterval: 0.05)
+        }
+
+        #expect(handle.isRunning == false)
+    }
+
     private func awaitMarkerOutput(at marker: URL, handle: CodexLoginHandle, timeout: TimeInterval) throws -> String {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {

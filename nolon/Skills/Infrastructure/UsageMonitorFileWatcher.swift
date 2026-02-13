@@ -63,6 +63,10 @@ final class UsageMonitorFileWatcher {
         Self.logger.info("Stopped watching usage paths")
     }
 
+    var watchedPathsForTesting: [String] {
+        targetPaths
+    }
+
     private func scheduleChange(_ change: STPathChanged) async {
         latestChange = change
         Self.logger.debug(

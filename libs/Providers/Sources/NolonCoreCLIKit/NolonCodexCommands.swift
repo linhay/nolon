@@ -48,7 +48,10 @@ struct NolonCodexBinaryGroupCommand: ParsableCommand {
 struct NolonCodexStatusGroupCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "status",
-        subcommands: [NolonCodexStatusProbeCommand.self]
+        subcommands: [
+            NolonCodexStatusProbeCommand.self,
+            NolonCodexStatusDoctorCommand.self,
+        ]
     )
 }
 
@@ -81,6 +84,9 @@ struct NolonCodexAuthActivateCommand: ParsableCommand {
 
     @Option(name: .long, help: "Account id UUID.")
     var accountID: String?
+
+    @Option(name: .long, help: "Account email for non-interactive activation.")
+    var email: String?
 
     @Flag(name: .long, help: "Use TUI picker when account id is omitted.")
     var tui: Bool = false
@@ -140,6 +146,10 @@ struct NolonCodexStatusProbeCommand: ParsableCommand {
 
     @Option(name: .long, help: "Provider id for reporting context.")
     var provider: String?
+}
+
+struct NolonCodexStatusDoctorCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(commandName: "doctor")
 }
 
 struct NolonCodexRuntimeListCommand: ParsableCommand {

@@ -286,16 +286,20 @@ final class ProviderUsageViewModel {
             if isMultiAccountEnabled {
                 paths.append(codexAuthManager.nolonCodexAuthFolder().url.path)
             }
-            if !isMultiAccountEnabled,
-               let authFile = await codexAuthManager.authFile(for: provider) {
-                paths.append(authFile.url.path)
-            }
         }
 
         Self.logger.debug(
             "Updating usage watcher. provider=\(usageProvider.rawValue, privacy: .public) paths=\(paths.count, privacy: .public)"
         )
         usageWatcher?.startWatching(paths: paths)
+    }
+
+    func rebuildUsageWatcherForTesting() async {
+        await updateUsageFileWatcher()
+    }
+
+    func watchedPathsForTesting() -> [String] {
+        usageWatcher?.watchedPathsForTesting ?? []
     }
 
     private func handleUsageFileChange(_ change: STPathChanged) async {
@@ -323,19 +327,9 @@ final class ProviderUsageViewModel {
         }
 
         let authFolderPath = codexAuthManager.nolonCodexAuthFolder().url.standardizedFileURL.path
-        let authFilePath: String? = await {
-            if let current = codexAuthFilePath {
-                return normalizedPath(current)
-            }
-            if let refreshed = await codexAuthManager.authFile(for: provider)?.url.path {
-                codexAuthFilePath = refreshed
-                return normalizedPath(refreshed)
-            }
-            return nil
-        }()
 
         let isAuthFolderChange = changedPath == authFolderPath || changedPath.hasPrefix(authFolderPath + "/")
-        let isAuthFileChange = authFilePath == changedPath
+        let isAuthFileChange = false
 
         Self.logger.debug(
             "Codex auth change. isAuthFolder=\(isAuthFolderChange, privacy: .public) isAuthFile=\(isAuthFileChange, privacy: .public) path=\(changedPath, privacy: .public)"
@@ -351,10 +345,6 @@ final class ProviderUsageViewModel {
         ) {
             Self.logger.debug("Ignored auth rename for known account file. path=\(changedPath, privacy: .public)")
             return
-        }
-
-        if isAuthFileChange, let updatedFile = await codexAuthManager.syncActiveAuthTokensIfNeeded(for: provider) {
-            markAuthCacheWrite(at: updatedFile.url)
         }
 
         guard isMultiAccountEnabled else {

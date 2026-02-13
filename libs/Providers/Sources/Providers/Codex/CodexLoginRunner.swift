@@ -2,6 +2,11 @@ import Foundation
 import CodexCLIKit
 import SKProcessRunner
 import STFilePath
+#if canImport(Darwin)
+import Darwin
+#elseif canImport(Glibc)
+import Glibc
+#endif
 
 public struct CodexLoginResult: Sendable, Equatable {
     public let authJSONString: String
@@ -47,10 +52,28 @@ public final class CodexLoginHandle: @unchecked Sendable {
         process.isRunning
     }
 
-    public func cancel() {
-        if process.isRunning {
-            process.terminate()
+    public func cancel(graceSeconds: TimeInterval = 0.8) {
+        Self.terminateProcess(process, graceSeconds: graceSeconds)
+    }
+
+    private static func terminateProcess(_ process: Process, graceSeconds: TimeInterval) {
+        guard process.isRunning else { return }
+        process.terminate()
+
+        let pollInterval: TimeInterval = 0.05
+        let termDeadline = Date().addingTimeInterval(max(0.05, graceSeconds))
+        while process.isRunning, Date() < termDeadline {
+            Thread.sleep(forTimeInterval: pollInterval)
         }
+
+        guard process.isRunning else { return }
+        #if canImport(Darwin) || canImport(Glibc)
+        _ = kill(process.processIdentifier, SIGKILL)
+        let killDeadline = Date().addingTimeInterval(1.0)
+        while process.isRunning, Date() < killDeadline {
+            Thread.sleep(forTimeInterval: pollInterval)
+        }
+        #endif
     }
 }
 

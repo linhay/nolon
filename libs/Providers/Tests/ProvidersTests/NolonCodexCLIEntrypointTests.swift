@@ -11,7 +11,7 @@ struct NolonCodexCLIEntrypointTests {
 
         #expect(result.exitCode == 0)
         #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("Usage: nolon codex <group> <action>"))
+        #expect(result.stdout.contains("Usage: nolon <provider> <group> <action>"))
         #expect(result.stdout.contains("nolon codex auth list"))
     }
 
@@ -25,7 +25,7 @@ struct NolonCodexCLIEntrypointTests {
 
         #expect(result.exitCode == 0)
         #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("Usage: nolon codex <group> <action>"))
+        #expect(result.stdout.contains("Usage: nolon <provider> <group> <action>"))
         #expect(result.stdout.contains("Groups:"))
     }
 
@@ -39,7 +39,7 @@ struct NolonCodexCLIEntrypointTests {
 
         #expect(result.exitCode == 0)
         #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("Usage: nolon codex <group> <action>"))
+        #expect(result.stdout.contains("Usage: nolon <provider> <group> <action>"))
     }
 
     @Test("codex auth --help prints auth help")
@@ -54,6 +54,7 @@ struct NolonCodexCLIEntrypointTests {
         #expect(result.stderr.isEmpty)
         #expect(result.stdout.contains("Usage: nolon codex auth <action>"))
         #expect(result.stdout.contains("Actions:"))
+        #expect(result.stdout.contains("--email"))
     }
 
     @Test("codex auth without action prints auth help")
@@ -108,6 +109,7 @@ struct NolonCodexCLIEntrypointTests {
         #expect(result.stderr.isEmpty)
         #expect(result.stdout.contains("Usage: nolon codex status <action>"))
         #expect(result.stdout.contains("probe"))
+        #expect(result.stdout.contains("doctor"))
     }
 
     @Test("codex status without action prints status help")
@@ -314,6 +316,19 @@ struct NolonCodexCLIEntrypointTests {
         #expect(result.stderr.isEmpty)
         #expect(result.stdout.contains("Usage: nolon codex status probe"))
         #expect(result.stdout.contains("--provider"))
+    }
+
+    @Test("codex status doctor --help prints action help")
+    func codexStatusDoctorHelpPrintsHelp() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["codex", "status", "doctor", "--help"],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("Usage: nolon codex status doctor"))
     }
 
     @Test("routes auth list")
@@ -577,7 +592,24 @@ struct NolonCodexCLIEntrypointTests {
         )
 
         #expect(result.exitCode == 2)
-        #expect(result.stderr.contains("Interactive selection requires a TTY terminal."))
+        #expect(result.stderr.contains("Interactive selection requires a TTY terminal. Use --account-id <uuid> or --email <email>."))
+    }
+
+    @Test("auth activate supports email option for non-interactive usage")
+    func authActivateSupportsEmailOption() async {
+        let mock = EmailActivateCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: [
+                "codex", "auth", "activate",
+                "--provider", "codex",
+                "--email", "a@example.com",
+            ],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("account_id: AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA"))
     }
 
     @Test("invalid preferred account UUID returns structured error")
@@ -766,6 +798,22 @@ struct NolonCodexCLIEntrypointTests {
         #expect(await mock.lastCall() == "statusProbe")
     }
 
+    @Test("status probe degrades parse errors to warning output")
+    func statusProbeDegradesParseErrorsToWarning() async {
+        let mock = StatusProbeParseErrorCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["codex", "status", "probe", "--provider", "codex"],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("probe_warning"))
+        #expect(result.stdout.contains("Could not parse Codex status"))
+        #expect(result.stdout.contains("probe_hint"))
+        #expect(result.stdout.contains("nolon codex status doctor --json"))
+    }
+
     @Test("routes runtime list")
     func routesRuntimeList() async {
         let mock = MockCodexCLIService()
@@ -843,6 +891,20 @@ struct NolonCodexCLIEntrypointTests {
         #expect(result.stdout.contains("| codex-xcode"))
     }
 
+    @Test("routes status doctor")
+    func routesStatusDoctor() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["codex", "status", "doctor"],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("检查项"))
+        #expect(result.stdout.contains("status_probe"))
+    }
+
     @Test("status probe rejects unsupported provider")
     func statusProbeRejectsUnsupportedProvider() async {
         let mock = MockCodexCLIService()
@@ -870,6 +932,7 @@ struct NolonCodexCLIEntrypointTests {
 
         #expect(result.exitCode == 2)
         #expect(result.stderr.contains("\"code\":\"unsupported_command\""))
+        #expect(result.stderr.contains("Available actions for status"))
     }
 
     @Test("unsupported runtime command returns invalid arguments")
@@ -882,6 +945,36 @@ struct NolonCodexCLIEntrypointTests {
 
         #expect(result.exitCode == 2)
         #expect(result.stderr.contains("\"code\":\"unsupported_command\""))
+        #expect(result.stderr.contains("Available actions for runtime"))
+    }
+
+    @Test("unknown codex group returns actionable error")
+    func unknownCodexGroupReturnsActionableError() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["codex", "unknown", "list"],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 2)
+        #expect(result.stderr.contains("\"code\":\"invalid_arguments\""))
+        #expect(result.stderr.contains("Unknown group 'unknown'"))
+        #expect(result.stderr.contains("Available groups"))
+    }
+
+    @Test("json flag returns structured payload")
+    func jsonFlagReturnsStructuredPayload() async {
+        let service = BinaryListPlainTextCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["codex", "binary", "list", "--json"],
+            codexService: service
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("\"ok\":true"))
+        #expect(result.stdout.contains("\"command\":\"codex.binary.list\""))
+        #expect(result.stdout.contains("\"versions\""))
     }
 
     @Test("domain error keeps structured code")
@@ -999,7 +1092,9 @@ private actor MockCodexCLIService: NolonCodexCLIServing {
             fiveHourPercentLeft: nil,
             weeklyPercentLeft: nil,
             fiveHourResetDescription: nil,
-            weeklyResetDescription: nil
+            weeklyResetDescription: nil,
+            probeWarning: nil,
+            probeHint: nil
         )
     }
 
@@ -1047,6 +1142,95 @@ private actor DomainErrorCodexCLIService: NolonCodexCLIServing {
     private func makeError() -> NolonCoreCLIError {
         .domainFailed(code: "codex_binary_not_found", message: "missing")
     }
+}
+
+private actor EmailActivateCodexCLIService: NolonCodexCLIServing {
+    private let accountID = UUID(uuidString: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")!
+
+    func authList(providerID: String) async throws -> NolonCodexAuthListPayload {
+        NolonCodexAuthListPayload(
+            providerID: providerID,
+            activeAccountID: nil,
+            accounts: [
+                NolonCodexAuthAccountView(
+                    id: accountID,
+                    name: "A",
+                    createdAt: .distantPast,
+                    relativeAuthPath: "a/auth.json",
+                    isActive: false,
+                    email: "a@example.com",
+                    usageDisplay: nil,
+                    refreshedAt: nil
+                ),
+            ]
+        )
+    }
+
+    func authStatus(providerID: String) async throws -> NolonCodexAuthStatusPayload {
+        NolonCodexAuthStatusPayload(providerID: providerID, activeAccountID: nil, accountCount: 1, authHashHex: nil)
+    }
+
+    func authActivate(providerID: String, accountID: UUID) async throws -> NolonCodexAuthActivatePayload {
+        NolonCodexAuthActivatePayload(providerID: providerID, accountID: accountID, runtimeSwitched: true, runtimeErrorDescription: nil)
+    }
+
+    func authLogin(providerID: String, preferredAccountID: UUID?) async throws -> NolonCodexAuthLoginPayload {
+        NolonCodexAuthLoginPayload(providerID: providerID, accountID: accountID, accountName: "A", runtimeSwitched: false, runtimeErrorDescription: nil, loginURL: nil)
+    }
+
+    func authDelete(providerID: String, accountID: UUID) async throws -> NolonCodexAuthDeletePayload {
+        NolonCodexAuthDeletePayload(providerID: providerID, accountID: accountID, wasActive: false)
+    }
+
+    func binaryList() async throws -> NolonCodexBinaryListPayload {
+        NolonCodexBinaryListPayload(selectedVersionID: nil, versions: [])
+    }
+
+    func binaryCurrent() async throws -> NolonCodexBinaryCurrentPayload {
+        NolonCodexBinaryCurrentPayload(selectedVersionID: nil, currentVersion: nil, activeCLIPath: nil)
+    }
+
+    func binaryInstall(version: String, setDefault: Bool) async throws -> NolonCodexBinaryInstallPayload {
+        NolonCodexBinaryInstallPayload(requestedVersion: version, installedVersionID: version, installedDetectedVersion: version, activated: setDefault)
+    }
+
+    func binaryUse(version: String) async throws -> NolonCodexBinaryUsePayload {
+        NolonCodexBinaryUsePayload(selectedVersionID: version)
+    }
+
+    func binaryDoctor() async throws -> NolonCodexBinaryDoctorPayload {
+        NolonCodexBinaryDoctorPayload(selectedVersionID: nil, currentVersion: nil, activeCLIPath: nil, managedVersionCount: 0, pathConfigured: false, pathActive: false, profilePath: "~/.zshrc")
+    }
+
+    func statusProbe(providerID: String?) async throws -> NolonCodexStatusProbePayload {
+        NolonCodexStatusProbePayload(providerID: providerID, resolvedExecutable: nil, credits: nil, fiveHourPercentLeft: nil, weeklyPercentLeft: nil, fiveHourResetDescription: nil, weeklyResetDescription: nil, probeWarning: nil, probeHint: nil)
+    }
+
+    func runtimeList(providerID: String?) async throws -> NolonCodexRuntimeListPayload {
+        NolonCodexRuntimeListPayload(processes: [])
+    }
+
+    func runtimeStop(pid: Int32, force: Bool, timeoutSeconds: Int) async throws -> NolonCodexRuntimeStopPayload {
+        NolonCodexRuntimeStopPayload(pid: pid, requestedSignal: "term", didEscalateToKill: false, exited: true)
+    }
+}
+
+private actor StatusProbeParseErrorCodexCLIService: NolonCodexCLIServing {
+    func authList(providerID: String) async throws -> NolonCodexAuthListPayload { NolonCodexAuthListPayload(providerID: providerID, activeAccountID: nil, accounts: []) }
+    func authStatus(providerID: String) async throws -> NolonCodexAuthStatusPayload { NolonCodexAuthStatusPayload(providerID: providerID, activeAccountID: nil, accountCount: 0, authHashHex: nil) }
+    func authActivate(providerID: String, accountID: UUID) async throws -> NolonCodexAuthActivatePayload { NolonCodexAuthActivatePayload(providerID: providerID, accountID: accountID, runtimeSwitched: false, runtimeErrorDescription: nil) }
+    func authLogin(providerID: String, preferredAccountID: UUID?) async throws -> NolonCodexAuthLoginPayload { NolonCodexAuthLoginPayload(providerID: providerID, accountID: UUID(), accountName: "-", runtimeSwitched: false, runtimeErrorDescription: nil, loginURL: nil) }
+    func authDelete(providerID: String, accountID: UUID) async throws -> NolonCodexAuthDeletePayload { NolonCodexAuthDeletePayload(providerID: providerID, accountID: accountID, wasActive: false) }
+    func binaryList() async throws -> NolonCodexBinaryListPayload { NolonCodexBinaryListPayload(selectedVersionID: nil, versions: []) }
+    func binaryCurrent() async throws -> NolonCodexBinaryCurrentPayload { NolonCodexBinaryCurrentPayload(selectedVersionID: nil, currentVersion: nil, activeCLIPath: nil) }
+    func binaryInstall(version: String, setDefault: Bool) async throws -> NolonCodexBinaryInstallPayload { NolonCodexBinaryInstallPayload(requestedVersion: version, installedVersionID: version, installedDetectedVersion: version, activated: setDefault) }
+    func binaryUse(version: String) async throws -> NolonCodexBinaryUsePayload { NolonCodexBinaryUsePayload(selectedVersionID: version) }
+    func binaryDoctor() async throws -> NolonCodexBinaryDoctorPayload { NolonCodexBinaryDoctorPayload(selectedVersionID: nil, currentVersion: nil, activeCLIPath: nil, managedVersionCount: 0, pathConfigured: false, pathActive: false, profilePath: "~/.zshrc") }
+    func statusProbe(providerID: String?) async throws -> NolonCodexStatusProbePayload {
+        throw NolonCoreCLIError.invalidArguments("Could not parse Codex status; will retry shortly.")
+    }
+    func runtimeList(providerID: String?) async throws -> NolonCodexRuntimeListPayload { NolonCodexRuntimeListPayload(processes: []) }
+    func runtimeStop(pid: Int32, force: Bool, timeoutSeconds: Int) async throws -> NolonCodexRuntimeStopPayload { NolonCodexRuntimeStopPayload(pid: pid, requestedSignal: "term", didEscalateToKill: false, exited: true) }
 }
 
 private actor BinaryListPlainTextCodexCLIService: NolonCodexCLIServing {

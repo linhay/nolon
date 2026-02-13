@@ -122,6 +122,8 @@ public struct NolonCodexStatusProbePayload: Codable, Sendable, Equatable {
     public let weeklyPercentLeft: Int?
     public let fiveHourResetDescription: String?
     public let weeklyResetDescription: String?
+    public let probeWarning: String?
+    public let probeHint: String?
 }
 
 public struct NolonCodexRuntimeProcessView: Codable, Sendable, Equatable {
@@ -260,19 +262,17 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
     public func authLogin(providerID: String, preferredAccountID: UUID?) async throws -> NolonCodexAuthLoginPayload {
         let canonicalProviderID = try Self.canonicalProviderID(providerID)
         let provider = try Self.provider(for: canonicalProviderID)
-        try await authManager.prepareForCLILogin(provider: provider, archiveAccountName: nil)
-
-        guard let codexHome = await authManager.codexHomeFolder(for: provider) else {
-            throw NolonCoreCLIError.domainFailed(
-                code: "codex_home_unavailable",
-                message: "Codex home path is unavailable for provider: \(canonicalProviderID)"
-            )
+        let codexHome = authManager.cliLoginCodexHomeFolder(providerID: canonicalProviderID)
+        _ = codexHome.createIfNotExists()
+        let isolatedAuthFile = codexHome.file("auth.json")
+        if isolatedAuthFile.isExists {
+            try isolatedAuthFile.delete()
         }
 
         let loginResult = try await loginRunner.loginAndAwaitAuthResult(
             binary: "codex",
             environment: environment,
-            codexHome: codexHome.url
+            codexHome: codexHome
         )
 
         let account = try await authManager.recordCLILoginSnapshot(
@@ -411,7 +411,9 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
             fiveHourPercentLeft: snapshot.fiveHourPercentLeft,
             weeklyPercentLeft: snapshot.weeklyPercentLeft,
             fiveHourResetDescription: snapshot.fiveHourResetDescription,
-            weeklyResetDescription: snapshot.weeklyResetDescription
+            weeklyResetDescription: snapshot.weeklyResetDescription,
+            probeWarning: nil,
+            probeHint: nil
         )
     }
 
@@ -550,8 +552,16 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
     }
 
     private static func isCodexRuntimeCommand(_ command: String) -> Bool {
+        if isNolonCodexCLICommand(command) {
+            return false
+        }
         let normalized = command.lowercased()
         return normalized.contains("codex-app-server") || normalized.contains("codex")
+    }
+
+    private static func isNolonCodexCLICommand(_ command: String) -> Bool {
+        let normalized = command.lowercased()
+        return normalized.contains("nolon codex ")
     }
 
     private static func providerHint(from command: String) -> String? {

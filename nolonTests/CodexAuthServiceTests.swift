@@ -170,7 +170,7 @@ final class CodexAuthActiveAccountRegistryTests: XCTestCase {
 
 @MainActor
 final class CodexAuthCompatSyncTests: XCTestCase {
-    func testBDD_GivenSelectedSnapshot_WhenActivating_ThenProviderAuthIsCleanSynced() async throws {
+    func testBDD_GivenSelectedSnapshot_WhenActivating_ThenProviderAuthIsSymlinkedToSnapshot() async throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("codex-compat-sync-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
@@ -190,14 +190,14 @@ final class CodexAuthCompatSyncTests: XCTestCase {
         )
 
         try await service.activateAccount(account, for: provider)
-        let authRawValue = try await service.readAuthJSONString(from: provider)
-        let authRaw = try XCTUnwrap(authRawValue)
-        let authData = try XCTUnwrap(authRaw.data(using: .utf8))
-        let authJSON = try JSON(data: authData)
-
-        XCTAssertEqual(authJSON["tokens"]["id_token"].string, "id-1")
-        XCTAssertEqual(authJSON["tokens"]["access_token"].string, "access-1")
-        XCTAssertEqual(authJSON["nolon"], JSON.null)
+        let authFile = try XCTUnwrap(await service.authFile(for: provider))
+        XCTAssertTrue(authFile.isSymbolicLink)
+        let destination = try authFile.destinationOfSymbolicLink()
+        let snapshotFile = await service.accountAuthFile(account)
+        XCTAssertEqual(
+            STPath.standardizedPath(destination.url.path).path,
+            STPath.standardizedPath(snapshotFile.url.path).path
+        )
     }
 
     func testBDD_GivenFreshCLILogin_WhenFinalizing_ThenSyncsProviderAuthAndMarksActive() async throws {
@@ -262,6 +262,23 @@ final class CodexAuthCompatSyncTests: XCTestCase {
 
 @MainActor
 final class ProviderUsageViewModelCLILoginTests: XCTestCase {
+    func testBDD_GivenCodexUsageWatcher_WhenRebuilding_ThenProviderAuthFileIsNotWatched() async {
+        let provider = Provider(
+            name: "Codex",
+            defaultSkillsPath: "/tmp/codex-skills",
+            workflowPath: "/tmp/codex-prompts",
+            installMethod: .symlink,
+            templateId: "codex"
+        )
+        let viewModel = ProviderUsageViewModel(provider: provider)
+
+        await viewModel.rebuildUsageWatcherForTesting()
+        let watched = viewModel.watchedPathsForTesting()
+        let providerAuthPath = URL(fileURLWithPath: "/tmp/auth.json").standardizedFileURL.path
+
+        XCTAssertFalse(watched.contains(providerAuthPath))
+    }
+
     func testBDD_GivenCLILoginAlreadyRunning_WhenRequestingCardLoginAgain_ThenFlowRestartsWithPreferredAccount() {
         // Given
         let provider = Provider(

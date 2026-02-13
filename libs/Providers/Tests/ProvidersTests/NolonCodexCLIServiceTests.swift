@@ -187,6 +187,7 @@ struct NolonCodexCLIServiceTests {
                     NolonRuntimeProcessSnapshot(pid: 400, ppid: 1, elapsed: "00:00:05", command: "/bin/zsh"),
                     NolonRuntimeProcessSnapshot(pid: 220, ppid: 1, elapsed: "00:01:10", command: "/opt/homebrew/bin/codex"),
                     NolonRuntimeProcessSnapshot(pid: 180, ppid: 1, elapsed: "00:03:00", command: "/usr/local/bin/codex-app-server --provider codex-xcode"),
+                    NolonRuntimeProcessSnapshot(pid: 181, ppid: 1, elapsed: "00:00:01", command: "/bin/zsh -lc nolon codex runtime list"),
                 ]
             ),
             runtimeSignalController: StubRuntimeSignalController(),

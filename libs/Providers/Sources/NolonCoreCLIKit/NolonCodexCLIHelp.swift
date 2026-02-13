@@ -42,6 +42,8 @@ enum NolonCodexCLIHelpResolver {
             return codexBinaryUseHelpText()
         case .codexStatusProbe:
             return codexStatusProbeHelpText()
+        case .codexStatusDoctor:
+            return codexStatusDoctorHelpText()
         case .codexRuntimeList:
             return codexRuntimeListHelpText()
         case .codexRuntimeStop:
@@ -57,13 +59,19 @@ enum NolonCodexCLIHelpResolver {
 
     private static func codexHelpText() -> String {
         """
-        Usage: nolon codex <group> <action> [options]
+        Usage: nolon <provider> <group> <action> [options]
+
+        Providers:
+          codex
 
         Groups:
           auth      list | status | activate | login | delete
           binary    list | current | install | use | doctor
-          status    probe
+          status    probe | doctor
           runtime   list | stop
+
+        Global options:
+          --json    Output JSON envelope instead of table/text.
 
         Examples:
           nolon codex auth list --provider codex
@@ -79,7 +87,7 @@ enum NolonCodexCLIHelpResolver {
         Actions:
           list      [--provider codex|codex-xcode]
           status    [--provider codex|codex-xcode]
-          activate  [--account-id <uuid>] [--provider ...]
+          activate  [--account-id <uuid>|--email <email>] [--provider ...]
           login     [--preferred-account-id <uuid>] [--provider ...]
           delete    --account-id <uuid> [--provider ...]
         """
@@ -104,6 +112,7 @@ enum NolonCodexCLIHelpResolver {
 
         Actions:
           probe    [--provider codex|codex-xcode]
+          doctor
         """
     }
 
@@ -137,11 +146,12 @@ enum NolonCodexCLIHelpResolver {
 
     private static func codexAuthActivateHelpText() -> String {
         """
-        Usage: nolon codex auth activate [--account-id <uuid>] [--provider <id>]
+        Usage: nolon codex auth activate [--account-id <uuid>|--email <email>] [--provider <id>]
 
         Options:
           --provider <id>     Provider id, default is codex.
           --account-id <id>   Account id UUID. Omit to use default interactive picker.
+          --email <value>     Activate by account email (case-insensitive).
           --tui               Alias flag; interactive picker is already default when account id is omitted.
         """
     }
@@ -212,6 +222,12 @@ enum NolonCodexCLIHelpResolver {
         """
     }
 
+    private static func codexStatusDoctorHelpText() -> String {
+        """
+        Usage: nolon codex status doctor
+        """
+    }
+
     private static func codexRuntimeListHelpText() -> String {
         """
         Usage: nolon codex runtime list
@@ -248,6 +264,7 @@ private struct NolonCLIHelpPath: RawRepresentable, ExpressibleByStringLiteral, E
     static let codexBinaryDoctor: Self = "help.codex.binary.doctor"
     static let codexBinaryUse: Self = "help.codex.binary.use"
     static let codexStatusProbe: Self = "help.codex.status.probe"
+    static let codexStatusDoctor: Self = "help.codex.status.doctor"
     static let codexRuntimeList: Self = "help.codex.runtime.list"
     static let codexRuntimeStop: Self = "help.codex.runtime.stop"
 
@@ -328,6 +345,8 @@ private struct NolonCLIHelpPath: RawRepresentable, ExpressibleByStringLiteral, E
             self = .codexBinaryUse
         case ["codex", "status", "probe", "help"], ["codex", "status", "probe", "-h"], ["codex", "status", "probe", "--help"]:
             self = .codexStatusProbe
+        case ["codex", "status", "doctor", "help"], ["codex", "status", "doctor", "-h"], ["codex", "status", "doctor", "--help"]:
+            self = .codexStatusDoctor
         case ["codex", "runtime", "list", "help"], ["codex", "runtime", "list", "-h"], ["codex", "runtime", "list", "--help"]:
             self = .codexRuntimeList
         case ["codex", "runtime", "stop", "help"], ["codex", "runtime", "stop", "-h"], ["codex", "runtime", "stop", "--help"]:
