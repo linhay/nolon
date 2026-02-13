@@ -433,6 +433,12 @@ public enum NolonCLIEntrypoint {
         if normalized == ["codex", "status", "help"] || normalized == ["codex", "status", "-h"] || normalized == ["codex", "status", "--help"] {
             return codexStatusHelpText()
         }
+        if normalized == ["codex", "auth", "list", "help"] || normalized == ["codex", "auth", "list", "-h"] || normalized == ["codex", "auth", "list", "--help"] {
+            return codexAuthListHelpText()
+        }
+        if normalized == ["codex", "binary", "install", "help"] || normalized == ["codex", "binary", "install", "-h"] || normalized == ["codex", "binary", "install", "--help"] {
+            return codexBinaryInstallHelpText()
+        }
         return nil
     }
 
@@ -488,6 +494,25 @@ public enum NolonCLIEntrypoint {
 
         Actions:
           probe    [--provider codex|codex-xcode]
+        """
+    }
+
+    private static func codexAuthListHelpText() -> String {
+        """
+        Usage: nolon codex auth list [options]
+
+        Options:
+          --provider <id>   Provider id, default is codex.
+        """
+    }
+
+    private static func codexBinaryInstallHelpText() -> String {
+        """
+        Usage: nolon codex binary install --version <version-or-tag> [--set-default]
+
+        Options:
+          --version <value>   Version tag to install, e.g. 0.26.0 or rust-v0.26.0.
+          --set-default       Activate this version after install.
         """
     }
 
