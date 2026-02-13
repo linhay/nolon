@@ -988,6 +988,22 @@ public enum CodexGeneratedFilesParser {
         .collabCloseEnd,
     ]
 
+    static let supportedEventMessageTypesForCompatibility: Set<String> = {
+        var types = Set(knownCodexEventMessageTypes.map(\.rawValue))
+        types.formUnion([
+            CodexEventMessageType.error.rawValue,
+            CodexEventMessageType.warning.rawValue,
+            CodexEventMessageType.taskStarted.rawValue,
+            CodexEventMessageType.turnStarted.rawValue,
+            CodexEventMessageType.taskComplete.rawValue,
+            CodexEventMessageType.turnComplete.rawValue,
+            CodexEventMessageType.tokenCount.rawValue,
+            CodexEventMessageType.agentMessage.rawValue,
+            CodexEventMessageType.userMessage.rawValue,
+        ])
+        return types
+    }()
+
     private static func parseTokenCountFromEventMessage(payload: CodexJSONValue?) -> CodexRolloutLine.TokenCount? {
         let object = payload?.objectValue ?? [:]
         if CodexEventMessageType(object["type"]?.stringValue ?? "") == .tokenCount {
