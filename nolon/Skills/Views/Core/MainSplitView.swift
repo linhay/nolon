@@ -18,6 +18,7 @@ final class MainSplitViewModel {
     var repository = SkillRepository()
     private(set) var installer: SkillInstaller?
     private var resourceMonitor: ProviderResourceMonitor?
+    private let remoteInstallOrchestrator = RemoteInstallOrchestrator()
 
     var selectedProviderId: Provider.ID?
     var selectedTab: ProviderContentTabType? = .skills
@@ -58,24 +59,12 @@ final class MainSplitViewModel {
         guard let installer = installer else { return }
 
         do {
-            if let localPath = skill.localPath {
-                // Install from local path (GitHub or Local Folder)
-                Self.logger.info("Installing skill from local path: \(localPath, privacy: .public)")
-                try installer.installLocal(from: localPath, slug: skill.slug, to: provider)
-                Self.logger.info("Installed skill \(skill.slug, privacy: .public) from local path")
-            } else {
-                let zipURL = try await SkillsRepositoryFacade.downloadRemoteResource(
-                    kind: .skill,
-                    slug: skill.slug,
-                    version: skill.latestVersion?.version,
-                    baseURL: currentRemoteBaseURL()
-                )
-                defer { try? STPath(zipURL).deleteIncludingBrokenSymlink() }
-                try installer.installRemote(zipURL: zipURL, slug: skill.slug, to: provider)
-                Self.logger.info("Installed skill \(skill.slug, privacy: .public) from Clawdhub to \(provider.name, privacy: .public)")
-            }
-
-            // Trigger refresh immediately after install
+            try await remoteInstallOrchestrator.installSkill(
+                skill,
+                to: provider,
+                installer: installer,
+                remoteBaseURL: currentRemoteBaseURL()
+            )
             refreshTrigger += 1
         } catch {
             Self.logger.error("Failed to install remote skill: \(String(describing: error), privacy: .public)")
@@ -86,29 +75,13 @@ final class MainSplitViewModel {
     @MainActor
     func installRemoteWorkflow(_ workflow: RemoteWorkflow, to provider: Provider) async {
         do {
-            if let localPath = workflow.localPath {
-                guard let installer else { return }
-                Self.logger.info("Installing workflow from local path: \(localPath, privacy: .public)")
-                try installer.installLocalWorkflow(
-                    fileURL: STPath(localPath).url,
-                    slug: workflow.slug,
-                    to: provider
-                )
-                Self.logger.info("Installed workflow \(workflow.slug, privacy: .public) from local path")
-            } else {
-                let fileURL = try await SkillsRepositoryFacade.downloadRemoteResource(
-                    kind: .workflow,
-                    slug: workflow.slug,
-                    version: workflow.latestVersion?.version,
-                    baseURL: currentRemoteBaseURL()
-                )
-                defer { try? STPath(fileURL).deleteIncludingBrokenSymlink() }
-                guard let installer else { return }
-                try installer.installRemoteWorkflow(fileURL: fileURL, slug: workflow.slug, to: provider)
-                Self.logger.info("Installed workflow \(workflow.slug, privacy: .public) to \(provider.name, privacy: .public)")
-            }
-            
-            // Trigger refresh immediately after install
+            guard let installer else { return }
+            try await remoteInstallOrchestrator.installWorkflow(
+                workflow,
+                to: provider,
+                installer: installer,
+                remoteBaseURL: currentRemoteBaseURL()
+            )
             refreshTrigger += 1
         } catch {
             Self.logger.error("Failed to install workflow: \(String(describing: error), privacy: .public)")
@@ -119,36 +92,11 @@ final class MainSplitViewModel {
     @MainActor
     func installRemoteMCP(_ mcp: RemoteMCP, to provider: Provider) async {
         do {
-            let resourceInstaller = ResourceInstaller(globalCache: GlobalCacheRepository())
-            
-            if let localPath = mcp.localPath {
-                // Install from local path (GitHub or Local Folder)
-                Self.logger.info("Installing MCP from local path: \(localPath, privacy: .public)")
-                try await resourceInstaller.installFromLocal(
-                    resourceURL: STPath(localPath).url,
-                    resourceSlug: mcp.slug,
-                    resourceType: .mcp,
-                    to: provider
-                )
-                Self.logger.info("Installed MCP \(mcp.slug, privacy: .public) from local path")
-            } else {
-                let resourceURL = try await SkillsRepositoryFacade.downloadRemoteResource(
-                    kind: .mcp,
-                    slug: mcp.slug,
-                    version: mcp.latestVersion?.version,
-                    baseURL: currentRemoteBaseURL()
-                )
-                defer { try? STPath(resourceURL).deleteIncludingBrokenSymlink() }
-                try await resourceInstaller.installFromLocal(
-                    resourceURL: resourceURL,
-                    resourceSlug: mcp.slug,
-                    resourceType: .mcp,
-                    to: provider
-                )
-                Self.logger.info("Installed MCP \(mcp.slug, privacy: .public) to \(provider.name, privacy: .public)")
-            }
-            
-            // Trigger refresh immediately after install
+            try await remoteInstallOrchestrator.installMCP(
+                mcp,
+                to: provider,
+                remoteBaseURL: currentRemoteBaseURL()
+            )
             refreshTrigger += 1
         } catch {
             Self.logger.error("Failed to install MCP: \(String(describing: error), privacy: .public)")

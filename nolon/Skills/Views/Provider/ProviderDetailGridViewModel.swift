@@ -204,6 +204,7 @@ final class ProviderDetailGridViewModel {
     // Internals
     var repository: SkillRepository
     var installer: SkillInstaller
+    private let remoteInstallOrchestrator = RemoteInstallOrchestrator()
     
     init(provider: Provider?, settings: ProviderSettings) {
         self.provider = provider
@@ -1298,68 +1299,33 @@ final class ProviderDetailGridViewModel {
     
     func installRemoteSkill(_ skill: RemoteSkill, to provider: Provider) async {
         await performAsync {
-            if let localPath = skill.localPath {
-                try installer.installLocal(from: localPath, slug: skill.slug, to: provider)
-            } else {
-                let zipURL = try await SkillsRepositoryFacade.downloadRemoteResource(
-                    kind: .skill,
-                    slug: skill.slug,
-                    version: skill.latestVersion?.version,
-                    baseURL: currentRemoteBaseURL()
-                )
-                defer { try? STPath(zipURL).deleteIncludingBrokenSymlink() }
-                try installer.installRemote(zipURL: zipURL, slug: skill.slug, to: provider)
-            }
+            try await remoteInstallOrchestrator.installSkill(
+                skill,
+                to: provider,
+                installer: installer,
+                remoteBaseURL: currentRemoteBaseURL()
+            )
         }
     }
     
     func installRemoteWorkflow(_ workflow: RemoteWorkflow, to provider: Provider) async {
         await performAsync {
-            if let localPath = workflow.localPath {
-                try installer.installLocalWorkflow(
-                    fileURL: STPath(localPath).url,
-                    slug: workflow.slug,
-                    to: provider
-                )
-            } else {
-                let fileURL = try await SkillsRepositoryFacade.downloadRemoteResource(
-                    kind: .workflow,
-                    slug: workflow.slug,
-                    version: workflow.latestVersion?.version,
-                    baseURL: currentRemoteBaseURL()
-                )
-                defer { try? STPath(fileURL).deleteIncludingBrokenSymlink() }
-                try installer.installRemoteWorkflow(fileURL: fileURL, slug: workflow.slug, to: provider)
-            }
+            try await remoteInstallOrchestrator.installWorkflow(
+                workflow,
+                to: provider,
+                installer: installer,
+                remoteBaseURL: currentRemoteBaseURL()
+            )
         }
     }
     
     func installRemoteMCP(_ mcp: RemoteMCP, to provider: Provider) async {
         await performAsync {
-            let resourceInstaller = ResourceInstaller(globalCache: GlobalCacheRepository())
-
-            if let localPath = mcp.localPath {
-                try await resourceInstaller.installFromLocal(
-                    resourceURL: STPath(localPath).url,
-                    resourceSlug: mcp.slug,
-                    resourceType: .mcp,
-                    to: provider
-                )
-            } else {
-                let resourceURL = try await SkillsRepositoryFacade.downloadRemoteResource(
-                    kind: .mcp,
-                    slug: mcp.slug,
-                    version: mcp.latestVersion?.version,
-                    baseURL: currentRemoteBaseURL()
-                )
-                defer { try? STPath(resourceURL).deleteIncludingBrokenSymlink() }
-                try await resourceInstaller.installFromLocal(
-                    resourceURL: resourceURL,
-                    resourceSlug: mcp.slug,
-                    resourceType: .mcp,
-                    to: provider
-                )
-            }
+            try await remoteInstallOrchestrator.installMCP(
+                mcp,
+                to: provider,
+                remoteBaseURL: currentRemoteBaseURL()
+            )
         }
     }
 

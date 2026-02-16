@@ -45,6 +45,8 @@ struct NolonCodexBinaryGroupCommand: ParsableCommand {
             NolonCodexBinaryInstallCommand.self,
             NolonCodexBinaryUseCommand.self,
             NolonCodexBinaryDoctorCommand.self,
+            NolonCodexBinaryAvailableCommand.self,
+            NolonCodexBinarySwitchCommand.self,
         ]
     )
 }
@@ -126,7 +128,7 @@ struct NolonCodexAuthDeleteCommand: ParsableCommand {
 struct NolonCodexBinaryInstallCommand: ParsableCommand {
     static let configuration = CommandConfiguration(commandName: "install")
 
-    @Option(name: .long, help: "Version tag to install, e.g. 0.26.0 or rust-v0.26.0.")
+    @Argument(help: "Version tag to install, e.g. 0.26.0 or rust-v0.26.0.")
     var version: String
 
     @Flag(name: .long, help: "Activate this version after install.")
@@ -135,6 +137,14 @@ struct NolonCodexBinaryInstallCommand: ParsableCommand {
 
 struct NolonCodexBinaryListCommand: ParsableCommand {
     static let configuration = CommandConfiguration(commandName: "list")
+}
+
+struct NolonCodexBinaryAvailableCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(commandName: "available")
+}
+
+struct NolonCodexBinarySwitchCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(commandName: "switch")
 }
 
 struct NolonCodexBinaryCurrentCommand: ParsableCommand {

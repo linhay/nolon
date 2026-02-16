@@ -8,7 +8,7 @@
 
 ### 2.1 命令面
 - `nolon codex auth list|status|activate|login|delete`
-- `nolon codex binary list|current|install|use|doctor`
+- `nolon codex binary list|current|install|use|available|switch|doctor`
 - `nolon codex status probe`
 
 ### 2.2 参数/错误语义

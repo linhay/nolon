@@ -59,6 +59,98 @@ public protocol NolonSkillsRepositoryServing: Sendable {
     ) async throws -> NolonRemoteDownloadResult
 }
 
+public extension NolonSkillsRepositoryServing {
+    func remoteInstallSkill(
+        slug: String,
+        version: String?,
+        baseURL: String,
+        providerPath: STFolder,
+        skillID: String?,
+        installMethod: NolonSkillInstallMethod
+    ) async throws -> NolonRemoteInstallResult {
+        let download = try await downloadRemoteResource(
+            kind: .skill,
+            slug: slug,
+            version: version,
+            baseURL: baseURL
+        )
+        let skillsRoot = try resolveNolonSkillsRootFolder()
+        let stagedSkillPath = STPath(try SkillsRepositoryFacade.stageRemoteSkillForInstall(
+            downloadedFileURL: STPath(download.filePath).url,
+            slug: slug,
+            skillsRoot: skillsRoot.url
+        ))
+        let effectiveSkillID = (skillID?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false)
+            ? skillID
+            : slug
+        let install = try installSkill(
+            skillPath: stagedSkillPath,
+            skillID: effectiveSkillID,
+            providerPath: providerPath,
+            installMethod: installMethod
+        )
+        return NolonRemoteInstallResult(
+            kind: .skill,
+            slug: slug,
+            version: version,
+            baseURL: baseURL,
+            downloadedFilePath: download.filePath,
+            installedPath: install.targetPath,
+            installMethod: installMethod,
+            skillID: install.skillID,
+            resourceName: nil
+        )
+    }
+
+    func remoteInstallResource(
+        kind: NolonResourceKind,
+        slug: String,
+        version: String?,
+        baseURL: String,
+        targetPath: STFolder,
+        resourceName: String?,
+        installMethod: NolonSkillInstallMethod
+    ) async throws -> NolonRemoteInstallResult {
+        let remoteKind: NolonRemoteCatalogKind = kind == .workflow ? .workflow : .mcp
+        let download = try await downloadRemoteResource(
+            kind: remoteKind,
+            slug: slug,
+            version: version,
+            baseURL: baseURL
+        )
+        let install = try installResource(
+            kind: kind,
+            filePath: STPath(download.filePath),
+            resourceName: resourceName,
+            targetPath: targetPath,
+            installMethod: installMethod
+        )
+        return NolonRemoteInstallResult(
+            kind: remoteKind,
+            slug: slug,
+            version: version,
+            baseURL: baseURL,
+            downloadedFilePath: download.filePath,
+            installedPath: install.targetPath,
+            installMethod: installMethod,
+            skillID: nil,
+            resourceName: install.resourceName
+        )
+    }
+}
+
+private func resolveNolonSkillsRootFolder(environment: [String: String] = ProcessInfo.processInfo.environment) throws -> STFolder {
+    let nolonHome: URL
+    if let raw = environment["NOLON_HOME"]?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty {
+        let expanded = NSString(string: raw).expandingTildeInPath
+        nolonHome = URL(fileURLWithPath: expanded, isDirectory: true).standardizedFileURL
+    } else {
+        nolonHome = URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true)
+            .appendingPathComponent(".nolon", isDirectory: true)
+    }
+    return STFolder(nolonHome.appendingPathComponent("skills", isDirectory: true))
+}
+
 public struct NolonLiveSkillsRepositoryService: NolonSkillsRepositoryServing {
     public init() {}
 

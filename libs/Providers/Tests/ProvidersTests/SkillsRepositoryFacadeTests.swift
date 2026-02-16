@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import STFilePath
 @testable import ProviderCatalog
 
 @Suite("SkillsRepositoryFacade")
@@ -338,5 +339,64 @@ struct SkillsRepositoryFacadeTests {
         } catch {
             Issue.record("unexpected error: \(error)")
         }
+    }
+
+    @Test("stage remote skill from zip into stable skills root")
+    func stageRemoteSkillFromZip() throws {
+        let tempRoot = try STFolder(sanbox: .temporary).folder("facade-stage-zip-\(UUID().uuidString)").create()
+        defer { try? tempRoot.delete() }
+
+        let skillFolder = try tempRoot.folder("source-skill").create()
+        try skillFolder.file("SKILL.md").overlay(
+            with: """
+            ---
+            name: staged-skill
+            description: test
+            ---
+            """)
+
+        let zipPath = tempRoot.file("source.zip")
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
+        process.arguments = ["-c", "-k", "--sequesterRsrc", "--keepParent", skillFolder.url.path, zipPath.url.path]
+        try process.run()
+        process.waitUntilExit()
+        #expect(process.terminationStatus == 0)
+
+        let skillsRoot = try tempRoot.folder("skills-root").create()
+        let staged = try SkillsRepositoryFacade.stageRemoteSkillForInstall(
+            downloadedFileURL: zipPath.url,
+            slug: "demo-skill",
+            skillsRoot: skillsRoot.url
+        )
+
+        #expect(staged.lastPathComponent == "demo-skill")
+        #expect(STFile(staged.appendingPathComponent("SKILL.md")).isExists)
+    }
+
+    @Test("stage remote skill from folder copies into stable skills root")
+    func stageRemoteSkillFromFolder() throws {
+        let tempRoot = try STFolder(sanbox: .temporary).folder("facade-stage-folder-\(UUID().uuidString)").create()
+        defer { try? tempRoot.delete() }
+
+        let sourceRoot = try tempRoot.folder("downloaded-folder").create()
+        let nested = try sourceRoot.folder("nested").create()
+        try nested.file("SKILL.md").overlay(
+            with: """
+            ---
+            name: staged-folder
+            description: test
+            ---
+            """)
+
+        let skillsRoot = try tempRoot.folder("skills-root").create()
+        let staged = try SkillsRepositoryFacade.stageRemoteSkillForInstall(
+            downloadedFileURL: sourceRoot.url,
+            slug: "folder-skill",
+            skillsRoot: skillsRoot.url
+        )
+
+        #expect(staged.lastPathComponent == "folder-skill")
+        #expect(STFile(staged.appendingPathComponent("SKILL.md")).isExists)
     }
 }

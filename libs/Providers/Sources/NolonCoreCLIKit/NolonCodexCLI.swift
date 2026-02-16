@@ -18,6 +18,7 @@ public protocol NolonCodexCLIServing: Sendable {
     func authLogin(providerID: String, preferredAccountID: UUID?) async throws -> NolonCodexAuthLoginPayload
     func authDelete(providerID: String, accountID: UUID) async throws -> NolonCodexAuthDeletePayload
     func binaryList() async throws -> NolonCodexBinaryListPayload
+    func binaryAvailable() async throws -> NolonCodexBinaryAvailablePayload
     func binaryCurrent() async throws -> NolonCodexBinaryCurrentPayload
     func binaryInstall(version: String, setDefault: Bool) async throws -> NolonCodexBinaryInstallPayload
     func binaryUse(version: String) async throws -> NolonCodexBinaryUsePayload
@@ -84,9 +85,20 @@ public struct NolonCodexManagedVersionView: Codable, Sendable, Equatable {
     public let isSelected: Bool
 }
 
+public struct NolonCodexRemoteVersionView: Codable, Sendable, Equatable {
+    public let version: String
+    public let tag: String
+    public let downloadURL: String
+    public let isPrerelease: Bool
+}
+
 public struct NolonCodexBinaryListPayload: Codable, Sendable, Equatable {
     public let selectedVersionID: String?
     public let versions: [NolonCodexManagedVersionView]
+}
+
+public struct NolonCodexBinaryAvailablePayload: Codable, Sendable, Equatable {
+    public let versions: [NolonCodexRemoteVersionView]
 }
 
 public struct NolonCodexBinaryCurrentPayload: Codable, Sendable, Equatable {
@@ -103,6 +115,12 @@ public struct NolonCodexBinaryInstallPayload: Codable, Sendable, Equatable {
 }
 
 public struct NolonCodexBinaryUsePayload: Codable, Sendable, Equatable {
+    public let selectedVersionID: String
+}
+
+public struct NolonCodexBinarySwitchPayload: Codable, Sendable, Equatable {
+    public let action: String
+    public let requestedVersion: String
     public let selectedVersionID: String
 }
 
@@ -352,6 +370,20 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
             )
         }
         return NolonCodexBinaryListPayload(selectedVersionID: selected, versions: versions)
+    }
+
+    public func binaryAvailable() async throws -> NolonCodexBinaryAvailablePayload {
+        let manifest = try await binaryManager.loadManifest()
+        let releases = try await binaryManager.fetchRemoteReleases(includePrerelease: manifest.includeBetaVersions)
+        let versions = releases.map { release in
+            NolonCodexRemoteVersionView(
+                version: release.version,
+                tag: release.tag,
+                downloadURL: release.assetURL.absoluteString,
+                isPrerelease: release.isPrerelease
+            )
+        }
+        return NolonCodexBinaryAvailablePayload(versions: versions)
     }
 
     public func binaryCurrent() async throws -> NolonCodexBinaryCurrentPayload {

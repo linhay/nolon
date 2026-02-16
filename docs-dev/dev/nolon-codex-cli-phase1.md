@@ -8,7 +8,7 @@
 ## 范围
 - `nolon codex auth list|status|activate|login`
 - `nolon codex auth delete`
-- `nolon codex binary list|current|install|use|doctor`
+- `nolon codex binary list|current|install|use|available|switch|doctor`
 - `nolon codex status probe`
 
 ## 实现要点
@@ -33,11 +33,11 @@
 ## BDD 验收
 1. Given `auth activate` 参数有效，When 执行命令，Then 路由到 auth 激活并返回 `codex.auth.activate`。
 2. Given `--account-id` 非 UUID，When 执行命令，Then 返回结构化 `invalid_arguments`。
-3. Given `binary install --set-default`，When 执行命令，Then 路由安装并返回 `codex.binary.install`。
+3. Given `binary install <version> --set-default`，When 执行命令，Then 路由安装并返回 `codex.binary.install`。
 4. Given `status probe`，When 执行命令，Then 路由探测并返回 `codex.status.probe`。
 5. Given `auth delete --account-id` 有效，When 执行命令，Then 删除本地快照并返回 `codex.auth.delete`。
 6. Given `auth delete` 账号不存在，When 执行命令，Then 返回结构化业务错误 `codex_auth_account_not_found`。
-7. Given `binary install/use --version` 为空白字符串，When 执行命令，Then 返回 `invalid_arguments`。
+7. Given `binary install <version>` 或 `binary use --version` 为空白字符串，When 执行命令，Then 返回 `invalid_arguments`。
 
 ## 测试与验证
 - `swift test --package-path libs/Providers --filter NolonCodexCLIEntrypointTests`

@@ -561,6 +561,54 @@ public enum SkillsRepositoryFacade {
         return destination.url
     }
 
+    /// Stage downloaded remote skill payload into a stable skills root folder.
+    /// - Parameters:
+    ///   - downloadedFileURL: downloaded payload path (folder or zip).
+    ///   - slug: target skill slug.
+    ///   - skillsRoot: stable skills root folder (for example: `~/.nolon/skills`).
+    /// - Returns: staged skill directory URL (`<skillsRoot>/<slug>`).
+    public static func stageRemoteSkillForInstall(
+        downloadedFileURL: URL,
+        slug: String,
+        skillsRoot: URL
+    ) throws -> URL {
+        let root = STFolder(skillsRoot)
+        _ = root.createIfNotExists()
+
+        let stagedPath = root.subpath(slug)
+        if stagedPath.isExists || stagedPath.isSymbolicLink {
+            try stagedPath.delete()
+        }
+
+        let downloadedPath = STPath(downloadedFileURL)
+        let sourceSkillRoot: STPath
+        if downloadedPath.isFolderExists {
+            sourceSkillRoot = try resolveDownloadedSkillRoot(downloadedFolderPath: downloadedPath)
+        } else if downloadedFileURL.pathExtension.lowercased() == "zip" {
+            let extractionRoot = try STFolder(sanbox: .temporary).folder("nolon-skill-unpack-\(UUID().uuidString)").create()
+            defer { try? extractionRoot.delete() }
+
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
+            process.arguments = ["-x", "-k", downloadedFileURL.path, extractionRoot.url.path]
+            try process.run()
+            process.waitUntilExit()
+            guard process.terminationStatus == 0 else {
+                throw SyncError.commandFailed("Failed to unpack downloaded skill zip: \(downloadedFileURL.path)")
+            }
+            guard let skillRoot = findSkillRoot(in: extractionRoot.url) else {
+                throw SyncError.commandFailed("Unpacked skill zip does not contain SKILL.md")
+            }
+            try skillRoot.copy(to: stagedPath, isOverlay: true)
+            return stagedPath.url
+        } else {
+            throw SyncError.commandFailed("Unsupported skill package format: \(downloadedFileURL.lastPathComponent)")
+        }
+
+        try sourceSkillRoot.copy(to: stagedPath, isOverlay: true)
+        return stagedPath.url
+    }
+
     public static func normalizeGitURL(_ input: String) -> String {
         RemoteGitRepositorySupport.normalizeGitURL(input)
     }
@@ -780,6 +828,33 @@ public enum SkillsRepositoryFacade {
         }
         return (downloadedURL, http)
     }
+}
+
+private func resolveDownloadedSkillRoot(downloadedFolderPath: STPath) throws -> STPath {
+    let folder = STFolder(downloadedFolderPath.url)
+    if folder.file("SKILL.md").isExists {
+        return downloadedFolderPath
+    }
+    if let nested = findSkillRoot(in: downloadedFolderPath.url) {
+        return nested
+    }
+    throw SkillsRepositoryFacade.SyncError.commandFailed("Downloaded skill payload does not contain SKILL.md")
+}
+
+private func findSkillRoot(in directory: URL) -> STPath? {
+    let manager = FileManager.default
+    guard let enumerator = manager.enumerator(
+        at: directory,
+        includingPropertiesForKeys: [.isDirectoryKey, .isRegularFileKey],
+        options: [.skipsHiddenFiles]
+    ) else {
+        return nil
+    }
+
+    for case let url as URL in enumerator where url.lastPathComponent == "SKILL.md" {
+        return STPath(url.deletingLastPathComponent())
+    }
+    return nil
 }
 
 private struct ClawdhubSearchResponse: Decodable { let results: [ClawdhubSearchResult] }

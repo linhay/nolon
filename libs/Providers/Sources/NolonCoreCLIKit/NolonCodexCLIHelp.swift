@@ -38,6 +38,10 @@ enum NolonCodexCLIHelpResolver {
             return codexBinaryInstallHelpText()
         case .codexBinaryList:
             return codexBinaryListHelpText()
+        case .codexBinaryAvailable:
+            return codexBinaryAvailableHelpText()
+        case .codexBinarySwitch:
+            return codexBinarySwitchHelpText()
         case .codexBinaryCurrent:
             return codexBinaryCurrentHelpText()
         case .codexBinaryDoctor:
@@ -88,7 +92,7 @@ enum NolonCodexCLIHelpResolver {
 
         Groups:
           auth      list | status | activate | login | delete
-          binary    list | current | install | use | doctor
+          binary    list | current | install | use | available | switch | doctor
           status    probe | doctor
           runtime   list | stop
           provider  discover
@@ -132,8 +136,10 @@ enum NolonCodexCLIHelpResolver {
         Actions:
           list
           current
-          install  --version <version-or-tag> [--set-default]
+          install  <version-or-tag> [--set-default]
           use      --version <version-or-id>
+          available
+          switch
           doctor
         """
     }
@@ -219,10 +225,9 @@ enum NolonCodexCLIHelpResolver {
 
     private static func codexBinaryInstallHelpText() -> String {
         """
-        Usage: nolon codex binary install --version <version-or-tag> [--set-default]
+        Usage: nolon codex binary install <version-or-tag> [--set-default]
 
         Options:
-          --version <value>   Version tag to install, e.g. 0.26.0 or rust-v0.26.0.
           --set-default       Activate this version after install.
         """
     }
@@ -230,6 +235,18 @@ enum NolonCodexCLIHelpResolver {
     private static func codexBinaryListHelpText() -> String {
         """
         Usage: nolon codex binary list
+        """
+    }
+
+    private static func codexBinaryAvailableHelpText() -> String {
+        """
+        Usage: nolon codex binary available
+        """
+    }
+
+    private static func codexBinarySwitchHelpText() -> String {
+        """
+        Usage: nolon codex binary switch
         """
     }
 
@@ -315,6 +332,8 @@ private struct NolonCLIHelpPath: RawRepresentable, ExpressibleByStringLiteral, E
     static let codexAuthDelete: Self = "help.codex.auth.delete"
     static let codexBinaryInstall: Self = "help.codex.binary.install"
     static let codexBinaryList: Self = "help.codex.binary.list"
+    static let codexBinaryAvailable: Self = "help.codex.binary.available"
+    static let codexBinarySwitch: Self = "help.codex.binary.switch"
     static let codexBinaryCurrent: Self = "help.codex.binary.current"
     static let codexBinaryDoctor: Self = "help.codex.binary.doctor"
     static let codexBinaryUse: Self = "help.codex.binary.use"
@@ -404,6 +423,10 @@ private struct NolonCLIHelpPath: RawRepresentable, ExpressibleByStringLiteral, E
             self = .codexBinaryInstall
         case ["codex", "binary", "list", "help"], ["codex", "binary", "list", "-h"], ["codex", "binary", "list", "--help"]:
             self = .codexBinaryList
+        case ["codex", "binary", "available", "help"], ["codex", "binary", "available", "-h"], ["codex", "binary", "available", "--help"]:
+            self = .codexBinaryAvailable
+        case ["codex", "binary", "switch", "help"], ["codex", "binary", "switch", "-h"], ["codex", "binary", "switch", "--help"]:
+            self = .codexBinarySwitch
         case ["codex", "binary", "current", "help"], ["codex", "binary", "current", "-h"], ["codex", "binary", "current", "--help"]:
             self = .codexBinaryCurrent
         case ["codex", "binary", "doctor", "help"], ["codex", "binary", "doctor", "-h"], ["codex", "binary", "doctor", "--help"]:

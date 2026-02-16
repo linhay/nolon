@@ -1076,6 +1076,18 @@ struct NolonCoreCLIKitTests {
 
     @Test("runner renders remote install skill result")
     func runnerRendersRemoteInstallSkillResult() async {
+        let tempNolonHome = FileManager.default.temporaryDirectory
+            .appendingPathComponent("nolon-core-cli-home-\(UUID().uuidString)", isDirectory: true)
+        let backup = getenv("NOLON_HOME").map { String(cString: $0) }
+        setenv("NOLON_HOME", tempNolonHome.path, 1)
+        defer {
+            if let backup {
+                setenv("NOLON_HOME", backup, 1)
+            } else {
+                unsetenv("NOLON_HOME")
+            }
+        }
+
         let runner = NolonCoreCLIRunner(
             service: MockSkillsRepositoryService(),
             fileReader: { _ in "" }
@@ -1324,7 +1336,17 @@ private struct SyncErrorMockSkillsRepositoryService: NolonSkillsRepositoryServin
         version: String?,
         baseURL: String
     ) async throws -> NolonRemoteDownloadResult {
-        NolonRemoteDownloadResult(
+        if kind == .skill {
+            let folder = try makeMockRemoteSkillFolder(slug: slug)
+            return NolonRemoteDownloadResult(
+                kind: kind,
+                slug: slug,
+                version: version,
+                baseURL: baseURL,
+                filePath: folder.path
+            )
+        }
+        return NolonRemoteDownloadResult(
             kind: kind,
             slug: slug,
             version: version,
@@ -1513,8 +1535,31 @@ private struct MockSkillsRepositoryService: NolonSkillsRepositoryServing {
         version: String?,
         baseURL: String
     ) async throws -> NolonRemoteDownloadResult {
-        NolonRemoteDownloadResult(kind: kind, slug: slug, version: version, baseURL: baseURL, filePath: "/tmp/\(slug).bin")
+        if kind == .skill {
+            let folder = try makeMockRemoteSkillFolder(slug: slug)
+            return NolonRemoteDownloadResult(
+                kind: kind,
+                slug: slug,
+                version: version,
+                baseURL: baseURL,
+                filePath: folder.path
+            )
+        }
+        return NolonRemoteDownloadResult(kind: kind, slug: slug, version: version, baseURL: baseURL, filePath: "/tmp/\(slug).bin")
     }
+}
+
+private func makeMockRemoteSkillFolder(slug: String) throws -> URL {
+    let root = try STFolder(sanbox: .temporary).folder("nolon-core-cli-tests-\(UUID().uuidString)").create()
+    let folder = try root.create(folder: slug)
+    try """
+    ---
+    name: \(slug)
+    description: test
+    ---
+    # \(slug)
+    """.write(to: folder.file("SKILL.md").url, atomically: true, encoding: .utf8)
+    return folder.url
 }
 
 private func canonicalJSON(_ raw: String) throws -> String {

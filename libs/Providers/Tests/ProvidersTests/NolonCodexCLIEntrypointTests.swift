@@ -84,7 +84,8 @@ struct NolonCodexCLIEntrypointTests {
         #expect(result.exitCode == 0)
         #expect(result.stderr.isEmpty)
         #expect(result.stdout.contains("Usage: nolon codex binary <action>"))
-        #expect(result.stdout.contains("install  --version"))
+        #expect(result.stdout.contains("install  <version-or-tag>"))
+        #expect(result.stdout.contains("available"))
     }
 
     @Test("codex binary without action prints binary help")
@@ -382,8 +383,8 @@ struct NolonCodexCLIEntrypointTests {
 
         #expect(result.exitCode == 0)
         #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("Usage: nolon codex binary install"))
-        #expect(result.stdout.contains("--version"))
+        #expect(result.stdout.contains("Usage: nolon codex binary install <version-or-tag>"))
+        #expect(result.stdout.contains("--set-default"))
     }
 
     @Test("codex binary use --help prints action help")
@@ -411,6 +412,32 @@ struct NolonCodexCLIEntrypointTests {
         #expect(result.exitCode == 0)
         #expect(result.stderr.isEmpty)
         #expect(result.stdout.contains("Usage: nolon codex binary list"))
+    }
+
+    @Test("codex binary available --help prints action help")
+    func codexBinaryAvailableHelpPrintsHelp() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["codex", "binary", "available", "--help"],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("Usage: nolon codex binary available"))
+    }
+
+    @Test("codex binary switch --help prints action help")
+    func codexBinarySwitchHelpPrintsHelp() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["codex", "binary", "switch", "--help"],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("Usage: nolon codex binary switch"))
     }
 
     @Test("codex binary current --help prints action help")
@@ -803,7 +830,7 @@ struct NolonCodexCLIEntrypointTests {
         let result = await NolonCLIEntrypoint.execute(
             arguments: [
                 "codex", "binary", "install",
-                "--version", "0.26.0",
+                "0.26.0",
                 "--set-default",
             ],
             codexService: mock
@@ -820,7 +847,7 @@ struct NolonCodexCLIEntrypointTests {
         let result = await NolonCLIEntrypoint.execute(
             arguments: [
                 "codex", "binary", "install",
-                "--version", "   ",
+                "   ",
             ],
             codexService: mock
         )
@@ -842,6 +869,20 @@ struct NolonCodexCLIEntrypointTests {
         #expect(result.exitCode == 0)
         #expect(result.stdout.contains("current_version: -"))
         #expect(await mock.lastCall() == "binaryCurrent")
+    }
+
+    @Test("routes binary available")
+    func routesBinaryAvailable() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: [
+                "codex", "binary", "available",
+            ],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(await mock.lastCall() == "binaryAvailable")
     }
 
     @Test("routes binary use")
@@ -873,6 +914,101 @@ struct NolonCodexCLIEntrypointTests {
 
         #expect(result.exitCode == 2)
         #expect(result.stderr.contains("\"code\":\"invalid_arguments\""))
+    }
+
+    @Test("binary switch rejects non-tty")
+    func binarySwitchRejectsNonTTY() async {
+        let service = BinarySwitchCodexCLIService(
+            installed: NolonCodexBinaryListPayload(selectedVersionID: nil, versions: []),
+            available: NolonCodexBinaryAvailablePayload(versions: [])
+        )
+        let overrides = NolonCodexCLIExecutor.IOOverrides(
+            isTTY: { false },
+            readInputLine: { "1" },
+            writePrompt: { _ in }
+        )
+
+        let result = await NolonCodexCLIExecutor.withIOOverrides(overrides) {
+            await NolonCLIEntrypoint.execute(
+                arguments: ["codex", "binary", "switch"],
+                codexService: service
+            )
+        }
+
+        #expect(result.exitCode == 2)
+        #expect(result.stderr.contains("\"code\":\"invalid_arguments\""))
+        #expect(result.stderr.contains("Interactive selection requires a TTY"))
+    }
+
+    @Test("binary switch activates installed version")
+    func binarySwitchActivatesInstalledVersion() async {
+        let service = BinarySwitchCodexCLIService(
+            installed: NolonCodexBinaryListPayload(
+                selectedVersionID: "v0.26.0",
+                versions: [
+                    NolonCodexManagedVersionView(
+                        id: "v0.26.0",
+                        displayName: "Codex 0.26.0",
+                        detectedVersion: "0.26.0",
+                        source: "release",
+                        importedAt: .distantPast,
+                        isSelected: true
+                    )
+                ]
+            ),
+            available: NolonCodexBinaryAvailablePayload(versions: [])
+        )
+        let overrides = NolonCodexCLIExecutor.IOOverrides(
+            isTTY: { true },
+            readInputLine: { "1" },
+            writePrompt: { _ in }
+        )
+
+        let result = await NolonCodexCLIExecutor.withIOOverrides(overrides) {
+            await NolonCLIEntrypoint.execute(
+                arguments: ["codex", "binary", "switch"],
+                codexService: service
+            )
+        }
+
+        #expect(result.exitCode == 0)
+        #expect(result.stdout.contains("action: activate"))
+        #expect(result.stdout.contains("selected_version_id: v0.26.0"))
+        #expect(await service.lastCall() == "binaryUse")
+    }
+
+    @Test("binary switch installs available version")
+    func binarySwitchInstallsAvailableVersion() async {
+        let service = BinarySwitchCodexCLIService(
+            installed: NolonCodexBinaryListPayload(selectedVersionID: nil, versions: []),
+            available: NolonCodexBinaryAvailablePayload(
+                versions: [
+                    NolonCodexRemoteVersionView(
+                        version: "0.100.0",
+                        tag: "rust-v0.100.0",
+                        downloadURL: "https://example.com/codex.tar.gz",
+                        isPrerelease: false
+                    )
+                ]
+            )
+        )
+        let overrides = NolonCodexCLIExecutor.IOOverrides(
+            isTTY: { true },
+            readInputLine: { "1" },
+            writePrompt: { _ in }
+        )
+
+        let result = await NolonCodexCLIExecutor.withIOOverrides(overrides) {
+            await NolonCLIEntrypoint.execute(
+                arguments: ["codex", "binary", "switch"],
+                codexService: service
+            )
+        }
+
+        #expect(result.exitCode == 0)
+        #expect(result.stdout.contains("action: install"))
+        #expect(result.stdout.contains("requested_version: 0.100.0"))
+        #expect(await service.lastCall() == "binaryInstall")
     }
 
     @Test("routes binary doctor")
@@ -1239,6 +1375,11 @@ private actor MockCodexCLIService: NolonCodexCLIServing {
         return NolonCodexBinaryListPayload(selectedVersionID: nil, versions: [])
     }
 
+    func binaryAvailable() async throws -> NolonCodexBinaryAvailablePayload {
+        call = "binaryAvailable"
+        return NolonCodexBinaryAvailablePayload(versions: [])
+    }
+
     func binaryCurrent() async throws -> NolonCodexBinaryCurrentPayload {
         call = "binaryCurrent"
         return NolonCodexBinaryCurrentPayload(selectedVersionID: nil, currentVersion: nil, activeCLIPath: nil)
@@ -1353,6 +1494,7 @@ private actor DomainErrorCodexCLIService: NolonCodexCLIServing {
     func authLogin(providerID: String, preferredAccountID: UUID?) async throws -> NolonCodexAuthLoginPayload { throw makeError() }
     func authDelete(providerID: String, accountID: UUID) async throws -> NolonCodexAuthDeletePayload { throw makeError() }
     func binaryList() async throws -> NolonCodexBinaryListPayload { throw makeError() }
+    func binaryAvailable() async throws -> NolonCodexBinaryAvailablePayload { throw makeError() }
     func binaryCurrent() async throws -> NolonCodexBinaryCurrentPayload { throw makeError() }
     func binaryInstall(version: String, setDefault: Bool) async throws -> NolonCodexBinaryInstallPayload { throw makeError() }
     func binaryUse(version: String) async throws -> NolonCodexBinaryUsePayload { throw makeError() }
@@ -1410,6 +1552,10 @@ private actor EmailActivateCodexCLIService: NolonCodexCLIServing {
         NolonCodexBinaryListPayload(selectedVersionID: nil, versions: [])
     }
 
+    func binaryAvailable() async throws -> NolonCodexBinaryAvailablePayload {
+        NolonCodexBinaryAvailablePayload(versions: [])
+    }
+
     func binaryCurrent() async throws -> NolonCodexBinaryCurrentPayload {
         NolonCodexBinaryCurrentPayload(selectedVersionID: nil, currentVersion: nil, activeCLIPath: nil)
     }
@@ -1454,6 +1600,7 @@ private actor StatusProbeParseErrorCodexCLIService: NolonCodexCLIServing {
     func authLogin(providerID: String, preferredAccountID: UUID?) async throws -> NolonCodexAuthLoginPayload { NolonCodexAuthLoginPayload(providerID: providerID, accountID: UUID(), accountName: "-", runtimeSwitched: false, runtimeErrorDescription: nil, loginURL: nil) }
     func authDelete(providerID: String, accountID: UUID) async throws -> NolonCodexAuthDeletePayload { NolonCodexAuthDeletePayload(providerID: providerID, accountID: accountID, wasActive: false) }
     func binaryList() async throws -> NolonCodexBinaryListPayload { NolonCodexBinaryListPayload(selectedVersionID: nil, versions: []) }
+    func binaryAvailable() async throws -> NolonCodexBinaryAvailablePayload { NolonCodexBinaryAvailablePayload(versions: []) }
     func binaryCurrent() async throws -> NolonCodexBinaryCurrentPayload { NolonCodexBinaryCurrentPayload(selectedVersionID: nil, currentVersion: nil, activeCLIPath: nil) }
     func binaryInstall(version: String, setDefault: Bool) async throws -> NolonCodexBinaryInstallPayload { NolonCodexBinaryInstallPayload(requestedVersion: version, installedVersionID: version, installedDetectedVersion: version, activated: setDefault) }
     func binaryUse(version: String) async throws -> NolonCodexBinaryUsePayload { NolonCodexBinaryUsePayload(selectedVersionID: version) }
@@ -1467,12 +1614,58 @@ private actor StatusProbeParseErrorCodexCLIService: NolonCodexCLIServing {
     func providerDiscover() async throws -> NolonCodexProviderDiscoverPayload { NolonCodexProviderDiscoverPayload(providers: []) }
 }
 
+private actor BinarySwitchCodexCLIService: NolonCodexCLIServing {
+    private let installed: NolonCodexBinaryListPayload
+    private let available: NolonCodexBinaryAvailablePayload
+    private var call: String?
+
+    init(installed: NolonCodexBinaryListPayload, available: NolonCodexBinaryAvailablePayload) {
+        self.installed = installed
+        self.available = available
+    }
+
+    func lastCall() -> String? { call }
+
+    func authList(providerID: String) async throws -> NolonCodexAuthListPayload { throw unsupported() }
+    func authStatus(providerID: String) async throws -> NolonCodexAuthStatusPayload { throw unsupported() }
+    func authActivate(providerID: String, accountID: UUID) async throws -> NolonCodexAuthActivatePayload { throw unsupported() }
+    func authLogin(providerID: String, preferredAccountID: UUID?) async throws -> NolonCodexAuthLoginPayload { throw unsupported() }
+    func authDelete(providerID: String, accountID: UUID) async throws -> NolonCodexAuthDeletePayload { throw unsupported() }
+    func binaryList() async throws -> NolonCodexBinaryListPayload { installed }
+    func binaryAvailable() async throws -> NolonCodexBinaryAvailablePayload { available }
+    func binaryCurrent() async throws -> NolonCodexBinaryCurrentPayload { throw unsupported() }
+    func binaryInstall(version: String, setDefault: Bool) async throws -> NolonCodexBinaryInstallPayload {
+        call = "binaryInstall"
+        return NolonCodexBinaryInstallPayload(
+            requestedVersion: version,
+            installedVersionID: "v\(version)-mock",
+            installedDetectedVersion: version,
+            activated: setDefault
+        )
+    }
+    func binaryUse(version: String) async throws -> NolonCodexBinaryUsePayload {
+        call = "binaryUse"
+        return NolonCodexBinaryUsePayload(selectedVersionID: version)
+    }
+    func binaryDoctor() async throws -> NolonCodexBinaryDoctorPayload { throw unsupported() }
+    func statusProbe(providerID: String?) async throws -> NolonCodexStatusProbePayload { throw unsupported() }
+    func runtimeList(providerID: String?) async throws -> NolonCodexRuntimeListPayload { throw unsupported() }
+    func runtimeStop(pid: Int32, force: Bool, timeoutSeconds: Int) async throws -> NolonCodexRuntimeStopPayload { throw unsupported() }
+    func providerList() async throws -> NolonProviderListPayload { throw unsupported() }
+    func providerDiscover() async throws -> NolonCodexProviderDiscoverPayload { throw unsupported() }
+
+    private func unsupported() -> NolonCoreCLIError {
+        .invalidArguments("unsupported")
+    }
+}
+
 private actor BinaryListPlainTextCodexCLIService: NolonCodexCLIServing {
     func authList(providerID: String) async throws -> NolonCodexAuthListPayload { throw unsupported() }
     func authStatus(providerID: String) async throws -> NolonCodexAuthStatusPayload { throw unsupported() }
     func authActivate(providerID: String, accountID: UUID) async throws -> NolonCodexAuthActivatePayload { throw unsupported() }
     func authLogin(providerID: String, preferredAccountID: UUID?) async throws -> NolonCodexAuthLoginPayload { throw unsupported() }
     func authDelete(providerID: String, accountID: UUID) async throws -> NolonCodexAuthDeletePayload { throw unsupported() }
+    func binaryAvailable() async throws -> NolonCodexBinaryAvailablePayload { throw unsupported() }
     func binaryCurrent() async throws -> NolonCodexBinaryCurrentPayload { throw unsupported() }
     func binaryInstall(version: String, setDefault: Bool) async throws -> NolonCodexBinaryInstallPayload { throw unsupported() }
     func binaryUse(version: String) async throws -> NolonCodexBinaryUsePayload { throw unsupported() }
@@ -1518,6 +1711,7 @@ private actor JSONContractCodexCLIService: NolonCodexCLIServing {
     func authActivate(providerID: String, accountID: UUID) async throws -> NolonCodexAuthActivatePayload { throw unsupported() }
     func authLogin(providerID: String, preferredAccountID: UUID?) async throws -> NolonCodexAuthLoginPayload { throw unsupported() }
     func authDelete(providerID: String, accountID: UUID) async throws -> NolonCodexAuthDeletePayload { throw unsupported() }
+    func binaryAvailable() async throws -> NolonCodexBinaryAvailablePayload { throw unsupported() }
     func binaryCurrent() async throws -> NolonCodexBinaryCurrentPayload { throw unsupported() }
     func binaryInstall(version: String, setDefault: Bool) async throws -> NolonCodexBinaryInstallPayload { throw unsupported() }
     func binaryUse(version: String) async throws -> NolonCodexBinaryUsePayload { throw unsupported() }
@@ -1555,6 +1749,7 @@ private actor AuthListTableCodexCLIService: NolonCodexCLIServing {
     func authLogin(providerID: String, preferredAccountID: UUID?) async throws -> NolonCodexAuthLoginPayload { throw unsupported() }
     func authDelete(providerID: String, accountID: UUID) async throws -> NolonCodexAuthDeletePayload { throw unsupported() }
     func binaryList() async throws -> NolonCodexBinaryListPayload { throw unsupported() }
+    func binaryAvailable() async throws -> NolonCodexBinaryAvailablePayload { throw unsupported() }
     func binaryCurrent() async throws -> NolonCodexBinaryCurrentPayload { throw unsupported() }
     func binaryInstall(version: String, setDefault: Bool) async throws -> NolonCodexBinaryInstallPayload { throw unsupported() }
     func binaryUse(version: String) async throws -> NolonCodexBinaryUsePayload { throw unsupported() }
@@ -1605,6 +1800,7 @@ private actor AuthListMissingFieldsCodexCLIService: NolonCodexCLIServing {
     func authLogin(providerID: String, preferredAccountID: UUID?) async throws -> NolonCodexAuthLoginPayload { throw unsupported() }
     func authDelete(providerID: String, accountID: UUID) async throws -> NolonCodexAuthDeletePayload { throw unsupported() }
     func binaryList() async throws -> NolonCodexBinaryListPayload { throw unsupported() }
+    func binaryAvailable() async throws -> NolonCodexBinaryAvailablePayload { throw unsupported() }
     func binaryCurrent() async throws -> NolonCodexBinaryCurrentPayload { throw unsupported() }
     func binaryInstall(version: String, setDefault: Bool) async throws -> NolonCodexBinaryInstallPayload { throw unsupported() }
     func binaryUse(version: String) async throws -> NolonCodexBinaryUsePayload { throw unsupported() }

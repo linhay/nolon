@@ -338,76 +338,44 @@ public struct NolonCoreCLIRunner: Sendable {
             )
 
         case let .remoteInstallSkill(slug, version, baseURL, providerPath, providerID, installMethod, skillID):
-            let download = try await service.downloadRemoteResource(
-                kind: .skill,
-                slug: slug,
-                version: version,
-                baseURL: baseURL
-            )
             let resolvedProviderPath = try Self.resolveSkillProviderPath(
                 explicitProviderPath: providerPath,
                 providerID: providerID
             )
-            let effectiveSkillID = (skillID?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false)
-                ? skillID
-                : slug
-            let install = try service.installSkill(
-                skillPath: STPath(download.filePath),
-                skillID: effectiveSkillID,
+            let result = try await service.remoteInstallSkill(
+                slug: slug,
+                version: version,
+                baseURL: baseURL,
                 providerPath: STFolder(resolvedProviderPath),
+                skillID: skillID,
                 installMethod: installMethod
             )
             return try encodeSuccess(
                 command: command.commandID,
                 data: RemoteInstallPayload(
-                    result: NolonRemoteInstallResult(
-                        kind: .skill,
-                        slug: slug,
-                        version: version,
-                        baseURL: baseURL,
-                        downloadedFilePath: download.filePath,
-                        installedPath: install.targetPath,
-                        installMethod: installMethod,
-                        skillID: install.skillID,
-                        resourceName: nil
-                    )
+                    result: result
                 )
             )
 
         case let .remoteInstallResource(kind, slug, version, baseURL, targetPath, providerID, installMethod, resourceName):
-            let remoteKind: NolonRemoteCatalogKind = kind == .workflow ? .workflow : .mcp
-            let download = try await service.downloadRemoteResource(
-                kind: remoteKind,
-                slug: slug,
-                version: version,
-                baseURL: baseURL
-            )
             let resolvedTargetPath = try Self.resolveResourceTargetPath(
                 kind: kind,
                 explicitTargetPath: targetPath,
                 providerID: providerID
             )
-            let install = try service.installResource(
+            let result = try await service.remoteInstallResource(
                 kind: kind,
-                filePath: STPath(download.filePath),
-                resourceName: resourceName,
+                slug: slug,
+                version: version,
+                baseURL: baseURL,
                 targetPath: STFolder(resolvedTargetPath),
+                resourceName: resourceName,
                 installMethod: installMethod
             )
             return try encodeSuccess(
                 command: command.commandID,
                 data: RemoteInstallPayload(
-                    result: NolonRemoteInstallResult(
-                        kind: remoteKind,
-                        slug: slug,
-                        version: version,
-                        baseURL: baseURL,
-                        downloadedFilePath: download.filePath,
-                        installedPath: install.targetPath,
-                        installMethod: installMethod,
-                        skillID: nil,
-                        resourceName: install.resourceName
-                    )
+                    result: result
                 )
             )
         }

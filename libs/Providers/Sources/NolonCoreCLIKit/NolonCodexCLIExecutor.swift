@@ -12,10 +12,32 @@ enum NolonCodexCLIExecutor {
         case json
     }
 
-    static let stdinIsTTY: @Sendable () -> Bool = { isatty(STDIN_FILENO) == 1 }
-    static let readInputLine: @Sendable () -> String? = { readLine(strippingNewline: true) }
-    static let writePrompt: @Sendable (String) -> Void = { prompt in
-        FileHandle.standardOutput.write(Data(prompt.utf8))
+    struct IOOverrides: Sendable {
+        let isTTY: @Sendable () -> Bool
+        let readInputLine: @Sendable () -> String?
+        let writePrompt: @Sendable (String) -> Void
+    }
+
+    @TaskLocal
+    private static var ioOverrides: IOOverrides?
+
+    private static let defaultIO = IOOverrides(
+        isTTY: { isatty(STDIN_FILENO) == 1 },
+        readInputLine: { readLine(strippingNewline: true) },
+        writePrompt: { prompt in
+            FileHandle.standardOutput.write(Data(prompt.utf8))
+        }
+    )
+
+    static func withIOOverrides<T>(
+        _ overrides: IOOverrides,
+        operation: () async throws -> T
+    ) async rethrows -> T {
+        try await $ioOverrides.withValue(overrides, operation: operation)
+    }
+
+    private static func currentIO() -> IOOverrides {
+        ioOverrides ?? defaultIO
     }
 
     static func execute(
@@ -39,6 +61,10 @@ enum NolonCodexCLIExecutor {
             return try await executeAuthDelete(command: command, context: context, outputMode: outputMode)
         case _ as NolonCodexBinaryListCommand:
             return try await executeBinaryList(context: context, outputMode: outputMode)
+        case _ as NolonCodexBinaryAvailableCommand:
+            return try await executeBinaryAvailable(context: context, outputMode: outputMode)
+        case _ as NolonCodexBinarySwitchCommand:
+            return try await executeBinarySwitch(context: context, outputMode: outputMode)
         case _ as NolonCodexBinaryCurrentCommand:
             return try await executeBinaryCurrent(context: context, outputMode: outputMode)
         case let command as NolonCodexBinaryInstallCommand:
@@ -102,7 +128,8 @@ enum NolonCodexCLIExecutor {
             accountID = matched.id
         } else {
             _ = command.tui
-            guard stdinIsTTY() else {
+            let io = currentIO()
+            guard io.isTTY() else {
                 throw NolonCoreCLIError.invalidArguments("Interactive selection requires a TTY terminal. Use --account-id <uuid> or --email <email>.")
             }
             let list = try await context.codexService().authList(providerID: providerID)
@@ -112,8 +139,8 @@ enum NolonCodexCLIExecutor {
                     message: "No Codex accounts available for activation."
                 )
             }
-            writePrompt(renderActivatePicker(accounts: list.accounts))
-            guard let input = readInputLine() else {
+            io.writePrompt(renderActivatePicker(accounts: list.accounts))
+            guard let input = io.readInputLine() else {
                 throw NolonCoreCLIError.invalidArguments("Activation cancelled")
             }
             accountID = try parseActivateSelection(input: input, accounts: list.accounts)
@@ -151,13 +178,59 @@ enum NolonCodexCLIExecutor {
         return try renderOutput(command: .binaryList, payload: payload, outputMode: outputMode, textFormatter: formatBinaryList)
     }
 
+    private static func executeBinaryAvailable(context: NolonCLIExecutionContext, outputMode: OutputMode) async throws -> String {
+        let payload = try await context.codexService().binaryAvailable()
+        return try renderOutput(command: .binaryAvailable, payload: payload, outputMode: outputMode, textFormatter: formatBinaryAvailable)
+    }
+
+    private static func executeBinarySwitch(context: NolonCLIExecutionContext, outputMode: OutputMode) async throws -> String {
+        let io = currentIO()
+        guard io.isTTY() else {
+            throw NolonCoreCLIError.invalidArguments(
+                "Interactive selection requires a TTY terminal. Use `nolon codex binary install <version>` or `nolon codex binary use --version <version-or-id>`."
+            )
+        }
+
+        let installed = try await context.codexService().binaryList()
+        let available = try await context.codexService().binaryAvailable()
+        let entries = buildBinarySwitchEntries(installed: installed, available: available)
+        guard !entries.isEmpty else {
+            throw NolonCoreCLIError.domainFailed(code: "codex_binary_not_found", message: "No Codex versions available for switching.")
+        }
+
+        io.writePrompt(renderBinarySwitchPicker(entries: entries))
+        guard let input = io.readInputLine() else {
+            throw NolonCoreCLIError.invalidArguments("Switch cancelled")
+        }
+
+        let selection = try parseBinarySwitchSelection(input: input, entries: entries)
+        switch selection.action {
+        case .activate:
+            let payload = try await context.codexService().binaryUse(version: selection.versionID)
+            let result = NolonCodexBinarySwitchPayload(
+                action: "activate",
+                requestedVersion: selection.version,
+                selectedVersionID: payload.selectedVersionID
+            )
+            return try renderOutput(command: .binarySwitch, payload: result, outputMode: outputMode, textFormatter: formatBinarySwitch)
+        case .install:
+            let payload = try await context.codexService().binaryInstall(version: selection.version, setDefault: true)
+            let result = NolonCodexBinarySwitchPayload(
+                action: "install",
+                requestedVersion: payload.requestedVersion,
+                selectedVersionID: payload.installedVersionID
+            )
+            return try renderOutput(command: .binarySwitch, payload: result, outputMode: outputMode, textFormatter: formatBinarySwitch)
+        }
+    }
+
     private static func executeBinaryCurrent(context: NolonCLIExecutionContext, outputMode: OutputMode) async throws -> String {
         let payload = try await context.codexService().binaryCurrent()
         return try renderOutput(command: .binaryCurrent, payload: payload, outputMode: outputMode, textFormatter: formatBinaryCurrent)
     }
 
     private static func executeBinaryInstall(command: NolonCodexBinaryInstallCommand, context: NolonCLIExecutionContext, outputMode: OutputMode) async throws -> String {
-        let version = try parseCodexVersionArgument(command.version, option: "--version")
+        let version = try parseCodexVersionArgument(command.version, option: "version")
         let payload = try await context.codexService().binaryInstall(version: version, setDefault: command.setDefault)
         return try renderOutput(command: .binaryInstall, payload: payload, outputMode: outputMode, textFormatter: formatBinaryInstall)
     }
@@ -331,7 +404,7 @@ enum NolonCodexCLIExecutor {
         let group = arguments[1].trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         let supportedByGroup: [String: Set<String>] = [
             "auth": ["list", "status", "activate", "login", "delete"],
-            "binary": ["list", "current", "install", "use", "doctor"],
+            "binary": ["list", "current", "install", "use", "available", "switch", "doctor"],
             "status": ["probe", "doctor"],
             "runtime": ["list", "stop"],
             "provider": ["discover"],
@@ -375,6 +448,83 @@ enum NolonCodexCLIExecutor {
         }
     }
 
+    private enum BinarySwitchAction {
+        case activate
+        case install
+    }
+
+    private struct BinarySwitchEntry {
+        let version: String
+        let tag: String?
+        let versionID: String
+        let status: String
+        let isSelected: Bool
+        let action: BinarySwitchAction
+    }
+
+    private static func buildBinarySwitchEntries(
+        installed: NolonCodexBinaryListPayload,
+        available: NolonCodexBinaryAvailablePayload
+    ) -> [BinarySwitchEntry] {
+        var entries: [BinarySwitchEntry] = []
+        let installedVersions = Set(installed.versions.map { $0.detectedVersion })
+
+        for version in installed.versions {
+            entries.append(
+                BinarySwitchEntry(
+                    version: version.detectedVersion,
+                    tag: nil,
+                    versionID: version.id,
+                    status: "已安装",
+                    isSelected: version.isSelected,
+                    action: .activate
+                )
+            )
+        }
+
+        for release in available.versions where !installedVersions.contains(release.version) {
+            entries.append(
+                BinarySwitchEntry(
+                    version: release.version,
+                    tag: release.tag,
+                    versionID: release.version,
+                    status: "可下载",
+                    isSelected: false,
+                    action: .install
+                )
+            )
+        }
+
+        return entries
+    }
+
+    private static func renderBinarySwitchPicker(entries: [BinarySwitchEntry]) -> String {
+        let rows = entries.enumerated().map { index, entry -> String in
+            let selected = entry.isSelected ? "*" : " "
+            let tag = entry.tag.map { " (\($0))" } ?? ""
+            return "\(index + 1). [\(selected) \(entry.status)] \(entry.version)\(tag)"
+        }
+        return """
+        请选择要切换的版本（输入编号，q 取消）:
+        \(rows.joined(separator: "\n"))
+        > 
+        """
+    }
+
+    private static func parseBinarySwitchSelection(
+        input: String,
+        entries: [BinarySwitchEntry]
+    ) throws -> BinarySwitchEntry {
+        let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if trimmed == "q" {
+            throw NolonCoreCLIError.invalidArguments("Switch cancelled")
+        }
+        guard let index = Int(trimmed), index > 0, index <= entries.count else {
+            throw NolonCoreCLIError.invalidArguments("Invalid selection")
+        }
+        return entries[index - 1]
+    }
+
     private static func formatBinaryList(_ payload: NolonCodexBinaryListPayload) -> String {
         guard !payload.versions.isEmpty else { return "" }
         let versionWidth = payload.versions.map { $0.detectedVersion.count }.max() ?? 0
@@ -388,6 +538,22 @@ enum NolonCodexCLIExecutor {
                 let nameColumn = padRight(version.displayName, to: nameWidth)
                 let sourceColumn = padRight(version.source, to: sourceWidth)
                 return "\(marker) \(versionColumn) | \(nameColumn) | \(sourceColumn) | \(version.id)"
+            }
+            .joined(separator: "\n")
+    }
+
+    private static func formatBinaryAvailable(_ payload: NolonCodexBinaryAvailablePayload) -> String {
+        guard !payload.versions.isEmpty else { return "" }
+        let versionWidth = payload.versions.map { $0.version.count }.max() ?? 0
+        let tagWidth = payload.versions.map { $0.tag.count }.max() ?? 0
+        let prereleaseWidth = payload.versions.map { $0.isPrerelease.description.count }.max() ?? 0
+
+        return payload.versions
+            .map { release in
+                let versionColumn = padRight(release.version, to: versionWidth)
+                let tagColumn = padRight(release.tag, to: tagWidth)
+                let prereleaseColumn = padRight(release.isPrerelease.description, to: prereleaseWidth)
+                return "\(versionColumn) | \(tagColumn) | \(prereleaseColumn) | \(release.downloadURL)"
             }
             .joined(separator: "\n")
     }
@@ -495,6 +661,14 @@ enum NolonCodexCLIExecutor {
             "path_configured: \(payload.pathConfigured)",
             "path_active: \(payload.pathActive)",
             "profile_path: \(payload.profilePath)",
+        ].joined(separator: "\n")
+    }
+
+    private static func formatBinarySwitch(_ payload: NolonCodexBinarySwitchPayload) -> String {
+        [
+            "action: \(payload.action)",
+            "requested_version: \(payload.requestedVersion)",
+            "selected_version_id: \(payload.selectedVersionID)",
         ].joined(separator: "\n")
     }
 
@@ -688,6 +862,8 @@ private struct NolonCodexCommandPath: RawRepresentable, ExpressibleByStringLiter
     static let authLogin: Self = "codex.auth.login"
     static let authDelete: Self = "codex.auth.delete"
     static let binaryList: Self = "codex.binary.list"
+    static let binaryAvailable: Self = "codex.binary.available"
+    static let binarySwitch: Self = "codex.binary.switch"
     static let binaryCurrent: Self = "codex.binary.current"
     static let binaryInstall: Self = "codex.binary.install"
     static let binaryUse: Self = "codex.binary.use"

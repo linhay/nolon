@@ -414,3 +414,88 @@
   - `swift test --package-path libs/Providers --filter NolonCoreCLIKitTests` 通过（54 tests）。
   - `swift test --package-path libs/Providers --filter NolonCodexCLIEntrypointTests` 通过（75 tests）。
   - `bash scripts/tests/install-nolon-cli-smoke.sh` 通过。
+
+## Phase 2.22（remote install 下沉为 SDK 聚合步骤）
+- 背景：
+  - `remote install` 在 `NolonCoreCLIRunner` 中重复拼接下载与安装步骤，不利于后续 App/CLI 共用。
+- 变更：
+  1. 在 `NolonSkillsRepositoryServing` 扩展新增聚合方法：
+     - `remoteInstallSkill(...)`
+     - `remoteInstallResource(...)`
+  2. `NolonCoreCLIRunner` 的 `remoteInstallSkill/remoteInstallResource` 分支改为调用上述聚合方法，消除 runner 内重复下载+安装实现。
+  3. 新增服务层测试：
+     - `remote install skill composes download and install steps`
+     - `remote install resource composes download and install steps`
+- 验证：
+  - `swift test --package-path libs/Providers --filter NolonSkillsRepositoryServiceTests` 通过（9 tests）。
+  - `swift test --package-path libs/Providers --filter NolonCoreCLIKitTests` 通过（54 tests）。
+
+## Phase 2.23（remote install skill 稳定落盘 + STFilePath 对齐）
+- 背景：
+  - `remote install --kind skill` 下载 zip 后直接进入 `installSkill`，在默认 `--install-method symlink` 下会出现“链接临时包路径”的不稳定语义。
+- 变更：
+  1. `NolonSkillsRepositoryServing.remoteInstallSkill(...)` 改为：
+     - 先解析下载产物（目录/zip）；
+     - zip 自动解包并定位 `SKILL.md` 根目录；
+     - 将技能内容稳定落盘到 `NOLON_HOME/skills/<slug>`（未设置时回落 `~/.nolon/skills/<slug>`）；
+     - 再调用 `installSkill(...)` 执行 copy/symlink。
+  2. 新增测试：
+     - `remote install skill unpacks zip into NOLON_HOME skills before install`
+  3. 修正测试桩：
+     - `NolonCoreCLIKitTests`、`NolonSkillsRepositoryServiceTests` 的 mock 下载资源创建改为优先使用 `STFolder/STFile`（不再使用 `FileManager` 临时目录拼接）。
+- 验证：
+  - `swift test --package-path libs/Providers --filter NolonSkillsRepositoryServiceTests` 通过（10 tests）。
+  - `swift test --package-path libs/Providers --filter NolonCoreCLIKitTests` 通过（54 tests）。
+
+## Phase 2.24（App 远程安装入口编排收敛）
+- 背景：
+  - App 侧 `MainSplitViewModel` 与 `ProviderDetailGridViewModel` 各自维护一份 `skill/workflow/mcp` 远程安装流程，长期容易与 CLI/SDK 漂移。
+- 变更：
+  1. 新增 `nolon/Skills/Infrastructure/RemoteInstallOrchestrator.swift`：
+     - 统一封装 `installSkill/installWorkflow/installMCP`；
+     - 保留既有语义：`localPath` 直装，remote 先下载后安装，临时文件清理；
+     - 全流程使用 `STPath/STFolder` 辅助路径处理。
+  2. `MainSplitViewModel` 改为调用 `RemoteInstallOrchestrator`。
+  3. `ProviderDetailGridViewModel` 改为调用 `RemoteInstallOrchestrator`。
+- 验证：
+  - 代码级 diff 验证两处重复逻辑已移除，统一走同一编排层。
+  - 受当前工程配置限制，`xcodebuild test -scheme nolon` 返回 `Scheme nolon is not currently configured for the test action`；
+    `xcodebuild build` 在包内 `nolon` 可执行 target（`@main` 与 top-level code）处失败，非本次改动引入。
+  - 可执行回归仍通过：
+    - `swift test --package-path libs/Providers --filter NolonSkillsRepositoryServiceTests`
+    - `swift test --package-path libs/Providers --filter NolonCoreCLIKitTests`
+
+## Phase 2.25（RemoteInstallOrchestrator 可测试化）
+- 背景：
+  - Phase 2.24 抽出的 `RemoteInstallOrchestrator` 仍直接依赖静态下载函数，不利于单测覆盖 remote/local 分支行为。
+- 变更：
+  1. `RemoteInstallOrchestrator` 新增可注入下载器：
+     - `typealias RemoteDownload`
+     - `downloadRemoteResource` 闭包属性（默认仍调用 `SkillsRepositoryFacade.downloadRemoteResource`）。
+  2. 新增测试文件：
+     - `nolonTests/RemoteInstallOrchestratorTests.swift`
+  3. 新增 BDD 用例：
+     - `testBDD_GivenLocalSkill_WhenInstallSkill_ThenSkipRemoteDownload`
+     - `testBDD_GivenRemoteWorkflow_WhenInstallWorkflow_ThenDownloadAndInstall`
+  4. 修复受 skill 稳定落盘策略影响的 CLI 测试隔离：
+     - `NolonCoreCLIKitTests.runnerRendersRemoteInstallSkillResult` 增加 `NOLON_HOME` 临时目录隔离。
+- 验证：
+  - `swift test --package-path libs/Providers --filter 'NolonSkillsRepositoryServiceTests|NolonCoreCLIKitTests'` 通过（64 tests）。
+  - `xcodebuild` 侧目前受本机构建环境问题阻塞（Yams `build` 路径异常），无法完成 `nolonTests` 自动执行；该阻塞与本次代码逻辑无关。
+
+## Phase 2.26（remote skill staging 下沉到 ProviderCatalog SDK）
+- 背景：
+  - `remote install --kind skill` 的 staging 逻辑此前仅存在于 `NolonCoreCLIKit`，App/CLI 仍有实现漂移风险。
+- 变更：
+  1. 在 `ProviderCatalog.SkillsRepositoryFacade` 新增公共能力：
+     - `stageRemoteSkillForInstall(downloadedFileURL:slug:skillsRoot:)`
+     - 统一支持目录/zip 输入、`SKILL.md` 根定位、稳定落盘到 `skillsRoot/<slug>`。
+  2. `NolonSkillsRepositoryServing.remoteInstallSkill(...)` 改为调用上述 SDK API，删除 CLI 层重复实现。
+  3. 新增 facade 级测试：
+     - `stage remote skill from zip into stable skills root`
+     - `stage remote skill from folder copies into stable skills root`
+- 验证：
+  - `swift test --package-path libs/Providers --filter SkillsRepositoryFacadeTests/stageRemoteSkill` 通过（2 tests）。
+  - `swift test --package-path libs/Providers --filter NolonSkillsRepositoryServiceTests` 通过（10 tests）。
+  - `swift test --package-path libs/Providers --filter NolonCoreCLIKitTests/runnerRendersRemoteInstallSkillResult` 通过（1 test）。
+  - 说明：将多个 suite 混合并行过滤执行时存在环境变量 `NOLON_HOME` 共享竞争，已按 suite 分组回归通过。
