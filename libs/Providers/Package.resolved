@@ -1,13 +1,13 @@
 {
-  "originHash" : "52008fc3ea1fbc4e9c48233b5657831a873772a843d7c4330d4128e1e94f9837",
+  "originHash" : "7d02e86c96dc9ae5c460eaf2af9efc1d6c38b3653cf902c327f5a87dec85863a",
   "pins" : [
     {
       "identity" : "skprocessrunner",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/linhay/SKProcessRunner",
       "state" : {
-        "revision" : "f432e9223555a3c945661669e8c81aa07a554dfa",
-        "version" : "0.0.11"
+        "branch" : "48c7918",
+        "revision" : "48c7918fdc077bff295a30635798f944b8c07ed1"
       }
     },
     {
