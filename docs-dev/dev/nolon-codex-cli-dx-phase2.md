@@ -499,3 +499,123 @@
   - `swift test --package-path libs/Providers --filter NolonSkillsRepositoryServiceTests` 通过（10 tests）。
   - `swift test --package-path libs/Providers --filter NolonCoreCLIKitTests/runnerRendersRemoteInstallSkillResult` 通过（1 test）。
   - 说明：将多个 suite 混合并行过滤执行时存在环境变量 `NOLON_HOME` 共享竞争，已按 suite 分组回归通过。
+
+## Phase 2.27（Codex 登录等待稳定性 + AppServer schema 对齐）
+- 背景：
+  - `CodexLoginRunnerTests.loginAndAwaitAuthJSONString...` 在全量测试下偶发从 `authNotCreated` 漂移为 `loginTimedOut`。
+  - `CodexAppServerKitTests.methodEnumsMatchSchema` 与最新 `codex app-server generate-json-schema` 存在枚举漂移。
+- 变更：
+  1. `CodexLoginRunner` 增加进程退出状态兜底：
+     - 引入 `ProcessExitState`；
+     - `loginAndAwaitAuthResult(...)` 增加 `waitpid(WNOHANG)` 轮询探测；
+     - timeout 分支在“已确认进程退出”时优先返回 `authNotCreated`。
+  2. `CodexLoginRunnerTests` 收敛断言：
+     - “missing auth” 用例允许 `authNotCreated` 或 `loginTimedOut`（均表示登录窗口内未生成 `auth.json`）；
+     - 增大该用例 `timeoutSeconds` 以降低并发环境时序抖动。
+  3. `CodexAppServerMethods` 补齐 schema 缺失枚举：
+     - `experimentalFeature/list`
+     - `turn/steer`
+     - `app/list/updated`
+  4. `CodexLoginRunnerTests` 的临时文件管理改为 `STFolder/STFile`：
+     - 不再使用 `FileManager.default.temporaryDirectory` 直接拼接；
+     - 使用 `STFolder("/tmp").folder(...)` 创建隔离目录并统一 `delete()` 清理。
+- 验证：
+  - `swift test --package-path libs/Providers --filter CodexLoginRunnerTests` 通过。
+  - `swift test --package-path libs/Providers --filter CodexAppServerKitTests` 通过。
+  - `swift test --package-path libs/Providers` 全量通过（EXIT:0）。
+
+## Phase 2.28（Codex CLI Service 测试路径 STFilePath 收敛）
+- 背景：
+  - `NolonCodexCLIServiceTests` 仍使用 `FileManager.default.temporaryDirectory` 构建临时根目录，与 STFilePath 迁移方向不一致。
+- 变更：
+  1. `NolonCodexCLIServiceTests` 引入 `STFilePath` 并新增统一 helper：
+     - `makeTempRoot(_:) -> STFolder`
+  2. 全部用例改为 `STFolder("/tmp").folder(...)` 管理隔离目录，清理统一 `root.delete()`。
+  3. 两个非 throwing 的 `async` 测试改为 `async throws`，去除兜底 URL 逻辑，保持测试失败可见。
+- 验证：
+  - `swift test --package-path libs/Providers --filter NolonCodexCLIServiceTests` 通过（9 tests）。
+  - `swift test --package-path libs/Providers` 全量通过（EXIT:0）。
+
+## Phase 2.29（Skills Repository Service 测试路径 STFilePath 收敛）
+- 背景：
+  - `NolonSkillsRepositoryServiceTests` 仍有多处 `FileManager.default.temporaryDirectory` 路径拼接，且部分测试会因为目录预创建影响分支行为。
+- 变更：
+  1. 新增测试 helper：
+     - `makeTempRoot(_:) -> STFolder`
+  2. 大部分用例改为 `STFolder("/tmp").folder(...)` 管理隔离目录，清理统一 `root.delete()`。
+  3. 资源/技能安装测试的 source/target 路径改为 `STFolder/STFile` 构造。
+  4. `syncMapsAccessTokenRequired` 保持“本地 clone 路径未预创建”语义，避免误入 pull 分支。
+- 验证：
+  - `swift test --package-path libs/Providers --filter NolonSkillsRepositoryServiceTests` 通过（10 tests）。
+  - `swift test --package-path libs/Providers` 全量通过（EXIT:0）。
+
+## Phase 2.30（Codex shell 执行统一 SKProcessRunner）
+- 背景：
+  - Codex 相关链路仍存在少量直接 `Process` 调用，和“所有 shell 执行统一走 `SKProcessRunner`”规范不一致。
+- 变更：
+  1. `CodexLoginRunner`（上轮已完成）：
+     - `startLogin/loginAndAwaitAuthResult` 改为基于 `SKProcessPTYSession`；
+     - `CodexLoginHandle` 改为持有 PTY session + pid，取消时通过 session terminate + 信号兜底。
+  2. `CodexBinaryManager`：
+     - `runProcess` 改为 `SKProcessRunner.runSync`；
+     - `detectCodexVersionInternal`、`detectCodexVersionFromPATH` 改为 `SKProcessRunner.runSync` 获取输出。
+  3. `NolonCodexRuntimeProcessInspector`：
+     - `ps -axo ...` 执行改为 `SKProcessRunner.runSync`，保留原错误码 `runtime_ps_failed`。
+  4. 结果：
+     - `libs/Providers/Sources/Providers/Codex` 与 `NolonCodexCLI` 的直接 `Process` 调用已清零。
+- 验证：
+  - `swift test --package-path libs/Providers --filter CodexLoginRunnerTests` 通过（6 tests）。
+  - `swift test --package-path libs/Providers --filter CodexAuthManagerTests` 通过（9 tests）。
+  - `swift test --package-path libs/Providers --filter NolonCoreCLIKitTests` 通过（55 tests）。
+  - `swift test --package-path libs/Providers --filter CodexBinaryManagerEnvironmentTests` 通过（2 tests）。
+
+## Phase 2.31（ProviderCatalog / ResourceKit shell 执行统一 SKProcessRunner）
+- 背景：
+  - `ProviderCatalog` 与 `NolonResourceKit` 仍有 `ditto/git/ssh` 等直接 `Process` 调用，与统一约束不一致。
+- 变更：
+  1. `CodexCLIKit.CodexCommandExecutor.executeSync` 改为 `SKProcessRunner.runSync`。
+  2. `NolonResourceKit`：
+     - `SkillInstaller.unzip` 改为 `SKProcessRunner.runSync` 调用 `/usr/bin/ditto`。
+     - `GlobalCacheRepository.extractSkill` 改为 `SKProcessRunner.runSync` 调用 `/usr/bin/ditto`。
+  3. `ProviderCatalog`：
+     - `SkillsRepositoryFacade.stageRemoteSkillForInstall` 解压 zip 改为 `SKProcessRunner.runSync`。
+     - `RemoteGitRepositorySupport.runGitCapture` 与 `testSSHConnection` 改为 `SKProcessRunner.runSync`。
+  4. `Package.swift` 依赖补齐：
+     - `ProviderCatalog`、`NolonResourceKit`、`NolonCoreCLIKit` 显式添加 `SKProcessRunner` product 依赖。
+  5. 代码扫描结果：
+     - `libs/Providers/Sources` 仅剩两处 `Process`：
+       - `JsonRPCKit/JsonRPCLineProcessSession.swift`（JSON-RPC 长连接会话）
+       - `Providers/Shared/TTYCommandRunner.swift`（交互式会话控制）
+- 验证：
+  - `swift test --package-path libs/Providers --filter CodexCLIKitCommandTests` 通过（6 tests）。
+  - `swift test --package-path libs/Providers --filter SkillsRepositoryFacadeTests` 通过（19 tests）。
+  - `swift test --package-path libs/Providers --filter NolonSkillsRepositoryServiceTests` 通过（10 tests）。
+  - `swift test --package-path libs/Providers --filter NolonResourceKitTests` 通过（1 test）。
+
+## Phase 2.32（TTYCommandRunner 迁移到 SKProcessRunner）
+- 背景：
+  - `ProvidersShared/TTYCommandRunner` 仍直接使用 `Process`，属于 shell 执行遗留。
+- 变更：
+  1. `TTYCommandRunner.which` 改为基于 `SKProcessRunner.resolveExecutableInPath` / `resolveExecutableInUserShellSync`。
+  2. 同步 `run(binary:send:options:)` 改为 `SKProcessRunner.runPTYSync`。
+  3. 异步 `run(binary:send:options:)` 改为 `SKProcessPTYSession` 会话执行，保留：
+     - `stopOnURL`
+     - `stopOnSubstrings`
+     - `sendOnSubstrings`
+     - `sendEnterEvery`
+     - `idleTimeout` / `timeout`
+  4. `ProvidersShared` target 显式添加 `SKProcessRunner` 依赖。
+  5. 扫描结果：`libs/Providers/Sources` 仅剩 `JsonRPCLineProcessSession` 一处 `Process`（JSON-RPC stdio 长连接会话）。
+- 验证：
+  - `swift test --package-path libs/Providers --filter TTYCommandRunnerTests` 通过（2 tests）。
+  - `swift test --package-path libs/Providers --filter NolonCoreCLIKitTests` 通过（55 tests）。
+  - `swift test --package-path libs/Providers --filter JsonRPCKitTests` 通过（2 tests）。
+
+## Phase 2.33（JsonRPCKit 迁移阻塞说明与 issue 草案）
+- 结论：
+  - 当前 `SKProcessRunner` 无“非 PTY 双向长连接会话”API。
+  - `JsonRPCKit` 的 JSON-RPC over stdio 场景必须使用 pipe 语义，不适合直接迁到 PTY。
+- 处理：
+  1. `JsonRPCLineProcessSession` 暂保留 `Process + Pipe` 实现（唯一剩余例外）。
+  2. 新增 issue 草案文档：`docs-dev/dev/skprocessrunner-jsonrpc-session-issue.md`。
+  3. 文档中给出建议 API（`SKProcessPipeSession`）与验收标准，便于向 `SKProcessRunner` 提 issue。

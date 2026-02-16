@@ -1,4 +1,5 @@
 import Foundation
+import SKProcessRunner
 import STFilePath
 
 /// Unified SDK facade for remote skill repositories.
@@ -588,12 +589,12 @@ public enum SkillsRepositoryFacade {
             let extractionRoot = try STFolder(sanbox: .temporary).folder("nolon-skill-unpack-\(UUID().uuidString)").create()
             defer { try? extractionRoot.delete() }
 
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
-            process.arguments = ["-x", "-k", downloadedFileURL.path, extractionRoot.url.path]
-            try process.run()
-            process.waitUntilExit()
-            guard process.terminationStatus == 0 else {
+            var payload = SKProcessPayload.executableURL(URL(fileURLWithPath: "/usr/bin/ditto"))
+            payload.arguments = ["-x", "-k", downloadedFileURL.path, extractionRoot.url.path]
+            payload.throwOnNonZeroExit = false
+            payload.timeoutMs = 120_000
+            let result = try SKProcessRunner.runSync(payload)
+            guard result.exitCode == 0 else {
                 throw SyncError.commandFailed("Failed to unpack downloaded skill zip: \(downloadedFileURL.path)")
             }
             guard let skillRoot = findSkillRoot(in: extractionRoot.url) else {

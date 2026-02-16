@@ -1,6 +1,7 @@
 import CryptoKit
 import Foundation
 import OSLog
+import SKProcessRunner
 import STFilePath
 import ProvidersShared
 
@@ -623,21 +624,26 @@ public actor CodexBinaryManager {
     }
 
     private func runProcess(executablePath: String, arguments: [String]) throws {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: executablePath)
-        process.arguments = arguments
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = pipe
-        try process.run()
-        process.waitUntilExit()
-        guard process.terminationStatus == 0 else {
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            let message = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        var payload = SKProcessPayload.executableURL(URL(fileURLWithPath: executablePath))
+        payload.arguments = arguments
+        payload.throwOnNonZeroExit = false
+        payload.timeoutMs = 120_000
+        let result: SKProcessResult
+        do {
+            result = try SKProcessRunner.runSync(payload)
+        } catch {
             throw NSError(
                 domain: "CodexBinaryManager",
                 code: 1007,
-                userInfo: [NSLocalizedDescriptionKey: message?.nonEmpty ?? "Process failed."]
+                userInfo: [NSLocalizedDescriptionKey: error.localizedDescription]
+            )
+        }
+        guard result.exitCode == 0 else {
+            let message = Self.combinedOutput(stdout: result.stdout, stderr: result.stderr).trimmingCharacters(in: .whitespacesAndNewlines)
+            throw NSError(
+                domain: "CodexBinaryManager",
+                code: 1007,
+                userInfo: [NSLocalizedDescriptionKey: message.nonEmpty ?? "Process failed."]
             )
         }
     }
@@ -656,17 +662,13 @@ public actor CodexBinaryManager {
     }
 
     private func detectCodexVersionInternal(at url: URL) -> String? {
-        let process = Process()
-        process.executableURL = url
-        process.arguments = ["--version"]
-        let outputPipe = Pipe()
-        process.standardOutput = outputPipe
-        process.standardError = outputPipe
+        var payload = SKProcessPayload.executableURL(url)
+        payload.arguments = ["--version"]
+        payload.throwOnNonZeroExit = false
+        payload.timeoutMs = 10_000
         do {
-            try process.run()
-            process.waitUntilExit()
-            let data = outputPipe.fileHandleForReading.readDataToEndOfFile()
-            guard let text = String(data: data, encoding: .utf8) else { return nil }
+            let result = try SKProcessRunner.runSync(payload)
+            let text = Self.combinedOutput(stdout: result.stdout, stderr: result.stderr)
             return Self.parseVersion(from: text)?.description
         } catch {
             return nil
@@ -674,22 +676,24 @@ public actor CodexBinaryManager {
     }
 
     private func detectCodexVersionFromPATH() -> String? {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-        process.arguments = ["codex", "--version"]
-        let outputPipe = Pipe()
-        process.standardOutput = outputPipe
-        process.standardError = outputPipe
+        var payload = SKProcessPayload.executableURL(URL(fileURLWithPath: "/usr/bin/env"))
+        payload.arguments = ["codex", "--version"]
+        payload.throwOnNonZeroExit = false
+        payload.timeoutMs = 10_000
         do {
-            try process.run()
-            process.waitUntilExit()
-            guard process.terminationStatus == 0 else { return nil }
-            let data = outputPipe.fileHandleForReading.readDataToEndOfFile()
-            guard let text = String(data: data, encoding: .utf8) else { return nil }
+            let result = try SKProcessRunner.runSync(payload)
+            guard result.exitCode == 0 else { return nil }
+            let text = Self.combinedOutput(stdout: result.stdout, stderr: result.stderr)
             return Self.parseVersion(from: text)?.description
         } catch {
             return nil
         }
+    }
+
+    private static func combinedOutput(stdout: String, stderr: String) -> String {
+        if stdout.isEmpty { return stderr }
+        if stderr.isEmpty { return stdout }
+        return stdout + "\n" + stderr
     }
 
     private func compareXcodeVersion(_ lhs: String, _ rhs: String) -> Int {

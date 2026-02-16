@@ -18,6 +18,9 @@ let package = Package(
             name: "ProviderUsage",
             targets: ["ProviderUsage"]),
         .library(
+            name: "NolonResourceKit",
+            targets: ["NolonResourceKit"]),
+        .library(
             name: "NolonCoreCLIKit",
             targets: ["NolonCoreCLIKit"]),
         // Unified library with all providers
@@ -58,6 +61,7 @@ let package = Package(
         .target(
             name: "ProvidersShared",
             dependencies: [
+                .product(name: "SKProcessRunner", package: "SKProcessRunner"),
                 .product(name: "STFilePath", package: "STFilePath"),
             ],
             path: "Sources/Providers/Shared"
@@ -113,6 +117,7 @@ let package = Package(
         .target(
             name: "ProviderCatalog",
             dependencies: [
+                .product(name: "SKProcessRunner", package: "SKProcessRunner"),
                 .product(name: "STFilePath", package: "STFilePath"),
                 .product(name: "Yams", package: "Yams"),
             ],
@@ -142,6 +147,20 @@ let package = Package(
         ),
 
         .target(
+            name: "NolonResourceKit",
+            dependencies: [
+                "ProvidersShared",
+                "ProviderCatalog",
+                .product(name: "SKProcessRunner", package: "SKProcessRunner"),
+                .product(name: "STFilePath", package: "STFilePath"),
+                .product(name: "STJSON", package: "STJSON"),
+                .product(name: "TOML", package: "swift-toml"),
+                .product(name: "Yams", package: "Yams"),
+            ],
+            path: "Sources/NolonResourceKit"
+        ),
+
+        .target(
             name: "NolonCoreCLIKit",
             dependencies: [
                 "ProviderCatalog",
@@ -149,6 +168,7 @@ let package = Package(
                 "CodexProvider",
                 "CodexCLIKit",
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
+                .product(name: "SKProcessRunner", package: "SKProcessRunner"),
                 .product(name: "STFilePath", package: "STFilePath"),
             ],
             path: "Sources/NolonCoreCLIKit"
@@ -180,6 +200,7 @@ let package = Package(
                 "CodexProvider",
                 "CopilotProvider",
                 "NolonCoreCLIKit",
+                "NolonResourceKit",
                 .product(name: "STFilePath", package: "STFilePath"),
             ],
             swiftSettings: [

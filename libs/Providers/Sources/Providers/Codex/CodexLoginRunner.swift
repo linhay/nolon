@@ -42,37 +42,80 @@ public enum CodexLoginError: LocalizedError, Sendable, Equatable {
 }
 
 public final class CodexLoginHandle: @unchecked Sendable {
-    private let process: Process
+    private let session: SKProcessPTYSession
+    private let processIdentifier: Int32
+    private let processExitState: ProcessExitState
+    private let outputTask: Task<Void, Never>
+    private let waitTask: Task<Void, Never>
 
-    init(process: Process) {
-        self.process = process
+    fileprivate init(
+        session: SKProcessPTYSession,
+        processIdentifier: Int32,
+        processExitState: ProcessExitState,
+        outputTask: Task<Void, Never>,
+        waitTask: Task<Void, Never>
+    ) {
+        self.session = session
+        self.processIdentifier = processIdentifier
+        self.processExitState = processExitState
+        self.outputTask = outputTask
+        self.waitTask = waitTask
     }
 
     public var isRunning: Bool {
-        process.isRunning
+        guard !processExitState.hasExited else { return false }
+        if Self.isProcessAlive(processIdentifier: processIdentifier) {
+            return true
+        }
+        processExitState.markExited()
+        return false
     }
 
     public func cancel(graceSeconds: TimeInterval = 0.8) {
-        Self.terminateProcess(process, graceSeconds: graceSeconds)
+        guard isRunning else { return }
+        Task.detached {
+            await self.session.terminate()
+        }
+        Self.terminateProcess(processIdentifier: processIdentifier, graceSeconds: graceSeconds)
+        processExitState.markExited()
+        outputTask.cancel()
+        waitTask.cancel()
     }
 
-    private static func terminateProcess(_ process: Process, graceSeconds: TimeInterval) {
-        guard process.isRunning else { return }
-        process.terminate()
-
+    private static func terminateProcess(processIdentifier: Int32, graceSeconds: TimeInterval) {
+        guard isProcessAlive(processIdentifier: processIdentifier) else { return }
+        #if canImport(Darwin) || canImport(Glibc)
+        _ = kill(-processIdentifier, SIGTERM)
+        _ = kill(processIdentifier, SIGTERM)
+        #endif
         let pollInterval: TimeInterval = 0.05
         let termDeadline = Date().addingTimeInterval(max(0.05, graceSeconds))
-        while process.isRunning, Date() < termDeadline {
+        while isProcessAlive(processIdentifier: processIdentifier), Date() < termDeadline {
             Thread.sleep(forTimeInterval: pollInterval)
         }
 
-        guard process.isRunning else { return }
+        guard isProcessAlive(processIdentifier: processIdentifier) else { return }
         #if canImport(Darwin) || canImport(Glibc)
-        _ = kill(process.processIdentifier, SIGKILL)
+        _ = kill(-processIdentifier, SIGKILL)
+        _ = kill(processIdentifier, SIGKILL)
         let killDeadline = Date().addingTimeInterval(1.0)
-        while process.isRunning, Date() < killDeadline {
+        while isProcessAlive(processIdentifier: processIdentifier), Date() < killDeadline {
             Thread.sleep(forTimeInterval: pollInterval)
         }
+        #endif
+    }
+
+    private static func isProcessAlive(processIdentifier: Int32) -> Bool {
+        #if canImport(Darwin) || canImport(Glibc)
+        if processIdentifier <= 0 {
+            return false
+        }
+        if kill(processIdentifier, 0) == 0 {
+            return true
+        }
+        return errno == EPERM
+        #else
+        return true
         #endif
     }
 }
@@ -93,27 +136,21 @@ public struct CodexLoginRunner: Sendable {
         environment: [String: String],
         codexHome: STFolder
     ) throws -> CodexLoginHandle {
-        let env = Self.mergedEnvironment(environment: environment, codexHome: codexHome)
-        let resolver = CodexCommandExecutor(executable: binary, environment: env)
-        guard let resolved = resolver.resolveExecutable() else {
-            throw CodexLoginError.binaryNotFound(binary)
-        }
-
-        let process = Process()
-        process.executableURL = STFile(resolved).url
-        process.arguments = ["login"]
-        process.environment = env
-        process.standardInput = nil
-        process.standardOutput = nil
-        process.standardError = nil
-
-        do {
-            try process.run()
-        } catch {
-            throw CodexLoginError.launchFailed(error.localizedDescription)
-        }
-
-        return CodexLoginHandle(process: process)
+        let context = try startLoginSession(
+            binary: binary,
+            environment: environment,
+            codexHome: codexHome,
+            timeoutSeconds: 30 * 60,
+            mirrorOutput: true,
+            capture: nil
+        )
+        return CodexLoginHandle(
+            session: context.session,
+            processIdentifier: context.processIdentifier,
+            processExitState: context.processExitState,
+            outputTask: context.outputTask,
+            waitTask: context.waitTask
+        )
     }
 
     public func loginAndAwaitAuthJSONString(
@@ -178,35 +215,28 @@ public struct CodexLoginRunner: Sendable {
         pollIntervalSeconds: TimeInterval = 0.25,
         processExitGraceSeconds: TimeInterval = 4
     ) async throws -> CodexLoginResult {
-        let env = Self.mergedEnvironment(environment: environment, codexHome: codexHome)
-        let resolver = CodexCommandExecutor(executable: binary, environment: env)
-        guard let resolved = resolver.resolveExecutable() else {
-            throw CodexLoginError.binaryNotFound(binary)
-        }
-
-        let process = Process()
-        process.executableURL = STFile(resolved).url
-        process.arguments = ["login"]
-        process.environment = env
-        process.standardInput = nil
-
         let capture = LoginOutputCapture()
-        let stdoutPipe = Pipe()
-        let stderrPipe = Pipe()
-        process.standardOutput = stdoutPipe
-        process.standardError = stderrPipe
-        capture.attach(stdout: stdoutPipe.fileHandleForReading, stderr: stderrPipe.fileHandleForReading)
+        let context = try startLoginSession(
+            binary: binary,
+            environment: environment,
+            codexHome: codexHome,
+            timeoutSeconds: max(timeoutSeconds + processExitGraceSeconds + 5, 10),
+            mirrorOutput: true,
+            capture: capture
+        )
 
-        do {
-            try process.run()
-        } catch {
-            capture.detach(stdout: stdoutPipe.fileHandleForReading, stderr: stderrPipe.fileHandleForReading)
-            throw CodexLoginError.launchFailed(error.localizedDescription)
-        }
+        let handle = CodexLoginHandle(
+            session: context.session,
+            processIdentifier: context.processIdentifier,
+            processExitState: context.processExitState,
+            outputTask: context.outputTask,
+            waitTask: context.waitTask
+        )
 
-        let handle = CodexLoginHandle(process: process)
         defer {
-            capture.detach(stdout: stdoutPipe.fileHandleForReading, stderr: stderrPipe.fileHandleForReading)
+            context.outputTask.cancel()
+            context.waitTask.cancel()
+            capture.detach()
             if handle.isRunning {
                 handle.cancel()
             }
@@ -227,7 +257,8 @@ public struct CodexLoginRunner: Sendable {
                 return CodexLoginResult(authJSONString: raw, loginURL: capture.detectedURL)
             }
 
-            if !handle.isRunning {
+            let hasExited = context.processExitState.hasExited || !handle.isRunning
+            if hasExited {
                 if processExitedAt == nil {
                     processExitedAt = Date()
                 } else if Date().timeIntervalSince(processExitedAt!) >= processExitGraceSeconds {
@@ -236,11 +267,76 @@ public struct CodexLoginRunner: Sendable {
             }
 
             if Date() >= deadline {
+                if processExitedAt != nil {
+                    throw CodexLoginError.authNotCreated
+                }
                 throw CodexLoginError.loginTimedOut
             }
 
             try await Task.sleep(nanoseconds: sleepNanoseconds)
         }
+    }
+
+    private struct LoginSessionContext {
+        let session: SKProcessPTYSession
+        let processIdentifier: Int32
+        let processExitState: ProcessExitState
+        let outputTask: Task<Void, Never>
+        let waitTask: Task<Void, Never>
+    }
+
+    private func startLoginSession(
+        binary: String,
+        environment: [String: String],
+        codexHome: STFolder,
+        timeoutSeconds: TimeInterval,
+        mirrorOutput: Bool,
+        capture: LoginOutputCapture?
+    ) throws -> LoginSessionContext {
+        let env = Self.mergedEnvironment(environment: environment, codexHome: codexHome)
+        let resolver = CodexCommandExecutor(executable: binary, environment: env)
+        guard let resolved = resolver.resolveExecutable() else {
+            throw CodexLoginError.binaryNotFound(binary)
+        }
+
+        let timeoutMs = Int(max(1.0, min(timeoutSeconds, 30 * 60)) * 1000.0)
+        var payload = SKProcessPayload.executableURL(STFile(resolved).url)
+        payload.arguments = ["login"]
+        payload.environment = SKProcessEnvironment(env)
+        payload.throwOnNonZeroExit = false
+        payload.timeoutMs = timeoutMs
+        payload.maxOutputBytes = 1024 * 1024
+        payload.pty = SKProcessPTYConfiguration()
+
+        let session: SKProcessPTYSession
+        do {
+            session = try SKProcessPTYSession(payload)
+        } catch {
+            throw CodexLoginError.launchFailed(error.localizedDescription)
+        }
+
+        let processExitState = ProcessExitState()
+        let outputTask = Task.detached { [capture] in
+            let stream = await session.output
+            for await data in stream {
+                if mirrorOutput {
+                    FileHandle.standardOutput.write(data)
+                }
+                capture?.consume(data: data, mirrorTo: nil)
+            }
+        }
+        let waitTask = Task.detached {
+            _ = try? await session.wait()
+            processExitState.markExited()
+        }
+
+        return LoginSessionContext(
+            session: session,
+            processIdentifier: session.pid,
+            processExitState: processExitState,
+            outputTask: outputTask,
+            waitTask: waitTask
+        )
     }
 
     private static func mergedEnvironment(environment: [String: String], codexHome: STFolder) -> [String: String] {
@@ -255,6 +351,24 @@ public struct CodexLoginRunner: Sendable {
         env["CODEX_HOME"] = codexHome.url.path
         return env
     }
+
+}
+
+private final class ProcessExitState: @unchecked Sendable {
+    private let lock = NSLock()
+    private var exited = false
+
+    func markExited() {
+        lock.lock()
+        exited = true
+        lock.unlock()
+    }
+
+    var hasExited: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return exited
+    }
 }
 
 private final class LoginOutputCapture: @unchecked Sendable {
@@ -268,23 +382,11 @@ private final class LoginOutputCapture: @unchecked Sendable {
         return loginURLStorage
     }
 
-    func attach(stdout: FileHandle, stderr: FileHandle) {
-        stdout.readabilityHandler = { [weak self] handle in
-            self?.consume(data: handle.availableData, mirrorTo: .standardOutput)
-        }
-        stderr.readabilityHandler = { [weak self] handle in
-            self?.consume(data: handle.availableData, mirrorTo: .standardError)
-        }
-    }
+    func detach() {}
 
-    func detach(stdout: FileHandle, stderr: FileHandle) {
-        stdout.readabilityHandler = nil
-        stderr.readabilityHandler = nil
-    }
-
-    private func consume(data: Data, mirrorTo output: FileHandle) {
+    func consume(data: Data, mirrorTo output: FileHandle?) {
         guard !data.isEmpty else { return }
-        output.write(data)
+        output?.write(data)
         guard let text = String(data: data, encoding: .utf8),
               let url = firstURL(in: text) else {
             return

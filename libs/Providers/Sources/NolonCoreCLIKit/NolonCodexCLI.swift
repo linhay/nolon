@@ -4,6 +4,7 @@ import CodexProvider
 import Foundation
 import ProviderCatalog
 import ProviderUsage
+import SKProcessRunner
 import STFilePath
 #if canImport(Darwin)
 import Darwin
@@ -711,26 +712,24 @@ public enum NolonCLIEntrypoint {
         arguments: [String],
         codexService: any NolonCodexCLIServing = NolonLiveCodexCLIService()
     ) async -> NolonCLIExecutionResult {
-        if let helpText = NolonCoreCLIHelpResolver.resolvedHelpText(arguments: arguments) {
+        let normalizedArguments = normalizeHelpArguments(arguments)
+        if let helpText = resolveHelp(arguments: normalizedArguments) {
             return NolonCLIExecutionResult(exitCode: 0, stdout: helpText, stderr: "")
         }
 
-        if shouldRouteToCoreCLI(arguments: arguments) {
-            return await NolonCoreCLIRunner().execute(arguments: arguments)
-        }
-
-        if let helpText = NolonCodexCLIHelpResolver.resolvedHelpText(arguments: arguments) {
-            return NolonCLIExecutionResult(exitCode: 0, stdout: helpText, stderr: "")
+        if shouldRouteToCoreCLI(arguments: normalizedArguments) {
+            return await NolonCoreCLIRunner().execute(arguments: normalizedArguments)
         }
 
         let context = NolonCLIExecutionContext(service: codexService)
         do {
-            let output = try await NolonCodexCLIExecutor.execute(arguments: arguments, context: context)
+            let output = try await NolonCodexCLIExecutor.execute(arguments: normalizedArguments, context: context)
             return NolonCLIExecutionResult(exitCode: 0, stdout: output, stderr: "")
         } catch let error as NolonCoreCLIError {
             return NolonCLIExecutionResult(exitCode: 2, stdout: "", stderr: context.errorJSON(for: error))
         } catch {
-            let wrapped = NolonCoreCLIError.invalidArguments(error.localizedDescription)
+            let message = NolonRootCommand.message(for: error)
+            let wrapped = NolonCoreCLIError.invalidArguments(message)
             return NolonCLIExecutionResult(exitCode: 2, stdout: "", stderr: context.errorJSON(for: wrapped))
         }
     }
@@ -742,7 +741,250 @@ public enum NolonCLIEntrypoint {
         else {
             return false
         }
-        return root == "skills" || root == "resources" || root == "remote"
+        return root == "skills" || root == "workflow" || root == "mcp" || root == "remote"
+    }
+
+    private static func normalizeHelpArguments(_ arguments: [String]) -> [String] {
+        guard !arguments.isEmpty else { return [] }
+        var normalized = arguments
+        if normalized.last == "help" {
+            normalized[normalized.count - 1] = "--help"
+        }
+        if normalized.contains("--help") || normalized.contains("-h") {
+            return normalized
+        }
+        let root = normalized[0].lowercased()
+        let groupsNeedingHelp: [String: Set<String>] = [
+            "codex": ["auth", "binary", "status", "runtime", "provider"],
+            "skills": ["repo", "migrate"],
+        ]
+        let rootCommands = Set(["codex", "provider", "skills", "workflow", "mcp", "remote"])
+        if normalized.count == 1, rootCommands.contains(root) {
+            return normalized + ["--help"]
+        }
+        if normalized.count == 2, let groups = groupsNeedingHelp[root] {
+            let group = normalized[1].lowercased()
+            if groups.contains(group) {
+                return normalized + ["--help"]
+            }
+        }
+        return normalized
+    }
+
+    private static func resolveHelp(arguments: [String]) -> String? {
+        if arguments.isEmpty {
+            return NolonRootCommand.helpMessage()
+        }
+        let hasHelpFlag = arguments.contains("--help") || arguments.contains("-h")
+        guard hasHelpFlag else {
+            return nil
+        }
+        let cleaned = arguments.filter { $0 != "--help" && $0 != "-h" }
+        guard let target = helpTargetType(for: cleaned) else {
+            return nil
+        }
+        return NolonRootCommand.message(for: CleanExit.helpRequest(target))
+    }
+
+    private static func helpTargetType(for arguments: [String]) -> ParsableCommand.Type? {
+        guard let root = arguments.first?.lowercased() else {
+            return NolonRootCommand.self
+        }
+        switch root {
+        case "codex":
+            guard arguments.count >= 2 else { return NolonCodexRootCommand.self }
+            let group = arguments[1].lowercased()
+            switch group {
+            case "auth":
+                guard arguments.count >= 3 else { return NolonCodexAuthGroupCommand.self }
+                return codexAuthCommandType(action: arguments[2])
+            case "binary":
+                guard arguments.count >= 3 else { return NolonCodexBinaryGroupCommand.self }
+                return codexBinaryCommandType(action: arguments[2])
+            case "status":
+                guard arguments.count >= 3 else { return NolonCodexStatusGroupCommand.self }
+                return codexStatusCommandType(action: arguments[2])
+            case "runtime":
+                guard arguments.count >= 3 else { return NolonCodexRuntimeGroupCommand.self }
+                return codexRuntimeCommandType(action: arguments[2])
+            case "provider":
+                guard arguments.count >= 3 else { return NolonCodexProviderGroupCommand.self }
+                return codexProviderCommandType(action: arguments[2])
+            default:
+                return NolonCodexRootCommand.self
+            }
+        case "provider":
+            guard arguments.count >= 2 else { return NolonProviderRootCommand.self }
+            return NolonProviderListCommand.self
+        case "skills":
+            guard arguments.count >= 2 else { return NolonSkillsRootCommand.self }
+            let action = arguments[1].lowercased()
+            switch action {
+            case "repo":
+                guard arguments.count >= 3 else { return NolonSkillsRepoGroupCommand.self }
+                return skillsRepoCommandType(action: arguments[2])
+            case "migrate":
+                guard arguments.count >= 3 else { return NolonSkillsMigrateGroupCommand.self }
+                return skillsMigrateCommandType(action: arguments[2])
+            case "discover":
+                return NolonSkillsDiscoverCommand.self
+            case "parse":
+                return NolonSkillsParseCommand.self
+            case "install":
+                return NolonSkillsInstallCommand.self
+            case "uninstall":
+                return NolonSkillsUninstallCommand.self
+            default:
+                return NolonSkillsRootCommand.self
+            }
+        case "workflow":
+            guard arguments.count >= 2 else { return NolonWorkflowRootCommand.self }
+            return workflowCommandType(action: arguments[1])
+        case "mcp":
+            guard arguments.count >= 2 else { return NolonMcpRootCommand.self }
+            return mcpCommandType(action: arguments[1])
+        case "remote":
+            guard arguments.count >= 2 else { return NolonRemoteRootCommand.self }
+            return remoteCommandType(action: arguments[1])
+        default:
+            return NolonRootCommand.self
+        }
+    }
+
+    private static func codexAuthCommandType(action: String) -> ParsableCommand.Type? {
+        switch action.lowercased() {
+        case "list":
+            return NolonCodexAuthListCommand.self
+        case "status":
+            return NolonCodexAuthStatusCommand.self
+        case "activate":
+            return NolonCodexAuthActivateCommand.self
+        case "login":
+            return NolonCodexAuthLoginCommand.self
+        case "delete":
+            return NolonCodexAuthDeleteCommand.self
+        default:
+            return NolonCodexAuthGroupCommand.self
+        }
+    }
+
+    private static func codexBinaryCommandType(action: String) -> ParsableCommand.Type? {
+        switch action.lowercased() {
+        case "list":
+            return NolonCodexBinaryListCommand.self
+        case "current":
+            return NolonCodexBinaryCurrentCommand.self
+        case "install":
+            return NolonCodexBinaryInstallCommand.self
+        case "use":
+            return NolonCodexBinaryUseCommand.self
+        case "available":
+            return NolonCodexBinaryAvailableCommand.self
+        case "switch":
+            return NolonCodexBinarySwitchCommand.self
+        case "doctor":
+            return NolonCodexBinaryDoctorCommand.self
+        default:
+            return NolonCodexBinaryGroupCommand.self
+        }
+    }
+
+    private static func codexStatusCommandType(action: String) -> ParsableCommand.Type? {
+        switch action.lowercased() {
+        case "probe":
+            return NolonCodexStatusProbeCommand.self
+        case "doctor":
+            return NolonCodexStatusDoctorCommand.self
+        default:
+            return NolonCodexStatusGroupCommand.self
+        }
+    }
+
+    private static func codexRuntimeCommandType(action: String) -> ParsableCommand.Type? {
+        switch action.lowercased() {
+        case "list":
+            return NolonCodexRuntimeListCommand.self
+        case "stop":
+            return NolonCodexRuntimeStopCommand.self
+        default:
+            return NolonCodexRuntimeGroupCommand.self
+        }
+    }
+
+    private static func codexProviderCommandType(action: String) -> ParsableCommand.Type? {
+        switch action.lowercased() {
+        case "discover":
+            return NolonCodexProviderDiscoverCommand.self
+        default:
+            return NolonCodexProviderGroupCommand.self
+        }
+    }
+
+    private static func skillsRepoCommandType(action: String) -> ParsableCommand.Type? {
+        switch action.lowercased() {
+        case "plan":
+            return NolonSkillsRepoPlanCommand.self
+        case "preflight":
+            return NolonSkillsRepoPreflightCommand.self
+        case "sync":
+            return NolonSkillsRepoSyncCommand.self
+        default:
+            return NolonSkillsRepoGroupCommand.self
+        }
+    }
+
+    private static func skillsMigrateCommandType(action: String) -> ParsableCommand.Type? {
+        switch action.lowercased() {
+        case "scan":
+            return NolonSkillsMigrateScanCommand.self
+        case "apply":
+            return NolonSkillsMigrateApplyCommand.self
+        default:
+            return NolonSkillsMigrateGroupCommand.self
+        }
+    }
+
+    private static func workflowCommandType(action: String) -> ParsableCommand.Type? {
+        switch action.lowercased() {
+        case "discover":
+            return NolonWorkflowDiscoverCommand.self
+        case "install":
+            return NolonWorkflowInstallCommand.self
+        case "uninstall":
+            return NolonWorkflowUninstallCommand.self
+        default:
+            return NolonWorkflowRootCommand.self
+        }
+    }
+
+    private static func mcpCommandType(action: String) -> ParsableCommand.Type? {
+        switch action.lowercased() {
+        case "discover":
+            return NolonMcpDiscoverCommand.self
+        case "install":
+            return NolonMcpInstallCommand.self
+        case "uninstall":
+            return NolonMcpUninstallCommand.self
+        default:
+            return NolonMcpRootCommand.self
+        }
+    }
+
+    private static func remoteCommandType(action: String) -> ParsableCommand.Type? {
+        switch action.lowercased() {
+        case "list":
+            return NolonRemoteListCommand.self
+        case "download":
+            return NolonRemoteDownloadCommand.self
+        case "sync":
+            return NolonRemoteSyncCommand.self
+        case "install":
+            return NolonRemoteInstallCommand.self
+        case "sync-install":
+            return NolonRemoteSyncInstallCommand.self
+        default:
+            return NolonRemoteRootCommand.self
+        }
     }
 }
 
@@ -764,26 +1006,19 @@ protocol NolonCodexRuntimeSignalControlling: Sendable {
 
 struct NolonCodexRuntimeProcessInspector: NolonCodexRuntimeProcessInspecting {
     func listProcesses() throws -> [NolonRuntimeProcessSnapshot] {
-        let process = Process()
-        let out = Pipe()
-        let err = Pipe()
-        process.executableURL = URL(fileURLWithPath: "/bin/ps")
-        process.arguments = ["-axo", "pid=,ppid=,etime=,command="]
-        process.standardOutput = out
-        process.standardError = err
-        try process.run()
-        let outputData = out.fileHandleForReading.readDataToEndOfFile()
-        let errorData = err.fileHandleForReading.readDataToEndOfFile()
-        process.waitUntilExit()
+        var payload = SKProcessPayload.executableURL(URL(fileURLWithPath: "/bin/ps"))
+        payload.arguments = ["-axo", "pid=,ppid=,etime=,command="]
+        payload.throwOnNonZeroExit = false
+        payload.timeoutMs = 10_000
+        let result = try SKProcessRunner.runSync(payload)
 
-        guard process.terminationStatus == 0 else {
-            let message = String(data: errorData, encoding: .utf8) ?? "ps command failed"
-            throw NolonCoreCLIError.domainFailed(code: "runtime_ps_failed", message: message.trimmingCharacters(in: .whitespacesAndNewlines))
+        guard result.exitCode == 0 else {
+            let stderr = result.stderr.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
+            let stdout = result.stdout.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
+            let message = stderr.isEmpty ? (stdout.isEmpty ? "ps command failed" : stdout) : stderr
+            throw NolonCoreCLIError.domainFailed(code: "runtime_ps_failed", message: message)
         }
-
-        guard let content = String(data: outputData, encoding: .utf8) else {
-            return []
-        }
+        let content = result.stdout
 
         return content
             .split(separator: "\n")

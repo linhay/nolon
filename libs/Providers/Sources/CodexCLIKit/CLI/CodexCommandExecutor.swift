@@ -139,37 +139,30 @@ public struct CodexCommandExecutor: Sendable {
 
     private func executeSync(args: [String], timeout: TimeInterval = 30) throws -> CodexExecutionResult {
         let resolved = try requireResolvedExecutable()
-        let process = Process()
-        let stdoutPipe = Pipe()
-        let stderrPipe = Pipe()
-
-        process.executableURL = STFile(resolved).url
-        process.arguments = args
-        process.environment = environment
-        process.standardOutput = stdoutPipe
-        process.standardError = stderrPipe
-
         let startedAt = Date()
+        var payload = SKProcessPayload.executableURL(STFile(resolved).url)
+        payload.arguments = args
+        payload.environment = SKProcessEnvironment(environment)
+        payload.timeoutMs = Int(max(1, timeout) * 1000.0)
+        payload.throwOnNonZeroExit = false
+
+        let result: SKProcessResult
         do {
-            try process.run()
+            result = try SKProcessRunner.runSync(payload)
+        } catch let error as SKProcessRunError {
+            switch error {
+            case .timedOut:
+                throw CodexCLIError.timedOut(seconds: timeout)
+            default:
+                throw CodexCLIError.launchFailed(error.localizedDescription)
+            }
         } catch {
             throw CodexCLIError.launchFailed(error.localizedDescription)
         }
 
-        let deadline = Date().addingTimeInterval(timeout)
-        while process.isRunning {
-            if Date() >= deadline {
-                process.terminate()
-                throw CodexCLIError.timedOut(seconds: timeout)
-            }
-            Thread.sleep(forTimeInterval: 0.01)
-        }
-
-        let stdoutData = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
-        let stderrData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
-        let stdout = String(data: stdoutData, encoding: .utf8) ?? ""
-        let stderr = String(data: stderrData, encoding: .utf8) ?? ""
-        let exitCode = process.terminationStatus
+        let stdout = result.stdout
+        let stderr = result.stderr
+        let exitCode = Int32(result.exitCode)
 
         if exitCode != 0 {
             throw CodexCLIError.nonZeroExit(command: [resolved] + args, code: exitCode, stderr: stderr)

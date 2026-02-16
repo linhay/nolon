@@ -1,4 +1,5 @@
 import Foundation
+import SKProcessRunner
 import STFilePath
 
 public enum RemoteGitRepositorySupport {
@@ -560,27 +561,16 @@ public enum RemoteGitRepositorySupport {
     }
 
     private static func runGitCapture(arguments: [String]) -> (status: Int32, stdout: String, stderr: String) {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
-        process.arguments = arguments
-
-        let outputPipe = Pipe()
-        let errorPipe = Pipe()
-        process.standardOutput = outputPipe
-        process.standardError = errorPipe
-
+        var payload = SKProcessPayload.executableURL(URL(fileURLWithPath: "/usr/bin/git"))
+        payload.arguments = arguments
+        payload.throwOnNonZeroExit = false
+        payload.timeoutMs = 120_000
         do {
-            try process.run()
-            process.waitUntilExit()
+            let result = try SKProcessRunner.runSync(payload)
+            return (Int32(result.exitCode), result.stdout, result.stderr)
         } catch {
             return (1, "", error.localizedDescription)
         }
-
-        let stdoutData = outputPipe.fileHandleForReading.readDataToEndOfFile()
-        let stderrData = errorPipe.fileHandleForReading.readDataToEndOfFile()
-        let stdout = String(data: stdoutData, encoding: .utf8) ?? ""
-        let stderr = String(data: stderrData, encoding: .utf8) ?? ""
-        return (process.terminationStatus, stdout, stderr)
     }
 
     private static func pullArguments(repositoryPath: String, strategy: PullStrategy) -> [String] {
@@ -595,30 +585,22 @@ public enum RemoteGitRepositorySupport {
     }
 
     private static func testSSHConnection(host: String) async -> Bool {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/ssh")
-        process.arguments = [
+        var payload = SKProcessPayload.executableURL(URL(fileURLWithPath: "/usr/bin/ssh"))
+        payload.arguments = [
             "-T",
             "-o", "BatchMode=yes",
             "-o", "ConnectTimeout=5",
             "-o", "StrictHostKeyChecking=no",
             "git@\(host)",
         ]
-
-        let errorPipe = Pipe()
-        process.standardError = errorPipe
-        process.standardOutput = Pipe()
-
+        payload.throwOnNonZeroExit = false
+        payload.timeoutMs = 10_000
         do {
-            try process.run()
-            process.waitUntilExit()
+            let result = try SKProcessRunner.runSync(payload)
+            let output = result.stderr.lowercased()
+            return result.exitCode != 255 && !output.contains("permission denied")
         } catch {
             return false
         }
-
-        let exitCode = process.terminationStatus
-        let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
-        let output = String(data: errorData, encoding: .utf8)?.lowercased() ?? ""
-        return exitCode != 255 && !output.contains("permission denied")
     }
 }
