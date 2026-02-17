@@ -73,7 +73,8 @@ enum NolonCodexCLIHelpResolver {
           codex       Codex CLI management
           provider    Installed provider CLI discovery
           skills      Skill repository and install operations
-          resources   Workflow/MCP resource operations
+          workflow    Workflow resource operations
+          mcp         MCP resource operations
           remote      Remote catalog search and download
 
         Examples:

@@ -9,8 +9,10 @@ enum NolonCoreCLIHelpResolver {
             return skillsHelpText()
         case .skillsRepo:
             return skillsRepoHelpText()
-        case .resources:
-            return resourcesHelpText()
+        case .workflow:
+            return workflowHelpText()
+        case .mcp:
+            return mcpHelpText()
         case .remote:
             return remoteHelpText()
         }
@@ -41,14 +43,25 @@ enum NolonCoreCLIHelpResolver {
         """
     }
 
-    private static func resourcesHelpText() -> String {
+    private static func workflowHelpText() -> String {
         """
-        Usage: nolon resources <action> [options]
+        Usage: nolon workflow <action> [options]
 
         Actions:
           discover   --path <repo-path> [--max-depth <n>]
-          install    --kind workflow|mcp --file-path <path> --target-path <path> [--resource-name <name>] [--install-method symlink|copy]
-          uninstall  --kind workflow|mcp --resource-name <name> --target-path <path>
+          install    --file-path <path> --target-path <path> [--resource-name <name>] [--install-method symlink|copy]
+          uninstall  --resource-name <name> --target-path <path>
+        """
+    }
+
+    private static func mcpHelpText() -> String {
+        """
+        Usage: nolon mcp <action> [options]
+
+        Actions:
+          discover   --path <repo-path> [--max-depth <n>]
+          install    --file-path <path> --target-path <path> [--resource-name <name>] [--install-method symlink|copy]
+          uninstall  --resource-name <name> --target-path <path>
         """
     }
 
@@ -73,7 +86,8 @@ enum NolonCoreCLIHelpResolver {
 private enum NolonCoreCLIHelpPath {
     case skills
     case skillsRepo
-    case resources
+    case workflow
+    case mcp
     case remote
 
     init?(arguments: [String]) {
@@ -82,8 +96,10 @@ private enum NolonCoreCLIHelpPath {
             self = .skills
         case ["skills", "repo"], ["skills", "repo", "help"], ["skills", "repo", "-h"], ["skills", "repo", "--help"]:
             self = .skillsRepo
-        case ["resources"], ["resources", "help"], ["resources", "-h"], ["resources", "--help"]:
-            self = .resources
+        case ["workflow"], ["workflow", "help"], ["workflow", "-h"], ["workflow", "--help"]:
+            self = .workflow
+        case ["mcp"], ["mcp", "help"], ["mcp", "-h"], ["mcp", "--help"]:
+            self = .mcp
         case ["remote"], ["remote", "help"], ["remote", "-h"], ["remote", "--help"]:
             self = .remote
         default:

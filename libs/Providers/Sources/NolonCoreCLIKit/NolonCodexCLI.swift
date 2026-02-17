@@ -696,12 +696,10 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
             "/usr/bin/\(executable)",
         ]
 
-        let fileManager = FileManager.default
         for path in candidates {
-            guard fileManager.fileExists(atPath: path),
-                  fileManager.isExecutableFile(atPath: path)
-            else { continue }
-            return URL(fileURLWithPath: path).standardizedFileURL.path
+            let candidate = STPath(path)
+            guard candidate.isExists, candidate.permission.contains(.executable) else { continue }
+            return candidate.url.standardizedFileURL.path
         }
         return nil
     }
@@ -1006,7 +1004,7 @@ protocol NolonCodexRuntimeSignalControlling: Sendable {
 
 struct NolonCodexRuntimeProcessInspector: NolonCodexRuntimeProcessInspecting {
     func listProcesses() throws -> [NolonRuntimeProcessSnapshot] {
-        var payload = SKProcessPayload.executableURL(URL(fileURLWithPath: "/bin/ps"))
+        var payload = SKProcessPayload.executableURL(STPath("/bin/ps").url)
         payload.arguments = ["-axo", "pid=,ppid=,etime=,command="]
         payload.throwOnNonZeroExit = false
         payload.timeoutMs = 10_000

@@ -1,5 +1,6 @@
 import Foundation
 import STFilePath
+import SKProcessRunner
 import Testing
 @testable import NolonCoreCLIKit
 
@@ -7,16 +8,14 @@ import Testing
 struct NolonSkillsRepositoryServiceTests {
     @Test("remote install skill unpacks zip into NOLON_HOME skills before install")
     func remoteInstallSkillUnpacksZipToStableNolonHome() async throws {
-        let tempRoot = FileManager.default.temporaryDirectory
-            .appendingPathComponent("nolon-remote-skill-\(UUID().uuidString)", isDirectory: true)
-        let nolonHome = tempRoot.appendingPathComponent(".nolon-home", isDirectory: true)
-        let providerPath = STFolder(tempRoot.appendingPathComponent("provider-skills", isDirectory: true))
-        try FileManager.default.createDirectory(at: tempRoot, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: tempRoot) }
+        let tempRoot = try makeTempRoot("nolon-remote-skill")
+        let nolonHome = tempRoot.folder(".nolon-home")
+        let providerPath = tempRoot.folder("provider-skills")
+        defer { try? tempRoot.delete() }
 
         let zipPath = try makeRemoteSkillZip(at: tempRoot, slug: "react-best-practices")
         let envBackup = getenv("NOLON_HOME").map { String(cString: $0) }
-        setenv("NOLON_HOME", nolonHome.path, 1)
+        setenv("NOLON_HOME", nolonHome.url.path, 1)
         defer {
             if let envBackup {
                 setenv("NOLON_HOME", envBackup, 1)
@@ -25,7 +24,7 @@ struct NolonSkillsRepositoryServiceTests {
             }
         }
 
-        let service = ZipRemoteInstallService(downloadFilePath: zipPath.path)
+        let service = ZipRemoteInstallService(downloadFilePath: zipPath.url.path)
         _ = try await service.remoteInstallSkill(
             slug: "react-best-practices",
             version: "1.0.0",
@@ -35,14 +34,12 @@ struct NolonSkillsRepositoryServiceTests {
             installMethod: .symlink
         )
 
-        let stagedSkillPath = nolonHome
-            .appendingPathComponent("skills", isDirectory: true)
-            .appendingPathComponent("react-best-practices", isDirectory: true)
-            .path
-        let skillManifestPath = URL(fileURLWithPath: stagedSkillPath).appendingPathComponent("SKILL.md").path
-        #expect(FileManager.default.fileExists(atPath: stagedSkillPath))
-        #expect(FileManager.default.fileExists(atPath: skillManifestPath))
-        #expect(service.lastInstalledSkillPath == stagedSkillPath)
+        let stagedSkill = nolonHome
+            .folder("skills")
+            .folder("react-best-practices")
+        #expect(stagedSkill.isExists)
+        #expect(stagedSkill.file("SKILL.md").isExists)
+        #expect(service.lastInstalledSkillPath == stagedSkill.url.path)
     }
 
     @Test("remote install skill composes download and install steps")
@@ -87,7 +84,7 @@ struct NolonSkillsRepositoryServiceTests {
     }
 
     @Test("sync maps facade access token required to structured cli error")
-    func syncMapsAccessTokenRequired() async {
+    func syncMapsAccessTokenRequired() async throws {
         let service = NolonLiveSkillsRepositoryService()
         let plan = NolonGitImportPlan(
             source: "vercel/agent-skills",
@@ -96,8 +93,7 @@ struct NolonSkillsRepositoryServiceTests {
             providerHost: "github.com",
             owner: "vercel",
             repo: "agent-skills",
-            localClonePath: FileManager.default.temporaryDirectory
-                .appendingPathComponent("nolon-sync-\(UUID().uuidString)", isDirectory: true)
+            localClonePath: STFolder("/tmp").folder("nolon-sync-\(UUID().uuidString)").url
         )
 
         do {
@@ -124,165 +120,159 @@ struct NolonSkillsRepositoryServiceTests {
     @Test("install skill creates symlink at provider path")
     func installSkillCreatesSymlink() throws {
         let service = NolonLiveSkillsRepositoryService()
-        let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("nolon-install-\(UUID().uuidString)", isDirectory: true)
-        let skillRoot = root.appendingPathComponent("skills/react-best-practices", isDirectory: true)
-        let providerRoot = root.appendingPathComponent("provider", isDirectory: true)
-        try FileManager.default.createDirectory(at: skillRoot, withIntermediateDirectories: true)
-        try FileManager.default.createDirectory(at: providerRoot, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: root) }
+        let root = try makeTempRoot("nolon-install")
+        let skillRoot = root.folder("skills").folder("react-best-practices")
+        let providerRoot = root.folder("provider")
+        _ = skillRoot.createIfNotExists()
+        _ = providerRoot.createIfNotExists()
+        defer { try? root.delete() }
 
         let result = try service.installSkill(
-            skillPath: STPath(skillRoot),
+            skillPath: STPath(skillRoot.url),
             skillID: nil,
-            providerPath: STFolder(providerRoot),
+            providerPath: providerRoot,
             installMethod: .symlink
         )
 
         #expect(result.skillID == "react-best-practices")
         #expect(result.installMethod == .symlink)
 
-        var isDirectory: ObjCBool = false
-        #expect(FileManager.default.fileExists(atPath: result.targetPath, isDirectory: &isDirectory))
-        #expect((try? URL(fileURLWithPath: result.targetPath).resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink) == true)
+        let target = STPath(result.targetPath)
+        #expect(target.isExists)
+        #expect(target.isSymbolicLink)
     }
 
     @Test("uninstall skill removes provider target")
     func uninstallSkillRemovesTarget() throws {
         let service = NolonLiveSkillsRepositoryService()
-        let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("nolon-uninstall-\(UUID().uuidString)", isDirectory: true)
-        let providerRoot = root.appendingPathComponent("provider", isDirectory: true)
-        try FileManager.default.createDirectory(at: providerRoot, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: root) }
+        let root = try makeTempRoot("nolon-uninstall")
+        let providerRoot = root.folder("provider")
+        _ = providerRoot.createIfNotExists()
+        defer { try? root.delete() }
 
-        let target = providerRoot.appendingPathComponent("react-best-practices", isDirectory: true)
-        try FileManager.default.createDirectory(at: target, withIntermediateDirectories: true)
+        let target = providerRoot.folder("react-best-practices")
+        _ = target.createIfNotExists()
 
-        let result = try service.uninstallSkill(skillID: "react-best-practices", providerPath: STFolder(providerRoot))
+        let result = try service.uninstallSkill(skillID: "react-best-practices", providerPath: providerRoot)
         #expect(result.removed == true)
-        #expect(FileManager.default.fileExists(atPath: result.targetPath) == false)
+        #expect(STPath(result.targetPath).isExists == false)
     }
 
     @Test("install resource copies file to target path")
     func installResourceCopiesFile() throws {
         let service = NolonLiveSkillsRepositoryService()
-        let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("nolon-resource-install-\(UUID().uuidString)", isDirectory: true)
-        let sourceDir = root.appendingPathComponent("source", isDirectory: true)
-        let targetDir = root.appendingPathComponent("provider-workflows", isDirectory: true)
-        try FileManager.default.createDirectory(at: sourceDir, withIntermediateDirectories: true)
-        try FileManager.default.createDirectory(at: targetDir, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: root) }
+        let root = try makeTempRoot("nolon-resource-install")
+        let sourceDir = root.folder("source")
+        let targetDir = root.folder("provider-workflows")
+        _ = sourceDir.createIfNotExists()
+        _ = targetDir.createIfNotExists()
+        defer { try? root.delete() }
 
-        let source = sourceDir.appendingPathComponent("review.md")
-        try Data("workflow".utf8).write(to: source)
+        let source = sourceDir.file("review.md")
+        try Data("workflow".utf8).write(to: source.url)
 
         let result = try service.installResource(
             kind: .workflow,
-            filePath: STPath(source),
+            filePath: STPath(source.url),
             resourceName: nil,
-            targetPath: STFolder(targetDir),
+            targetPath: targetDir,
             installMethod: .copy
         )
 
         #expect(result.kind == .workflow)
         #expect(result.resourceName == "review.md")
-        #expect(FileManager.default.fileExists(atPath: result.targetPath))
+        #expect(STPath(result.targetPath).isExists)
     }
 
     @Test("uninstall resource removes target")
     func uninstallResourceRemovesTarget() throws {
         let service = NolonLiveSkillsRepositoryService()
-        let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("nolon-resource-uninstall-\(UUID().uuidString)", isDirectory: true)
-        let targetDir = root.appendingPathComponent("provider-mcp", isDirectory: true)
-        try FileManager.default.createDirectory(at: targetDir, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: root) }
+        let root = try makeTempRoot("nolon-resource-uninstall")
+        let targetDir = root.folder("provider-mcp")
+        _ = targetDir.createIfNotExists()
+        defer { try? root.delete() }
 
-        let target = targetDir.appendingPathComponent("cursor-mcp.json")
-        try Data("{}".utf8).write(to: target)
+        let target = targetDir.file("cursor-mcp.json")
+        try Data("{}".utf8).write(to: target.url)
 
         let result = try service.uninstallResource(
             kind: .mcp,
             resourceName: "cursor-mcp.json",
-            targetPath: STFolder(targetDir)
+            targetPath: targetDir
         )
 
         #expect(result.kind == .mcp)
         #expect(result.removed == true)
-        #expect(FileManager.default.fileExists(atPath: result.targetPath) == false)
+        #expect(STPath(result.targetPath).isExists == false)
     }
 
     @Test("scan provider skills reports orphaned copy")
     func scanProviderSkillsReportsOrphaned() throws {
         let service = NolonLiveSkillsRepositoryService()
-        let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("nolon-migrate-scan-\(UUID().uuidString)", isDirectory: true)
-        let provider = root.appendingPathComponent("provider", isDirectory: true)
-        let global = root.appendingPathComponent("global", isDirectory: true)
-        try FileManager.default.createDirectory(at: provider, withIntermediateDirectories: true)
-        try FileManager.default.createDirectory(at: global, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: root) }
+        let root = try makeTempRoot("nolon-migrate-scan")
+        let provider = root.folder("provider")
+        let global = root.folder("global")
+        _ = provider.createIfNotExists()
+        _ = global.createIfNotExists()
+        defer { try? root.delete() }
 
-        let providerSkill = provider.appendingPathComponent("react-best-practices", isDirectory: true)
-        let globalSkill = global.appendingPathComponent("react-best-practices", isDirectory: true)
-        try FileManager.default.createDirectory(at: providerSkill, withIntermediateDirectories: true)
-        try FileManager.default.createDirectory(at: globalSkill, withIntermediateDirectories: true)
+        let providerSkill = provider.folder("react-best-practices")
+        let globalSkill = global.folder("react-best-practices")
+        _ = providerSkill.createIfNotExists()
+        _ = globalSkill.createIfNotExists()
 
-        let result = try service.scanProviderSkills(providerPath: STFolder(provider), globalSkillsPath: STFolder(global))
+        let result = try service.scanProviderSkills(providerPath: provider, globalSkillsPath: global)
         #expect(result.states.contains(where: { $0.skillID == "react-best-practices" && $0.state == .orphaned }))
     }
 
     @Test("migrate skill links from global to provider")
     func migrateSkillLinksFromGlobal() throws {
         let service = NolonLiveSkillsRepositoryService()
-        let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("nolon-migrate-apply-\(UUID().uuidString)", isDirectory: true)
-        let provider = root.appendingPathComponent("provider", isDirectory: true)
-        let global = root.appendingPathComponent("global", isDirectory: true)
-        try FileManager.default.createDirectory(at: provider, withIntermediateDirectories: true)
-        try FileManager.default.createDirectory(at: global, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: root) }
+        let root = try makeTempRoot("nolon-migrate-apply")
+        let provider = root.folder("provider")
+        let global = root.folder("global")
+        _ = provider.createIfNotExists()
+        _ = global.createIfNotExists()
+        defer { try? root.delete() }
 
-        let globalSkill = global.appendingPathComponent("react-best-practices", isDirectory: true)
-        try FileManager.default.createDirectory(at: globalSkill, withIntermediateDirectories: true)
+        let globalSkill = global.folder("react-best-practices")
+        _ = globalSkill.createIfNotExists()
 
         let result = try service.migrateSkill(
             skillID: "react-best-practices",
-            providerPath: STFolder(provider),
-            globalSkillsPath: STFolder(global),
+            providerPath: provider,
+            globalSkillsPath: global,
             installMethod: .symlink
         )
         #expect(result.skillID == "react-best-practices")
-        #expect(FileManager.default.fileExists(atPath: result.targetPath))
+        #expect(STPath(result.targetPath).isExists)
     }
 }
 
-private func makeRemoteSkillZip(at root: URL, slug: String) throws -> URL {
-    let skillRoot = root
-        .appendingPathComponent("source", isDirectory: true)
-        .appendingPathComponent(slug, isDirectory: true)
-    try FileManager.default.createDirectory(at: skillRoot, withIntermediateDirectories: true)
-    let skillMD = skillRoot.appendingPathComponent("SKILL.md")
-    try """
-    ---
-    name: \(slug)
-    description: test
-    ---
-    # \(slug)
-    """.write(to: skillMD, atomically: true, encoding: .utf8)
+private func makeTempRoot(_ prefix: String) throws -> STFolder {
+    let root = STFolder("/tmp").folder("\(prefix)-\(UUID().uuidString)")
+    _ = root.createIfNotExists()
+    return root
+}
 
-    let zipURL = root.appendingPathComponent("\(slug).zip")
-    let process = Process()
-    process.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
-    process.arguments = ["-c", "-k", skillRoot.path, zipURL.path]
-    try process.run()
-    process.waitUntilExit()
-    guard process.terminationStatus == 0 else {
-        throw NSError(domain: "NolonSkillsRepositoryServiceTests", code: Int(process.terminationStatus))
-    }
-    return zipURL
+private func makeRemoteSkillZip(at root: STFolder, slug: String) throws -> STFile {
+    let skillRoot = root.folder("source").folder(slug)
+    _ = skillRoot.createIfNotExists()
+    try skillRoot.file("SKILL.md").overlay(
+        with: """
+        ---
+        name: \(slug)
+        description: test
+        ---
+        # \(slug)
+        """)
+
+    let zipFile = root.file("\(slug).zip")
+    var payload = SKProcessPayload.executableURL(URL(fileURLWithPath: "/usr/bin/ditto"))
+    payload.arguments = ["-c", "-k", skillRoot.url.path, zipFile.url.path]
+    payload.throwOnNonZeroExit = true
+    _ = try SKProcessRunner.runSync(payload)
+    return zipFile
 }
 
 private final class ZipRemoteInstallService: @unchecked Sendable, NolonSkillsRepositoryServing {

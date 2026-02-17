@@ -11,10 +11,11 @@ struct NolonCodexCLIEntrypointTests {
 
         #expect(result.exitCode == 0)
         #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("Usage: nolon <provider> <group> <action>"))
-        #expect(result.stdout.contains("nolon codex auth list"))
+        #expect(result.stdout.contains("USAGE: nolon"))
+        #expect(result.stdout.contains("SUBCOMMANDS"))
         #expect(result.stdout.contains("skills"))
-        #expect(result.stdout.contains("resources"))
+        #expect(result.stdout.contains("workflow"))
+        #expect(result.stdout.contains("mcp"))
         #expect(result.stdout.contains("remote"))
     }
 
@@ -28,8 +29,10 @@ struct NolonCodexCLIEntrypointTests {
 
         #expect(result.exitCode == 0)
         #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("Usage: nolon <provider> <group> <action>"))
-        #expect(result.stdout.contains("Groups:"))
+        #expect(result.stdout.contains("USAGE: nolon codex"))
+        #expect(result.stdout.contains("SUBCOMMANDS"))
+        #expect(result.stdout.contains("auth"))
+        #expect(result.stdout.contains("binary"))
     }
 
     @Test("codex without group action prints codex help")
@@ -42,7 +45,8 @@ struct NolonCodexCLIEntrypointTests {
 
         #expect(result.exitCode == 0)
         #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("Usage: nolon <provider> <group> <action>"))
+        #expect(result.stdout.contains("USAGE: nolon codex"))
+        #expect(result.stdout.contains("SUBCOMMANDS"))
     }
 
     @Test("codex auth --help prints auth help")
@@ -55,9 +59,8 @@ struct NolonCodexCLIEntrypointTests {
 
         #expect(result.exitCode == 0)
         #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("Usage: nolon codex auth <action>"))
-        #expect(result.stdout.contains("Actions:"))
-        #expect(result.stdout.contains("--email"))
+        #expect(result.stdout.contains("USAGE: nolon codex auth"))
+        #expect(result.stdout.contains("SUBCOMMANDS"))
     }
 
     @Test("codex auth without action prints auth help")
@@ -70,7 +73,8 @@ struct NolonCodexCLIEntrypointTests {
 
         #expect(result.exitCode == 0)
         #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("Usage: nolon codex auth <action>"))
+        #expect(result.stdout.contains("USAGE: nolon codex auth"))
+        #expect(result.stdout.contains("SUBCOMMANDS"))
     }
 
     @Test("codex binary --help prints binary help")
@@ -83,8 +87,9 @@ struct NolonCodexCLIEntrypointTests {
 
         #expect(result.exitCode == 0)
         #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("Usage: nolon codex binary <action>"))
-        #expect(result.stdout.contains("install  <version-or-tag>"))
+        #expect(result.stdout.contains("USAGE: nolon codex binary"))
+        #expect(result.stdout.contains("SUBCOMMANDS"))
+        #expect(result.stdout.contains("install"))
         #expect(result.stdout.contains("available"))
     }
 
@@ -98,7 +103,8 @@ struct NolonCodexCLIEntrypointTests {
 
         #expect(result.exitCode == 0)
         #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("Usage: nolon codex binary <action>"))
+        #expect(result.stdout.contains("USAGE: nolon codex binary"))
+        #expect(result.stdout.contains("SUBCOMMANDS"))
     }
 
     @Test("codex status --help prints status help")
@@ -111,7 +117,8 @@ struct NolonCodexCLIEntrypointTests {
 
         #expect(result.exitCode == 0)
         #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("Usage: nolon codex status <action>"))
+        #expect(result.stdout.contains("USAGE: nolon codex status"))
+        #expect(result.stdout.contains("SUBCOMMANDS"))
         #expect(result.stdout.contains("probe"))
         #expect(result.stdout.contains("doctor"))
     }
@@ -126,7 +133,8 @@ struct NolonCodexCLIEntrypointTests {
 
         #expect(result.exitCode == 0)
         #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("Usage: nolon codex status <action>"))
+        #expect(result.stdout.contains("USAGE: nolon codex status"))
+        #expect(result.stdout.contains("SUBCOMMANDS"))
     }
 
     @Test("codex runtime --help prints runtime help")
@@ -139,7 +147,8 @@ struct NolonCodexCLIEntrypointTests {
 
         #expect(result.exitCode == 0)
         #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("Usage: nolon codex runtime <action>"))
+        #expect(result.stdout.contains("USAGE: nolon codex runtime"))
+        #expect(result.stdout.contains("SUBCOMMANDS"))
         #expect(result.stdout.contains("list"))
         #expect(result.stdout.contains("stop"))
     }
@@ -154,7 +163,8 @@ struct NolonCodexCLIEntrypointTests {
 
         #expect(result.exitCode == 0)
         #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("Usage: nolon codex provider <action>"))
+        #expect(result.stdout.contains("USAGE: nolon codex provider"))
+        #expect(result.stdout.contains("SUBCOMMANDS"))
         #expect(result.stdout.contains("discover"))
     }
 
@@ -168,7 +178,7 @@ struct NolonCodexCLIEntrypointTests {
 
         #expect(result.exitCode == 0)
         #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("Usage: nolon codex runtime list"))
+        #expect(result.stdout.contains("USAGE: nolon codex runtime list"))
     }
 
     @Test("codex runtime stop --help prints action help")
@@ -181,7 +191,7 @@ struct NolonCodexCLIEntrypointTests {
 
         #expect(result.exitCode == 0)
         #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("Usage: nolon codex runtime stop"))
+        #expect(result.stdout.contains("USAGE: nolon codex runtime stop"))
         #expect(result.stdout.contains("--pid"))
     }
 
@@ -195,7 +205,7 @@ struct NolonCodexCLIEntrypointTests {
 
         #expect(result.exitCode == 0)
         #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("Usage: nolon codex provider discover"))
+        #expect(result.stdout.contains("USAGE: nolon codex provider discover"))
     }
 
     @Test("provider --help prints provider root help")
@@ -208,7 +218,8 @@ struct NolonCodexCLIEntrypointTests {
 
         #expect(result.exitCode == 0)
         #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("Usage: nolon provider <action>"))
+        #expect(result.stdout.contains("USAGE: nolon provider"))
+        #expect(result.stdout.contains("SUBCOMMANDS"))
     }
 
     @Test("skills --help prints skills help")
@@ -221,21 +232,66 @@ struct NolonCodexCLIEntrypointTests {
 
         #expect(result.exitCode == 0)
         #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("Usage: nolon skills <subcommand>"))
+        #expect(result.stdout.contains("USAGE: nolon skills"))
+        #expect(result.stdout.contains("SUBCOMMANDS"))
         #expect(result.stdout.contains("repo"))
     }
 
-    @Test("resources --help prints resources help")
-    func resourcesHelpPrintsHelp() async {
+    @Test("skills repo without action prints help")
+    func skillsRepoWithoutActionPrintsHelp() async {
         let mock = MockCodexCLIService()
         let result = await NolonCLIEntrypoint.execute(
-            arguments: ["resources", "--help"],
+            arguments: ["skills", "repo"],
             codexService: mock
         )
 
         #expect(result.exitCode == 0)
         #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("Usage: nolon resources <action>"))
+        #expect(result.stdout.contains("USAGE: nolon skills repo"))
+        #expect(result.stdout.contains("SUBCOMMANDS"))
+    }
+
+    @Test("skills migrate without action prints help")
+    func skillsMigrateWithoutActionPrintsHelp() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["skills", "migrate"],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("USAGE: nolon skills migrate"))
+        #expect(result.stdout.contains("SUBCOMMANDS"))
+    }
+
+    @Test("workflow --help prints workflow help")
+    func workflowHelpPrintsHelp() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["workflow", "--help"],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("USAGE: nolon workflow"))
+        #expect(result.stdout.contains("SUBCOMMANDS"))
+        #expect(result.stdout.contains("discover"))
+    }
+
+    @Test("mcp --help prints mcp help")
+    func mcpHelpPrintsHelp() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["mcp", "--help"],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("USAGE: nolon mcp"))
+        #expect(result.stdout.contains("SUBCOMMANDS"))
         #expect(result.stdout.contains("discover"))
     }
 
@@ -249,7 +305,8 @@ struct NolonCodexCLIEntrypointTests {
 
         #expect(result.exitCode == 0)
         #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("Usage: nolon remote <action>"))
+        #expect(result.stdout.contains("USAGE: nolon remote"))
+        #expect(result.stdout.contains("SUBCOMMANDS"))
         #expect(result.stdout.contains("download"))
         #expect(result.stdout.contains("install"))
     }
@@ -281,7 +338,7 @@ struct NolonCodexCLIEntrypointTests {
 
         #expect(result.exitCode == 2)
         #expect(result.stderr.contains("\"code\":\"invalid_arguments\""))
-        #expect(result.stderr.contains("Missing required option: --kind"))
+        #expect(result.stderr.contains("--kind"))
         #expect(await mock.lastCall() == nil)
     }
 
@@ -313,7 +370,7 @@ struct NolonCodexCLIEntrypointTests {
 
         #expect(result.exitCode == 0)
         #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("Usage: nolon codex auth list"))
+        #expect(result.stdout.contains("USAGE: nolon codex auth list"))
         #expect(result.stdout.contains("--provider"))
     }
 
@@ -327,7 +384,7 @@ struct NolonCodexCLIEntrypointTests {
 
         #expect(result.exitCode == 0)
         #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("Usage: nolon codex auth status"))
+        #expect(result.stdout.contains("USAGE: nolon codex auth status"))
         #expect(result.stdout.contains("--provider"))
     }
 
@@ -341,7 +398,7 @@ struct NolonCodexCLIEntrypointTests {
 
         #expect(result.exitCode == 0)
         #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("Usage: nolon codex auth activate"))
+        #expect(result.stdout.contains("USAGE: nolon codex auth activate"))
         #expect(result.stdout.contains("--account-id"))
     }
 
@@ -355,7 +412,7 @@ struct NolonCodexCLIEntrypointTests {
 
         #expect(result.exitCode == 0)
         #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("Usage: nolon codex auth login"))
+        #expect(result.stdout.contains("USAGE: nolon codex auth login"))
         #expect(result.stdout.contains("--preferred-account-id"))
     }
 
@@ -369,7 +426,7 @@ struct NolonCodexCLIEntrypointTests {
 
         #expect(result.exitCode == 0)
         #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("Usage: nolon codex auth delete"))
+        #expect(result.stdout.contains("USAGE: nolon codex auth delete"))
         #expect(result.stdout.contains("--account-id"))
     }
 
@@ -383,7 +440,7 @@ struct NolonCodexCLIEntrypointTests {
 
         #expect(result.exitCode == 0)
         #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("Usage: nolon codex binary install <version-or-tag>"))
+        #expect(result.stdout.contains("USAGE: nolon codex binary install"))
         #expect(result.stdout.contains("--set-default"))
     }
 
@@ -397,7 +454,7 @@ struct NolonCodexCLIEntrypointTests {
 
         #expect(result.exitCode == 0)
         #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("Usage: nolon codex binary use"))
+        #expect(result.stdout.contains("USAGE: nolon codex binary use"))
         #expect(result.stdout.contains("--version"))
     }
 
@@ -411,7 +468,7 @@ struct NolonCodexCLIEntrypointTests {
 
         #expect(result.exitCode == 0)
         #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("Usage: nolon codex binary list"))
+        #expect(result.stdout.contains("USAGE: nolon codex binary list"))
     }
 
     @Test("codex binary available --help prints action help")
@@ -424,7 +481,7 @@ struct NolonCodexCLIEntrypointTests {
 
         #expect(result.exitCode == 0)
         #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("Usage: nolon codex binary available"))
+        #expect(result.stdout.contains("USAGE: nolon codex binary available"))
     }
 
     @Test("codex binary switch --help prints action help")
@@ -437,7 +494,7 @@ struct NolonCodexCLIEntrypointTests {
 
         #expect(result.exitCode == 0)
         #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("Usage: nolon codex binary switch"))
+        #expect(result.stdout.contains("USAGE: nolon codex binary switch"))
     }
 
     @Test("codex binary current --help prints action help")
@@ -450,7 +507,7 @@ struct NolonCodexCLIEntrypointTests {
 
         #expect(result.exitCode == 0)
         #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("Usage: nolon codex binary current"))
+        #expect(result.stdout.contains("USAGE: nolon codex binary current"))
     }
 
     @Test("codex binary doctor --help prints action help")
@@ -463,7 +520,7 @@ struct NolonCodexCLIEntrypointTests {
 
         #expect(result.exitCode == 0)
         #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("Usage: nolon codex binary doctor"))
+        #expect(result.stdout.contains("USAGE: nolon codex binary doctor"))
     }
 
     @Test("codex status probe --help prints action help")
@@ -476,7 +533,7 @@ struct NolonCodexCLIEntrypointTests {
 
         #expect(result.exitCode == 0)
         #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("Usage: nolon codex status probe"))
+        #expect(result.stdout.contains("USAGE: nolon codex status probe"))
         #expect(result.stdout.contains("--provider"))
     }
 
@@ -490,7 +547,7 @@ struct NolonCodexCLIEntrypointTests {
 
         #expect(result.exitCode == 0)
         #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("Usage: nolon codex status doctor"))
+        #expect(result.stdout.contains("USAGE: nolon codex status doctor"))
     }
 
     @Test("routes auth list")

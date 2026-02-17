@@ -7,7 +7,7 @@ import Testing
 struct NolonCoreCLIKitTests {
     @Test("parse skills repo plan command")
     func parseSkillsRepoPlan() throws {
-        let command = try NolonCoreCLICommandParser.parse(
+        let command = try NolonCoreCLIArgumentParser.parse(
             [
                 "skills", "repo", "plan",
                 "--source", "vercel/agent-skills/skills/react-best-practices",
@@ -29,10 +29,16 @@ struct NolonCoreCLIKitTests {
 
     @Test("missing required option returns invalid arguments")
     func missingRequiredOption() {
-        #expect(throws: NolonCoreCLIError.invalidArguments("Missing required option: --source")) {
-            _ = try NolonCoreCLICommandParser.parse(
+        do {
+            _ = try NolonCoreCLIArgumentParser.parse(
                 ["skills", "repo", "plan", "--repositories-root", "/tmp/repos"]
             )
+            Issue.record("Expected missing option error")
+        } catch let error as NolonCoreCLIError {
+            #expect(error.code == "invalid_arguments")
+            #expect(error.localizedDescription.contains("--source"))
+        } catch {
+            Issue.record("Unexpected error: \(error)")
         }
     }
 
@@ -97,8 +103,8 @@ struct NolonCoreCLIKitTests {
         #expect(result.exitCode == 2)
         #expect(result.stdout.isEmpty)
 
-        let expected = #"{"error":{"code":"invalid_arguments","message":"Missing required option: --kind"},"ok":false}"#
-        #expect(try canonicalJSON(result.stderr) == expected)
+        #expect(result.stderr.contains("\"code\":\"invalid_arguments\""))
+        #expect(result.stderr.contains("--kind"))
     }
 
     @Test("runner renders sync output with repository resources")
@@ -127,7 +133,7 @@ struct NolonCoreCLIKitTests {
 
     @Test("parse skills repo sync with lifecycle strategies")
     func parseSkillsRepoSyncWithStrategies() throws {
-        let command = try NolonCoreCLICommandParser.parse(
+        let command = try NolonCoreCLIArgumentParser.parse(
             [
                 "skills", "repo", "sync",
                 "--source", "vercel/agent-skills",
@@ -148,7 +154,7 @@ struct NolonCoreCLIKitTests {
 
     @Test("parse skills repo preflight command")
     func parseSkillsRepoPreflight() throws {
-        let command = try NolonCoreCLICommandParser.parse(
+        let command = try NolonCoreCLIArgumentParser.parse(
             [
                 "skills", "repo", "preflight",
                 "--source", "vercel/agent-skills",
@@ -169,37 +175,49 @@ struct NolonCoreCLIKitTests {
 
     @Test("invalid pull strategy is rejected by parser")
     func parseRejectsInvalidPullStrategy() {
-        #expect(throws: NolonCoreCLIError.invalidArguments("Unsupported --pull-strategy: no-fast-forward")) {
-            _ = try NolonCoreCLICommandParser.parse(
+        do {
+            _ = try NolonCoreCLIArgumentParser.parse(
                 [
                     "skills", "repo", "preflight",
                     "--source", "vercel/agent-skills",
                     "--pull-strategy", "no-fast-forward",
                 ]
             )
+            Issue.record("Expected invalid pull strategy error")
+        } catch let error as NolonCoreCLIError {
+            #expect(error.code == "invalid_arguments")
+            #expect(error.localizedDescription.contains("pull-strategy"))
+        } catch {
+            Issue.record("Unexpected error: \(error)")
         }
     }
 
     @Test("invalid credential strategy is rejected by parser")
     func parseRejectsInvalidCredentialStrategy() {
-        #expect(throws: NolonCoreCLIError.invalidArguments("Unsupported --credential-strategy: basic-auth")) {
-            _ = try NolonCoreCLICommandParser.parse(
+        do {
+            _ = try NolonCoreCLIArgumentParser.parse(
                 [
                     "skills", "repo", "preflight",
                     "--source", "vercel/agent-skills",
                     "--credential-strategy", "basic-auth",
                 ]
             )
+            Issue.record("Expected invalid credential strategy error")
+        } catch let error as NolonCoreCLIError {
+            #expect(error.code == "invalid_arguments")
+            #expect(error.localizedDescription.contains("credential-strategy"))
+        } catch {
+            Issue.record("Unexpected error: \(error)")
         }
     }
 
     @Test("runner renders parse result from SKILL file")
     func runnerRendersParseResult() async throws {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent("nolon-cli-\(UUID().uuidString)", isDirectory: true)
-        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: root) }
+        let root = STFolder("/tmp").folder("nolon-cli-\(UUID().uuidString)")
+        _ = root.createIfNotExists()
+        defer { try? root.delete() }
 
-        let skillFile = root.appendingPathComponent("SKILL.md")
+        let skillFile = root.file("SKILL.md")
         try Data(
             """
             ---
@@ -211,7 +229,7 @@ struct NolonCoreCLIKitTests {
 
             # Agent Browser
             """.utf8
-        ).write(to: skillFile)
+        ).write(to: skillFile.url)
 
         let runner = NolonCoreCLIRunner(
             service: MockSkillsRepositoryService(),
@@ -223,7 +241,7 @@ struct NolonCoreCLIKitTests {
         let result = await runner.execute(
             arguments: [
                 "skills", "parse",
-                "--file", skillFile.path,
+                "--file", skillFile.url.path,
                 "--directory-name", "agent-browser"
             ]
         )
@@ -278,63 +296,59 @@ struct NolonCoreCLIKitTests {
         #expect(result.stderr.contains("\"credential_strategy\":\"token-only\""))
     }
 
-    @Test("parse resources discover command")
-    func parseResourcesDiscover() throws {
-        let command = try NolonCoreCLICommandParser.parse(
-            ["resources", "discover", "--path", "/tmp/repo", "--max-depth", "3"]
+    @Test("parse workflow discover command")
+    func parseWorkflowDiscover() throws {
+        let command = try NolonCoreCLIArgumentParser.parse(
+            ["workflow", "discover", "--path", "/tmp/repo", "--max-depth", "3"]
         )
-        guard case let .resourcesDiscover(path, maxDepth) = command else {
-            Issue.record("Expected .resourcesDiscover")
+        guard case let .workflowDiscover(path, maxDepth) = command else {
+            Issue.record("Expected .workflowDiscover")
             return
         }
         #expect(path == "/tmp/repo")
         #expect(maxDepth == 3)
     }
 
-    @Test("parse resources install command")
-    func parseResourcesInstall() throws {
-        let command = try NolonCoreCLICommandParser.parse(
+    @Test("parse workflow install command")
+    func parseWorkflowInstall() throws {
+        let command = try NolonCoreCLIArgumentParser.parse(
             [
-                "resources", "install",
-                "--kind", "workflow",
+                "workflow", "install",
                 "--file-path", "/tmp/source/review.md",
                 "--target-path", "/tmp/provider/workflows",
                 "--install-method", "copy",
             ]
         )
-        guard case let .resourcesInstall(kind, filePath, resourceName, targetPath, installMethod) = command else {
-            Issue.record("Expected .resourcesInstall")
+        guard case let .workflowInstall(filePath, resourceName, targetPath, installMethod) = command else {
+            Issue.record("Expected .workflowInstall")
             return
         }
-        #expect(kind == .workflow)
         #expect(filePath == "/tmp/source/review.md")
         #expect(resourceName == nil)
         #expect(targetPath == "/tmp/provider/workflows")
         #expect(installMethod == .copy)
     }
 
-    @Test("parse resources uninstall command")
-    func parseResourcesUninstall() throws {
-        let command = try NolonCoreCLICommandParser.parse(
+    @Test("parse mcp uninstall command")
+    func parseMcpUninstall() throws {
+        let command = try NolonCoreCLIArgumentParser.parse(
             [
-                "resources", "uninstall",
-                "--kind", "mcp",
+                "mcp", "uninstall",
                 "--resource-name", "cursor-mcp.json",
                 "--target-path", "/tmp/provider/mcp",
             ]
         )
-        guard case let .resourcesUninstall(kind, resourceName, targetPath) = command else {
-            Issue.record("Expected .resourcesUninstall")
+        guard case let .mcpUninstall(resourceName, targetPath) = command else {
+            Issue.record("Expected .mcpUninstall")
             return
         }
-        #expect(kind == .mcp)
         #expect(resourceName == "cursor-mcp.json")
         #expect(targetPath == "/tmp/provider/mcp")
     }
 
     @Test("parse remote list command")
     func parseRemoteList() throws {
-        let command = try NolonCoreCLICommandParser.parse(
+        let command = try NolonCoreCLIArgumentParser.parse(
             [
                 "remote", "list",
                 "--kind", "skill",
@@ -355,7 +369,7 @@ struct NolonCoreCLIKitTests {
 
     @Test("parse remote download command")
     func parseRemoteDownload() throws {
-        let command = try NolonCoreCLICommandParser.parse(
+        let command = try NolonCoreCLIArgumentParser.parse(
             [
                 "remote", "download",
                 "--kind", "workflow",
@@ -375,7 +389,7 @@ struct NolonCoreCLIKitTests {
 
     @Test("parse remote sync command")
     func parseRemoteSync() throws {
-        let command = try NolonCoreCLICommandParser.parse(
+        let command = try NolonCoreCLIArgumentParser.parse(
             [
                 "remote", "sync",
                 "--source", "vercel/agent-skills",
@@ -399,7 +413,7 @@ struct NolonCoreCLIKitTests {
 
     @Test("parse remote sync-install skill command")
     func parseRemoteSyncInstallSkill() throws {
-        let command = try NolonCoreCLICommandParser.parse(
+        let command = try NolonCoreCLIArgumentParser.parse(
             [
                 "remote", "sync-install",
                 "--kind", "skill",
@@ -432,7 +446,7 @@ struct NolonCoreCLIKitTests {
 
     @Test("parse remote sync-install workflow command with slug selector")
     func parseRemoteSyncInstallWorkflowWithSlugSelector() throws {
-        let command = try NolonCoreCLICommandParser.parse(
+        let command = try NolonCoreCLIArgumentParser.parse(
             [
                 "remote", "sync-install",
                 "--kind", "workflow",
@@ -464,7 +478,7 @@ struct NolonCoreCLIKitTests {
 
     @Test("parse remote sync-install workflow command with strict selector")
     func parseRemoteSyncInstallWorkflowWithStrictSelector() throws {
-        let command = try NolonCoreCLICommandParser.parse(
+        let command = try NolonCoreCLIArgumentParser.parse(
             [
                 "remote", "sync-install",
                 "--kind", "workflow",
@@ -487,7 +501,7 @@ struct NolonCoreCLIKitTests {
     @Test("parse remote sync-install rejects missing selector")
     func parseRemoteSyncInstallRejectsMissingSelector() {
         #expect(throws: NolonCoreCLIError.invalidArguments("Missing required option: --path or --slug")) {
-            _ = try NolonCoreCLICommandParser.parse(
+            _ = try NolonCoreCLIArgumentParser.parse(
                 [
                     "remote", "sync-install",
                     "--kind", "skill",
@@ -502,7 +516,7 @@ struct NolonCoreCLIKitTests {
     @Test("parse remote sync-install rejects duplicate selector")
     func parseRemoteSyncInstallRejectsDuplicateSelector() {
         #expect(throws: NolonCoreCLIError.invalidArguments("Use only one selector: --path or --slug")) {
-            _ = try NolonCoreCLICommandParser.parse(
+            _ = try NolonCoreCLIArgumentParser.parse(
                 [
                     "remote", "sync-install",
                     "--kind", "skill",
@@ -518,7 +532,7 @@ struct NolonCoreCLIKitTests {
 
     @Test("parse remote install skill command")
     func parseRemoteInstallSkill() throws {
-        let command = try NolonCoreCLICommandParser.parse(
+        let command = try NolonCoreCLIArgumentParser.parse(
             [
                 "remote", "install",
                 "--kind", "skill",
@@ -543,7 +557,7 @@ struct NolonCoreCLIKitTests {
 
     @Test("parse remote install workflow command")
     func parseRemoteInstallWorkflow() throws {
-        let command = try NolonCoreCLICommandParser.parse(
+        let command = try NolonCoreCLIArgumentParser.parse(
             [
                 "remote", "install",
                 "--kind", "workflow",
@@ -568,7 +582,7 @@ struct NolonCoreCLIKitTests {
 
     @Test("parse remote install skill command with provider id")
     func parseRemoteInstallSkillWithProviderID() throws {
-        let command = try NolonCoreCLICommandParser.parse(
+        let command = try NolonCoreCLIArgumentParser.parse(
             [
                 "remote", "install",
                 "--kind", "skill",
@@ -591,7 +605,7 @@ struct NolonCoreCLIKitTests {
 
     @Test("parse remote install workflow command with provider id")
     func parseRemoteInstallWorkflowWithProviderID() throws {
-        let command = try NolonCoreCLICommandParser.parse(
+        let command = try NolonCoreCLIArgumentParser.parse(
             [
                 "remote", "install",
                 "--kind", "workflow",
@@ -616,7 +630,7 @@ struct NolonCoreCLIKitTests {
     @Test("parse remote install skill rejects missing provider selector")
     func parseRemoteInstallSkillRejectsMissingProviderSelector() {
         #expect(throws: NolonCoreCLIError.invalidArguments("Missing required option: --provider-path or --provider-id")) {
-            _ = try NolonCoreCLICommandParser.parse(
+            _ = try NolonCoreCLIArgumentParser.parse(
                 [
                     "remote", "install",
                     "--kind", "skill",
@@ -629,7 +643,7 @@ struct NolonCoreCLIKitTests {
     @Test("parse remote install workflow rejects missing target selector")
     func parseRemoteInstallWorkflowRejectsMissingTargetSelector() {
         #expect(throws: NolonCoreCLIError.invalidArguments("Missing required option: --target-path or --provider-id")) {
-            _ = try NolonCoreCLICommandParser.parse(
+            _ = try NolonCoreCLIArgumentParser.parse(
                 [
                     "remote", "install",
                     "--kind", "workflow",
@@ -641,7 +655,7 @@ struct NolonCoreCLIKitTests {
 
     @Test("parse skills install command")
     func parseSkillsInstall() throws {
-        let command = try NolonCoreCLICommandParser.parse(
+        let command = try NolonCoreCLIArgumentParser.parse(
             [
                 "skills", "install",
                 "--skill-path", "/tmp/skills/react-best-practices",
@@ -663,7 +677,7 @@ struct NolonCoreCLIKitTests {
 
     @Test("parse skills uninstall command")
     func parseSkillsUninstall() throws {
-        let command = try NolonCoreCLICommandParser.parse(
+        let command = try NolonCoreCLIArgumentParser.parse(
             [
                 "skills", "uninstall",
                 "--skill-id", "react-best-practices",
@@ -681,7 +695,7 @@ struct NolonCoreCLIKitTests {
 
     @Test("parse skills migrate scan command")
     func parseSkillsMigrateScan() throws {
-        let command = try NolonCoreCLICommandParser.parse(
+        let command = try NolonCoreCLIArgumentParser.parse(
             [
                 "skills", "migrate", "scan",
                 "--provider-path", "/tmp/provider",
@@ -698,7 +712,7 @@ struct NolonCoreCLIKitTests {
 
     @Test("parse skills migrate apply command")
     func parseSkillsMigrateApply() throws {
-        let command = try NolonCoreCLICommandParser.parse(
+        let command = try NolonCoreCLIArgumentParser.parse(
             [
                 "skills", "migrate", "apply",
                 "--skill-id", "react-best-practices",
@@ -798,60 +812,75 @@ struct NolonCoreCLIKitTests {
         #expect(result.stdout.contains("\"skill_id\":\"react-best-practices\""))
     }
 
-    @Test("runner renders repository resources json")
-    func runnerRendersRepositoryResources() async {
+    @Test("runner renders workflow discover json")
+    func runnerRendersWorkflowDiscover() async {
         let runner = NolonCoreCLIRunner(
             service: MockSkillsRepositoryService(),
             fileReader: { _ in "" }
         )
 
         let result = await runner.execute(
-            arguments: ["resources", "discover", "--path", "/tmp/repo"]
+            arguments: ["workflow", "discover", "--path", "/tmp/repo"]
         )
 
         #expect(result.exitCode == 0)
-        #expect(result.stdout.contains("\"command\":\"resources.discover\""))
+        #expect(result.stdout.contains("\"command\":\"workflow.discover\""))
         #expect(result.stdout.contains("\"workflows\""))
+        #expect(result.stdout.contains("\"mcps\":[]"))
+    }
+
+    @Test("runner renders mcp discover json")
+    func runnerRendersMcpDiscover() async {
+        let runner = NolonCoreCLIRunner(
+            service: MockSkillsRepositoryService(),
+            fileReader: { _ in "" }
+        )
+
+        let result = await runner.execute(
+            arguments: ["mcp", "discover", "--path", "/tmp/repo"]
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stdout.contains("\"command\":\"mcp.discover\""))
+        #expect(result.stdout.contains("\"workflows\":[]"))
         #expect(result.stdout.contains("\"mcps\""))
     }
 
-    @Test("runner renders resources install result")
-    func runnerRendersResourcesInstallResult() async {
+    @Test("runner renders workflow install result")
+    func runnerRendersWorkflowInstallResult() async {
         let runner = NolonCoreCLIRunner(
             service: MockSkillsRepositoryService(),
             fileReader: { _ in "" }
         )
         let result = await runner.execute(
             arguments: [
-                "resources", "install",
-                "--kind", "workflow",
+                "workflow", "install",
                 "--file-path", "/tmp/source/review.md",
                 "--target-path", "/tmp/provider/workflows",
                 "--install-method", "copy",
             ]
         )
         #expect(result.exitCode == 0)
-        #expect(result.stdout.contains("\"command\":\"resources.install\""))
+        #expect(result.stdout.contains("\"command\":\"workflow.install\""))
         #expect(result.stdout.contains("\"kind\":\"workflow\""))
         #expect(result.stdout.contains("\"install_method\":\"copy\""))
     }
 
-    @Test("runner renders resources uninstall result")
-    func runnerRendersResourcesUninstallResult() async {
+    @Test("runner renders mcp uninstall result")
+    func runnerRendersMcpUninstallResult() async {
         let runner = NolonCoreCLIRunner(
             service: MockSkillsRepositoryService(),
             fileReader: { _ in "" }
         )
         let result = await runner.execute(
             arguments: [
-                "resources", "uninstall",
-                "--kind", "mcp",
+                "mcp", "uninstall",
                 "--resource-name", "cursor-mcp.json",
                 "--target-path", "/tmp/provider/mcp",
             ]
         )
         #expect(result.exitCode == 0)
-        #expect(result.stdout.contains("\"command\":\"resources.uninstall\""))
+        #expect(result.stdout.contains("\"command\":\"mcp.uninstall\""))
         #expect(result.stdout.contains("\"removed\":true"))
         #expect(result.stdout.contains("\"kind\":\"mcp\""))
     }
@@ -1076,10 +1105,11 @@ struct NolonCoreCLIKitTests {
 
     @Test("runner renders remote install skill result")
     func runnerRendersRemoteInstallSkillResult() async {
-        let tempNolonHome = FileManager.default.temporaryDirectory
-            .appendingPathComponent("nolon-core-cli-home-\(UUID().uuidString)", isDirectory: true)
+        let tempNolonHome = STFolder("/tmp").folder("nolon-core-cli-home-\(UUID().uuidString)")
+        _ = tempNolonHome.createIfNotExists()
+        defer { try? tempNolonHome.delete() }
         let backup = getenv("NOLON_HOME").map { String(cString: $0) }
-        setenv("NOLON_HOME", tempNolonHome.path, 1)
+        setenv("NOLON_HOME", tempNolonHome.url.path, 1)
         defer {
             if let backup {
                 setenv("NOLON_HOME", backup, 1)

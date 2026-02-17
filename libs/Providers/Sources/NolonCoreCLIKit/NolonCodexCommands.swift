@@ -6,6 +6,10 @@ struct NolonRootCommand: ParsableCommand {
         subcommands: [
             NolonCodexRootCommand.self,
             NolonProviderRootCommand.self,
+            NolonSkillsRootCommand.self,
+            NolonWorkflowRootCommand.self,
+            NolonMcpRootCommand.self,
+            NolonRemoteRootCommand.self,
         ]
     )
 }

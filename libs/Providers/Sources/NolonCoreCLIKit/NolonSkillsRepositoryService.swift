@@ -140,15 +140,14 @@ public extension NolonSkillsRepositoryServing {
 }
 
 private func resolveNolonSkillsRootFolder(environment: [String: String] = ProcessInfo.processInfo.environment) throws -> STFolder {
-    let nolonHome: URL
+    let nolonHome: STFolder
     if let raw = environment["NOLON_HOME"]?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty {
         let expanded = NSString(string: raw).expandingTildeInPath
-        nolonHome = URL(fileURLWithPath: expanded, isDirectory: true).standardizedFileURL
+        nolonHome = STFolder(expanded)
     } else {
-        nolonHome = URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true)
-            .appendingPathComponent(".nolon", isDirectory: true)
+        nolonHome = try STFolder(sanbox: .home).folder(".nolon")
     }
-    return STFolder(nolonHome.appendingPathComponent("skills", isDirectory: true))
+    return nolonHome.folder("skills")
 }
 
 public struct NolonLiveSkillsRepositoryService: NolonSkillsRepositoryServing {

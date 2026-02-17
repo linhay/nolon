@@ -619,3 +619,34 @@
   1. `JsonRPCLineProcessSession` 暂保留 `Process + Pipe` 实现（唯一剩余例外）。
   2. 新增 issue 草案文档：`docs-dev/dev/skprocessrunner-jsonrpc-session-issue.md`。
   3. 文档中给出建议 API（`SKProcessPipeSession`）与验收标准，便于向 `SKProcessRunner` 提 issue。
+
+## Phase 2.34（接入 SKProcessPipeSession 验证与回退）
+- 背景：
+  - `SKProcessRunner` 已新增 `SKProcessPipeSession`（`0.0.13`），尝试将 `JsonRPCLineProcessSession` 迁移到该 API。
+- 变更：
+  1. 依赖升级：`SKProcessRunner` 从 `0.0.5` 升级到 `0.0.13`。
+  2. 迁移尝试后发现运行时问题：
+     - `JsonRPCKitTests` 执行期间出现 `EXC_BAD_ACCESS/SIGBUS`（`swiftpm-testing-helper` 崩溃）。
+     - 回溯显示在测试任务并发执行阶段触发内存访问异常。
+  3. 为保证主线稳定，`JsonRPCLineProcessSession` 暂回退为原 `Process + Pipe` 实现。
+- 验证：
+  - 回退后 `swift test --package-path libs/Providers --filter JsonRPCKitTests` 通过（2 tests）。
+  - `swift test --package-path libs/Providers --filter CodexAppServerKitTests` 通过（3 tests）。
+- 结论：
+  - 当前仍维持“`JsonRPCKit` 为唯一 `Process` 例外”的策略；
+  - 待 `SKProcessPipeSession` 运行时稳定后再重试迁移。
+
+## Phase 2.35（48c7918 复测结论）
+- 背景：
+  - `SKProcessRunner` 已在 issue 中回传修复并发布新提交：`48c7918`。
+- 验证：
+  1. 本地 `libs/SKProcessRunner` 已切到 `48c7918`。
+  2. 再次迁移 `JsonRPCLineProcessSession -> SKProcessPipeSession` 后复测：
+     - `swift test --package-path libs/Providers --filter JsonRPCKitTests`
+     - 仍出现 `EXC_BAD_ACCESS / SIGBUS`（swiftpm-testing-helper）。
+  3. 回退 `JsonRPCLineProcessSession` 到 `Process + Pipe` 后：
+     - `JsonRPCKitTests` 通过（2 tests）
+     - `CodexAppServerKitTests` 通过（3 tests）
+- 跟进：
+  - 已在 issue 追加复测反馈：
+    - `https://github.com/linhay/SKProcessRunner/issues/3#issuecomment-3909569243`

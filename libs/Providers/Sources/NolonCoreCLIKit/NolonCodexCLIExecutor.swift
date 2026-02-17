@@ -380,7 +380,8 @@ enum NolonCodexCLIExecutor {
         do {
             return try NolonRootCommand.parseAsRoot(arguments)
         } catch {
-            throw NolonCoreCLIError.invalidArguments(error.localizedDescription)
+            let message = NolonRootCommand.message(for: error)
+            throw NolonCoreCLIError.invalidArguments(message)
         }
     }
 

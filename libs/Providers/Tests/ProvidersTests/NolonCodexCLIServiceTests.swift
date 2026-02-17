@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import STFilePath
 @testable import NolonCoreCLIKit
 @testable import ProviderCatalog
 @testable import ProviderUsage
@@ -14,13 +15,12 @@ import Glibc
 struct NolonCodexCLIServiceTests {
     @Test("auth list canonicalizes codexxcode provider id")
     func authListCanonicalProviderID() async throws {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent("nolon-codex-cli-\(UUID().uuidString)", isDirectory: true)
-        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: root) }
+        let root = try makeTempRoot("nolon-codex-cli")
+        defer { try? root.delete() }
 
         let service = NolonLiveCodexCLIService(
-            authManager: CodexAuthManager(rootURL: root),
-            binaryManager: CodexBinaryManager(homeURL: root),
+            authManager: CodexAuthManager(rootURL: root.url),
+            binaryManager: CodexBinaryManager(homeURL: root.url),
             loginRunner: .init(),
             environment: [:]
         )
@@ -30,14 +30,13 @@ struct NolonCodexCLIServiceTests {
     }
 
     @Test("status probe rejects unsupported provider in service")
-    func statusProbeRejectsUnsupportedProvider() async {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent("nolon-codex-cli-\(UUID().uuidString)", isDirectory: true)
-        try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: root) }
+    func statusProbeRejectsUnsupportedProvider() async throws {
+        let root = try makeTempRoot("nolon-codex-cli")
+        defer { try? root.delete() }
 
         let service = NolonLiveCodexCLIService(
-            authManager: CodexAuthManager(rootURL: root),
-            binaryManager: CodexBinaryManager(homeURL: root),
+            authManager: CodexAuthManager(rootURL: root.url),
+            binaryManager: CodexBinaryManager(homeURL: root.url),
             loginRunner: .init(),
             environment: [:]
         )
@@ -56,14 +55,13 @@ struct NolonCodexCLIServiceTests {
     }
 
     @Test("auth delete returns domain error when account is missing")
-    func authDeleteMissingAccount() async {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent("nolon-codex-cli-\(UUID().uuidString)", isDirectory: true)
-        try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: root) }
+    func authDeleteMissingAccount() async throws {
+        let root = try makeTempRoot("nolon-codex-cli")
+        defer { try? root.delete() }
 
         let service = NolonLiveCodexCLIService(
-            authManager: CodexAuthManager(rootURL: root),
-            binaryManager: CodexBinaryManager(homeURL: root),
+            authManager: CodexAuthManager(rootURL: root.url),
+            binaryManager: CodexBinaryManager(homeURL: root.url),
             loginRunner: .init(),
             environment: [:]
         )
@@ -87,11 +85,10 @@ struct NolonCodexCLIServiceTests {
 
     @Test("auth list includes email usage display and refreshed time from local cache")
     func authListIncludesEmailUsageAndRefresh() async throws {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent("nolon-codex-cli-\(UUID().uuidString)", isDirectory: true)
-        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: root) }
+        let root = try makeTempRoot("nolon-codex-cli")
+        defer { try? root.delete() }
 
-        let authManager = CodexAuthManager(rootURL: root)
+        let authManager = CodexAuthManager(rootURL: root.url)
         let account = try await authManager.addAccount(
             name: "demo",
             authJSONString: #"{"user":{"email":"dev@example.com"}}"#
@@ -117,7 +114,7 @@ struct NolonCodexCLIServiceTests {
 
         let service = NolonLiveCodexCLIService(
             authManager: authManager,
-            binaryManager: CodexBinaryManager(homeURL: root),
+            binaryManager: CodexBinaryManager(homeURL: root.url),
             loginRunner: .init(),
             environment: [:]
         )
@@ -131,11 +128,10 @@ struct NolonCodexCLIServiceTests {
 
     @Test("auth list usage display keeps slash-aligned template when only weekly window exists")
     func authListUsageDisplayWeeklyOnly() async throws {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent("nolon-codex-cli-\(UUID().uuidString)", isDirectory: true)
-        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: root) }
+        let root = try makeTempRoot("nolon-codex-cli")
+        defer { try? root.delete() }
 
-        let authManager = CodexAuthManager(rootURL: root)
+        let authManager = CodexAuthManager(rootURL: root.url)
         let account = try await authManager.addAccount(
             name: "demo",
             authJSONString: #"{"user":{"email":"weekly@example.com"}}"#
@@ -161,7 +157,7 @@ struct NolonCodexCLIServiceTests {
 
         let service = NolonLiveCodexCLIService(
             authManager: authManager,
-            binaryManager: CodexBinaryManager(homeURL: root),
+            binaryManager: CodexBinaryManager(homeURL: root.url),
             loginRunner: .init(),
             environment: [:]
         )
@@ -174,13 +170,12 @@ struct NolonCodexCLIServiceTests {
 
     @Test("runtime list filters codex processes and sorts by pid asc")
     func runtimeListFiltersAndSorts() async throws {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent("nolon-codex-cli-\(UUID().uuidString)", isDirectory: true)
-        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: root) }
+        let root = try makeTempRoot("nolon-codex-cli")
+        defer { try? root.delete() }
 
         let service = NolonLiveCodexCLIService(
-            authManager: CodexAuthManager(rootURL: root),
-            binaryManager: CodexBinaryManager(homeURL: root),
+            authManager: CodexAuthManager(rootURL: root.url),
+            binaryManager: CodexBinaryManager(homeURL: root.url),
             loginRunner: .init(),
             environment: [:],
             runtimeProcessInspector: StubRuntimeProcessInspector(
@@ -204,9 +199,8 @@ struct NolonCodexCLIServiceTests {
 
     @Test("runtime stop escalates to kill when process does not exit after term")
     func runtimeStopEscalatesToKill() async throws {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent("nolon-codex-cli-\(UUID().uuidString)", isDirectory: true)
-        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: root) }
+        let root = try makeTempRoot("nolon-codex-cli")
+        defer { try? root.delete() }
 
         let signalController = StubRuntimeSignalController(
             aliveSequenceByPID: [
@@ -214,8 +208,8 @@ struct NolonCodexCLIServiceTests {
             ]
         )
         let service = NolonLiveCodexCLIService(
-            authManager: CodexAuthManager(rootURL: root),
-            binaryManager: CodexBinaryManager(homeURL: root),
+            authManager: CodexAuthManager(rootURL: root.url),
+            binaryManager: CodexBinaryManager(homeURL: root.url),
             loginRunner: .init(),
             environment: [:],
             runtimeProcessInspector: StubRuntimeProcessInspector(snapshots: []),
@@ -234,13 +228,12 @@ struct NolonCodexCLIServiceTests {
 
     @Test("provider discover returns codex providers and auth symlink state")
     func providerDiscoverReturnsCodexProviders() async throws {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent("nolon-codex-provider-discover-\(UUID().uuidString)", isDirectory: true)
-        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: root) }
+        let root = try makeTempRoot("nolon-codex-provider-discover")
+        defer { try? root.delete() }
 
         let service = NolonLiveCodexCLIService(
-            authManager: CodexAuthManager(rootURL: root),
-            binaryManager: CodexBinaryManager(homeURL: root),
+            authManager: CodexAuthManager(rootURL: root.url),
+            binaryManager: CodexBinaryManager(homeURL: root.url),
             loginRunner: .init(),
             environment: [:]
         )
@@ -255,13 +248,12 @@ struct NolonCodexCLIServiceTests {
 
     @Test("provider list returns installed providers only")
     func providerListReturnsInstalledOnly() async throws {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent("nolon-provider-list-\(UUID().uuidString)", isDirectory: true)
-        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: root) }
+        let root = try makeTempRoot("nolon-provider-list")
+        defer { try? root.delete() }
 
         let service = NolonLiveCodexCLIService(
-            authManager: CodexAuthManager(rootURL: root),
-            binaryManager: CodexBinaryManager(homeURL: root),
+            authManager: CodexAuthManager(rootURL: root.url),
+            binaryManager: CodexBinaryManager(homeURL: root.url),
             loginRunner: .init(),
             environment: [:]
         )
@@ -274,6 +266,12 @@ struct NolonCodexCLIServiceTests {
         )
         #expect(payload.providers.allSatisfy { expectedCLIByProviderID[$0.providerID] == $0.cli })
     }
+}
+
+private func makeTempRoot(_ prefix: String) throws -> STFolder {
+    let root = STFolder("/tmp").folder("\(prefix)-\(UUID().uuidString)")
+    _ = root.createIfNotExists()
+    return root
 }
 
 private struct StubRuntimeProcessInspector: NolonCodexRuntimeProcessInspecting {

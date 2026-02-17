@@ -43,16 +43,25 @@ public enum NolonCoreCLICommand: Sendable, Equatable {
     )
     case skillsDiscover(path: String, maxDepth: Int)
     case skillsParse(file: String, directoryName: String?)
-    case resourcesDiscover(path: String, maxDepth: Int)
-    case resourcesInstall(
-        kind: NolonResourceKind,
+    case workflowDiscover(path: String, maxDepth: Int)
+    case workflowInstall(
         filePath: String,
         resourceName: String?,
         targetPath: String,
         installMethod: NolonSkillInstallMethod
     )
-    case resourcesUninstall(
-        kind: NolonResourceKind,
+    case workflowUninstall(
+        resourceName: String,
+        targetPath: String
+    )
+    case mcpDiscover(path: String, maxDepth: Int)
+    case mcpInstall(
+        filePath: String,
+        resourceName: String?,
+        targetPath: String,
+        installMethod: NolonSkillInstallMethod
+    )
+    case mcpUninstall(
         resourceName: String,
         targetPath: String
     )
@@ -138,9 +147,12 @@ public enum NolonCoreCLICommand: Sendable, Equatable {
         case .skillsMigrateApply: "skills.migrate.apply"
         case .skillsDiscover: "skills.discover"
         case .skillsParse: "skills.parse"
-        case .resourcesDiscover: "resources.discover"
-        case .resourcesInstall: "resources.install"
-        case .resourcesUninstall: "resources.uninstall"
+        case .workflowDiscover: "workflow.discover"
+        case .workflowInstall: "workflow.install"
+        case .workflowUninstall: "workflow.uninstall"
+        case .mcpDiscover: "mcp.discover"
+        case .mcpInstall: "mcp.install"
+        case .mcpUninstall: "mcp.uninstall"
         case .remoteList: "remote.list"
         case .remoteDownload: "remote.download"
         case .remoteSync: "remote.sync"
@@ -191,7 +203,7 @@ public enum NolonCoreCLIError: LocalizedError, Equatable, Sendable {
 public enum NolonCoreCLICommandParser {
     public static func parse(_ arguments: [String]) throws -> NolonCoreCLICommand {
         guard arguments.count >= 2 else {
-            throw NolonCoreCLIError.invalidArguments("Missing command. Expected: skills|resources ...")
+            throw NolonCoreCLIError.invalidArguments("Missing command. Expected: skills|workflow|mcp|remote ...")
         }
 
         let command = arguments[0]
@@ -241,8 +253,12 @@ public enum NolonCoreCLICommandParser {
             throw NolonCoreCLIError.invalidArguments("Unsupported skills subcommand: \(arguments[1])")
         }
 
-        if command == "resources" {
-            return try parseResources(Array(arguments.dropFirst(1)))
+        if command == "workflow" {
+            return try parseWorkflow(Array(arguments.dropFirst(1)))
+        }
+
+        if command == "mcp" {
+            return try parseMcp(Array(arguments.dropFirst(1)))
         }
 
         if command == "remote" {
@@ -333,25 +349,23 @@ public enum NolonCoreCLICommandParser {
         throw NolonCoreCLIError.invalidArguments("Unsupported skills migrate action: \(action)")
     }
 
-    private static func parseResources(_ arguments: [String]) throws -> NolonCoreCLICommand {
+    private static func parseWorkflow(_ arguments: [String]) throws -> NolonCoreCLICommand {
         guard let action = arguments.first else {
-            throw NolonCoreCLIError.invalidArguments("Missing resources action: discover|install|uninstall")
+            throw NolonCoreCLIError.invalidArguments("Missing workflow action: discover|install|uninstall")
         }
         if action == "discover" {
             let options = Array(arguments.dropFirst())
             let path = try readRequiredOption("--path", in: options)
             let maxDepth = Int(readOption("--max-depth", in: options) ?? "5") ?? 5
-            return .resourcesDiscover(path: path, maxDepth: maxDepth)
+            return .workflowDiscover(path: path, maxDepth: maxDepth)
         }
         if action == "install" {
             let options = Array(arguments.dropFirst())
-            let kind = try parseResourceKind(try readRequiredOption("--kind", in: options))
             let filePath = try readRequiredOption("--file-path", in: options)
             let targetPath = try readRequiredOption("--target-path", in: options)
             let resourceName = readOption("--resource-name", in: options)
             let installMethod = try parseInstallMethod(readOption("--install-method", in: options) ?? "symlink")
-            return .resourcesInstall(
-                kind: kind,
+            return .workflowInstall(
                 filePath: filePath,
                 resourceName: resourceName,
                 targetPath: targetPath,
@@ -360,12 +374,43 @@ public enum NolonCoreCLICommandParser {
         }
         if action == "uninstall" {
             let options = Array(arguments.dropFirst())
-            let kind = try parseResourceKind(try readRequiredOption("--kind", in: options))
             let resourceName = try readRequiredOption("--resource-name", in: options)
             let targetPath = try readRequiredOption("--target-path", in: options)
-            return .resourcesUninstall(kind: kind, resourceName: resourceName, targetPath: targetPath)
+            return .workflowUninstall(resourceName: resourceName, targetPath: targetPath)
         }
-        throw NolonCoreCLIError.invalidArguments("Unsupported resources action: \(action)")
+        throw NolonCoreCLIError.invalidArguments("Unsupported workflow action: \(action)")
+    }
+
+    private static func parseMcp(_ arguments: [String]) throws -> NolonCoreCLICommand {
+        guard let action = arguments.first else {
+            throw NolonCoreCLIError.invalidArguments("Missing mcp action: discover|install|uninstall")
+        }
+        if action == "discover" {
+            let options = Array(arguments.dropFirst())
+            let path = try readRequiredOption("--path", in: options)
+            let maxDepth = Int(readOption("--max-depth", in: options) ?? "5") ?? 5
+            return .mcpDiscover(path: path, maxDepth: maxDepth)
+        }
+        if action == "install" {
+            let options = Array(arguments.dropFirst())
+            let filePath = try readRequiredOption("--file-path", in: options)
+            let targetPath = try readRequiredOption("--target-path", in: options)
+            let resourceName = readOption("--resource-name", in: options)
+            let installMethod = try parseInstallMethod(readOption("--install-method", in: options) ?? "symlink")
+            return .mcpInstall(
+                filePath: filePath,
+                resourceName: resourceName,
+                targetPath: targetPath,
+                installMethod: installMethod
+            )
+        }
+        if action == "uninstall" {
+            let options = Array(arguments.dropFirst())
+            let resourceName = try readRequiredOption("--resource-name", in: options)
+            let targetPath = try readRequiredOption("--target-path", in: options)
+            return .mcpUninstall(resourceName: resourceName, targetPath: targetPath)
+        }
+        throw NolonCoreCLIError.invalidArguments("Unsupported mcp action: \(action)")
     }
 
     private static func parseRemote(_ arguments: [String]) throws -> NolonCoreCLICommand {

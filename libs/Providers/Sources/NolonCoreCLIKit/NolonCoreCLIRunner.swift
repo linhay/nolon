@@ -20,7 +20,7 @@ public struct NolonCoreCLIRunner: Sendable {
 
     public func execute(arguments: [String]) async -> NolonCLIExecutionResult {
         do {
-            let command = try NolonCoreCLICommandParser.parse(arguments)
+            let command = try NolonCoreCLIArgumentParser.parse(arguments)
             let success = try await executeCommand(command)
             return NolonCLIExecutionResult(exitCode: 0, stdout: success, stderr: "")
         } catch let error as NolonCoreCLIError {
@@ -131,19 +131,23 @@ public struct NolonCoreCLIRunner: Sendable {
                 data: ParsePayload(file: file, metadata: metadata)
             )
 
-        case let .resourcesDiscover(path, maxDepth):
+        case let .workflowDiscover(path, maxDepth):
             let resources = service.discoverRepositoryResources(
                 at: STFolder(path),
                 maxDepth: maxDepth
             )
             return try encodeSuccess(
                 command: command.commandID,
-                data: ResourceDiscoverPayload(path: path, maxDepth: maxDepth, resources: resources)
+                data: ResourceDiscoverPayload(
+                    path: path,
+                    maxDepth: maxDepth,
+                    resources: filterResources(resources, kind: .workflow)
+                )
             )
 
-        case let .resourcesInstall(kind, filePath, resourceName, targetPath, installMethod):
+        case let .workflowInstall(filePath, resourceName, targetPath, installMethod):
             let result = try service.installResource(
-                kind: kind,
+                kind: .workflow,
                 filePath: STPath(filePath),
                 resourceName: resourceName,
                 targetPath: STFolder(targetPath),
@@ -151,9 +155,41 @@ public struct NolonCoreCLIRunner: Sendable {
             )
             return try encodeSuccess(command: command.commandID, data: ResourceInstallPayload(result: result))
 
-        case let .resourcesUninstall(kind, resourceName, targetPath):
+        case let .workflowUninstall(resourceName, targetPath):
             let result = try service.uninstallResource(
-                kind: kind,
+                kind: .workflow,
+                resourceName: resourceName,
+                targetPath: STFolder(targetPath)
+            )
+            return try encodeSuccess(command: command.commandID, data: ResourceUninstallPayload(result: result))
+
+        case let .mcpDiscover(path, maxDepth):
+            let resources = service.discoverRepositoryResources(
+                at: STFolder(path),
+                maxDepth: maxDepth
+            )
+            return try encodeSuccess(
+                command: command.commandID,
+                data: ResourceDiscoverPayload(
+                    path: path,
+                    maxDepth: maxDepth,
+                    resources: filterResources(resources, kind: .mcp)
+                )
+            )
+
+        case let .mcpInstall(filePath, resourceName, targetPath, installMethod):
+            let result = try service.installResource(
+                kind: .mcp,
+                filePath: STPath(filePath),
+                resourceName: resourceName,
+                targetPath: STFolder(targetPath),
+                installMethod: installMethod
+            )
+            return try encodeSuccess(command: command.commandID, data: ResourceInstallPayload(result: result))
+
+        case let .mcpUninstall(resourceName, targetPath):
+            let result = try service.uninstallResource(
+                kind: .mcp,
                 resourceName: resourceName,
                 targetPath: STFolder(targetPath)
             )
@@ -600,6 +636,23 @@ private struct SyncPayload: Encodable, Sendable {
 
 private struct PreflightPayload: Encodable, Sendable {
     let result: NolonGitSyncPreflight
+}
+
+private func filterResources(_ resources: NolonRepositoryResources, kind: NolonResourceKind) -> NolonRepositoryResources {
+    switch kind {
+    case .workflow:
+        return NolonRepositoryResources(
+            skillsDirectories: [],
+            workflows: resources.workflows,
+            mcps: []
+        )
+    case .mcp:
+        return NolonRepositoryResources(
+            skillsDirectories: [],
+            workflows: [],
+            mcps: resources.mcps
+        )
+    }
 }
 
 private struct DiscoverPayload: Encodable, Sendable {
