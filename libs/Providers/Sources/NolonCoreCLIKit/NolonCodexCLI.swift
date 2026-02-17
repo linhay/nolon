@@ -16,6 +16,7 @@ public protocol NolonCodexCLIServing: Sendable {
     func authList(providerID: String) async throws -> NolonCodexAuthListPayload
     func authUsage(providerID: String) async throws -> NolonCodexAuthUsagePayload
     func authStatus(providerID: String) async throws -> NolonCodexAuthStatusPayload
+    func authRefresh(providerID: String, accountID: UUID?) async throws -> NolonCodexAuthLoginPayload
     func authActivate(providerID: String, accountID: UUID) async throws -> NolonCodexAuthActivatePayload
     func authLogin(providerID: String, preferredAccountID: UUID?) async throws -> NolonCodexAuthLoginPayload
     func authDelete(providerID: String, accountID: UUID) async throws -> NolonCodexAuthDeletePayload
@@ -33,6 +34,10 @@ public protocol NolonCodexCLIServing: Sendable {
 }
 
 public extension NolonCodexCLIServing {
+    func authRefresh(providerID: String, accountID: UUID?) async throws -> NolonCodexAuthLoginPayload {
+        try await authLogin(providerID: providerID, preferredAccountID: accountID)
+    }
+
     func authUsage(providerID: String) async throws -> NolonCodexAuthUsagePayload {
         let list = try await authList(providerID: providerID)
         return NolonCodexAuthUsagePayload(
@@ -506,6 +511,72 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
             accountID: accountID,
             runtimeSwitched: result.runtimeSwitched,
             runtimeErrorDescription: result.runtimeErrorDescription
+        )
+    }
+
+    public func authRefresh(providerID: String, accountID: UUID?) async throws -> NolonCodexAuthLoginPayload {
+        let canonicalProviderID = try Self.canonicalProviderID(providerID)
+        let provider = try Self.provider(for: canonicalProviderID)
+        let accounts = try await authManager.loadAccounts()
+        guard !accounts.isEmpty else {
+            throw NolonCoreCLIError.domainFailed(
+                code: "codex_auth_account_not_found",
+                message: "No Codex accounts available for refresh."
+            )
+        }
+
+        let targetAccountID: UUID
+        if let accountID {
+            targetAccountID = accountID
+        } else if let activeID = await authManager.activeAccountId(for: provider) {
+            targetAccountID = activeID
+        } else {
+            throw NolonCoreCLIError.domainFailed(
+                code: "codex_auth_account_not_found",
+                message: "No active Codex account. Use --account-id or --email."
+            )
+        }
+
+        guard let target = accounts.first(where: { $0.id == targetAccountID }) else {
+            throw NolonCoreCLIError.domainFailed(
+                code: "codex_auth_account_not_found",
+                message: "Codex account not found: \(targetAccountID.uuidString)"
+            )
+        }
+
+        let tokenInfo = Self.resolveAuthTokenInfo(for: target, authManager: authManager)
+        guard tokenInfo.hasRefreshToken == true else {
+            throw NolonCoreCLIError.domainFailed(
+                code: "codex_auth_refresh_token_missing",
+                message: "Account does not contain refresh_token: \(target.id.uuidString)"
+            )
+        }
+
+        let codexHome = authManager.cliLoginCodexHomeFolder(providerID: canonicalProviderID)
+        _ = codexHome.createIfNotExists()
+        let isolatedAuthFile = codexHome.file("auth.json")
+        if isolatedAuthFile.isExists {
+            try isolatedAuthFile.delete()
+        }
+
+        let loginResult = try await loginRunner.loginAndAwaitAuthResult(
+            binary: "codex",
+            environment: environment,
+            codexHome: codexHome
+        )
+
+        let account = try await authManager.recordCLILoginSnapshot(
+            authJSONString: loginResult.authJSONString,
+            preferredAccountID: target.id
+        )
+        let activation = try await CodexAuthActivationCoordinator.shared.activate(account: account, provider: provider)
+        return NolonCodexAuthLoginPayload(
+            providerID: canonicalProviderID,
+            accountID: account.id,
+            accountName: account.name,
+            runtimeSwitched: activation.runtimeSwitched,
+            runtimeErrorDescription: activation.runtimeErrorDescription,
+            loginURL: loginResult.loginURL
         )
     }
 
@@ -1205,8 +1276,12 @@ public enum NolonCLIEntrypoint {
         switch action.lowercased() {
         case "list":
             return NolonCodexAuthListCommand.self
+        case "usage":
+            return NolonCodexAuthUsageCommand.self
         case "status":
             return NolonCodexAuthStatusCommand.self
+        case "refresh":
+            return NolonCodexAuthRefreshCommand.self
         case "activate":
             return NolonCodexAuthActivateCommand.self
         case "login":

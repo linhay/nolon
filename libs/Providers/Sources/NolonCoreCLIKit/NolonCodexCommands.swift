@@ -34,6 +34,7 @@ struct NolonCodexAuthGroupCommand: ParsableCommand {
             NolonCodexAuthListCommand.self,
             NolonCodexAuthUsageCommand.self,
             NolonCodexAuthStatusCommand.self,
+            NolonCodexAuthRefreshCommand.self,
             NolonCodexAuthActivateCommand.self,
             NolonCodexAuthLoginCommand.self,
             NolonCodexAuthDeleteCommand.self,
@@ -102,6 +103,19 @@ struct NolonCodexAuthStatusCommand: ParsableCommand {
 
     @Option(name: .long, help: "Provider id, default is codex.")
     var provider: String = "codex"
+}
+
+struct NolonCodexAuthRefreshCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(commandName: "refresh")
+
+    @Option(name: .long, help: "Provider id, default is codex.")
+    var provider: String = "codex"
+
+    @Option(name: .long, help: "Account id UUID. Defaults to currently active account.")
+    var accountID: String?
+
+    @Option(name: .long, help: "Account email for selecting refresh target.")
+    var email: String?
 }
 
 struct NolonCodexAuthActivateCommand: ParsableCommand {

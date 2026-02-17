@@ -938,3 +938,31 @@
 - 验证：
   - `swift test --package-path libs/Providers --filter NolonCodexCLIEntrypointTests` 通过（93 tests）。
   - `swift test --package-path libs/Providers --filter NolonCodexCLIServiceTests` 通过（11 tests）。
+
+## Phase 2.49（新增 auth refresh 命令）
+- 背景：
+  - 需求：对“可刷新”账号提供显式刷新入口，避免只能通过 `auth login` 间接覆盖。
+- 变更：
+  1. 新增命令：`nolon codex auth refresh`
+     - 选项：`--provider`
+     - 目标账号选择：`--account-id` 或 `--email`（二选一）
+     - 未指定账号时默认尝试当前激活账号
+  2. CLI 协议新增：
+     - `NolonCodexCLIServing.authRefresh(providerID:accountID:)`
+     - 默认实现回落到 `authLogin(preferredAccountID:)`，保障兼容
+  3. 运行时逻辑（live service）：
+     - 先校验目标账号存在且含 `refresh_token`（否则返回 `codex_auth_refresh_token_missing`）
+     - 复用隔离 `CODEX_HOME` 的登录链路刷新 token
+     - 用 `preferredAccountID` 覆盖写回原账号快照并重新激活
+  4. 命令面与帮助更新：
+     - `NolonCodexCommands` 增加 `NolonCodexAuthRefreshCommand`
+     - `NolonCodexCLIExecutor` 增加 refresh 路由与 JSON command：`codex.auth.refresh`
+     - `NolonCodexCLIHelp` 增加 `refresh` 帮助文本
+- 测试：
+  - `NolonCodexCLIEntrypointTests`
+    - `codex auth refresh --help prints action help`
+    - `routes auth refresh via account id`
+    - `json contract snapshot for codex auth refresh success`
+- 验证：
+  - `swift test --package-path libs/Providers --filter NolonCodexCLIEntrypointTests` 通过（96 tests）。
+  - `swift test --package-path libs/Providers --filter NolonCodexCLIServiceTests` 通过（11 tests）。

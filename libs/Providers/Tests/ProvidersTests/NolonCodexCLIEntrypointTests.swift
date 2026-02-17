@@ -388,6 +388,20 @@ struct NolonCodexCLIEntrypointTests {
         #expect(result.stdout.contains("--provider"))
     }
 
+    @Test("codex auth refresh --help prints action help")
+    func codexAuthRefreshHelpPrintsHelp() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["codex", "auth", "refresh", "--help"],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("USAGE: nolon codex auth refresh"))
+        #expect(result.stdout.contains("--account-id"))
+    }
+
     @Test("codex auth activate --help prints action help")
     func codexAuthActivateHelpPrintsHelp() async {
         let mock = MockCodexCLIService()
@@ -742,6 +756,23 @@ struct NolonCodexCLIEntrypointTests {
         #expect(result.stdout.contains("runtime_switched: true"))
         #expect(result.stderr.isEmpty)
         #expect(await mock.lastCall() == "authActivate")
+    }
+
+    @Test("routes auth refresh via account id")
+    func routesAuthRefresh() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: [
+                "codex", "auth", "refresh",
+                "--provider", "codex",
+                "--account-id", "11111111-1111-1111-1111-111111111111",
+            ],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stdout.contains("account_id: 11111111-1111-1111-1111-111111111111"))
+        #expect(await mock.lastCall() == "authRefresh")
     }
 
     @Test("auth activate supports tui selection by index")
@@ -1483,6 +1514,26 @@ struct NolonCodexCLIEntrypointTests {
         #expect(try canonicalJSON(result.stdout) == expected)
     }
 
+    @Test("json contract snapshot for codex auth refresh success")
+    func jsonContractSnapshotAuthRefreshSuccess() async throws {
+        let service = JSONContractCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: [
+                "codex", "auth", "refresh",
+                "--provider", "codex",
+                "--account-id", "44444444-4444-4444-4444-444444444444",
+                "--json",
+            ],
+            codexService: service
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+
+        let expected = #"{"command":"codex.auth.refresh","data":{"accountID":"44444444-4444-4444-4444-444444444444","accountName":"json-login","loginURL":"https:\/\/auth.example.com\/device","providerID":"codex","runtimeSwitched":true},"ok":true}"#
+        #expect(try canonicalJSON(result.stdout) == expected)
+    }
+
     @Test("json contract snapshot for codex auth delete success")
     func jsonContractSnapshotAuthDeleteSuccess() async throws {
         let service = JSONContractCodexCLIService()
@@ -1613,6 +1664,18 @@ private actor MockCodexCLIService: NolonCodexCLIServing {
             providerID: providerID,
             accountID: UUID(uuidString: "11111111-1111-1111-1111-111111111111")!,
             accountName: "mock",
+            runtimeSwitched: true,
+            runtimeErrorDescription: nil,
+            loginURL: "https://auth.example.com/device"
+        )
+    }
+
+    func authRefresh(providerID: String, accountID: UUID?) async throws -> NolonCodexAuthLoginPayload {
+        call = "authRefresh"
+        return NolonCodexAuthLoginPayload(
+            providerID: providerID,
+            accountID: accountID ?? UUID(uuidString: "11111111-1111-1111-1111-111111111111")!,
+            accountName: "mock-refresh",
             runtimeSwitched: true,
             runtimeErrorDescription: nil,
             loginURL: "https://auth.example.com/device"

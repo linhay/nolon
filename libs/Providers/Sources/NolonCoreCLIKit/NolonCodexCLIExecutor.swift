@@ -55,6 +55,8 @@ enum NolonCodexCLIExecutor {
             return try await executeAuthUsage(command: command, context: context, outputMode: outputMode)
         case let command as NolonCodexAuthStatusCommand:
             return try await executeAuthStatus(command: command, context: context, outputMode: outputMode)
+        case let command as NolonCodexAuthRefreshCommand:
+            return try await executeAuthRefresh(command: command, context: context, outputMode: outputMode)
         case let command as NolonCodexAuthActivateCommand:
             return try await executeAuthActivate(command: command, context: context, outputMode: outputMode)
         case let command as NolonCodexAuthLoginCommand:
@@ -120,6 +122,40 @@ enum NolonCodexCLIExecutor {
         }
         let payload = try await context.codexService().authStatus(providerID: providerID)
         return try renderOutput(command: .authStatus, payload: payload, outputMode: outputMode, textFormatter: formatAuthStatus)
+    }
+
+    private static func executeAuthRefresh(command: NolonCodexAuthRefreshCommand, context: NolonCLIExecutionContext, outputMode: OutputMode) async throws -> String {
+        let providerID = try parseCodexProviderID(command.provider)
+        if command.accountID != nil, command.email != nil {
+            throw NolonCoreCLIError.invalidArguments("Use either --account-id or --email, not both.")
+        }
+
+        let targetAccountID: UUID?
+        if let rawAccountID = command.accountID {
+            guard let parsed = UUID(uuidString: rawAccountID) else {
+                throw NolonCoreCLIError.invalidArguments("Invalid --account-id: \(rawAccountID)")
+            }
+            targetAccountID = parsed
+        } else if let rawEmail = command.email?.trimmingCharacters(in: .whitespacesAndNewlines), !rawEmail.isEmpty {
+            let list = try await context.codexService().authList(providerID: providerID)
+            guard let matched = list.accounts.first(where: { account in
+                guard let email = account.email?.trimmingCharacters(in: .whitespacesAndNewlines), !email.isEmpty else {
+                    return false
+                }
+                return email.caseInsensitiveCompare(rawEmail) == .orderedSame
+            }) else {
+                throw NolonCoreCLIError.domainFailed(
+                    code: "codex_auth_account_not_found",
+                    message: "Codex account not found for email: \(rawEmail)"
+                )
+            }
+            targetAccountID = matched.id
+        } else {
+            targetAccountID = nil
+        }
+
+        let payload = try await context.codexService().authRefresh(providerID: providerID, accountID: targetAccountID)
+        return try renderOutput(command: .authRefresh, payload: payload, outputMode: outputMode, textFormatter: formatAuthLogin)
     }
 
     private static func renderAuthOverview(providerID: String, context: NolonCLIExecutionContext) async throws -> String {
@@ -432,7 +468,7 @@ enum NolonCodexCLIExecutor {
         guard root == "codex" else { return }
         let group = arguments[1].trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         let supportedByGroup: [String: Set<String>] = [
-            "auth": ["list", "usage", "status", "activate", "login", "delete"],
+            "auth": ["list", "usage", "status", "refresh", "activate", "login", "delete"],
             "binary": ["list", "current", "install", "use", "available", "switch", "doctor"],
             "status": ["probe", "doctor"],
             "runtime": ["list", "stop"],
@@ -1012,6 +1048,7 @@ private struct NolonCodexCommandPath: RawRepresentable, ExpressibleByStringLiter
     static let authList: Self = "codex.auth.list"
     static let authUsage: Self = "codex.auth.usage"
     static let authStatus: Self = "codex.auth.status"
+    static let authRefresh: Self = "codex.auth.refresh"
     static let authActivate: Self = "codex.auth.activate"
     static let authLogin: Self = "codex.auth.login"
     static let authDelete: Self = "codex.auth.delete"

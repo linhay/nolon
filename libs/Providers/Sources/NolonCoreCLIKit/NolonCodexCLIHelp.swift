@@ -30,6 +30,8 @@ enum NolonCodexCLIHelpResolver {
             return codexAuthUsageHelpText()
         case .codexAuthStatus:
             return codexAuthStatusHelpText()
+        case .codexAuthRefresh:
+            return codexAuthRefreshHelpText()
         case .codexAuthActivate:
             return codexAuthActivateHelpText()
         case .codexAuthLogin:
@@ -94,7 +96,7 @@ enum NolonCodexCLIHelpResolver {
           codex
 
         Groups:
-          auth      list | usage | status | activate | login | delete
+          auth      list | usage | status | refresh | activate | login | delete
           binary    list | current | install | use | available | switch | doctor
           status    probe | doctor
           runtime   list | stop
@@ -127,6 +129,7 @@ enum NolonCodexCLIHelpResolver {
           list      [--provider codex|codex-xcode]                    # 输出账号/用量/状态总览
           usage     [--provider codex|codex-xcode] [--summary]        # 默认输出总览，--summary 仅汇总
           status    [--provider codex|codex-xcode]                    # 输出账号/用量/状态总览
+          refresh   [--account-id <uuid>|--email <email>] [--provider ...]
           activate  [--account-id <uuid>|--email <email>] [--provider ...]
           login     [--preferred-account-id <uuid>] [--provider ...]
           delete    --account-id <uuid> [--provider ...]
@@ -202,6 +205,17 @@ enum NolonCodexCLIHelpResolver {
 
         Options:
           --provider <id>   Provider id, default is codex.
+        """
+    }
+
+    private static func codexAuthRefreshHelpText() -> String {
+        """
+        Usage: nolon codex auth refresh [--provider <id>] [--account-id <uuid>|--email <email>]
+
+        Options:
+          --provider <id>     Provider id, default is codex.
+          --account-id <id>   Refresh target account id UUID. Defaults to active account.
+          --email <value>     Refresh target account email (case-insensitive).
         """
     }
 
@@ -342,6 +356,7 @@ private struct NolonCLIHelpPath: RawRepresentable, ExpressibleByStringLiteral, E
     static let codexAuthList: Self = "help.codex.auth.list"
     static let codexAuthUsage: Self = "help.codex.auth.usage"
     static let codexAuthStatus: Self = "help.codex.auth.status"
+    static let codexAuthRefresh: Self = "help.codex.auth.refresh"
     static let codexAuthActivate: Self = "help.codex.auth.activate"
     static let codexAuthLogin: Self = "help.codex.auth.login"
     static let codexAuthDelete: Self = "help.codex.auth.delete"
@@ -430,6 +445,8 @@ private struct NolonCLIHelpPath: RawRepresentable, ExpressibleByStringLiteral, E
             self = .codexAuthUsage
         case ["codex", "auth", "status", "help"], ["codex", "auth", "status", "-h"], ["codex", "auth", "status", "--help"]:
             self = .codexAuthStatus
+        case ["codex", "auth", "refresh", "help"], ["codex", "auth", "refresh", "-h"], ["codex", "auth", "refresh", "--help"]:
+            self = .codexAuthRefresh
         case ["codex", "auth", "activate", "help"], ["codex", "auth", "activate", "-h"], ["codex", "auth", "activate", "--help"]:
             self = .codexAuthActivate
         case ["codex", "auth", "login", "help"], ["codex", "auth", "login", "-h"], ["codex", "auth", "login", "--help"]:
