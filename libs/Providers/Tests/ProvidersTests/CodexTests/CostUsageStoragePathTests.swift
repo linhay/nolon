@@ -14,8 +14,8 @@ struct CostUsageStoragePathTests {
 
     @Test("CostUsageCacheIO supports STFolder cache root")
     func costUsageCacheIOSupportsSTFolder() throws {
-        let root = STFolder(FileManager.default.temporaryDirectory
-            .appendingPathComponent("cost-usage-cache-\(UUID().uuidString)", isDirectory: true))
+        let root = STFolder("/tmp")
+            .folder("cost-usage-cache-\(UUID().uuidString)")
         _ = root.createIfNotExists()
         defer { try? root.delete() }
 
@@ -35,8 +35,8 @@ struct CostUsageStoragePathTests {
 
     @Test("CostUsageScanner supports STFolder options and STFile parsing")
     func costUsageScannerSupportsSTFilePathTypes() throws {
-        let root = STFolder(FileManager.default.temporaryDirectory
-            .appendingPathComponent("cost-usage-scanner-\(UUID().uuidString)", isDirectory: true))
+        let root = STFolder("/tmp")
+            .folder("cost-usage-scanner-\(UUID().uuidString)")
         _ = root.createIfNotExists()
         defer { try? root.delete() }
 
@@ -70,8 +70,8 @@ struct CostUsageStoragePathTests {
 
     @Test("CostUsageScanner aggregates token deltas from parser reduction")
     func costUsageScannerAggregatesReducedUsageDeltas() throws {
-        let root = STFolder(FileManager.default.temporaryDirectory
-            .appendingPathComponent("cost-usage-delta-\(UUID().uuidString)", isDirectory: true))
+        let root = STFolder("/tmp")
+            .folder("cost-usage-delta-\(UUID().uuidString)")
         _ = root.createIfNotExists()
         defer { try? root.delete() }
 
@@ -102,8 +102,8 @@ struct CostUsageStoragePathTests {
 
     @Test("CostUsageScanner parses last JSONL line without trailing newline")
     func costUsageScannerParsesLastLineWithoutTrailingNewline() throws {
-        let root = STFolder(FileManager.default.temporaryDirectory
-            .appendingPathComponent("cost-usage-no-newline-\(UUID().uuidString)", isDirectory: true))
+        let root = STFolder("/tmp")
+            .folder("cost-usage-no-newline-\(UUID().uuidString)")
         _ = root.createIfNotExists()
         defer { try? root.delete() }
 

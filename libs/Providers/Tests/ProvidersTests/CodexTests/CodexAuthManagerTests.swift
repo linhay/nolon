@@ -6,10 +6,17 @@ import STFilePath
 
 @Suite("CodexAuthManager")
 struct CodexAuthManagerTests {
+    private func makeTempRoot(_ prefix: String) throws -> STFolder {
+        let root = STFolder("/tmp").folder("\(prefix)-\(UUID().uuidString)")
+        _ = root.createIfNotExists()
+        return root
+    }
+
     @Test("Given NOLON_HOME env, when manager uses default root, then snapshots root is isolated to env path")
     func defaultRootRespectsNolonHomeEnv() async throws {
-        let isolatedRoot = FileManager.default.temporaryDirectory
-            .appendingPathComponent("nolon-home-auth-\(UUID().uuidString)", isDirectory: true)
+        let isolatedRoot = STFolder("/tmp")
+            .folder("nolon-home-auth-\(UUID().uuidString)")
+            .url
             .standardizedFileURL
 
         let manager = CodexAuthManager(
@@ -23,8 +30,9 @@ struct CodexAuthManagerTests {
 
     @Test("Given provider id, when resolving isolated CLI login home, then path stays in NOLON_HOME codex sandbox")
     func cliLoginCodexHomeFolderUsesNolonSandbox() async throws {
-        let isolatedRoot = FileManager.default.temporaryDirectory
-            .appendingPathComponent("nolon-home-login-\(UUID().uuidString)", isDirectory: true)
+        let isolatedRoot = STFolder("/tmp")
+            .folder("nolon-home-login-\(UUID().uuidString)")
+            .url
             .standardizedFileURL
 
         let manager = CodexAuthManager(
@@ -38,12 +46,10 @@ struct CodexAuthManagerTests {
 
     @Test("Given account snapshot, when reading token pair, then returns id/access token")
     func readTokenPairFromSnapshot() async throws {
-        let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("codex-auth-manager-\(UUID().uuidString)", isDirectory: true)
-        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: root) }
+        let root = try makeTempRoot("codex-auth-manager")
+        defer { try? root.delete() }
 
-        let manager = CodexAuthManager(rootURL: root)
+        let manager = CodexAuthManager(rootURL: root.url)
         let account = try await manager.addAccount(
             name: "test",
             authJSONString: #"{"tokens":{"id_token":"id-token-value","access_token":"access-token-value"}}"#
@@ -56,20 +62,18 @@ struct CodexAuthManagerTests {
 
     @Test("Given selected snapshot, when activating account, then provider auth is symlinked to snapshot")
     func activateAccountCreatesProviderAuthSymlink() async throws {
-        let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("codex-auth-clean-\(UUID().uuidString)", isDirectory: true)
-        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: root) }
+        let root = try makeTempRoot("codex-auth-clean")
+        defer { try? root.delete() }
 
-        let manager = CodexAuthManager(rootURL: root)
+        let manager = CodexAuthManager(rootURL: root.url)
         let account = try await manager.addAccount(
             name: "work",
             authJSONString: #"{"tokens":{"id_token":"id-1","access_token":"access-1"},"nolon":{"usage_cache":{"fetch_kind":"api"}}}"#
         )
         let provider = Provider(
             name: "Codex",
-            defaultSkillsPath: root.appendingPathComponent("provider/skills").path,
-            workflowPath: root.appendingPathComponent("provider/prompts").path,
+            defaultSkillsPath: root.folder("provider").folder("skills").url.path,
+            workflowPath: root.folder("provider").folder("prompts").url.path,
             installMethod: .symlink,
             templateId: "codex"
         )
@@ -84,28 +88,26 @@ struct CodexAuthManagerTests {
 
     @Test("Given activated snapshot via unified activation, when provider auth is deleted, then active account still resolves from registry")
     func activateAccountAndMarkActivePersistsRegistry() async throws {
-        let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("codex-auth-activate-mark-\(UUID().uuidString)", isDirectory: true)
-        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: root) }
+        let root = try makeTempRoot("codex-auth-activate-mark")
+        defer { try? root.delete() }
 
-        let manager = CodexAuthManager(rootURL: root)
+        let manager = CodexAuthManager(rootURL: root.url)
         let account = try await manager.addAccount(
             name: "work",
             authJSONString: #"{"tokens":{"id_token":"id-1","access_token":"access-1"}}"#
         )
-        let providerRoot = root.appendingPathComponent("provider", isDirectory: true)
-        try FileManager.default.createDirectory(at: providerRoot, withIntermediateDirectories: true)
+        let providerRoot = root.folder("provider")
+        _ = providerRoot.createIfNotExists()
         let provider = Provider(
             name: "Codex",
-            defaultSkillsPath: providerRoot.appendingPathComponent("skills").path,
-            workflowPath: providerRoot.appendingPathComponent("prompts").path,
+            defaultSkillsPath: providerRoot.folder("skills").url.path,
+            workflowPath: providerRoot.folder("prompts").url.path,
             installMethod: .symlink,
             templateId: "codex"
         )
 
         try await manager.activateAccountAndMarkActive(account, for: provider)
-        try FileManager.default.removeItem(at: providerRoot.appendingPathComponent("auth.json"))
+        try providerRoot.file("auth.json").delete()
 
         let activeId = await manager.activeAccountId(for: provider)
         #expect(activeId == account.id)
@@ -113,24 +115,22 @@ struct CodexAuthManagerTests {
 
     @Test("Given fresh CLI login, when finalizing, then account is active and provider auth contains new token")
     func finalizeCLILoginSyncsAndMarksActive() async throws {
-        let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("codex-auth-finalize-\(UUID().uuidString)", isDirectory: true)
-        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: root) }
+        let root = try makeTempRoot("codex-auth-finalize")
+        defer { try? root.delete() }
 
-        let manager = CodexAuthManager(rootURL: root)
-        let providerRoot = root.appendingPathComponent("provider", isDirectory: true)
-        try FileManager.default.createDirectory(at: providerRoot, withIntermediateDirectories: true)
+        let manager = CodexAuthManager(rootURL: root.url)
+        let providerRoot = root.folder("provider")
+        _ = providerRoot.createIfNotExists()
 
         let provider = Provider(
             name: "Codex",
-            defaultSkillsPath: providerRoot.appendingPathComponent("skills").path,
-            workflowPath: providerRoot.appendingPathComponent("prompts").path,
+            defaultSkillsPath: providerRoot.folder("skills").url.path,
+            workflowPath: providerRoot.folder("prompts").url.path,
             installMethod: .symlink,
             templateId: "codex"
         )
 
-        let authURL = providerRoot.appendingPathComponent("auth.json")
+        let authURL = providerRoot.file("auth.json").url
         let raw = #"{"tokens":{"id_token":"id-2","access_token":"access-2"},"user":{"email":"cli@example.com"}}"#
         try raw.write(to: authURL, atomically: true, encoding: .utf8)
 
@@ -145,12 +145,10 @@ struct CodexAuthManagerTests {
 
     @Test("Given preferred snapshot and CLI login payload, when recording login snapshot, then preferred snapshot is updated and sync metadata is refreshed")
     func recordCLILoginSnapshotUpdatesPreferredAndMetadata() async throws {
-        let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("codex-auth-record-cli-\(UUID().uuidString)", isDirectory: true)
-        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: root) }
+        let root = try makeTempRoot("codex-auth-record-cli")
+        defer { try? root.delete() }
 
-        let manager = CodexAuthManager(rootURL: root)
+        let manager = CodexAuthManager(rootURL: root.url)
         let preferred = try await manager.addAccount(
             name: "preferred",
             authJSONString: #"{"tokens":{"id_token":"old-id","access_token":"old-access"},"user":{"email":"preferred@example.com"}}"#
@@ -187,12 +185,10 @@ struct CodexAuthManagerTests {
 
     @Test("Given existing snapshot with same email, when recording CLI login snapshot, then account is overwritten in-place")
     func recordCLILoginSnapshotOverwritesByEmail() async throws {
-        let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("codex-auth-record-email-\(UUID().uuidString)", isDirectory: true)
-        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: root) }
+        let root = try makeTempRoot("codex-auth-record-email")
+        defer { try? root.delete() }
 
-        let manager = CodexAuthManager(rootURL: root)
+        let manager = CodexAuthManager(rootURL: root.url)
         let existing = try await manager.addAccount(
             name: "existing",
             authJSONString: #"{"tokens":{"id_token":"old-id","access_token":"old-access"},"user":{"email":"same@example.com"}}"#
@@ -211,27 +207,25 @@ struct CodexAuthManagerTests {
 
     @Test("Given detached provider auth file with same email, when reconciling detached auth, then matching snapshot is overwritten and marked active")
     func reconcileDetachedProviderAuthOverwritesByEmail() async throws {
-        let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("codex-auth-reconcile-detached-\(UUID().uuidString)", isDirectory: true)
-        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: root) }
+        let root = try makeTempRoot("codex-auth-reconcile-detached")
+        defer { try? root.delete() }
 
-        let manager = CodexAuthManager(rootURL: root)
+        let manager = CodexAuthManager(rootURL: root.url)
         let existing = try await manager.addAccount(
             name: "existing",
             authJSONString: #"{"tokens":{"id_token":"old-id","access_token":"old-access"},"user":{"email":"same@example.com"}}"#
         )
-        let providerRoot = root.appendingPathComponent("provider", isDirectory: true)
-        try FileManager.default.createDirectory(at: providerRoot, withIntermediateDirectories: true)
+        let providerRoot = root.folder("provider")
+        _ = providerRoot.createIfNotExists()
         let provider = Provider(
             name: "Codex",
-            defaultSkillsPath: providerRoot.appendingPathComponent("skills").path,
-            workflowPath: providerRoot.appendingPathComponent("prompts").path,
+            defaultSkillsPath: providerRoot.folder("skills").url.path,
+            workflowPath: providerRoot.folder("prompts").url.path,
             installMethod: .symlink,
             templateId: "codex"
         )
 
-        let detachedAuthURL = providerRoot.appendingPathComponent("auth.json")
+        let detachedAuthURL = providerRoot.file("auth.json").url
         let detachedRaw = #"{"tokens":{"id_token":"new-id","access_token":"new-access"},"user":{"email":"same@example.com"}}"#
         try detachedRaw.write(to: detachedAuthURL, atomically: true, encoding: .utf8)
 

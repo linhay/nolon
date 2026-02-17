@@ -20,11 +20,9 @@ public enum NolonHomeEnvironment {
     private static func normalizeDirectoryPath(_ rawPath: String) -> URL {
         let expanded = (rawPath as NSString).expandingTildeInPath
         if expanded.hasPrefix("/") {
-            return URL(fileURLWithPath: expanded, isDirectory: true).standardizedFileURL
+            return STFolder(expanded).url.standardizedFileURL
         }
-        let currentDirectory = FileManager.default.currentDirectoryPath
-        return URL(fileURLWithPath: expanded, relativeTo: URL(fileURLWithPath: currentDirectory, isDirectory: true))
-            .standardizedFileURL
+        let currentDirectory = STFolder(FileManager.default.currentDirectoryPath)
+        return currentDirectory.folder(expanded).url.standardizedFileURL
     }
 }
-

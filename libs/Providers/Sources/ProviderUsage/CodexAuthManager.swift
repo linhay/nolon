@@ -104,7 +104,7 @@ public actor CodexAuthManager {
 
     public func codexHomeFolder(for provider: Provider) -> STFolder? {
         guard provider.templateId == ProviderTemplate.codex.rawValue else { return nil }
-        let skillsPath = STPath(URL(fileURLWithPath: provider.defaultSkillsPath))
+        let skillsPath = STPath(provider.defaultSkillsPath)
         return skillsPath.parentFolder()
     }
 

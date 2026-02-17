@@ -1,34 +1,33 @@
 import Foundation
 import Testing
+import STFilePath
 @testable import ProvidersShared
 
 @Suite("TTYCommandRunner")
 struct TTYCommandRunnerTests {
     @Test("which accepts absolute executable path")
     func whichAbsoluteExecutable() throws {
-        let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("tty-runner-\(UUID().uuidString)", isDirectory: true)
-        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: root) }
+        let root = STFolder("/tmp").folder("tty-runner-\(UUID().uuidString)")
+        _ = root.createIfNotExists()
+        defer { try? root.delete() }
 
-        let script = root.appendingPathComponent("tool", isDirectory: false)
-        FileManager.default.createFile(atPath: script.path, contents: Data("#!/bin/sh\nexit 0\n".utf8))
-        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: script.path)
+        let script = root.file("tool")
+        try script.overlay(with: "#!/bin/sh\nexit 0\n")
+        try script.set(permissions: .default)
 
-        #expect(TTYCommandRunner.which(script.path) == script.path)
+        #expect(TTYCommandRunner.which(script.url.path) == script.url.path)
     }
 
     @Test("which rejects non executable absolute path")
     func whichRejectsNonExecutableAbsolutePath() throws {
-        let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("tty-runner-\(UUID().uuidString)", isDirectory: true)
-        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: root) }
+        let root = STFolder("/tmp").folder("tty-runner-\(UUID().uuidString)")
+        _ = root.createIfNotExists()
+        defer { try? root.delete() }
 
-        let file = root.appendingPathComponent("tool", isDirectory: false)
-        FileManager.default.createFile(atPath: file.path, contents: Data("plain".utf8))
-        try FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: file.path)
+        let file = root.file("tool")
+        try file.overlay(with: "plain")
+        try file.set(permissions: [.ownerRead, .ownerWrite, .groupRead, .othersRead])
 
-        #expect(TTYCommandRunner.which(file.path) == nil)
+        #expect(TTYCommandRunner.which(file.url.path) == nil)
     }
 }

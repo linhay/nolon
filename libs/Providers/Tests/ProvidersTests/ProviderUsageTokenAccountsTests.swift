@@ -7,15 +7,15 @@ import STFilePath
 struct ProviderUsageTokenAccountsTests {
     @Test("ProviderUsage default token accounts file path uses Nolon layout")
     func defaultTokenAccountsFilePathLayout() {
-        let base = URL(fileURLWithPath: "/tmp/provider-usage-base", isDirectory: true)
-        let fileURL = ProviderUsagePaths.defaultTokenAccountsFileURL(baseDirectory: base)
+        let base = STFolder("/tmp").folder("provider-usage-base")
+        let fileURL = ProviderUsagePaths.defaultTokenAccountsFileURL(baseDirectory: base.url)
         #expect(fileURL.path == "/tmp/provider-usage-base/Nolon/token-accounts.json")
     }
 
     @Test("FileTokenAccountStore supports STFile")
     func fileTokenAccountStoreSupportsSTFile() throws {
-        let root = STFolder(FileManager.default.temporaryDirectory
-            .appendingPathComponent("provider-token-accounts-\(UUID().uuidString)", isDirectory: true))
+        let root = STFolder("/tmp")
+            .folder("provider-token-accounts-\(UUID().uuidString)")
         _ = root.createIfNotExists()
         defer { try? root.delete() }
 

@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import STFilePath
 @testable import CodexCLIKit
 @testable import CodexAppServerKit
 @testable import CodexProvider
@@ -40,18 +41,17 @@ struct CodexRuntimeAccountSwitcherTests {
         let fake = FakeRuntimeAccountService()
         let switcher = CodexRuntimeAccountSwitcher(serviceFactory: { _, _ in fake })
 
-        let tempRoot = FileManager.default.temporaryDirectory
-            .appendingPathComponent("codex-switcher-\(UUID().uuidString)", isDirectory: true)
-        try FileManager.default.createDirectory(at: tempRoot, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: tempRoot) }
+        let tempRoot = STFolder("/tmp").folder("codex-switcher-\(UUID().uuidString)")
+        _ = tempRoot.createIfNotExists()
+        defer { try? tempRoot.delete() }
 
-        let fakeBinary = tempRoot.appendingPathComponent("codex", isDirectory: false)
-        FileManager.default.createFile(atPath: fakeBinary.path, contents: Data("#!/bin/sh\nexit 0\n".utf8))
-        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fakeBinary.path)
+        let fakeBinary = tempRoot.file("codex")
+        try fakeBinary.overlay(with: "#!/bin/sh\nexit 0\n")
+        try fakeBinary.set(permissions: .default)
 
-        let env = ["CODEX_CLI_PATH": fakeBinary.path]
+        let env = ["CODEX_CLI_PATH": fakeBinary.url.path]
         try await switcher.logout(executable: "codex", environment: env)
-        try await switcher.logout(executable: fakeBinary.path, environment: env)
+        try await switcher.logout(executable: fakeBinary.url.path, environment: env)
 
         let counts = await fake.counts()
         #expect(counts.initialize == 1)

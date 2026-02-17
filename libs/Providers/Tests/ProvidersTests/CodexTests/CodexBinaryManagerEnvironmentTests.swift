@@ -7,8 +7,9 @@ import STFilePath
 struct CodexBinaryManagerEnvironmentTests {
     @Test("Given NOLON_HOME env, when manager is initialized, then codex root uses isolated folder")
     func usesNolonHomeEnvironment() async {
-        let isolatedRoot = FileManager.default.temporaryDirectory
-            .appendingPathComponent("nolon-home-binary-\(UUID().uuidString)", isDirectory: true)
+        let isolatedRoot = STFolder("/tmp")
+            .folder("nolon-home-binary-\(UUID().uuidString)")
+            .url
             .standardizedFileURL
         let manager = CodexBinaryManager(
             environment: ["NOLON_HOME": isolatedRoot.path]
@@ -21,11 +22,13 @@ struct CodexBinaryManagerEnvironmentTests {
 
     @Test("Given explicit nolon home, when env also exists, then explicit path wins")
     func explicitNolonHomeWinsOverEnvironment() async {
-        let explicitRoot = FileManager.default.temporaryDirectory
-            .appendingPathComponent("nolon-home-explicit-\(UUID().uuidString)", isDirectory: true)
+        let explicitRoot = STFolder("/tmp")
+            .folder("nolon-home-explicit-\(UUID().uuidString)")
+            .url
             .standardizedFileURL
-        let envRoot = FileManager.default.temporaryDirectory
-            .appendingPathComponent("nolon-home-env-\(UUID().uuidString)", isDirectory: true)
+        let envRoot = STFolder("/tmp")
+            .folder("nolon-home-env-\(UUID().uuidString)")
+            .url
             .standardizedFileURL
 
         let manager = CodexBinaryManager(

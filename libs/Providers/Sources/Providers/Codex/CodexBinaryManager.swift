@@ -118,7 +118,7 @@ public actor CodexBinaryManager {
 
     public func codexPathStatus() -> CodexPathStatus {
         let shellPath = ProcessInfo.processInfo.environment["SHELL"] ?? ""
-        let shellName = URL(fileURLWithPath: shellPath).lastPathComponent.nonEmpty ?? "shell"
+        let shellName = STPath(shellPath).url.lastPathComponent.nonEmpty ?? "shell"
         let profileRelative = resolveShellProfilePath(shellPath: shellPath)
         let profileURL = userHomeFolder.url.appendingPathComponent(profileRelative)
         let profileDisplay = displayPath(profileURL.path)
@@ -502,7 +502,7 @@ public actor CodexBinaryManager {
         }
 
         if let activePath = activeCLIPathIfAvailable(),
-           let version = detectCodexVersion(at: URL(fileURLWithPath: activePath))
+           let version = detectCodexVersion(at: STPath(activePath).url)
         {
             return version
         }
@@ -624,7 +624,7 @@ public actor CodexBinaryManager {
     }
 
     private func runProcess(executablePath: String, arguments: [String]) throws {
-        var payload = SKProcessPayload.executableURL(URL(fileURLWithPath: executablePath))
+        var payload = SKProcessPayload.executableURL(STPath(executablePath).url)
         payload.arguments = arguments
         payload.throwOnNonZeroExit = false
         payload.timeoutMs = 120_000
@@ -676,7 +676,7 @@ public actor CodexBinaryManager {
     }
 
     private func detectCodexVersionFromPATH() -> String? {
-        var payload = SKProcessPayload.executableURL(URL(fileURLWithPath: "/usr/bin/env"))
+        var payload = SKProcessPayload.executableURL(STPath("/usr/bin/env").url)
         payload.arguments = ["codex", "--version"]
         payload.throwOnNonZeroExit = false
         payload.timeoutMs = 10_000

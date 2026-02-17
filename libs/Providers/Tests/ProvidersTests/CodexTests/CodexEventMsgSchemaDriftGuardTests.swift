@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import STFilePath
 @testable import CodexProvider
 
 @Suite("Codex EventMsg Schema Drift Guard")
@@ -35,7 +36,7 @@ struct CodexEventMsgSchemaDriftGuardTests {
             .deletingLastPathComponent()
             .deletingLastPathComponent()
         let target = root.appendingPathComponent("libs/codex/codex-rs/protocol/src/protocol.rs").path
-        guard FileManager.default.fileExists(atPath: target) else {
+        guard STPath(target).isExists else {
             throw NSError(domain: "CodexEventMsgSchemaDriftGuardTests", code: 1, userInfo: [
                 NSLocalizedDescriptionKey: "protocol.rs not found: \(target)",
             ])

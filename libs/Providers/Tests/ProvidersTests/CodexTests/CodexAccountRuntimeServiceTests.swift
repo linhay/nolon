@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import STFilePath
 @testable import CodexCLIKit
 @testable import CodexAppServerKit
 
@@ -7,7 +8,7 @@ import Testing
 struct CodexAccountRuntimeServiceTests {
     @Test("Reads account and rate limits via runtime service")
     func readAccountAndRateLimits() async throws {
-        guard FileManager.default.isExecutableFile(atPath: "/usr/bin/python3") else { return }
+        guard STPath("/usr/bin/python3").permission.contains(.executable) else { return }
 
         let script = #"""
 import json

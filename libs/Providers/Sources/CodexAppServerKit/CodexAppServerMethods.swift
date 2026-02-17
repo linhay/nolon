@@ -13,6 +13,7 @@ public enum CodexAppServerMethod: String, Sendable, CaseIterable {
     case configValueWrite = "config/value/write"
     case configRequirementsRead = "configRequirements/read"
     case execOneOffCommand
+    case experimentalFeatureList = "experimentalFeature/list"
     case feedbackUpload = "feedback/upload"
     case forkConversation
     case fuzzyFileSearch
@@ -52,6 +53,7 @@ public enum CodexAppServerMethod: String, Sendable, CaseIterable {
     case threadStart = "thread/start"
     case threadUnarchive = "thread/unarchive"
     case turnInterrupt = "turn/interrupt"
+    case turnSteer = "turn/steer"
     case turnStart = "turn/start"
     case userInfo
 
@@ -67,6 +69,7 @@ public enum CodexAppServerClientNotification: String, Sendable, CaseIterable {
 }
 
 public enum CodexAppServerServerNotification: String, Sendable, CaseIterable {
+    case appListUpdated = "app/list/updated"
     case accountLoginCompleted = "account/login/completed"
     case accountRateLimitsUpdated = "account/rateLimits/updated"
     case accountUpdated = "account/updated"

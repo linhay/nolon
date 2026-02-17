@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import STFilePath
 @testable import CodexCLIKit
 @testable import CodexAppServerKit
 
@@ -49,7 +50,7 @@ struct CodexAppServerKitTests {
 
     @Test("Wait for account/updated notification after login/start")
     func waitForAccountUpdatedNotification() async throws {
-        guard FileManager.default.isExecutableFile(atPath: "/usr/bin/python3") else { return }
+        guard STPath("/usr/bin/python3").permission.contains(.executable) else { return }
 
         let script = #"""
 import json
@@ -92,24 +93,23 @@ for line in sys.stdin:
     func methodEnumsMatchSchema() async throws {
         guard executor.resolveExecutable() != nil else { return }
 
-        let tempRoot = FileManager.default.temporaryDirectory
-            .appendingPathComponent("codex-schema-\(UUID().uuidString)", isDirectory: true)
-        try FileManager.default.createDirectory(at: tempRoot, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: tempRoot) }
+        let tempRoot = STFolder("/tmp").folder("codex-schema-\(UUID().uuidString)")
+        _ = tempRoot.createIfNotExists()
+        defer { try? tempRoot.delete() }
 
-        _ = try await executor.execute(args: ["app-server", "generate-json-schema", "--out", tempRoot.path], timeout: 30)
+        _ = try await executor.execute(args: ["app-server", "generate-json-schema", "--out", tempRoot.url.path], timeout: 30)
 
-        let clientData = try Data(contentsOf: tempRoot.appendingPathComponent("ClientRequest.json"))
+        let clientData = try tempRoot.file("ClientRequest.json").data()
         let clientObject = try JSONSerialization.jsonObject(with: clientData)
         let clientMethods = collectMethodEnumStrings(from: clientObject)
         #expect(clientMethods == Set(CodexAppServerMethod.allCases.map(\.rawValue)))
 
-        let notificationData = try Data(contentsOf: tempRoot.appendingPathComponent("ServerNotification.json"))
+        let notificationData = try tempRoot.file("ServerNotification.json").data()
         let notificationObject = try JSONSerialization.jsonObject(with: notificationData)
         let notificationMethods = collectMethodEnumStrings(from: notificationObject)
         #expect(notificationMethods == Set(CodexAppServerServerNotification.allCases.map(\.rawValue)))
 
-        let requestData = try Data(contentsOf: tempRoot.appendingPathComponent("ServerRequest.json"))
+        let requestData = try tempRoot.file("ServerRequest.json").data()
         let requestObject = try JSONSerialization.jsonObject(with: requestData)
         let requestMethods = collectMethodEnumStrings(from: requestObject)
         #expect(requestMethods == Set(CodexAppServerServerRequest.allCases.map(\.rawValue)))

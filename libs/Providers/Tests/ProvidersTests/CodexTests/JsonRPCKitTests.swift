@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import STFilePath
 import JsonRPCKit
 
 @Suite("JsonRPCKit")
@@ -23,7 +24,7 @@ struct JsonRPCKitTests {
 
     @Test("BDD: Given JSON-RPC request when mock server responds then result and notification are received")
     func requestRoundTripAndNotification() async throws {
-        guard FileManager.default.isExecutableFile(atPath: "/usr/bin/python3") else {
+        guard STPath("/usr/bin/python3").permission.contains(.executable) else {
             return
         }
 
@@ -71,7 +72,7 @@ for line in sys.stdin:
 
     @Test("TDD: Given RPC error response when parsing then error object is exposed")
     func errorResponse() async throws {
-        guard FileManager.default.isExecutableFile(atPath: "/usr/bin/python3") else {
+        guard STPath("/usr/bin/python3").permission.contains(.executable) else {
             return
         }
 

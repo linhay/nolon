@@ -27,31 +27,31 @@ struct CodexCLIKitEnvironmentTests {
 
     @Test("resolver respects CODEX_CLI_PATH")
     func resolveByEnvOverride() throws {
-        let tempRoot = FileManager.default.temporaryDirectory
-            .appendingPathComponent("codex-cli-env-\(UUID().uuidString)", isDirectory: true)
-        try FileManager.default.createDirectory(at: tempRoot, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: tempRoot) }
+        let tempRoot = STFolder("/tmp")
+            .folder("codex-cli-env-\(UUID().uuidString)")
+        _ = tempRoot.createIfNotExists()
+        defer { try? tempRoot.delete() }
 
-        let fakeCLI = tempRoot.appendingPathComponent("codex", isDirectory: false)
-        FileManager.default.createFile(atPath: fakeCLI.path, contents: Data("#!/bin/sh\nexit 0\n".utf8))
-        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fakeCLI.path)
+        let fakeCLI = tempRoot.file("codex")
+        try fakeCLI.overlay(with: "#!/bin/sh\nexit 0\n")
+        try fakeCLI.set(permissions: .default)
 
-        let executor = CodexCommandExecutor(executable: "codex", environment: ["CODEX_CLI_PATH": fakeCLI.path])
-        #expect(executor.resolveExecutable() == fakeCLI.path)
+        let executor = CodexCommandExecutor(executable: "codex", environment: ["CODEX_CLI_PATH": fakeCLI.url.path])
+        #expect(executor.resolveExecutable() == fakeCLI.url.path)
     }
 
     @Test("resolver accepts explicit executable path")
     func resolveExplicitPath() throws {
-        let tempRoot = FileManager.default.temporaryDirectory
-            .appendingPathComponent("codex-cli-explicit-\(UUID().uuidString)", isDirectory: true)
-        try FileManager.default.createDirectory(at: tempRoot, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: tempRoot) }
+        let tempRoot = STFolder("/tmp")
+            .folder("codex-cli-explicit-\(UUID().uuidString)")
+        _ = tempRoot.createIfNotExists()
+        defer { try? tempRoot.delete() }
 
-        let fakeCLI = tempRoot.appendingPathComponent("codex-cli", isDirectory: false)
-        FileManager.default.createFile(atPath: fakeCLI.path, contents: Data("#!/bin/sh\nexit 0\n".utf8))
-        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fakeCLI.path)
+        let fakeCLI = tempRoot.file("codex-cli")
+        try fakeCLI.overlay(with: "#!/bin/sh\nexit 0\n")
+        try fakeCLI.set(permissions: .default)
 
-        let executor = CodexCommandExecutor(executable: fakeCLI.path, environment: [:])
-        #expect(executor.resolveExecutable() == fakeCLI.path)
+        let executor = CodexCommandExecutor(executable: fakeCLI.url.path, environment: [:])
+        #expect(executor.resolveExecutable() == fakeCLI.url.path)
     }
 }

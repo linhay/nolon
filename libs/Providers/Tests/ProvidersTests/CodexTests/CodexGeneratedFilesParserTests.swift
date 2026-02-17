@@ -787,29 +787,27 @@ struct CodexGeneratedFilesParserTests {
 
     @Test("Load sessions and archived_sessions rollout files")
     func loadRolloutFilesFromHome() throws {
-        let tempRoot = FileManager.default.temporaryDirectory
-            .appendingPathComponent("codex-home-\(UUID().uuidString)", isDirectory: true)
-        try FileManager.default.createDirectory(at: tempRoot, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: tempRoot) }
+        let tempRoot = STFolder("/tmp")
+            .folder("codex-home-\(UUID().uuidString)")
+        _ = tempRoot.createIfNotExists()
+        defer { try? tempRoot.delete() }
 
-        let sessionsDir = tempRoot
-            .appendingPathComponent("sessions/2026/02/11", isDirectory: true)
-        try FileManager.default.createDirectory(at: sessionsDir, withIntermediateDirectories: true)
-        let archivedDir = tempRoot
-            .appendingPathComponent("archived_sessions/2026/02/11", isDirectory: true)
-        try FileManager.default.createDirectory(at: archivedDir, withIntermediateDirectories: true)
+        let sessionsDir = tempRoot.folder("sessions").folder("2026").folder("02").folder("11")
+        _ = sessionsDir.createIfNotExists()
+        let archivedDir = tempRoot.folder("archived_sessions").folder("2026").folder("02").folder("11")
+        _ = archivedDir.createIfNotExists()
 
-        let sessionFile = sessionsDir.appendingPathComponent("rollout-a.jsonl")
+        let sessionFile = sessionsDir.file("rollout-a.jsonl")
         try """
         {"timestamp":"2026-02-11T12:00:00Z","type":"session_meta","payload":{"id":"s1","cwd":"/tmp"}}
-        """.write(to: sessionFile, atomically: true, encoding: .utf8)
+        """.write(to: sessionFile.url, atomically: true, encoding: .utf8)
 
-        let archivedFile = archivedDir.appendingPathComponent("rollout-b.jsonl")
+        let archivedFile = archivedDir.file("rollout-b.jsonl")
         try """
         {"timestamp":"2026-02-11T12:00:00Z","type":"session_meta","payload":{"id":"s2","cwd":"/tmp"}}
-        """.write(to: archivedFile, atomically: true, encoding: .utf8)
+        """.write(to: archivedFile.url, atomically: true, encoding: .utf8)
 
-        let files = try CodexGeneratedFilesParser.loadRolloutFiles(codexHome: tempRoot, includeArchived: true)
+        let files = try CodexGeneratedFilesParser.loadRolloutFiles(codexHome: tempRoot.url, includeArchived: true)
         #expect(files.count == 2)
         #expect(files.contains(where: { $0.path.hasSuffix("rollout-a.jsonl") }))
         #expect(files.contains(where: { $0.path.hasSuffix("rollout-b.jsonl") }))
@@ -933,10 +931,10 @@ struct CodexGeneratedFilesParserTests {
 
     @Test("Load all codex generated files from CODEX_HOME")
     func loadAllGeneratedFilesFromHome() throws {
-        let tempRoot = FileManager.default.temporaryDirectory
-            .appendingPathComponent("codex-home-all-\(UUID().uuidString)", isDirectory: true)
-        try FileManager.default.createDirectory(at: tempRoot, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: tempRoot) }
+        let tempRoot = STFolder("/tmp")
+            .folder("codex-home-all-\(UUID().uuidString)")
+        _ = tempRoot.createIfNotExists()
+        defer { try? tempRoot.delete() }
 
         let jwt = Self.makeJWT(payload: """
         {
@@ -957,30 +955,29 @@ struct CodexGeneratedFilesParserTests {
             "account_id": "org-all"
           }
         }
-        """.write(to: tempRoot.appendingPathComponent("auth.json"), atomically: true, encoding: .utf8)
+        """.write(to: tempRoot.file("auth.json").url, atomically: true, encoding: .utf8)
 
         try """
         {"session_id":"h-1","ts":1739275200,"text":"hi"}
-        """.write(to: tempRoot.appendingPathComponent("history.jsonl"), atomically: true, encoding: .utf8)
+        """.write(to: tempRoot.file("history.jsonl").url, atomically: true, encoding: .utf8)
 
         try """
         model = "gpt-5"
         [features]
         web_search_request = true
-        """.write(to: tempRoot.appendingPathComponent("config.toml"), atomically: true, encoding: .utf8)
+        """.write(to: tempRoot.file("config.toml").url, atomically: true, encoding: .utf8)
 
         try """
         model = "gpt-5.2-codex"
-        """.write(to: tempRoot.appendingPathComponent("managed_config.toml"), atomically: true, encoding: .utf8)
+        """.write(to: tempRoot.file("managed_config.toml").url, atomically: true, encoding: .utf8)
 
-        let sessionsDir = tempRoot
-            .appendingPathComponent("sessions/2026/02/11", isDirectory: true)
-        try FileManager.default.createDirectory(at: sessionsDir, withIntermediateDirectories: true)
+        let sessionsDir = tempRoot.folder("sessions").folder("2026").folder("02").folder("11")
+        _ = sessionsDir.createIfNotExists()
         try """
         {"timestamp":"2026-02-11T12:00:00Z","type":"session_meta","payload":{"id":"s-all"}}
-        """.write(to: sessionsDir.appendingPathComponent("rollout.jsonl"), atomically: true, encoding: .utf8)
+        """.write(to: sessionsDir.file("rollout.jsonl").url, atomically: true, encoding: .utf8)
 
-        let snapshot = try CodexGeneratedFilesParser.loadAllGeneratedFiles(codexHome: tempRoot, includeArchived: true)
+        let snapshot = try CodexGeneratedFilesParser.loadAllGeneratedFiles(codexHome: tempRoot.url, includeArchived: true)
         #expect(snapshot.auth?.tokens?.accessToken == "access-all")
         #expect(snapshot.history.count == 1)
         #expect(snapshot.history.first?.sessionID == "h-1")
@@ -992,32 +989,32 @@ struct CodexGeneratedFilesParserTests {
 
     @Test("Load all generated files can exclude archived_sessions")
     func loadAllGeneratedFilesExcludeArchived() throws {
-        let tempRoot = FileManager.default.temporaryDirectory
-            .appendingPathComponent("codex-home-no-archived-\(UUID().uuidString)", isDirectory: true)
-        try FileManager.default.createDirectory(at: tempRoot, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: tempRoot) }
+        let tempRoot = STFolder("/tmp")
+            .folder("codex-home-no-archived-\(UUID().uuidString)")
+        _ = tempRoot.createIfNotExists()
+        defer { try? tempRoot.delete() }
 
-        let sessionsDir = tempRoot.appendingPathComponent("sessions/2026/02/11", isDirectory: true)
-        let archivedDir = tempRoot.appendingPathComponent("archived_sessions/2026/02/11", isDirectory: true)
-        try FileManager.default.createDirectory(at: sessionsDir, withIntermediateDirectories: true)
-        try FileManager.default.createDirectory(at: archivedDir, withIntermediateDirectories: true)
+        let sessionsDir = tempRoot.folder("sessions").folder("2026").folder("02").folder("11")
+        let archivedDir = tempRoot.folder("archived_sessions").folder("2026").folder("02").folder("11")
+        _ = sessionsDir.createIfNotExists()
+        _ = archivedDir.createIfNotExists()
 
         try """
         {"timestamp":"2026-02-11T12:00:00Z","type":"session_meta","payload":{"id":"s-live"}}
-        """.write(to: sessionsDir.appendingPathComponent("live.jsonl"), atomically: true, encoding: .utf8)
+        """.write(to: sessionsDir.file("live.jsonl").url, atomically: true, encoding: .utf8)
         try """
         {"timestamp":"2026-02-11T12:00:00Z","type":"session_meta","payload":{"id":"s-archived"}}
-        """.write(to: archivedDir.appendingPathComponent("archived.jsonl"), atomically: true, encoding: .utf8)
+        """.write(to: archivedDir.file("archived.jsonl").url, atomically: true, encoding: .utf8)
 
-        let snapshot = try CodexGeneratedFilesParser.loadAllGeneratedFiles(codexHome: tempRoot, includeArchived: false)
+        let snapshot = try CodexGeneratedFilesParser.loadAllGeneratedFiles(codexHome: tempRoot.url, includeArchived: false)
         #expect(snapshot.rolloutFiles.count == 1)
         #expect(snapshot.rolloutFiles.first?.path.hasSuffix("live.jsonl") == true)
     }
 
     @Test("Load all generated files from STFolder root")
     func loadAllGeneratedFilesFromSTFolder() throws {
-        let root = STFolder(FileManager.default.temporaryDirectory
-            .appendingPathComponent("codex-home-stfolder-\(UUID().uuidString)", isDirectory: true))
+        let root = STFolder("/tmp")
+            .folder("codex-home-stfolder-\(UUID().uuidString)")
         _ = root.createIfNotExists()
         defer { try? root.delete() }
 
