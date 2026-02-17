@@ -854,3 +854,87 @@
 - 验证：
   - `swift test --package-path libs/Providers --filter NolonCodexCLIServiceTests` 通过（11 tests）。
   - `swift test --package-path libs/Providers --filter NolonCodexCLIEntrypointTests` 通过（92 tests）。
+
+## Phase 2.45（auth usage 显示过期信息）
+- 背景：
+  - 需求：`nolon codex auth usage` 需要展示账号过期信息，便于快速判断认证是否失效。
+- 变更：
+  1. `NolonCodexAuthUsageAccountView` 新增 `expiresAt`；
+  2. `NolonCodexAuthUsageSummaryView` 新增 `earliestExpiresAt`；
+  3. `NolonLiveCodexCLIService.authUsage` 增加过期解析：
+     - 优先读取 `expires_at / expiresAt`（支持顶层与 `tokens` 下）
+     - 其次读取 `expires_in / expiresIn` + `last_refresh / lastRefresh`
+     - 再回退到 `id_token` 的 JWT `exp` claim
+  4. 文本展示更新：
+     - 列表新增 `过期信息` 列
+     - `--summary` 新增 `最近过期` 行
+  5. JSON 契约同步：
+     - `codex.auth.usage` 快照增加 `accounts[].expiresAt` 与 `summary.earliestExpiresAt`
+- 测试：
+  - `NolonCodexCLIServiceTests.auth usage returns per-account rows and summary aggregation` 增加 `expiresAt` 断言；
+  - `NolonCodexCLIEntrypointTests.routesAuthUsage` 增加 `过期信息` 表头断言；
+  - `json contract snapshot for codex auth usage success` 更新快照。
+- 验证：
+  - `swift test --package-path libs/Providers --filter NolonCodexCLIServiceTests` 通过（11 tests）。
+  - `swift test --package-path libs/Providers --filter NolonCodexCLIEntrypointTests` 通过（92 tests）。
+
+## Phase 2.46（auth usage 过期信息可读化）
+- 背景：
+  - 过期信息显示为绝对时间点不够直观，需直接体现“还剩多久/已过期多久”。
+- 变更：
+  1. `NolonCodexCLIExecutor` 文本渲染新增相对时间格式化：
+     - `expiresAt > now`：`剩余 Xd Yh / Xh Ym / Xm`
+     - `expiresAt <= now`：`已过期 Xd Yh / Xh Ym / Xm`
+  2. 应用于：
+     - `auth usage` 列表 `过期信息` 列
+     - `auth usage --summary` 的 `最近过期` 行
+  3. `--json` 契约不变，仍输出绝对时间字段 `expiresAt / earliestExpiresAt`。
+- 测试：
+  - 新增 `NolonCodexCLIEntrypointTests.auth usage expiry shows relative remaining and expired labels`，
+    覆盖同一输出中同时出现 `剩余` 与 `已过期` 文案。
+- 验证：
+  - `swift test --package-path libs/Providers --filter NolonCodexCLIEntrypointTests` 通过（93 tests）。
+
+## Phase 2.47（区分“已过期但可刷新”）
+- 背景：
+  - 用户反馈账号可正常使用，但文案显示“已过期”易误导为账号失效。
+- 变更：
+  1. `NolonCodexAuthUsageAccountView` 新增 `hasRefreshToken`；
+  2. `NolonLiveCodexCLIService.authUsage` 在读取账号 auth.json 时同步解析 `refresh_token` 存在性；
+  3. `NolonCodexCLIExecutor` 渲染规则调整：
+     - `expiresAt` 未到期：`剩余 ...`
+     - `expiresAt` 已过期且 `hasRefreshToken == true`：`已过期 ... (可刷新)`
+     - `expiresAt` 已过期且无 refresh token：`已过期 ...`
+- 测试：
+  - `NolonCodexCLIServiceTests.auth usage returns per-account rows and summary aggregation`
+    - 新增 `hasRefreshToken == true` 断言；
+  - `NolonCodexCLIEntrypointTests.auth usage expiry shows relative remaining and expired labels`
+    - 新增 `(可刷新)` 断言。
+- 验证：
+  - `swift test --package-path libs/Providers --filter NolonCodexCLIServiceTests` 通过（11 tests）。
+  - `swift test --package-path libs/Providers --filter NolonCodexCLIEntrypointTests` 通过（93 tests）。
+
+## Phase 2.48（auth list/usage/status 文本输出合并）
+- 背景：
+  - 需求：减少在 `list / usage / status` 三个命令间切换，统一查看账号总览。
+- 变更：
+  1. `NolonCodexCLIExecutor` 增加 `renderAuthOverview`：
+     - 聚合 `authList + authUsage + authStatus`
+     - 文本模式统一输出三段：
+       - `[账号]`
+       - `[用量]`
+       - `[状态]`
+  2. 命令行为调整（仅文本模式）：
+     - `nolon codex auth list` → 总览
+     - `nolon codex auth usage` → 总览
+     - `nolon codex auth status` → 总览
+     - `nolon codex auth usage --summary` 仍保留“仅汇总”输出
+  3. `--json` 保持原有命令契约，不做破坏性变更。
+  4. 帮助文案更新，明确三条命令的合并关系。
+- 测试：
+  - `NolonCodexCLIEntrypointTests` 更新：
+    - `routes auth list / usage / status` 增加 `[账号]/[用量]/[状态]` 断言
+    - 兼容合并后的测试桩行为与表格对齐断言
+- 验证：
+  - `swift test --package-path libs/Providers --filter NolonCodexCLIEntrypointTests` 通过（93 tests）。
+  - `swift test --package-path libs/Providers --filter NolonCodexCLIServiceTests` 通过（11 tests）。

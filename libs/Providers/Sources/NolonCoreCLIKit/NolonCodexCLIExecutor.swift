@@ -94,12 +94,18 @@ enum NolonCodexCLIExecutor {
 
     private static func executeAuthList(command: NolonCodexAuthListCommand, context: NolonCLIExecutionContext, outputMode: OutputMode) async throws -> String {
         let providerID = try parseCodexProviderID(command.provider)
+        if outputMode == .text {
+            return try await renderAuthOverview(providerID: providerID, context: context)
+        }
         let payload = try await context.codexService().authList(providerID: providerID)
         return try renderOutput(command: .authList, payload: payload, outputMode: outputMode, textFormatter: formatAuthList)
     }
 
     private static func executeAuthUsage(command: NolonCodexAuthUsageCommand, context: NolonCLIExecutionContext, outputMode: OutputMode) async throws -> String {
         let providerID = try parseCodexProviderID(command.provider)
+        if outputMode == .text, command.summary == false {
+            return try await renderAuthOverview(providerID: providerID, context: context)
+        }
         let payload = try await context.codexService().authUsage(providerID: providerID)
         if command.summary {
             return try renderOutput(command: .authUsage, payload: payload, outputMode: outputMode, textFormatter: formatAuthUsageSummary)
@@ -109,8 +115,19 @@ enum NolonCodexCLIExecutor {
 
     private static func executeAuthStatus(command: NolonCodexAuthStatusCommand, context: NolonCLIExecutionContext, outputMode: OutputMode) async throws -> String {
         let providerID = try parseCodexProviderID(command.provider)
+        if outputMode == .text {
+            return try await renderAuthOverview(providerID: providerID, context: context)
+        }
         let payload = try await context.codexService().authStatus(providerID: providerID)
         return try renderOutput(command: .authStatus, payload: payload, outputMode: outputMode, textFormatter: formatAuthStatus)
+    }
+
+    private static func renderAuthOverview(providerID: String, context: NolonCLIExecutionContext) async throws -> String {
+        let service = context.codexService()
+        let list = try await service.authList(providerID: providerID)
+        let usage = try await service.authUsage(providerID: providerID)
+        let status = try await service.authStatus(providerID: providerID)
+        return formatAuthOverview(list: list, usage: usage, status: status)
     }
 
     private static func executeAuthActivate(command: NolonCodexAuthActivateCommand, context: NolonCLIExecutionContext, outputMode: OutputMode) async throws -> String {
@@ -622,15 +639,33 @@ enum NolonCodexCLIExecutor {
         ].joined(separator: "\n")
     }
 
+    private static func formatAuthOverview(
+        list: NolonCodexAuthListPayload,
+        usage: NolonCodexAuthUsagePayload,
+        status: NolonCodexAuthStatusPayload
+    ) -> String {
+        let sections = [
+            "[账号]",
+            formatAuthList(list),
+            "",
+            "[用量]",
+            formatAuthUsageAccounts(usage),
+            "",
+            "[状态]",
+            formatAuthStatus(status),
+        ]
+        return sections.joined(separator: "\n")
+    }
+
     private static func formatAuthUsageAccounts(_ payload: NolonCodexAuthUsagePayload) -> String {
-        let title = "邮箱 | 状态 | 5h剩余 | 7d剩余 | Tokens(1d/30d/全量) | 刷新时间"
+        let title = "邮箱 | 状态 | 5h剩余 | 7d剩余 | Tokens(1d/30d/全量) | 过期信息 | 刷新时间"
         guard !payload.accounts.isEmpty else { return title }
 
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "yyyy-MM-dd HH:mm"
 
-        let rows: [(marker: String, email: String, status: String, fiveHour: String, weekly: String, tokens: String, refresh: String)] = payload.accounts.map { account in
+        let rows: [(marker: String, email: String, status: String, fiveHour: String, weekly: String, tokens: String, expiry: String, refresh: String)] = payload.accounts.map { account in
             let marker = account.isActive ? "*" : " "
             let emailRaw = account.email?.trimmingCharacters(in: .whitespacesAndNewlines)
             let email = (emailRaw?.isEmpty == false) ? (emailRaw ?? "-") : "-"
@@ -638,8 +673,9 @@ enum NolonCodexCLIExecutor {
             let fiveHour = account.fiveHourRemainingPercent.map { "\($0)%" } ?? "-"
             let weekly = account.weeklyRemainingPercent.map { "\($0)%" } ?? "-"
             let tokens = "\(formatTokensInMillions(account.token1dCount)) / \(formatTokensInMillions(account.token30dCount)) / \(formatTokensInMillions(account.tokenAllCount))"
+            let expiry = formatExpiryInfo(account.expiresAt, hasRefreshToken: account.hasRefreshToken)
             let refresh = account.refreshedAt.map { formatter.string(from: $0) } ?? "-"
-            return (marker, email, status, fiveHour, weekly, tokens, refresh)
+            return (marker, email, status, fiveHour, weekly, tokens, expiry, refresh)
         }
 
         let emailWidth = max("邮箱".count, rows.map { $0.email.count }.max() ?? 0)
@@ -648,11 +684,12 @@ enum NolonCodexCLIExecutor {
         let weeklyWidth = max("7d剩余".count, rows.map { $0.weekly.count }.max() ?? 0)
         let tokensHeader = "Tokens(1d/30d/全量)"
         let tokensWidth = max(tokensHeader.count, rows.map { $0.tokens.count }.max() ?? 0)
+        let expiryWidth = max("过期信息".count, rows.map { $0.expiry.count }.max() ?? 0)
         let refreshWidth = max("刷新时间".count, rows.map { $0.refresh.count }.max() ?? 0)
 
-        let header = "\(padRight("邮箱", to: emailWidth)) | \(padRight("状态", to: statusWidth)) | \(padRight("5h剩余", to: fiveHourWidth)) | \(padRight("7d剩余", to: weeklyWidth)) | \(padRight(tokensHeader, to: tokensWidth)) | \(padRight("刷新时间", to: refreshWidth))"
+        let header = "\(padRight("邮箱", to: emailWidth)) | \(padRight("状态", to: statusWidth)) | \(padRight("5h剩余", to: fiveHourWidth)) | \(padRight("7d剩余", to: weeklyWidth)) | \(padRight(tokensHeader, to: tokensWidth)) | \(padRight("过期信息", to: expiryWidth)) | \(padRight("刷新时间", to: refreshWidth))"
         let body = rows.map { row in
-            "\(row.marker) \(padRight(row.email, to: emailWidth)) | \(padRight(row.status, to: statusWidth)) | \(padRight(row.fiveHour, to: fiveHourWidth)) | \(padRight(row.weekly, to: weeklyWidth)) | \(padRight(row.tokens, to: tokensWidth)) | \(padRight(row.refresh, to: refreshWidth))"
+            "\(row.marker) \(padRight(row.email, to: emailWidth)) | \(padRight(row.status, to: statusWidth)) | \(padRight(row.fiveHour, to: fiveHourWidth)) | \(padRight(row.weekly, to: weeklyWidth)) | \(padRight(row.tokens, to: tokensWidth)) | \(padRight(row.expiry, to: expiryWidth)) | \(padRight(row.refresh, to: refreshWidth))"
         }.joined(separator: "\n")
         return "\(header)\n\(body)"
     }
@@ -671,6 +708,7 @@ enum NolonCodexCLIExecutor {
                 "Tokens(1d/30d/全量)",
                 "\(formatTokensInMillions(payload.summary.totalToken1dCount)) / \(formatTokensInMillions(payload.summary.totalToken30dCount)) / \(formatTokensInMillions(payload.summary.totalTokenAllCount))"
             ),
+            ("最近过期", formatExpiryInfo(payload.summary.earliestExpiresAt, hasRefreshToken: nil)),
             ("最新刷新", payload.summary.latestRefreshedAt.map { formatter.string(from: $0) } ?? "-"),
         ]
         let keyWidth = rows.map(\.0.count).max() ?? 0
@@ -685,6 +723,37 @@ enum NolonCodexCLIExecutor {
         guard let value else { return "-" }
         let millions = Double(value) / 1_000_000
         return String(format: "%.1fm", millions)
+    }
+
+    private static func formatExpiryInfo(_ expiresAt: Date?, hasRefreshToken: Bool?) -> String {
+        guard let expiresAt else { return "-" }
+        let delta = Int(expiresAt.timeIntervalSinceNow)
+        if delta >= 0 {
+            return "剩余 \(formatDuration(delta))"
+        }
+        if hasRefreshToken == true {
+            return "已过期 \(formatDuration(-delta)) (可刷新)"
+        }
+        return "已过期 \(formatDuration(-delta))"
+    }
+
+    private static func formatDuration(_ seconds: Int) -> String {
+        let clamped = max(0, seconds)
+        let day = 24 * 3600
+        let hour = 3600
+        let minute = 60
+        if clamped >= day {
+            let d = clamped / day
+            let h = (clamped % day) / hour
+            return "\(d)d \(h)h"
+        }
+        if clamped >= hour {
+            let h = clamped / hour
+            let m = (clamped % hour) / minute
+            return "\(h)h \(m)m"
+        }
+        let m = max(1, clamped / minute)
+        return "\(m)m"
     }
 
     private static func formatAuthActivate(_ payload: NolonCodexAuthActivatePayload) -> String {

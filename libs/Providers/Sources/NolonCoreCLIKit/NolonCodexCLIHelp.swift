@@ -124,9 +124,9 @@ enum NolonCodexCLIHelpResolver {
         Usage: nolon codex auth <action> [options]
 
         Actions:
-          list      [--provider codex|codex-xcode]
-          usage     [--provider codex|codex-xcode] [--summary]
-          status    [--provider codex|codex-xcode]
+          list      [--provider codex|codex-xcode]                    # 输出账号/用量/状态总览
+          usage     [--provider codex|codex-xcode] [--summary]        # 默认输出总览，--summary 仅汇总
+          status    [--provider codex|codex-xcode]                    # 输出账号/用量/状态总览
           activate  [--account-id <uuid>|--email <email>] [--provider ...]
           login     [--preferred-account-id <uuid>] [--provider ...]
           delete    --account-id <uuid> [--provider ...]

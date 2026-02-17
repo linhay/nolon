@@ -47,6 +47,8 @@ public extension NolonCodexCLIServing {
                     token1dCount: nil,
                     token30dCount: nil,
                     tokenAllCount: nil,
+                    expiresAt: nil,
+                    hasRefreshToken: nil,
                     refreshedAt: account.refreshedAt
                 )
             },
@@ -58,6 +60,7 @@ public extension NolonCodexCLIServing {
                 totalToken1dCount: nil,
                 totalToken30dCount: nil,
                 totalTokenAllCount: nil,
+                earliestExpiresAt: nil,
                 latestRefreshedAt: list.accounts.compactMap(\.refreshedAt).max()
             )
         )
@@ -90,6 +93,8 @@ public struct NolonCodexAuthUsageAccountView: Codable, Sendable, Equatable {
     public let token1dCount: Int?
     public let token30dCount: Int?
     public let tokenAllCount: Int?
+    public let expiresAt: Date?
+    public let hasRefreshToken: Bool?
     public let refreshedAt: Date?
 
     public init(
@@ -101,6 +106,8 @@ public struct NolonCodexAuthUsageAccountView: Codable, Sendable, Equatable {
         token1dCount: Int? = nil,
         token30dCount: Int? = nil,
         tokenAllCount: Int? = nil,
+        expiresAt: Date? = nil,
+        hasRefreshToken: Bool? = nil,
         refreshedAt: Date?
     ) {
         self.id = id
@@ -111,6 +118,8 @@ public struct NolonCodexAuthUsageAccountView: Codable, Sendable, Equatable {
         self.token1dCount = token1dCount
         self.token30dCount = token30dCount
         self.tokenAllCount = tokenAllCount
+        self.expiresAt = expiresAt
+        self.hasRefreshToken = hasRefreshToken
         self.refreshedAt = refreshedAt
     }
 }
@@ -123,6 +132,7 @@ public struct NolonCodexAuthUsageSummaryView: Codable, Sendable, Equatable {
     public let totalToken1dCount: Int?
     public let totalToken30dCount: Int?
     public let totalTokenAllCount: Int?
+    public let earliestExpiresAt: Date?
     public let latestRefreshedAt: Date?
 
     public init(
@@ -133,6 +143,7 @@ public struct NolonCodexAuthUsageSummaryView: Codable, Sendable, Equatable {
         totalToken1dCount: Int? = nil,
         totalToken30dCount: Int? = nil,
         totalTokenAllCount: Int? = nil,
+        earliestExpiresAt: Date? = nil,
         latestRefreshedAt: Date?
     ) {
         self.accountCount = accountCount
@@ -142,6 +153,7 @@ public struct NolonCodexAuthUsageSummaryView: Codable, Sendable, Equatable {
         self.totalToken1dCount = totalToken1dCount
         self.totalToken30dCount = totalToken30dCount
         self.totalTokenAllCount = totalTokenAllCount
+        self.earliestExpiresAt = earliestExpiresAt
         self.latestRefreshedAt = latestRefreshedAt
     }
 }
@@ -413,6 +425,7 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
         for account in accounts {
             let email = Self.loadEmail(for: account, authManager: authManager)
             let usageCache = try? await authManager.loadUsageCache(for: account)
+            let authInfo = Self.resolveAuthTokenInfo(for: account, authManager: authManager)
             views.append(
                 NolonCodexAuthUsageAccountView(
                     id: account.id,
@@ -423,6 +436,8 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
                     token1dCount: Self.resolve1dTokenCount(from: usageCache),
                     token30dCount: Self.resolve30dTokenCount(from: usageCache),
                     tokenAllCount: Self.resolveAllTokenCount(from: usageCache),
+                    expiresAt: authInfo.expiresAt,
+                    hasRefreshToken: authInfo.hasRefreshToken,
                     refreshedAt: Self.resolveRefreshTime(from: usageCache)
                 )
             )
@@ -433,6 +448,7 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
         let token1dValues = views.compactMap(\.token1dCount)
         let token30dValues = views.compactMap(\.token30dCount)
         let tokenAllValues = views.compactMap(\.tokenAllCount)
+        let expiryValues = views.compactMap(\.expiresAt)
         let cachedCount = views.filter { $0.fiveHourRemainingPercent != nil || $0.weeklyRemainingPercent != nil }.count
         let latestRefreshedAt = views.compactMap(\.refreshedAt).max()
 
@@ -444,6 +460,7 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
             totalToken1dCount: token1dValues.isEmpty ? nil : token1dValues.reduce(0, +),
             totalToken30dCount: token30dValues.isEmpty ? nil : token30dValues.reduce(0, +),
             totalTokenAllCount: tokenAllValues.isEmpty ? nil : tokenAllValues.reduce(0, +),
+            earliestExpiresAt: expiryValues.min(),
             latestRefreshedAt: latestRefreshedAt
         )
 
@@ -876,6 +893,128 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
             return fromDaily
         }
         return cost.last30DaysTokens
+    }
+
+    private static func resolveAuthTokenInfo(for account: CodexAuthAccount, authManager: CodexAuthManager) -> (expiresAt: Date?, hasRefreshToken: Bool?) {
+        guard let data = try? authManager.accountAuthFile(relativeAuthPath: account.relativeAuthPath).data(),
+              !data.isEmpty
+        else { return (nil, nil) }
+        return parseAuthTokenInfo(fromAuthData: data)
+    }
+
+    private static func parseAuthTokenInfo(fromAuthData data: Data) -> (expiresAt: Date?, hasRefreshToken: Bool?) {
+        guard let root = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return (nil, nil) }
+        let tokens = root["tokens"] as? [String: Any]
+        let hasRefreshToken = parseString(tokens?["refresh_token"])
+            ?? parseString(tokens?["refreshToken"])
+            ?? parseString(root["refresh_token"])
+            ?? parseString(root["refreshToken"])
+        let expiry = parseExpiryDate(root: root, tokens: tokens)
+        return (expiry, hasRefreshToken != nil)
+    }
+
+    private static func parseExpiryDate(root: [String: Any], tokens: [String: Any]?) -> Date? {
+        let directCandidates: [Date?] = [
+            parseDateCandidate(root["expires_at"]),
+            parseDateCandidate(root["expiresAt"]),
+            parseDateCandidate(tokens?["expires_at"]),
+            parseDateCandidate(tokens?["expiresAt"]),
+        ]
+        if let direct = directCandidates.compactMap({ $0 }).first {
+            return direct
+        }
+
+        let baseTime = parseDateCandidate(root["last_refresh"])
+            ?? parseDateCandidate(root["lastRefresh"])
+        let expiresIn = parseTimeIntervalSeconds(root["expires_in"])
+            ?? parseTimeIntervalSeconds(root["expiresIn"])
+            ?? parseTimeIntervalSeconds(tokens?["expires_in"])
+            ?? parseTimeIntervalSeconds(tokens?["expiresIn"])
+        if let baseTime, let expiresIn {
+            return baseTime.addingTimeInterval(expiresIn)
+        }
+
+        let idToken = parseString(tokens?["id_token"])
+            ?? parseString(tokens?["idToken"])
+            ?? parseString(root["id_token"])
+            ?? parseString(root["idToken"])
+        if let idToken, let jwtExpiry = parseJWTExpiry(jwt: idToken) {
+            return jwtExpiry
+        }
+
+        return nil
+    }
+
+    private static func parseJWTExpiry(jwt: String) -> Date? {
+        let parts = jwt.split(separator: ".", omittingEmptySubsequences: false)
+        guard parts.count >= 2 else { return nil }
+        guard let payloadData = base64URLDecode(String(parts[1])),
+              let payload = (try? JSONSerialization.jsonObject(with: payloadData)) as? [String: Any]
+        else { return nil }
+        return parseDateCandidate(payload["exp"])
+    }
+
+    private static func base64URLDecode(_ raw: String) -> Data? {
+        var normalized = raw
+            .replacingOccurrences(of: "-", with: "+")
+            .replacingOccurrences(of: "_", with: "/")
+        let remainder = normalized.count % 4
+        if remainder != 0 {
+            normalized += String(repeating: "=", count: 4 - remainder)
+        }
+        return Data(base64Encoded: normalized)
+    }
+
+    private static func parseTimeIntervalSeconds(_ value: Any?) -> TimeInterval? {
+        guard let number = parseNumber(value) else { return nil }
+        return TimeInterval(number)
+    }
+
+    private static func parseDateCandidate(_ value: Any?) -> Date? {
+        guard let value else { return nil }
+        if let number = parseNumber(value) {
+            let seconds: Double
+            if number > 1_000_000_000_000 {
+                seconds = number / 1_000
+            } else {
+                seconds = number
+            }
+            return Date(timeIntervalSince1970: seconds)
+        }
+
+        guard let raw = parseString(value) else { return nil }
+        if let seconds = Double(raw) {
+            return Date(timeIntervalSince1970: seconds)
+        }
+        if let date = parseISODate(raw, withFractionalSeconds: true) {
+            return date
+        }
+        return parseISODate(raw, withFractionalSeconds: false)
+    }
+
+    private static func parseNumber(_ value: Any?) -> Double? {
+        switch value {
+        case let number as NSNumber:
+            return number.doubleValue
+        case let string as String:
+            return Double(string.trimmingCharacters(in: .whitespacesAndNewlines))
+        default:
+            return nil
+        }
+    }
+
+    private static func parseString(_ value: Any?) -> String? {
+        guard let raw = value as? String else { return nil }
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    private static func parseISODate(_ raw: String, withFractionalSeconds: Bool) -> Date? {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = withFractionalSeconds
+            ? [.withInternetDateTime, .withFractionalSeconds]
+            : [.withInternetDateTime]
+        return formatter.date(from: raw)
     }
 
     private static func isCodexRuntimeCommand(_ command: String) -> Bool {

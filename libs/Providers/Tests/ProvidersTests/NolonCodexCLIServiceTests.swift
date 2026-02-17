@@ -176,7 +176,7 @@ struct NolonCodexCLIServiceTests {
         let authManager = CodexAuthManager(rootURL: root.url)
         let accountA = try await authManager.addAccount(
             name: "a",
-            authJSONString: #"{"user":{"email":"a@example.com"}}"#
+            authJSONString: #"{"user":{"email":"a@example.com"},"expires_at":"2026-12-31T08:00:00Z","tokens":{"refresh_token":"rt_demo"}}"#
         )
         let accountB = try await authManager.addAccount(
             name: "b",
@@ -263,6 +263,8 @@ struct NolonCodexCLIServiceTests {
         #expect(payload.accounts.compactMap(\.token30dCount).reduce(0, +) == 52_000)
         #expect(payload.accounts.compactMap(\.tokenAllCount).reduce(0, +) == 62_000)
         #expect(payload.summary.latestRefreshedAt == Date(timeIntervalSince1970: 1_733_350_000))
+        #expect(payload.accounts.first(where: { $0.email == "a@example.com" })?.expiresAt == Date(timeIntervalSince1970: 1_798_704_000))
+        #expect(payload.accounts.first(where: { $0.email == "a@example.com" })?.hasRefreshToken == true)
     }
 
     @Test("auth status includes usage summary fields")

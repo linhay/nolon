@@ -562,11 +562,13 @@ struct NolonCodexCLIEntrypointTests {
         )
 
         #expect(result.exitCode == 0)
+        #expect(result.stdout.contains("[账号]"))
+        #expect(result.stdout.contains("[用量]"))
+        #expect(result.stdout.contains("[状态]"))
         #expect(result.stdout.contains("邮箱"))
         #expect(result.stdout.contains("状态"))
         #expect(result.stdout.contains("用量"))
         #expect(result.stdout.contains("刷新时间"))
-        #expect(await mock.lastCall() == "authList")
     }
 
     @Test("routes auth usage per-account table")
@@ -581,10 +583,13 @@ struct NolonCodexCLIEntrypointTests {
         )
 
         #expect(result.exitCode == 0)
+        #expect(result.stdout.contains("[账号]"))
+        #expect(result.stdout.contains("[用量]"))
+        #expect(result.stdout.contains("[状态]"))
         #expect(result.stdout.contains("5h剩余"))
         #expect(result.stdout.contains("7d剩余"))
         #expect(result.stdout.contains("Tokens(1d/30d/全量)"))
-        #expect(await mock.lastCall() == "authUsage")
+        #expect(result.stdout.contains("过期信息"))
     }
 
     @Test("auth usage summary renders aggregated rows")
@@ -606,6 +611,21 @@ struct NolonCodexCLIEntrypointTests {
         #expect(result.stdout.contains("Tokens(1d/30d/全量)"))
     }
 
+    @Test("auth usage expiry shows relative remaining and expired labels")
+    func authUsageExpiryShowsRelativeLabels() async {
+        let service = AuthUsageExpiryLabelCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["codex", "auth", "usage", "--provider", "codex"],
+            codexService: service
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("剩余"))
+        #expect(result.stdout.contains("已过期"))
+        #expect(result.stdout.contains("(可刷新)"))
+    }
+
     @Test("auth list prints aligned table rows")
     func authListPrintsAlignedTableRows() async {
         let service = AuthListTableCodexCLIService()
@@ -617,8 +637,12 @@ struct NolonCodexCLIEntrypointTests {
         #expect(result.exitCode == 0)
         #expect(result.stderr.isEmpty)
         let lines = result.stdout.split(separator: "\n").map(String.init)
-        #expect(lines.first?.contains("邮箱") == true)
-        let rows = lines.dropFirst().filter { $0.hasPrefix("* ") || ($0.hasPrefix("  ") && $0.contains(" | ")) }
+        let headerIndex = lines.firstIndex { $0.contains("邮箱") && $0.contains("用量") && $0.contains("刷新时间") }
+        #expect(headerIndex != nil)
+        let rows = lines
+            .dropFirst((headerIndex ?? 0) + 1)
+            .prefix { !$0.hasPrefix("[用量]") && !$0.hasPrefix("[状态]") }
+            .filter { $0.hasPrefix("* ") || ($0.hasPrefix("  ") && $0.contains(" | ")) }
         #expect(rows.count == 2)
         let firstPipeIndices = rows[0].indicesOfPipes()
         #expect(firstPipeIndices.count == 3)
@@ -680,9 +704,11 @@ struct NolonCodexCLIEntrypointTests {
         )
 
         #expect(result.exitCode == 0)
+        #expect(result.stdout.contains("[账号]"))
+        #expect(result.stdout.contains("[用量]"))
+        #expect(result.stdout.contains("[状态]"))
         #expect(result.stdout.contains("account_count: 0"))
         #expect(result.stdout.contains("usage_cached_accounts: 0"))
-        #expect(await mock.lastCall() == "authStatus")
     }
 
     @Test("auth status rejects unsupported provider")
@@ -1398,7 +1424,7 @@ struct NolonCodexCLIEntrypointTests {
         #expect(result.exitCode == 0)
         #expect(result.stderr.isEmpty)
 
-        let expected = #"{"command":"codex.auth.usage","data":{"accounts":[{"email":"json@example.com","fiveHourRemainingPercent":80,"id":"11111111-1111-1111-1111-111111111111","isActive":true,"refreshedAt":"1970-01-01T00:00:00Z","token1dCount":1200000,"token30dCount":24000000,"tokenAllCount":50000000,"weeklyRemainingPercent":60}],"providerID":"codex","summary":{"accountCount":1,"avgFiveHourRemainingPercent":80,"avgWeeklyRemainingPercent":60,"cachedCount":1,"latestRefreshedAt":"1970-01-01T00:00:00Z","totalToken1dCount":1200000,"totalToken30dCount":24000000,"totalTokenAllCount":50000000}},"ok":true}"#
+        let expected = #"{"command":"codex.auth.usage","data":{"accounts":[{"email":"json@example.com","expiresAt":"2026-12-31T08:00:00Z","fiveHourRemainingPercent":80,"id":"11111111-1111-1111-1111-111111111111","isActive":true,"refreshedAt":"1970-01-01T00:00:00Z","token1dCount":1200000,"token30dCount":24000000,"tokenAllCount":50000000,"weeklyRemainingPercent":60}],"providerID":"codex","summary":{"accountCount":1,"avgFiveHourRemainingPercent":80,"avgWeeklyRemainingPercent":60,"cachedCount":1,"earliestExpiresAt":"2026-12-31T08:00:00Z","latestRefreshedAt":"1970-01-01T00:00:00Z","totalToken1dCount":1200000,"totalToken30dCount":24000000,"totalTokenAllCount":50000000}},"ok":true}"#
         #expect(try canonicalJSON(result.stdout) == expected)
     }
 
@@ -1553,6 +1579,7 @@ private actor MockCodexCLIService: NolonCodexCLIServing {
                     token1dCount: 1_200_000,
                     token30dCount: 24_000_000,
                     tokenAllCount: 50_000_000,
+                    expiresAt: Date(timeIntervalSince1970: 1_798_704_000),
                     refreshedAt: Date(timeIntervalSince1970: 1_734_000_000)
                 )
             ],
@@ -1564,6 +1591,7 @@ private actor MockCodexCLIService: NolonCodexCLIServing {
                 totalToken1dCount: 1_200_000,
                 totalToken30dCount: 24_000_000,
                 totalTokenAllCount: 50_000_000,
+                earliestExpiresAt: Date(timeIntervalSince1970: 1_798_704_000),
                 latestRefreshedAt: Date(timeIntervalSince1970: 1_734_000_000)
             )
         )
@@ -2031,6 +2059,7 @@ private actor JSONContractCodexCLIService: NolonCodexCLIServing {
                     token1dCount: 1_200_000,
                     token30dCount: 24_000_000,
                     tokenAllCount: 50_000_000,
+                    expiresAt: Date(timeIntervalSince1970: 1_798_704_000),
                     refreshedAt: Date(timeIntervalSince1970: 0)
                 )
             ],
@@ -2042,6 +2071,7 @@ private actor JSONContractCodexCLIService: NolonCodexCLIServing {
                 totalToken1dCount: 1_200_000,
                 totalToken30dCount: 24_000_000,
                 totalTokenAllCount: 50_000_000,
+                earliestExpiresAt: Date(timeIntervalSince1970: 1_798_704_000),
                 latestRefreshedAt: Date(timeIntervalSince1970: 0)
             )
         )
@@ -2053,7 +2083,14 @@ private actor JSONContractCodexCLIService: NolonCodexCLIServing {
 }
 
 private actor AuthListTableCodexCLIService: NolonCodexCLIServing {
-    func authStatus(providerID: String) async throws -> NolonCodexAuthStatusPayload { throw unsupported() }
+    func authStatus(providerID: String) async throws -> NolonCodexAuthStatusPayload {
+        NolonCodexAuthStatusPayload(
+            providerID: providerID,
+            activeAccountID: UUID(uuidString: "11111111-1111-1111-1111-111111111111"),
+            accountCount: 2,
+            authHashHex: "tablehash"
+        )
+    }
     func authActivate(providerID: String, accountID: UUID) async throws -> NolonCodexAuthActivatePayload { throw unsupported() }
     func authLogin(providerID: String, preferredAccountID: UUID?) async throws -> NolonCodexAuthLoginPayload { throw unsupported() }
     func authDelete(providerID: String, accountID: UUID) async throws -> NolonCodexAuthDeletePayload { throw unsupported() }
@@ -2068,6 +2105,24 @@ private actor AuthListTableCodexCLIService: NolonCodexCLIServing {
     func runtimeStop(pid: Int32, force: Bool, timeoutSeconds: Int) async throws -> NolonCodexRuntimeStopPayload { throw unsupported() }
     func providerList() async throws -> NolonProviderListPayload { throw unsupported() }
     func providerDiscover() async throws -> NolonCodexProviderDiscoverPayload { throw unsupported() }
+
+    func authUsage(providerID: String) async throws -> NolonCodexAuthUsagePayload {
+        NolonCodexAuthUsagePayload(
+            providerID: providerID,
+            accounts: [],
+            summary: NolonCodexAuthUsageSummaryView(
+                accountCount: 0,
+                cachedCount: 0,
+                avgFiveHourRemainingPercent: nil,
+                avgWeeklyRemainingPercent: nil,
+                totalToken1dCount: nil,
+                totalToken30dCount: nil,
+                totalTokenAllCount: nil,
+                earliestExpiresAt: nil,
+                latestRefreshedAt: nil
+            )
+        )
+    }
 
     func authList(providerID: String) async throws -> NolonCodexAuthListPayload {
         NolonCodexAuthListPayload(
@@ -2103,8 +2158,13 @@ private actor AuthListTableCodexCLIService: NolonCodexCLIServing {
     }
 }
 
-private actor AuthListMissingFieldsCodexCLIService: NolonCodexCLIServing {
-    func authStatus(providerID: String) async throws -> NolonCodexAuthStatusPayload { throw unsupported() }
+private actor AuthUsageExpiryLabelCodexCLIService: NolonCodexCLIServing {
+    func authList(providerID: String) async throws -> NolonCodexAuthListPayload {
+        NolonCodexAuthListPayload(providerID: providerID, activeAccountID: nil, accounts: [])
+    }
+    func authStatus(providerID: String) async throws -> NolonCodexAuthStatusPayload {
+        NolonCodexAuthStatusPayload(providerID: providerID, activeAccountID: nil, accountCount: 2, authHashHex: "expiryhash")
+    }
     func authActivate(providerID: String, accountID: UUID) async throws -> NolonCodexAuthActivatePayload { throw unsupported() }
     func authLogin(providerID: String, preferredAccountID: UUID?) async throws -> NolonCodexAuthLoginPayload { throw unsupported() }
     func authDelete(providerID: String, accountID: UUID) async throws -> NolonCodexAuthDeletePayload { throw unsupported() }
@@ -2119,6 +2179,92 @@ private actor AuthListMissingFieldsCodexCLIService: NolonCodexCLIServing {
     func runtimeStop(pid: Int32, force: Bool, timeoutSeconds: Int) async throws -> NolonCodexRuntimeStopPayload { throw unsupported() }
     func providerList() async throws -> NolonProviderListPayload { throw unsupported() }
     func providerDiscover() async throws -> NolonCodexProviderDiscoverPayload { throw unsupported() }
+
+    func authUsage(providerID: String) async throws -> NolonCodexAuthUsagePayload {
+        NolonCodexAuthUsagePayload(
+            providerID: providerID,
+            accounts: [
+                NolonCodexAuthUsageAccountView(
+                    id: UUID(uuidString: "77777777-7777-7777-7777-777777777777")!,
+                    email: "future@example.com",
+                    isActive: true,
+                    fiveHourRemainingPercent: 80,
+                    weeklyRemainingPercent: 60,
+                    token1dCount: 1_000_000,
+                    token30dCount: 10_000_000,
+                    tokenAllCount: 20_000_000,
+                    expiresAt: Date().addingTimeInterval(26 * 3600),
+                    refreshedAt: Date()
+                ),
+                NolonCodexAuthUsageAccountView(
+                    id: UUID(uuidString: "88888888-8888-8888-8888-888888888888")!,
+                    email: "expired@example.com",
+                    isActive: false,
+                    fiveHourRemainingPercent: 20,
+                    weeklyRemainingPercent: 30,
+                    token1dCount: 500_000,
+                    token30dCount: 5_000_000,
+                    tokenAllCount: 8_000_000,
+                    expiresAt: Date().addingTimeInterval(-3 * 3600),
+                    hasRefreshToken: true,
+                    refreshedAt: Date()
+                ),
+            ],
+            summary: NolonCodexAuthUsageSummaryView(
+                accountCount: 2,
+                cachedCount: 2,
+                avgFiveHourRemainingPercent: 50,
+                avgWeeklyRemainingPercent: 45,
+                totalToken1dCount: 1_500_000,
+                totalToken30dCount: 15_000_000,
+                totalTokenAllCount: 28_000_000,
+                earliestExpiresAt: Date().addingTimeInterval(-3 * 3600),
+                latestRefreshedAt: Date()
+            )
+        )
+    }
+
+    private func unsupported() -> NolonCoreCLIError {
+        .invalidArguments("unsupported")
+    }
+}
+
+private actor AuthListMissingFieldsCodexCLIService: NolonCodexCLIServing {
+    func authStatus(providerID: String) async throws -> NolonCodexAuthStatusPayload {
+        NolonCodexAuthStatusPayload(providerID: providerID, activeAccountID: nil, accountCount: 1, authHashHex: nil)
+    }
+    func authActivate(providerID: String, accountID: UUID) async throws -> NolonCodexAuthActivatePayload { throw unsupported() }
+    func authLogin(providerID: String, preferredAccountID: UUID?) async throws -> NolonCodexAuthLoginPayload { throw unsupported() }
+    func authDelete(providerID: String, accountID: UUID) async throws -> NolonCodexAuthDeletePayload { throw unsupported() }
+    func binaryList() async throws -> NolonCodexBinaryListPayload { throw unsupported() }
+    func binaryAvailable() async throws -> NolonCodexBinaryAvailablePayload { throw unsupported() }
+    func binaryCurrent() async throws -> NolonCodexBinaryCurrentPayload { throw unsupported() }
+    func binaryInstall(version: String, setDefault: Bool) async throws -> NolonCodexBinaryInstallPayload { throw unsupported() }
+    func binaryUse(version: String) async throws -> NolonCodexBinaryUsePayload { throw unsupported() }
+    func binaryDoctor() async throws -> NolonCodexBinaryDoctorPayload { throw unsupported() }
+    func statusProbe(providerID: String?) async throws -> NolonCodexStatusProbePayload { throw unsupported() }
+    func runtimeList(providerID: String?) async throws -> NolonCodexRuntimeListPayload { throw unsupported() }
+    func runtimeStop(pid: Int32, force: Bool, timeoutSeconds: Int) async throws -> NolonCodexRuntimeStopPayload { throw unsupported() }
+    func providerList() async throws -> NolonProviderListPayload { throw unsupported() }
+    func providerDiscover() async throws -> NolonCodexProviderDiscoverPayload { throw unsupported() }
+
+    func authUsage(providerID: String) async throws -> NolonCodexAuthUsagePayload {
+        NolonCodexAuthUsagePayload(
+            providerID: providerID,
+            accounts: [],
+            summary: NolonCodexAuthUsageSummaryView(
+                accountCount: 0,
+                cachedCount: 0,
+                avgFiveHourRemainingPercent: nil,
+                avgWeeklyRemainingPercent: nil,
+                totalToken1dCount: nil,
+                totalToken30dCount: nil,
+                totalTokenAllCount: nil,
+                earliestExpiresAt: nil,
+                latestRefreshedAt: nil
+            )
+        )
+    }
 
     func authList(providerID: String) async throws -> NolonCodexAuthListPayload {
         NolonCodexAuthListPayload(
