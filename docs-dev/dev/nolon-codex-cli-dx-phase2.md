@@ -966,3 +966,27 @@
 - 验证：
   - `swift test --package-path libs/Providers --filter NolonCodexCLIEntrypointTests` 通过（96 tests）。
   - `swift test --package-path libs/Providers --filter NolonCodexCLIServiceTests` 通过（11 tests）。
+
+## Phase 2.50（auth refresh 改为静默续期，不触发登录）
+- 背景：
+  - 用户明确期望：`nolon codex auth refresh` 是“续期”，不是再次登录，不应弹出登录 URL。
+- 变更：
+  1. `NolonLiveCodexCLIService.authRefresh` 从 `loginRunner.loginAndAwaitAuthResult` 切换为静默续期：
+     - 先激活目标账号（保证 `~/.codex/auth.json` 指向目标账号）
+     - 调用 `CodexAccountRuntimeService.readAccount(refreshToken: true)` 触发 Codex runtime refresh
+     - 返回 `loginURL: nil`
+  2. 新增可注入依赖，提升可测试性：
+     - `authActivator`
+     - `authRefreshRunner`
+  3. 新增 refresh 错误映射（稳定错误码）：
+     - `refresh_token_expired` -> `codex_auth_refresh_token_expired`
+     - `refresh_token_reused|refresh_token_exhausted` -> `codex_auth_refresh_token_exhausted`
+     - `refresh_token_invalidated|refresh_token_revoked` -> `codex_auth_refresh_token_revoked`
+     - 其他 -> `codex_auth_refresh_failed`
+- 测试：
+  - `NolonCodexCLIServiceTests`
+    - `auth refresh performs silent token refresh and does not return login URL`
+    - `auth refresh maps refresh-token expired failure to stable domain code`
+- 验证：
+  - `swift test --package-path libs/Providers --filter NolonCodexCLIServiceTests` 通过（13 tests）。
+  - `swift test --package-path libs/Providers --filter NolonCodexCLIEntrypointTests` 通过（96 tests）。

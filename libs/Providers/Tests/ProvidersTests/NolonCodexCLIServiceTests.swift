@@ -2,6 +2,7 @@ import Foundation
 import Testing
 import STFilePath
 @testable import NolonCoreCLIKit
+@testable import CodexCLIKit
 @testable import ProviderCatalog
 @testable import ProviderUsage
 @testable import CodexProvider
@@ -311,6 +312,75 @@ struct NolonCodexCLIServiceTests {
         #expect(payload.usageLatestRefreshedAt == Date(timeIntervalSince1970: 1_733_360_000))
     }
 
+    @Test("auth refresh performs silent token refresh and does not return login URL")
+    func authRefreshSilentTokenRefresh() async throws {
+        let root = try makeTempRoot("nolon-codex-cli-refresh")
+        defer { try? root.delete() }
+
+        let authManager = CodexAuthManager(rootURL: root.url)
+        let account = try await authManager.addAccount(
+            name: "demo",
+            authJSONString: #"{"user":{"email":"refresh@example.com"},"tokens":{"refresh_token":"rt_demo"}}"#
+        )
+
+        let refreshCounter = Counter()
+        let service = NolonLiveCodexCLIService(
+            authManager: authManager,
+            binaryManager: CodexBinaryManager(homeURL: root.url),
+            loginRunner: .init(),
+            environment: [:],
+            authActivator: { _, _ in
+                CodexAuthActivationResult(runtimeSwitched: true, runtimeErrorDescription: nil)
+            },
+            authRefreshRunner: { _, _ in
+                await refreshCounter.increment()
+            }
+        )
+
+        let payload = try await service.authRefresh(providerID: "codex", accountID: account.id)
+        #expect(payload.accountID == account.id)
+        #expect(payload.loginURL == nil)
+        #expect(await refreshCounter.value() == 1)
+    }
+
+    @Test("auth refresh maps refresh-token expired failure to stable domain code")
+    func authRefreshMapsExpiredFailure() async throws {
+        let root = try makeTempRoot("nolon-codex-cli-refresh-failed")
+        defer { try? root.delete() }
+
+        let authManager = CodexAuthManager(rootURL: root.url)
+        let account = try await authManager.addAccount(
+            name: "demo",
+            authJSONString: #"{"user":{"email":"expired@example.com"},"tokens":{"refresh_token":"rt_demo"}}"#
+        )
+
+        let service = NolonLiveCodexCLIService(
+            authManager: authManager,
+            binaryManager: CodexBinaryManager(homeURL: root.url),
+            loginRunner: .init(),
+            environment: [:],
+            authActivator: { _, _ in
+                CodexAuthActivationResult(runtimeSwitched: true, runtimeErrorDescription: nil)
+            },
+            authRefreshRunner: { _, _ in
+                throw CodexCLIError.recoverableFallback("refresh_token_expired")
+            }
+        )
+
+        do {
+            _ = try await service.authRefresh(providerID: "codex", accountID: account.id)
+            Issue.record("Expected refresh failure")
+        } catch let error as NolonCoreCLIError {
+            guard case let .domainFailed(code, _) = error else {
+                Issue.record("Unexpected error: \(error)")
+                return
+            }
+            #expect(code == "codex_auth_refresh_token_expired")
+        } catch {
+            Issue.record("Unexpected error type: \(error)")
+        }
+    }
+
     @Test("runtime list filters codex processes and sorts by pid asc")
     func runtimeListFiltersAndSorts() async throws {
         let root = try makeTempRoot("nolon-codex-cli")
@@ -408,6 +478,18 @@ struct NolonCodexCLIServiceTests {
             uniqueKeysWithValues: ProviderTemplate.allCases.map { ($0.providerID, $0.cliName) }
         )
         #expect(payload.providers.allSatisfy { expectedCLIByProviderID[$0.providerID] == $0.cli })
+    }
+}
+
+private actor Counter {
+    private var rawValue: Int = 0
+
+    func increment() {
+        rawValue += 1
+    }
+
+    func value() -> Int {
+        rawValue
     }
 }
 

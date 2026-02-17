@@ -1,4 +1,5 @@
 import ArgumentParser
+import CodexAppServerKit
 import CodexCLIKit
 import CodexProvider
 import Foundation
@@ -339,10 +340,15 @@ public struct NolonCodexRuntimeStopPayload: Codable, Sendable, Equatable {
 }
 
 public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
+    typealias AuthActivator = @Sendable (CodexAuthAccount, Provider) async throws -> CodexAuthActivationResult
+    typealias AuthRefreshRunner = @Sendable (_ providerID: String, _ environment: [String: String]) async throws -> Void
+
     private let authManager: CodexAuthManager
     private let binaryManager: CodexBinaryManager
     private let loginRunner: CodexLoginRunner
     private let environment: [String: String]
+    private let authActivator: AuthActivator
+    private let authRefreshRunner: AuthRefreshRunner
     private let runtimeProcessInspector: any NolonCodexRuntimeProcessInspecting
     private let runtimeSignalController: any NolonCodexRuntimeSignalControlling
     private let currentPIDProvider: @Sendable () -> Int32
@@ -359,6 +365,10 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
             binaryManager: binaryManager,
             loginRunner: loginRunner,
             environment: environment,
+            authActivator: { account, provider in
+                try await CodexAuthActivationCoordinator.shared.activate(account: account, provider: provider)
+            },
+            authRefreshRunner: Self.liveAuthRefreshRunner,
             runtimeProcessInspector: NolonCodexRuntimeProcessInspector(),
             runtimeSignalController: NolonCodexRuntimeSignalController(),
             currentPIDProvider: { getpid() },
@@ -373,6 +383,34 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
         binaryManager: CodexBinaryManager,
         loginRunner: CodexLoginRunner,
         environment: [String: String],
+        authActivator: @escaping AuthActivator,
+        authRefreshRunner: @escaping AuthRefreshRunner
+    ) {
+        self.init(
+            authManager: authManager,
+            binaryManager: binaryManager,
+            loginRunner: loginRunner,
+            environment: environment,
+            authActivator: authActivator,
+            authRefreshRunner: authRefreshRunner,
+            runtimeProcessInspector: NolonCodexRuntimeProcessInspector(),
+            runtimeSignalController: NolonCodexRuntimeSignalController(),
+            currentPIDProvider: { getpid() },
+            sleep: { nanoseconds in
+                try await Task.sleep(nanoseconds: nanoseconds)
+            }
+        )
+    }
+
+    init(
+        authManager: CodexAuthManager,
+        binaryManager: CodexBinaryManager,
+        loginRunner: CodexLoginRunner,
+        environment: [String: String],
+        authActivator: @escaping AuthActivator = { account, provider in
+            try await CodexAuthActivationCoordinator.shared.activate(account: account, provider: provider)
+        },
+        authRefreshRunner: @escaping AuthRefreshRunner = Self.liveAuthRefreshRunner,
         runtimeProcessInspector: any NolonCodexRuntimeProcessInspecting,
         runtimeSignalController: any NolonCodexRuntimeSignalControlling,
         currentPIDProvider: @escaping @Sendable () -> Int32,
@@ -382,6 +420,8 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
         self.binaryManager = binaryManager
         self.loginRunner = loginRunner
         self.environment = environment
+        self.authActivator = authActivator
+        self.authRefreshRunner = authRefreshRunner
         self.runtimeProcessInspector = runtimeProcessInspector
         self.runtimeSignalController = runtimeSignalController
         self.currentPIDProvider = currentPIDProvider
@@ -505,7 +545,7 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
             )
         }
 
-        let result = try await CodexAuthActivationCoordinator.shared.activate(account: account, provider: provider)
+        let result = try await authActivator(account, provider)
         return NolonCodexAuthActivatePayload(
             providerID: canonicalProviderID,
             accountID: accountID,
@@ -552,31 +592,21 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
             )
         }
 
-        let codexHome = authManager.cliLoginCodexHomeFolder(providerID: canonicalProviderID)
-        _ = codexHome.createIfNotExists()
-        let isolatedAuthFile = codexHome.file("auth.json")
-        if isolatedAuthFile.isExists {
-            try isolatedAuthFile.delete()
+        let activation = try await authActivator(target, provider)
+        do {
+            try await authRefreshRunner(canonicalProviderID, environment)
+        } catch {
+            throw Self.mapRefreshError(error, accountID: target.id)
         }
 
-        let loginResult = try await loginRunner.loginAndAwaitAuthResult(
-            binary: "codex",
-            environment: environment,
-            codexHome: codexHome
-        )
-
-        let account = try await authManager.recordCLILoginSnapshot(
-            authJSONString: loginResult.authJSONString,
-            preferredAccountID: target.id
-        )
-        let activation = try await CodexAuthActivationCoordinator.shared.activate(account: account, provider: provider)
+        let account = (try await authManager.loadAccounts().first { $0.id == target.id }) ?? target
         return NolonCodexAuthLoginPayload(
             providerID: canonicalProviderID,
             accountID: account.id,
             accountName: account.name,
             runtimeSwitched: activation.runtimeSwitched,
             runtimeErrorDescription: activation.runtimeErrorDescription,
-            loginURL: loginResult.loginURL
+            loginURL: nil
         )
     }
 
@@ -600,7 +630,7 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
             authJSONString: loginResult.authJSONString,
             preferredAccountID: preferredAccountID
         )
-        let activation = try await CodexAuthActivationCoordinator.shared.activate(account: account, provider: provider)
+        let activation = try await authActivator(account, provider)
         return NolonCodexAuthLoginPayload(
             providerID: canonicalProviderID,
             accountID: account.id,
@@ -874,6 +904,43 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
             requestedSignal: "term",
             didEscalateToKill: true,
             exited: exited
+        )
+    }
+
+    private static func liveAuthRefreshRunner(providerID: String, environment: [String: String]) async throws {
+        _ = providerID
+        let service = CodexAccountRuntimeService(
+            executable: environment["CODEX_CLI_PATH"] ?? "codex",
+            environment: environment
+        )
+        defer { Task { await service.shutdown() } }
+        try await service.initialize(clientName: "nolon", clientVersion: "1.0.0")
+        _ = try await service.readAccount(refreshToken: true)
+    }
+
+    private static func mapRefreshError(_ error: Error, accountID: UUID) -> NolonCoreCLIError {
+        let text = error.localizedDescription.lowercased()
+        if text.contains("refresh_token_expired") {
+            return .domainFailed(
+                code: "codex_auth_refresh_token_expired",
+                message: "Refresh token expired for account: \(accountID.uuidString)"
+            )
+        }
+        if text.contains("refresh_token_reused") || text.contains("refresh_token_exhausted") {
+            return .domainFailed(
+                code: "codex_auth_refresh_token_exhausted",
+                message: "Refresh token exhausted for account: \(accountID.uuidString)"
+            )
+        }
+        if text.contains("refresh_token_invalidated") || text.contains("refresh_token_revoked") {
+            return .domainFailed(
+                code: "codex_auth_refresh_token_revoked",
+                message: "Refresh token revoked for account: \(accountID.uuidString)"
+            )
+        }
+        return .domainFailed(
+            code: "codex_auth_refresh_failed",
+            message: "Silent refresh failed for account \(accountID.uuidString): \(error.localizedDescription)"
         )
     }
 
