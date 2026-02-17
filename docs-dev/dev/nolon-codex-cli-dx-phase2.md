@@ -731,3 +731,25 @@
 - 验证：
   - `swift test --package-path libs/Providers --filter NolonCodexCLIServiceTests` 通过（10 tests）。
   - `swift test --package-path libs/Providers --filter NolonCodexCLIEntrypointTests` 通过（86 tests）。
+
+## Phase 2.39（auth status 增加用量摘要）
+- 背景：
+  - `nolon codex auth status` 仅返回账号数量和 auth hash，信息不够一屏定位问题。
+- 变更：
+  1. `NolonCodexAuthStatusPayload` 新增字段：
+     - `usageCachedAccountCount`
+     - `usageAvgFiveHourRemainingPercent`
+     - `usageAvgWeeklyRemainingPercent`
+     - `usageLatestRefreshedAt`
+  2. `NolonLiveCodexCLIService.authStatus` 复用 `authUsage` 聚合结果填充上述字段。
+  3. `formatAuthStatus` 文本输出新增：
+     - `usage_cached_accounts`
+     - `usage_avg_5h_left`
+     - `usage_avg_7d_left`
+     - `usage_latest_refresh`
+- 测试：
+  - 新增 `NolonCodexCLIServiceTests.auth status includes usage summary fields`
+  - 更新 `NolonCodexCLIEntrypointTests.routesAuthStatus` 断言，覆盖 `usage_cached_accounts`
+- 验证：
+  - `swift test --package-path libs/Providers --filter NolonCodexCLIServiceTests` 通过（11 tests）。
+  - `swift test --package-path libs/Providers --filter NolonCodexCLIEntrypointTests` 通过（87 tests）。

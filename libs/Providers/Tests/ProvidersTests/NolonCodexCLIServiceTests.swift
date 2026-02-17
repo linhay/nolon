@@ -237,6 +237,50 @@ struct NolonCodexCLIServiceTests {
         #expect(payload.summary.latestRefreshedAt == Date(timeIntervalSince1970: 1_733_350_000))
     }
 
+    @Test("auth status includes usage summary fields")
+    func authStatusIncludesUsageSummary() async throws {
+        let root = try makeTempRoot("nolon-codex-cli")
+        defer { try? root.delete() }
+
+        let authManager = CodexAuthManager(rootURL: root.url)
+        let account = try await authManager.addAccount(
+            name: "demo",
+            authJSONString: #"{"user":{"email":"status@example.com"}}"#
+        )
+
+        let cache = CodexAuthUsageCache(
+            cachedAt: Date(timeIntervalSince1970: 1_733_100_000),
+            creditsRefreshedAt: Date(timeIntervalSince1970: 1_733_360_000),
+            fetchKind: .cli,
+            strategyKind: .direct,
+            sourceLabel: "CLI",
+            usage: UsageSnapshot(
+                identity: nil,
+                primary: RateWindow(usedPercent: 20),
+                secondary: RateWindow(usedPercent: 10),
+                tertiary: nil,
+                updatedAt: Date(timeIntervalSince1970: 1_733_200_000)
+            ),
+            credits: nil,
+            cost: nil
+        )
+        try await authManager.storeUsageCache(cache, for: account)
+
+        let service = NolonLiveCodexCLIService(
+            authManager: authManager,
+            binaryManager: CodexBinaryManager(homeURL: root.url),
+            loginRunner: .init(),
+            environment: [:]
+        )
+
+        let payload = try await service.authStatus(providerID: "codex")
+        #expect(payload.accountCount == 1)
+        #expect(payload.usageCachedAccountCount == 1)
+        #expect(payload.usageAvgFiveHourRemainingPercent == 80)
+        #expect(payload.usageAvgWeeklyRemainingPercent == 90)
+        #expect(payload.usageLatestRefreshedAt == Date(timeIntervalSince1970: 1_733_360_000))
+    }
+
     @Test("runtime list filters codex processes and sorts by pid asc")
     func runtimeListFiltersAndSorts() async throws {
         let root = try makeTempRoot("nolon-codex-cli")

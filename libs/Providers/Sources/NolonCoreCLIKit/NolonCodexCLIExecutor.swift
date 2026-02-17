@@ -607,11 +607,18 @@ enum NolonCodexCLIExecutor {
     }
 
     private static func formatAuthStatus(_ payload: NolonCodexAuthStatusPayload) -> String {
-        [
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd HH:mm"
+        return [
             "provider: \(payload.providerID)",
             "active_account_id: \(payload.activeAccountID?.uuidString ?? "-")",
             "account_count: \(payload.accountCount)",
             "auth_hash_hex: \(payload.authHashHex ?? "-")",
+            "usage_cached_accounts: \(payload.usageCachedAccountCount)",
+            "usage_avg_5h_left: \(payload.usageAvgFiveHourRemainingPercent.map { "\($0)%" } ?? "-")",
+            "usage_avg_7d_left: \(payload.usageAvgWeeklyRemainingPercent.map { "\($0)%" } ?? "-")",
+            "usage_latest_refresh: \(payload.usageLatestRefreshedAt.map { formatter.string(from: $0) } ?? "-")",
         ].joined(separator: "\n")
     }
 

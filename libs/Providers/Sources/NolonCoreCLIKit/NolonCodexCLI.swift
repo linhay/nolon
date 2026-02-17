@@ -103,6 +103,30 @@ public struct NolonCodexAuthStatusPayload: Codable, Sendable, Equatable {
     public let activeAccountID: UUID?
     public let accountCount: Int
     public let authHashHex: String?
+    public let usageCachedAccountCount: Int
+    public let usageAvgFiveHourRemainingPercent: Int?
+    public let usageAvgWeeklyRemainingPercent: Int?
+    public let usageLatestRefreshedAt: Date?
+
+    public init(
+        providerID: String,
+        activeAccountID: UUID?,
+        accountCount: Int,
+        authHashHex: String?,
+        usageCachedAccountCount: Int = 0,
+        usageAvgFiveHourRemainingPercent: Int? = nil,
+        usageAvgWeeklyRemainingPercent: Int? = nil,
+        usageLatestRefreshedAt: Date? = nil
+    ) {
+        self.providerID = providerID
+        self.activeAccountID = activeAccountID
+        self.accountCount = accountCount
+        self.authHashHex = authHashHex
+        self.usageCachedAccountCount = usageCachedAccountCount
+        self.usageAvgFiveHourRemainingPercent = usageAvgFiveHourRemainingPercent
+        self.usageAvgWeeklyRemainingPercent = usageAvgWeeklyRemainingPercent
+        self.usageLatestRefreshedAt = usageLatestRefreshedAt
+    }
 }
 
 public struct NolonCodexAuthActivatePayload: Codable, Sendable, Equatable {
@@ -370,14 +394,18 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
     public func authStatus(providerID: String) async throws -> NolonCodexAuthStatusPayload {
         let canonicalProviderID = try Self.canonicalProviderID(providerID)
         let provider = try Self.provider(for: canonicalProviderID)
-        let accounts = try await authManager.loadAccounts()
-        let activeID = await authManager.activeAccountId(for: provider)
+        let usagePayload = try await authUsage(providerID: canonicalProviderID)
+        let activeID = usagePayload.accounts.first(where: { $0.isActive })?.id
         let authHashHex = await authManager.currentAuthHashHex(for: provider)
         return NolonCodexAuthStatusPayload(
             providerID: canonicalProviderID,
             activeAccountID: activeID,
-            accountCount: accounts.count,
-            authHashHex: authHashHex
+            accountCount: usagePayload.summary.accountCount,
+            authHashHex: authHashHex,
+            usageCachedAccountCount: usagePayload.summary.cachedCount,
+            usageAvgFiveHourRemainingPercent: usagePayload.summary.avgFiveHourRemainingPercent,
+            usageAvgWeeklyRemainingPercent: usagePayload.summary.avgWeeklyRemainingPercent,
+            usageLatestRefreshedAt: usagePayload.summary.latestRefreshedAt
         )
     }
 

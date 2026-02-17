@@ -679,6 +679,7 @@ struct NolonCodexCLIEntrypointTests {
 
         #expect(result.exitCode == 0)
         #expect(result.stdout.contains("account_count: 0"))
+        #expect(result.stdout.contains("usage_cached_accounts: 0"))
         #expect(await mock.lastCall() == "authStatus")
     }
 
