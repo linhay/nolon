@@ -642,6 +642,20 @@
   4. 错误文案保持原语义（优先使用 stderr，空时回退 stdout，再回退本地化默认文案）。
 - 验证：
   - `./build.sh` 通过（`BUILD SUCCEEDED`）。
+
+## Phase 2.36（Process 直连回归守卫）
+- 背景：
+  - 代码已基本收敛到 `SKProcessRunner`，但需要自动化守卫防止后续改动重新引入 `Process` 直连。
+- 变更：
+  1. 新增测试：`libs/Providers/Tests/ProvidersTests/ProcessRunnerConvergenceTests.swift`；
+  2. 守卫规则：
+     - 扫描 `libs/Providers/Sources/**/*.swift`；
+     - 仅允许 `JsonRPCKit/JsonRPCLineProcessSession.swift` 使用直接 `Process`（当前已知例外）；
+     - 其余生产源码若出现 `Process` 直接用法则测试红灯。
+  3. 新增 suite 名称：`Process Runner Convergence`，用于持续观察收敛状态。
+- 验证：
+  - `swift test --package-path libs/Providers --filter ProcessRunnerConvergenceTests` 通过。
+  - `swift test --package-path libs/Providers` 全量通过（315 tests, 41 suites, 0 failure）。
   3. 文档中给出建议 API（`SKProcessPipeSession`）与验收标准，便于向 `SKProcessRunner` 提 issue。
 
 ## Phase 2.34（接入 SKProcessPipeSession 验证与回退）
