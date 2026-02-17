@@ -1,5 +1,5 @@
 {
-  "originHash" : "4985ba5a9275e14ac47eaaab4551394faea15ce5c9ffd9caf34551cfe9caa360",
+  "originHash" : "b812a125ad7548bce7e9eefa01678c69061c4877a1b923e923beeb436e15dbad",
   "pins" : [
     {
       "identity" : "grdb.swift",
@@ -24,8 +24,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/linhay/SKProcessRunner",
       "state" : {
-        "revision" : "f432e9223555a3c945661669e8c81aa07a554dfa",
-        "version" : "0.0.11"
+        "branch" : "48c7918",
+        "revision" : "48c7918fdc077bff295a30635798f944b8c07ed1"
       }
     },
     {
@@ -71,15 +71,6 @@
       "state" : {
         "revision" : "5d9bdaa4228b381639fff09403e39a04926e2dbe",
         "version" : "0.7.1"
-      }
-    },
-    {
-      "identity" : "swift-git",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/linhay/swift-git",
-      "state" : {
-        "revision" : "eea4abadef299579b5543fcd3da4ec289d07df80",
-        "version" : "2.2.1"
       }
     },
     {
