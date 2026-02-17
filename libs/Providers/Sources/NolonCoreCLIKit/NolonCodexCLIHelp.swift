@@ -196,6 +196,9 @@ enum NolonCodexCLIHelpResolver {
         Options:
           --provider <id>   Provider id, default is codex.
           --summary         Show aggregated summary only.
+          --refresh         Refresh usage cache before rendering output.
+          --account-id <id> Account id UUID for usage refresh target (requires --refresh).
+          --email <value>   Account email for usage refresh target (requires --refresh, case-insensitive).
         """
     }
 

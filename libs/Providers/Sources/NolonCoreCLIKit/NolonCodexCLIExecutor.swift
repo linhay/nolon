@@ -105,10 +105,51 @@ enum NolonCodexCLIExecutor {
 
     private static func executeAuthUsage(command: NolonCodexAuthUsageCommand, context: NolonCLIExecutionContext, outputMode: OutputMode) async throws -> String {
         let providerID = try parseCodexProviderID(command.provider)
-        if outputMode == .text, command.summary == false {
-            return try await renderAuthOverview(providerID: providerID, context: context)
+        if command.accountID != nil, command.email != nil {
+            throw NolonCoreCLIError.invalidArguments("Use either --account-id or --email, not both.")
         }
-        let payload = try await context.codexService().authUsage(providerID: providerID)
+        if command.refresh == false, (command.accountID != nil || command.email != nil) {
+            throw NolonCoreCLIError.invalidArguments("--account-id/--email requires --refresh.")
+        }
+
+        let targetAccountID: UUID?
+        if let rawAccountID = command.accountID {
+            guard let parsed = UUID(uuidString: rawAccountID) else {
+                throw NolonCoreCLIError.invalidArguments("Invalid --account-id: \(rawAccountID)")
+            }
+            targetAccountID = parsed
+        } else if let rawEmail = command.email?.trimmingCharacters(in: .whitespacesAndNewlines), !rawEmail.isEmpty {
+            let list = try await context.codexService().authList(providerID: providerID)
+            guard let matched = list.accounts.first(where: { account in
+                guard let email = account.email?.trimmingCharacters(in: .whitespacesAndNewlines), !email.isEmpty else {
+                    return false
+                }
+                return email.caseInsensitiveCompare(rawEmail) == .orderedSame
+            }) else {
+                throw NolonCoreCLIError.domainFailed(
+                    code: "codex_auth_account_not_found",
+                    message: "Codex account not found for email: \(rawEmail)"
+                )
+            }
+            targetAccountID = matched.id
+        } else {
+            targetAccountID = nil
+        }
+
+        if outputMode == .text, command.summary == false {
+            return try await renderAuthOverview(
+                providerID: providerID,
+                context: context,
+                refreshUsage: command.refresh,
+                targetAccountID: targetAccountID
+            )
+        }
+        let payload: NolonCodexAuthUsagePayload
+        if command.refresh {
+            payload = try await context.codexService().authUsageRefresh(providerID: providerID, accountID: targetAccountID)
+        } else {
+            payload = try await context.codexService().authUsage(providerID: providerID)
+        }
         if command.summary {
             return try renderOutput(command: .authUsage, payload: payload, outputMode: outputMode, textFormatter: formatAuthUsageSummary)
         }
@@ -158,10 +199,20 @@ enum NolonCodexCLIExecutor {
         return try renderOutput(command: .authRefresh, payload: payload, outputMode: outputMode, textFormatter: formatAuthRefresh)
     }
 
-    private static func renderAuthOverview(providerID: String, context: NolonCLIExecutionContext) async throws -> String {
+    private static func renderAuthOverview(
+        providerID: String,
+        context: NolonCLIExecutionContext,
+        refreshUsage: Bool = false,
+        targetAccountID: UUID? = nil
+    ) async throws -> String {
         let service = context.codexService()
         let list = try await service.authList(providerID: providerID)
-        let usage = try await service.authUsage(providerID: providerID)
+        let usage: NolonCodexAuthUsagePayload
+        if refreshUsage {
+            usage = try await service.authUsageRefresh(providerID: providerID, accountID: targetAccountID)
+        } else {
+            usage = try await service.authUsage(providerID: providerID)
+        }
         let status = try await service.authStatus(providerID: providerID)
         return formatAuthOverview(list: list, usage: usage, status: status)
     }
@@ -814,19 +865,30 @@ enum NolonCodexCLIExecutor {
 
     private static func formatAuthRefresh(_ payload: NolonCodexAuthRefreshPayload) -> String {
         var lines: [String] = []
-        lines.reserveCapacity(payload.items.count + 4)
+        lines.reserveCapacity(payload.items.count + 5)
         lines.append("provider: \(payload.providerID)")
+        lines.append("邮箱                         | 状态  | 结果   | runtime | 错误码")
         for item in payload.items {
-            let status = item.success ? "ok" : "failed"
-            let reason = item.errorCode ?? "-"
-            let runtime = item.runtimeSwitched ? "true" : "false"
-            let email = item.email ?? "-"
-            lines.append("* \(email) | \(item.accountID.uuidString) | \(status) | runtime:\(runtime) | code:\(reason)")
+            let marker = item.isActive ? "*" : " "
+            let email = item.email ?? item.accountName
+            let status = item.isActive ? "已激活" : "未激活"
+            let result = item.success ? "成功" : "失败"
+            let runtime = item.runtimeSwitched ? "yes" : "no"
+            let code = item.errorCode ?? "-"
+            lines.append(
+                "\(marker) \(pad(email, to: 27)) | \(pad(status, to: 3)) | \(pad(result, to: 4)) | \(pad(runtime, to: 7)) | \(code)"
+            )
         }
         lines.append("summary_total: \(payload.summary.totalCount)")
         lines.append("summary_success: \(payload.summary.successCount)")
         lines.append("summary_failed: \(payload.summary.failureCount)")
         return lines.joined(separator: "\n")
+    }
+
+    private static func pad(_ raw: String, to width: Int) -> String {
+        let count = raw.count
+        guard count < width else { return raw }
+        return raw + String(repeating: " ", count: width - count)
     }
 
     private static func formatAuthDelete(_ payload: NolonCodexAuthDeletePayload) -> String {

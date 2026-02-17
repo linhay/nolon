@@ -606,6 +606,42 @@ struct NolonCodexCLIEntrypointTests {
         #expect(result.stdout.contains("过期信息"))
     }
 
+    @Test("routes auth usage refresh with summary")
+    func routesAuthUsageRefreshSummary() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: [
+                "codex", "auth", "usage",
+                "--provider", "codex",
+                "--summary",
+                "--refresh",
+                "--account-id", "11111111-1111-1111-1111-111111111111",
+            ],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stdout.contains("账号总数"))
+        #expect(await mock.lastCall() == "authUsageRefresh")
+    }
+
+    @Test("auth usage target requires refresh flag")
+    func authUsageTargetRequiresRefreshFlag() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: [
+                "codex", "auth", "usage",
+                "--provider", "codex",
+                "--account-id", "11111111-1111-1111-1111-111111111111",
+            ],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 2)
+        #expect(result.stderr.contains("\"code\":\"invalid_arguments\""))
+        #expect(result.stderr.contains("requires --refresh"))
+    }
+
     @Test("auth usage summary renders aggregated rows")
     func authUsageSummaryRenders() async {
         let mock = MockCodexCLIService()
@@ -771,7 +807,8 @@ struct NolonCodexCLIEntrypointTests {
         )
 
         #expect(result.exitCode == 0)
-        #expect(result.stdout.contains("* mock@example.com | 11111111-1111-1111-1111-111111111111 | ok"))
+        #expect(result.stdout.contains("* mock@example.com"))
+        #expect(result.stdout.contains("| 已激活 | 成功"))
         #expect(result.stdout.contains("summary_total: 1"))
         #expect(await mock.lastCall() == "authRefresh")
     }
@@ -1531,7 +1568,7 @@ struct NolonCodexCLIEntrypointTests {
         #expect(result.exitCode == 0)
         #expect(result.stderr.isEmpty)
 
-        let expected = #"{"command":"codex.auth.refresh","data":{"items":[{"accountID":"44444444-4444-4444-4444-444444444444","accountName":"json-refresh","email":"json@example.com","runtimeSwitched":true,"success":true}],"providerID":"codex","summary":{"failureCount":0,"successCount":1,"totalCount":1}},"ok":true}"#
+        let expected = #"{"command":"codex.auth.refresh","data":{"items":[{"accountID":"44444444-4444-4444-4444-444444444444","accountName":"json-refresh","email":"json@example.com","isActive":true,"runtimeSwitched":true,"success":true}],"providerID":"codex","summary":{"failureCount":0,"successCount":1,"totalCount":1}},"ok":true}"#
         #expect(try canonicalJSON(result.stdout) == expected)
     }
 
@@ -1649,6 +1686,39 @@ private actor MockCodexCLIService: NolonCodexCLIServing {
         )
     }
 
+    func authUsageRefresh(providerID: String, accountID: UUID?) async throws -> NolonCodexAuthUsagePayload {
+        _ = accountID
+        call = "authUsageRefresh"
+        return NolonCodexAuthUsagePayload(
+            providerID: providerID,
+            accounts: [
+                NolonCodexAuthUsageAccountView(
+                    id: UUID(uuidString: "11111111-1111-1111-1111-111111111111")!,
+                    email: "mock@example.com",
+                    isActive: true,
+                    fiveHourRemainingPercent: 75,
+                    weeklyRemainingPercent: 44,
+                    token1dCount: 1_200_000,
+                    token30dCount: 24_000_000,
+                    tokenAllCount: 50_000_000,
+                    expiresAt: Date(timeIntervalSince1970: 1_798_704_000),
+                    refreshedAt: Date(timeIntervalSince1970: 1_734_000_000)
+                )
+            ],
+            summary: NolonCodexAuthUsageSummaryView(
+                accountCount: 1,
+                cachedCount: 1,
+                avgFiveHourRemainingPercent: 75,
+                avgWeeklyRemainingPercent: 44,
+                totalToken1dCount: 1_200_000,
+                totalToken30dCount: 24_000_000,
+                totalTokenAllCount: 50_000_000,
+                earliestExpiresAt: Date(timeIntervalSince1970: 1_798_704_000),
+                latestRefreshedAt: Date(timeIntervalSince1970: 1_734_000_000)
+            )
+        )
+    }
+
     func authActivate(providerID: String, accountID: UUID) async throws -> NolonCodexAuthActivatePayload {
         call = "authActivate"
         return NolonCodexAuthActivatePayload(
@@ -1681,6 +1751,7 @@ private actor MockCodexCLIService: NolonCodexCLIServing {
                     accountID: resolvedID,
                     accountName: "mock-refresh",
                     email: "mock@example.com",
+                    isActive: true,
                     success: true,
                     runtimeSwitched: true,
                     runtimeErrorDescription: nil,
@@ -2093,6 +2164,7 @@ private actor JSONContractCodexCLIService: NolonCodexCLIServing {
                     accountID: accountID ?? UUID(uuidString: "44444444-4444-4444-4444-444444444444")!,
                     accountName: "json-refresh",
                     email: "json@example.com",
+                    isActive: true,
                     success: true,
                     runtimeSwitched: true,
                     runtimeErrorDescription: nil,

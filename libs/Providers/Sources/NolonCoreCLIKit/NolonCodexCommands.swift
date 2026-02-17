@@ -96,6 +96,15 @@ struct NolonCodexAuthUsageCommand: ParsableCommand {
 
     @Flag(name: .long, help: "Show aggregated summary only.")
     var summary: Bool = false
+
+    @Flag(name: .long, help: "Refresh usage cache before rendering output.")
+    var refresh: Bool = false
+
+    @Option(name: .long, help: "Account id UUID for usage refresh target.")
+    var accountID: String?
+
+    @Option(name: .long, help: "Account email for usage refresh target.")
+    var email: String?
 }
 
 struct NolonCodexAuthStatusCommand: ParsableCommand {

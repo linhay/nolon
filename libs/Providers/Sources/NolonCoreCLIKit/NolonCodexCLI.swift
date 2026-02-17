@@ -16,6 +16,7 @@ import Glibc
 public protocol NolonCodexCLIServing: Sendable {
     func authList(providerID: String) async throws -> NolonCodexAuthListPayload
     func authUsage(providerID: String) async throws -> NolonCodexAuthUsagePayload
+    func authUsageRefresh(providerID: String, accountID: UUID?) async throws -> NolonCodexAuthUsagePayload
     func authStatus(providerID: String) async throws -> NolonCodexAuthStatusPayload
     func authRefresh(providerID: String, accountID: UUID?) async throws -> NolonCodexAuthRefreshPayload
     func authActivate(providerID: String, accountID: UUID) async throws -> NolonCodexAuthActivatePayload
@@ -35,12 +36,18 @@ public protocol NolonCodexCLIServing: Sendable {
 }
 
 public extension NolonCodexCLIServing {
+    func authUsageRefresh(providerID: String, accountID: UUID?) async throws -> NolonCodexAuthUsagePayload {
+        _ = accountID
+        return try await authUsage(providerID: providerID)
+    }
+
     func authRefresh(providerID: String, accountID: UUID?) async throws -> NolonCodexAuthRefreshPayload {
         let login = try await authLogin(providerID: providerID, preferredAccountID: accountID)
         let item = NolonCodexAuthRefreshItemView(
             accountID: login.accountID,
             accountName: login.accountName,
             email: nil,
+            isActive: false,
             success: true,
             runtimeSwitched: login.runtimeSwitched,
             runtimeErrorDescription: login.runtimeErrorDescription,
@@ -236,6 +243,7 @@ public struct NolonCodexAuthRefreshItemView: Codable, Sendable, Equatable {
     public let accountID: UUID
     public let accountName: String
     public let email: String?
+    public let isActive: Bool
     public let success: Bool
     public let runtimeSwitched: Bool
     public let runtimeErrorDescription: String?
@@ -380,6 +388,7 @@ public struct NolonCodexRuntimeStopPayload: Codable, Sendable, Equatable {
 public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
     typealias AuthActivator = @Sendable (CodexAuthAccount, Provider) async throws -> CodexAuthActivationResult
     typealias AuthRefreshRunner = @Sendable (_ providerID: String, _ accountID: UUID, _ environment: [String: String]) async throws -> Void
+    typealias UsageOutcomeFetcher = @Sendable (_ environment: [String: String], _ costWindowDays: Int?) async -> ProviderFetchOutcome
 
     private let authManager: CodexAuthManager
     private let binaryManager: CodexBinaryManager
@@ -387,6 +396,7 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
     private let environment: [String: String]
     private let authActivator: AuthActivator
     private let authRefreshRunner: AuthRefreshRunner
+    private let usageOutcomeFetcher: UsageOutcomeFetcher
     private let runtimeProcessInspector: any NolonCodexRuntimeProcessInspecting
     private let runtimeSignalController: any NolonCodexRuntimeSignalControlling
     private let currentPIDProvider: @Sendable () -> Int32
@@ -407,6 +417,7 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
                 try await CodexAuthActivationCoordinator.shared.activate(account: account, provider: provider)
             },
             authRefreshRunner: Self.liveAuthRefreshRunner,
+            usageOutcomeFetcher: Self.liveUsageOutcomeFetcher,
             runtimeProcessInspector: NolonCodexRuntimeProcessInspector(),
             runtimeSignalController: NolonCodexRuntimeSignalController(),
             currentPIDProvider: { getpid() },
@@ -431,6 +442,7 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
             environment: environment,
             authActivator: authActivator,
             authRefreshRunner: authRefreshRunner,
+            usageOutcomeFetcher: Self.liveUsageOutcomeFetcher,
             runtimeProcessInspector: NolonCodexRuntimeProcessInspector(),
             runtimeSignalController: NolonCodexRuntimeSignalController(),
             currentPIDProvider: { getpid() },
@@ -449,6 +461,7 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
             try await CodexAuthActivationCoordinator.shared.activate(account: account, provider: provider)
         },
         authRefreshRunner: @escaping AuthRefreshRunner = Self.liveAuthRefreshRunner,
+        usageOutcomeFetcher: @escaping UsageOutcomeFetcher = Self.liveUsageOutcomeFetcher,
         runtimeProcessInspector: any NolonCodexRuntimeProcessInspecting,
         runtimeSignalController: any NolonCodexRuntimeSignalControlling,
         currentPIDProvider: @escaping @Sendable () -> Int32,
@@ -460,6 +473,7 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
         self.environment = environment
         self.authActivator = authActivator
         self.authRefreshRunner = authRefreshRunner
+        self.usageOutcomeFetcher = usageOutcomeFetcher
         self.runtimeProcessInspector = runtimeProcessInspector
         self.runtimeSignalController = runtimeSignalController
         self.currentPIDProvider = currentPIDProvider
@@ -497,9 +511,27 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
     }
 
     public func authUsage(providerID: String) async throws -> NolonCodexAuthUsagePayload {
+        try await buildAuthUsagePayload(providerID: providerID, refreshTargetAccountID: nil, refreshBeforeRead: false)
+    }
+
+    public func authUsageRefresh(providerID: String, accountID: UUID?) async throws -> NolonCodexAuthUsagePayload {
+        try await buildAuthUsagePayload(providerID: providerID, refreshTargetAccountID: accountID, refreshBeforeRead: true)
+    }
+
+    private func buildAuthUsagePayload(
+        providerID: String,
+        refreshTargetAccountID: UUID?,
+        refreshBeforeRead: Bool
+    ) async throws -> NolonCodexAuthUsagePayload {
         let canonicalProviderID = try Self.canonicalProviderID(providerID)
         let provider = try Self.provider(for: canonicalProviderID)
         let accounts = try await authManager.loadAccounts()
+        if refreshBeforeRead {
+            try await refreshUsageCaches(
+                accounts: accounts,
+                targetAccountID: refreshTargetAccountID
+            )
+        }
         let activeID = await authManager.activeAccountId(for: provider)
 
         var views: [NolonCodexAuthUsageAccountView] = []
@@ -554,6 +586,68 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
         )
     }
 
+    private func refreshUsageCaches(
+        accounts: [CodexAuthAccount],
+        targetAccountID: UUID?
+    ) async throws {
+        let targets: [CodexAuthAccount]
+        if let targetAccountID {
+            guard let matched = accounts.first(where: { $0.id == targetAccountID }) else {
+                throw NolonCoreCLIError.domainFailed(
+                    code: "codex_auth_account_not_found",
+                    message: "Codex account not found: \(targetAccountID.uuidString)"
+                )
+            }
+            targets = [matched]
+        } else {
+            targets = accounts
+        }
+
+        guard !targets.isEmpty else { return }
+
+        var mergedEnvironment = environment
+        if let managed = try? await binaryManager.launchEnvironmentVariables() {
+            mergedEnvironment.merge(managed) { _, new in new }
+        }
+
+        for account in targets {
+            let runtimeHome = authManager.runtimeHomeFolder(accountID: account.id)
+            _ = runtimeHome.createIfNotExists()
+            let runtimeAuth = runtimeHome.file("auth.json")
+            let sourceAuth = authManager.accountAuthFile(relativeAuthPath: account.relativeAuthPath)
+            let authData = try sourceAuth.data()
+            try runtimeAuth.overlay(with: authData)
+
+            var accountEnvironment = mergedEnvironment
+            accountEnvironment["CODEX_HOME"] = runtimeHome.url.standardizedFileURL.path
+
+            let outcome = await usageOutcomeFetcher(accountEnvironment, 30)
+            switch outcome.result {
+            case let .success(result):
+                let now = Date()
+                let creditsRefreshedAt: Date? = {
+                    guard let credits = result.credits, !credits.remaining.isNaN else { return nil }
+                    return now
+                }()
+                let cache = CodexAuthUsageCache(
+                    cachedAt: now,
+                    creditsRefreshedAt: creditsRefreshedAt,
+                    fetchKind: outcome.fetchKind,
+                    strategyKind: result.strategyKind,
+                    sourceLabel: result.sourceLabel,
+                    usage: result.usage,
+                    credits: result.credits,
+                    cost: result.cost
+                )
+                try await authManager.storeUsageCache(cache, for: account)
+                try await authManager.updateSyncSuccess(for: account, date: now)
+            case let .failure(error):
+                try await authManager.updateSyncFailure(for: account, message: error.localizedDescription, date: Date())
+            }
+        }
+
+    }
+
     public func authStatus(providerID: String) async throws -> NolonCodexAuthStatusPayload {
         let canonicalProviderID = try Self.canonicalProviderID(providerID)
         let provider = try Self.provider(for: canonicalProviderID)
@@ -596,6 +690,7 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
         let canonicalProviderID = try Self.canonicalProviderID(providerID)
         let provider = try Self.provider(for: canonicalProviderID)
         let accounts = try await authManager.loadAccounts()
+        let activeAccountID = await authManager.activeAccountId(for: provider)
         guard !accounts.isEmpty else {
             throw NolonCoreCLIError.domainFailed(
                 code: "codex_auth_account_not_found",
@@ -629,6 +724,7 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
                         accountID: target.id,
                         accountName: target.name,
                         email: email,
+                        isActive: target.id == activeAccountID,
                         success: false,
                         runtimeSwitched: false,
                         runtimeErrorDescription: nil,
@@ -647,6 +743,7 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
                         accountID: target.id,
                         accountName: target.name,
                         email: email,
+                        isActive: target.id == activeAccountID,
                         success: true,
                         runtimeSwitched: activation.runtimeSwitched,
                         runtimeErrorDescription: activation.runtimeErrorDescription,
@@ -663,6 +760,7 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
                         accountID: target.id,
                         accountName: target.name,
                         email: email,
+                        isActive: target.id == activeAccountID,
                         success: false,
                         runtimeSwitched: false,
                         runtimeErrorDescription: nil,
@@ -991,6 +1089,19 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
         defer { Task { await service.shutdown() } }
         try await service.initialize(clientName: "nolon", clientVersion: "1.0.0")
         _ = try await service.readAccount(refreshToken: true)
+    }
+
+    private static func liveUsageOutcomeFetcher(environment: [String: String], costWindowDays: Int?) async -> ProviderFetchOutcome {
+        let context = ProviderFetchContext(
+            provider: .codex,
+            sourceMode: .auto,
+            includeCredits: true,
+            timeout: 20,
+            costWindowDays: costWindowDays,
+            environment: environment,
+            token: nil
+        )
+        return await CodexUsageDescriptor().fetchOutcome(context: context)
     }
 
     private static func mapRefreshError(_ error: Error, accountID: UUID) -> NolonCoreCLIError {

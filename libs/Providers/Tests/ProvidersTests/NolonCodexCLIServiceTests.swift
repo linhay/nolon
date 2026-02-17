@@ -268,6 +268,69 @@ struct NolonCodexCLIServiceTests {
         #expect(payload.accounts.first(where: { $0.email == "a@example.com" })?.hasRefreshToken == true)
     }
 
+    @Test("auth usage refresh writes back usage cache per account")
+    func authUsageRefreshWritesBackPerAccount() async throws {
+        let root = try makeTempRoot("nolon-codex-cli-usage-refresh")
+        defer { try? root.delete() }
+
+        let authManager = CodexAuthManager(rootURL: root.url)
+        let accountA = try await authManager.addAccount(
+            name: "a",
+            authJSONString: #"{"user":{"email":"a@example.com"}}"#
+        )
+        _ = try await authManager.addAccount(
+            name: "b",
+            authJSONString: #"{"user":{"email":"b@example.com"}}"#
+        )
+
+        let service = NolonLiveCodexCLIService(
+            authManager: authManager,
+            binaryManager: CodexBinaryManager(homeURL: root.url),
+            loginRunner: .init(),
+            environment: [:],
+            usageOutcomeFetcher: { _, _ in
+                let result = ProviderFetchResult(
+                    usage: UsageSnapshot(
+                        identity: UsageIdentity(
+                            accountEmail: "a@example.com",
+                            accountOrganization: nil,
+                            loginMethod: "oauth",
+                            plan: "plus"
+                        ),
+                        primary: RateWindow(usedPercent: 22),
+                        secondary: RateWindow(usedPercent: 33),
+                        tertiary: nil,
+                        updatedAt: Date(timeIntervalSince1970: 1_734_200_000)
+                    ),
+                    credits: nil,
+                    cost: CostSnapshot(
+                        todayCostUSD: nil,
+                        todayTokens: 5_000_000,
+                        last30DaysCostUSD: nil,
+                        last30DaysTokens: 12_000_000,
+                        windowDays: 30,
+                        dailyCosts: [CostSnapshot.DailyCost(date: "2026-02-17", costUSD: nil, tokens: 6_000_000)],
+                        updatedAt: Date(timeIntervalSince1970: 1_734_200_000)
+                    ),
+                    sourceLabel: "CLI",
+                    fetchKind: .cli,
+                    strategyKind: .direct
+                )
+                return ProviderFetchOutcome(fetchKind: .cli, result: .success(result))
+            },
+            runtimeProcessInspector: StubRuntimeProcessInspector(snapshots: []),
+            runtimeSignalController: StubRuntimeSignalController(),
+            currentPIDProvider: { 999_999 },
+            sleep: { _ in }
+        )
+
+        _ = try await service.authUsageRefresh(providerID: "codex", accountID: accountA.id)
+
+        let cacheA = try await authManager.loadUsageCache(for: accountA)
+        #expect(cacheA?.cost?.todayTokens == 5_000_000)
+        #expect(cacheA?.cost?.last30DaysTokens == 12_000_000)
+    }
+
     @Test("auth status includes usage summary fields")
     func authStatusIncludesUsageSummary() async throws {
         let root = try makeTempRoot("nolon-codex-cli")
