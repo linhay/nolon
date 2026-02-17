@@ -44,7 +44,7 @@ struct CodexAuthManagerTests {
         #expect(folder == expected)
     }
 
-    @Test("Given account snapshot, when reading token pair, then returns id/access token")
+    @Test("Given account snapshot, when reading token pair, then returns id/access token and chatgpt account id")
     func readTokenPairFromSnapshot() async throws {
         let root = try makeTempRoot("codex-auth-manager")
         defer { try? root.delete() }
@@ -52,12 +52,13 @@ struct CodexAuthManagerTests {
         let manager = CodexAuthManager(rootURL: root.url)
         let account = try await manager.addAccount(
             name: "test",
-            authJSONString: #"{"tokens":{"id_token":"id-token-value","access_token":"access-token-value"}}"#
+            authJSONString: #"{"tokens":{"id_token":"id-token-value","access_token":"access-token-value","account_id":"acct-123"}}"#
         )
 
         let pair = try await manager.readTokenPair(for: account)
         #expect(pair?.idToken == "id-token-value")
         #expect(pair?.accessToken == "access-token-value")
+        #expect(pair?.chatgptAccountID == "acct-123")
     }
 
     @Test("Given selected snapshot, when activating account, then provider auth is symlinked to snapshot")

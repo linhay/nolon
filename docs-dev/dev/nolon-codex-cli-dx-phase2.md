@@ -990,3 +990,30 @@
 - 验证：
   - `swift test --package-path libs/Providers --filter NolonCodexCLIServiceTests` 通过（13 tests）。
   - `swift test --package-path libs/Providers --filter NolonCodexCLIEntrypointTests` 通过（96 tests）。
+
+## Phase 2.51（兼容新版 app-server 的 chatgptAccountId 必填）
+- 背景：
+  - 线上反馈 `nolon codex auth refresh` 在 runtime 切换阶段失败：
+    - `Invalid request: missing field chatgptAccountId`
+- 变更：
+  1. `CodexTokenPair` 新增 `chatgptAccountID`；
+  2. `CodexAuthManager.readTokenPair` 增加解析：
+    - `tokens.account_id / tokens.accountId`
+    - `chatgpt_account_id / chatgptAccountId`
+    - `account_id / accountId`
+  3. runtime 切换链路透传该字段：
+    - `CodexAuthRuntimeCoordinator`
+    - `CodexRuntimeAccountSwitcher`
+    - `CodexAccountRuntimeService.switchAccount(...)`
+  4. `account/login/start` 参数新增：
+    - `"chatgptAccountId": <value or null>`
+- 测试：
+  - `CodexAccountRuntimeServiceTests.switchAccount sends chatgptAccountId in login/start payload`
+  - `CodexAuthRuntimeCoordinatorTests` 更新断言，覆盖字段透传
+  - `CodexAuthManagerTests.readTokenPairFromSnapshot` 增加 `chatgptAccountID` 断言
+- 验证：
+  - `swift test --package-path libs/Providers --filter CodexAuthRuntimeCoordinatorTests` 通过
+  - `swift test --package-path libs/Providers --filter CodexAccountRuntimeServiceTests` 通过
+  - `swift test --package-path libs/Providers --filter CodexAuthManagerTests` 通过
+  - `swift test --package-path libs/Providers --filter NolonCodexCLIServiceTests` 通过
+  - `swift test --package-path libs/Providers --filter NolonCodexCLIEntrypointTests` 通过

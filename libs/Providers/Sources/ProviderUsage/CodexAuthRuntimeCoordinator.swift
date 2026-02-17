@@ -19,8 +19,8 @@ public enum CodexAuthRuntimeCoordinatorError: LocalizedError, Sendable, Equatabl
 public actor CodexAuthRuntimeCoordinator {
     public static let shared = CodexAuthRuntimeCoordinator()
 
-    typealias TokenReader = @Sendable (CodexAuthAccount) async throws -> (idToken: String, accessToken: String)?
-    typealias RuntimeSwitch = @Sendable (String, String, String, [String: String]) async throws -> Void
+    typealias TokenReader = @Sendable (CodexAuthAccount) async throws -> (idToken: String, accessToken: String, chatgptAccountID: String?)?
+    typealias RuntimeSwitch = @Sendable (String, String, String?, String, [String: String]) async throws -> Void
 
     private let tokenReader: TokenReader
     private let runtimeSwitch: RuntimeSwitch
@@ -32,8 +32,8 @@ public actor CodexAuthRuntimeCoordinator {
         self.tokenReader = { account in
             try await authManager.readTokenPair(for: account)
         }
-        self.runtimeSwitch = { idToken, accessToken, executable, environment in
-            let tokenPair = CodexTokenPair(idToken: idToken, accessToken: accessToken)
+        self.runtimeSwitch = { idToken, accessToken, chatgptAccountID, executable, environment in
+            let tokenPair = CodexTokenPair(idToken: idToken, accessToken: accessToken, chatgptAccountID: chatgptAccountID)
             _ = try await switcher.switchAccount(tokens: tokenPair, executable: executable, environment: environment)
         }
     }
@@ -53,7 +53,7 @@ public actor CodexAuthRuntimeCoordinator {
         }
 
         do {
-            try await runtimeSwitch(tokenPair.idToken, tokenPair.accessToken, executable, environment)
+            try await runtimeSwitch(tokenPair.idToken, tokenPair.accessToken, tokenPair.chatgptAccountID, executable, environment)
         } catch let error as CodexCLIError {
             throw CodexAuthRuntimeCoordinatorError.runtimeSwitchFailed(reason: error.localizedDescription)
         } catch {

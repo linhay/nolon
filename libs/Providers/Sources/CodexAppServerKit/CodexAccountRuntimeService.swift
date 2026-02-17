@@ -66,14 +66,16 @@ public actor CodexAccountRuntimeService {
         try await session.initialize(clientName: clientName, clientVersion: clientVersion, experimentalApi: true)
     }
 
-    public func switchAccount(idToken: String, accessToken: String) async throws {
+    public func switchAccount(idToken: String, accessToken: String, chatgptAccountID: String? = nil) async throws {
         async let updated = session.waitForNotification(method: .accountUpdated, timeout: 8)
-        let params = try CodexAppServerSession.encodeParams([
+        let params: [String: Any] = [
             "type": "chatgptAuthTokens",
             "idToken": idToken,
             "accessToken": accessToken,
-        ])
-        _ = try await session.request(method: CodexAppServerMethod.accountLoginStart.rawValue, paramsData: params)
+            "chatgptAccountId": chatgptAccountID ?? NSNull(),
+        ]
+        let paramsData = try CodexAppServerSession.encodeParams(params)
+        _ = try await session.request(method: CodexAppServerMethod.accountLoginStart.rawValue, paramsData: paramsData)
         _ = try await updated
     }
 

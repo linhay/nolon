@@ -13,7 +13,7 @@ private actor FakeRuntimeAccountService: CodexRuntimeAccountServing {
         initializeCalls += 1
     }
 
-    func switchAccount(idToken: String, accessToken: String) async throws {}
+    func switchAccount(idToken: String, accessToken: String, chatgptAccountID: String?) async throws {}
 
     func readAccount(refreshToken: Bool) async throws -> CodexRuntimeAccountState {
         CodexRuntimeAccountState(email: nil, planType: nil, requiresOpenaiAuth: false, authMode: nil)

@@ -10,10 +10,12 @@ public typealias CodexRPCServerRequestMessage = JsonRPCServerRequestMessage
 public struct CodexTokenPair: Sendable, Equatable {
     public let idToken: String
     public let accessToken: String
+    public let chatgptAccountID: String?
 
-    public init(idToken: String, accessToken: String) {
+    public init(idToken: String, accessToken: String, chatgptAccountID: String? = nil) {
         self.idToken = idToken
         self.accessToken = accessToken
+        self.chatgptAccountID = chatgptAccountID
     }
 }
 

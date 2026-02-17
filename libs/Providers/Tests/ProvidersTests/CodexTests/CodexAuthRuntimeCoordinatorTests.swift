@@ -13,10 +13,10 @@ struct CodexAuthRuntimeCoordinatorTests {
         let box = LockIsolated<[String]>([])
 
         let coordinator = CodexAuthRuntimeCoordinator(
-            tokenReader: { _ in ("id-token", "access-token") },
-            runtimeSwitch: { idToken, accessToken, executable, environment in
+            tokenReader: { _ in ("id-token", "access-token", "acct-1") },
+            runtimeSwitch: { idToken, accessToken, chatgptAccountID, executable, environment in
                 box.withValue {
-                    $0 = [idToken, accessToken, executable, environment["CODEX_HOME"] ?? ""]
+                    $0 = [idToken, accessToken, chatgptAccountID ?? "", executable, environment["CODEX_HOME"] ?? ""]
                 }
             }
         )
@@ -28,7 +28,7 @@ struct CodexAuthRuntimeCoordinatorTests {
         )
 
         let values = box.value
-        #expect(values == ["id-token", "access-token", expectedExecutable, "/tmp/codex-home"])
+        #expect(values == ["id-token", "access-token", "acct-1", expectedExecutable, "/tmp/codex-home"])
     }
 
     @Test("Given missing token pair, when activating runtime, then throws tokenPairMissing and does not switch")
@@ -38,7 +38,7 @@ struct CodexAuthRuntimeCoordinatorTests {
 
         let coordinator = CodexAuthRuntimeCoordinator(
             tokenReader: { _ in nil },
-            runtimeSwitch: { _, _, _, _ in
+            runtimeSwitch: { _, _, _, _, _ in
                 switchCallCount.withValue { $0 += 1 }
             }
         )
@@ -54,8 +54,8 @@ struct CodexAuthRuntimeCoordinatorTests {
         let account = CodexAuthAccount(name: "work", relativeAuthPath: "auth/work.json")
 
         let coordinator = CodexAuthRuntimeCoordinator(
-            tokenReader: { _ in ("id-token", "access-token") },
-            runtimeSwitch: { _, _, _, _ in
+            tokenReader: { _ in ("id-token", "access-token", nil) },
+            runtimeSwitch: { _, _, _, _, _ in
                 throw CodexCLIError.launchFailed("simulated boom")
             }
         )

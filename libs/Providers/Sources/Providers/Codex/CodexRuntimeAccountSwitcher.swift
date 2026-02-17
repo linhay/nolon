@@ -4,7 +4,7 @@ import CodexAppServerKit
 
 protocol CodexRuntimeAccountServing: Sendable {
     func initialize(clientName: String, clientVersion: String) async throws
-    func switchAccount(idToken: String, accessToken: String) async throws
+    func switchAccount(idToken: String, accessToken: String, chatgptAccountID: String?) async throws
     func readAccount(refreshToken: Bool) async throws -> CodexRuntimeAccountState
     func logout() async throws
     func shutdown() async
@@ -37,7 +37,11 @@ public actor CodexRuntimeAccountSwitcher {
     ) async throws -> CodexRuntimeAccountState {
         let service = try await serviceFor(executable: executable, environment: environment)
         do {
-            try await service.switchAccount(idToken: tokens.idToken, accessToken: tokens.accessToken)
+            try await service.switchAccount(
+                idToken: tokens.idToken,
+                accessToken: tokens.accessToken,
+                chatgptAccountID: tokens.chatgptAccountID
+            )
             return try await service.readAccount(refreshToken: false)
         } catch let error as CodexCLIError {
             throw error

@@ -266,7 +266,7 @@ public actor CodexAuthManager {
         return raw
     }
 
-    public func readTokenPair(for account: CodexAuthAccount) throws -> (idToken: String, accessToken: String)? {
+    public func readTokenPair(for account: CodexAuthAccount) throws -> (idToken: String, accessToken: String, chatgptAccountID: String?)? {
         let data = try accountAuthFile(account).data()
         guard !data.isEmpty,
               let authJSON = try? JSON(data: data)
@@ -287,9 +287,15 @@ public actor CodexAuthManager {
             ?? trimmed(authJSON["tokens"]["accessToken"].string)
             ?? trimmed(authJSON["access_token"].string)
             ?? trimmed(authJSON["accessToken"].string)
+        let chatgptAccountID = trimmed(authJSON["tokens"]["account_id"].string)
+            ?? trimmed(authJSON["tokens"]["accountId"].string)
+            ?? trimmed(authJSON["chatgpt_account_id"].string)
+            ?? trimmed(authJSON["chatgptAccountId"].string)
+            ?? trimmed(authJSON["account_id"].string)
+            ?? trimmed(authJSON["accountId"].string)
 
         guard let idToken, let accessToken else { return nil }
-        return (idToken: idToken, accessToken: accessToken)
+        return (idToken: idToken, accessToken: accessToken, chatgptAccountID: chatgptAccountID)
     }
 
     public func loadUsageCache(for account: CodexAuthAccount) throws -> CodexAuthUsageCache? {
