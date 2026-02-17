@@ -197,7 +197,15 @@ struct NolonCodexCLIServiceTests {
                 updatedAt: Date(timeIntervalSince1970: 1_733_200_000)
             ),
             credits: nil,
-            cost: nil
+            cost: CostSnapshot(
+                todayCostUSD: nil,
+                todayTokens: 1200,
+                last30DaysCostUSD: nil,
+                last30DaysTokens: 30000,
+                windowDays: 30,
+                dailyCosts: nil,
+                updatedAt: Date(timeIntervalSince1970: 1_733_300_000)
+            )
         )
         try await authManager.storeUsageCache(cacheA, for: accountA)
 
@@ -215,7 +223,15 @@ struct NolonCodexCLIServiceTests {
                 updatedAt: Date(timeIntervalSince1970: 1_733_220_000)
             ),
             credits: nil,
-            cost: nil
+            cost: CostSnapshot(
+                todayCostUSD: nil,
+                todayTokens: 800,
+                last30DaysCostUSD: nil,
+                last30DaysTokens: 22000,
+                windowDays: 30,
+                dailyCosts: nil,
+                updatedAt: Date(timeIntervalSince1970: 1_733_350_000)
+            )
         )
         try await authManager.storeUsageCache(cacheB, for: accountB)
 
@@ -234,6 +250,8 @@ struct NolonCodexCLIServiceTests {
         #expect(payload.summary.cachedCount == 2)
         #expect(payload.summary.avgFiveHourRemainingPercent == 65)
         #expect(payload.summary.avgWeeklyRemainingPercent == 55)
+        #expect(payload.summary.totalTokens == 2000)
+        #expect(payload.accounts.compactMap(\.tokenCount).reduce(0, +) == 2000)
         #expect(payload.summary.latestRefreshedAt == Date(timeIntervalSince1970: 1_733_350_000))
     }
 

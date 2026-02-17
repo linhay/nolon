@@ -44,6 +44,7 @@ public extension NolonCodexCLIServing {
                     isActive: account.isActive,
                     fiveHourRemainingPercent: nil,
                     weeklyRemainingPercent: nil,
+                    tokenCount: nil,
                     refreshedAt: account.refreshedAt
                 )
             },
@@ -52,6 +53,7 @@ public extension NolonCodexCLIServing {
                 cachedCount: 0,
                 avgFiveHourRemainingPercent: nil,
                 avgWeeklyRemainingPercent: nil,
+                totalTokens: nil,
                 latestRefreshedAt: list.accounts.compactMap(\.refreshedAt).max()
             )
         )
@@ -81,7 +83,26 @@ public struct NolonCodexAuthUsageAccountView: Codable, Sendable, Equatable {
     public let isActive: Bool
     public let fiveHourRemainingPercent: Int?
     public let weeklyRemainingPercent: Int?
+    public let tokenCount: Int?
     public let refreshedAt: Date?
+
+    public init(
+        id: UUID,
+        email: String?,
+        isActive: Bool,
+        fiveHourRemainingPercent: Int?,
+        weeklyRemainingPercent: Int?,
+        tokenCount: Int? = nil,
+        refreshedAt: Date?
+    ) {
+        self.id = id
+        self.email = email
+        self.isActive = isActive
+        self.fiveHourRemainingPercent = fiveHourRemainingPercent
+        self.weeklyRemainingPercent = weeklyRemainingPercent
+        self.tokenCount = tokenCount
+        self.refreshedAt = refreshedAt
+    }
 }
 
 public struct NolonCodexAuthUsageSummaryView: Codable, Sendable, Equatable {
@@ -89,7 +110,24 @@ public struct NolonCodexAuthUsageSummaryView: Codable, Sendable, Equatable {
     public let cachedCount: Int
     public let avgFiveHourRemainingPercent: Int?
     public let avgWeeklyRemainingPercent: Int?
+    public let totalTokens: Int?
     public let latestRefreshedAt: Date?
+
+    public init(
+        accountCount: Int,
+        cachedCount: Int,
+        avgFiveHourRemainingPercent: Int?,
+        avgWeeklyRemainingPercent: Int?,
+        totalTokens: Int? = nil,
+        latestRefreshedAt: Date?
+    ) {
+        self.accountCount = accountCount
+        self.cachedCount = cachedCount
+        self.avgFiveHourRemainingPercent = avgFiveHourRemainingPercent
+        self.avgWeeklyRemainingPercent = avgWeeklyRemainingPercent
+        self.totalTokens = totalTokens
+        self.latestRefreshedAt = latestRefreshedAt
+    }
 }
 
 public struct NolonCodexAuthUsagePayload: Codable, Sendable, Equatable {
@@ -366,6 +404,7 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
                     isActive: account.id == activeID,
                     fiveHourRemainingPercent: Self.remainingPercent(usageCache?.usage.primary),
                     weeklyRemainingPercent: Self.remainingPercent(usageCache?.usage.secondary),
+                    tokenCount: Self.resolveTokenCount(from: usageCache),
                     refreshedAt: Self.resolveRefreshTime(from: usageCache)
                 )
             )
@@ -373,6 +412,7 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
 
         let fiveHourValues = views.compactMap(\.fiveHourRemainingPercent)
         let weeklyValues = views.compactMap(\.weeklyRemainingPercent)
+        let tokenValues = views.compactMap(\.tokenCount)
         let cachedCount = views.filter { $0.fiveHourRemainingPercent != nil || $0.weeklyRemainingPercent != nil }.count
         let latestRefreshedAt = views.compactMap(\.refreshedAt).max()
 
@@ -381,6 +421,7 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
             cachedCount: cachedCount,
             avgFiveHourRemainingPercent: Self.average(of: fiveHourValues),
             avgWeeklyRemainingPercent: Self.average(of: weeklyValues),
+            totalTokens: tokenValues.isEmpty ? nil : tokenValues.reduce(0, +),
             latestRefreshedAt: latestRefreshedAt
         )
 
@@ -796,6 +837,11 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
     private static func resolveRefreshTime(from cache: CodexAuthUsageCache?) -> Date? {
         guard let cache else { return nil }
         return cache.creditsRefreshedAt ?? cache.usage.updatedAt
+    }
+
+    private static func resolveTokenCount(from cache: CodexAuthUsageCache?) -> Int? {
+        guard let cost = cache?.cost else { return nil }
+        return cost.todayTokens ?? cost.last30DaysTokens
     }
 
     private static func isCodexRuntimeCommand(_ command: String) -> Bool {

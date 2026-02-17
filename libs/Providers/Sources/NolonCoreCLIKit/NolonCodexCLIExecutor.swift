@@ -623,33 +623,35 @@ enum NolonCodexCLIExecutor {
     }
 
     private static func formatAuthUsageAccounts(_ payload: NolonCodexAuthUsagePayload) -> String {
-        let title = "邮箱 | 状态 | 5h剩余 | 7d剩余 | 刷新时间"
+        let title = "邮箱 | 状态 | 5h剩余 | 7d剩余 | Tokens | 刷新时间"
         guard !payload.accounts.isEmpty else { return title }
 
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "yyyy-MM-dd HH:mm"
 
-        let rows: [(marker: String, email: String, status: String, fiveHour: String, weekly: String, refresh: String)] = payload.accounts.map { account in
+        let rows: [(marker: String, email: String, status: String, fiveHour: String, weekly: String, tokens: String, refresh: String)] = payload.accounts.map { account in
             let marker = account.isActive ? "*" : " "
             let emailRaw = account.email?.trimmingCharacters(in: .whitespacesAndNewlines)
             let email = (emailRaw?.isEmpty == false) ? (emailRaw ?? "-") : "-"
             let status = account.isActive ? "已激活" : "未激活"
             let fiveHour = account.fiveHourRemainingPercent.map { "\($0)%" } ?? "-"
             let weekly = account.weeklyRemainingPercent.map { "\($0)%" } ?? "-"
+            let tokens = account.tokenCount.map(String.init) ?? "-"
             let refresh = account.refreshedAt.map { formatter.string(from: $0) } ?? "-"
-            return (marker, email, status, fiveHour, weekly, refresh)
+            return (marker, email, status, fiveHour, weekly, tokens, refresh)
         }
 
         let emailWidth = max("邮箱".count, rows.map { $0.email.count }.max() ?? 0)
         let statusWidth = max("状态".count, rows.map { $0.status.count }.max() ?? 0)
         let fiveHourWidth = max("5h剩余".count, rows.map { $0.fiveHour.count }.max() ?? 0)
         let weeklyWidth = max("7d剩余".count, rows.map { $0.weekly.count }.max() ?? 0)
+        let tokensWidth = max("Tokens".count, rows.map { $0.tokens.count }.max() ?? 0)
         let refreshWidth = max("刷新时间".count, rows.map { $0.refresh.count }.max() ?? 0)
 
-        let header = "\(padRight("邮箱", to: emailWidth)) | \(padRight("状态", to: statusWidth)) | \(padRight("5h剩余", to: fiveHourWidth)) | \(padRight("7d剩余", to: weeklyWidth)) | \(padRight("刷新时间", to: refreshWidth))"
+        let header = "\(padRight("邮箱", to: emailWidth)) | \(padRight("状态", to: statusWidth)) | \(padRight("5h剩余", to: fiveHourWidth)) | \(padRight("7d剩余", to: weeklyWidth)) | \(padRight("Tokens", to: tokensWidth)) | \(padRight("刷新时间", to: refreshWidth))"
         let body = rows.map { row in
-            "\(row.marker) \(padRight(row.email, to: emailWidth)) | \(padRight(row.status, to: statusWidth)) | \(padRight(row.fiveHour, to: fiveHourWidth)) | \(padRight(row.weekly, to: weeklyWidth)) | \(padRight(row.refresh, to: refreshWidth))"
+            "\(row.marker) \(padRight(row.email, to: emailWidth)) | \(padRight(row.status, to: statusWidth)) | \(padRight(row.fiveHour, to: fiveHourWidth)) | \(padRight(row.weekly, to: weeklyWidth)) | \(padRight(row.tokens, to: tokensWidth)) | \(padRight(row.refresh, to: refreshWidth))"
         }.joined(separator: "\n")
         return "\(header)\n\(body)"
     }
@@ -664,6 +666,7 @@ enum NolonCodexCLIExecutor {
             ("已缓存用量", String(payload.summary.cachedCount)),
             ("5h平均剩余", payload.summary.avgFiveHourRemainingPercent.map { "\($0)%" } ?? "-"),
             ("7d平均剩余", payload.summary.avgWeeklyRemainingPercent.map { "\($0)%" } ?? "-"),
+            ("总Tokens", payload.summary.totalTokens.map(String.init) ?? "-"),
             ("最新刷新", payload.summary.latestRefreshedAt.map { formatter.string(from: $0) } ?? "-"),
         ]
         let keyWidth = rows.map(\.0.count).max() ?? 0

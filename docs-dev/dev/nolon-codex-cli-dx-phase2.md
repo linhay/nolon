@@ -803,3 +803,23 @@
   - `auth login` 中 `runtimeErrorDescription` 为 `nil` 时，JSON 输出省略该键，快照按实际行为锁定。
 - 验证：
   - `swift test --package-path libs/Providers --filter NolonCodexCLIEntrypointTests` 通过（92 tests）。
+
+## Phase 2.43（auth usage 显示 tokens 数量）
+- 背景：
+  - `nolon codex auth usage` 需要直接展示 token 数量，便于快速对比账号消耗规模。
+- 变更：
+  1. `NolonCodexAuthUsageAccountView` 新增 `tokenCount`；
+  2. `NolonCodexAuthUsageSummaryView` 新增 `totalTokens`；
+  3. `NolonLiveCodexCLIService.authUsage` 计算规则：
+     - 账号 token：优先 `cost.todayTokens`，缺失回退 `cost.last30DaysTokens`；
+     - 汇总 token：对可用账号 `tokenCount` 求和。
+  4. 文本渲染增强：
+     - `auth usage` 列表新增 `Tokens` 列；
+     - `auth usage --summary` 新增 `总Tokens` 行。
+- 测试：
+  - `NolonCodexCLIServiceTests.auth usage returns per-account rows and summary aggregation` 增加 token 断言；
+  - `NolonCodexCLIEntrypointTests.routesAuthUsage` 增加 `Tokens` 表头断言；
+  - `json contract snapshot for codex auth usage success` 快照同步 `tokenCount/totalTokens`。
+- 验证：
+  - `swift test --package-path libs/Providers --filter NolonCodexCLIServiceTests` 通过（11 tests）。
+  - `swift test --package-path libs/Providers --filter NolonCodexCLIEntrypointTests` 通过（92 tests）。
