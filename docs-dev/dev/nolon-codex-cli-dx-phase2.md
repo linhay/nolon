@@ -656,6 +656,21 @@
 - 验证：
   - `swift test --package-path libs/Providers --filter ProcessRunnerConvergenceTests` 通过。
   - `swift test --package-path libs/Providers` 全量通过（315 tests, 41 suites, 0 failure）。
+
+## Phase 2.37（JsonRPCKit 反向 server-request 回归用例）
+- 背景：
+  - 现有 `JsonRPCKitTests` 只覆盖 request/notification 与 error response，缺少“服务端主动 request -> 客户端 handler -> 回包”的闭环用例。
+- 变更：
+  1. 在 `JsonRPCKitTests` 新增 BDD 用例：
+     - `Given server request when client handler is set then session replies with result`
+  2. 测试脚本流程：
+     - 客户端先发 `echo`；
+     - Python mock server 反向发送 `fetch_context` request；
+     - `setServerRequestHandler` 处理后回传 `result`；
+     - server 再将该结果拼入最终 `echo` 响应返回给客户端。
+- 验证：
+  - `swift test --package-path libs/Providers --filter JsonRPCKitTests` 通过。
+  - `swift test --package-path libs/Providers` 全量通过（316 tests, 41 suites, 0 failure）。
   3. 文档中给出建议 API（`SKProcessPipeSession`）与验收标准，便于向 `SKProcessRunner` 提 issue。
 
 ## Phase 2.34（接入 SKProcessPipeSession 验证与回退）
