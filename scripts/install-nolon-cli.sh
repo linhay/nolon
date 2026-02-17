@@ -12,7 +12,7 @@ INSTALL_BINARY_NAME="nolon"
 package_path="${DEFAULT_PACKAGE_PATH}"
 configuration="${DEFAULT_CONFIGURATION}"
 nolon_home=""
-force_overwrite="0"
+force_overwrite="1"
 print_path_only="0"
 
 usage() {
@@ -23,7 +23,8 @@ Options:
   --nolon-home <path>     Install root. Default: \$NOLON_HOME or ~/.nolon
   --package-path <path>   Swift package path. Default: ${DEFAULT_PACKAGE_PATH}
   --configuration <name>  Build configuration: release|debug (default: ${DEFAULT_CONFIGURATION})
-  --force                 Overwrite existing target binary
+  --force                 Overwrite existing target binary (default behavior)
+  --no-force              Fail if target binary already exists
   --print-path            Print installed binary path only
   -h, --help              Show this help
 EOF
@@ -76,6 +77,10 @@ parse_args() {
         ;;
       --force)
         force_overwrite="1"
+        shift
+        ;;
+      --no-force)
+        force_overwrite="0"
         shift
         ;;
       --print-path)
