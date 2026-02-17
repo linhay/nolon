@@ -155,7 +155,7 @@ enum NolonCodexCLIExecutor {
         }
 
         let payload = try await context.codexService().authRefresh(providerID: providerID, accountID: targetAccountID)
-        return try renderOutput(command: .authRefresh, payload: payload, outputMode: outputMode, textFormatter: formatAuthLogin)
+        return try renderOutput(command: .authRefresh, payload: payload, outputMode: outputMode, textFormatter: formatAuthRefresh)
     }
 
     private static func renderAuthOverview(providerID: String, context: NolonCLIExecutionContext) async throws -> String {
@@ -810,6 +810,23 @@ enum NolonCodexCLIExecutor {
             "runtime_switched: \(payload.runtimeSwitched)",
             "runtime_error: \(payload.runtimeErrorDescription ?? "-")",
         ].joined(separator: "\n")
+    }
+
+    private static func formatAuthRefresh(_ payload: NolonCodexAuthRefreshPayload) -> String {
+        var lines: [String] = []
+        lines.reserveCapacity(payload.items.count + 4)
+        lines.append("provider: \(payload.providerID)")
+        for item in payload.items {
+            let status = item.success ? "ok" : "failed"
+            let reason = item.errorCode ?? "-"
+            let runtime = item.runtimeSwitched ? "true" : "false"
+            let email = item.email ?? "-"
+            lines.append("* \(email) | \(item.accountID.uuidString) | \(status) | runtime:\(runtime) | code:\(reason)")
+        }
+        lines.append("summary_total: \(payload.summary.totalCount)")
+        lines.append("summary_success: \(payload.summary.successCount)")
+        lines.append("summary_failed: \(payload.summary.failureCount)")
+        return lines.joined(separator: "\n")
     }
 
     private static func formatAuthDelete(_ payload: NolonCodexAuthDeletePayload) -> String {

@@ -771,7 +771,8 @@ struct NolonCodexCLIEntrypointTests {
         )
 
         #expect(result.exitCode == 0)
-        #expect(result.stdout.contains("account_id: 11111111-1111-1111-1111-111111111111"))
+        #expect(result.stdout.contains("* mock@example.com | 11111111-1111-1111-1111-111111111111 | ok"))
+        #expect(result.stdout.contains("summary_total: 1"))
         #expect(await mock.lastCall() == "authRefresh")
     }
 
@@ -1530,7 +1531,7 @@ struct NolonCodexCLIEntrypointTests {
         #expect(result.exitCode == 0)
         #expect(result.stderr.isEmpty)
 
-        let expected = #"{"command":"codex.auth.refresh","data":{"accountID":"44444444-4444-4444-4444-444444444444","accountName":"json-login","loginURL":"https:\/\/auth.example.com\/device","providerID":"codex","runtimeSwitched":true},"ok":true}"#
+        let expected = #"{"command":"codex.auth.refresh","data":{"items":[{"accountID":"44444444-4444-4444-4444-444444444444","accountName":"json-refresh","email":"json@example.com","runtimeSwitched":true,"success":true}],"providerID":"codex","summary":{"failureCount":0,"successCount":1,"totalCount":1}},"ok":true}"#
         #expect(try canonicalJSON(result.stdout) == expected)
     }
 
@@ -1670,15 +1671,24 @@ private actor MockCodexCLIService: NolonCodexCLIServing {
         )
     }
 
-    func authRefresh(providerID: String, accountID: UUID?) async throws -> NolonCodexAuthLoginPayload {
+    func authRefresh(providerID: String, accountID: UUID?) async throws -> NolonCodexAuthRefreshPayload {
         call = "authRefresh"
-        return NolonCodexAuthLoginPayload(
+        let resolvedID = accountID ?? UUID(uuidString: "11111111-1111-1111-1111-111111111111")!
+        return NolonCodexAuthRefreshPayload(
             providerID: providerID,
-            accountID: accountID ?? UUID(uuidString: "11111111-1111-1111-1111-111111111111")!,
-            accountName: "mock-refresh",
-            runtimeSwitched: true,
-            runtimeErrorDescription: nil,
-            loginURL: "https://auth.example.com/device"
+            items: [
+                NolonCodexAuthRefreshItemView(
+                    accountID: resolvedID,
+                    accountName: "mock-refresh",
+                    email: "mock@example.com",
+                    success: true,
+                    runtimeSwitched: true,
+                    runtimeErrorDescription: nil,
+                    errorCode: nil,
+                    errorMessage: nil
+                ),
+            ],
+            summary: NolonCodexAuthRefreshSummaryView(totalCount: 1, successCount: 1, failureCount: 0)
         )
     }
 
@@ -2073,6 +2083,24 @@ private actor JSONContractCodexCLIService: NolonCodexCLIServing {
             runtimeSwitched: true,
             runtimeErrorDescription: nil,
             loginURL: "https://auth.example.com/device"
+        )
+    }
+    func authRefresh(providerID: String, accountID: UUID?) async throws -> NolonCodexAuthRefreshPayload {
+        NolonCodexAuthRefreshPayload(
+            providerID: providerID,
+            items: [
+                NolonCodexAuthRefreshItemView(
+                    accountID: accountID ?? UUID(uuidString: "44444444-4444-4444-4444-444444444444")!,
+                    accountName: "json-refresh",
+                    email: "json@example.com",
+                    success: true,
+                    runtimeSwitched: true,
+                    runtimeErrorDescription: nil,
+                    errorCode: nil,
+                    errorMessage: nil
+                ),
+            ],
+            summary: NolonCodexAuthRefreshSummaryView(totalCount: 1, successCount: 1, failureCount: 0)
         )
     }
     func authDelete(providerID: String, accountID: UUID) async throws -> NolonCodexAuthDeletePayload {

@@ -214,7 +214,7 @@ enum NolonCodexCLIHelpResolver {
 
         Options:
           --provider <id>     Provider id, default is codex.
-          --account-id <id>   Refresh target account id UUID. Defaults to active account.
+          --account-id <id>   Refresh target account id UUID. Omit to refresh all accounts.
           --email <value>     Refresh target account email (case-insensitive).
         """
     }

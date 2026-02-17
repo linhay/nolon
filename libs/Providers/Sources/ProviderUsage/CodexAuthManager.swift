@@ -10,6 +10,7 @@ public actor CodexAuthManager {
         static let codexRoot: PathName = "codex"
         static let authFolder: PathName = "auth"
         static let cliLoginHomeFolder: PathName = "cli-login-home"
+        static let runtimeHomeFolder: PathName = "runtime-home"
         static let activeAccountsFile: PathName = "active-accounts.json"
         static let authFile: PathName = "auth.json"
 
@@ -88,6 +89,12 @@ public actor CodexAuthManager {
 
     public nonisolated func activeAccountsFile() -> STFile {
         nolonCodexRootFolder().file(PathName.activeAccountsFile.rawValue)
+    }
+
+    public nonisolated func runtimeHomeFolder(accountID: UUID) -> STFolder {
+        nolonCodexRootFolder()
+            .folder(PathName.runtimeHomeFolder.rawValue)
+            .folder(accountID.uuidString.lowercased())
     }
 
     public nonisolated func accountAuthFile(relativeAuthPath: String) -> STFile {

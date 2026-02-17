@@ -111,7 +111,7 @@ struct NolonCodexAuthRefreshCommand: ParsableCommand {
     @Option(name: .long, help: "Provider id, default is codex.")
     var provider: String = "codex"
 
-    @Option(name: .long, help: "Account id UUID. Defaults to currently active account.")
+    @Option(name: .long, help: "Account id UUID. Omit to refresh all accounts.")
     var accountID: String?
 
     @Option(name: .long, help: "Account email for selecting refresh target.")

@@ -1,6 +1,7 @@
 import Foundation
 import CodexProvider
 import CodexCLIKit
+import STFilePath
 
 public enum CodexAuthRuntimeCoordinatorError: LocalizedError, Sendable, Equatable {
     case tokenPairMissing(accountID: UUID)
@@ -24,6 +25,7 @@ public actor CodexAuthRuntimeCoordinator {
 
     private let tokenReader: TokenReader
     private let runtimeSwitch: RuntimeSwitch
+    private let runtimeHomeResolver: @Sendable (UUID, [String: String]) -> STFolder
 
     public init() {
         let authManager = CodexAuthManager()
@@ -32,15 +34,25 @@ public actor CodexAuthRuntimeCoordinator {
         self.tokenReader = { account in
             try await authManager.readTokenPair(for: account)
         }
+        self.runtimeHomeResolver = { accountID, environment in
+            CodexAuthManager(environment: environment).runtimeHomeFolder(accountID: accountID)
+        }
         self.runtimeSwitch = { idToken, accessToken, chatgptAccountID, executable, environment in
             let tokenPair = CodexTokenPair(idToken: idToken, accessToken: accessToken, chatgptAccountID: chatgptAccountID)
             _ = try await switcher.switchAccount(tokens: tokenPair, executable: executable, environment: environment)
         }
     }
 
-    init(tokenReader: @escaping TokenReader, runtimeSwitch: @escaping RuntimeSwitch) {
+    init(
+        tokenReader: @escaping TokenReader,
+        runtimeSwitch: @escaping RuntimeSwitch,
+        runtimeHomeResolver: @escaping @Sendable (UUID, [String: String]) -> STFolder = { accountID, environment in
+            CodexAuthManager(environment: environment).runtimeHomeFolder(accountID: accountID)
+        }
+    ) {
         self.tokenReader = tokenReader
         self.runtimeSwitch = runtimeSwitch
+        self.runtimeHomeResolver = runtimeHomeResolver
     }
 
     public func activateAccountInRuntime(
@@ -53,7 +65,11 @@ public actor CodexAuthRuntimeCoordinator {
         }
 
         do {
-            try await runtimeSwitch(tokenPair.idToken, tokenPair.accessToken, tokenPair.chatgptAccountID, executable, environment)
+            var runtimeEnvironment = environment
+            let runtimeHome = runtimeHomeResolver(account.id, environment)
+            _ = runtimeHome.createIfNotExists()
+            runtimeEnvironment["CODEX_HOME"] = runtimeHome.url.standardizedFileURL.path
+            try await runtimeSwitch(tokenPair.idToken, tokenPair.accessToken, tokenPair.chatgptAccountID, executable, runtimeEnvironment)
         } catch let error as CodexCLIError {
             throw CodexAuthRuntimeCoordinatorError.runtimeSwitchFailed(reason: error.localizedDescription)
         } catch {

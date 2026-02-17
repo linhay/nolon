@@ -332,14 +332,18 @@ struct NolonCodexCLIServiceTests {
             authActivator: { _, _ in
                 CodexAuthActivationResult(runtimeSwitched: true, runtimeErrorDescription: nil)
             },
-            authRefreshRunner: { _, _ in
+            authRefreshRunner: { _, _, _ in
                 await refreshCounter.increment()
             }
         )
 
         let payload = try await service.authRefresh(providerID: "codex", accountID: account.id)
-        #expect(payload.accountID == account.id)
-        #expect(payload.loginURL == nil)
+        #expect(payload.items.count == 1)
+        #expect(payload.items.first?.accountID == account.id)
+        #expect(payload.items.first?.success == true)
+        #expect(payload.summary.totalCount == 1)
+        #expect(payload.summary.successCount == 1)
+        #expect(payload.summary.failureCount == 0)
         #expect(await refreshCounter.value() == 1)
     }
 
@@ -362,23 +366,52 @@ struct NolonCodexCLIServiceTests {
             authActivator: { _, _ in
                 CodexAuthActivationResult(runtimeSwitched: true, runtimeErrorDescription: nil)
             },
-            authRefreshRunner: { _, _ in
+            authRefreshRunner: { _, _, _ in
                 throw CodexCLIError.recoverableFallback("refresh_token_expired")
             }
         )
 
-        do {
-            _ = try await service.authRefresh(providerID: "codex", accountID: account.id)
-            Issue.record("Expected refresh failure")
-        } catch let error as NolonCoreCLIError {
-            guard case let .domainFailed(code, _) = error else {
-                Issue.record("Unexpected error: \(error)")
-                return
+        let payload = try await service.authRefresh(providerID: "codex", accountID: account.id)
+        #expect(payload.items.count == 1)
+        #expect(payload.items.first?.success == false)
+        #expect(payload.items.first?.errorCode == "codex_auth_refresh_token_expired")
+        #expect(payload.summary.failureCount == 1)
+    }
+
+    @Test("auth refresh without account id refreshes all accounts serially")
+    func authRefreshWithoutTargetRefreshesAll() async throws {
+        let root = try makeTempRoot("nolon-codex-cli-refresh-all")
+        defer { try? root.delete() }
+
+        let authManager = CodexAuthManager(rootURL: root.url)
+        _ = try await authManager.addAccount(
+            name: "a",
+            authJSONString: #"{"user":{"email":"a@example.com"},"tokens":{"refresh_token":"rt_a"}}"#
+        )
+        _ = try await authManager.addAccount(
+            name: "b",
+            authJSONString: #"{"user":{"email":"b@example.com"},"tokens":{"refresh_token":"rt_b"}}"#
+        )
+        let refreshCounter = Counter()
+
+        let service = NolonLiveCodexCLIService(
+            authManager: authManager,
+            binaryManager: CodexBinaryManager(homeURL: root.url),
+            loginRunner: .init(),
+            environment: [:],
+            authActivator: { _, _ in
+                CodexAuthActivationResult(runtimeSwitched: true, runtimeErrorDescription: nil)
+            },
+            authRefreshRunner: { _, _, _ in
+                await refreshCounter.increment()
             }
-            #expect(code == "codex_auth_refresh_token_expired")
-        } catch {
-            Issue.record("Unexpected error type: \(error)")
-        }
+        )
+
+        let payload = try await service.authRefresh(providerID: "codex", accountID: nil)
+        #expect(payload.summary.totalCount == 2)
+        #expect(payload.summary.successCount == 2)
+        #expect(payload.summary.failureCount == 0)
+        #expect(await refreshCounter.value() == 2)
     }
 
     @Test("runtime list filters codex processes and sorts by pid asc")

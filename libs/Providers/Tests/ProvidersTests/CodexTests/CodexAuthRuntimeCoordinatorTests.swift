@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 import CodexCLIKit
+import STFilePath
 @testable import ProviderUsage
 
 @Suite("CodexAuthRuntimeCoordinator")
@@ -18,7 +19,8 @@ struct CodexAuthRuntimeCoordinatorTests {
                 box.withValue {
                     $0 = [idToken, accessToken, chatgptAccountID ?? "", executable, environment["CODEX_HOME"] ?? ""]
                 }
-            }
+            },
+            runtimeHomeResolver: { _, _ in STFolder("/tmp/runtime-home-for-tests") }
         )
 
         try await coordinator.activateAccountInRuntime(
@@ -28,7 +30,7 @@ struct CodexAuthRuntimeCoordinatorTests {
         )
 
         let values = box.value
-        #expect(values == ["id-token", "access-token", "acct-1", expectedExecutable, "/tmp/codex-home"])
+        #expect(values == ["id-token", "access-token", "acct-1", expectedExecutable, "/tmp/runtime-home-for-tests"])
     }
 
     @Test("Given missing token pair, when activating runtime, then throws tokenPairMissing and does not switch")
@@ -40,7 +42,8 @@ struct CodexAuthRuntimeCoordinatorTests {
             tokenReader: { _ in nil },
             runtimeSwitch: { _, _, _, _, _ in
                 switchCallCount.withValue { $0 += 1 }
-            }
+            },
+            runtimeHomeResolver: { _, _ in STFolder("/tmp/runtime-home-for-tests") }
         )
 
         await #expect(throws: CodexAuthRuntimeCoordinatorError.tokenPairMissing(accountID: account.id)) {
@@ -57,7 +60,8 @@ struct CodexAuthRuntimeCoordinatorTests {
             tokenReader: { _ in ("id-token", "access-token", nil) },
             runtimeSwitch: { _, _, _, _, _ in
                 throw CodexCLIError.launchFailed("simulated boom")
-            }
+            },
+            runtimeHomeResolver: { _, _ in STFolder("/tmp/runtime-home-for-tests") }
         )
 
         await #expect(throws: CodexAuthRuntimeCoordinatorError.runtimeSwitchFailed(reason: "Failed to launch codex: simulated boom")) {

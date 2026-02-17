@@ -1017,3 +1017,37 @@
   - `swift test --package-path libs/Providers --filter CodexAuthManagerTests` 通过
   - `swift test --package-path libs/Providers --filter NolonCodexCLIServiceTests` 通过
   - `swift test --package-path libs/Providers --filter NolonCodexCLIEntrypointTests` 通过
+
+## Phase 2.52（auth refresh 默认全量 + 批量结果 + 账号级 runtime-home）
+- 背景：
+  - 需求收敛到“按账号维度隔离”，并把 `auth refresh` 默认行为改为全量刷新账号池。
+- 变更：
+  1. `NolonCodexCLIServing.authRefresh` 返回批量结构：
+     - `NolonCodexAuthRefreshPayload`
+     - `items[] + summary(total/success/failed)`
+  2. `NolonLiveCodexCLIService.authRefresh` 改为：
+     - `--account-id/--email` 指定单账号；
+     - 未指定时刷新全部账号（串行）；
+     - 单账号失败不终止后续账号，汇总返回。
+  3. `NolonCodexCLIExecutor` 文本输出改为批量格式：
+     - 逐账号一行（邮箱/账号ID/状态/错误码）
+     - 末尾 summary 行。
+  4. 帮助文案更新：
+     - `auth refresh` 的 `--account-id` 说明改为“省略时刷新全部账号”。
+  5. 账号级 runtime-home：
+     - `CodexAuthManager` 新增 `runtimeHomeFolder(accountID:)`
+     - `CodexAuthRuntimeCoordinator` 与 `liveAuthRefreshRunner` 在运行时注入 `CODEX_HOME=$NOLON_HOME/codex/runtime-home/<account-id>`
+     - 保持 `~/.codex/auth.json` 激活语义不变。
+- 测试：
+  - `NolonCodexCLIServiceTests`
+    - `auth refresh without account id refreshes all accounts serially`
+    - 原 refresh 单账号成功/失败映射测试改为批量断言
+  - `NolonCodexCLIEntrypointTests`
+    - refresh 文本输出与 JSON snapshot 更新为批量结构
+  - `CodexAuthRuntimeCoordinatorTests`
+    - 增加 runtime-home 注入断言
+- 验证：
+  - `swift test --package-path libs/Providers --filter NolonCodexCLIServiceTests` 通过（14 tests）
+  - `swift test --package-path libs/Providers --filter NolonCodexCLIEntrypointTests` 通过（96 tests）
+  - `swift test --package-path libs/Providers --filter CodexAuthRuntimeCoordinatorTests` 通过（3 tests）
+  - `swift test --package-path libs/Providers` 全量回归；期间出现一次 `CodexLoginRunner` 临时失败，复跑 `CodexLoginRunnerTests` 通过（6 tests）。
