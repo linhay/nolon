@@ -32,21 +32,39 @@ struct ProviderCatalogTemplateTests {
 
     @Test("loader bootstraps template config into NOLON_HOME cli directory")
     func loaderBootstrapsConfigFileToCLIHome() {
-        let isolatedRoot = FileManager.default.temporaryDirectory
-            .appendingPathComponent("provider-template-loader-\(UUID().uuidString)", isDirectory: true)
-        try? FileManager.default.createDirectory(at: isolatedRoot, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: isolatedRoot) }
+        let isolatedRoot = STFolder("/tmp")
+            .folder("provider-template-loader-\(UUID().uuidString)")
+        _ = isolatedRoot.createIfNotExists()
+        defer { try? isolatedRoot.delete() }
 
         let loader = ProviderTemplateLoader(
-            environment: ["NOLON_HOME": isolatedRoot.path],
-            userHomeURL: isolatedRoot
+            environment: ["NOLON_HOME": isolatedRoot.url.path],
+            userHomeURL: isolatedRoot.url
         )
         loader.load()
 
-        let configFile = STFile(isolatedRoot.appendingPathComponent("cli/ProviderTemplate.json", isDirectory: false))
+        let configFile = isolatedRoot.folder("cli").file("ProviderTemplate.json")
         #expect(configFile.isExists)
         let data = try? configFile.data()
         #expect(data?.isEmpty == false)
+    }
+
+    @Test("loader resolves relative NOLON_HOME against current directory")
+    func loaderResolvesRelativeNolonHome() {
+        let relative = "tmp/provider-template-loader-rel-\(UUID().uuidString)"
+        let current = STFolder(FileManager.default.currentDirectoryPath)
+        let expectedRoot = current.folder(relative)
+        _ = expectedRoot.createIfNotExists()
+        defer { try? expectedRoot.delete() }
+
+        let loader = ProviderTemplateLoader(
+            environment: ["NOLON_HOME": relative],
+            userHomeURL: current.url
+        )
+        loader.load()
+
+        let configFile = expectedRoot.folder("cli").file("ProviderTemplate.json")
+        #expect(configFile.isExists)
     }
 
     @Test("provider exposes STPath views while keeping URL compatibility")

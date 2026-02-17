@@ -4,6 +4,7 @@ import MarkdownUI
 import Observation
 import STFilePath
 import OSLog
+import NolonResourceKit
 
 /// Model representing a file in the skill directory
 struct SkillFile: Identifiable, Hashable {

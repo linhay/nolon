@@ -1,6 +1,7 @@
 import SwiftUI
 import ProviderCatalog
 import STFilePath
+import NolonResourceKit
 
 /// 引导页主容器视图
 struct OnboardingView: View {

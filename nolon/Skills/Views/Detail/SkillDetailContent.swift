@@ -1,5 +1,6 @@
 import SwiftUI
 import MarkdownUI
+import NolonResourceKit
 
 struct SkillDetailContent: View {
     @Bindable var viewModel: SkillDetailViewModel

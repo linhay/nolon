@@ -4,8 +4,8 @@ import OSLog
 
 /// Watches usage-related filesystem locations (token accounts + Codex auth files) and triggers a refresh on change.
 @MainActor
-final class UsageMonitorFileWatcher {
-    typealias OnChange = @MainActor (STPathChanged) -> Void
+public final class UsageMonitorFileWatcher {
+    public typealias OnChange = @MainActor (STPathChanged) -> Void
 
     private static let logger = Logger(subsystem: "com.nolon", category: "UsageMonitorFileWatcher")
 
@@ -16,11 +16,11 @@ final class UsageMonitorFileWatcher {
     private var latestChange: STPathChanged?
     private var targetPaths: [String] = []
 
-    init(onChange: @escaping OnChange) {
+    public init(onChange: @escaping OnChange) {
         self.onChange = onChange
     }
 
-    func startWatching(paths: [String]) {
+    public func startWatching(paths: [String]) {
         let targets = canonicalWatchedTargets(paths: paths)
         let desired = targets.map { $0.url.standardizedFileURL.path }
         if desired == targetPaths {
@@ -48,7 +48,7 @@ final class UsageMonitorFileWatcher {
         }
     }
 
-    func stop() {
+    public func stop() {
         debounceTask?.cancel()
         debounceTask = nil
         latestChange = nil
@@ -63,7 +63,7 @@ final class UsageMonitorFileWatcher {
         Self.logger.info("Stopped watching usage paths")
     }
 
-    var watchedPathsForTesting: [String] {
+    public var watchedPathsForTesting: [String] {
         targetPaths
     }
 
@@ -95,7 +95,7 @@ final class UsageMonitorFileWatcher {
         var unique: [String] = []
         var seen = Set<String>()
         for raw in paths {
-            let normalized = URL(fileURLWithPath: raw).standardizedFileURL.path
+            let normalized = STPath(raw).url.standardizedFileURL.path
             guard seen.insert(normalized).inserted else { continue }
             unique.append(normalized)
         }

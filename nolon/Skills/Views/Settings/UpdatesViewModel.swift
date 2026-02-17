@@ -4,6 +4,7 @@ import SwiftUI
 import os.log
 import STFilePath
 import ProviderCatalog
+import NolonResourceKit
 
 @MainActor
 @Observable

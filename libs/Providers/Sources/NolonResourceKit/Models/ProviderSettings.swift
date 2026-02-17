@@ -108,7 +108,11 @@ public class ProviderSettings: ObservableObject {
     // MARK: - Provider Accessors
 
     public func path(for provider: Provider) -> URL {
-        URL(fileURLWithPath: provider.defaultSkillsPath)
+        pathFolder(for: provider).url
+    }
+
+    public func pathFolder(for provider: Provider) -> STFolder {
+        STFolder(provider.defaultSkillsPath)
     }
 
     public func method(for provider: Provider) -> SkillInstallationMethod {
@@ -117,14 +121,14 @@ public class ProviderSettings: ObservableObject {
 
     // MARK: - Persistence
 
-    private var providersFileURL: URL {
-        nolonManager.providersConfigURL
+    private var providersFile: STFile {
+        nolonManager.providersConfigFile
     }
 
     private func loadSettings() {
         // Load providers
-        if STFile(providersFileURL).isExists,
-           let data = try? Data(contentsOf: providersFileURL),
+        if providersFile.isExists,
+           let data = try? providersFile.data(),
            let decodedProviders = try? JSONDecoder().decode([Provider].self, from: data),
            !decodedProviders.isEmpty
         {
@@ -232,7 +236,7 @@ public class ProviderSettings: ObservableObject {
 
     private func saveProviders() {
         if let encoded = try? JSONEncoder().encode(providers) {
-            try? encoded.write(to: providersFileURL)
+            _ = try? providersFile.overlay(with: encoded)
         }
     }
 

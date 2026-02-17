@@ -1,5 +1,6 @@
 import SwiftUI
 import ProviderCatalog
+import NolonResourceKit
 import Observation
 #if os(macOS)
 import AppKit

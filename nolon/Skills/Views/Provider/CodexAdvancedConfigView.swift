@@ -4,6 +4,7 @@ import ProviderCatalog
 import SwiftUI
 import STFilePath
 import CodexProvider
+import NolonResourceKit
 
 enum CodexLinkFolder: String, CaseIterable, Identifiable, Hashable {
     case prompts

@@ -5,6 +5,7 @@ import Observation
 import STJSON
 import TOML
 import STFilePath
+import NolonResourceKit
 
 // MARK: - Codex MCP Config Models (shared)
 struct CodexMCPConfig: Codable, Sendable {

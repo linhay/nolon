@@ -1,4 +1,5 @@
 import SwiftUI
+import NolonResourceKit
 
 struct UpdatesView: View {
     @State private var viewModel = UpdatesViewModel()

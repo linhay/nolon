@@ -1,5 +1,6 @@
 import MarkdownUI
 import SwiftUI
+import NolonResourceKit
 
 /// Left column 3: Skill detail content view
 /// Displays the SkillParser structure content for selected skill

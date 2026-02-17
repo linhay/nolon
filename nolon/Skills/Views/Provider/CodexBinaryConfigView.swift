@@ -5,6 +5,7 @@ import SwiftUI
 import AppKit
 import UniformTypeIdentifiers
 import STFilePath
+import NolonResourceKit
 
 @MainActor
 @Observable

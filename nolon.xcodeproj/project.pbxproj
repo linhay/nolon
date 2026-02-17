@@ -13,21 +13,19 @@
 		CD4538DA2F3448850090D8F7 /* STJSON in Frameworks */ = {isa = PBXBuildFile; productRef = CD4538D92F3448850090D8F7 /* STJSON */; };
 		CD4538DD2F3448C00090D8F7 /* STJSON in Frameworks */ = {isa = PBXBuildFile; productRef = CD4538DC2F3448C00090D8F7 /* STJSON */; };
 		CD68A7082F371C8E008772E7 /* SKProcessRunner in Frameworks */ = {isa = PBXBuildFile; productRef = CD68A7072F371C8E008772E7 /* SKProcessRunner */; };
-		CD68A7432F37AB0F008772E7 /* SwiftGitUniversal in Frameworks */ = {isa = PBXBuildFile; productRef = CD68A7422F37AB0F008772E7 /* SwiftGitUniversal */; };
 		CD702B9F2F29FBC700E22535 /* TOML in Frameworks */ = {isa = PBXBuildFile; productRef = CD702B9E2F29FBC700E22535 /* TOML */; };
 		CD8D47612F2E606000428E7B /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = CD8D47602F2E606000428E7B /* GRDB */; };
-		CD9ECB202F21F6C0009248CB /* SwiftGit in Frameworks */ = {isa = PBXBuildFile; productRef = CD9ECB1F2F21F6C0009248CB /* SwiftGit */; };
-		CD9EDAC52F2320BC009248CB /* SwiftGit in Frameworks */ = {isa = PBXBuildFile; productRef = CD9EDAC42F2320BC009248CB /* SwiftGit */; };
 		CD9EE2702F2677A0009248CB /* Yams in Frameworks */ = {isa = PBXBuildFile; productRef = CD9EE26F2F2677A0009248CB /* Yams */; };
 		CDA1903B2F3DA580000DBF77 /* CodexAppServerKit in Frameworks */ = {isa = PBXBuildFile; productRef = CDA1903A2F3DA580000DBF77 /* CodexAppServerKit */; };
 		CDA1903D2F3DA580000DBF77 /* CodexBarProviderCatalog in Frameworks */ = {isa = PBXBuildFile; productRef = CDA1903C2F3DA580000DBF77 /* CodexBarProviderCatalog */; };
 		CDA1903F2F3DA580000DBF77 /* CodexCLIKit in Frameworks */ = {isa = PBXBuildFile; productRef = CDA1903E2F3DA580000DBF77 /* CodexCLIKit */; };
 		CDA190412F3DA580000DBF77 /* CodexProvider in Frameworks */ = {isa = PBXBuildFile; productRef = CDA190402F3DA580000DBF77 /* CodexProvider */; };
 		CDA190432F3DA580000DBF77 /* CopilotProvider in Frameworks */ = {isa = PBXBuildFile; productRef = CDA190422F3DA580000DBF77 /* CopilotProvider */; };
-		CDA190452F3DA580000DBF77 /* ProviderCatalog in Frameworks */ = {isa = PBXBuildFile; productRef = CDA190442F3DA580000DBF77 /* ProviderCatalog */; };
-		CDA190472F3DA580000DBF77 /* ProviderUsage in Frameworks */ = {isa = PBXBuildFile; productRef = CDA190462F3DA580000DBF77 /* ProviderUsage */; };
-		CDFA67412F3599FB0053E30A /* STFilePath in Frameworks */ = {isa = PBXBuildFile; productRef = CDFA67402F3599FB0053E30A /* STFilePath */; };
-		CDFA67442F359A110053E30A /* STJSON in Frameworks */ = {isa = PBXBuildFile; productRef = CDFA67432F359A110053E30A /* STJSON */; };
+			CDA190452F3DA580000DBF77 /* ProviderCatalog in Frameworks */ = {isa = PBXBuildFile; productRef = CDA190442F3DA580000DBF77 /* ProviderCatalog */; };
+			CDA190472F3DA580000DBF77 /* ProviderUsage in Frameworks */ = {isa = PBXBuildFile; productRef = CDA190462F3DA580000DBF77 /* ProviderUsage */; };
+			CDA190492F3DA580000DBF77 /* NolonResourceKit in Frameworks */ = {isa = PBXBuildFile; productRef = CDA190482F3DA580000DBF77 /* NolonResourceKit */; };
+			CDFA67412F3599FB0053E30A /* STFilePath in Frameworks */ = {isa = PBXBuildFile; productRef = CDFA67402F3599FB0053E30A /* STFilePath */; };
+			CDFA67442F359A110053E30A /* STJSON in Frameworks */ = {isa = PBXBuildFile; productRef = CDFA67432F359A110053E30A /* STJSON */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -89,20 +87,18 @@
 				CD4538DA2F3448850090D8F7 /* STJSON in Frameworks */,
 				CD8D47612F2E606000428E7B /* GRDB in Frameworks */,
 				CDA1903F2F3DA580000DBF77 /* CodexCLIKit in Frameworks */,
-				CD9EDAC52F2320BC009248CB /* SwiftGit in Frameworks */,
 				CD447BF32F1F79890056366B /* MarkdownUI in Frameworks */,
-				CD9ECB202F21F6C0009248CB /* SwiftGit in Frameworks */,
-				CDA1903B2F3DA580000DBF77 /* CodexAppServerKit in Frameworks */,
-				CD702B9F2F29FBC700E22535 /* TOML in Frameworks */,
-				CD9EE2702F2677A0009248CB /* Yams in Frameworks */,
-				CD447BF62F1F79890056366B /* Sparkle in Frameworks */,
-				CD68A7432F37AB0F008772E7 /* SwiftGitUniversal in Frameworks */,
-				CDA190412F3DA580000DBF77 /* CodexProvider in Frameworks */,
-				CDA190452F3DA580000DBF77 /* ProviderCatalog in Frameworks */,
-				CDA190472F3DA580000DBF77 /* ProviderUsage in Frameworks */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
+					CDA1903B2F3DA580000DBF77 /* CodexAppServerKit in Frameworks */,
+					CD702B9F2F29FBC700E22535 /* TOML in Frameworks */,
+					CD9EE2702F2677A0009248CB /* Yams in Frameworks */,
+					CD447BF62F1F79890056366B /* Sparkle in Frameworks */,
+					CDA190412F3DA580000DBF77 /* CodexProvider in Frameworks */,
+					CDA190452F3DA580000DBF77 /* ProviderCatalog in Frameworks */,
+					CDA190472F3DA580000DBF77 /* ProviderUsage in Frameworks */,
+					CDA190492F3DA580000DBF77 /* NolonResourceKit in Frameworks */,
+				);
+				runOnlyForDeploymentPostprocessing = 0;
+			};
 		CD9EDF392F24F31E009248CB /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -160,8 +156,6 @@
 			name = nolon;
 			packageProductDependencies = (
 				CD447BF22F1F79890056366B /* MarkdownUI */,
-				CD9ECB1F2F21F6C0009248CB /* SwiftGit */,
-				CD9EDAC42F2320BC009248CB /* SwiftGit */,
 				CD447BF52F1F79890056366B /* Sparkle */,
 				CD9EE26F2F2677A0009248CB /* Yams */,
 				CD702B9E2F29FBC700E22535 /* TOML */,
@@ -172,17 +166,17 @@
 				CDFA67402F3599FB0053E30A /* STFilePath */,
 				CDFA67432F359A110053E30A /* STJSON */,
 				CD68A7072F371C8E008772E7 /* SKProcessRunner */,
-				CD68A7422F37AB0F008772E7 /* SwiftGitUniversal */,
 				CDA1903A2F3DA580000DBF77 /* CodexAppServerKit */,
 				CDA1903C2F3DA580000DBF77 /* CodexBarProviderCatalog */,
 				CDA1903E2F3DA580000DBF77 /* CodexCLIKit */,
-				CDA190402F3DA580000DBF77 /* CodexProvider */,
-				CDA190422F3DA580000DBF77 /* CopilotProvider */,
-				CDA190442F3DA580000DBF77 /* ProviderCatalog */,
-				CDA190462F3DA580000DBF77 /* ProviderUsage */,
-			);
-			productName = nolon;
-			productReference = CD2B1A922F1F624900DF4A2B /* nolon.app */;
+					CDA190402F3DA580000DBF77 /* CodexProvider */,
+					CDA190422F3DA580000DBF77 /* CopilotProvider */,
+					CDA190442F3DA580000DBF77 /* ProviderCatalog */,
+					CDA190462F3DA580000DBF77 /* ProviderUsage */,
+					CDA190482F3DA580000DBF77 /* NolonResourceKit */,
+				);
+				productName = nolon;
+				productReference = CD2B1A922F1F624900DF4A2B /* nolon.app */;
 			productType = "com.apple.product-type.application";
 		};
 		CD9EDF3B2F24F31E009248CB /* nolonTests */ = {
@@ -239,7 +233,6 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				CD447BF12F1F79890056366B /* XCRemoteSwiftPackageReference "swift-markdown-ui" */,
-				CD9EDAC32F2320BC009248CB /* XCRemoteSwiftPackageReference "swift-git" */,
 				CD447BF42F1F79890056366B /* XCRemoteSwiftPackageReference "Sparkle" */,
 				CD9EE26E2F2677A0009248CB /* XCRemoteSwiftPackageReference "Yams" */,
 				CD702B9D2F29FBC700E22535 /* XCRemoteSwiftPackageReference "swift-toml" */,
@@ -625,14 +618,6 @@
 				minimumVersion = 7.9.0;
 			};
 		};
-		CD9EDAC32F2320BC009248CB /* XCRemoteSwiftPackageReference "swift-git" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/linhay/swift-git";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 2.2.0;
-			};
-		};
 		CD9EE26E2F2677A0009248CB /* XCRemoteSwiftPackageReference "Yams" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/jpsim/Yams";
@@ -687,11 +672,6 @@
 			package = CD68A7062F371C8E008772E7 /* XCRemoteSwiftPackageReference "SKProcessRunner" */;
 			productName = SKProcessRunner;
 		};
-		CD68A7422F37AB0F008772E7 /* SwiftGitUniversal */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = CD9EDAC32F2320BC009248CB /* XCRemoteSwiftPackageReference "swift-git" */;
-			productName = SwiftGitUniversal;
-		};
 		CD702B9E2F29FBC700E22535 /* TOML */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = CD702B9D2F29FBC700E22535 /* XCRemoteSwiftPackageReference "swift-toml" */;
@@ -701,15 +681,6 @@
 			isa = XCSwiftPackageProductDependency;
 			package = CD8D475F2F2E606000428E7B /* XCRemoteSwiftPackageReference "GRDB.swift" */;
 			productName = GRDB;
-		};
-		CD9ECB1F2F21F6C0009248CB /* SwiftGit */ = {
-			isa = XCSwiftPackageProductDependency;
-			productName = SwiftGit;
-		};
-		CD9EDAC42F2320BC009248CB /* SwiftGit */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = CD9EDAC32F2320BC009248CB /* XCRemoteSwiftPackageReference "swift-git" */;
-			productName = SwiftGit;
 		};
 		CD9EE26F2F2677A0009248CB /* Yams */ = {
 			isa = XCSwiftPackageProductDependency;
@@ -740,13 +711,17 @@
 			isa = XCSwiftPackageProductDependency;
 			productName = ProviderCatalog;
 		};
-		CDA190462F3DA580000DBF77 /* ProviderUsage */ = {
-			isa = XCSwiftPackageProductDependency;
-			productName = ProviderUsage;
-		};
-		CDFA67402F3599FB0053E30A /* STFilePath */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = CDFA673F2F3599FB0053E30A /* XCRemoteSwiftPackageReference "STFilePath" */;
+			CDA190462F3DA580000DBF77 /* ProviderUsage */ = {
+				isa = XCSwiftPackageProductDependency;
+				productName = ProviderUsage;
+			};
+			CDA190482F3DA580000DBF77 /* NolonResourceKit */ = {
+				isa = XCSwiftPackageProductDependency;
+				productName = NolonResourceKit;
+			};
+			CDFA67402F3599FB0053E30A /* STFilePath */ = {
+				isa = XCSwiftPackageProductDependency;
+				package = CDFA673F2F3599FB0053E30A /* XCRemoteSwiftPackageReference "STFilePath" */;
 			productName = STFilePath;
 		};
 		CDFA67432F359A110053E30A /* STJSON */ = {

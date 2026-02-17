@@ -3,18 +3,19 @@ import STFilePath
 import ProviderCatalog
 
 /// Shared remote install orchestration used by both App entry view models.
-struct RemoteInstallOrchestrator {
-    typealias RemoteDownload = @Sendable (
+@MainActor
+public struct RemoteInstallOrchestrator {
+    public typealias RemoteDownload = @Sendable (
         SkillsRepositoryFacade.RemoteCatalogKind,
         String,
         String?,
         String
     ) async throws -> URL
 
-    let makeResourceInstaller: @Sendable () -> ResourceInstaller
-    let downloadRemoteResource: RemoteDownload
+    public let makeResourceInstaller: @Sendable () -> ResourceInstaller
+    public let downloadRemoteResource: RemoteDownload
 
-    init(
+    public init(
         makeResourceInstaller: @escaping @Sendable () -> ResourceInstaller = {
             ResourceInstaller(globalCache: GlobalCacheRepository())
         },
@@ -31,7 +32,7 @@ struct RemoteInstallOrchestrator {
         self.downloadRemoteResource = downloadRemoteResource
     }
 
-    func installSkill(
+    public func installSkill(
         _ skill: RemoteSkill,
         to provider: Provider,
         installer: SkillInstaller,
@@ -47,7 +48,7 @@ struct RemoteInstallOrchestrator {
         try installer.installRemote(zipURL: zipURL, slug: skill.slug, to: provider)
     }
 
-    func installWorkflow(
+    public func installWorkflow(
         _ workflow: RemoteWorkflow,
         to provider: Provider,
         installer: SkillInstaller,
@@ -72,7 +73,7 @@ struct RemoteInstallOrchestrator {
         try installer.installRemoteWorkflow(fileURL: fileURL, slug: workflow.slug, to: provider)
     }
 
-    func installMCP(
+    public func installMCP(
         _ mcp: RemoteMCP,
         to provider: Provider,
         remoteBaseURL: String

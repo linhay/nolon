@@ -2,6 +2,7 @@ import SwiftUI
 import STJSON
 import OSLog
 import ProviderCatalog
+import NolonResourceKit
 
 /// Remote 内容 Tab 类型 - 可扩展设计
 enum RemoteContentTabType: String, CaseIterable, Identifiable {

@@ -2,6 +2,7 @@ import SwiftUI
 import ProviderCatalog
 import Observation
 import STFilePath
+import NolonResourceKit
 
 /// Detail 区域 - Grid 布局显示 Skills 或 Workflows
 struct ProviderDetailGridView: View {

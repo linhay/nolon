@@ -2,6 +2,7 @@ import SwiftUI
 import ProviderCatalog
 import MarkdownUI
 import STFilePath
+import NolonResourceKit
 
 struct RemoteSkillDetailView: View {
     let skill: RemoteSkill

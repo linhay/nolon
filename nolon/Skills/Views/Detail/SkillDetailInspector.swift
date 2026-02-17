@@ -1,5 +1,6 @@
 import SwiftUI
 import ProviderCatalog
+import NolonResourceKit
 
 struct SkillDetailInspector: View {
     @Bindable var viewModel: SkillDetailViewModel

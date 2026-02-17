@@ -1,12 +1,8 @@
 import Foundation
-import ProviderUsage
-import CodexBarProviderCatalog
 
-typealias UsageMonitorProviderSettings = ProviderUsageMonitorSettings
+public typealias UsageMonitorProviderSettings = ProviderUsageMonitorSettings
 
-typealias ProviderAccountUsageOutcome = ProviderUsage.ProviderAccountUsageOutcome
-
-extension ProviderAccountUsageOutcome {
+public extension ProviderAccountUsageOutcome {
     var displayName: String {
         switch self.account {
         case .default:

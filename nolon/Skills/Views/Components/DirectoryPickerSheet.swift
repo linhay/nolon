@@ -1,4 +1,5 @@
 import SwiftUI
+import NolonResourceKit
 
 /// Directory picker sheet for selecting skills directories (supports multiple selection)
 struct DirectoryPickerSheet: View {

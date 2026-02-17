@@ -151,7 +151,7 @@ public final class RemoteRepositoryWatchCenter: ObservableObject {
         var unique: [String] = []
         var seen = Set<String>()
         for raw in paths {
-            let normalized = URL(fileURLWithPath: raw).standardizedFileURL.path
+            let normalized = STPath(raw).url.standardizedFileURL.path
             guard seen.insert(normalized).inserted else { continue }
             unique.append(normalized)
         }

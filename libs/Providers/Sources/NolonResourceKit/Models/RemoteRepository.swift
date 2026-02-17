@@ -288,7 +288,7 @@ public struct RemoteRepository: Identifiable, Codable, Hashable, Sendable {
             guard let path = localPath else {
                 return repositoriesPath.appendingPathComponent("unknown")
             }
-            return URL(fileURLWithPath: path)
+            return STPath(path).url
         case .git:
             guard let gitURL = gitURL else {
                 return repositoriesPath.appendingPathComponent("unknown")
@@ -317,6 +317,10 @@ public struct RemoteRepository: Identifiable, Codable, Hashable, Sendable {
         case .globalSkills:
             return repositoriesPath.appendingPathComponent("skills")
         }
+    }
+
+    nonisolated public var localCloneFolder: STFolder {
+        STFolder(localClonePath)
     }
 
     /// Extract repository name from Git URL

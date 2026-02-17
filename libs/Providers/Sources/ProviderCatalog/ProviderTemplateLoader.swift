@@ -90,11 +90,7 @@ public final class ProviderTemplateLoader: @unchecked Sendable {
         }
 
         if needsWrite {
-            let path = targetFile.url.path
-            if self.fileManager.fileExists(atPath: path) {
-                try self.fileManager.removeItem(atPath: path)
-            }
-            self.fileManager.createFile(atPath: path, contents: expectedData)
+            try targetFile.overlay(with: expectedData)
         }
         return targetFile
     }
@@ -119,10 +115,9 @@ public final class ProviderTemplateLoader: @unchecked Sendable {
     private func normalizeDirectoryPath(_ rawPath: String) -> URL {
         let expanded = (rawPath as NSString).expandingTildeInPath
         if expanded.hasPrefix("/") {
-            return URL(fileURLWithPath: expanded, isDirectory: true).standardizedFileURL
+            return STFolder(expanded).url.standardizedFileURL
         }
-        let currentDirectory = self.fileManager.currentDirectoryPath
-        return URL(fileURLWithPath: expanded, relativeTo: URL(fileURLWithPath: currentDirectory, isDirectory: true))
-            .standardizedFileURL
+        let currentDirectory = STFolder(self.fileManager.currentDirectoryPath)
+        return currentDirectory.folder(expanded).url.standardizedFileURL
     }
 }

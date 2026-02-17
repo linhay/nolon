@@ -1,5 +1,6 @@
 import SwiftUI
 import UniformTypeIdentifiers
+import NolonResourceKit
 
 /// View displaying all global skills
 @MainActor

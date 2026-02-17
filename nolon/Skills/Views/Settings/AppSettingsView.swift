@@ -1,6 +1,7 @@
 import Foundation
 import SwiftUI
 import Sparkle
+import NolonResourceKit
 
 private enum SettingsCategory: String, CaseIterable, Identifiable {
     case general = "General"

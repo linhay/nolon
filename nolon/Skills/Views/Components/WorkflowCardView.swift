@@ -1,4 +1,5 @@
 import SwiftUI
+import NolonResourceKit
 
 /// Workflow 来源类型
 enum WorkflowSource: String, CaseIterable {

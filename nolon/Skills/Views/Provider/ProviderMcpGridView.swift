@@ -1,6 +1,7 @@
 import SwiftUI
 import ProviderCatalog
 import STFilePath
+import NolonResourceKit
 
 struct ProviderMcpGridView: View {
     let provider: Provider?

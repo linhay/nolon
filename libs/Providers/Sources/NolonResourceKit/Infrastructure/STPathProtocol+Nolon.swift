@@ -10,7 +10,7 @@ extension STPathProtocol {
     ///
     /// `STPathProtocol.delete()` uses `FileManager.fileExists` and will skip broken symlinks.
     /// This helper deletes broken symlinks via `unlink(2)`.
-    nonisolated func deleteIncludingBrokenSymlink() throws {
+    public nonisolated func deleteIncludingBrokenSymlink() throws {
         if isExists {
             try delete()
             return

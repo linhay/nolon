@@ -3,6 +3,7 @@ import ProviderCatalog
 import Observation
 import SwiftUI
 import STFilePath
+import NolonResourceKit
 
 @MainActor
 @Observable

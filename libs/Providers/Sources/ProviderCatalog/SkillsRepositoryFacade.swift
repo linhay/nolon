@@ -543,7 +543,7 @@ public enum SkillsRepositoryFacade {
             if let temporaryDirectory {
                 return STFolder(temporaryDirectory)
             }
-            return (try? STFolder(sanbox: .temporary)) ?? STFolder(FileManager.default.temporaryDirectory)
+            return (try? STFolder(sanbox: .temporary)) ?? STFolder("/tmp")
         }()
 
         let fileExtension: String = {
@@ -589,7 +589,7 @@ public enum SkillsRepositoryFacade {
             let extractionRoot = try STFolder(sanbox: .temporary).folder("nolon-skill-unpack-\(UUID().uuidString)").create()
             defer { try? extractionRoot.delete() }
 
-            var payload = SKProcessPayload.executableURL(URL(fileURLWithPath: "/usr/bin/ditto"))
+            var payload = SKProcessPayload.executableURL(STPath("/usr/bin/ditto").url)
             payload.arguments = ["-x", "-k", downloadedFileURL.path, extractionRoot.url.path]
             payload.throwOnNonZeroExit = false
             payload.timeoutMs = 120_000

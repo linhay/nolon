@@ -10,7 +10,6 @@ import Sparkle
 import Combine
 import OSLog
 import ProviderCatalog
-import SwiftGit
 
 // This view model class publishes when new updates can be checked by the user
 final class CheckForUpdatesViewModel: ObservableObject {

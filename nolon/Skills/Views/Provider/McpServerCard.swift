@@ -1,5 +1,6 @@
 import SwiftUI
 internal import AnyCodable
+import NolonResourceKit
 
 /// MCP Server 卡片视图 - Grid 布局中的卡片
 struct McpServerCard: View {

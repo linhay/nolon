@@ -2,6 +2,7 @@ import SwiftUI
 import Observation
 import os.log
 import STFilePath
+import NolonResourceKit
 
 @Observable
 final class RemoteRepositorySidebarViewModel {

@@ -1,5 +1,6 @@
 import SwiftUI
 import ProviderCatalog
+import NolonResourceKit
 
 /// View for managing skills by provider
 @MainActor

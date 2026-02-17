@@ -487,7 +487,7 @@ public actor GlobalCacheRepository: RemoteResourceRepository {
         }
         
         // Extract using ditto
-        var payload = SKProcessPayload.executableURL(URL(fileURLWithPath: "/usr/bin/ditto"))
+        var payload = SKProcessPayload.executableURL(STPath("/usr/bin/ditto").url)
         payload.arguments = ["-x", "-k", zipURL.path, tempDir.url.path]
         payload.throwOnNonZeroExit = false
         payload.timeoutMs = 120_000

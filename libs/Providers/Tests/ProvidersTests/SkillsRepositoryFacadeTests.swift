@@ -1,16 +1,23 @@
 import Foundation
 import Testing
 import STFilePath
+import SKProcessRunner
 @testable import ProviderCatalog
 
 @Suite("SkillsRepositoryFacade")
 struct SkillsRepositoryFacadeTests {
+    private func makeTempRoot(_ prefix: String) throws -> STFolder {
+        let root = STFolder("/tmp").folder("\(prefix)-\(UUID().uuidString)")
+        _ = root.createIfNotExists()
+        return root
+    }
+
     @Test("build git import plan from shorthand with subpath")
     func buildPlanFromShorthand() throws {
-        let root = URL(fileURLWithPath: "/tmp/nolon-repositories", isDirectory: true)
+        let root = STFolder("/tmp").folder("nolon-repositories")
         let plan = try SkillsRepositoryFacade.planGitImport(
             source: "vercel/agent-skills/skills/react-best-practices",
-            repositoriesRoot: root
+            repositoriesRoot: root.url
         )
 
         #expect(plan.normalizedGitURL == "https://github.com/vercel/agent-skills.git")
@@ -23,10 +30,10 @@ struct SkillsRepositoryFacadeTests {
 
     @Test("build git import plan from ssh url")
     func buildPlanFromSSH() throws {
-        let root = URL(fileURLWithPath: "/tmp/nolon-repositories", isDirectory: true)
+        let root = STFolder("/tmp").folder("nolon-repositories")
         let plan = try SkillsRepositoryFacade.planGitImport(
             source: "git@gitlab.example.com:team/repo.git",
-            repositoriesRoot: root
+            repositoriesRoot: root.url
         )
 
         #expect(plan.normalizedGitURL == "git@gitlab.example.com:team/repo.git")
@@ -37,13 +44,12 @@ struct SkillsRepositoryFacadeTests {
 
     @Test("discover skills via facade uses standard name parsing")
     func discoverSkillsViaFacade() throws {
-        let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("skills-facade-\(UUID().uuidString)", isDirectory: true)
-        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: root) }
+        let root = try makeTempRoot("skills-facade")
+        defer { try? root.delete() }
 
-        let skill = root.appendingPathComponent("skills/my-folder-name/SKILL.md")
-        try FileManager.default.createDirectory(at: skill.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let skillFolder = root.folder("skills").folder("my-folder-name")
+        _ = skillFolder.createIfNotExists()
+        let skill = skillFolder.file("SKILL.md")
         try Data(
             """
             ---
@@ -51,9 +57,9 @@ struct SkillsRepositoryFacadeTests {
             description: Example.
             ---
             """.utf8
-        ).write(to: skill)
+        ).write(to: skill.url)
 
-        let candidates = SkillsRepositoryFacade.discoverSkillsDirectories(at: root)
+        let candidates = SkillsRepositoryFacade.discoverSkillsDirectories(at: root.url)
         #expect(candidates.contains { $0.path == "skills" && $0.skillNames == ["from-frontmatter-name"] })
     }
 
@@ -73,18 +79,19 @@ struct SkillsRepositoryFacadeTests {
 
     @Test("suggest clone path via facade")
     func suggestedClonePathViaFacade() {
-        let root = URL(fileURLWithPath: "/tmp/nolon-repositories", isDirectory: true)
+        let root = STFolder("/tmp").folder("nolon-repositories")
         let path = SkillsRepositoryFacade.suggestedClonePath(
             gitURL: "https://github.com/vercel/agent-skills.git",
-            repositoriesRoot: root
+            repositoriesRoot: root.url
         )
         #expect(path?.path == "/tmp/nolon-repositories/github.com/vercel@agent-skills")
     }
 
     @Test("sync maps invalid URL to facade sync error")
     func syncMapsInvalidURL() async {
-        let localPath = FileManager.default.temporaryDirectory
-            .appendingPathComponent("facade-invalid-\(UUID().uuidString)", isDirectory: true)
+        let localPath = STFolder("/tmp")
+            .folder("facade-invalid-\(UUID().uuidString)")
+            .url
 
         do {
             _ = try await SkillsRepositoryFacade.syncGitRepository(
@@ -108,8 +115,9 @@ struct SkillsRepositoryFacadeTests {
 
     @Test("sync maps token-only strategy without token to accessTokenRequired")
     func syncTokenOnlyRequiresToken() async {
-        let localPath = FileManager.default.temporaryDirectory
-            .appendingPathComponent("facade-token-only-\(UUID().uuidString)", isDirectory: true)
+        let localPath = STFolder("/tmp")
+            .folder("facade-token-only-\(UUID().uuidString)")
+            .url
 
         do {
             _ = try await SkillsRepositoryFacade.syncGitRepository(
@@ -256,10 +264,8 @@ struct SkillsRepositoryFacadeTests {
     @Test("download remote skill uses skill endpoint and preserves extension")
     func downloadRemoteSkill() async throws {
         let base = URL(string: "https://clawdhub.com")!
-        let tempRoot = FileManager.default.temporaryDirectory
-            .appendingPathComponent("facade-download-skill-\(UUID().uuidString)", isDirectory: true)
-        try FileManager.default.createDirectory(at: tempRoot, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: tempRoot) }
+        let tempRoot = try makeTempRoot("facade-download-skill")
+        defer { try? tempRoot.delete() }
 
         let result = try await SkillsRepositoryFacade.downloadRemoteResource(
             kind: .skill,
@@ -270,26 +276,24 @@ struct SkillsRepositoryFacadeTests {
                 #expect(url.absoluteString.contains("/api/v1/download"))
                 #expect(url.absoluteString.contains("slug=agent-browser"))
                 #expect(url.absoluteString.contains("version=1.2.0"))
-                let source = tempRoot.appendingPathComponent("source.zip")
+                let source = tempRoot.file("source.zip").url
                 try Data("zip".utf8).write(to: source)
                 let response = HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)!
                 return (source, response)
             },
-            temporaryDirectory: tempRoot
+            temporaryDirectory: tempRoot.url
         )
 
         #expect(result.lastPathComponent.contains("agent-browser"))
         #expect(result.pathExtension == "zip")
-        #expect(FileManager.default.fileExists(atPath: result.path))
+        #expect(STPath(result).isExists)
     }
 
     @Test("download remote workflow uses workflow endpoint")
     func downloadRemoteWorkflow() async throws {
         let base = URL(string: "https://clawdhub.com")!
-        let tempRoot = FileManager.default.temporaryDirectory
-            .appendingPathComponent("facade-download-workflow-\(UUID().uuidString)", isDirectory: true)
-        try FileManager.default.createDirectory(at: tempRoot, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: tempRoot) }
+        let tempRoot = try makeTempRoot("facade-download-workflow")
+        defer { try? tempRoot.delete() }
 
         let result = try await SkillsRepositoryFacade.downloadRemoteResource(
             kind: .workflow,
@@ -300,16 +304,16 @@ struct SkillsRepositoryFacadeTests {
                 #expect(url.absoluteString.contains("/api/v1/download/workflow"))
                 #expect(url.absoluteString.contains("slug=daily-review"))
                 #expect(url.absoluteString.contains("tag=latest"))
-                let source = tempRoot.appendingPathComponent("workflow.md")
+                let source = tempRoot.file("workflow.md").url
                 try Data("# Workflow".utf8).write(to: source)
                 let response = HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)!
                 return (source, response)
             },
-            temporaryDirectory: tempRoot
+            temporaryDirectory: tempRoot.url
         )
 
         #expect(result.pathExtension == "md")
-        #expect(FileManager.default.fileExists(atPath: result.path))
+        #expect(STPath(result).isExists)
     }
 
     @Test("download remote resource throws on non-2xx response")
@@ -321,8 +325,11 @@ struct SkillsRepositoryFacadeTests {
                 version: nil,
                 baseURL: "https://clawdhub.com",
                 downloader: { url in
-                    let source = FileManager.default.temporaryDirectory
-                        .appendingPathComponent("noop-\(UUID().uuidString)")
+                    let folder = STFolder("/tmp")
+                        .folder("noop-\(UUID().uuidString)")
+                    _ = folder.createIfNotExists()
+                    let source = folder.file("noop.bin")
+                        .url
                     try Data().write(to: source)
                     let response = HTTPURLResponse(url: url, statusCode: 404, httpVersion: nil, headerFields: nil)!
                     return (source, response)
@@ -356,12 +363,10 @@ struct SkillsRepositoryFacadeTests {
             """)
 
         let zipPath = tempRoot.file("source.zip")
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
-        process.arguments = ["-c", "-k", "--sequesterRsrc", "--keepParent", skillFolder.url.path, zipPath.url.path]
-        try process.run()
-        process.waitUntilExit()
-        #expect(process.terminationStatus == 0)
+        var payload = SKProcessPayload.executableURL(URL(fileURLWithPath: "/usr/bin/ditto"))
+        payload.arguments = ["-c", "-k", "--sequesterRsrc", "--keepParent", skillFolder.url.path, zipPath.url.path]
+        payload.throwOnNonZeroExit = true
+        _ = try SKProcessRunner.runSync(payload)
 
         let skillsRoot = try tempRoot.folder("skills-root").create()
         let staged = try SkillsRepositoryFacade.stageRemoteSkillForInstall(

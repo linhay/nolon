@@ -147,7 +147,7 @@ public final class SkillInstaller {
     }
 
     private func unzip(_ url: URL, to destination: URL) throws {
-        var payload = SKProcessPayload.executableURL(URL(fileURLWithPath: "/usr/bin/ditto"))
+        var payload = SKProcessPayload.executableURL(STPath("/usr/bin/ditto").url)
         payload.arguments = ["-x", "-k", url.path, destination.path]
         payload.throwOnNonZeroExit = false
         payload.timeoutMs = 120_000

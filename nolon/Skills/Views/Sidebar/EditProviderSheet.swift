@@ -3,6 +3,7 @@ import ProviderCatalog
 import Observation
 import UniformTypeIdentifiers
 import OSLog
+import NolonResourceKit
 
 @Observable
 final class EditProviderViewModel {

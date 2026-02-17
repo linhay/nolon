@@ -561,7 +561,7 @@ public enum RemoteGitRepositorySupport {
     }
 
     private static func runGitCapture(arguments: [String]) -> (status: Int32, stdout: String, stderr: String) {
-        var payload = SKProcessPayload.executableURL(URL(fileURLWithPath: "/usr/bin/git"))
+        var payload = SKProcessPayload.executableURL(STPath("/usr/bin/git").url)
         payload.arguments = arguments
         payload.throwOnNonZeroExit = false
         payload.timeoutMs = 120_000
@@ -585,7 +585,7 @@ public enum RemoteGitRepositorySupport {
     }
 
     private static func testSSHConnection(host: String) async -> Bool {
-        var payload = SKProcessPayload.executableURL(URL(fileURLWithPath: "/usr/bin/ssh"))
+        var payload = SKProcessPayload.executableURL(STPath("/usr/bin/ssh").url)
         payload.arguments = [
             "-T",
             "-o", "BatchMode=yes",

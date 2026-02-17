@@ -1,5 +1,6 @@
 import SwiftUI
 import ProviderCatalog
+import NolonResourceKit
 
 /// Remote MCP 详情视图
 struct RemoteMCPDetailView: View {

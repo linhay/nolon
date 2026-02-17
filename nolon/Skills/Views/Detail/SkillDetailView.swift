@@ -2,6 +2,7 @@ import SwiftUI
 import ProviderCatalog
 import MarkdownUI
 import Observation
+import NolonResourceKit
 
 /// Detailed view for a single skill with 3-column layout
 struct SkillDetailView: View {

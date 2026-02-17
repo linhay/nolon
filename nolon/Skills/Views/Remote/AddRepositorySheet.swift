@@ -1,6 +1,7 @@
 import SwiftUI
 import Observation
 import OSLog
+import NolonResourceKit
 
 @Observable
 final class AddRepositoryViewModel {

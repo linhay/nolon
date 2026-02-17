@@ -6,6 +6,7 @@ import STJSON
 import TOML
 import STFilePath
 import OSLog
+import NolonResourceKit
 
 private let terminalLogger = Logger(subsystem: "com.nolon", category: "TerminalDetection")
 

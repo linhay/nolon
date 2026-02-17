@@ -2,6 +2,7 @@ import SwiftUI
 import MarkdownUI
 import Observation
 import STFilePath
+import NolonResourceKit
 
 @MainActor
 @Observable

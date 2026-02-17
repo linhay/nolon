@@ -1,6 +1,7 @@
 import SwiftUI
 import ProviderCatalog
 import AppKit
+import NolonResourceKit
 
 /// 远程技能卡片视图 - Grid 布局中的卡片
 struct RemoteSkillCardView: View {

@@ -4,6 +4,7 @@ import CodexProvider
 import Combine
 import OSLog
 import STFilePath
+import NolonResourceKit
 
 /// Main three-column split view for the app
 /// Left 1: Provider sidebar (collapsible)

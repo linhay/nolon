@@ -1,5 +1,6 @@
 import SwiftUI
 import ProviderCatalog
+import NolonResourceKit
 
 /// Remote Workflow 详情视图
 struct RemoteWorkflowDetailView: View {

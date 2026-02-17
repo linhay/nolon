@@ -1,5 +1,7 @@
 import Foundation
+import STFilePath
 import Testing
+import SKProcessRunner
 @testable import ProviderCatalog
 
 @Suite("RemoteGitRepositorySupport")
@@ -45,21 +47,20 @@ struct RemoteGitRepositorySupportTests {
 
     @Test("discover skill directories supports agent-skills style layout")
     func discoverSkillDirectories() throws {
-        let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("remote-git-discovery-\(UUID().uuidString)", isDirectory: true)
-        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: root) }
+        let root = STFolder("/tmp").folder("remote-git-discovery-\(UUID().uuidString)")
+        _ = root.createIfNotExists()
+        defer { try? root.delete() }
 
-        let skillA = root.appendingPathComponent("skills/react-best-practices/SKILL.md")
-        let skillB = root.appendingPathComponent("skills/composition-patterns/SKILL.md")
-        let nestedSkill = root.appendingPathComponent("skills/claude.ai/vercel-deploy-claimable/SKILL.md")
+        let skillAFolder = root.folder("skills/react-best-practices")
+        let skillBFolder = root.folder("skills/composition-patterns")
+        let nestedSkillFolder = root.folder("skills/claude.ai/vercel-deploy-claimable")
+        _ = skillAFolder.createIfNotExists()
+        _ = skillBFolder.createIfNotExists()
+        _ = nestedSkillFolder.createIfNotExists()
 
-        try FileManager.default.createDirectory(at: skillA.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try FileManager.default.createDirectory(at: skillB.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try FileManager.default.createDirectory(
-            at: nestedSkill.deletingLastPathComponent(),
-            withIntermediateDirectories: true
-        )
+        let skillA = skillAFolder.file("SKILL.md")
+        let skillB = skillBFolder.file("SKILL.md")
+        let nestedSkill = nestedSkillFolder.file("SKILL.md")
         try Data(
             """
             ---
@@ -67,7 +68,7 @@ struct RemoteGitRepositorySupportTests {
             description: React best practices.
             ---
             """.utf8
-        ).write(to: skillA)
+        ).write(to: skillA.url)
         try Data(
             """
             ---
@@ -75,7 +76,7 @@ struct RemoteGitRepositorySupportTests {
             description: Composition patterns.
             ---
             """.utf8
-        ).write(to: skillB)
+        ).write(to: skillB.url)
         try Data(
             """
             ---
@@ -83,9 +84,9 @@ struct RemoteGitRepositorySupportTests {
             description: Claimable deployments.
             ---
             """.utf8
-        ).write(to: nestedSkill)
+        ).write(to: nestedSkill.url)
 
-        let candidates = RemoteGitRepositorySupport.detectSkillsDirectories(at: root)
+        let candidates = RemoteGitRepositorySupport.detectSkillsDirectories(at: root.url)
 
         #expect(candidates.contains { $0.path == "skills" && $0.skillCount == 2 })
         #expect(candidates.contains { $0.path == "skills/claude.ai" && $0.skillCount == 1 })
@@ -98,24 +99,26 @@ struct RemoteGitRepositorySupportTests {
 
     @Test("discover repository resources includes workflows and mcp files")
     func discoverRepositoryResources() throws {
-        let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("remote-git-resources-\(UUID().uuidString)", isDirectory: true)
-        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: root) }
+        let root = STFolder("/tmp").folder("remote-git-resources-\(UUID().uuidString)")
+        _ = root.createIfNotExists()
+        defer { try? root.delete() }
 
-        let skill = root.appendingPathComponent("skills/agent-browser/SKILL.md")
-        let workflow = root.appendingPathComponent("workflows/review.md")
-        let mcp = root.appendingPathComponent("configs/mcp_settings.json")
+        let skillFolder = root.folder("skills/agent-browser")
+        let workflowFolder = root.folder("workflows")
+        let mcpFolder = root.folder("configs")
+        _ = skillFolder.createIfNotExists()
+        _ = workflowFolder.createIfNotExists()
+        _ = mcpFolder.createIfNotExists()
 
-        try FileManager.default.createDirectory(at: skill.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try FileManager.default.createDirectory(at: workflow.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try FileManager.default.createDirectory(at: mcp.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let skill = skillFolder.file("SKILL.md")
+        let workflow = workflowFolder.file("review.md")
+        let mcp = mcpFolder.file("mcp_settings.json")
 
-        try Data("---\nname: agent-browser\ndescription: Browser\n---\n".utf8).write(to: skill)
-        try Data("# Workflow\n".utf8).write(to: workflow)
-        try Data("{\"mcpServers\":{}}".utf8).write(to: mcp)
+        try Data("---\nname: agent-browser\ndescription: Browser\n---\n".utf8).write(to: skill.url)
+        try Data("# Workflow\n".utf8).write(to: workflow.url)
+        try Data("{\"mcpServers\":{}}".utf8).write(to: mcp.url)
 
-        let resources = RemoteGitRepositorySupport.detectRepositoryResources(at: root)
+        let resources = RemoteGitRepositorySupport.detectRepositoryResources(at: root.url)
 
         #expect(resources.skillsDirectories.contains { $0.path == "skills" && $0.skillCount == 1 })
         #expect(resources.workflows.contains { $0.path == "workflows/review.md" })
@@ -124,16 +127,13 @@ struct RemoteGitRepositorySupportTests {
 
     @Test("discover skill directories includes hidden .agents layout")
     func discoverSkillsDirectoriesInHiddenAgentsFolder() throws {
-        let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("remote-git-hidden-agents-\(UUID().uuidString)", isDirectory: true)
-        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: root) }
+        let root = STFolder("/tmp").folder("remote-git-hidden-agents-\(UUID().uuidString)")
+        _ = root.createIfNotExists()
+        defer { try? root.delete() }
 
-        let hiddenSkill = root.appendingPathComponent(".agents/skills/find-skills/SKILL.md")
-        try FileManager.default.createDirectory(
-            at: hiddenSkill.deletingLastPathComponent(),
-            withIntermediateDirectories: true
-        )
+        let hiddenSkillFolder = root.folder(".agents/skills/find-skills")
+        _ = hiddenSkillFolder.createIfNotExists()
+        let hiddenSkill = hiddenSkillFolder.file("SKILL.md")
         try Data(
             """
             ---
@@ -141,34 +141,32 @@ struct RemoteGitRepositorySupportTests {
             description: Find installable skills.
             ---
             """.utf8
-        ).write(to: hiddenSkill)
+        ).write(to: hiddenSkill.url)
 
-        let candidates = RemoteGitRepositorySupport.detectSkillsDirectories(at: root)
+        let candidates = RemoteGitRepositorySupport.detectSkillsDirectories(at: root.url)
         #expect(candidates.contains { $0.path == ".agents/skills" && $0.skillCount == 1 })
     }
 
     @Test("discover repository resources includes github workflow yaml")
     func discoverRepositoryResourcesInGitHubWorkflowFolder() throws {
-        let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("remote-git-github-workflow-\(UUID().uuidString)", isDirectory: true)
-        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: root) }
+        let root = STFolder("/tmp").folder("remote-git-github-workflow-\(UUID().uuidString)")
+        _ = root.createIfNotExists()
+        defer { try? root.delete() }
 
-        let workflowYAML = root.appendingPathComponent(".github/workflows/ci.yml")
-        try FileManager.default.createDirectory(
-            at: workflowYAML.deletingLastPathComponent(),
-            withIntermediateDirectories: true
-        )
-        try Data("name: CI\non: [push]\n".utf8).write(to: workflowYAML)
+        let workflowFolder = root.folder(".github/workflows")
+        _ = workflowFolder.createIfNotExists()
+        let workflowYAML = workflowFolder.file("ci.yml")
+        try Data("name: CI\non: [push]\n".utf8).write(to: workflowYAML.url)
 
-        let resources = RemoteGitRepositorySupport.detectRepositoryResources(at: root)
+        let resources = RemoteGitRepositorySupport.detectRepositoryResources(at: root.url)
         #expect(resources.workflows.contains { $0.path == ".github/workflows/ci.yml" })
     }
 
     @Test("sync token-only strategy requires access token")
     func syncTokenOnlyRequiresAccessToken() async {
-        let localPath = FileManager.default.temporaryDirectory
-            .appendingPathComponent("remote-git-token-only-\(UUID().uuidString)", isDirectory: true)
+        let localPath = STFolder("/tmp")
+            .folder("remote-git-token-only-\(UUID().uuidString)")
+            .url
 
         do {
             _ = try await RemoteGitRepositorySupport.syncRepository(
@@ -190,34 +188,25 @@ struct RemoteGitRepositorySupportTests {
 
     @Test("detect default branch from local repository")
     func detectDefaultBranch() throws {
-        let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("remote-git-default-branch-\(UUID().uuidString)", isDirectory: true)
-        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: root) }
+        let root = STFolder("/tmp").folder("remote-git-default-branch-\(UUID().uuidString)")
+        _ = root.createIfNotExists()
+        defer { try? root.delete() }
 
         let run: ([String]) throws -> Void = { args in
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
-            process.arguments = args
-            let stderr = Pipe()
-            process.standardError = stderr
-            try process.run()
-            process.waitUntilExit()
-            if process.terminationStatus != 0 {
-                let data = stderr.fileHandleForReading.readDataToEndOfFile()
-                let message = String(data: data, encoding: .utf8) ?? "unknown"
-                throw NSError(domain: "git", code: Int(process.terminationStatus), userInfo: [NSLocalizedDescriptionKey: message])
-            }
+            var payload = SKProcessPayload.executableURL(URL(fileURLWithPath: "/usr/bin/git"))
+            payload.arguments = args
+            payload.throwOnNonZeroExit = true
+            _ = try SKProcessRunner.runSync(payload)
         }
 
-        try run(["-C", root.path, "init", "--initial-branch", "main"])
-        try run(["-C", root.path, "config", "user.name", "test"])
-        try run(["-C", root.path, "config", "user.email", "test@example.com"])
-        try "hello".write(to: root.appendingPathComponent("README.md"), atomically: true, encoding: .utf8)
-        try run(["-C", root.path, "add", "."])
-        try run(["-C", root.path, "commit", "-m", "init"])
+        try run(["-C", root.url.path, "init", "--initial-branch", "main"])
+        try run(["-C", root.url.path, "config", "user.name", "test"])
+        try run(["-C", root.url.path, "config", "user.email", "test@example.com"])
+        try "hello".write(to: root.file("README.md").url, atomically: true, encoding: .utf8)
+        try run(["-C", root.url.path, "add", "."])
+        try run(["-C", root.url.path, "commit", "-m", "init"])
 
-        let branch = RemoteGitRepositorySupport.detectDefaultBranch(at: root)
+        let branch = RemoteGitRepositorySupport.detectDefaultBranch(at: root.url)
         #expect(branch == "main")
     }
 }
