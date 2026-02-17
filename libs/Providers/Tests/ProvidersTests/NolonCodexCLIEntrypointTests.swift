@@ -1385,6 +1385,21 @@ struct NolonCodexCLIEntrypointTests {
         #expect(try canonicalJSON(result.stdout) == expected)
     }
 
+    @Test("json contract snapshot for codex auth status success")
+    func jsonContractSnapshotAuthStatusSuccess() async throws {
+        let service = JSONContractCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["codex", "auth", "status", "--provider", "codex", "--json"],
+            codexService: service
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+
+        let expected = #"{"command":"codex.auth.status","data":{"accountCount":2,"activeAccountID":"22222222-2222-2222-2222-222222222222","authHashHex":"abc123","providerID":"codex","usageAvgFiveHourRemainingPercent":70,"usageAvgWeeklyRemainingPercent":55,"usageCachedAccountCount":2,"usageLatestRefreshedAt":"1970-01-01T00:01:00Z"},"ok":true}"#
+        #expect(try canonicalJSON(result.stdout) == expected)
+    }
+
     @Test("json contract snapshot for unknown codex group error")
     func jsonContractSnapshotUnknownGroupError() async throws {
         let service = JSONContractCodexCLIService()
@@ -1839,7 +1854,18 @@ private actor BinaryListPlainTextCodexCLIService: NolonCodexCLIServing {
 
 private actor JSONContractCodexCLIService: NolonCodexCLIServing {
     func authList(providerID: String) async throws -> NolonCodexAuthListPayload { throw unsupported() }
-    func authStatus(providerID: String) async throws -> NolonCodexAuthStatusPayload { throw unsupported() }
+    func authStatus(providerID: String) async throws -> NolonCodexAuthStatusPayload {
+        NolonCodexAuthStatusPayload(
+            providerID: providerID,
+            activeAccountID: UUID(uuidString: "22222222-2222-2222-2222-222222222222")!,
+            accountCount: 2,
+            authHashHex: "abc123",
+            usageCachedAccountCount: 2,
+            usageAvgFiveHourRemainingPercent: 70,
+            usageAvgWeeklyRemainingPercent: 55,
+            usageLatestRefreshedAt: Date(timeIntervalSince1970: 60)
+        )
+    }
     func authActivate(providerID: String, accountID: UUID) async throws -> NolonCodexAuthActivatePayload { throw unsupported() }
     func authLogin(providerID: String, preferredAccountID: UUID?) async throws -> NolonCodexAuthLoginPayload { throw unsupported() }
     func authDelete(providerID: String, accountID: UUID) async throws -> NolonCodexAuthDeletePayload { throw unsupported() }

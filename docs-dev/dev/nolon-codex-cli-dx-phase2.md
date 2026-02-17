@@ -753,3 +753,22 @@
 - 验证：
   - `swift test --package-path libs/Providers --filter NolonCodexCLIServiceTests` 通过（11 tests）。
   - `swift test --package-path libs/Providers --filter NolonCodexCLIEntrypointTests` 通过（87 tests）。
+
+## Phase 2.40（auth status JSON 契约快照）
+- 背景：
+  - `auth status` 新增了 usage 摘要字段，需要 JSON 契约快照锁定，避免后续接口漂移。
+- 变更：
+  1. `NolonCodexCLIEntrypointTests` 新增：
+     - `json contract snapshot for codex auth status success`
+  2. `JSONContractCodexCLIService.authStatus` 增加固定返回，用于稳定快照断言。
+- 契约覆盖字段：
+  - `providerID`
+  - `activeAccountID`
+  - `accountCount`
+  - `authHashHex`
+  - `usageCachedAccountCount`
+  - `usageAvgFiveHourRemainingPercent`
+  - `usageAvgWeeklyRemainingPercent`
+  - `usageLatestRefreshedAt`
+- 验证：
+  - `swift test --package-path libs/Providers --filter NolonCodexCLIEntrypointTests` 通过（88 tests）。
