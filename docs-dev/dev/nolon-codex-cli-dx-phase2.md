@@ -786,3 +786,20 @@
   - 快照中路径与用量字符串按 JSON 编码会包含 `/` 转义（`\/`），已按实际输出锁定。
 - 验证：
   - `swift test --package-path libs/Providers --filter NolonCodexCLIEntrypointTests` 通过（89 tests）。
+
+## Phase 2.42（auth activate/login/delete JSON 契约快照）
+- 背景：
+  - 为完成 `codex auth` 命令面的 JSON 契约全覆盖，需要补齐剩余动作：`activate/login/delete`。
+- 变更：
+  1. `NolonCodexCLIEntrypointTests` 新增：
+     - `json contract snapshot for codex auth activate success`
+     - `json contract snapshot for codex auth login success`
+     - `json contract snapshot for codex auth delete success`
+  2. `JSONContractCodexCLIService` 新增固定返回：
+     - `authActivate`
+     - `authLogin`
+     - `authDelete`
+- 说明：
+  - `auth login` 中 `runtimeErrorDescription` 为 `nil` 时，JSON 输出省略该键，快照按实际行为锁定。
+- 验证：
+  - `swift test --package-path libs/Providers --filter NolonCodexCLIEntrypointTests` 通过（92 tests）。

@@ -1415,6 +1415,66 @@ struct NolonCodexCLIEntrypointTests {
         #expect(try canonicalJSON(result.stdout) == expected)
     }
 
+    @Test("json contract snapshot for codex auth activate success")
+    func jsonContractSnapshotAuthActivateSuccess() async throws {
+        let service = JSONContractCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: [
+                "codex", "auth", "activate",
+                "--provider", "codex",
+                "--account-id", "33333333-3333-3333-3333-333333333333",
+                "--json",
+            ],
+            codexService: service
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+
+        let expected = #"{"command":"codex.auth.activate","data":{"accountID":"33333333-3333-3333-3333-333333333333","providerID":"codex","runtimeErrorDescription":"runtime restarted","runtimeSwitched":false},"ok":true}"#
+        #expect(try canonicalJSON(result.stdout) == expected)
+    }
+
+    @Test("json contract snapshot for codex auth login success")
+    func jsonContractSnapshotAuthLoginSuccess() async throws {
+        let service = JSONContractCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: [
+                "codex", "auth", "login",
+                "--provider", "codex",
+                "--preferred-account-id", "44444444-4444-4444-4444-444444444444",
+                "--json",
+            ],
+            codexService: service
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+
+        let expected = #"{"command":"codex.auth.login","data":{"accountID":"44444444-4444-4444-4444-444444444444","accountName":"json-login","loginURL":"https:\/\/auth.example.com\/device","providerID":"codex","runtimeSwitched":true},"ok":true}"#
+        #expect(try canonicalJSON(result.stdout) == expected)
+    }
+
+    @Test("json contract snapshot for codex auth delete success")
+    func jsonContractSnapshotAuthDeleteSuccess() async throws {
+        let service = JSONContractCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: [
+                "codex", "auth", "delete",
+                "--provider", "codex",
+                "--account-id", "55555555-5555-5555-5555-555555555555",
+                "--json",
+            ],
+            codexService: service
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+
+        let expected = #"{"command":"codex.auth.delete","data":{"accountID":"55555555-5555-5555-5555-555555555555","providerID":"codex","wasActive":true},"ok":true}"#
+        #expect(try canonicalJSON(result.stdout) == expected)
+    }
+
     @Test("json contract snapshot for unknown codex group error")
     func jsonContractSnapshotUnknownGroupError() async throws {
         let service = JSONContractCodexCLIService()
@@ -1898,9 +1958,31 @@ private actor JSONContractCodexCLIService: NolonCodexCLIServing {
             usageLatestRefreshedAt: Date(timeIntervalSince1970: 60)
         )
     }
-    func authActivate(providerID: String, accountID: UUID) async throws -> NolonCodexAuthActivatePayload { throw unsupported() }
-    func authLogin(providerID: String, preferredAccountID: UUID?) async throws -> NolonCodexAuthLoginPayload { throw unsupported() }
-    func authDelete(providerID: String, accountID: UUID) async throws -> NolonCodexAuthDeletePayload { throw unsupported() }
+    func authActivate(providerID: String, accountID: UUID) async throws -> NolonCodexAuthActivatePayload {
+        NolonCodexAuthActivatePayload(
+            providerID: providerID,
+            accountID: accountID,
+            runtimeSwitched: false,
+            runtimeErrorDescription: "runtime restarted"
+        )
+    }
+    func authLogin(providerID: String, preferredAccountID: UUID?) async throws -> NolonCodexAuthLoginPayload {
+        NolonCodexAuthLoginPayload(
+            providerID: providerID,
+            accountID: preferredAccountID ?? UUID(uuidString: "44444444-4444-4444-4444-444444444444")!,
+            accountName: "json-login",
+            runtimeSwitched: true,
+            runtimeErrorDescription: nil,
+            loginURL: "https://auth.example.com/device"
+        )
+    }
+    func authDelete(providerID: String, accountID: UUID) async throws -> NolonCodexAuthDeletePayload {
+        NolonCodexAuthDeletePayload(
+            providerID: providerID,
+            accountID: accountID,
+            wasActive: true
+        )
+    }
     func binaryAvailable() async throws -> NolonCodexBinaryAvailablePayload { throw unsupported() }
     func binaryCurrent() async throws -> NolonCodexBinaryCurrentPayload { throw unsupported() }
     func binaryInstall(version: String, setDefault: Bool) async throws -> NolonCodexBinaryInstallPayload { throw unsupported() }
