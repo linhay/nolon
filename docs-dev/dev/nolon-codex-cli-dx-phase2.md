@@ -616,8 +616,21 @@
   - 当前 `SKProcessRunner` 无“非 PTY 双向长连接会话”API。
   - `JsonRPCKit` 的 JSON-RPC over stdio 场景必须使用 pipe 语义，不适合直接迁到 PTY。
 - 处理：
-  1. `JsonRPCLineProcessSession` 暂保留 `Process + Pipe` 实现（唯一剩余例外）。
-  2. 新增 issue 草案文档：`docs-dev/dev/skprocessrunner-jsonrpc-session-issue.md`。
+ 1. `JsonRPCLineProcessSession` 暂保留 `Process + Pipe` 实现（唯一剩余例外）。
+ 2. 新增 issue 草案文档：`docs-dev/dev/skprocessrunner-jsonrpc-session-issue.md`。
+
+## Phase 2.34（response_item schema drift guard 对齐 codex 源）
+- 背景：
+  - 现有 drift guard 仅覆盖 `EventMsg`，`response_item` 仍可能在 `libs/codex` 协议升级后静默漂移。
+- 变更：
+  1. 新增 `CodexGeneratedFilesParser.supportedResponseItemTypesForCompatibility`，集中声明兼容的 `response_item.type` 集合；
+  2. 在 `CodexEventMsgSchemaDriftGuardTests` 新增 `ResponseItem` 守卫：
+     - 直接读取 `libs/codex/codex-rs/protocol/src/models.rs` 的 `pub enum ResponseItem`；
+     - 将 Rust variant 名映射为 snake_case，与 provider 兼容集合做差集断言；
+     - 自动忽略 `Other`（`#[serde(other)]`）兜底项。
+- 验证：
+  - `swift test --package-path libs/Providers --filter CodexEventMsgSchemaDriftGuardTests` 通过。
+  - `swift test --package-path libs/Providers` 全量通过（314 tests, 40 suites, 0 failure）。
   3. 文档中给出建议 API（`SKProcessPipeSession`）与验收标准，便于向 `SKProcessRunner` 提 issue。
 
 ## Phase 2.34（接入 SKProcessPipeSession 验证与回退）

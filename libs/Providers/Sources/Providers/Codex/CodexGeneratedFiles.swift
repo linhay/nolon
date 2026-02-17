@@ -1004,6 +1004,20 @@ public enum CodexGeneratedFilesParser {
         return types
     }()
 
+    static let supportedResponseItemTypesForCompatibility: Set<String> = [
+        "message",
+        "reasoning",
+        "local_shell_call",
+        "function_call",
+        "function_call_output",
+        "custom_tool_call",
+        "custom_tool_call_output",
+        "web_search_call",
+        "ghost_snapshot",
+        "compaction",
+        "compaction_summary",
+    ]
+
     private static func parseTokenCountFromEventMessage(payload: CodexJSONValue?) -> CodexRolloutLine.TokenCount? {
         let object = payload?.objectValue ?? [:]
         if CodexEventMessageType(object["type"]?.stringValue ?? "") == .tokenCount {
