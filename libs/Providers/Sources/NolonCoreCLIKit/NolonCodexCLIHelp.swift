@@ -26,6 +26,8 @@ enum NolonCodexCLIHelpResolver {
             return codexProviderHelpText()
         case .codexAuthList:
             return codexAuthListHelpText()
+        case .codexAuthUsage:
+            return codexAuthUsageHelpText()
         case .codexAuthStatus:
             return codexAuthStatusHelpText()
         case .codexAuthActivate:
@@ -92,7 +94,7 @@ enum NolonCodexCLIHelpResolver {
           codex
 
         Groups:
-          auth      list | status | activate | login | delete
+          auth      list | usage | status | activate | login | delete
           binary    list | current | install | use | available | switch | doctor
           status    probe | doctor
           runtime   list | stop
@@ -123,6 +125,7 @@ enum NolonCodexCLIHelpResolver {
 
         Actions:
           list      [--provider codex|codex-xcode]
+          usage     [--provider codex|codex-xcode] [--summary]
           status    [--provider codex|codex-xcode]
           activate  [--account-id <uuid>|--email <email>] [--provider ...]
           login     [--preferred-account-id <uuid>] [--provider ...]
@@ -180,6 +183,16 @@ enum NolonCodexCLIHelpResolver {
 
         Options:
           --provider <id>   Provider id, default is codex.
+        """
+    }
+
+    private static func codexAuthUsageHelpText() -> String {
+        """
+        Usage: nolon codex auth usage [options]
+
+        Options:
+          --provider <id>   Provider id, default is codex.
+          --summary         Show aggregated summary only.
         """
     }
 
@@ -327,6 +340,7 @@ private struct NolonCLIHelpPath: RawRepresentable, ExpressibleByStringLiteral, E
     static let codexProvider: Self = "help.codex.provider"
     static let provider: Self = "help.provider"
     static let codexAuthList: Self = "help.codex.auth.list"
+    static let codexAuthUsage: Self = "help.codex.auth.usage"
     static let codexAuthStatus: Self = "help.codex.auth.status"
     static let codexAuthActivate: Self = "help.codex.auth.activate"
     static let codexAuthLogin: Self = "help.codex.auth.login"
@@ -412,6 +426,8 @@ private struct NolonCLIHelpPath: RawRepresentable, ExpressibleByStringLiteral, E
             self = .codexProvider
         case ["codex", "auth", "list", "help"], ["codex", "auth", "list", "-h"], ["codex", "auth", "list", "--help"]:
             self = .codexAuthList
+        case ["codex", "auth", "usage", "help"], ["codex", "auth", "usage", "-h"], ["codex", "auth", "usage", "--help"]:
+            self = .codexAuthUsage
         case ["codex", "auth", "status", "help"], ["codex", "auth", "status", "-h"], ["codex", "auth", "status", "--help"]:
             self = .codexAuthStatus
         case ["codex", "auth", "activate", "help"], ["codex", "auth", "activate", "-h"], ["codex", "auth", "activate", "--help"]:

@@ -703,3 +703,31 @@
 - 跟进：
   - 已在 issue 追加复测反馈：
     - `https://github.com/linhay/SKProcessRunner/issues/3#issuecomment-3909569243`
+
+## Phase 2.38（新增 auth usage 命令：分账号与汇总）
+- 背景：
+  - 现有 `nolon codex auth` 仅能通过 `list` 看到混合用量字符串，缺少专门的“用量视图”命令。
+  - 目标是支持按账号查看与汇总查看两种模式。
+- 变更：
+  1. CLI 命令面新增 `nolon codex auth usage`，并支持 `--summary`（仅汇总）；
+  2. `NolonCodexCLIServing` 新增 `authUsage(providerID:)`；
+  3. `NolonLiveCodexCLIService` 新增类型化 payload：
+     - `NolonCodexAuthUsageAccountView`
+     - `NolonCodexAuthUsageSummaryView`
+     - `NolonCodexAuthUsagePayload`
+  4. 默认文本输出为分账号表格：
+     - `邮箱 | 状态 | 5h剩余 | 7d剩余 | 刷新时间`
+  5. `--summary` 文本输出为汇总行：
+     - `账号总数 | 已缓存用量 | 5h平均剩余 | 7d平均剩余 | 最新刷新`
+  6. 帮助文档与路由白名单同步更新：
+     - `codex auth` action 列表加入 `usage`；
+     - `validateUnsupportedRoute` 的 `auth` 组动作集加入 `usage`。
+- 测试（先测后改）：
+  - `NolonCodexCLIServiceTests`
+    - 新增：`auth usage returns per-account rows and summary aggregation`
+  - `NolonCodexCLIEntrypointTests`
+    - 新增：`routes auth usage per-account table`
+    - 新增：`auth usage summary renders aggregated rows`
+- 验证：
+  - `swift test --package-path libs/Providers --filter NolonCodexCLIServiceTests` 通过（10 tests）。
+  - `swift test --package-path libs/Providers --filter NolonCodexCLIEntrypointTests` 通过（86 tests）。

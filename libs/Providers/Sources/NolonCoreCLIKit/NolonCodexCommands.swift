@@ -32,6 +32,7 @@ struct NolonCodexAuthGroupCommand: ParsableCommand {
         commandName: "auth",
         subcommands: [
             NolonCodexAuthListCommand.self,
+            NolonCodexAuthUsageCommand.self,
             NolonCodexAuthStatusCommand.self,
             NolonCodexAuthActivateCommand.self,
             NolonCodexAuthLoginCommand.self,
@@ -84,6 +85,16 @@ struct NolonCodexAuthListCommand: ParsableCommand {
 
     @Option(name: .long, help: "Provider id, default is codex.")
     var provider: String = "codex"
+}
+
+struct NolonCodexAuthUsageCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(commandName: "usage")
+
+    @Option(name: .long, help: "Provider id, default is codex.")
+    var provider: String = "codex"
+
+    @Flag(name: .long, help: "Show aggregated summary only.")
+    var summary: Bool = false
 }
 
 struct NolonCodexAuthStatusCommand: ParsableCommand {

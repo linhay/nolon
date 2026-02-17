@@ -168,6 +168,75 @@ struct NolonCodexCLIServiceTests {
         #expect(payload.accounts[0].refreshedAt == Date(timeIntervalSince1970: 1_733_500_000))
     }
 
+    @Test("auth usage returns per-account rows and summary aggregation")
+    func authUsageReturnsRowsAndSummary() async throws {
+        let root = try makeTempRoot("nolon-codex-cli")
+        defer { try? root.delete() }
+
+        let authManager = CodexAuthManager(rootURL: root.url)
+        let accountA = try await authManager.addAccount(
+            name: "a",
+            authJSONString: #"{"user":{"email":"a@example.com"}}"#
+        )
+        let accountB = try await authManager.addAccount(
+            name: "b",
+            authJSONString: #"{"user":{"email":"b@example.com"}}"#
+        )
+
+        let cacheA = CodexAuthUsageCache(
+            cachedAt: Date(timeIntervalSince1970: 1_733_100_000),
+            creditsRefreshedAt: Date(timeIntervalSince1970: 1_733_300_000),
+            fetchKind: .cli,
+            strategyKind: .direct,
+            sourceLabel: "CLI",
+            usage: UsageSnapshot(
+                identity: nil,
+                primary: RateWindow(usedPercent: 20),
+                secondary: RateWindow(usedPercent: 45),
+                tertiary: nil,
+                updatedAt: Date(timeIntervalSince1970: 1_733_200_000)
+            ),
+            credits: nil,
+            cost: nil
+        )
+        try await authManager.storeUsageCache(cacheA, for: accountA)
+
+        let cacheB = CodexAuthUsageCache(
+            cachedAt: Date(timeIntervalSince1970: 1_733_110_000),
+            creditsRefreshedAt: Date(timeIntervalSince1970: 1_733_350_000),
+            fetchKind: .cli,
+            strategyKind: .direct,
+            sourceLabel: "CLI",
+            usage: UsageSnapshot(
+                identity: nil,
+                primary: RateWindow(usedPercent: 50),
+                secondary: nil,
+                tertiary: nil,
+                updatedAt: Date(timeIntervalSince1970: 1_733_220_000)
+            ),
+            credits: nil,
+            cost: nil
+        )
+        try await authManager.storeUsageCache(cacheB, for: accountB)
+
+        let service = NolonLiveCodexCLIService(
+            authManager: authManager,
+            binaryManager: CodexBinaryManager(homeURL: root.url),
+            loginRunner: .init(),
+            environment: [:]
+        )
+
+        let payload = try await service.authUsage(providerID: "codex")
+        #expect(payload.accounts.count == 2)
+        #expect(payload.accounts.map(\.email).contains("a@example.com"))
+        #expect(payload.accounts.map(\.email).contains("b@example.com"))
+        #expect(payload.summary.accountCount == 2)
+        #expect(payload.summary.cachedCount == 2)
+        #expect(payload.summary.avgFiveHourRemainingPercent == 65)
+        #expect(payload.summary.avgWeeklyRemainingPercent == 55)
+        #expect(payload.summary.latestRefreshedAt == Date(timeIntervalSince1970: 1_733_350_000))
+    }
+
     @Test("runtime list filters codex processes and sorts by pid asc")
     func runtimeListFiltersAndSorts() async throws {
         let root = try makeTempRoot("nolon-codex-cli")

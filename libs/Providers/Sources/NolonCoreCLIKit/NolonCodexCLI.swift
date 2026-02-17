@@ -14,6 +14,7 @@ import Glibc
 
 public protocol NolonCodexCLIServing: Sendable {
     func authList(providerID: String) async throws -> NolonCodexAuthListPayload
+    func authUsage(providerID: String) async throws -> NolonCodexAuthUsagePayload
     func authStatus(providerID: String) async throws -> NolonCodexAuthStatusPayload
     func authActivate(providerID: String, accountID: UUID) async throws -> NolonCodexAuthActivatePayload
     func authLogin(providerID: String, preferredAccountID: UUID?) async throws -> NolonCodexAuthLoginPayload
@@ -31,6 +32,32 @@ public protocol NolonCodexCLIServing: Sendable {
     func runtimeStop(pid: Int32, force: Bool, timeoutSeconds: Int) async throws -> NolonCodexRuntimeStopPayload
 }
 
+public extension NolonCodexCLIServing {
+    func authUsage(providerID: String) async throws -> NolonCodexAuthUsagePayload {
+        let list = try await authList(providerID: providerID)
+        return NolonCodexAuthUsagePayload(
+            providerID: list.providerID,
+            accounts: list.accounts.map { account in
+                NolonCodexAuthUsageAccountView(
+                    id: account.id,
+                    email: account.email,
+                    isActive: account.isActive,
+                    fiveHourRemainingPercent: nil,
+                    weeklyRemainingPercent: nil,
+                    refreshedAt: account.refreshedAt
+                )
+            },
+            summary: NolonCodexAuthUsageSummaryView(
+                accountCount: list.accounts.count,
+                cachedCount: 0,
+                avgFiveHourRemainingPercent: nil,
+                avgWeeklyRemainingPercent: nil,
+                latestRefreshedAt: list.accounts.compactMap(\.refreshedAt).max()
+            )
+        )
+    }
+}
+
 public struct NolonCodexAuthAccountView: Codable, Sendable, Equatable {
     public let id: UUID
     public let name: String
@@ -46,6 +73,29 @@ public struct NolonCodexAuthListPayload: Codable, Sendable, Equatable {
     public let providerID: String
     public let activeAccountID: UUID?
     public let accounts: [NolonCodexAuthAccountView]
+}
+
+public struct NolonCodexAuthUsageAccountView: Codable, Sendable, Equatable {
+    public let id: UUID
+    public let email: String?
+    public let isActive: Bool
+    public let fiveHourRemainingPercent: Int?
+    public let weeklyRemainingPercent: Int?
+    public let refreshedAt: Date?
+}
+
+public struct NolonCodexAuthUsageSummaryView: Codable, Sendable, Equatable {
+    public let accountCount: Int
+    public let cachedCount: Int
+    public let avgFiveHourRemainingPercent: Int?
+    public let avgWeeklyRemainingPercent: Int?
+    public let latestRefreshedAt: Date?
+}
+
+public struct NolonCodexAuthUsagePayload: Codable, Sendable, Equatable {
+    public let providerID: String
+    public let accounts: [NolonCodexAuthUsageAccountView]
+    public let summary: NolonCodexAuthUsageSummaryView
 }
 
 public struct NolonCodexAuthStatusPayload: Codable, Sendable, Equatable {
@@ -270,6 +320,50 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
             providerID: canonicalProviderID,
             activeAccountID: activeID,
             accounts: views
+        )
+    }
+
+    public func authUsage(providerID: String) async throws -> NolonCodexAuthUsagePayload {
+        let canonicalProviderID = try Self.canonicalProviderID(providerID)
+        let provider = try Self.provider(for: canonicalProviderID)
+        let accounts = try await authManager.loadAccounts()
+        let activeID = await authManager.activeAccountId(for: provider)
+
+        var views: [NolonCodexAuthUsageAccountView] = []
+        views.reserveCapacity(accounts.count)
+
+        for account in accounts {
+            let email = Self.loadEmail(for: account, authManager: authManager)
+            let usageCache = try? await authManager.loadUsageCache(for: account)
+            views.append(
+                NolonCodexAuthUsageAccountView(
+                    id: account.id,
+                    email: email,
+                    isActive: account.id == activeID,
+                    fiveHourRemainingPercent: Self.remainingPercent(usageCache?.usage.primary),
+                    weeklyRemainingPercent: Self.remainingPercent(usageCache?.usage.secondary),
+                    refreshedAt: Self.resolveRefreshTime(from: usageCache)
+                )
+            )
+        }
+
+        let fiveHourValues = views.compactMap(\.fiveHourRemainingPercent)
+        let weeklyValues = views.compactMap(\.weeklyRemainingPercent)
+        let cachedCount = views.filter { $0.fiveHourRemainingPercent != nil || $0.weeklyRemainingPercent != nil }.count
+        let latestRefreshedAt = views.compactMap(\.refreshedAt).max()
+
+        let summary = NolonCodexAuthUsageSummaryView(
+            accountCount: views.count,
+            cachedCount: cachedCount,
+            avgFiveHourRemainingPercent: Self.average(of: fiveHourValues),
+            avgWeeklyRemainingPercent: Self.average(of: weeklyValues),
+            latestRefreshedAt: latestRefreshedAt
+        )
+
+        return NolonCodexAuthUsagePayload(
+            providerID: canonicalProviderID,
+            accounts: views,
+            summary: summary
         )
     }
 
@@ -658,6 +752,17 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
         let left = primary.map { "\($0)%" } ?? "-"
         let right = secondary.map { "\($0)%" } ?? "-"
         return "5h \(left) / 7d \(right)"
+    }
+
+    private static func remainingPercent(_ window: RateWindow?) -> Int? {
+        guard let window else { return nil }
+        return Int(window.remainingPercent.rounded())
+    }
+
+    private static func average(of values: [Int]) -> Int? {
+        guard !values.isEmpty else { return nil }
+        let sum = values.reduce(0, +)
+        return Int((Double(sum) / Double(values.count)).rounded())
     }
 
     private static func resolveRefreshTime(from cache: CodexAuthUsageCache?) -> Date? {

@@ -51,6 +51,8 @@ enum NolonCodexCLIExecutor {
         switch parsed {
         case let command as NolonCodexAuthListCommand:
             return try await executeAuthList(command: command, context: context, outputMode: outputMode)
+        case let command as NolonCodexAuthUsageCommand:
+            return try await executeAuthUsage(command: command, context: context, outputMode: outputMode)
         case let command as NolonCodexAuthStatusCommand:
             return try await executeAuthStatus(command: command, context: context, outputMode: outputMode)
         case let command as NolonCodexAuthActivateCommand:
@@ -94,6 +96,15 @@ enum NolonCodexCLIExecutor {
         let providerID = try parseCodexProviderID(command.provider)
         let payload = try await context.codexService().authList(providerID: providerID)
         return try renderOutput(command: .authList, payload: payload, outputMode: outputMode, textFormatter: formatAuthList)
+    }
+
+    private static func executeAuthUsage(command: NolonCodexAuthUsageCommand, context: NolonCLIExecutionContext, outputMode: OutputMode) async throws -> String {
+        let providerID = try parseCodexProviderID(command.provider)
+        let payload = try await context.codexService().authUsage(providerID: providerID)
+        if command.summary {
+            return try renderOutput(command: .authUsage, payload: payload, outputMode: outputMode, textFormatter: formatAuthUsageSummary)
+        }
+        return try renderOutput(command: .authUsage, payload: payload, outputMode: outputMode, textFormatter: formatAuthUsageAccounts)
     }
 
     private static func executeAuthStatus(command: NolonCodexAuthStatusCommand, context: NolonCLIExecutionContext, outputMode: OutputMode) async throws -> String {
@@ -404,7 +415,7 @@ enum NolonCodexCLIExecutor {
         guard root == "codex" else { return }
         let group = arguments[1].trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         let supportedByGroup: [String: Set<String>] = [
-            "auth": ["list", "status", "activate", "login", "delete"],
+            "auth": ["list", "usage", "status", "activate", "login", "delete"],
             "binary": ["list", "current", "install", "use", "available", "switch", "doctor"],
             "status": ["probe", "doctor"],
             "runtime": ["list", "stop"],
@@ -602,6 +613,58 @@ enum NolonCodexCLIExecutor {
             "account_count: \(payload.accountCount)",
             "auth_hash_hex: \(payload.authHashHex ?? "-")",
         ].joined(separator: "\n")
+    }
+
+    private static func formatAuthUsageAccounts(_ payload: NolonCodexAuthUsagePayload) -> String {
+        let title = "邮箱 | 状态 | 5h剩余 | 7d剩余 | 刷新时间"
+        guard !payload.accounts.isEmpty else { return title }
+
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd HH:mm"
+
+        let rows: [(marker: String, email: String, status: String, fiveHour: String, weekly: String, refresh: String)] = payload.accounts.map { account in
+            let marker = account.isActive ? "*" : " "
+            let emailRaw = account.email?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let email = (emailRaw?.isEmpty == false) ? (emailRaw ?? "-") : "-"
+            let status = account.isActive ? "已激活" : "未激活"
+            let fiveHour = account.fiveHourRemainingPercent.map { "\($0)%" } ?? "-"
+            let weekly = account.weeklyRemainingPercent.map { "\($0)%" } ?? "-"
+            let refresh = account.refreshedAt.map { formatter.string(from: $0) } ?? "-"
+            return (marker, email, status, fiveHour, weekly, refresh)
+        }
+
+        let emailWidth = max("邮箱".count, rows.map { $0.email.count }.max() ?? 0)
+        let statusWidth = max("状态".count, rows.map { $0.status.count }.max() ?? 0)
+        let fiveHourWidth = max("5h剩余".count, rows.map { $0.fiveHour.count }.max() ?? 0)
+        let weeklyWidth = max("7d剩余".count, rows.map { $0.weekly.count }.max() ?? 0)
+        let refreshWidth = max("刷新时间".count, rows.map { $0.refresh.count }.max() ?? 0)
+
+        let header = "\(padRight("邮箱", to: emailWidth)) | \(padRight("状态", to: statusWidth)) | \(padRight("5h剩余", to: fiveHourWidth)) | \(padRight("7d剩余", to: weeklyWidth)) | \(padRight("刷新时间", to: refreshWidth))"
+        let body = rows.map { row in
+            "\(row.marker) \(padRight(row.email, to: emailWidth)) | \(padRight(row.status, to: statusWidth)) | \(padRight(row.fiveHour, to: fiveHourWidth)) | \(padRight(row.weekly, to: weeklyWidth)) | \(padRight(row.refresh, to: refreshWidth))"
+        }.joined(separator: "\n")
+        return "\(header)\n\(body)"
+    }
+
+    private static func formatAuthUsageSummary(_ payload: NolonCodexAuthUsagePayload) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd HH:mm"
+
+        let rows: [(String, String)] = [
+            ("账号总数", String(payload.summary.accountCount)),
+            ("已缓存用量", String(payload.summary.cachedCount)),
+            ("5h平均剩余", payload.summary.avgFiveHourRemainingPercent.map { "\($0)%" } ?? "-"),
+            ("7d平均剩余", payload.summary.avgWeeklyRemainingPercent.map { "\($0)%" } ?? "-"),
+            ("最新刷新", payload.summary.latestRefreshedAt.map { formatter.string(from: $0) } ?? "-"),
+        ]
+        let keyWidth = rows.map(\.0.count).max() ?? 0
+        return rows
+            .map { key, value in
+                "\(padRight(key, to: keyWidth)) | \(value)"
+            }
+            .joined(separator: "\n")
     }
 
     private static func formatAuthActivate(_ payload: NolonCodexAuthActivatePayload) -> String {
@@ -858,6 +921,7 @@ enum NolonCodexCLIExecutor {
 
 private struct NolonCodexCommandPath: RawRepresentable, ExpressibleByStringLiteral, Equatable, Sendable {
     static let authList: Self = "codex.auth.list"
+    static let authUsage: Self = "codex.auth.usage"
     static let authStatus: Self = "codex.auth.status"
     static let authActivate: Self = "codex.auth.activate"
     static let authLogin: Self = "codex.auth.login"

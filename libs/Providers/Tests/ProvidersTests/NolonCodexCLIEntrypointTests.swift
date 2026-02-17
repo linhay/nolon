@@ -569,6 +569,41 @@ struct NolonCodexCLIEntrypointTests {
         #expect(await mock.lastCall() == "authList")
     }
 
+    @Test("routes auth usage per-account table")
+    func routesAuthUsage() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: [
+                "codex", "auth", "usage",
+                "--provider", "codex",
+            ],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stdout.contains("5h剩余"))
+        #expect(result.stdout.contains("7d剩余"))
+        #expect(await mock.lastCall() == "authUsage")
+    }
+
+    @Test("auth usage summary renders aggregated rows")
+    func authUsageSummaryRenders() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: [
+                "codex", "auth", "usage",
+                "--provider", "codex",
+                "--summary",
+            ],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stdout.contains("账号总数"))
+        #expect(result.stdout.contains("已缓存用量"))
+        #expect(result.stdout.contains("5h平均剩余"))
+    }
+
     @Test("auth list prints aligned table rows")
     func authListPrintsAlignedTableRows() async {
         let service = AuthListTableCodexCLIService()
@@ -1334,6 +1369,21 @@ struct NolonCodexCLIEntrypointTests {
         #expect(try canonicalJSON(result.stdout) == expected)
     }
 
+    @Test("json contract snapshot for codex auth usage success")
+    func jsonContractSnapshotAuthUsageSuccess() async throws {
+        let service = JSONContractCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["codex", "auth", "usage", "--provider", "codex", "--json"],
+            codexService: service
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+
+        let expected = #"{"command":"codex.auth.usage","data":{"accounts":[{"email":"json@example.com","fiveHourRemainingPercent":80,"id":"11111111-1111-1111-1111-111111111111","isActive":true,"refreshedAt":"1970-01-01T00:00:00Z","weeklyRemainingPercent":60}],"providerID":"codex","summary":{"accountCount":1,"avgFiveHourRemainingPercent":80,"avgWeeklyRemainingPercent":60,"cachedCount":1,"latestRefreshedAt":"1970-01-01T00:00:00Z"}},"ok":true}"#
+        #expect(try canonicalJSON(result.stdout) == expected)
+    }
+
     @Test("json contract snapshot for unknown codex group error")
     func jsonContractSnapshotUnknownGroupError() async throws {
         let service = JSONContractCodexCLIService()
@@ -1394,6 +1444,30 @@ private actor MockCodexCLIService: NolonCodexCLIServing {
     func authStatus(providerID: String) async throws -> NolonCodexAuthStatusPayload {
         call = "authStatus"
         return NolonCodexAuthStatusPayload(providerID: providerID, activeAccountID: nil, accountCount: 0, authHashHex: nil)
+    }
+
+    func authUsage(providerID: String) async throws -> NolonCodexAuthUsagePayload {
+        call = "authUsage"
+        return NolonCodexAuthUsagePayload(
+            providerID: providerID,
+            accounts: [
+                NolonCodexAuthUsageAccountView(
+                    id: UUID(uuidString: "11111111-1111-1111-1111-111111111111")!,
+                    email: "mock@example.com",
+                    isActive: true,
+                    fiveHourRemainingPercent: 75,
+                    weeklyRemainingPercent: 44,
+                    refreshedAt: Date(timeIntervalSince1970: 1_734_000_000)
+                )
+            ],
+            summary: NolonCodexAuthUsageSummaryView(
+                accountCount: 1,
+                cachedCount: 1,
+                avgFiveHourRemainingPercent: 75,
+                avgWeeklyRemainingPercent: 44,
+                latestRefreshedAt: Date(timeIntervalSince1970: 1_734_000_000)
+            )
+        )
     }
 
     func authActivate(providerID: String, accountID: UUID) async throws -> NolonCodexAuthActivatePayload {
@@ -1792,6 +1866,29 @@ private actor JSONContractCodexCLIService: NolonCodexCLIServing {
                     isSelected: true
                 )
             ]
+        )
+    }
+
+    func authUsage(providerID: String) async throws -> NolonCodexAuthUsagePayload {
+        NolonCodexAuthUsagePayload(
+            providerID: providerID,
+            accounts: [
+                NolonCodexAuthUsageAccountView(
+                    id: UUID(uuidString: "11111111-1111-1111-1111-111111111111")!,
+                    email: "json@example.com",
+                    isActive: true,
+                    fiveHourRemainingPercent: 80,
+                    weeklyRemainingPercent: 60,
+                    refreshedAt: Date(timeIntervalSince1970: 0)
+                )
+            ],
+            summary: NolonCodexAuthUsageSummaryView(
+                accountCount: 1,
+                cachedCount: 1,
+                avgFiveHourRemainingPercent: 80,
+                avgWeeklyRemainingPercent: 60,
+                latestRefreshedAt: Date(timeIntervalSince1970: 0)
+            )
         )
     }
 
