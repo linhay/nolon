@@ -1370,6 +1370,21 @@ struct NolonCodexCLIEntrypointTests {
         #expect(try canonicalJSON(result.stdout) == expected)
     }
 
+    @Test("json contract snapshot for codex auth list success")
+    func jsonContractSnapshotAuthListSuccess() async throws {
+        let service = JSONContractCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["codex", "auth", "list", "--provider", "codex", "--json"],
+            codexService: service
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+
+        let expected = #"{"command":"codex.auth.list","data":{"accounts":[{"createdAt":"1970-01-01T00:00:00Z","email":"json@example.com","id":"11111111-1111-1111-1111-111111111111","isActive":true,"name":"json-account","refreshedAt":"1970-01-01T00:01:00Z","relativeAuthPath":"accounts\/json\/auth.json","usageDisplay":"5h 80% \/ 7d 60%"}],"activeAccountID":"11111111-1111-1111-1111-111111111111","providerID":"codex"},"ok":true}"#
+        #expect(try canonicalJSON(result.stdout) == expected)
+    }
+
     @Test("json contract snapshot for codex auth usage success")
     func jsonContractSnapshotAuthUsageSuccess() async throws {
         let service = JSONContractCodexCLIService()
@@ -1853,7 +1868,24 @@ private actor BinaryListPlainTextCodexCLIService: NolonCodexCLIServing {
 }
 
 private actor JSONContractCodexCLIService: NolonCodexCLIServing {
-    func authList(providerID: String) async throws -> NolonCodexAuthListPayload { throw unsupported() }
+    func authList(providerID: String) async throws -> NolonCodexAuthListPayload {
+        NolonCodexAuthListPayload(
+            providerID: providerID,
+            activeAccountID: UUID(uuidString: "11111111-1111-1111-1111-111111111111")!,
+            accounts: [
+                NolonCodexAuthAccountView(
+                    id: UUID(uuidString: "11111111-1111-1111-1111-111111111111")!,
+                    name: "json-account",
+                    createdAt: Date(timeIntervalSince1970: 0),
+                    relativeAuthPath: "accounts/json/auth.json",
+                    isActive: true,
+                    email: "json@example.com",
+                    usageDisplay: "5h 80% / 7d 60%",
+                    refreshedAt: Date(timeIntervalSince1970: 60)
+                )
+            ]
+        )
+    }
     func authStatus(providerID: String) async throws -> NolonCodexAuthStatusPayload {
         NolonCodexAuthStatusPayload(
             providerID: providerID,

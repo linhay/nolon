@@ -772,3 +772,17 @@
   - `usageLatestRefreshedAt`
 - 验证：
   - `swift test --package-path libs/Providers --filter NolonCodexCLIEntrypointTests` 通过（88 tests）。
+
+## Phase 2.41（auth list JSON 契约快照）
+- 背景：
+  - `auth list` 是 CLI 中最常被脚本消费的账号面板，需要稳定 JSON 契约。
+- 变更：
+  1. `NolonCodexCLIEntrypointTests` 新增：
+     - `json contract snapshot for codex auth list success`
+  2. `JSONContractCodexCLIService.authList` 补充固定返回：
+     - `activeAccountID`
+     - 单账号项（`id/name/email/relativeAuthPath/isActive/usageDisplay/refreshedAt`）
+- 说明：
+  - 快照中路径与用量字符串按 JSON 编码会包含 `/` 转义（`\/`），已按实际输出锁定。
+- 验证：
+  - `swift test --package-path libs/Providers --filter NolonCodexCLIEntrypointTests` 通过（89 tests）。
