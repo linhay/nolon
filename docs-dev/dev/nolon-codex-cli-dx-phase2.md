@@ -1051,3 +1051,65 @@
   - `swift test --package-path libs/Providers --filter NolonCodexCLIEntrypointTests` 通过（96 tests）
   - `swift test --package-path libs/Providers --filter CodexAuthRuntimeCoordinatorTests` 通过（3 tests）
   - `swift test --package-path libs/Providers` 全量回归；期间出现一次 `CodexLoginRunner` 临时失败，复跑 `CodexLoginRunnerTests` 通过（6 tests）。
+
+## Phase 2.53（auth refresh 批量文本体验优化）
+- 背景：
+  - 第一轮体验后，refresh 批量文本输出可读性一般（缺少激活态标识、非对齐格式）。
+- 变更：
+  1. `NolonCodexAuthRefreshItemView` 新增 `isActive`；
+  2. service 侧从 `activeAccountId` 填充每个 item 的激活态；
+  3. executor 侧 `formatAuthRefresh` 改为对齐表格格式：
+     - 列：`邮箱 | 状态 | 结果 | runtime | 错误码`
+     - 激活账号前缀 `*`；
+     - 保留 summary 三行。
+- 测试：
+  - 更新 `NolonCodexCLIEntrypointTests` refresh 文本断言和 JSON 契约快照；
+  - 更新 mock refresh payload 构造（补 `isActive`）。
+- 验证：
+  - `swift test --package-path libs/Providers --filter NolonCodexCLIEntrypointTests` 通过（96 tests）
+  - `swift test --package-path libs/Providers --filter NolonCodexCLIServiceTests` 通过（14 tests）
+  - `swift run --package-path libs/Providers nolon codex auth refresh` 实际输出为对齐表格。
+
+## Phase 2.54（CLI 安装体验修复：默认覆盖 + 帮助断言同步）
+- 背景：
+  - 体验流程中出现“源码已更新，但 `~/.nolon/bin/nolon` 仍表现旧行为”的高频误判。
+  - 根因是安装脚本默认不覆盖，且 smoke 中 CLI help 断言仍是旧格式。
+- 变更：
+  1. `scripts/install-nolon-cli.sh` 改为默认覆盖安装（`--force` 成为默认行为）；
+  2. 新增 `--no-force`，用于需要冲突保护的场景；
+  3. `scripts/tests/install-nolon-cli-smoke.sh` 更新：
+     - 新增默认覆盖 stale 文件用例；
+     - 新增 `--no-force` 冲突失败用例；
+     - root/codex/probe help 断言同步到当前 `ArgumentParser` 输出格式（`USAGE: ...`）。
+- 验证：
+  - `bash scripts/tests/install-nolon-cli-smoke.sh` 通过；
+  - `swift test --package-path libs/Providers --filter NolonCodexCLIEntrypointTests` 通过；
+  - `swift test --package-path libs/Providers --filter NolonCodexCLIServiceTests` 通过；
+  - 实测 `nolon codex auth refresh`（安装后）为批量表格输出。
+
+## Phase 2.55（auth usage 支持按账号刷新并写回）
+- 背景：
+  - `auth list/usage` 的 tokens 展示来自账号文件中的 `nolon.usage_cache`；
+  - 仅 `auth refresh` 不会更新 usage_cache，容易出现多账号 token 看起来相同或过旧。
+- 变更：
+  1. `nolon codex auth usage` 新增参数：
+     - `--refresh`：渲染前刷新 usage cache；
+     - `--account-id <uuid>` / `--email <email>`：仅刷新目标账号（需与 `--refresh` 联用）；
+  2. 新增服务接口：
+     - `NolonCodexCLIServing.authUsageRefresh(providerID:accountID:)`；
+  3. 刷新实现（按账号写回）：
+     - 以账号快照构建隔离 `CODEX_HOME=$NOLON_HOME/codex/runtime-home/<account-id>`；
+     - 调用 `CodexUsageDescriptor` 拉取 usage/cost；
+     - 写回对应账号文件 `~/.nolon/codex/auth/*.json` 的 `nolon.usage_cache`；
+     - 成功更新 sync success，失败写入 sync failure（不中断其他账号）。
+- 兼容性：
+  - 不带 `--refresh` 时保持原有行为与输出；
+  - `--account-id/--email` 未配 `--refresh` 会明确报错，避免“参数生效错觉”。
+- 测试：
+  - `NolonCodexCLIServiceTests.authUsageRefreshWritesBackPerAccount`
+  - `NolonCodexCLIEntrypointTests.routesAuthUsageRefreshSummary`
+  - `NolonCodexCLIEntrypointTests.authUsageTargetRequiresRefreshFlag`
+- 验证：
+  - `swift test --package-path libs/Providers --filter NolonCodexCLIServiceTests` 通过（15 tests）
+  - `swift test --package-path libs/Providers --filter NolonCodexCLIEntrypointTests` 通过（98 tests）
+  - 实测：`swift run --package-path libs/Providers nolon codex auth usage --summary --refresh` 输出刷新后的聚合 tokens。
