@@ -631,6 +631,17 @@
 - 验证：
   - `swift test --package-path libs/Providers --filter CodexEventMsgSchemaDriftGuardTests` 通过。
   - `swift test --package-path libs/Providers` 全量通过（314 tests, 40 suites, 0 failure）。
+
+## Phase 2.35（App 侧 shell 调用收敛到 SKProcessRunner）
+- 背景：
+  - `ProviderContentTabView` 的终端拉起逻辑仍直接使用 `Process + Pipe`，与“shell 执行统一走 SKProcessRunner”规范不一致。
+- 变更：
+  1. `nolon/Skills/Views/Provider/ProviderContentTabView.swift` 引入 `SKProcessRunner`；
+  2. `CodexTerminalLauncher.runAppleScript(...)` 改为 `SKProcessRunner.runSync(SKProcessPayload.command("/usr/bin/osascript"))`；
+  3. `CodexTerminalLauncher.launchViaOpen(...)` 改为 `SKProcessRunner.runSync(SKProcessPayload.command("/usr/bin/open"))`；
+  4. 错误文案保持原语义（优先使用 stderr，空时回退 stdout，再回退本地化默认文案）。
+- 验证：
+  - `./build.sh` 通过（`BUILD SUCCEEDED`）。
   3. 文档中给出建议 API（`SKProcessPipeSession`）与验收标准，便于向 `SKProcessRunner` 提 issue。
 
 ## Phase 2.34（接入 SKProcessPipeSession 验证与回退）

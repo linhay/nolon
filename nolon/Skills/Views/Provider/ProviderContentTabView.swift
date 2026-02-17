@@ -7,6 +7,7 @@ import TOML
 import STFilePath
 import OSLog
 import NolonResourceKit
+import SKProcessRunner
 
 private let terminalLogger = Logger(subsystem: "com.nolon", category: "TerminalDetection")
 
@@ -55,22 +56,19 @@ private enum CodexTerminalLauncher {
     }
 
     private static func runAppleScript(_ source: String) throws {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
-        process.arguments = ["-e", source]
-        let output = Pipe()
-        process.standardOutput = output
-        process.standardError = output
-        try process.run()
-        process.waitUntilExit()
-        guard process.terminationStatus == 0 else {
-            let data = output.fileHandleForReading.readDataToEndOfFile()
-            let message = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let result = try SKProcessRunner.runSync(
+            SKProcessPayload
+                .command("/usr/bin/osascript")
+                .arguments(["-e", source])
+        )
+        guard result.exitCode == 0 else {
+            let message = result.stderr.isEmpty ? result.stdout : result.stderr
+            let trimmed = message.trimmingCharacters(in: .whitespacesAndNewlines)
             throw NSError(
                 domain: "CodexTerminalLauncher",
                 code: 3001,
-                userInfo: [NSLocalizedDescriptionKey: message?.isEmpty == false
-                    ? (message ?? "")
+                userInfo: [NSLocalizedDescriptionKey: trimmed.isEmpty == false
+                    ? trimmed
                     : NSLocalizedString(
                         "provider.cli.error.open_terminal",
                         value: "Unable to open terminal app.",
@@ -112,22 +110,19 @@ private enum CodexTerminalLauncher {
     }
 
     private static func launchViaOpen(bundleID: String, arguments: [String]) throws {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
-        process.arguments = ["-b", bundleID, "--args"] + arguments
-        let output = Pipe()
-        process.standardOutput = output
-        process.standardError = output
-        try process.run()
-        process.waitUntilExit()
-        guard process.terminationStatus == 0 else {
-            let data = output.fileHandleForReading.readDataToEndOfFile()
-            let message = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let result = try SKProcessRunner.runSync(
+            SKProcessPayload
+                .command("/usr/bin/open")
+                .arguments(["-b", bundleID, "--args"] + arguments)
+        )
+        guard result.exitCode == 0 else {
+            let message = result.stderr.isEmpty ? result.stdout : result.stderr
+            let trimmed = message.trimmingCharacters(in: .whitespacesAndNewlines)
             throw NSError(
                 domain: "CodexTerminalLauncher",
                 code: 3005,
-                userInfo: [NSLocalizedDescriptionKey: message?.isEmpty == false
-                    ? (message ?? "")
+                userInfo: [NSLocalizedDescriptionKey: trimmed.isEmpty == false
+                    ? trimmed
                     : NSLocalizedString(
                         "provider.cli.error.open_terminal",
                         value: "Unable to open terminal app.",
