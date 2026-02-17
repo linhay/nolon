@@ -203,7 +203,10 @@ struct NolonCodexCLIServiceTests {
                 last30DaysCostUSD: nil,
                 last30DaysTokens: 30000,
                 windowDays: 30,
-                dailyCosts: nil,
+                dailyCosts: [
+                    CostSnapshot.DailyCost(date: "2026-02-10", costUSD: nil, tokens: 10_000),
+                    CostSnapshot.DailyCost(date: "2026-02-11", costUSD: nil, tokens: 25_000),
+                ],
                 updatedAt: Date(timeIntervalSince1970: 1_733_300_000)
             )
         )
@@ -229,7 +232,10 @@ struct NolonCodexCLIServiceTests {
                 last30DaysCostUSD: nil,
                 last30DaysTokens: 22000,
                 windowDays: 30,
-                dailyCosts: nil,
+                dailyCosts: [
+                    CostSnapshot.DailyCost(date: "2026-02-10", costUSD: nil, tokens: 12_000),
+                    CostSnapshot.DailyCost(date: "2026-02-11", costUSD: nil, tokens: 15_000),
+                ],
                 updatedAt: Date(timeIntervalSince1970: 1_733_350_000)
             )
         )
@@ -250,8 +256,12 @@ struct NolonCodexCLIServiceTests {
         #expect(payload.summary.cachedCount == 2)
         #expect(payload.summary.avgFiveHourRemainingPercent == 65)
         #expect(payload.summary.avgWeeklyRemainingPercent == 55)
-        #expect(payload.summary.totalTokens == 2000)
-        #expect(payload.accounts.compactMap(\.tokenCount).reduce(0, +) == 2000)
+        #expect(payload.summary.totalToken1dCount == 2000)
+        #expect(payload.summary.totalToken30dCount == 52_000)
+        #expect(payload.summary.totalTokenAllCount == 62_000)
+        #expect(payload.accounts.compactMap(\.token1dCount).reduce(0, +) == 2000)
+        #expect(payload.accounts.compactMap(\.token30dCount).reduce(0, +) == 52_000)
+        #expect(payload.accounts.compactMap(\.tokenAllCount).reduce(0, +) == 62_000)
         #expect(payload.summary.latestRefreshedAt == Date(timeIntervalSince1970: 1_733_350_000))
     }
 

@@ -583,7 +583,7 @@ struct NolonCodexCLIEntrypointTests {
         #expect(result.exitCode == 0)
         #expect(result.stdout.contains("5h剩余"))
         #expect(result.stdout.contains("7d剩余"))
-        #expect(result.stdout.contains("Tokens"))
+        #expect(result.stdout.contains("Tokens(1d/30d/全量)"))
         #expect(await mock.lastCall() == "authUsage")
     }
 
@@ -603,6 +603,7 @@ struct NolonCodexCLIEntrypointTests {
         #expect(result.stdout.contains("账号总数"))
         #expect(result.stdout.contains("已缓存用量"))
         #expect(result.stdout.contains("5h平均剩余"))
+        #expect(result.stdout.contains("Tokens(1d/30d/全量)"))
     }
 
     @Test("auth list prints aligned table rows")
@@ -1397,7 +1398,7 @@ struct NolonCodexCLIEntrypointTests {
         #expect(result.exitCode == 0)
         #expect(result.stderr.isEmpty)
 
-        let expected = #"{"command":"codex.auth.usage","data":{"accounts":[{"email":"json@example.com","fiveHourRemainingPercent":80,"id":"11111111-1111-1111-1111-111111111111","isActive":true,"refreshedAt":"1970-01-01T00:00:00Z","tokenCount":4321,"weeklyRemainingPercent":60}],"providerID":"codex","summary":{"accountCount":1,"avgFiveHourRemainingPercent":80,"avgWeeklyRemainingPercent":60,"cachedCount":1,"latestRefreshedAt":"1970-01-01T00:00:00Z","totalTokens":4321}},"ok":true}"#
+        let expected = #"{"command":"codex.auth.usage","data":{"accounts":[{"email":"json@example.com","fiveHourRemainingPercent":80,"id":"11111111-1111-1111-1111-111111111111","isActive":true,"refreshedAt":"1970-01-01T00:00:00Z","token1dCount":1200000,"token30dCount":24000000,"tokenAllCount":50000000,"weeklyRemainingPercent":60}],"providerID":"codex","summary":{"accountCount":1,"avgFiveHourRemainingPercent":80,"avgWeeklyRemainingPercent":60,"cachedCount":1,"latestRefreshedAt":"1970-01-01T00:00:00Z","totalToken1dCount":1200000,"totalToken30dCount":24000000,"totalTokenAllCount":50000000}},"ok":true}"#
         #expect(try canonicalJSON(result.stdout) == expected)
     }
 
@@ -1549,7 +1550,9 @@ private actor MockCodexCLIService: NolonCodexCLIServing {
                     isActive: true,
                     fiveHourRemainingPercent: 75,
                     weeklyRemainingPercent: 44,
-                    tokenCount: 1234,
+                    token1dCount: 1_200_000,
+                    token30dCount: 24_000_000,
+                    tokenAllCount: 50_000_000,
                     refreshedAt: Date(timeIntervalSince1970: 1_734_000_000)
                 )
             ],
@@ -1558,7 +1561,9 @@ private actor MockCodexCLIService: NolonCodexCLIServing {
                 cachedCount: 1,
                 avgFiveHourRemainingPercent: 75,
                 avgWeeklyRemainingPercent: 44,
-                totalTokens: 1234,
+                totalToken1dCount: 1_200_000,
+                totalToken30dCount: 24_000_000,
+                totalTokenAllCount: 50_000_000,
                 latestRefreshedAt: Date(timeIntervalSince1970: 1_734_000_000)
             )
         )
@@ -2023,7 +2028,9 @@ private actor JSONContractCodexCLIService: NolonCodexCLIServing {
                     isActive: true,
                     fiveHourRemainingPercent: 80,
                     weeklyRemainingPercent: 60,
-                    tokenCount: 4321,
+                    token1dCount: 1_200_000,
+                    token30dCount: 24_000_000,
+                    tokenAllCount: 50_000_000,
                     refreshedAt: Date(timeIntervalSince1970: 0)
                 )
             ],
@@ -2032,7 +2039,9 @@ private actor JSONContractCodexCLIService: NolonCodexCLIServing {
                 cachedCount: 1,
                 avgFiveHourRemainingPercent: 80,
                 avgWeeklyRemainingPercent: 60,
-                totalTokens: 4321,
+                totalToken1dCount: 1_200_000,
+                totalToken30dCount: 24_000_000,
+                totalTokenAllCount: 50_000_000,
                 latestRefreshedAt: Date(timeIntervalSince1970: 0)
             )
         )

@@ -823,3 +823,34 @@
 - 验证：
   - `swift test --package-path libs/Providers --filter NolonCodexCLIServiceTests` 通过（11 tests）。
   - `swift test --package-path libs/Providers --filter NolonCodexCLIEntrypointTests` 通过（92 tests）。
+
+## Phase 2.44（Tokens 显示升级：1d/30d/全量 + m 单位）
+- 背景：
+  - 需求升级：`nolon codex auth usage` 中 Tokens 需同时展示 `1d / 30d / 全量`，并统一 `m` 单位。
+- 变更：
+  1. `NolonCodexAuthUsageAccountView` 新增：
+     - `token1dCount`
+     - `token30dCount`
+     - `tokenAllCount`
+  2. `NolonCodexAuthUsageSummaryView` 新增：
+     - `totalToken1dCount`
+     - `totalToken30dCount`
+     - `totalTokenAllCount`
+  3. token 计算口径：
+     - `1d`：`cost.todayTokens`
+     - `30d`：`cost.last30DaysTokens`
+     - `全量`：优先 `cost.dailyCosts[].tokens` 求和；无日明细时回退 `30d`
+  4. 文本展示：
+     - 表头更新为 `Tokens(1d/30d/全量)`
+     - 汇总增加同名行
+     - 单位统一格式化为 `%.1fm`
+- 测试：
+  - `NolonCodexCLIServiceTests.auth usage returns per-account rows and summary aggregation`
+    - 覆盖 1d/30d/全量三路聚合
+  - `NolonCodexCLIEntrypointTests`
+    - `routes auth usage per-account table` 断言新表头
+    - `auth usage summary renders aggregated rows` 断言新汇总行
+    - `json contract snapshot for codex auth usage success` 更新快照字段
+- 验证：
+  - `swift test --package-path libs/Providers --filter NolonCodexCLIServiceTests` 通过（11 tests）。
+  - `swift test --package-path libs/Providers --filter NolonCodexCLIEntrypointTests` 通过（92 tests）。
