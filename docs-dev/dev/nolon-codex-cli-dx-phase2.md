@@ -1113,3 +1113,39 @@
   - `swift test --package-path libs/Providers --filter NolonCodexCLIServiceTests` 通过（15 tests）
   - `swift test --package-path libs/Providers --filter NolonCodexCLIEntrypointTests` 通过（98 tests）
   - 实测：`swift run --package-path libs/Providers nolon codex auth usage --summary --refresh` 输出刷新后的聚合 tokens。
+
+## Phase 2.56（tokens 采集按 CODEX_HOME 隔离 + 无会话回退全局）
+- 背景：
+  - 多账号 `Tokens(1d/30d/全量)` 出现同值，根因是成本扫描默认走全局缓存；
+  - 直接切到账号隔离 `CODEX_HOME` 会因缺少本地 sessions 退化为 `-`。
+- 变更：
+  1. `CostUsageFetcher.loadTokenSnapshot` 支持读取 `environment["CODEX_HOME"]`；
+  2. 成本扫描优先使用隔离路径：
+     - `codexSessionsRoot = <CODEX_HOME>/sessions`
+     - `cacheRoot = <CODEX_HOME>/cache`
+  3. 若隔离路径无可用 cost 数据，自动回退 `~/.codex`（兼容历史行为，避免 tokens 全丢）。
+  4. `CodexCostFetcher` / `CodexUsageDescriptor` 透传 fetch environment。
+- 测试：
+  - `CostUsageFetcherTests` 新增：
+    - `Given CODEX_HOME override ...`
+    - `Given no CODEX_HOME ...`
+    - `Given empty daily report ...`
+    - `Given summary total tokens ...`
+- 验证：
+  - `swift test --package-path libs/Providers --filter CostUsageFetcherTests` 通过（7 tests）
+  - `swift test --package-path libs/Providers --filter NolonCodexCLIServiceTests` 通过（15 tests）
+  - 实测 `nolon codex auth usage --refresh`：tokens 不再因隔离目录无 sessions 全部变 `-`。
+
+## Phase 2.57（体验可观测性修复：usage 来源列）
+- 背景：
+  - 用户实际体验中，多个账号 tokens 仍出现同值，需要明确“数据来源”避免误判。
+- 变更：
+  1. `CostUsageTokenSnapshot` 新增 `source`（`scopedSessions` / `globalFallback`）；
+  2. `CodexCostFetcher` / `CodexUsageDescriptor` 透传来源，并写入 cache `sourceLabel`；
+  3. `nolon codex auth usage` 文本表新增 `来源` 列：
+     - `账号隔离`：来自账号 `CODEX_HOME/sessions`
+     - `全局回退`：隔离无数据时回退 `~/.codex`。
+- 验证：
+  - `swift test --package-path libs/Providers --filter CostUsageFetcherTests` 通过；
+  - `swift test --package-path libs/Providers --filter NolonCodexCLIEntrypointTests` 通过；
+  - 实测 `nolon codex auth usage --refresh` 显示 `来源=全局回退`，可解释 tokens 同值现象。

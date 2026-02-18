@@ -16,7 +16,10 @@ public struct CodexUsageDescriptor: ProviderUsageDescribing {
             async let rateLimitsTask = helper.fetchRateLimits()
             async let accountInfoTask: CodexHelper.AccountInfo? = try? helper.fetchAccountInfo()
             async let costTask: CodexCostSnapshot? = context.includeCredits
-                ? (try? CodexCostFetcher().fetchCostSnapshot(windowDays: context.costWindowDays))
+                ? (try? CodexCostFetcher().fetchCostSnapshot(
+                    windowDays: context.costWindowDays,
+                    environment: context.environment
+                ))
                 : nil
 
             let rateLimits = try await rateLimitsTask
@@ -96,11 +99,22 @@ public struct CodexUsageDescriptor: ProviderUsageDescribing {
                 )
             }
 
+            let sourceLabel: String = {
+                let base = NSLocalizedString("usage.source.cli", value: "CLI", comment: "CLI")
+                guard let source = costInfo?.tokenSource else { return base }
+                switch source {
+                case .scopedSessions:
+                    return "\(base)(account)"
+                case .globalFallback:
+                    return "\(base)(global)"
+                }
+            }()
+
             let result = ProviderFetchResult(
                 usage: usage,
                 credits: credits,
                 cost: cost,
-                sourceLabel: NSLocalizedString("usage.source.cli", value: "CLI", comment: "CLI"),
+                sourceLabel: sourceLabel,
                 fetchKind: fetchKind,
                 strategyKind: .direct
             )

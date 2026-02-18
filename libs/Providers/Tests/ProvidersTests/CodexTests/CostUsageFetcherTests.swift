@@ -2,6 +2,7 @@ import Foundation
 import Testing
 @testable import CodexProvider
 import ProvidersShared
+import STFilePath
 
 @Suite("Cost Usage Fetcher")
 struct CostUsageFetcherTests {
@@ -133,5 +134,34 @@ struct CostUsageFetcherTests {
         comps.minute = minute
         comps.second = 0
         return comps.date ?? Date(timeIntervalSince1970: 0)
+    }
+
+    @Test("BDD: Given CODEX_HOME override when resolving cost usage home then use override folder")
+    func bdd_givenCodexHomeOverride_whenResolvingHome_thenUseOverride() {
+        let env = ["CODEX_HOME": "/tmp/codex-home-a"]
+        let folder = CostUsageFetcher.codexHomeFolder(environment: env)
+        #expect(folder.url.standardizedFileURL.path == STFolder("/tmp/codex-home-a").url.standardizedFileURL.path)
+    }
+
+    @Test("BDD: Given no CODEX_HOME when resolving cost usage home then fallback to ~/.codex")
+    func bdd_givenNoCodexHome_whenResolvingHome_thenFallbackToDefault() {
+        let folder = CostUsageFetcher.codexHomeFolder(environment: [:])
+        let expected = STFolder(NSHomeDirectory()).folder(".codex")
+        #expect(folder.url.standardizedFileURL.path == expected.url.standardizedFileURL.path)
+    }
+
+    @Test("TDD: Given empty daily report when checking usability then returns false")
+    func tdd_givenEmptyReport_whenCheckingUsableCostData_thenFalse() {
+        let report = CostUsageDailyReport(data: [], summary: nil)
+        #expect(CostUsageFetcher.hasUsableCostData(report) == false)
+    }
+
+    @Test("BDD: Given summary total tokens when checking usability then returns true")
+    func bdd_givenSummaryTokens_whenCheckingUsableCostData_thenTrue() {
+        let report = CostUsageDailyReport(
+            data: [],
+            summary: .init(totalInputTokens: nil, totalOutputTokens: nil, totalTokens: 42, totalCostUSD: nil)
+        )
+        #expect(CostUsageFetcher.hasUsableCostData(report) == true)
     }
 }

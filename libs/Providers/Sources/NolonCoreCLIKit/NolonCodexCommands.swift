@@ -100,10 +100,10 @@ struct NolonCodexAuthUsageCommand: ParsableCommand {
     @Flag(name: .long, help: "Refresh usage cache before rendering output.")
     var refresh: Bool = false
 
-    @Option(name: .long, help: "Account id UUID for usage refresh target.")
+    @Option(name: .long, help: "Account id UUID for usage refresh target (requires --refresh).")
     var accountID: String?
 
-    @Option(name: .long, help: "Account email for usage refresh target.")
+    @Option(name: .long, help: "Account email for usage refresh target (requires --refresh).")
     var email: String?
 }
 
@@ -115,15 +115,18 @@ struct NolonCodexAuthStatusCommand: ParsableCommand {
 }
 
 struct NolonCodexAuthRefreshCommand: ParsableCommand {
-    static let configuration = CommandConfiguration(commandName: "refresh")
+    static let configuration = CommandConfiguration(
+        commandName: "refresh",
+        abstract: "Refresh Codex account tokens. Without a target, refreshes all accounts and keeps current active account."
+    )
 
     @Option(name: .long, help: "Provider id, default is codex.")
     var provider: String = "codex"
 
-    @Option(name: .long, help: "Account id UUID. Omit to refresh all accounts.")
+    @Option(name: .long, help: "Account id UUID. Targeted refresh switches active account to this target.")
     var accountID: String?
 
-    @Option(name: .long, help: "Account email for selecting refresh target.")
+    @Option(name: .long, help: "Account email for selecting refresh target. Targeted refresh switches active account to this target.")
     var email: String?
 }
 

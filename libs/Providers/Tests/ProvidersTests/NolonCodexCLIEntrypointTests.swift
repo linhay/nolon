@@ -19,6 +19,20 @@ struct NolonCodexCLIEntrypointTests {
         #expect(result.stdout.contains("remote"))
     }
 
+    @Test("leading help command resolves codex action help")
+    func leadingHelpCommandResolvesCodexActionHelp() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["help", "codex", "auth", "refresh"],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("USAGE: nolon codex auth refresh"))
+        #expect(result.stdout.contains("switches active account"))
+    }
+
     @Test("codex --help prints codex help")
     func codexHelpPrintsHelp() async {
         let mock = MockCodexCLIService()
@@ -400,6 +414,8 @@ struct NolonCodexCLIEntrypointTests {
         #expect(result.stderr.isEmpty)
         #expect(result.stdout.contains("USAGE: nolon codex auth refresh"))
         #expect(result.stdout.contains("--account-id"))
+        #expect(result.stdout.contains("switches active account"))
+        #expect(result.stdout.contains("keeps current active account"))
     }
 
     @Test("codex auth activate --help prints action help")
@@ -581,8 +597,8 @@ struct NolonCodexCLIEntrypointTests {
         #expect(result.stdout.contains("[状态]"))
         #expect(result.stdout.contains("邮箱"))
         #expect(result.stdout.contains("状态"))
-        #expect(result.stdout.contains("用量"))
-        #expect(result.stdout.contains("刷新时间"))
+        #expect(result.stdout.contains("令牌健康"))
+        #expect(result.stdout.contains("5h剩余"))
     }
 
     @Test("routes auth usage per-account table")
@@ -602,8 +618,10 @@ struct NolonCodexCLIEntrypointTests {
         #expect(result.stdout.contains("[状态]"))
         #expect(result.stdout.contains("5h剩余"))
         #expect(result.stdout.contains("7d剩余"))
-        #expect(result.stdout.contains("Tokens(1d/30d/全量)"))
-        #expect(result.stdout.contains("过期信息"))
+        #expect(result.stdout.contains("Tokens汇总 | 1d"))
+        #expect(result.stdout.contains("| all"))
+        #expect(result.stdout.contains("Access:"))
+        #expect(result.stdout.contains("Refresh:"))
     }
 
     @Test("routes auth usage refresh with summary")
@@ -658,7 +676,8 @@ struct NolonCodexCLIEntrypointTests {
         #expect(result.stdout.contains("账号总数"))
         #expect(result.stdout.contains("已缓存用量"))
         #expect(result.stdout.contains("5h平均剩余"))
-        #expect(result.stdout.contains("Tokens(1d/30d/全量)"))
+        #expect(result.stdout.contains("Tokens | 1d"))
+        #expect(result.stdout.contains("| all"))
     }
 
     @Test("auth usage expiry shows relative remaining and expired labels")
@@ -673,7 +692,50 @@ struct NolonCodexCLIEntrypointTests {
         #expect(result.stderr.isEmpty)
         #expect(result.stdout.contains("剩余"))
         #expect(result.stdout.contains("已过期"))
-        #expect(result.stdout.contains("(可刷新)"))
+        #expect(result.stdout.contains("Refresh:可用"))
+    }
+
+    @Test("auth usage shows fallback hint when all token sources are global")
+    func authUsageShowsGlobalFallbackHint() async {
+        let service = AuthUsageGlobalFallbackCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["codex", "auth", "usage", "--provider", "codex"],
+            codexService: service
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("提示: 当前 Tokens 来自全局回退"))
+    }
+
+    @Test("auth usage hides per-account tokens when source is not distinguishable")
+    func authUsageHidesPerAccountTokensWhenNotDistinguishable() async {
+        let service = AuthUsageUndistinguishableTokensCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["codex", "auth", "usage", "--provider", "codex"],
+            codexService: service
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("Tokens汇总 | 1d"))
+        #expect(!result.stdout.contains("Tokens 当前无法按账号区分"))
+    }
+
+    @Test("auth usage overview resolves active account consistently by status")
+    func authUsageOverviewResolvesActiveAccountByStatus() async {
+        let service = AuthUsageActiveConsistencyCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["codex", "auth", "usage", "--provider", "codex"],
+            codexService: service
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("激活账号"))
+        #expect(result.stdout.contains("BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB"))
+        #expect(result.stdout.contains("* second@example.com"))
+        #expect(!result.stdout.contains("* first@example.com"))
     }
 
     @Test("auth list prints aligned table rows")
@@ -687,7 +749,7 @@ struct NolonCodexCLIEntrypointTests {
         #expect(result.exitCode == 0)
         #expect(result.stderr.isEmpty)
         let lines = result.stdout.split(separator: "\n").map(String.init)
-        let headerIndex = lines.firstIndex { $0.contains("邮箱") && $0.contains("用量") && $0.contains("刷新时间") }
+        let headerIndex = lines.firstIndex { $0.contains("邮箱") && $0.contains("状态") && $0.contains("令牌健康") }
         #expect(headerIndex != nil)
         let rows = lines
             .dropFirst((headerIndex ?? 0) + 1)
@@ -695,7 +757,7 @@ struct NolonCodexCLIEntrypointTests {
             .filter { $0.hasPrefix("* ") || ($0.hasPrefix("  ") && $0.contains(" | ")) }
         #expect(rows.count == 2)
         let firstPipeIndices = rows[0].indicesOfPipes()
-        #expect(firstPipeIndices.count == 3)
+        #expect(firstPipeIndices.count == 2)
         #expect(rows[1].indicesOfPipes() == firstPipeIndices)
     }
 
@@ -757,8 +819,8 @@ struct NolonCodexCLIEntrypointTests {
         #expect(result.stdout.contains("[账号]"))
         #expect(result.stdout.contains("[用量]"))
         #expect(result.stdout.contains("[状态]"))
-        #expect(result.stdout.contains("account_count: 0"))
-        #expect(result.stdout.contains("usage_cached_accounts: 0"))
+        #expect(result.stdout.contains("账号总数"))
+        #expect(result.stdout.contains("已缓存用量"))
     }
 
     @Test("auth status rejects unsupported provider")
@@ -809,7 +871,8 @@ struct NolonCodexCLIEntrypointTests {
         #expect(result.exitCode == 0)
         #expect(result.stdout.contains("* mock@example.com"))
         #expect(result.stdout.contains("| 已激活 | 成功"))
-        #expect(result.stdout.contains("summary_total: 1"))
+        #expect(result.stdout.contains("运行时切换"))
+        #expect(result.stdout.contains("汇总-总数: 1"))
         #expect(await mock.lastCall() == "authRefresh")
     }
 
@@ -877,7 +940,7 @@ struct NolonCodexCLIEntrypointTests {
         #expect(selected == UUID(uuidString: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")!)
     }
 
-    @Test("auth activate picker shows usage in rows")
+    @Test("auth activate picker shows usage in table rows")
     func authActivatePickerShowsUsage() {
         let accounts: [NolonCodexAuthAccountView] = [
             NolonCodexAuthAccountView(
@@ -893,7 +956,9 @@ struct NolonCodexCLIEntrypointTests {
         ]
 
         let text = NolonCodexCLIExecutor.renderActivatePicker(accounts: accounts)
-        #expect(text.contains("用量: 5h 80% / 7d 50%"))
+        #expect(text.contains("编号 | 状态 | 邮箱"))
+        #expect(text.contains("5h 80% / 7d 50%"))
+        #expect(text.contains("AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA"))
     }
 
     @Test("auth activate tui selection rejects invalid index")
@@ -1621,6 +1686,23 @@ struct NolonCodexCLIEntrypointTests {
         #expect(result.exitCode == 2)
         #expect(result.stderr.contains("\"code\":\"codex_binary_not_found\""))
     }
+
+    @Test("cancellation maps to interrupted structured error")
+    func cancellationMapsToInterruptedError() async {
+        let mock = CancellationErrorCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: [
+                "codex", "binary", "use",
+                "--version", "v0.1.0",
+            ],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 130)
+        #expect(result.stdout.isEmpty)
+        #expect(result.stderr.contains("\"code\":\"interrupted\""))
+        #expect(result.stderr.contains("Operation cancelled"))
+    }
 }
 
 private extension String {
@@ -1910,6 +1992,25 @@ private actor DomainErrorCodexCLIService: NolonCodexCLIServing {
     private func makeError() -> NolonCoreCLIError {
         .domainFailed(code: "codex_binary_not_found", message: "missing")
     }
+}
+
+private actor CancellationErrorCodexCLIService: NolonCodexCLIServing {
+    func authList(providerID: String) async throws -> NolonCodexAuthListPayload { throw CancellationError() }
+    func authStatus(providerID: String) async throws -> NolonCodexAuthStatusPayload { throw CancellationError() }
+    func authActivate(providerID: String, accountID: UUID) async throws -> NolonCodexAuthActivatePayload { throw CancellationError() }
+    func authLogin(providerID: String, preferredAccountID: UUID?) async throws -> NolonCodexAuthLoginPayload { throw CancellationError() }
+    func authDelete(providerID: String, accountID: UUID) async throws -> NolonCodexAuthDeletePayload { throw CancellationError() }
+    func binaryList() async throws -> NolonCodexBinaryListPayload { throw CancellationError() }
+    func binaryAvailable() async throws -> NolonCodexBinaryAvailablePayload { throw CancellationError() }
+    func binaryCurrent() async throws -> NolonCodexBinaryCurrentPayload { throw CancellationError() }
+    func binaryInstall(version: String, setDefault: Bool) async throws -> NolonCodexBinaryInstallPayload { throw CancellationError() }
+    func binaryUse(version: String) async throws -> NolonCodexBinaryUsePayload { throw CancellationError() }
+    func binaryDoctor() async throws -> NolonCodexBinaryDoctorPayload { throw CancellationError() }
+    func statusProbe(providerID: String?) async throws -> NolonCodexStatusProbePayload { throw CancellationError() }
+    func runtimeList(providerID: String?) async throws -> NolonCodexRuntimeListPayload { throw CancellationError() }
+    func runtimeStop(pid: Int32, force: Bool, timeoutSeconds: Int) async throws -> NolonCodexRuntimeStopPayload { throw CancellationError() }
+    func providerList() async throws -> NolonProviderListPayload { throw CancellationError() }
+    func providerDiscover() async throws -> NolonCodexProviderDiscoverPayload { throw CancellationError() }
 }
 
 private actor EmailActivateCodexCLIService: NolonCodexCLIServing {
@@ -2386,6 +2487,234 @@ private actor AuthUsageExpiryLabelCodexCLIService: NolonCodexCLIServing {
             )
         )
     }
+
+    private func unsupported() -> NolonCoreCLIError {
+        .invalidArguments("unsupported")
+    }
+}
+
+private actor AuthUsageGlobalFallbackCodexCLIService: NolonCodexCLIServing {
+    func authList(providerID: String) async throws -> NolonCodexAuthListPayload {
+        NolonCodexAuthListPayload(providerID: providerID, activeAccountID: nil, accounts: [])
+    }
+    func authStatus(providerID: String) async throws -> NolonCodexAuthStatusPayload {
+        NolonCodexAuthStatusPayload(providerID: providerID, activeAccountID: nil, accountCount: 1, authHashHex: "fallbackhash")
+    }
+    func authActivate(providerID: String, accountID: UUID) async throws -> NolonCodexAuthActivatePayload { throw unsupported() }
+    func authLogin(providerID: String, preferredAccountID: UUID?) async throws -> NolonCodexAuthLoginPayload { throw unsupported() }
+    func authDelete(providerID: String, accountID: UUID) async throws -> NolonCodexAuthDeletePayload { throw unsupported() }
+    func binaryList() async throws -> NolonCodexBinaryListPayload { throw unsupported() }
+    func binaryAvailable() async throws -> NolonCodexBinaryAvailablePayload { throw unsupported() }
+    func binaryCurrent() async throws -> NolonCodexBinaryCurrentPayload { throw unsupported() }
+    func binaryInstall(version: String, setDefault: Bool) async throws -> NolonCodexBinaryInstallPayload { throw unsupported() }
+    func binaryUse(version: String) async throws -> NolonCodexBinaryUsePayload { throw unsupported() }
+    func binaryDoctor() async throws -> NolonCodexBinaryDoctorPayload { throw unsupported() }
+    func statusProbe(providerID: String?) async throws -> NolonCodexStatusProbePayload { throw unsupported() }
+    func runtimeList(providerID: String?) async throws -> NolonCodexRuntimeListPayload { throw unsupported() }
+    func runtimeStop(pid: Int32, force: Bool, timeoutSeconds: Int) async throws -> NolonCodexRuntimeStopPayload { throw unsupported() }
+    func providerList() async throws -> NolonProviderListPayload { throw unsupported() }
+    func providerDiscover() async throws -> NolonCodexProviderDiscoverPayload { throw unsupported() }
+
+    func authUsage(providerID: String) async throws -> NolonCodexAuthUsagePayload {
+        NolonCodexAuthUsagePayload(
+            providerID: providerID,
+            accounts: [
+                NolonCodexAuthUsageAccountView(
+                    id: UUID(uuidString: "99999999-9999-9999-9999-999999999999")!,
+                    email: "fallback@example.com",
+                    isActive: true,
+                    usageSource: "CLI(global)",
+                    fiveHourRemainingPercent: 80,
+                    weeklyRemainingPercent: 60,
+                    token1dCount: 1_000_000,
+                    token30dCount: 10_000_000,
+                    tokenAllCount: 20_000_000,
+                    expiresAt: Date().addingTimeInterval(-3600),
+                    hasRefreshToken: true,
+                    refreshedAt: Date()
+                )
+            ],
+            summary: NolonCodexAuthUsageSummaryView(
+                accountCount: 1,
+                cachedCount: 1,
+                avgFiveHourRemainingPercent: 80,
+                avgWeeklyRemainingPercent: 60,
+                totalToken1dCount: 1_000_000,
+                totalToken30dCount: 10_000_000,
+                totalTokenAllCount: 20_000_000,
+                earliestExpiresAt: Date().addingTimeInterval(-3600),
+                latestRefreshedAt: Date()
+            )
+        )
+    }
+
+    private func unsupported() -> NolonCoreCLIError {
+        .invalidArguments("unsupported")
+    }
+}
+
+private actor AuthUsageUndistinguishableTokensCodexCLIService: NolonCodexCLIServing {
+    func authList(providerID: String) async throws -> NolonCodexAuthListPayload {
+        NolonCodexAuthListPayload(providerID: providerID, activeAccountID: nil, accounts: [])
+    }
+    func authStatus(providerID: String) async throws -> NolonCodexAuthStatusPayload {
+        NolonCodexAuthStatusPayload(providerID: providerID, activeAccountID: nil, accountCount: 2, authHashHex: "same-token")
+    }
+    func authActivate(providerID: String, accountID: UUID) async throws -> NolonCodexAuthActivatePayload { throw unsupported() }
+    func authLogin(providerID: String, preferredAccountID: UUID?) async throws -> NolonCodexAuthLoginPayload { throw unsupported() }
+    func authDelete(providerID: String, accountID: UUID) async throws -> NolonCodexAuthDeletePayload { throw unsupported() }
+    func binaryList() async throws -> NolonCodexBinaryListPayload { throw unsupported() }
+    func binaryAvailable() async throws -> NolonCodexBinaryAvailablePayload { throw unsupported() }
+    func binaryCurrent() async throws -> NolonCodexBinaryCurrentPayload { throw unsupported() }
+    func binaryInstall(version: String, setDefault: Bool) async throws -> NolonCodexBinaryInstallPayload { throw unsupported() }
+    func binaryUse(version: String) async throws -> NolonCodexBinaryUsePayload { throw unsupported() }
+    func binaryDoctor() async throws -> NolonCodexBinaryDoctorPayload { throw unsupported() }
+    func statusProbe(providerID: String?) async throws -> NolonCodexStatusProbePayload { throw unsupported() }
+    func runtimeList(providerID: String?) async throws -> NolonCodexRuntimeListPayload { throw unsupported() }
+    func runtimeStop(pid: Int32, force: Bool, timeoutSeconds: Int) async throws -> NolonCodexRuntimeStopPayload { throw unsupported() }
+    func providerList() async throws -> NolonProviderListPayload { throw unsupported() }
+    func providerDiscover() async throws -> NolonCodexProviderDiscoverPayload { throw unsupported() }
+
+    func authUsage(providerID: String) async throws -> NolonCodexAuthUsagePayload {
+        NolonCodexAuthUsagePayload(
+            providerID: providerID,
+            accounts: [
+                NolonCodexAuthUsageAccountView(
+                    id: UUID(uuidString: "12121212-1212-1212-1212-121212121212")!,
+                    email: "a@example.com",
+                    isActive: true,
+                    usageSource: "CLI(global)",
+                    fiveHourRemainingPercent: 90,
+                    weeklyRemainingPercent: 50,
+                    token1dCount: 125_600_000,
+                    token30dCount: 4_674_400_000,
+                    tokenAllCount: 4_674_400_000,
+                    refreshedAt: Date()
+                ),
+                NolonCodexAuthUsageAccountView(
+                    id: UUID(uuidString: "34343434-3434-3434-3434-343434343434")!,
+                    email: "b@example.com",
+                    isActive: false,
+                    usageSource: "CLI(global)",
+                    fiveHourRemainingPercent: 88,
+                    weeklyRemainingPercent: 49,
+                    token1dCount: 125_600_000,
+                    token30dCount: 4_674_400_000,
+                    tokenAllCount: 4_674_400_000,
+                    refreshedAt: Date()
+                ),
+            ],
+            summary: NolonCodexAuthUsageSummaryView(
+                accountCount: 2,
+                cachedCount: 2,
+                avgFiveHourRemainingPercent: 89,
+                avgWeeklyRemainingPercent: 49,
+                totalToken1dCount: 251_200_000,
+                totalToken30dCount: 9_348_800_000,
+                totalTokenAllCount: 9_348_800_000,
+                latestRefreshedAt: Date()
+            )
+        )
+    }
+
+    private func unsupported() -> NolonCoreCLIError {
+        .invalidArguments("unsupported")
+    }
+}
+
+private actor AuthUsageActiveConsistencyCodexCLIService: NolonCodexCLIServing {
+    func authList(providerID: String) async throws -> NolonCodexAuthListPayload {
+        NolonCodexAuthListPayload(
+            providerID: providerID,
+            activeAccountID: UUID(uuidString: "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA"),
+            accounts: [
+                NolonCodexAuthAccountView(
+                    id: UUID(uuidString: "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA")!,
+                    name: "first",
+                    createdAt: .distantPast,
+                    relativeAuthPath: "a/auth.json",
+                    isActive: true,
+                    email: "first@example.com",
+                    usageDisplay: "5h 90% / 7d 60%",
+                    refreshedAt: Date(timeIntervalSince1970: 1_733_900_000)
+                ),
+                NolonCodexAuthAccountView(
+                    id: UUID(uuidString: "BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB")!,
+                    name: "second",
+                    createdAt: .distantPast,
+                    relativeAuthPath: "b/auth.json",
+                    isActive: false,
+                    email: "second@example.com",
+                    usageDisplay: "5h 30% / 7d 20%",
+                    refreshedAt: Date(timeIntervalSince1970: 1_733_900_000)
+                ),
+            ]
+        )
+    }
+
+    func authUsage(providerID: String) async throws -> NolonCodexAuthUsagePayload {
+        NolonCodexAuthUsagePayload(
+            providerID: providerID,
+            accounts: [
+                NolonCodexAuthUsageAccountView(
+                    id: UUID(uuidString: "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA")!,
+                    email: "first@example.com",
+                    isActive: true,
+                    fiveHourRemainingPercent: 90,
+                    weeklyRemainingPercent: 60,
+                    token1dCount: 100_000,
+                    token30dCount: 200_000,
+                    tokenAllCount: 300_000,
+                    refreshedAt: Date(timeIntervalSince1970: 1_733_900_000)
+                ),
+                NolonCodexAuthUsageAccountView(
+                    id: UUID(uuidString: "BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB")!,
+                    email: "second@example.com",
+                    isActive: false,
+                    fiveHourRemainingPercent: 30,
+                    weeklyRemainingPercent: 20,
+                    token1dCount: 110_000,
+                    token30dCount: 220_000,
+                    tokenAllCount: 330_000,
+                    refreshedAt: Date(timeIntervalSince1970: 1_733_900_000)
+                ),
+            ],
+            summary: NolonCodexAuthUsageSummaryView(
+                accountCount: 2,
+                cachedCount: 2,
+                avgFiveHourRemainingPercent: 60,
+                avgWeeklyRemainingPercent: 40,
+                totalToken1dCount: 210_000,
+                totalToken30dCount: 420_000,
+                totalTokenAllCount: 630_000,
+                latestRefreshedAt: Date(timeIntervalSince1970: 1_733_900_000)
+            )
+        )
+    }
+
+    func authStatus(providerID: String) async throws -> NolonCodexAuthStatusPayload {
+        NolonCodexAuthStatusPayload(
+            providerID: providerID,
+            activeAccountID: UUID(uuidString: "BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB"),
+            accountCount: 2,
+            authHashHex: "consistency"
+        )
+    }
+
+    func authActivate(providerID: String, accountID: UUID) async throws -> NolonCodexAuthActivatePayload { throw unsupported() }
+    func authLogin(providerID: String, preferredAccountID: UUID?) async throws -> NolonCodexAuthLoginPayload { throw unsupported() }
+    func authDelete(providerID: String, accountID: UUID) async throws -> NolonCodexAuthDeletePayload { throw unsupported() }
+    func binaryList() async throws -> NolonCodexBinaryListPayload { throw unsupported() }
+    func binaryAvailable() async throws -> NolonCodexBinaryAvailablePayload { throw unsupported() }
+    func binaryCurrent() async throws -> NolonCodexBinaryCurrentPayload { throw unsupported() }
+    func binaryInstall(version: String, setDefault: Bool) async throws -> NolonCodexBinaryInstallPayload { throw unsupported() }
+    func binaryUse(version: String) async throws -> NolonCodexBinaryUsePayload { throw unsupported() }
+    func binaryDoctor() async throws -> NolonCodexBinaryDoctorPayload { throw unsupported() }
+    func statusProbe(providerID: String?) async throws -> NolonCodexStatusProbePayload { throw unsupported() }
+    func runtimeList(providerID: String?) async throws -> NolonCodexRuntimeListPayload { throw unsupported() }
+    func runtimeStop(pid: Int32, force: Bool, timeoutSeconds: Int) async throws -> NolonCodexRuntimeStopPayload { throw unsupported() }
+    func providerList() async throws -> NolonProviderListPayload { throw unsupported() }
+    func providerDiscover() async throws -> NolonCodexProviderDiscoverPayload { throw unsupported() }
 
     private func unsupported() -> NolonCoreCLIError {
         .invalidArguments("unsupported")

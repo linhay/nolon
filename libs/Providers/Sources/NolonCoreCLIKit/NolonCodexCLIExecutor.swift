@@ -100,7 +100,12 @@ enum NolonCodexCLIExecutor {
             return try await renderAuthOverview(providerID: providerID, context: context)
         }
         let payload = try await context.codexService().authList(providerID: providerID)
-        return try renderOutput(command: .authList, payload: payload, outputMode: outputMode, textFormatter: formatAuthList)
+        return try renderOutput(
+            command: .authList,
+            payload: payload,
+            outputMode: outputMode,
+            textFormatter: { formatAuthList($0) }
+        )
     }
 
     private static func executeAuthUsage(command: NolonCodexAuthUsageCommand, context: NolonCLIExecutionContext, outputMode: OutputMode) async throws -> String {
@@ -153,7 +158,12 @@ enum NolonCodexCLIExecutor {
         if command.summary {
             return try renderOutput(command: .authUsage, payload: payload, outputMode: outputMode, textFormatter: formatAuthUsageSummary)
         }
-        return try renderOutput(command: .authUsage, payload: payload, outputMode: outputMode, textFormatter: formatAuthUsageAccounts)
+        return try renderOutput(
+            command: .authUsage,
+            payload: payload,
+            outputMode: outputMode,
+            textFormatter: { formatAuthUsageAccounts($0) }
+        )
     }
 
     private static func executeAuthStatus(command: NolonCodexAuthStatusCommand, context: NolonCLIExecutionContext, outputMode: OutputMode) async throws -> String {
@@ -679,33 +689,46 @@ enum NolonCodexCLIExecutor {
         return value + String(repeating: " ", count: width - value.count)
     }
 
-    private static func formatAuthList(_ payload: NolonCodexAuthListPayload) -> String {
-        let title = "邮箱 | 状态 | 用量 | 刷新时间"
-        guard !payload.accounts.isEmpty else { return title }
+    private static func formatAuthList(
+        _ payload: NolonCodexAuthListPayload,
+        activeAccountIDOverride: UUID? = nil,
+        tokenHealthByAccountID: [UUID: String] = [:],
+        fallbackUsageAccounts: [NolonCodexAuthUsageAccountView] = []
+    ) -> String {
+        let title = "邮箱 | 状态 | 令牌健康"
 
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.dateFormat = "yyyy-MM-dd HH:mm"
-
-        let rows: [(marker: String, email: String, status: String, usage: String, refresh: String)] = payload.accounts.map { account in
-            let marker = account.isActive ? "*" : " "
+        let resolvedActiveID = activeAccountIDOverride ?? payload.activeAccountID
+        let rows: [(marker: String, email: String, status: String, tokenHealth: String)] = {
+            if payload.accounts.isEmpty {
+                return fallbackUsageAccounts.map { account in
+                    let isActive = resolvedActiveID.map { account.id == $0 } ?? account.isActive
+                    let marker = isActive ? "*" : " "
+                    let emailRaw = account.email?.trimmingCharacters(in: .whitespacesAndNewlines)
+                    let email = (emailRaw?.isEmpty == false) ? (emailRaw ?? "-") : "-"
+                    let status = isActive ? "已激活" : "未激活"
+                    let tokenHealth = tokenHealthByAccountID[account.id] ?? "-"
+                    return (marker, email, status, tokenHealth)
+                }
+            }
+            return payload.accounts.map { account in
+            let isActive = resolvedActiveID.map { account.id == $0 } ?? account.isActive
+            let marker = isActive ? "*" : " "
             let emailRaw = account.email?.trimmingCharacters(in: .whitespacesAndNewlines)
             let email = (emailRaw?.isEmpty == false) ? (emailRaw ?? "-") : "-"
-            let status = account.isActive ? "已激活" : "未激活"
-            let usageRaw = account.usageDisplay?.trimmingCharacters(in: .whitespacesAndNewlines)
-            let usage = (usageRaw?.isEmpty == false) ? (usageRaw ?? "-") : "-"
-            let refresh = account.refreshedAt.map { formatter.string(from: $0) } ?? "-"
-            return (marker, email, status, usage, refresh)
-        }
+            let status = isActive ? "已激活" : "未激活"
+            let tokenHealth = tokenHealthByAccountID[account.id] ?? "-"
+            return (marker, email, status, tokenHealth)
+            }
+        }()
+        guard !rows.isEmpty else { return title }
 
         let emailWidth = max("邮箱".count, rows.map { $0.email.count }.max() ?? 0)
         let statusWidth = max("状态".count, rows.map { $0.status.count }.max() ?? 0)
-        let usageWidth = max("用量".count, rows.map { $0.usage.count }.max() ?? 0)
-        let refreshWidth = max("刷新时间".count, rows.map { $0.refresh.count }.max() ?? 0)
+        let tokenHealthWidth = max("令牌健康".count, rows.map { $0.tokenHealth.count }.max() ?? 0)
 
-        let header = "\(padRight("邮箱", to: emailWidth)) | \(padRight("状态", to: statusWidth)) | \(padRight("用量", to: usageWidth)) | \(padRight("刷新时间", to: refreshWidth))"
+        let header = "\(padRight("邮箱", to: emailWidth)) | \(padRight("状态", to: statusWidth)) | \(padRight("令牌健康", to: tokenHealthWidth))"
         let body = rows.map { row in
-            "\(row.marker) \(padRight(row.email, to: emailWidth)) | \(padRight(row.status, to: statusWidth)) | \(padRight(row.usage, to: usageWidth)) | \(padRight(row.refresh, to: refreshWidth))"
+            "\(row.marker) \(padRight(row.email, to: emailWidth)) | \(padRight(row.status, to: statusWidth)) | \(padRight(row.tokenHealth, to: tokenHealthWidth))"
         }.joined(separator: "\n")
         return "\(header)\n\(body)"
     }
@@ -714,16 +737,20 @@ enum NolonCodexCLIExecutor {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "yyyy-MM-dd HH:mm"
-        return [
-            "provider: \(payload.providerID)",
-            "active_account_id: \(payload.activeAccountID?.uuidString ?? "-")",
-            "account_count: \(payload.accountCount)",
-            "auth_hash_hex: \(payload.authHashHex ?? "-")",
-            "usage_cached_accounts: \(payload.usageCachedAccountCount)",
-            "usage_avg_5h_left: \(payload.usageAvgFiveHourRemainingPercent.map { "\($0)%" } ?? "-")",
-            "usage_avg_7d_left: \(payload.usageAvgWeeklyRemainingPercent.map { "\($0)%" } ?? "-")",
-            "usage_latest_refresh: \(payload.usageLatestRefreshedAt.map { formatter.string(from: $0) } ?? "-")",
-        ].joined(separator: "\n")
+        let rows: [(String, String)] = [
+            ("提供方", payload.providerID),
+            ("激活账号", payload.activeAccountID?.uuidString ?? "-"),
+            ("账号总数", String(payload.accountCount)),
+            ("已缓存用量", String(payload.usageCachedAccountCount)),
+            ("5h平均剩余", payload.usageAvgFiveHourRemainingPercent.map { "\($0)%" } ?? "-"),
+            ("7d平均剩余", payload.usageAvgWeeklyRemainingPercent.map { "\($0)%" } ?? "-"),
+            ("最新刷新", payload.usageLatestRefreshedAt.map { formatter.string(from: $0) } ?? "-"),
+            ("认证快照哈希", payload.authHashHex ?? "-"),
+        ]
+        let keyWidth = rows.map(\.0.count).max() ?? 0
+        return rows.map { key, value in
+            "\(padRight(key, to: keyWidth)) | \(value)"
+        }.joined(separator: "\n")
     }
 
     private static func formatAuthOverview(
@@ -731,12 +758,21 @@ enum NolonCodexCLIExecutor {
         usage: NolonCodexAuthUsagePayload,
         status: NolonCodexAuthStatusPayload
     ) -> String {
+        let resolvedActiveID = status.activeAccountID ?? list.activeAccountID
+        let tokenHealthByAccountID = Dictionary(uniqueKeysWithValues: usage.accounts.map { account in
+            (account.id, formatTokenHealth(expiresAt: account.expiresAt, hasRefreshToken: account.hasRefreshToken))
+        })
         let sections = [
             "[账号]",
-            formatAuthList(list),
+            formatAuthList(
+                list,
+                activeAccountIDOverride: resolvedActiveID,
+                tokenHealthByAccountID: tokenHealthByAccountID,
+                fallbackUsageAccounts: usage.accounts
+            ),
             "",
             "[用量]",
-            formatAuthUsageAccounts(usage),
+            formatAuthUsageAccounts(usage, activeAccountIDOverride: resolvedActiveID),
             "",
             "[状态]",
             formatAuthStatus(status),
@@ -744,41 +780,35 @@ enum NolonCodexCLIExecutor {
         return sections.joined(separator: "\n")
     }
 
-    private static func formatAuthUsageAccounts(_ payload: NolonCodexAuthUsagePayload) -> String {
-        let title = "邮箱 | 状态 | 5h剩余 | 7d剩余 | Tokens(1d/30d/全量) | 过期信息 | 刷新时间"
+    private static func formatAuthUsageAccounts(_ payload: NolonCodexAuthUsagePayload, activeAccountIDOverride: UUID? = nil) -> String {
+        let title = "邮箱 | 5h剩余 | 7d剩余"
         guard !payload.accounts.isEmpty else { return title }
 
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.dateFormat = "yyyy-MM-dd HH:mm"
-
-        let rows: [(marker: String, email: String, status: String, fiveHour: String, weekly: String, tokens: String, expiry: String, refresh: String)] = payload.accounts.map { account in
-            let marker = account.isActive ? "*" : " "
+        let resolvedActiveID = activeAccountIDOverride
+        let rows: [(marker: String, email: String, fiveHour: String, weekly: String)] = payload.accounts.map { account in
+            let isActive = resolvedActiveID.map { account.id == $0 } ?? account.isActive
+            let marker = isActive ? "*" : " "
             let emailRaw = account.email?.trimmingCharacters(in: .whitespacesAndNewlines)
             let email = (emailRaw?.isEmpty == false) ? (emailRaw ?? "-") : "-"
-            let status = account.isActive ? "已激活" : "未激活"
             let fiveHour = account.fiveHourRemainingPercent.map { "\($0)%" } ?? "-"
             let weekly = account.weeklyRemainingPercent.map { "\($0)%" } ?? "-"
-            let tokens = "\(formatTokensInMillions(account.token1dCount)) / \(formatTokensInMillions(account.token30dCount)) / \(formatTokensInMillions(account.tokenAllCount))"
-            let expiry = formatExpiryInfo(account.expiresAt, hasRefreshToken: account.hasRefreshToken)
-            let refresh = account.refreshedAt.map { formatter.string(from: $0) } ?? "-"
-            return (marker, email, status, fiveHour, weekly, tokens, expiry, refresh)
+            return (marker, email, fiveHour, weekly)
         }
 
         let emailWidth = max("邮箱".count, rows.map { $0.email.count }.max() ?? 0)
-        let statusWidth = max("状态".count, rows.map { $0.status.count }.max() ?? 0)
         let fiveHourWidth = max("5h剩余".count, rows.map { $0.fiveHour.count }.max() ?? 0)
         let weeklyWidth = max("7d剩余".count, rows.map { $0.weekly.count }.max() ?? 0)
-        let tokensHeader = "Tokens(1d/30d/全量)"
-        let tokensWidth = max(tokensHeader.count, rows.map { $0.tokens.count }.max() ?? 0)
-        let expiryWidth = max("过期信息".count, rows.map { $0.expiry.count }.max() ?? 0)
-        let refreshWidth = max("刷新时间".count, rows.map { $0.refresh.count }.max() ?? 0)
 
-        let header = "\(padRight("邮箱", to: emailWidth)) | \(padRight("状态", to: statusWidth)) | \(padRight("5h剩余", to: fiveHourWidth)) | \(padRight("7d剩余", to: weeklyWidth)) | \(padRight(tokensHeader, to: tokensWidth)) | \(padRight("过期信息", to: expiryWidth)) | \(padRight("刷新时间", to: refreshWidth))"
+        let header = "\(padRight("邮箱", to: emailWidth)) | \(padRight("5h剩余", to: fiveHourWidth)) | \(padRight("7d剩余", to: weeklyWidth))"
         let body = rows.map { row in
-            "\(row.marker) \(padRight(row.email, to: emailWidth)) | \(padRight(row.status, to: statusWidth)) | \(padRight(row.fiveHour, to: fiveHourWidth)) | \(padRight(row.weekly, to: weeklyWidth)) | \(padRight(row.tokens, to: tokensWidth)) | \(padRight(row.expiry, to: expiryWidth)) | \(padRight(row.refresh, to: refreshWidth))"
+            "\(row.marker) \(padRight(row.email, to: emailWidth)) | \(padRight(row.fiveHour, to: fiveHourWidth)) | \(padRight(row.weekly, to: weeklyWidth))"
         }.joined(separator: "\n")
-        return "\(header)\n\(body)"
+        var lines: [String] = ["\(header)\n\(body)"]
+        lines.append(contentsOf: formatTokenSummaryTable(prefix: "Tokens汇总", summary: payload.summary))
+        if shouldShowGlobalFallbackHint(payload.accounts) {
+            lines.append("提示: 当前 Tokens 来自全局回退（~/.codex/sessions），账号间可能出现同值。")
+        }
+        return lines.joined(separator: "\n")
     }
 
     private static func formatAuthUsageSummary(_ payload: NolonCodexAuthUsagePayload) -> String {
@@ -791,25 +821,52 @@ enum NolonCodexCLIExecutor {
             ("已缓存用量", String(payload.summary.cachedCount)),
             ("5h平均剩余", payload.summary.avgFiveHourRemainingPercent.map { "\($0)%" } ?? "-"),
             ("7d平均剩余", payload.summary.avgWeeklyRemainingPercent.map { "\($0)%" } ?? "-"),
-            (
-                "Tokens(1d/30d/全量)",
-                "\(formatTokensInMillions(payload.summary.totalToken1dCount)) / \(formatTokensInMillions(payload.summary.totalToken30dCount)) / \(formatTokensInMillions(payload.summary.totalTokenAllCount))"
-            ),
-            ("最近过期", formatExpiryInfo(payload.summary.earliestExpiresAt, hasRefreshToken: nil)),
+            ("Access最早到期", formatAccessExpiry(payload.summary.earliestExpiresAt)),
             ("最新刷新", payload.summary.latestRefreshedAt.map { formatter.string(from: $0) } ?? "-"),
         ]
         let keyWidth = rows.map(\.0.count).max() ?? 0
-        return rows
+        var lines = rows
             .map { key, value in
                 "\(padRight(key, to: keyWidth)) | \(value)"
             }
-            .joined(separator: "\n")
+        lines.append(contentsOf: formatTokenSummaryTable(prefix: "Tokens", summary: payload.summary))
+        return lines.joined(separator: "\n")
+    }
+
+    private static func formatTokenSummaryTable(prefix: String, summary: NolonCodexAuthUsageSummaryView) -> [String] {
+        let h1 = "1d"
+        let h7 = "7d"
+        let h14 = "14d"
+        let h30 = "30d"
+        let hall = "all"
+
+        let v1 = formatTokensInMillions(summary.totalToken1dCount)
+        let v7 = formatTokensInMillions(summary.totalToken7dCount)
+        let v14 = formatTokensInMillions(summary.totalToken14dCount)
+        let v30 = formatTokensInMillions(summary.totalToken30dCount)
+        let vall = formatTokensInMillions(summary.totalTokenAllCount)
+
+        let c1 = max(h1.count, v1.count)
+        let c7 = max(h7.count, v7.count)
+        let c14 = max(h14.count, v14.count)
+        let c30 = max(h30.count, v30.count)
+        let call = max(hall.count, vall.count)
+
+        let header = "\(prefix) | \(padRight(h1, to: c1)) | \(padRight(h7, to: c7)) | \(padRight(h14, to: c14)) | \(padRight(h30, to: c30)) | \(padRight(hall, to: call))"
+        let values = "\(padRight("", to: prefix.count)) | \(padRight(v1, to: c1)) | \(padRight(v7, to: c7)) | \(padRight(v14, to: c14)) | \(padRight(v30, to: c30)) | \(padRight(vall, to: call))"
+        return [header, values]
     }
 
     private static func formatTokensInMillions(_ value: Int?) -> String {
         guard let value else { return "-" }
         let millions = Double(value) / 1_000_000
         return String(format: "%.1fm", millions)
+    }
+
+    private static func shouldShowGlobalFallbackHint(_ accounts: [NolonCodexAuthUsageAccountView]) -> Bool {
+        let nonEmpty = accounts.compactMap(\.usageSource).filter { !$0.isEmpty }
+        guard !nonEmpty.isEmpty else { return false }
+        return nonEmpty.allSatisfy { $0.lowercased().contains("(global)") }
     }
 
     private static func formatExpiryInfo(_ expiresAt: Date?, hasRefreshToken: Bool?) -> String {
@@ -822,6 +879,29 @@ enum NolonCodexCLIExecutor {
             return "已过期 \(formatDuration(-delta)) (可刷新)"
         }
         return "已过期 \(formatDuration(-delta))"
+    }
+
+    private static func formatAccessExpiry(_ expiresAt: Date?) -> String {
+        guard let expiresAt else { return "-" }
+        let delta = Int(expiresAt.timeIntervalSinceNow)
+        if delta >= 0 {
+            return "剩余 \(formatDuration(delta))"
+        }
+        return "已过期 \(formatDuration(-delta))"
+    }
+
+    private static func formatTokenHealth(expiresAt: Date?, hasRefreshToken: Bool?) -> String {
+        let access = "Access:\(formatAccessExpiry(expiresAt))"
+        let refresh: String
+        switch hasRefreshToken {
+        case .some(true):
+            refresh = "Refresh:可用"
+        case .some(false):
+            refresh = "Refresh:缺失"
+        case .none:
+            refresh = "Refresh:未知"
+        }
+        return "\(access) | \(refresh)"
     }
 
     private static func formatDuration(_ seconds: Int) -> String {
@@ -866,22 +946,22 @@ enum NolonCodexCLIExecutor {
     private static func formatAuthRefresh(_ payload: NolonCodexAuthRefreshPayload) -> String {
         var lines: [String] = []
         lines.reserveCapacity(payload.items.count + 5)
-        lines.append("provider: \(payload.providerID)")
-        lines.append("邮箱                         | 状态  | 结果   | runtime | 错误码")
+        lines.append("提供方: \(payload.providerID)")
+        lines.append("邮箱                         | 状态  | 结果   | 运行时切换 | 错误码")
         for item in payload.items {
             let marker = item.isActive ? "*" : " "
             let email = item.email ?? item.accountName
             let status = item.isActive ? "已激活" : "未激活"
             let result = item.success ? "成功" : "失败"
-            let runtime = item.runtimeSwitched ? "yes" : "no"
+            let runtime = item.runtimeSwitched ? "已切换" : "未切换"
             let code = item.errorCode ?? "-"
             lines.append(
                 "\(marker) \(pad(email, to: 27)) | \(pad(status, to: 3)) | \(pad(result, to: 4)) | \(pad(runtime, to: 7)) | \(code)"
             )
         }
-        lines.append("summary_total: \(payload.summary.totalCount)")
-        lines.append("summary_success: \(payload.summary.successCount)")
-        lines.append("summary_failed: \(payload.summary.failureCount)")
+        lines.append("汇总-总数: \(payload.summary.totalCount)")
+        lines.append("汇总-成功: \(payload.summary.successCount)")
+        lines.append("汇总-失败: \(payload.summary.failureCount)")
         return lines.joined(separator: "\n")
     }
 
@@ -1108,16 +1188,31 @@ enum NolonCodexCLIExecutor {
     }
 
     static func renderActivatePicker(accounts: [NolonCodexAuthAccountView]) -> String {
-        let rows = accounts.enumerated().map { index, account -> String in
+        let rows = accounts.enumerated().map { index, account in
             let marker = account.isActive ? "*" : " "
             let email = account.email ?? "-"
             let usageRaw = account.usageDisplay?.trimmingCharacters(in: .whitespacesAndNewlines)
             let usage = (usageRaw?.isEmpty == false) ? (usageRaw ?? "-") : "-"
-            return "\(index + 1). [\(marker)] \(account.name) <\(email)> 用量: \(usage) \(account.id.uuidString)"
+            return (
+                index: "\(index + 1).",
+                marker: marker,
+                email: email,
+                usage: usage,
+                accountID: account.id.uuidString
+            )
         }
+        let indexWidth = max("编号".count, rows.map(\.index.count).max() ?? 0)
+        let markerWidth = max("状态".count, 1)
+        let emailWidth = max("邮箱".count, rows.map(\.email.count).max() ?? 0)
+        let usageWidth = max("用量".count, rows.map(\.usage.count).max() ?? 0)
+        let header = "\(padRight("编号", to: indexWidth)) | \(padRight("状态", to: markerWidth)) | \(padRight("邮箱", to: emailWidth)) | \(padRight("用量", to: usageWidth)) | 账号ID"
+        let table = rows.map { row in
+            "\(padRight(row.index, to: indexWidth)) | \(padRight(row.marker, to: markerWidth)) | \(padRight(row.email, to: emailWidth)) | \(padRight(row.usage, to: usageWidth)) | \(row.accountID)"
+        }.joined(separator: "\n")
         return """
         请选择要激活的账号（输入编号 / 账号 UUID / 邮箱，q 取消）:
-        \(rows.joined(separator: "\n"))
+        \(header)
+        \(table)
         > 
         """
     }

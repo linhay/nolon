@@ -21,16 +21,16 @@ struct NolonCLIApp {
 
         let result = await executionTask.value
         signalHandlers.cancel()
-
-        if signalState.wasInterrupted {
-            exit(130)
-        }
-
         if !result.stdout.isEmpty {
             FileHandle.standardOutput.write(Data((result.stdout + "\n").utf8))
         }
         if !result.stderr.isEmpty {
-            FileHandle.standardError.write(Data((result.stderr + "\n").utf8))
+            let interruptedPrefix = signalState.wasInterrupted ? "\n" : ""
+            FileHandle.standardError.write(Data((interruptedPrefix + result.stderr + "\n").utf8))
+        }
+
+        if signalState.wasInterrupted {
+            exit(130)
         }
         exit(result.exitCode)
     }

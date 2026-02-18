@@ -70,6 +70,7 @@ public extension NolonCodexCLIServing {
                     id: account.id,
                     email: account.email,
                     isActive: account.isActive,
+                    usageSource: nil,
                     fiveHourRemainingPercent: nil,
                     weeklyRemainingPercent: nil,
                     token1dCount: nil,
@@ -116,9 +117,12 @@ public struct NolonCodexAuthUsageAccountView: Codable, Sendable, Equatable {
     public let id: UUID
     public let email: String?
     public let isActive: Bool
+    public let usageSource: String?
     public let fiveHourRemainingPercent: Int?
     public let weeklyRemainingPercent: Int?
     public let token1dCount: Int?
+    public let token7dCount: Int?
+    public let token14dCount: Int?
     public let token30dCount: Int?
     public let tokenAllCount: Int?
     public let expiresAt: Date?
@@ -129,9 +133,12 @@ public struct NolonCodexAuthUsageAccountView: Codable, Sendable, Equatable {
         id: UUID,
         email: String?,
         isActive: Bool,
+        usageSource: String? = nil,
         fiveHourRemainingPercent: Int?,
         weeklyRemainingPercent: Int?,
         token1dCount: Int? = nil,
+        token7dCount: Int? = nil,
+        token14dCount: Int? = nil,
         token30dCount: Int? = nil,
         tokenAllCount: Int? = nil,
         expiresAt: Date? = nil,
@@ -141,9 +148,12 @@ public struct NolonCodexAuthUsageAccountView: Codable, Sendable, Equatable {
         self.id = id
         self.email = email
         self.isActive = isActive
+        self.usageSource = usageSource
         self.fiveHourRemainingPercent = fiveHourRemainingPercent
         self.weeklyRemainingPercent = weeklyRemainingPercent
         self.token1dCount = token1dCount
+        self.token7dCount = token7dCount
+        self.token14dCount = token14dCount
         self.token30dCount = token30dCount
         self.tokenAllCount = tokenAllCount
         self.expiresAt = expiresAt
@@ -158,6 +168,8 @@ public struct NolonCodexAuthUsageSummaryView: Codable, Sendable, Equatable {
     public let avgFiveHourRemainingPercent: Int?
     public let avgWeeklyRemainingPercent: Int?
     public let totalToken1dCount: Int?
+    public let totalToken7dCount: Int?
+    public let totalToken14dCount: Int?
     public let totalToken30dCount: Int?
     public let totalTokenAllCount: Int?
     public let earliestExpiresAt: Date?
@@ -169,6 +181,8 @@ public struct NolonCodexAuthUsageSummaryView: Codable, Sendable, Equatable {
         avgFiveHourRemainingPercent: Int?,
         avgWeeklyRemainingPercent: Int?,
         totalToken1dCount: Int? = nil,
+        totalToken7dCount: Int? = nil,
+        totalToken14dCount: Int? = nil,
         totalToken30dCount: Int? = nil,
         totalTokenAllCount: Int? = nil,
         earliestExpiresAt: Date? = nil,
@@ -179,6 +193,8 @@ public struct NolonCodexAuthUsageSummaryView: Codable, Sendable, Equatable {
         self.avgFiveHourRemainingPercent = avgFiveHourRemainingPercent
         self.avgWeeklyRemainingPercent = avgWeeklyRemainingPercent
         self.totalToken1dCount = totalToken1dCount
+        self.totalToken7dCount = totalToken7dCount
+        self.totalToken14dCount = totalToken14dCount
         self.totalToken30dCount = totalToken30dCount
         self.totalTokenAllCount = totalTokenAllCount
         self.earliestExpiresAt = earliestExpiresAt
@@ -546,9 +562,12 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
                     id: account.id,
                     email: email,
                     isActive: account.id == activeID,
+                    usageSource: usageCache?.sourceLabel,
                     fiveHourRemainingPercent: Self.remainingPercent(usageCache?.usage.primary),
                     weeklyRemainingPercent: Self.remainingPercent(usageCache?.usage.secondary),
                     token1dCount: Self.resolve1dTokenCount(from: usageCache),
+                    token7dCount: Self.resolve7dTokenCount(from: usageCache),
+                    token14dCount: Self.resolve14dTokenCount(from: usageCache),
                     token30dCount: Self.resolve30dTokenCount(from: usageCache),
                     tokenAllCount: Self.resolveAllTokenCount(from: usageCache),
                     expiresAt: authInfo.expiresAt,
@@ -561,6 +580,8 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
         let fiveHourValues = views.compactMap(\.fiveHourRemainingPercent)
         let weeklyValues = views.compactMap(\.weeklyRemainingPercent)
         let token1dValues = views.compactMap(\.token1dCount)
+        let token7dValues = views.compactMap(\.token7dCount)
+        let token14dValues = views.compactMap(\.token14dCount)
         let token30dValues = views.compactMap(\.token30dCount)
         let tokenAllValues = views.compactMap(\.tokenAllCount)
         let expiryValues = views.compactMap(\.expiresAt)
@@ -573,6 +594,8 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
             avgFiveHourRemainingPercent: Self.average(of: fiveHourValues),
             avgWeeklyRemainingPercent: Self.average(of: weeklyValues),
             totalToken1dCount: token1dValues.isEmpty ? nil : token1dValues.reduce(0, +),
+            totalToken7dCount: token7dValues.isEmpty ? nil : token7dValues.reduce(0, +),
+            totalToken14dCount: token14dValues.isEmpty ? nil : token14dValues.reduce(0, +),
             totalToken30dCount: token30dValues.isEmpty ? nil : token30dValues.reduce(0, +),
             totalTokenAllCount: tokenAllValues.isEmpty ? nil : tokenAllValues.reduce(0, +),
             earliestExpiresAt: expiryValues.min(),
@@ -710,6 +733,10 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
         } else {
             targets = accounts
         }
+        let preservedActiveAccount: CodexAuthAccount? = {
+            guard accountID == nil, let activeAccountID else { return nil }
+            return accounts.first(where: { $0.id == activeAccountID })
+        }()
 
         var items: [NolonCodexAuthRefreshItemView] = []
         items.reserveCapacity(targets.count)
@@ -771,12 +798,49 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
             }
         }
 
+        var restoredPreservedActive = false
+        if let preservedActiveAccount {
+            do {
+                _ = try await authActivator(preservedActiveAccount, provider)
+                restoredPreservedActive = true
+            } catch {
+                do {
+                    try await authManager.activateAccountAndMarkActive(preservedActiveAccount, for: provider)
+                    restoredPreservedActive = true
+                } catch {
+                    restoredPreservedActive = false
+                }
+            }
+        }
+
+        let finalActiveAccountID: UUID?
+        if accountID == nil,
+           restoredPreservedActive,
+           let preservedActiveID = preservedActiveAccount?.id ?? activeAccountID {
+            finalActiveAccountID = preservedActiveID
+        } else {
+            finalActiveAccountID = await authManager.activeAccountId(for: provider)
+        }
+        let resolvedItems = items.map { item in
+            NolonCodexAuthRefreshItemView(
+                accountID: item.accountID,
+                accountName: item.accountName,
+                email: item.email,
+                isActive: item.accountID == finalActiveAccountID,
+                success: item.success,
+                runtimeSwitched: item.runtimeSwitched,
+                runtimeErrorDescription: item.runtimeErrorDescription,
+                errorCode: item.errorCode,
+                errorMessage: item.errorMessage
+            )
+        }
+
         let summary = NolonCodexAuthRefreshSummaryView(
             totalCount: items.count,
             successCount: successCount,
             failureCount: items.count - successCount
         )
-        return NolonCodexAuthRefreshPayload(providerID: canonicalProviderID, items: items, summary: summary)
+        return NolonCodexAuthRefreshPayload(providerID: canonicalProviderID, items: resolvedItems, summary: summary)
     }
 
     public func authLogin(providerID: String, preferredAccountID: UUID?) async throws -> NolonCodexAuthLoginPayload {
@@ -1210,6 +1274,14 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
         cache?.cost?.last30DaysTokens
     }
 
+    private static func resolve7dTokenCount(from cache: CodexAuthUsageCache?) -> Int? {
+        resolveWindowTokenCount(days: 7, from: cache)
+    }
+
+    private static func resolve14dTokenCount(from cache: CodexAuthUsageCache?) -> Int? {
+        resolveWindowTokenCount(days: 14, from: cache)
+    }
+
     private static func resolveAllTokenCount(from cache: CodexAuthUsageCache?) -> Int? {
         guard let cost = cache?.cost else { return nil }
         let fromDaily = cost.dailyCosts?.compactMap(\.tokens).reduce(0, +)
@@ -1217,6 +1289,18 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
             return fromDaily
         }
         return cost.last30DaysTokens
+    }
+
+    private static func resolveWindowTokenCount(days: Int, from cache: CodexAuthUsageCache?) -> Int? {
+        guard days > 0,
+              let daily = cache?.cost?.dailyCosts,
+              !daily.isEmpty
+        else { return nil }
+        let sorted = daily.sorted { $0.date > $1.date }
+        let slice = sorted.prefix(days)
+        let values = slice.compactMap(\.tokens)
+        guard values.count == slice.count, !values.isEmpty else { return nil }
+        return values.reduce(0, +)
     }
 
     private static func resolveAuthTokenInfo(for account: CodexAuthAccount, authManager: CodexAuthManager) -> (expiresAt: Date?, hasRefreshToken: Bool?) {
@@ -1399,6 +1483,9 @@ public enum NolonCLIEntrypoint {
         do {
             let output = try await NolonCodexCLIExecutor.execute(arguments: normalizedArguments, context: context)
             return NolonCLIExecutionResult(exitCode: 0, stdout: output, stderr: "")
+        } catch is CancellationError {
+            let wrapped = NolonCoreCLIError.domainFailed(code: "interrupted", message: "Operation cancelled")
+            return NolonCLIExecutionResult(exitCode: 130, stdout: "", stderr: context.errorJSON(for: wrapped))
         } catch let error as NolonCoreCLIError {
             return NolonCLIExecutionResult(exitCode: 2, stdout: "", stderr: context.errorJSON(for: error))
         } catch {
@@ -1420,6 +1507,17 @@ public enum NolonCLIEntrypoint {
 
     private static func normalizeHelpArguments(_ arguments: [String]) -> [String] {
         guard !arguments.isEmpty else { return [] }
+        if arguments[0].lowercased() == "help" {
+            if arguments.count == 1 { return [] }
+            var forwarded = Array(arguments.dropFirst())
+            if forwarded.last == "help" {
+                forwarded[forwarded.count - 1] = "--help"
+            }
+            if !forwarded.contains("--help"), !forwarded.contains("-h") {
+                forwarded.append("--help")
+            }
+            return forwarded
+        }
         var normalized = arguments
         if normalized.last == "help" {
             normalized[normalized.count - 1] = "--help"

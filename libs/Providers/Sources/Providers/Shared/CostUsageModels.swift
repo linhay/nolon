@@ -1,6 +1,11 @@
 import Foundation
 
 public struct CostUsageTokenSnapshot: Sendable, Equatable {
+    public enum Source: String, Sendable, Equatable {
+        case scopedSessions
+        case globalFallback
+    }
+
     public let sessionTokens: Int?
     public let sessionCostUSD: Double?
     public let todayInputTokens: Int?
@@ -14,6 +19,7 @@ public struct CostUsageTokenSnapshot: Sendable, Equatable {
     public let rangeCachedInputTokens: Int?
     public let daily: [CostUsageDailyReport.Entry]
     public let updatedAt: Date
+    public let source: Source
 
     public init(
         sessionTokens: Int?,
@@ -28,7 +34,8 @@ public struct CostUsageTokenSnapshot: Sendable, Equatable {
         rangeOutputTokens: Int?,
         rangeCachedInputTokens: Int?,
         daily: [CostUsageDailyReport.Entry],
-        updatedAt: Date)
+        updatedAt: Date,
+        source: Source = .scopedSessions)
     {
         self.sessionTokens = sessionTokens
         self.sessionCostUSD = sessionCostUSD
@@ -43,6 +50,7 @@ public struct CostUsageTokenSnapshot: Sendable, Equatable {
         self.rangeCachedInputTokens = rangeCachedInputTokens
         self.daily = daily
         self.updatedAt = updatedAt
+        self.source = source
     }
 }
 

@@ -217,8 +217,9 @@ enum NolonCodexCLIHelpResolver {
 
         Options:
           --provider <id>     Provider id, default is codex.
-          --account-id <id>   Refresh target account id UUID. Omit to refresh all accounts.
-          --email <value>     Refresh target account email (case-insensitive).
+          --account-id <id>   Refresh only the target account id UUID and switch active account to it.
+          --email <value>     Refresh only the target account email (case-insensitive) and switch active account to it.
+          (no target)         Refresh all accounts and keep current active account unchanged.
         """
     }
 

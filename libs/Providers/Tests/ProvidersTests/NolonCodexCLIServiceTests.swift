@@ -392,8 +392,9 @@ struct NolonCodexCLIServiceTests {
             binaryManager: CodexBinaryManager(homeURL: root.url),
             loginRunner: .init(),
             environment: [:],
-            authActivator: { _, _ in
-                CodexAuthActivationResult(runtimeSwitched: true, runtimeErrorDescription: nil)
+            authActivator: { account, provider in
+                try await authManager.setActiveAccount(account, for: provider)
+                return CodexAuthActivationResult(runtimeSwitched: true, runtimeErrorDescription: nil)
             },
             authRefreshRunner: { _, _, _ in
                 await refreshCounter.increment()
@@ -403,6 +404,7 @@ struct NolonCodexCLIServiceTests {
         let payload = try await service.authRefresh(providerID: "codex", accountID: account.id)
         #expect(payload.items.count == 1)
         #expect(payload.items.first?.accountID == account.id)
+        #expect(payload.items.first?.isActive == true)
         #expect(payload.items.first?.success == true)
         #expect(payload.summary.totalCount == 1)
         #expect(payload.summary.successCount == 1)
@@ -447,7 +449,7 @@ struct NolonCodexCLIServiceTests {
         defer { try? root.delete() }
 
         let authManager = CodexAuthManager(rootURL: root.url)
-        _ = try await authManager.addAccount(
+        let accountA = try await authManager.addAccount(
             name: "a",
             authJSONString: #"{"user":{"email":"a@example.com"},"tokens":{"refresh_token":"rt_a"}}"#
         )
@@ -455,6 +457,8 @@ struct NolonCodexCLIServiceTests {
             name: "b",
             authJSONString: #"{"user":{"email":"b@example.com"},"tokens":{"refresh_token":"rt_b"}}"#
         )
+        let codexProvider = ProviderTemplate.codex.createProvider()
+        try await authManager.setActiveAccount(accountA, for: codexProvider)
         let refreshCounter = Counter()
 
         let service = NolonLiveCodexCLIService(
@@ -462,8 +466,9 @@ struct NolonCodexCLIServiceTests {
             binaryManager: CodexBinaryManager(homeURL: root.url),
             loginRunner: .init(),
             environment: [:],
-            authActivator: { _, _ in
-                CodexAuthActivationResult(runtimeSwitched: true, runtimeErrorDescription: nil)
+            authActivator: { account, provider in
+                try await authManager.setActiveAccount(account, for: provider)
+                return CodexAuthActivationResult(runtimeSwitched: true, runtimeErrorDescription: nil)
             },
             authRefreshRunner: { _, _, _ in
                 await refreshCounter.increment()
@@ -475,6 +480,9 @@ struct NolonCodexCLIServiceTests {
         #expect(payload.summary.successCount == 2)
         #expect(payload.summary.failureCount == 0)
         #expect(await refreshCounter.value() == 2)
+        #expect(await authManager.activeAccountId(for: codexProvider) == accountA.id)
+        #expect(payload.items.filter(\.isActive).count == 1)
+        #expect(payload.items.first(where: { $0.isActive })?.accountID == accountA.id)
     }
 
     @Test("runtime list filters codex processes and sorts by pid asc")

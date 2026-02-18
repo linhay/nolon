@@ -21,6 +21,7 @@ public struct CodexCostSnapshot: Sendable, Equatable {
     public let windowDays: Int?
     public let dailyCosts: [DailyCost]
     public let updatedAt: Date
+    public let tokenSource: CostUsageTokenSnapshot.Source
 
     public init(
         todayCostUSD: Double?,
@@ -29,7 +30,8 @@ public struct CodexCostSnapshot: Sendable, Equatable {
         last30DaysTokens: Int?,
         windowDays: Int? = 30,
         dailyCosts: [DailyCost],
-        updatedAt: Date
+        updatedAt: Date,
+        tokenSource: CostUsageTokenSnapshot.Source = .scopedSessions
     ) {
         self.todayCostUSD = todayCostUSD
         self.todayTokens = todayTokens
@@ -38,6 +40,7 @@ public struct CodexCostSnapshot: Sendable, Equatable {
         self.windowDays = windowDays
         self.dailyCosts = dailyCosts
         self.updatedAt = updatedAt
+        self.tokenSource = tokenSource
     }
 }
 
@@ -47,10 +50,17 @@ public struct CodexCostFetcher: Sendable {
     public func fetchCostSnapshot(
         now: Date = Date(),
         windowDays: Int? = 30,
-        forceRefresh: Bool = false
+        forceRefresh: Bool = false,
+        environment: [String: String] = ProcessInfo.processInfo.environment
     ) async throws -> CodexCostSnapshot {
         let fetcher = CostUsageFetcher()
-        let token = try await fetcher.loadTokenSnapshot(provider: .codex, now: now, trailingDays: windowDays, forceRefresh: forceRefresh)
+        let token = try await fetcher.loadTokenSnapshot(
+            provider: .codex,
+            now: now,
+            trailingDays: windowDays,
+            forceRefresh: forceRefresh,
+            environment: environment
+        )
         return CodexCostSnapshot(
             todayCostUSD: token.sessionCostUSD,
             todayTokens: token.sessionTokens,
@@ -60,7 +70,8 @@ public struct CodexCostFetcher: Sendable {
             dailyCosts: token.daily.map { entry in
                 CodexCostSnapshot.DailyCost(date: entry.date, costUSD: entry.costUSD, tokens: entry.totalTokens)
             },
-            updatedAt: token.updatedAt
+            updatedAt: token.updatedAt,
+            tokenSource: token.source
         )
     }
 }
