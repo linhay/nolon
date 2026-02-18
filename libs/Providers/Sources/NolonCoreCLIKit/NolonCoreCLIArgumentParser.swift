@@ -367,9 +367,15 @@ struct NolonRemoteInstallCommand: ParsableCommand {
             if providerPath == nil && providerID == nil {
                 throw ValidationError("Missing required option: --provider-path or --provider-id")
             }
+            if providerPath != nil && providerID != nil {
+                throw ValidationError("Use only one target selector: --provider-path or --provider-id")
+            }
         case .workflow, .mcp:
             if targetPath == nil && providerID == nil {
                 throw ValidationError("Missing required option: --target-path or --provider-id")
+            }
+            if targetPath != nil && providerID != nil {
+                throw ValidationError("Use only one target selector: --target-path or --provider-id")
             }
         }
     }
@@ -438,9 +444,15 @@ struct NolonRemoteSyncInstallCommand: ParsableCommand {
             if providerPath == nil && providerID == nil {
                 throw ValidationError("Missing required option: --provider-path or --provider-id")
             }
+            if providerPath != nil && providerID != nil {
+                throw ValidationError("Use only one target selector: --provider-path or --provider-id")
+            }
         case .workflow, .mcp:
             if targetPath == nil && providerID == nil {
                 throw ValidationError("Missing required option: --target-path or --provider-id")
+            }
+            if targetPath != nil && providerID != nil {
+                throw ValidationError("Use only one target selector: --target-path or --provider-id")
             }
         }
     }

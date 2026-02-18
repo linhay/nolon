@@ -142,6 +142,32 @@ struct NolonSkillsRepositoryServiceTests {
         #expect(target.isSymbolicLink)
     }
 
+    @Test("install skill rejects path-like skill id")
+    func installSkillRejectsPathLikeSkillID() throws {
+        let service = NolonLiveSkillsRepositoryService()
+        let root = try makeTempRoot("nolon-install-invalid-id")
+        let skillRoot = root.folder("skills").folder("react-best-practices")
+        let providerRoot = root.folder("provider")
+        _ = skillRoot.createIfNotExists()
+        _ = providerRoot.createIfNotExists()
+        defer { try? root.delete() }
+
+        do {
+            _ = try service.installSkill(
+                skillPath: STPath(skillRoot.url),
+                skillID: "../escape",
+                providerPath: providerRoot,
+                installMethod: .symlink
+            )
+            Issue.record("Expected invalid_arguments")
+        } catch let error as NolonCoreCLIError {
+            #expect(error.code == "invalid_arguments")
+            #expect((error.errorDescription ?? "").contains("single path component"))
+        } catch {
+            Issue.record("Unexpected error: \(error)")
+        }
+    }
+
     @Test("uninstall skill removes provider target")
     func uninstallSkillRemovesTarget() throws {
         let service = NolonLiveSkillsRepositoryService()
@@ -182,6 +208,36 @@ struct NolonSkillsRepositoryServiceTests {
         #expect(result.kind == .workflow)
         #expect(result.resourceName == "review.md")
         #expect(STPath(result.targetPath).isExists)
+    }
+
+    @Test("install resource rejects path-like resource name")
+    func installResourceRejectsPathLikeResourceName() throws {
+        let service = NolonLiveSkillsRepositoryService()
+        let root = try makeTempRoot("nolon-resource-invalid-name")
+        let sourceDir = root.folder("source")
+        let targetDir = root.folder("provider-workflows")
+        _ = sourceDir.createIfNotExists()
+        _ = targetDir.createIfNotExists()
+        defer { try? root.delete() }
+
+        let source = sourceDir.file("review.md")
+        try Data("workflow".utf8).write(to: source.url)
+
+        do {
+            _ = try service.installResource(
+                kind: .workflow,
+                filePath: STPath(source.url),
+                resourceName: "../review.md",
+                targetPath: targetDir,
+                installMethod: .copy
+            )
+            Issue.record("Expected invalid_arguments")
+        } catch let error as NolonCoreCLIError {
+            #expect(error.code == "invalid_arguments")
+            #expect((error.errorDescription ?? "").contains("single path component"))
+        } catch {
+            Issue.record("Unexpected error: \(error)")
+        }
     }
 
     @Test("uninstall resource removes target")

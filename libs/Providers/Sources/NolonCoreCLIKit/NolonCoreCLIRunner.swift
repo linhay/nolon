@@ -498,6 +498,18 @@ public struct NolonCoreCLIRunner: Sendable {
         return repositoryRoot.appendingPathComponent(path).standardizedFileURL.path
     }
 
+    private static func ensurePathWithinRepositoryRoot(_ resolvedPath: String, repositoryRoot: URL) throws {
+        let rootPath = repositoryRoot.standardizedFileURL.path
+        let candidatePath = STPath(resolvedPath).url.standardizedFileURL.path
+        if candidatePath == rootPath { return }
+        let rootWithSlash = rootPath.hasSuffix("/") ? rootPath : "\(rootPath)/"
+        guard candidatePath.hasPrefix(rootWithSlash) else {
+            throw NolonCoreCLIError.invalidArguments(
+                "Resolved --path is outside synced repository root: \(resolvedPath)"
+            )
+        }
+    }
+
     private static func resolveRepositoryInstallPath(
         kind: NolonRemoteCatalogKind,
         repositoryRoot: URL,
@@ -507,10 +519,9 @@ public struct NolonCoreCLIRunner: Sendable {
         resources: NolonRepositoryResources
     ) throws -> RepositoryPathSelection {
         if let path, !path.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return RepositoryPathSelection(
-                path: resolveRepositoryFilePath(repositoryRoot: repositoryRoot, path: path),
-                warnings: []
-            )
+            let resolved = resolveRepositoryFilePath(repositoryRoot: repositoryRoot, path: path)
+            try ensurePathWithinRepositoryRoot(resolved, repositoryRoot: repositoryRoot)
+            return RepositoryPathSelection(path: resolved, warnings: [])
         }
         guard let slug, !slug.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw NolonCoreCLIError.invalidArguments("Missing required option: --path or --slug")

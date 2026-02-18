@@ -530,6 +530,52 @@ struct NolonCoreCLIKitTests {
         }
     }
 
+    @Test("parse remote sync-install skill rejects duplicate provider selector")
+    func parseRemoteSyncInstallSkillRejectsDuplicateProviderSelector() {
+        do {
+            _ = try NolonCoreCLIArgumentParser.parse(
+                [
+                    "remote", "sync-install",
+                    "--kind", "skill",
+                    "--source", "vercel/agent-skills",
+                    "--repositories-root", "/tmp/repos",
+                    "--slug", "agent-browser",
+                    "--provider-path", "/tmp/provider",
+                    "--provider-id", "codex",
+                ]
+            )
+            Issue.record("Expected invalid_arguments")
+        } catch let error as NolonCoreCLIError {
+            #expect(error.code == "invalid_arguments")
+            #expect((error.errorDescription ?? "").contains("Use only one target selector: --provider-path or --provider-id"))
+        } catch {
+            Issue.record("Unexpected error: \(error)")
+        }
+    }
+
+    @Test("parse remote sync-install workflow rejects duplicate target selector")
+    func parseRemoteSyncInstallWorkflowRejectsDuplicateTargetSelector() {
+        do {
+            _ = try NolonCoreCLIArgumentParser.parse(
+                [
+                    "remote", "sync-install",
+                    "--kind", "workflow",
+                    "--source", "vercel/agent-skills",
+                    "--repositories-root", "/tmp/repos",
+                    "--slug", "review",
+                    "--target-path", "/tmp/workflows",
+                    "--provider-id", "opencode",
+                ]
+            )
+            Issue.record("Expected invalid_arguments")
+        } catch let error as NolonCoreCLIError {
+            #expect(error.code == "invalid_arguments")
+            #expect((error.errorDescription ?? "").contains("Use only one target selector: --target-path or --provider-id"))
+        } catch {
+            Issue.record("Unexpected error: \(error)")
+        }
+    }
+
     @Test("parse remote install skill command")
     func parseRemoteInstallSkill() throws {
         let command = try NolonCoreCLIArgumentParser.parse(
@@ -650,6 +696,48 @@ struct NolonCoreCLIKitTests {
                     "--slug", "daily-review",
                 ]
             )
+        }
+    }
+
+    @Test("parse remote install skill rejects duplicate provider selector")
+    func parseRemoteInstallSkillRejectsDuplicateProviderSelector() {
+        do {
+            _ = try NolonCoreCLIArgumentParser.parse(
+                [
+                    "remote", "install",
+                    "--kind", "skill",
+                    "--slug", "react-best-practices",
+                    "--provider-path", "/tmp/provider",
+                    "--provider-id", "codex",
+                ]
+            )
+            Issue.record("Expected invalid_arguments")
+        } catch let error as NolonCoreCLIError {
+            #expect(error.code == "invalid_arguments")
+            #expect((error.errorDescription ?? "").contains("Use only one target selector: --provider-path or --provider-id"))
+        } catch {
+            Issue.record("Unexpected error: \(error)")
+        }
+    }
+
+    @Test("parse remote install workflow rejects duplicate target selector")
+    func parseRemoteInstallWorkflowRejectsDuplicateTargetSelector() {
+        do {
+            _ = try NolonCoreCLIArgumentParser.parse(
+                [
+                    "remote", "install",
+                    "--kind", "workflow",
+                    "--slug", "daily-review",
+                    "--target-path", "/tmp/workflows",
+                    "--provider-id", "opencode",
+                ]
+            )
+            Issue.record("Expected invalid_arguments")
+        } catch let error as NolonCoreCLIError {
+            #expect(error.code == "invalid_arguments")
+            #expect((error.errorDescription ?? "").contains("Use only one target selector: --target-path or --provider-id"))
+        } catch {
+            Issue.record("Unexpected error: \(error)")
         }
     }
 
@@ -969,6 +1057,27 @@ struct NolonCoreCLIKitTests {
         #expect(result.stdout.contains("\"repository_file_path\""))
         #expect(result.stdout.contains("skills\\/react-best-practices"))
         #expect(result.stdout.contains("\"install_method\":\"copy\""))
+    }
+
+    @Test("runner rejects remote sync-install path outside repository root")
+    func runnerRejectsRemoteSyncInstallPathOutsideRepositoryRoot() async {
+        let runner = NolonCoreCLIRunner(
+            service: MockSkillsRepositoryService(),
+            fileReader: { _ in "" }
+        )
+        let result = await runner.execute(
+            arguments: [
+                "remote", "sync-install",
+                "--kind", "skill",
+                "--source", "vercel/agent-skills",
+                "--repositories-root", "/tmp/repos",
+                "--path", "../outside-skill",
+                "--provider-id", "codex",
+            ]
+        )
+        #expect(result.exitCode == 2)
+        #expect(result.stderr.contains("\"code\":\"invalid_arguments\""))
+        #expect(result.stderr.contains("outside synced repository root"))
     }
 
     @Test("runner renders remote sync-install workflow result")

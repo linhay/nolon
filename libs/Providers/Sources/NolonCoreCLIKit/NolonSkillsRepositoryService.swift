@@ -139,6 +139,19 @@ public extension NolonSkillsRepositoryServing {
     }
 }
 
+private func validateSinglePathComponent(_ value: String, field: String) throws -> String {
+    let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else {
+        throw NolonCoreCLIError.invalidArguments("\(field) cannot be empty")
+    }
+    let candidateURL = URL(fileURLWithPath: trimmed)
+    let basename = candidateURL.lastPathComponent
+    guard basename == trimmed, trimmed != ".", trimmed != ".." else {
+        throw NolonCoreCLIError.invalidArguments("\(field) must be a single path component: \(value)")
+    }
+    return trimmed
+}
+
 private func resolveNolonSkillsRootFolder(environment: [String: String] = ProcessInfo.processInfo.environment) throws -> STFolder {
     let nolonHome: STFolder
     if let raw = environment["NOLON_HOME"]?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty {
@@ -295,9 +308,9 @@ public struct NolonLiveSkillsRepositoryService: NolonSkillsRepositoryServing {
 
         let resolvedSkillID: String
         if let skillID, !skillID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            resolvedSkillID = skillID
+            resolvedSkillID = try validateSinglePathComponent(skillID, field: "skill-id")
         } else {
-            resolvedSkillID = source.url.lastPathComponent
+            resolvedSkillID = try validateSinglePathComponent(source.url.lastPathComponent, field: "skill-id")
         }
 
         _ = providerPath.createIfNotExists()
@@ -323,12 +336,13 @@ public struct NolonLiveSkillsRepositoryService: NolonSkillsRepositoryServing {
     }
 
     public func uninstallSkill(skillID: String, providerPath: STFolder) throws -> NolonSkillUninstallResult {
-        let target = providerPath.subpath(skillID)
+        let resolvedSkillID = try validateSinglePathComponent(skillID, field: "skill-id")
+        let target = providerPath.subpath(resolvedSkillID)
         let existed = target.isExists
         if existed {
             try target.delete()
         }
-        return NolonSkillUninstallResult(skillID: skillID, targetPath: target.url.path, removed: existed)
+        return NolonSkillUninstallResult(skillID: resolvedSkillID, targetPath: target.url.path, removed: existed)
     }
 
     public func scanProviderSkills(providerPath: STFolder, globalSkillsPath: STFolder) throws -> NolonSkillMigrateScanResult {
@@ -371,13 +385,14 @@ public struct NolonLiveSkillsRepositoryService: NolonSkillsRepositoryServing {
         globalSkillsPath: STFolder,
         installMethod: NolonSkillInstallMethod
     ) throws -> NolonSkillInstallResult {
-        let source = globalSkillsPath.subpath(skillID)
+        let resolvedSkillID = try validateSinglePathComponent(skillID, field: "skill-id")
+        let source = globalSkillsPath.subpath(resolvedSkillID)
         guard source.isExists else {
             throw NolonCoreCLIError.invalidArguments("Global skill not found: \(source.url.path)")
         }
         return try installSkill(
             skillPath: source,
-            skillID: skillID,
+            skillID: resolvedSkillID,
             providerPath: providerPath,
             installMethod: installMethod
         )
@@ -397,9 +412,9 @@ public struct NolonLiveSkillsRepositoryService: NolonSkillsRepositoryServing {
 
         let resolvedName: String
         if let resourceName, !resourceName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            resolvedName = resourceName
+            resolvedName = try validateSinglePathComponent(resourceName, field: "resource-name")
         } else {
-            resolvedName = source.url.lastPathComponent
+            resolvedName = try validateSinglePathComponent(source.url.lastPathComponent, field: "resource-name")
         }
 
         _ = targetPath.createIfNotExists()
@@ -429,14 +444,15 @@ public struct NolonLiveSkillsRepositoryService: NolonSkillsRepositoryServing {
         resourceName: String,
         targetPath: STFolder
     ) throws -> NolonResourceUninstallResult {
-        let target = targetPath.subpath(resourceName)
+        let resolvedName = try validateSinglePathComponent(resourceName, field: "resource-name")
+        let target = targetPath.subpath(resolvedName)
         let existed = target.isExists
         if existed {
             try target.delete()
         }
         return NolonResourceUninstallResult(
             kind: kind,
-            resourceName: resourceName,
+            resourceName: resolvedName,
             targetPath: target.url.path,
             removed: existed
         )
