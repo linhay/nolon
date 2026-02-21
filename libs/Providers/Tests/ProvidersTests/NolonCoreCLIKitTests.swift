@@ -1637,36 +1637,6 @@ struct NolonCoreCLIKitTests {
         #expect(targetPath.contains(".codex"))
     }
 
-    @Test("parse workflow legacy discover returns migration hint")
-    func parseWorkflowLegacyDiscoverReturnsMigrationHint() {
-        do {
-            _ = try NolonCoreCLIArgumentParser.parse(["workflow", "discover"])
-            Issue.record("Expected invalid_arguments")
-        } catch let error as NolonCoreCLIError {
-            #expect(error.code == "invalid_arguments")
-            let message = error.errorDescription ?? ""
-            #expect(message.contains("workflow discover"))
-            #expect(message.contains("nolon workflow list"))
-        } catch {
-            Issue.record("Unexpected error: \(error)")
-        }
-    }
-
-    @Test("parse mcp legacy install returns migration hint")
-    func parseMcpLegacyInstallReturnsMigrationHint() {
-        do {
-            _ = try NolonCoreCLIArgumentParser.parse(["mcp", "install"])
-            Issue.record("Expected invalid_arguments")
-        } catch let error as NolonCoreCLIError {
-            #expect(error.code == "invalid_arguments")
-            let message = error.errorDescription ?? ""
-            #expect(message.contains("mcp install"))
-            #expect(message.contains("nolon mcp add"))
-        } catch {
-            Issue.record("Unexpected error: \(error)")
-        }
-    }
-
     @Test("parse remote list command")
     func parseRemoteList() throws {
         let command = try NolonCoreCLIArgumentParser.parse(

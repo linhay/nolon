@@ -466,42 +466,8 @@ struct NolonWorkflowRootCommand: ParsableCommand {
             NolonWorkflowSearchCommand.self,
             NolonWorkflowAddCommand.self,
             NolonWorkflowRemoveCommand.self,
-            NolonWorkflowLegacyDiscoverCommand.self,
-            NolonWorkflowLegacyInstallCommand.self,
-            NolonWorkflowLegacyUninstallCommand.self,
         ]
     )
-}
-
-private protocol NolonLegacyCommand: ParsableCommand {
-    static var legacyCommand: String { get }
-    static var replacementHint: String { get }
-}
-
-extension NolonLegacyCommand {
-    func validate() throws {
-        throw ValidationError(
-            "旧命令 `\(Self.legacyCommand)` 已移除。请改用: \(Self.replacementHint)"
-        )
-    }
-}
-
-struct NolonWorkflowLegacyDiscoverCommand: NolonLegacyCommand {
-    static let configuration = CommandConfiguration(commandName: "discover", shouldDisplay: false)
-    static let legacyCommand = "workflow discover"
-    static let replacementHint = "nolon workflow list"
-}
-
-struct NolonWorkflowLegacyInstallCommand: NolonLegacyCommand {
-    static let configuration = CommandConfiguration(commandName: "install", shouldDisplay: false)
-    static let legacyCommand = "workflow install"
-    static let replacementHint = "nolon workflow add <slug> --provider <id>"
-}
-
-struct NolonWorkflowLegacyUninstallCommand: NolonLegacyCommand {
-    static let configuration = CommandConfiguration(commandName: "uninstall", shouldDisplay: false)
-    static let legacyCommand = "workflow uninstall"
-    static let replacementHint = "nolon workflow remove --resource-name <name> --provider <id>"
 }
 
 struct NolonWorkflowListCommand: ParsableCommand {
@@ -662,29 +628,8 @@ struct NolonMcpRootCommand: ParsableCommand {
             NolonMcpSearchCommand.self,
             NolonMcpAddCommand.self,
             NolonMcpRemoveCommand.self,
-            NolonMcpLegacyDiscoverCommand.self,
-            NolonMcpLegacyInstallCommand.self,
-            NolonMcpLegacyUninstallCommand.self,
         ]
     )
-}
-
-struct NolonMcpLegacyDiscoverCommand: NolonLegacyCommand {
-    static let configuration = CommandConfiguration(commandName: "discover", shouldDisplay: false)
-    static let legacyCommand = "mcp discover"
-    static let replacementHint = "nolon mcp list"
-}
-
-struct NolonMcpLegacyInstallCommand: NolonLegacyCommand {
-    static let configuration = CommandConfiguration(commandName: "install", shouldDisplay: false)
-    static let legacyCommand = "mcp install"
-    static let replacementHint = "nolon mcp add <slug> --provider <id>"
-}
-
-struct NolonMcpLegacyUninstallCommand: NolonLegacyCommand {
-    static let configuration = CommandConfiguration(commandName: "uninstall", shouldDisplay: false)
-    static let legacyCommand = "mcp uninstall"
-    static let replacementHint = "nolon mcp remove --resource-name <name> --provider <id>"
 }
 
 struct NolonMcpListCommand: ParsableCommand {

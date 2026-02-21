@@ -66,9 +66,6 @@ enum NolonCoreCLIHelpResolver {
           search    [<keyword> | --query <query>] [--limit <n>] [--base-url <url>] [--install [--provider <id>|--provider-id <id>] [--install-method symlink|copy] [--pick <index>] [--dry-run|--yes]]
           add       <slug> [--provider <id>|--provider-id <id>] [--version <ver>] [--install-method symlink|copy] [--dry-run]
           remove    --resource-name <name> (--target-path <path> | --provider <id> | --provider-id <id>)
-
-        注意:
-          旧命令 discover/install/uninstall 已移除。请改用 list/search/add/remove/sync。
         """
     }
 
@@ -82,9 +79,6 @@ enum NolonCoreCLIHelpResolver {
           search    [<keyword> | --query <query>] [--limit <n>] [--base-url <url>] [--install [--provider <id>|--provider-id <id>] [--install-method symlink|copy] [--pick <index>] [--dry-run|--yes]]
           add       <slug> [--provider <id>|--provider-id <id>] [--version <ver>] [--install-method symlink|copy] [--dry-run]
           remove    --resource-name <name> (--target-path <path> | --provider <id> | --provider-id <id>)
-
-        注意:
-          旧命令 discover/install/uninstall 已移除。请改用 list/search/add/remove/sync。
         """
     }
 
