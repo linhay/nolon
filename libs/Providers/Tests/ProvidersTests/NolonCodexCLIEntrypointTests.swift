@@ -49,6 +49,72 @@ struct NolonCodexCLIEntrypointTests {
         #expect(result.stdout.contains("binary"))
     }
 
+    @Test("skills --help includes task-oriented examples")
+    func skillsHelpIncludesExamples() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["skills", "--help"],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("场景: 发现技能"))
+        #expect(result.stdout.contains("场景: 安装技能"))
+        #expect(result.stdout.contains("场景: 修复异常"))
+        #expect(result.stdout.contains("nolon skills search xcode"))
+        #expect(result.stdout.contains("search    [<keyword> | --query <query>]"))
+        #expect(result.stdout.contains("--query <query>"))
+        #expect(result.stdout.contains("--pick <index>"))
+        #expect(result.stdout.contains("nolon skills add xcode --provider codex"))
+        #expect(result.stdout.contains("省略 --provider 可能触发多 provider 批量写入/覆盖"))
+    }
+
+    @Test("skills search --help explains install and pick relation")
+    func skillsSearchHelpExplainsInstallPickRelation() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["skills", "search", "--help"],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("Install matched skill(s);"))
+        #expect(result.stdout.contains("Pick one search result by 1-based index"))
+        #expect(result.stdout.contains("Target provider ID. Omit to distribute to all"))
+        #expect(result.stdout.contains("nolon skills search \"swiftui\" --install --pick 1 --provider codex --dry-run"))
+    }
+
+    @Test("skills add --help warns about provider omission scope")
+    func skillsAddHelpWarnsAboutProviderOmissionScope() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["skills", "add", "--help"],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("Target provider ID. Omit to distribute to all"))
+        #expect(result.stdout.contains("nolon skills add swift-concurrency-expert --provider codex --dry-run"))
+    }
+
+    @Test("skills remove --help shows safety note and example")
+    func skillsRemoveHelpShowsSafetyNoteAndExample() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["skills", "remove", "--help"],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("该操作会直接移除 provider 下的技能链接/目录"))
+        #expect(result.stdout.contains("nolon skills list --provider <id>"))
+        #expect(result.stdout.contains("nolon skills remove --skill-id xcode --provider codex"))
+    }
+
     @Test("codex without group action prints codex help")
     func codexWithoutActionPrintsHelp() async {
         let mock = MockCodexCLIService()
@@ -246,37 +312,39 @@ struct NolonCodexCLIEntrypointTests {
 
         #expect(result.exitCode == 0)
         #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("USAGE: nolon skills"))
-        #expect(result.stdout.contains("SUBCOMMANDS"))
-        #expect(result.stdout.contains("repo"))
+        #expect(result.stdout.contains("Usage: nolon skills"))
+        #expect(result.stdout.contains("Subcommands:"))
+        #expect(result.stdout.contains("list"))
+        #expect(result.stdout.contains("sync"))
+        #expect(result.stdout.contains("remove"))
     }
 
-    @Test("skills repo without action prints help")
-    func skillsRepoWithoutActionPrintsHelp() async {
+    @Test("skills repo without action returns missing subcommand error")
+    func skillsRepoWithoutActionReturnsMissingSubcommandError() async {
         let mock = MockCodexCLIService()
         let result = await NolonCLIEntrypoint.execute(
             arguments: ["skills", "repo"],
             codexService: mock
         )
 
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("USAGE: nolon skills repo"))
-        #expect(result.stdout.contains("SUBCOMMANDS"))
+        #expect(result.exitCode == 2)
+        #expect(result.stdout.isEmpty)
+        #expect(result.stderr.contains("\"code\":\"invalid_arguments\""))
+        #expect(result.stderr.contains("Missing command. Expected: skills repo <action> ..."))
     }
 
-    @Test("skills migrate without action prints help")
-    func skillsMigrateWithoutActionPrintsHelp() async {
+    @Test("skills migrate without action returns missing subcommand error")
+    func skillsMigrateWithoutActionReturnsMissingSubcommandError() async {
         let mock = MockCodexCLIService()
         let result = await NolonCLIEntrypoint.execute(
             arguments: ["skills", "migrate"],
             codexService: mock
         )
 
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("USAGE: nolon skills migrate"))
-        #expect(result.stdout.contains("SUBCOMMANDS"))
+        #expect(result.exitCode == 2)
+        #expect(result.stdout.isEmpty)
+        #expect(result.stderr.contains("\"code\":\"invalid_arguments\""))
+        #expect(result.stderr.contains("Missing command. Expected: skills migrate <action> ..."))
     }
 
     @Test("workflow --help prints workflow help")
@@ -289,9 +357,9 @@ struct NolonCodexCLIEntrypointTests {
 
         #expect(result.exitCode == 0)
         #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("USAGE: nolon workflow"))
-        #expect(result.stdout.contains("SUBCOMMANDS"))
-        #expect(result.stdout.contains("discover"))
+        #expect(result.stdout.contains("Usage: nolon workflow"))
+        #expect(result.stdout.contains("Subcommands:"))
+        #expect(result.stdout.contains("list"))
     }
 
     @Test("mcp --help prints mcp help")
@@ -304,9 +372,9 @@ struct NolonCodexCLIEntrypointTests {
 
         #expect(result.exitCode == 0)
         #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("USAGE: nolon mcp"))
-        #expect(result.stdout.contains("SUBCOMMANDS"))
-        #expect(result.stdout.contains("discover"))
+        #expect(result.stdout.contains("Usage: nolon mcp"))
+        #expect(result.stdout.contains("Subcommands:"))
+        #expect(result.stdout.contains("list"))
     }
 
     @Test("remote --help prints remote help")
@@ -319,8 +387,8 @@ struct NolonCodexCLIEntrypointTests {
 
         #expect(result.exitCode == 0)
         #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("USAGE: nolon remote"))
-        #expect(result.stdout.contains("SUBCOMMANDS"))
+        #expect(result.stdout.contains("Usage: nolon remote"))
+        #expect(result.stdout.contains("Actions:"))
         #expect(result.stdout.contains("download"))
         #expect(result.stdout.contains("install"))
     }
@@ -371,6 +439,132 @@ struct NolonCodexCLIEntrypointTests {
         #expect(result.exitCode == 0)
         #expect(result.stderr.isEmpty)
         #expect(result.stdout.contains("\"command\":\"skills.repo.plan\""))
+        #expect(await mock.lastCall() == nil)
+    }
+
+    @Test("skills search positional query is parsed by core runner")
+    func skillsSearchPositionalQueryParsedByCoreRunner() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: [
+                "skills", "search", "xcode",
+                "--limit", "0",
+            ],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 2)
+        #expect(result.stderr.contains("\"code\":\"invalid_arguments\""))
+        #expect(result.stderr.contains("--limit"))
+        #expect(await mock.lastCall() == nil)
+    }
+
+    @Test("skills add routes through core runner parser")
+    func skillsAddRoutesThroughCoreRunnerParser() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: [
+                "skills", "add", "xcode",
+                "--provider", "codex",
+                "--provider-id", "opencode",
+            ],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 2)
+        #expect(result.stderr.contains("\"code\":\"invalid_arguments\""))
+        #expect(result.stderr.contains("--provider"))
+        #expect(await mock.lastCall() == nil)
+    }
+
+    @Test("skills list defaults to text output")
+    func skillsListDefaultsToTextOutput() async throws {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: [
+                "skills", "list",
+                "--provider", "codex",
+            ],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("providers_scanned:"))
+        #expect(result.stdout.contains("skills_total:"))
+        #expect(await mock.lastCall() == nil)
+    }
+
+    @Test("skills list without provider does not fail")
+    func skillsListWithoutProviderDoesNotFail() async throws {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: [
+                "skills", "list",
+            ],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("providers_scanned:"))
+        #expect(result.stdout.contains("skills_total:"))
+        #expect(await mock.lastCall() == nil)
+    }
+
+    @Test("skills list supports json output")
+    func skillsListSupportsJSONOutput() async throws {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: [
+                "skills", "list",
+                "--provider", "codex",
+                "--json",
+            ],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("\"command\":\"skills.list\""))
+        #expect(await mock.lastCall() == nil)
+    }
+
+    @Test("skills list supports state filter")
+    func skillsListSupportsStateFilter() async throws {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: [
+                "skills", "list",
+                "--provider", "codex",
+                "--state", "orphaned",
+            ],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("state_filter: orphaned"))
+        #expect(await mock.lastCall() == nil)
+    }
+
+    @Test("skills remove supports provider selector")
+    func skillsRemoveSupportsProviderSelector() async throws {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: [
+                "skills", "remove",
+                "--skill-id", "react-best-practices",
+                "--provider", "codex",
+                "--json",
+            ],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("\"command\":\"skills.uninstall\""))
+        #expect(result.stdout.contains("\"skill_id\":\"react-best-practices\""))
         #expect(await mock.lastCall() == nil)
     }
 

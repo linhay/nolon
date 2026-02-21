@@ -1,4 +1,19 @@
 import Foundation
+import ProviderCatalog
+
+private enum NolonCoreCLIPathDefaults {
+    static func repositoriesRootPath(environment: [String: String] = ProcessInfo.processInfo.environment) -> String {
+        let basePath: String
+        if let raw = environment["NOLON_HOME"]?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty {
+            basePath = NSString(string: raw).expandingTildeInPath
+        } else {
+            basePath = NSString(string: "~/.nolon").expandingTildeInPath
+        }
+        return URL(fileURLWithPath: basePath, isDirectory: true)
+            .appendingPathComponent("repositories", isDirectory: true)
+            .path
+    }
+}
 
 public enum NolonCoreCLICommand: Sendable, Equatable {
     case skillsRepoPlan(
@@ -14,12 +29,44 @@ public enum NolonCoreCLICommand: Sendable, Equatable {
         credentialStrategy: NolonGitCredentialStrategy,
         accessToken: String?
     )
+    case skillsRepoList(
+        repositoriesRoot: String,
+        maxDepth: Int,
+        verbose: Bool
+    )
+    case skillsList(
+        provider: String?,
+        includeEmpty: Bool,
+        state: NolonProviderSkillStateKind?,
+        verbose: Bool,
+        showFixes: Bool
+    )
     case skillsRepoSync(
         source: String,
         repositoriesRoot: String,
         accessToken: String?,
         pullStrategy: NolonGitPullStrategy,
         credentialStrategy: NolonGitCredentialStrategy
+    )
+    case skillsSearch(
+        query: String?,
+        limit: Int,
+        baseURL: String,
+        install: Bool,
+        provider: String?,
+        installMethod: NolonSkillInstallMethod,
+        pick: Int?,
+        dryRun: Bool,
+        assumeYes: Bool
+    )
+    case skillsAdd(
+        slug: String,
+        provider: String?,
+        version: String?,
+        baseURL: String,
+        installMethod: NolonSkillInstallMethod,
+        repositoriesRoot: String,
+        dryRun: Bool
     )
     case skillsInstall(
         skillPath: String,
@@ -44,6 +91,44 @@ public enum NolonCoreCLICommand: Sendable, Equatable {
     case skillsDiscover(path: String, maxDepth: Int)
     case skillsParse(file: String, directoryName: String?)
     case workflowDiscover(path: String, maxDepth: Int)
+    case workflowList(
+        provider: String?,
+        includeEmpty: Bool,
+        state: NolonProviderSkillStateKind?,
+        verbose: Bool,
+        showFixes: Bool
+    )
+    case workflowSearch(
+        query: String?,
+        limit: Int,
+        baseURL: String,
+        install: Bool,
+        provider: String?,
+        installMethod: NolonSkillInstallMethod,
+        pick: Int?,
+        dryRun: Bool,
+        assumeYes: Bool
+    )
+    case workflowAdd(
+        slug: String,
+        provider: String?,
+        version: String?,
+        baseURL: String,
+        installMethod: NolonSkillInstallMethod,
+        repositoriesRoot: String,
+        dryRun: Bool
+    )
+    case workflowRemove(
+        resourceName: String,
+        targetPath: String
+    )
+    case workflowSync(
+        source: String,
+        repositoriesRoot: String,
+        accessToken: String?,
+        pullStrategy: NolonGitPullStrategy,
+        credentialStrategy: NolonGitCredentialStrategy
+    )
     case workflowInstall(
         filePath: String,
         resourceName: String?,
@@ -55,6 +140,44 @@ public enum NolonCoreCLICommand: Sendable, Equatable {
         targetPath: String
     )
     case mcpDiscover(path: String, maxDepth: Int)
+    case mcpList(
+        provider: String?,
+        includeEmpty: Bool,
+        state: NolonProviderSkillStateKind?,
+        verbose: Bool,
+        showFixes: Bool
+    )
+    case mcpSearch(
+        query: String?,
+        limit: Int,
+        baseURL: String,
+        install: Bool,
+        provider: String?,
+        installMethod: NolonSkillInstallMethod,
+        pick: Int?,
+        dryRun: Bool,
+        assumeYes: Bool
+    )
+    case mcpAdd(
+        slug: String,
+        provider: String?,
+        version: String?,
+        baseURL: String,
+        installMethod: NolonSkillInstallMethod,
+        repositoriesRoot: String,
+        dryRun: Bool
+    )
+    case mcpRemove(
+        resourceName: String,
+        targetPath: String
+    )
+    case mcpSync(
+        source: String,
+        repositoriesRoot: String,
+        accessToken: String?,
+        pullStrategy: NolonGitPullStrategy,
+        credentialStrategy: NolonGitCredentialStrategy
+    )
     case mcpInstall(
         filePath: String,
         resourceName: String?,
@@ -140,7 +263,11 @@ public enum NolonCoreCLICommand: Sendable, Equatable {
         switch self {
         case .skillsRepoPlan: "skills.repo.plan"
         case .skillsRepoPreflight: "skills.repo.preflight"
+        case .skillsRepoList: "skills.repo.list"
+        case .skillsList: "skills.list"
         case .skillsRepoSync: "skills.repo.sync"
+        case .skillsSearch: "skills.search"
+        case .skillsAdd: "skills.add"
         case .skillsInstall: "skills.install"
         case .skillsUninstall: "skills.uninstall"
         case .skillsMigrateScan: "skills.migrate.scan"
@@ -148,9 +275,19 @@ public enum NolonCoreCLICommand: Sendable, Equatable {
         case .skillsDiscover: "skills.discover"
         case .skillsParse: "skills.parse"
         case .workflowDiscover: "workflow.discover"
+        case .workflowList: "workflow.list"
+        case .workflowSearch: "workflow.search"
+        case .workflowAdd: "workflow.add"
+        case .workflowRemove: "workflow.remove"
+        case .workflowSync: "workflow.sync"
         case .workflowInstall: "workflow.install"
         case .workflowUninstall: "workflow.uninstall"
         case .mcpDiscover: "mcp.discover"
+        case .mcpList: "mcp.list"
+        case .mcpSearch: "mcp.search"
+        case .mcpAdd: "mcp.add"
+        case .mcpRemove: "mcp.remove"
+        case .mcpSync: "mcp.sync"
         case .mcpInstall: "mcp.install"
         case .mcpUninstall: "mcp.uninstall"
         case .remoteList: "remote.list"
@@ -208,6 +345,44 @@ public enum NolonCoreCLICommandParser {
 
         let command = arguments[0]
         if command == "skills" {
+            if arguments[1] == "list" {
+                let source = Array(arguments.dropFirst(2))
+                let provider = readOption("--provider", in: source) ?? readOption("--provider-id", in: source)
+                let includeEmpty = source.contains("--include-empty")
+                let state = readOption("--state", in: source).flatMap { NolonProviderSkillStateKind(rawValue: $0) }
+                let verbose = source.contains("--verbose")
+                let showFixes = source.contains("--show-fixes")
+                if readOption("--state", in: source) != nil, state == nil {
+                    throw NolonCoreCLIError.invalidArguments("Invalid --state. Supported: installed|orphaned|broken")
+                }
+                return .skillsList(
+                    provider: provider,
+                    includeEmpty: includeEmpty,
+                    state: state,
+                    verbose: verbose,
+                    showFixes: showFixes
+                )
+            }
+
+            if arguments[1] == "sync" {
+                let options = Array(arguments.dropFirst(2))
+                let source = try readRequiredOption("--source", in: options)
+                let repositoriesRoot = readOption("--repositories-root", in: options)
+                    ?? NolonCoreCLIPathDefaults.repositoriesRootPath()
+                let accessToken = readOption("--access-token", in: options)
+                let pullStrategy = try parsePullStrategy(readOption("--pull-strategy", in: options) ?? "ff-only")
+                let credentialStrategy = try parseCredentialStrategy(
+                    readOption("--credential-strategy", in: options) ?? "automatic"
+                )
+                return .skillsRepoSync(
+                    source: source,
+                    repositoriesRoot: repositoriesRoot,
+                    accessToken: accessToken,
+                    pullStrategy: pullStrategy,
+                    credentialStrategy: credentialStrategy
+                )
+            }
+
             if arguments[1] == "repo" {
                 return try parseSkillsRepo(Array(arguments.dropFirst(2)))
             }
@@ -220,6 +395,119 @@ public enum NolonCoreCLICommandParser {
                 let path = try readRequiredOption("--path", in: source)
                 let maxDepth = Int(readOption("--max-depth", in: source) ?? "5") ?? 5
                 return .skillsDiscover(path: path, maxDepth: maxDepth)
+            }
+
+            if arguments[1] == "search" {
+                let source = Array(arguments.dropFirst(2))
+                let valueOptions: Set<String> = [
+                    "--query", "--limit", "--base-url", "--provider", "--provider-id", "--install-method",
+                ]
+                let positionalQuery = source.enumerated().first { index, token in
+                    guard !token.hasPrefix("-") else { return false }
+                    guard index > 0 else { return true }
+                    return !valueOptions.contains(source[index - 1])
+                }?.element
+                let optionQuery = readOption("--query", in: source)
+                if let positionalQuery, let optionQuery {
+                    throw NolonCoreCLIError.invalidArguments(
+                        """
+                        Conflicting query input: received positional <query> (\(positionalQuery)) and --query (\(optionQuery)).
+                        Use one form only.
+                        Examples:
+                        - nolon skills search \(positionalQuery)
+                        - nolon skills search --query \(optionQuery)
+                        """
+                    )
+                }
+                let query = optionQuery ?? positionalQuery
+                let limit = Int(readOption("--limit", in: source) ?? "20") ?? 20
+                guard limit > 0 else {
+                    throw NolonCoreCLIError.invalidArguments("--limit must be greater than 0; received \(limit). Try --limit 10.")
+                }
+                guard limit <= 200 else {
+                    throw NolonCoreCLIError.invalidArguments("--limit must be less than or equal to 200.")
+                }
+                let baseURL = readOption("--base-url", in: source) ?? "https://clawdhub.com"
+                let install = source.contains("--install")
+                let assumeYes = source.contains("--yes")
+                let provider = readOption("--provider", in: source)
+                let providerID = readOption("--provider-id", in: source)
+                let pick = readOption("--pick", in: source).flatMap { Int($0) }
+                if let provider, let providerID,
+                   provider.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                   != providerID.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+                    throw NolonCoreCLIError.invalidArguments("Use either --provider or --provider-id, not both with different values.")
+                }
+                let installMethod = try parseInstallMethod(readOption("--install-method", in: source) ?? "symlink")
+                let dryRun = source.contains("--dry-run")
+                if !install {
+                    if provider != nil || providerID != nil {
+                        throw NolonCoreCLIError.invalidArguments("--provider requires --install.")
+                    }
+                    if installMethod != .symlink {
+                        throw NolonCoreCLIError.invalidArguments("--install-method requires --install.")
+                    }
+                    if dryRun {
+                        throw NolonCoreCLIError.invalidArguments("--dry-run requires --install.")
+                    }
+                    if assumeYes {
+                        throw NolonCoreCLIError.invalidArguments("--yes requires --install.")
+                    }
+                    if pick != nil {
+                        throw NolonCoreCLIError.invalidArguments("--pick requires --install.")
+                    }
+                } else if !dryRun && !assumeYes {
+                    throw NolonCoreCLIError.invalidArguments(
+                        """
+                        检测到写入操作。请先用 --dry-run 预览，确认后再加 --yes 执行。
+                        示例：
+                        - nolon skills search <keyword> --install --dry-run
+                        - nolon skills search --query <text> --install --dry-run
+                        """
+                    )
+                }
+                if let pick, pick <= 0 {
+                    throw NolonCoreCLIError.invalidArguments("--pick must be greater than 0; received \(pick).")
+                }
+                return .skillsSearch(
+                    query: query,
+                    limit: limit,
+                    baseURL: baseURL,
+                    install: install,
+                    provider: provider ?? providerID,
+                    installMethod: installMethod,
+                    pick: pick,
+                    dryRun: dryRun,
+                    assumeYes: assumeYes
+                )
+            }
+
+            if arguments[1] == "add" {
+                let source = Array(arguments.dropFirst(2))
+                guard let slug = source.first(where: { !$0.hasPrefix("-") }), !slug.isEmpty else {
+                    throw NolonCoreCLIError.invalidArguments("Missing required argument: <slug>")
+                }
+                let provider = readOption("--provider", in: source)
+                let providerID = readOption("--provider-id", in: source)
+                if let provider, let providerID,
+                   provider.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                   != providerID.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+                    throw NolonCoreCLIError.invalidArguments("Use either --provider or --provider-id, not both with different values.")
+                }
+                let version = readOption("--version", in: source)
+                let baseURL = readOption("--base-url", in: source) ?? "https://clawdhub.com"
+                let installMethod = try parseInstallMethod(readOption("--install-method", in: source) ?? "symlink")
+                let repositoriesRoot = readOption("--repositories-root", in: source)
+                    ?? NolonCoreCLIPathDefaults.repositoriesRootPath()
+                return .skillsAdd(
+                    slug: slug,
+                    provider: provider ?? providerID,
+                    version: version,
+                    baseURL: baseURL,
+                    installMethod: installMethod,
+                    repositoriesRoot: repositoriesRoot,
+                    dryRun: source.contains("--dry-run")
+                )
             }
 
             if arguments[1] == "parse" {
@@ -250,6 +538,26 @@ public enum NolonCoreCLICommandParser {
                 return .skillsUninstall(skillID: skillID, providerPath: providerPath)
             }
 
+            if arguments[1] == "remove" {
+                let source = Array(arguments.dropFirst(2))
+                let skillID = try readRequiredOption("--skill-id", in: source)
+                let providerPath: String
+                if let explicitPath = readOption("--provider-path", in: source),
+                   !explicitPath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    providerPath = explicitPath
+                } else {
+                    let provider = readOption("--provider", in: source) ?? readOption("--provider-id", in: source)
+                    guard let provider, !provider.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                        throw NolonCoreCLIError.invalidArguments("Missing required option: --provider-path or --provider/--provider-id")
+                    }
+                    guard let template = resolveProviderTemplate(providerID: provider) else {
+                        throw NolonCoreCLIError.invalidArguments("Unsupported --provider: \(provider)")
+                    }
+                    providerPath = template.defaultSkillsPath.path
+                }
+                return .skillsUninstall(skillID: skillID, providerPath: providerPath)
+            }
+
             throw NolonCoreCLIError.invalidArguments("Unsupported skills subcommand: \(arguments[1])")
         }
 
@@ -270,9 +578,17 @@ public enum NolonCoreCLICommandParser {
 
     private static func parseSkillsRepo(_ arguments: [String]) throws -> NolonCoreCLICommand {
         guard let action = arguments.first else {
-            throw NolonCoreCLIError.invalidArguments("Missing skills repo action: plan|sync")
+            throw NolonCoreCLIError.invalidArguments("Missing skills repo action: plan|preflight|list|sync")
         }
         let options = Array(arguments.dropFirst())
+
+        if action == "list" {
+            let repositoriesRoot = try readRequiredOption("--repositories-root", in: options)
+            let maxDepth = Int(readOption("--max-depth", in: options) ?? "5") ?? 5
+            let verbose = options.contains("--verbose")
+            return .skillsRepoList(repositoriesRoot: repositoriesRoot, maxDepth: maxDepth, verbose: verbose)
+        }
+
         let source = try readRequiredOption("--source", in: options)
 
         if action == "plan" {
@@ -324,6 +640,18 @@ public enum NolonCoreCLICommandParser {
         throw NolonCoreCLIError.invalidArguments("Unsupported skills repo action: \(action)")
     }
 
+    private static func resolveProviderTemplate(providerID: String) -> ProviderTemplate? {
+        let normalized = providerID.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if normalized == "codex-xcode" || normalized == "codexxcode" {
+            return .codexXcode
+        }
+        return ProviderTemplate.allCases.first { template in
+            let raw = template.rawValue.lowercased()
+            let stable = template.providerID.lowercased()
+            return normalized == raw || normalized == stable
+        }
+    }
+
     private static func parseSkillsMigrate(_ arguments: [String]) throws -> NolonCoreCLICommand {
         guard let action = arguments.first else {
             throw NolonCoreCLIError.invalidArguments("Missing skills migrate action: scan|apply")
@@ -351,66 +679,172 @@ public enum NolonCoreCLICommandParser {
 
     private static func parseWorkflow(_ arguments: [String]) throws -> NolonCoreCLICommand {
         guard let action = arguments.first else {
-            throw NolonCoreCLIError.invalidArguments("Missing workflow action: discover|install|uninstall")
+            throw NolonCoreCLIError.invalidArguments("Missing workflow action: list|search|add|remove|sync")
         }
-        if action == "discover" {
-            let options = Array(arguments.dropFirst())
-            let path = try readRequiredOption("--path", in: options)
-            let maxDepth = Int(readOption("--max-depth", in: options) ?? "5") ?? 5
-            return .workflowDiscover(path: path, maxDepth: maxDepth)
-        }
-        if action == "install" {
-            let options = Array(arguments.dropFirst())
-            let filePath = try readRequiredOption("--file-path", in: options)
-            let targetPath = try readRequiredOption("--target-path", in: options)
-            let resourceName = readOption("--resource-name", in: options)
-            let installMethod = try parseInstallMethod(readOption("--install-method", in: options) ?? "symlink")
-            return .workflowInstall(
-                filePath: filePath,
-                resourceName: resourceName,
-                targetPath: targetPath,
-                installMethod: installMethod
+        let options = Array(arguments.dropFirst())
+        if action == "list" {
+            let provider = readOption("--provider", in: options) ?? readOption("--provider-id", in: options)
+            let includeEmpty = readFlag("--include-empty", in: options)
+            let state = try parseStateKind(readOption("--state", in: options))
+            let verbose = readFlag("--verbose", in: options)
+            let showFixes = readFlag("--show-fixes", in: options)
+            return .workflowList(
+                provider: provider,
+                includeEmpty: includeEmpty,
+                state: state,
+                verbose: verbose,
+                showFixes: showFixes
             )
         }
-        if action == "uninstall" {
-            let options = Array(arguments.dropFirst())
-            let resourceName = try readRequiredOption("--resource-name", in: options)
-            let targetPath = try readRequiredOption("--target-path", in: options)
-            return .workflowUninstall(resourceName: resourceName, targetPath: targetPath)
+        if action == "search" {
+            let query = readOption("--query", in: options) ?? arguments.dropFirst(1).first
+            let limit = Int(readOption("--limit", in: options) ?? "20") ?? 20
+            let baseURL = readOption("--base-url", in: options) ?? "https://clawdhub.com"
+            let install = readFlag("--install", in: options)
+            let provider = readOption("--provider", in: options) ?? readOption("--provider-id", in: options)
+            let installMethod = try parseInstallMethod(readOption("--install-method", in: options) ?? "symlink")
+            let pick = readOption("--pick", in: options).flatMap(Int.init)
+            let dryRun = readFlag("--dry-run", in: options)
+            let yes = readFlag("--yes", in: options)
+            return .workflowSearch(
+                query: query,
+                limit: limit,
+                baseURL: baseURL,
+                install: install,
+                provider: provider,
+                installMethod: installMethod,
+                pick: pick,
+                dryRun: dryRun,
+                assumeYes: yes
+            )
         }
-        throw NolonCoreCLIError.invalidArguments("Unsupported workflow action: \(action)")
+        if action == "add" {
+            guard let slug = options.first, !slug.hasPrefix("--") else {
+                throw NolonCoreCLIError.invalidArguments("Missing required argument: <slug>")
+            }
+            let provider = readOption("--provider", in: options) ?? readOption("--provider-id", in: options)
+            let version = readOption("--version", in: options)
+            let baseURL = readOption("--base-url", in: options) ?? "https://clawdhub.com"
+            let installMethod = try parseInstallMethod(readOption("--install-method", in: options) ?? "symlink")
+            let repositoriesRoot = readOption("--repositories-root", in: options) ?? NolonCoreCLIPathDefaults.repositoriesRootPath()
+            let dryRun = readFlag("--dry-run", in: options)
+            return .workflowAdd(
+                slug: slug,
+                provider: provider,
+                version: version,
+                baseURL: baseURL,
+                installMethod: installMethod,
+                repositoriesRoot: repositoriesRoot,
+                dryRun: dryRun
+            )
+        }
+        if action == "remove" {
+            let resourceName = try readRequiredOption("--resource-name", in: options)
+            if let explicit = readOption("--target-path", in: options), !explicit.isEmpty {
+                return .workflowRemove(resourceName: resourceName, targetPath: explicit)
+            }
+            throw NolonCoreCLIError.invalidArguments("Missing required option: --target-path")
+        }
+        if action == "sync" {
+            let source = try readRequiredOption("--source", in: options)
+            let repositoriesRoot = readOption("--repositories-root", in: options) ?? NolonCoreCLIPathDefaults.repositoriesRootPath()
+            let accessToken = readOption("--access-token", in: options)
+            let pullStrategy = try parsePullStrategy(readOption("--pull-strategy", in: options) ?? "ff-only")
+            let credentialStrategy = try parseCredentialStrategy(readOption("--credential-strategy", in: options) ?? "automatic")
+            return .workflowSync(
+                source: source,
+                repositoriesRoot: repositoriesRoot,
+                accessToken: accessToken,
+                pullStrategy: pullStrategy,
+                credentialStrategy: credentialStrategy
+            )
+        }
+        throw NolonCoreCLIError.invalidArguments("Unsupported workflow action: \(action). Expected: list|search|add|remove|sync")
     }
 
     private static func parseMcp(_ arguments: [String]) throws -> NolonCoreCLICommand {
         guard let action = arguments.first else {
-            throw NolonCoreCLIError.invalidArguments("Missing mcp action: discover|install|uninstall")
+            throw NolonCoreCLIError.invalidArguments("Missing mcp action: list|search|add|remove|sync")
         }
-        if action == "discover" {
-            let options = Array(arguments.dropFirst())
-            let path = try readRequiredOption("--path", in: options)
-            let maxDepth = Int(readOption("--max-depth", in: options) ?? "5") ?? 5
-            return .mcpDiscover(path: path, maxDepth: maxDepth)
-        }
-        if action == "install" {
-            let options = Array(arguments.dropFirst())
-            let filePath = try readRequiredOption("--file-path", in: options)
-            let targetPath = try readRequiredOption("--target-path", in: options)
-            let resourceName = readOption("--resource-name", in: options)
-            let installMethod = try parseInstallMethod(readOption("--install-method", in: options) ?? "symlink")
-            return .mcpInstall(
-                filePath: filePath,
-                resourceName: resourceName,
-                targetPath: targetPath,
-                installMethod: installMethod
+        let options = Array(arguments.dropFirst())
+        if action == "list" {
+            let provider = readOption("--provider", in: options) ?? readOption("--provider-id", in: options)
+            let includeEmpty = readFlag("--include-empty", in: options)
+            let state = try parseStateKind(readOption("--state", in: options))
+            let verbose = readFlag("--verbose", in: options)
+            let showFixes = readFlag("--show-fixes", in: options)
+            return .mcpList(
+                provider: provider,
+                includeEmpty: includeEmpty,
+                state: state,
+                verbose: verbose,
+                showFixes: showFixes
             )
         }
-        if action == "uninstall" {
-            let options = Array(arguments.dropFirst())
-            let resourceName = try readRequiredOption("--resource-name", in: options)
-            let targetPath = try readRequiredOption("--target-path", in: options)
-            return .mcpUninstall(resourceName: resourceName, targetPath: targetPath)
+        if action == "search" {
+            let query = readOption("--query", in: options) ?? arguments.dropFirst(1).first
+            let limit = Int(readOption("--limit", in: options) ?? "20") ?? 20
+            let baseURL = readOption("--base-url", in: options) ?? "https://clawdhub.com"
+            let install = readFlag("--install", in: options)
+            let provider = readOption("--provider", in: options) ?? readOption("--provider-id", in: options)
+            let installMethod = try parseInstallMethod(readOption("--install-method", in: options) ?? "symlink")
+            let pick = readOption("--pick", in: options).flatMap(Int.init)
+            let dryRun = readFlag("--dry-run", in: options)
+            let yes = readFlag("--yes", in: options)
+            return .mcpSearch(
+                query: query,
+                limit: limit,
+                baseURL: baseURL,
+                install: install,
+                provider: provider,
+                installMethod: installMethod,
+                pick: pick,
+                dryRun: dryRun,
+                assumeYes: yes
+            )
         }
-        throw NolonCoreCLIError.invalidArguments("Unsupported mcp action: \(action)")
+        if action == "add" {
+            guard let slug = options.first, !slug.hasPrefix("--") else {
+                throw NolonCoreCLIError.invalidArguments("Missing required argument: <slug>")
+            }
+            let provider = readOption("--provider", in: options) ?? readOption("--provider-id", in: options)
+            let version = readOption("--version", in: options)
+            let baseURL = readOption("--base-url", in: options) ?? "https://clawdhub.com"
+            let installMethod = try parseInstallMethod(readOption("--install-method", in: options) ?? "symlink")
+            let repositoriesRoot = readOption("--repositories-root", in: options) ?? NolonCoreCLIPathDefaults.repositoriesRootPath()
+            let dryRun = readFlag("--dry-run", in: options)
+            return .mcpAdd(
+                slug: slug,
+                provider: provider,
+                version: version,
+                baseURL: baseURL,
+                installMethod: installMethod,
+                repositoriesRoot: repositoriesRoot,
+                dryRun: dryRun
+            )
+        }
+        if action == "remove" {
+            let resourceName = try readRequiredOption("--resource-name", in: options)
+            if let explicit = readOption("--target-path", in: options), !explicit.isEmpty {
+                return .mcpRemove(resourceName: resourceName, targetPath: explicit)
+            }
+            throw NolonCoreCLIError.invalidArguments("Missing required option: --target-path")
+        }
+        if action == "sync" {
+            let source = try readRequiredOption("--source", in: options)
+            let repositoriesRoot = readOption("--repositories-root", in: options) ?? NolonCoreCLIPathDefaults.repositoriesRootPath()
+            let accessToken = readOption("--access-token", in: options)
+            let pullStrategy = try parsePullStrategy(readOption("--pull-strategy", in: options) ?? "ff-only")
+            let credentialStrategy = try parseCredentialStrategy(readOption("--credential-strategy", in: options) ?? "automatic")
+            return .mcpSync(
+                source: source,
+                repositoriesRoot: repositoriesRoot,
+                accessToken: accessToken,
+                pullStrategy: pullStrategy,
+                credentialStrategy: credentialStrategy
+            )
+        }
+        throw NolonCoreCLIError.invalidArguments("Unsupported mcp action: \(action). Expected: list|search|add|remove|sync")
     }
 
     private static func parseRemote(_ arguments: [String]) throws -> NolonCoreCLICommand {
@@ -574,6 +1008,18 @@ public enum NolonCoreCLICommandParser {
     private static func readOption(_ key: String, in arguments: [String]) -> String? {
         guard let index = arguments.firstIndex(of: key), arguments.indices.contains(index + 1) else { return nil }
         return arguments[index + 1]
+    }
+
+    private static func readFlag(_ key: String, in arguments: [String]) -> Bool {
+        arguments.contains(key)
+    }
+
+    private static func parseStateKind(_ raw: String?) throws -> NolonProviderSkillStateKind? {
+        guard let raw else { return nil }
+        guard let value = NolonProviderSkillStateKind(rawValue: raw) else {
+            throw NolonCoreCLIError.invalidArguments("Unsupported --state: \(raw)")
+        }
+        return value
     }
 
     private static func parsePullStrategy(_ raw: String) throws -> NolonGitPullStrategy {

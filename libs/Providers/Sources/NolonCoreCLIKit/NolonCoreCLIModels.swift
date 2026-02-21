@@ -318,6 +318,71 @@ public enum NolonProviderSkillStateKind: String, Sendable, Equatable, Codable, C
     case broken
 }
 
+public enum NolonResourceSourceType: String, Sendable, Equatable, Codable, CaseIterable {
+    case local
+    case remote
+    case fromSkill = "from_skill"
+    case fromWorkflow = "from_workflow"
+    case fromMcp = "from_mcp"
+    case unknown
+}
+
+public enum NolonResourceSourceKind: String, Sendable, Equatable, Codable, CaseIterable {
+    case skill
+    case workflow
+    case mcp
+    case repo
+    case url
+    case path
+    case unknown
+}
+
+public struct NolonResourceOrigin: Sendable, Equatable, Codable {
+    public let schemaVersion: Int
+    public let resourceKind: NolonRemoteCatalogKind
+    public let sourceType: NolonResourceSourceType
+    public let sourceKind: NolonResourceSourceKind
+    public let sourceRef: String
+    public let sourceDisplay: String
+    public let createdAt: Date
+    public let updatedAt: Date
+    public let metadata: [String: String]
+
+    enum CodingKeys: String, CodingKey {
+        case schemaVersion = "schema_version"
+        case resourceKind = "resource_kind"
+        case sourceType = "source_type"
+        case sourceKind = "source_kind"
+        case sourceRef = "source_ref"
+        case sourceDisplay = "source_display"
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
+        case metadata
+    }
+
+    public init(
+        schemaVersion: Int = 1,
+        resourceKind: NolonRemoteCatalogKind,
+        sourceType: NolonResourceSourceType,
+        sourceKind: NolonResourceSourceKind,
+        sourceRef: String,
+        sourceDisplay: String,
+        createdAt: Date,
+        updatedAt: Date,
+        metadata: [String: String] = [:]
+    ) {
+        self.schemaVersion = schemaVersion
+        self.resourceKind = resourceKind
+        self.sourceType = sourceType
+        self.sourceKind = sourceKind
+        self.sourceRef = sourceRef
+        self.sourceDisplay = sourceDisplay
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+        self.metadata = metadata
+    }
+}
+
 public struct NolonProviderSkillState: Sendable, Equatable, Codable {
     public let skillID: String
     public let path: String
@@ -569,6 +634,219 @@ public struct NolonRepositoryResources: Sendable, Equatable, Codable {
         self.skillsDirectories = skillsDirectories
         self.workflows = workflows
         self.mcps = mcps
+    }
+}
+
+public struct NolonLocalRepositorySummary: Sendable, Equatable, Codable {
+    public let name: String
+    public let path: String
+    public let skillsDirectoryCount: Int
+    public let workflowCount: Int
+    public let mcpCount: Int
+
+    enum CodingKeys: String, CodingKey {
+        case name
+        case path
+        case skillsDirectoryCount = "skills_directory_count"
+        case workflowCount = "workflow_count"
+        case mcpCount = "mcp_count"
+    }
+
+    public init(
+        name: String,
+        path: String,
+        skillsDirectoryCount: Int,
+        workflowCount: Int,
+        mcpCount: Int
+    ) {
+        self.name = name
+        self.path = path
+        self.skillsDirectoryCount = skillsDirectoryCount
+        self.workflowCount = workflowCount
+        self.mcpCount = mcpCount
+    }
+}
+
+public struct NolonSkillsListItem: Sendable, Equatable, Codable {
+    public let providerID: String
+    public let providerPath: String
+    public let skillID: String
+    public let state: NolonProviderSkillStateKind
+    public let path: String
+    public let origin: NolonResourceOrigin?
+
+    enum CodingKeys: String, CodingKey {
+        case providerID = "provider_id"
+        case providerPath = "provider_path"
+        case skillID = "skill_id"
+        case state
+        case path
+        case origin
+    }
+
+    public init(
+        providerID: String,
+        providerPath: String,
+        skillID: String,
+        state: NolonProviderSkillStateKind,
+        path: String,
+        origin: NolonResourceOrigin? = nil
+    ) {
+        self.providerID = providerID
+        self.providerPath = providerPath
+        self.skillID = skillID
+        self.state = state
+        self.path = path
+        self.origin = origin
+    }
+}
+
+public struct NolonSkillsListSummary: Sendable, Equatable, Codable {
+    public let providerCount: Int
+    public let itemCount: Int
+    public let installedCount: Int
+    public let orphanedCount: Int
+    public let brokenCount: Int
+
+    enum CodingKeys: String, CodingKey {
+        case providerCount = "provider_count"
+        case itemCount = "item_count"
+        case installedCount = "installed_count"
+        case orphanedCount = "orphaned_count"
+        case brokenCount = "broken_count"
+    }
+
+    public init(providerCount: Int, itemCount: Int, installedCount: Int, orphanedCount: Int, brokenCount: Int) {
+        self.providerCount = providerCount
+        self.itemCount = itemCount
+        self.installedCount = installedCount
+        self.orphanedCount = orphanedCount
+        self.brokenCount = brokenCount
+    }
+}
+
+public struct NolonSkillsListResult: Sendable, Equatable, Codable {
+    public let providerFilter: String?
+    public let stateFilter: NolonProviderSkillStateKind?
+    public let includeEmpty: Bool
+    public let items: [NolonSkillsListItem]
+    public let summary: NolonSkillsListSummary
+
+    enum CodingKeys: String, CodingKey {
+        case providerFilter = "provider_filter"
+        case stateFilter = "state_filter"
+        case includeEmpty = "include_empty"
+        case items
+        case summary
+    }
+
+    public init(
+        providerFilter: String?,
+        stateFilter: NolonProviderSkillStateKind?,
+        includeEmpty: Bool,
+        items: [NolonSkillsListItem],
+        summary: NolonSkillsListSummary
+    ) {
+        self.providerFilter = providerFilter
+        self.stateFilter = stateFilter
+        self.includeEmpty = includeEmpty
+        self.items = items
+        self.summary = summary
+    }
+}
+
+public enum NolonSkillsAddSourceKind: String, Sendable, Equatable, Codable {
+    case local
+    case remote
+}
+
+public enum NolonSkillsAddTargetStatus: String, Sendable, Equatable, Codable {
+    case planned
+    case installed
+    case failed
+}
+
+public struct NolonSkillsAddTargetResult: Sendable, Equatable, Codable {
+    public let providerID: String
+    public let providerPath: String
+    public let sourcePath: String
+    public let installedPath: String?
+    public let status: NolonSkillsAddTargetStatus
+    public let errorCode: String?
+    public let errorMessage: String?
+
+    enum CodingKeys: String, CodingKey {
+        case providerID = "provider_id"
+        case providerPath = "provider_path"
+        case sourcePath = "source_path"
+        case installedPath = "installed_path"
+        case status
+        case errorCode = "error_code"
+        case errorMessage = "error_message"
+    }
+
+    public init(
+        providerID: String,
+        providerPath: String,
+        sourcePath: String,
+        installedPath: String?,
+        status: NolonSkillsAddTargetStatus,
+        errorCode: String?,
+        errorMessage: String?
+    ) {
+        self.providerID = providerID
+        self.providerPath = providerPath
+        self.sourcePath = sourcePath
+        self.installedPath = installedPath
+        self.status = status
+        self.errorCode = errorCode
+        self.errorMessage = errorMessage
+    }
+}
+
+public struct NolonSkillsAddResult: Sendable, Equatable, Codable {
+    public let slug: String
+    public let source: NolonSkillsAddSourceKind
+    public let cachedPath: String
+    public let installMethod: NolonSkillInstallMethod
+    public let targets: [NolonSkillsAddTargetResult]
+    public let successCount: Int
+    public let failureCount: Int
+    public let warnings: [String]
+    public let dryRun: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case slug
+        case source
+        case cachedPath = "cached_path"
+        case installMethod = "install_method"
+        case targets
+        case successCount = "success_count"
+        case failureCount = "failure_count"
+        case warnings
+        case dryRun = "dry_run"
+    }
+
+    public init(
+        slug: String,
+        source: NolonSkillsAddSourceKind,
+        cachedPath: String,
+        installMethod: NolonSkillInstallMethod,
+        targets: [NolonSkillsAddTargetResult],
+        successCount: Int,
+        failureCount: Int,
+        warnings: [String],
+        dryRun: Bool
+    ) {
+        self.slug = slug
+        self.source = source
+        self.cachedPath = cachedPath
+        self.installMethod = installMethod
+        self.targets = targets
+        self.successCount = successCount
+        self.failureCount = failureCount
+        self.warnings = warnings
+        self.dryRun = dryRun
     }
 }
 

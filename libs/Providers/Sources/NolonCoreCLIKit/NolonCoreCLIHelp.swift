@@ -23,12 +23,24 @@ enum NolonCoreCLIHelpResolver {
         Usage: nolon skills <subcommand> [options]
 
         Subcommands:
-          repo      plan | preflight | sync
-          discover  --path <path> [--max-depth <n>]
-          parse     --file <path> [--directory-name <name>]
-          install   --skill-path <path> --provider-path <path> [--skill-id <id>] [--install-method symlink|copy]
-          uninstall --skill-id <id> --provider-path <path>
-          migrate   scan | apply
+          list      [--provider <id>|--provider-id <id>] [--state installed|orphaned|broken] [--include-empty] [--verbose] [--show-fixes]
+          sync      --source <git/ref> [--repositories-root <path>] [--access-token <token>]
+          search    [<keyword> | --query <query>] [--limit <n>] [--base-url <url>] [--install [--provider <id>|--provider-id <id>] [--install-method symlink|copy] [--pick <index>] [--dry-run|--yes]]
+          add       <slug> [--provider <id>|--provider-id <id>] [--version <ver>] [--install-method symlink|copy] [--dry-run]
+                    默认先从本地 repositories-root 查找；未命中则回退远程 base-url。
+                    所有来源统一先缓存到 NOLON_HOME/skills/<slug>，再分发到目标 provider。
+                    省略 --provider 时，默认分发到已安装 CLI 的全部 provider。
+                    注意：省略 --provider 可能触发多 provider 批量写入/覆盖；建议先使用 --dry-run 预览范围。
+          remove    --skill-id <id> (--provider-path <path> | --provider <id> | --provider-id <id>)
+
+        场景: 发现技能
+          nolon skills search xcode
+
+        场景: 安装技能
+          nolon skills add xcode --provider codex
+
+        场景: 修复异常
+          nolon skills list --provider codex --state broken
         """
     }
 
@@ -37,31 +49,42 @@ enum NolonCoreCLIHelpResolver {
         Usage: nolon skills repo <action> [options]
 
         Actions:
+          list       [--repositories-root <path>] [--max-depth <n>] [--verbose]
           plan       --source <git/ref> --repositories-root <path>
           preflight  --source <git/ref> [--pull-strategy ff-only|rebase|merge] [--credential-strategy automatic|prefer-ssh|token-only|ssh-only]
-          sync       --source <git/ref> --repositories-root <path> [--access-token <token>]
+          sync       --source <git/ref> [--repositories-root <path>] [--access-token <token>]
         """
     }
 
     private static func workflowHelpText() -> String {
         """
-        Usage: nolon workflow <action> [options]
+        Usage: nolon workflow <subcommand> [options]
 
-        Actions:
-          discover   --path <repo-path> [--max-depth <n>]
-          install    --file-path <path> --target-path <path> [--resource-name <name>] [--install-method symlink|copy]
-          uninstall  --resource-name <name> --target-path <path>
+        Subcommands:
+          list      [--provider <id>|--provider-id <id>] [--state installed|orphaned|broken] [--include-empty] [--verbose] [--show-fixes]
+          sync      --source <git/ref> [--repositories-root <path>] [--access-token <token>]
+          search    [<keyword> | --query <query>] [--limit <n>] [--base-url <url>] [--install [--provider <id>|--provider-id <id>] [--install-method symlink|copy] [--pick <index>] [--dry-run|--yes]]
+          add       <slug> [--provider <id>|--provider-id <id>] [--version <ver>] [--install-method symlink|copy] [--dry-run]
+          remove    --resource-name <name> (--target-path <path> | --provider <id> | --provider-id <id>)
+
+        注意:
+          旧命令 discover/install/uninstall 已移除。请改用 list/search/add/remove/sync。
         """
     }
 
     private static func mcpHelpText() -> String {
         """
-        Usage: nolon mcp <action> [options]
+        Usage: nolon mcp <subcommand> [options]
 
-        Actions:
-          discover   --path <repo-path> [--max-depth <n>]
-          install    --file-path <path> --target-path <path> [--resource-name <name>] [--install-method symlink|copy]
-          uninstall  --resource-name <name> --target-path <path>
+        Subcommands:
+          list      [--provider <id>|--provider-id <id>] [--state installed|orphaned|broken] [--include-empty] [--verbose] [--show-fixes]
+          sync      --source <git/ref> [--repositories-root <path>] [--access-token <token>]
+          search    [<keyword> | --query <query>] [--limit <n>] [--base-url <url>] [--install [--provider <id>|--provider-id <id>] [--install-method symlink|copy] [--pick <index>] [--dry-run|--yes]]
+          add       <slug> [--provider <id>|--provider-id <id>] [--version <ver>] [--install-method symlink|copy] [--dry-run]
+          remove    --resource-name <name> (--target-path <path> | --provider <id> | --provider-id <id>)
+
+        注意:
+          旧命令 discover/install/uninstall 已移除。请改用 list/search/add/remove/sync。
         """
     }
 

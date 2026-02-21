@@ -1476,7 +1476,8 @@ public enum NolonCLIEntrypoint {
         }
 
         if shouldRouteToCoreCLI(arguments: normalizedArguments) {
-            return await NolonCoreCLIRunner().execute(arguments: normalizedArguments)
+            let (outputMode, forwardedArguments) = extractCoreOutputMode(arguments: normalizedArguments)
+            return await NolonCoreCLIRunner().execute(arguments: forwardedArguments, outputMode: outputMode)
         }
 
         let context = NolonCLIExecutionContext(service: codexService)
@@ -1505,6 +1506,12 @@ public enum NolonCLIEntrypoint {
         return root == "skills" || root == "workflow" || root == "mcp" || root == "remote"
     }
 
+    private static func extractCoreOutputMode(arguments: [String]) -> (NolonCoreCLIOutputMode, [String]) {
+        let forwarded = arguments.filter { $0 != "--json" }
+        let mode: NolonCoreCLIOutputMode = forwarded.count == arguments.count ? .text : .json
+        return (mode, forwarded)
+    }
+
     private static func normalizeHelpArguments(_ arguments: [String]) -> [String] {
         guard !arguments.isEmpty else { return [] }
         if arguments[0].lowercased() == "help" {
@@ -1528,7 +1535,7 @@ public enum NolonCLIEntrypoint {
         let root = normalized[0].lowercased()
         let groupsNeedingHelp: [String: Set<String>] = [
             "codex": ["auth", "binary", "status", "runtime", "provider"],
-            "skills": ["repo", "migrate"],
+            "skills": [],
         ]
         let rootCommands = Set(["codex", "provider", "skills", "workflow", "mcp", "remote"])
         if normalized.count == 1, rootCommands.contains(root) {
@@ -1552,6 +1559,9 @@ public enum NolonCLIEntrypoint {
             return nil
         }
         let cleaned = arguments.filter { $0 != "--help" && $0 != "-h" }
+        if let coreHelp = NolonCoreCLIHelpResolver.resolvedHelpText(arguments: cleaned) {
+            return coreHelp
+        }
         guard let target = helpTargetType(for: cleaned) else {
             return nil
         }
@@ -1592,6 +1602,10 @@ public enum NolonCLIEntrypoint {
             guard arguments.count >= 2 else { return NolonSkillsRootCommand.self }
             let action = arguments[1].lowercased()
             switch action {
+            case "list":
+                return NolonSkillsListCommand.self
+            case "sync":
+                return NolonSkillsSyncCommand.self
             case "repo":
                 guard arguments.count >= 3 else { return NolonSkillsRepoGroupCommand.self }
                 return skillsRepoCommandType(action: arguments[2])
@@ -1600,6 +1614,12 @@ public enum NolonCLIEntrypoint {
                 return skillsMigrateCommandType(action: arguments[2])
             case "discover":
                 return NolonSkillsDiscoverCommand.self
+            case "search":
+                return NolonSkillsSearchCommand.self
+            case "add":
+                return NolonSkillsAddCommand.self
+            case "remove":
+                return NolonSkillsRemoveCommand.self
             case "parse":
                 return NolonSkillsParseCommand.self
             case "install":
@@ -1702,6 +1722,8 @@ public enum NolonCLIEntrypoint {
             return NolonSkillsRepoPlanCommand.self
         case "preflight":
             return NolonSkillsRepoPreflightCommand.self
+        case "list":
+            return NolonSkillsRepoListCommand.self
         case "sync":
             return NolonSkillsRepoSyncCommand.self
         default:
@@ -1722,12 +1744,16 @@ public enum NolonCLIEntrypoint {
 
     private static func workflowCommandType(action: String) -> ParsableCommand.Type? {
         switch action.lowercased() {
-        case "discover":
-            return NolonWorkflowDiscoverCommand.self
-        case "install":
-            return NolonWorkflowInstallCommand.self
-        case "uninstall":
-            return NolonWorkflowUninstallCommand.self
+        case "list":
+            return NolonWorkflowListCommand.self
+        case "sync":
+            return NolonWorkflowSyncCommand.self
+        case "search":
+            return NolonWorkflowSearchCommand.self
+        case "add":
+            return NolonWorkflowAddCommand.self
+        case "remove":
+            return NolonWorkflowRemoveCommand.self
         default:
             return NolonWorkflowRootCommand.self
         }
@@ -1735,12 +1761,16 @@ public enum NolonCLIEntrypoint {
 
     private static func mcpCommandType(action: String) -> ParsableCommand.Type? {
         switch action.lowercased() {
-        case "discover":
-            return NolonMcpDiscoverCommand.self
-        case "install":
-            return NolonMcpInstallCommand.self
-        case "uninstall":
-            return NolonMcpUninstallCommand.self
+        case "list":
+            return NolonMcpListCommand.self
+        case "sync":
+            return NolonMcpSyncCommand.self
+        case "search":
+            return NolonMcpSearchCommand.self
+        case "add":
+            return NolonMcpAddCommand.self
+        case "remove":
+            return NolonMcpRemoveCommand.self
         default:
             return NolonMcpRootCommand.self
         }

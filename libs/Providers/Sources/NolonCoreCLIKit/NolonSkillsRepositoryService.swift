@@ -17,6 +17,7 @@ public protocol NolonSkillsRepositoryServing: Sendable {
         credentialStrategy: NolonGitCredentialStrategy
     ) async throws -> NolonGitSyncResult
     func discoverSkillsDirectories(at repositoryPath: STFolder, maxDepth: Int) -> [NolonSkillsDirectoryCandidate]
+    func listLocalRepositories(repositoriesRoot: STFolder, maxDepth: Int) -> [NolonLocalRepositorySummary]
     func discoverRepositoryResources(at repositoryPath: STFolder, maxDepth: Int) -> NolonRepositoryResources
     func parseSkillMetadata(content: String, directoryName: String?) -> NolonSkillStandardMetadata?
     func installSkill(
@@ -60,6 +61,8 @@ public protocol NolonSkillsRepositoryServing: Sendable {
 }
 
 public extension NolonSkillsRepositoryServing {
+    func listLocalRepositories(repositoriesRoot _: STFolder, maxDepth _: Int) -> [NolonLocalRepositorySummary] { [] }
+
     func remoteInstallSkill(
         slug: String,
         version: String?,
@@ -153,6 +156,16 @@ private func validateSinglePathComponent(_ value: String, field: String) throws 
 }
 
 private func resolveNolonSkillsRootFolder(environment: [String: String] = ProcessInfo.processInfo.environment) throws -> STFolder {
+    let nolonHome = try resolveNolonHomeFolder(environment: environment)
+    return nolonHome.folder("skills")
+}
+
+private func resolveNolonRepositoriesRootFolder(environment: [String: String] = ProcessInfo.processInfo.environment) throws -> STFolder {
+    let nolonHome = try resolveNolonHomeFolder(environment: environment)
+    return nolonHome.folder("repositories")
+}
+
+private func resolveNolonHomeFolder(environment: [String: String] = ProcessInfo.processInfo.environment) throws -> STFolder {
     let nolonHome: STFolder
     if let raw = environment["NOLON_HOME"]?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty {
         let expanded = NSString(string: raw).expandingTildeInPath
@@ -160,7 +173,7 @@ private func resolveNolonSkillsRootFolder(environment: [String: String] = Proces
     } else {
         nolonHome = try STFolder(sanbox: .home).folder(".nolon")
     }
-    return nolonHome.folder("skills")
+    return nolonHome
 }
 
 public struct NolonLiveSkillsRepositoryService: NolonSkillsRepositoryServing {
@@ -258,6 +271,58 @@ public struct NolonLiveSkillsRepositoryService: NolonSkillsRepositoryServing {
         SkillsRepositoryFacade.discoverSkillsDirectories(at: repositoryPath.url, maxDepth: maxDepth).map {
             NolonSkillsDirectoryCandidate(path: $0.path, skillCount: $0.skillCount, skillNames: $0.skillNames)
         }
+    }
+
+    public func listLocalRepositories(repositoriesRoot: STFolder, maxDepth: Int) -> [NolonLocalRepositorySummary] {
+        let root = repositoriesRoot.isExists ? repositoriesRoot : (try? resolveNolonRepositoriesRootFolder()) ?? repositoriesRoot
+        guard root.isExists else { return [] }
+
+        let fileManager = FileManager.default
+        var repositoryFolders: [STFolder] = []
+        var seenPaths: Set<String> = []
+
+        let levelOne = (try? root.subFilePaths([.skipsHiddenFiles])) ?? []
+        for levelOnePath in levelOne {
+            var isDirectory: ObjCBool = false
+            guard fileManager.fileExists(atPath: levelOnePath.url.path, isDirectory: &isDirectory), isDirectory.boolValue else {
+                continue
+            }
+
+            let levelOneFolder = STFolder(levelOnePath.url.path)
+            let levelOneKey = levelOneFolder.url.standardizedFileURL.path
+            if levelOneFolder.subpath(".git").isExists, !seenPaths.contains(levelOneKey) {
+                seenPaths.insert(levelOneKey)
+                repositoryFolders.append(levelOneFolder)
+            }
+
+            let levelTwo = (try? levelOneFolder.subFilePaths([.skipsHiddenFiles])) ?? []
+            for levelTwoPath in levelTwo {
+                var isLevelTwoDirectory: ObjCBool = false
+                guard fileManager.fileExists(atPath: levelTwoPath.url.path, isDirectory: &isLevelTwoDirectory),
+                      isLevelTwoDirectory.boolValue else {
+                    continue
+                }
+                let levelTwoFolder = STFolder(levelTwoPath.url.path)
+                let levelTwoKey = levelTwoFolder.url.standardizedFileURL.path
+                if levelTwoFolder.subpath(".git").isExists, !seenPaths.contains(levelTwoKey) {
+                    seenPaths.insert(levelTwoKey)
+                    repositoryFolders.append(levelTwoFolder)
+                }
+            }
+        }
+
+        return repositoryFolders
+            .sorted { $0.url.path.localizedCaseInsensitiveCompare($1.url.path) == .orderedAscending }
+            .map { repository in
+                let resources = discoverRepositoryResources(at: repository, maxDepth: maxDepth)
+                return NolonLocalRepositorySummary(
+                    name: repository.url.lastPathComponent,
+                    path: repository.url.path,
+                    skillsDirectoryCount: resources.skillsDirectories.count,
+                    workflowCount: resources.workflows.count,
+                    mcpCount: resources.mcps.count
+                )
+            }
     }
 
     public func discoverRepositoryResources(at repositoryPath: STFolder, maxDepth: Int) -> NolonRepositoryResources {
