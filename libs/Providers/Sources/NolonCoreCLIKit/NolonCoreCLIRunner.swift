@@ -2345,8 +2345,8 @@ public struct NolonCoreCLIRunner: Sendable {
         lines.append("providers_scanned: \(result.summary.providerCount)")
         lines.append("providers_matched: \(Set(result.items.map(\.providerID)).count)")
         lines.append("\(kind.rawValue)s_total: \(result.summary.itemCount)")
-        lines.append("state(installed/orphaned/broken): \(result.summary.installedCount)/\(result.summary.orphanedCount)/\(result.summary.brokenCount) (\(percent(result.summary.installedCount, total: result.summary.itemCount))/\(percent(result.summary.orphanedCount, total: result.summary.itemCount))/\(percent(result.summary.brokenCount, total: result.summary.itemCount)))")
-        lines.append("异常项(orphaned/broken): \(result.summary.orphanedCount + result.summary.brokenCount)")
+        lines.append("状态(已安装/孤链/损坏): \(result.summary.installedCount)/\(result.summary.orphanedCount)/\(result.summary.brokenCount) (\(percent(result.summary.installedCount, total: result.summary.itemCount))/\(percent(result.summary.orphanedCount, total: result.summary.itemCount))/\(percent(result.summary.brokenCount, total: result.summary.itemCount)))")
+        lines.append("异常项(孤链/损坏): \(result.summary.orphanedCount + result.summary.brokenCount)")
         lines.append("")
 
         let items: [NolonSkillsListItem]
@@ -2356,37 +2356,79 @@ public struct NolonCoreCLIRunner: Sendable {
             items = result.items.filter { $0.state != .installed }
         }
         if items.isEmpty {
-            lines.append("未发现异常 \(kind.rawValue)s（orphaned/broken）。")
+            lines.append("未发现异常 \(kind.rawValue)s（孤链/损坏）。")
             return lines.joined(separator: "\n")
         }
-        let providers = Array(Set(items.filter { $0.state != .installed }.map(\.providerID))).sorted()
+        let problematicItems = items.filter { $0.state != .installed }
+        let installedItems = items.filter { $0.state == .installed }
+        let providers = Array(Set(problematicItems.map(\.providerID))).sorted()
         if !providers.isEmpty {
             lines.append("异常提供方(\(providers.count)): \(providers.joined(separator: ", "))")
         }
-        lines.append(contentsOf: items.map { item in
-            let stateLabel = Self.localizedStateLabel(item.state)
-            if verbose {
-                if let origin = item.origin {
-                    return "- \(item.providerID)/\(item.skillID) [\(stateLabel)] \(item.path) origin=\(origin.sourceType.rawValue):\(origin.sourceRef)"
+
+        if !problematicItems.isEmpty {
+            lines.append("")
+            lines.append("[异常]")
+            lines.append(contentsOf: problematicItems.map { item in
+                let stateLabel = Self.localizedStateLabel(item.state)
+                if verbose {
+                    var line = "- [\(stateLabel)] \(item.providerID)/\(item.skillID)\n  path: \(item.path)"
+                    if let origin = item.origin, origin.sourceType != .unknown {
+                        line += "\n  origin: \(origin.sourceType.rawValue):\(origin.sourceRef)"
+                    }
+                    return line
                 }
-                return "- \(item.providerID)/\(item.skillID) [\(stateLabel)] \(item.path) origin=unknown"
-            }
-            return "- \(item.providerID)/\(item.skillID) [\(stateLabel)]"
-        })
+                return "- \(item.providerID)/\(item.skillID) [\(stateLabel)]"
+            })
+        }
+        if !installedItems.isEmpty {
+            lines.append("")
+            lines.append("[已安装]")
+            lines.append(contentsOf: installedItems.map { item in
+                let stateLabel = Self.localizedStateLabel(item.state)
+                if verbose {
+                    var line = "- [\(stateLabel)] \(item.providerID)/\(item.skillID)\n  path: \(item.path)"
+                    if let origin = item.origin, origin.sourceType != .unknown {
+                        line += "\n  origin: \(origin.sourceType.rawValue):\(origin.sourceRef)"
+                    }
+                    return line
+                }
+                return "- \(item.providerID)/\(item.skillID) [\(stateLabel)]"
+            })
+        }
+
         if !verbose {
             lines.append("")
             lines.append("提示: 使用 `nolon \(kind.rawValue) list --verbose` 查看安装路径与来源。")
         }
-        if showFixes {
-            let problematic = items.filter { $0.state != .installed }
-            if !problematic.isEmpty {
-                let commands = problematic.map { "nolon \(kind.rawValue) remove --resource-name \($0.skillID) --provider \($0.providerID)" }
-                lines.append("")
-                lines.append("修复命令（可复制）:")
-                lines.append("- 清理异常(\(problematic.count)): `\(commands.joined(separator: " && "))`")
+        let fixCommands = Self.buildResourceFixCommands(kind: kind, items: problematicItems)
+        if !fixCommands.simple.isEmpty {
+            lines.append("")
+            lines.append("修复命令（可复制）:")
+            lines.append("- 清理异常(\(problematicItems.count)): `\(fixCommands.simple)`")
+            if !showFixes {
+                lines.append("- 详细模式: `nolon \(kind.rawValue) list --verbose --show-fixes`")
             }
         }
+        if showFixes, !fixCommands.detailed.isEmpty {
+            lines.append("")
+            lines.append("详细修复命令:")
+            lines.append(contentsOf: fixCommands.detailed.enumerated().map { index, command in
+                "\(index + 1). `\(command)`"
+            })
+        }
         return lines.joined(separator: "\n")
+    }
+
+    static func buildResourceFixCommands(
+        kind: NolonResourceKind,
+        items: [NolonSkillsListItem]
+    ) -> (simple: String, detailed: [String]) {
+        let problematic = items.filter { $0.state != .installed }
+        let detailed = problematic.map { item in
+            "nolon \(kind.rawValue) remove --resource-name \(item.skillID) --provider \(item.providerID)"
+        }
+        return (simple: detailed.joined(separator: " && "), detailed: detailed)
     }
 
     private func formatUpdatedDate(_ date: Date, formatter: DateFormatter) -> String {

@@ -2301,6 +2301,32 @@ struct NolonCoreCLIKitTests {
         #expect(items.first?.state == .installed)
     }
 
+    @Test("resource fix command builder renders compact and detailed commands")
+    func resourceFixCommandBuilderRendersCompactAndDetailedCommands() {
+        let items: [NolonSkillsListItem] = [
+            .init(providerID: "codex", providerPath: "/tmp/a", skillID: "a.md", state: .orphaned, path: "/tmp/a/a.md", origin: nil),
+            .init(providerID: "opencode", providerPath: "/tmp/b", skillID: "b.md", state: .broken, path: "/tmp/b/b.md", origin: nil),
+            .init(providerID: "codex", providerPath: "/tmp/c", skillID: "ok.md", state: .installed, path: "/tmp/c/ok.md", origin: nil),
+        ]
+
+        let commands = NolonCoreCLIRunner.buildResourceFixCommands(kind: .workflow, items: items)
+        #expect(commands.simple == "nolon workflow remove --resource-name a.md --provider codex && nolon workflow remove --resource-name b.md --provider opencode")
+        #expect(commands.detailed.count == 2)
+        #expect(commands.detailed[0] == "nolon workflow remove --resource-name a.md --provider codex")
+        #expect(commands.detailed[1] == "nolon workflow remove --resource-name b.md --provider opencode")
+    }
+
+    @Test("resource fix command builder returns empty for installed-only items")
+    func resourceFixCommandBuilderReturnsEmptyForInstalledOnlyItems() {
+        let items: [NolonSkillsListItem] = [
+            .init(providerID: "codex", providerPath: "/tmp", skillID: "ok.md", state: .installed, path: "/tmp/ok.md", origin: nil),
+        ]
+
+        let commands = NolonCoreCLIRunner.buildResourceFixCommands(kind: .mcp, items: items)
+        #expect(commands.simple.isEmpty)
+        #expect(commands.detailed.isEmpty)
+    }
+
     @Test("runner renders mcp remove result")
     func runnerRendersMcpRemoveResult() async {
         let runner = NolonCoreCLIRunner(
