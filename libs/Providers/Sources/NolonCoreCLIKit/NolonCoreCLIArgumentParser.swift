@@ -1,15 +1,43 @@
 import ArgumentParser
 import Foundation
+import ProviderCatalog
 
 extension NolonGitPullStrategy: ExpressibleByArgument {}
 extension NolonGitCredentialStrategy: ExpressibleByArgument {}
 extension NolonSkillInstallMethod: ExpressibleByArgument {}
 extension NolonRemoteCatalogKind: ExpressibleByArgument {}
+extension NolonProviderSkillStateKind: ExpressibleByArgument {}
+
+private enum NolonCoreCLIPathDefaults {
+    static func repositoriesRootPath(environment: [String: String] = ProcessInfo.processInfo.environment) -> String {
+        let basePath: String
+        if let raw = environment["NOLON_HOME"]?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty {
+            basePath = NSString(string: raw).expandingTildeInPath
+        } else {
+            basePath = NSString(string: "~/.nolon").expandingTildeInPath
+        }
+        return URL(fileURLWithPath: basePath, isDirectory: true)
+            .appendingPathComponent("repositories", isDirectory: true)
+            .path
+    }
+}
 
 struct NolonSkillsRootCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "skills",
+        abstract: "Search, add, remove and sync skills.",
+        discussion: """
+        Examples:
+          nolon skills search xcode
+          nolon skills add xcode --provider codex
+          nolon skills list --provider codex --state broken
+        """,
         subcommands: [
+            NolonSkillsListCommand.self,
+            NolonSkillsSyncCommand.self,
+            NolonSkillsSearchCommand.self,
+            NolonSkillsAddCommand.self,
+            NolonSkillsRemoveCommand.self,
             NolonSkillsRepoGroupCommand.self,
             NolonSkillsDiscoverCommand.self,
             NolonSkillsParseCommand.self,
@@ -23,7 +51,10 @@ struct NolonSkillsRootCommand: ParsableCommand {
 struct NolonSkillsRepoGroupCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "repo",
+        abstract: "List, plan, preflight and sync Git-based skill repositories.",
+        shouldDisplay: false,
         subcommands: [
+            NolonSkillsRepoListCommand.self,
             NolonSkillsRepoPlanCommand.self,
             NolonSkillsRepoPreflightCommand.self,
             NolonSkillsRepoSyncCommand.self,
@@ -34,6 +65,8 @@ struct NolonSkillsRepoGroupCommand: ParsableCommand {
 struct NolonSkillsMigrateGroupCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "migrate",
+        abstract: "Scan and apply provider skill migration.",
+        shouldDisplay: false,
         subcommands: [
             NolonSkillsMigrateScanCommand.self,
             NolonSkillsMigrateApplyCommand.self,
@@ -41,8 +74,66 @@ struct NolonSkillsMigrateGroupCommand: ParsableCommand {
     )
 }
 
+struct NolonSkillsListCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "list",
+        abstract: "List installed skills by provider."
+    )
+
+    @Option(name: .long, help: "Target provider ID. Omit only if you intend multi-provider distribution to all detected CLI providers.")
+    var provider: String?
+
+    @Option(name: .long, help: "Alias of --provider. Omit only if you intend multi-provider distribution to all detected CLI providers.")
+    var providerID: String?
+
+    @Flag(name: .long)
+    var includeEmpty: Bool = false
+
+    @Option(name: .long)
+    var state: NolonProviderSkillStateKind?
+
+    @Flag(name: .long, help: "Show full install path for each skill item.")
+    var verbose: Bool = false
+
+    @Flag(name: .long, help: "Show repair commands for orphaned/broken items.")
+    var showFixes: Bool = false
+
+    func validate() throws {
+        if let provider, let providerID {
+            if provider.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() != providerID.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+                throw ValidationError("Use either --provider or --provider-id, not both with different values.")
+            }
+        }
+    }
+}
+
+struct NolonSkillsSyncCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "sync",
+        abstract: "Clone or update repository and discover resources."
+    )
+
+    @Option(name: .long)
+    var source: String
+
+    @Option(name: .long)
+    var repositoriesRoot: String = NolonCoreCLIPathDefaults.repositoriesRootPath()
+
+    @Option(name: .long)
+    var pullStrategy: NolonGitPullStrategy = .ffOnly
+
+    @Option(name: .long)
+    var credentialStrategy: NolonGitCredentialStrategy = .automatic
+
+    @Option(name: .long)
+    var accessToken: String?
+}
+
 struct NolonSkillsRepoPlanCommand: ParsableCommand {
-    static let configuration = CommandConfiguration(commandName: "plan")
+    static let configuration = CommandConfiguration(
+        commandName: "plan",
+        abstract: "Build repository clone/sync plan from source."
+    )
 
     @Option(name: .long)
     var source: String
@@ -58,10 +149,35 @@ struct NolonSkillsRepoPlanCommand: ParsableCommand {
 
     @Option(name: .long)
     var accessToken: String?
+}
+
+struct NolonSkillsRepoListCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "list",
+        abstract: "List local git repositories under repositories root."
+    )
+
+    @Option(name: .long)
+    var repositoriesRoot: String = NolonCoreCLIPathDefaults.repositoriesRootPath()
+
+    @Option(name: .long)
+    var maxDepth: Int = 5
+
+    @Flag(name: .long)
+    var verbose: Bool = false
+
+    func validate() throws {
+        guard maxDepth > 0 else {
+            throw ValidationError("--max-depth must be greater than 0.")
+        }
+    }
 }
 
 struct NolonSkillsRepoPreflightCommand: ParsableCommand {
-    static let configuration = CommandConfiguration(commandName: "preflight")
+    static let configuration = CommandConfiguration(
+        commandName: "preflight",
+        abstract: "Validate sync strategy and credentials before clone/pull."
+    )
 
     @Option(name: .long)
     var source: String
@@ -76,8 +192,111 @@ struct NolonSkillsRepoPreflightCommand: ParsableCommand {
     var accessToken: String?
 }
 
+struct NolonSkillsSearchCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "search",
+        abstract: "Search remote skills in Clawhub catalog.",
+        discussion: """
+        Examples:
+          nolon skills search "swiftui" --install --pick 1 --provider codex --dry-run
+        """
+    )
+
+    @Argument(help: "Search keyword.")
+    var keyword: String?
+
+    @Option(name: .long)
+    var query: String?
+
+    @Option(name: .long)
+    var limit: Int = 20
+
+    @Option(name: .long)
+    var baseURL: String = "https://clawdhub.com"
+
+    @Flag(name: .long, help: "Install matched skill(s); if multiple results, use --pick <index> to choose one.")
+    var install: Bool = false
+
+    @Option(name: .long, help: "Target provider ID. Omit to distribute to all detected CLI providers.")
+    var provider: String?
+
+    @Option(name: .long, help: "Alias of --provider. Omit to distribute to all detected CLI providers.")
+    var providerID: String?
+
+    @Option(name: .long)
+    var installMethod: NolonSkillInstallMethod = .symlink
+
+    @Option(name: .long, help: "Pick one search result by 1-based index when used with --install.")
+    var pick: Int?
+
+    @Flag(name: .long, help: "With --install, resolve and plan install without writing files.")
+    var dryRun: Bool = false
+
+    @Flag(name: .long, help: "Confirm non-dry-run install.")
+    var yes: Bool = false
+
+    func validate() throws {
+        if keyword != nil, query != nil {
+            let positional = keyword?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let optionQuery = query?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            throw ValidationError(
+                """
+                Conflicting query input: received positional <query> (\(positional)) and --query (\(optionQuery)).
+                Use one form only.
+                Examples:
+                - nolon skills search \(positional)
+                - nolon skills search --query \(optionQuery)
+                """
+            )
+        }
+        guard limit > 0 else {
+            throw ValidationError("--limit must be greater than 0; received \(limit). Try --limit 10.")
+        }
+        guard limit <= 200 else {
+            throw ValidationError("--limit must be less than or equal to 200.")
+        }
+        if let provider, let providerID {
+            if provider.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() != providerID.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+                throw ValidationError("Use either --provider or --provider-id, not both with different values.")
+            }
+        }
+        if !install {
+            if provider != nil || providerID != nil {
+                throw ValidationError("--provider requires --install.")
+            }
+            if installMethod != .symlink {
+                throw ValidationError("--install-method requires --install.")
+            }
+            if dryRun {
+                throw ValidationError("--dry-run requires --install.")
+            }
+            if yes {
+                throw ValidationError("--yes requires --install.")
+            }
+            if pick != nil {
+                throw ValidationError("--pick requires --install.")
+            }
+        } else if !dryRun && !yes {
+            throw ValidationError(
+                """
+                检测到写入操作。请先用 --dry-run 预览，确认后再加 --yes 执行。
+                示例：
+                - nolon skills search <keyword> --install --dry-run
+                - nolon skills search --query <text> --install --dry-run
+                """
+            )
+        }
+        if let pick, pick <= 0 {
+            throw ValidationError("--pick must be greater than 0; received \(pick).")
+        }
+    }
+}
+
 struct NolonSkillsRepoSyncCommand: ParsableCommand {
-    static let configuration = CommandConfiguration(commandName: "sync")
+    static let configuration = CommandConfiguration(
+        commandName: "sync",
+        abstract: "Clone or update repository and discover resources."
+    )
 
     @Option(name: .long)
     var source: String
@@ -95,8 +314,59 @@ struct NolonSkillsRepoSyncCommand: ParsableCommand {
     var accessToken: String?
 }
 
+struct NolonSkillsAddCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "add",
+        abstract: "Install skill by slug: local repo first, fallback remote, cache to NOLON_HOME/skills, then distribute.",
+        discussion: """
+        Examples:
+          nolon skills add swift-concurrency-expert --provider codex --dry-run
+        """
+    )
+
+    @Argument(help: "Skill slug.")
+    var slug: String
+
+    @Option(name: .long, help: "Target provider ID. Omit to distribute to all detected CLI providers.")
+    var provider: String?
+
+    @Option(name: .long, help: "Alias of --provider. Omit to distribute to all detected CLI providers.")
+    var providerID: String?
+
+    @Option(name: .long)
+    var version: String?
+
+    @Option(name: .long)
+    var baseURL: String = "https://clawdhub.com"
+
+    @Option(name: .long)
+    var installMethod: NolonSkillInstallMethod = .symlink
+
+    @Option(name: .long)
+    var repositoriesRoot: String = NolonCoreCLIPathDefaults.repositoriesRootPath()
+
+    @Flag(name: .long, help: "Resolve source and targets only; do not write cache or install.")
+    var dryRun: Bool = false
+
+    func validate() throws {
+        let slug = slug.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !slug.isEmpty else {
+            throw ValidationError("<slug> cannot be empty.")
+        }
+        if let provider, let providerID {
+            if provider.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() != providerID.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+                throw ValidationError("Use either --provider or --provider-id, not both with different values.")
+            }
+        }
+    }
+}
+
 struct NolonSkillsDiscoverCommand: ParsableCommand {
-    static let configuration = CommandConfiguration(commandName: "discover")
+    static let configuration = CommandConfiguration(
+        commandName: "discover",
+        abstract: "Discover local skills directories under a path.",
+        shouldDisplay: false
+    )
 
     @Option(name: .long)
     var path: String
@@ -106,7 +376,11 @@ struct NolonSkillsDiscoverCommand: ParsableCommand {
 }
 
 struct NolonSkillsParseCommand: ParsableCommand {
-    static let configuration = CommandConfiguration(commandName: "parse")
+    static let configuration = CommandConfiguration(
+        commandName: "parse",
+        abstract: "Parse SKILL.md metadata.",
+        shouldDisplay: false
+    )
 
     @Option(name: .long)
     var file: String
@@ -116,7 +390,11 @@ struct NolonSkillsParseCommand: ParsableCommand {
 }
 
 struct NolonSkillsInstallCommand: ParsableCommand {
-    static let configuration = CommandConfiguration(commandName: "install")
+    static let configuration = CommandConfiguration(
+        commandName: "install",
+        abstract: "Install one skill into provider path.",
+        shouldDisplay: false
+    )
 
     @Option(name: .long)
     var skillPath: String
@@ -132,7 +410,11 @@ struct NolonSkillsInstallCommand: ParsableCommand {
 }
 
 struct NolonSkillsUninstallCommand: ParsableCommand {
-    static let configuration = CommandConfiguration(commandName: "uninstall")
+    static let configuration = CommandConfiguration(
+        commandName: "uninstall",
+        abstract: "Uninstall one skill from provider path.",
+        shouldDisplay: false
+    )
 
     @Option(name: .long)
     var skillID: String
@@ -142,7 +424,11 @@ struct NolonSkillsUninstallCommand: ParsableCommand {
 }
 
 struct NolonSkillsMigrateScanCommand: ParsableCommand {
-    static let configuration = CommandConfiguration(commandName: "scan")
+    static let configuration = CommandConfiguration(
+        commandName: "scan",
+        abstract: "Scan provider path and report migration states.",
+        shouldDisplay: false
+    )
 
     @Option(name: .long)
     var providerPath: String
@@ -152,7 +438,11 @@ struct NolonSkillsMigrateScanCommand: ParsableCommand {
 }
 
 struct NolonSkillsMigrateApplyCommand: ParsableCommand {
-    static let configuration = CommandConfiguration(commandName: "apply")
+    static let configuration = CommandConfiguration(
+        commandName: "apply",
+        abstract: "Apply migration for one skill id.",
+        shouldDisplay: false
+    )
 
     @Option(name: .long)
     var skillID: String
@@ -171,94 +461,358 @@ struct NolonWorkflowRootCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "workflow",
         subcommands: [
-            NolonWorkflowDiscoverCommand.self,
-            NolonWorkflowInstallCommand.self,
-            NolonWorkflowUninstallCommand.self,
+            NolonWorkflowListCommand.self,
+            NolonWorkflowSyncCommand.self,
+            NolonWorkflowSearchCommand.self,
+            NolonWorkflowAddCommand.self,
+            NolonWorkflowRemoveCommand.self,
+            NolonWorkflowLegacyDiscoverCommand.self,
+            NolonWorkflowLegacyInstallCommand.self,
+            NolonWorkflowLegacyUninstallCommand.self,
         ]
     )
 }
 
-struct NolonWorkflowDiscoverCommand: ParsableCommand {
-    static let configuration = CommandConfiguration(commandName: "discover")
-
-    @Option(name: .long)
-    var path: String
-
-    @Option(name: .long)
-    var maxDepth: Int = 5
+private protocol NolonLegacyCommand: ParsableCommand {
+    static var legacyCommand: String { get }
+    static var replacementHint: String { get }
 }
 
-struct NolonWorkflowInstallCommand: ParsableCommand {
-    static let configuration = CommandConfiguration(commandName: "install")
+extension NolonLegacyCommand {
+    func validate() throws {
+        throw ValidationError(
+            "旧命令 `\(Self.legacyCommand)` 已移除。请改用: \(Self.replacementHint)"
+        )
+    }
+}
+
+struct NolonWorkflowLegacyDiscoverCommand: NolonLegacyCommand {
+    static let configuration = CommandConfiguration(commandName: "discover", shouldDisplay: false)
+    static let legacyCommand = "workflow discover"
+    static let replacementHint = "nolon workflow list"
+}
+
+struct NolonWorkflowLegacyInstallCommand: NolonLegacyCommand {
+    static let configuration = CommandConfiguration(commandName: "install", shouldDisplay: false)
+    static let legacyCommand = "workflow install"
+    static let replacementHint = "nolon workflow add <slug> --provider <id>"
+}
+
+struct NolonWorkflowLegacyUninstallCommand: NolonLegacyCommand {
+    static let configuration = CommandConfiguration(commandName: "uninstall", shouldDisplay: false)
+    static let legacyCommand = "workflow uninstall"
+    static let replacementHint = "nolon workflow remove --resource-name <name> --provider <id>"
+}
+
+struct NolonWorkflowListCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(commandName: "list")
+
+    @Option(name: .long, help: "Target provider ID. Omit to distribute to all detected CLI providers.")
+    var provider: String?
+
+    @Option(name: .long, help: "Alias of --provider.")
+    var providerID: String?
+
+    @Flag(name: .long)
+    var includeEmpty: Bool = false
 
     @Option(name: .long)
-    var filePath: String
+    var state: NolonProviderSkillStateKind?
+
+    @Flag(name: .long)
+    var verbose: Bool = false
+
+    @Flag(name: .long)
+    var showFixes: Bool = false
+
+    func validate() throws {
+        if let provider, let providerID, provider.lowercased() != providerID.lowercased() {
+            throw ValidationError("Use either --provider or --provider-id, not both with different values.")
+        }
+    }
+}
+
+struct NolonWorkflowSyncCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(commandName: "sync")
 
     @Option(name: .long)
-    var targetPath: String
+    var source: String
 
     @Option(name: .long)
-    var resourceName: String?
+    var repositoriesRoot: String = NolonCoreCLIPathDefaults.repositoriesRootPath()
+
+    @Option(name: .long)
+    var pullStrategy: NolonGitPullStrategy = .ffOnly
+
+    @Option(name: .long)
+    var credentialStrategy: NolonGitCredentialStrategy = .automatic
+
+    @Option(name: .long)
+    var accessToken: String?
+}
+
+struct NolonWorkflowSearchCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(commandName: "search")
+
+    @Argument(help: "Search keyword.")
+    var keyword: String?
+
+    @Option(name: .long)
+    var query: String?
+
+    @Option(name: .long)
+    var limit: Int = 20
+
+    @Option(name: .long)
+    var baseURL: String = "https://clawdhub.com"
+
+    @Flag(name: .long)
+    var install: Bool = false
+
+    @Option(name: .long)
+    var provider: String?
+
+    @Option(name: .long)
+    var providerID: String?
 
     @Option(name: .long)
     var installMethod: NolonSkillInstallMethod = .symlink
+
+    @Option(name: .long)
+    var pick: Int?
+
+    @Flag(name: .long)
+    var dryRun: Bool = false
+
+    @Flag(name: .long)
+    var yes: Bool = false
+
+    func validate() throws {
+        if keyword != nil, query != nil {
+            throw ValidationError("Use either positional query or --query.")
+        }
+        if let provider, let providerID, provider.lowercased() != providerID.lowercased() {
+            throw ValidationError("Use either --provider or --provider-id, not both with different values.")
+        }
+        if !install, (pick != nil || dryRun || yes || provider != nil || providerID != nil) {
+            throw ValidationError("--pick/--dry-run/--yes/--provider require --install.")
+        }
+        if install, !dryRun && !yes {
+            throw ValidationError("检测到写入操作。请先用 --dry-run 预览，确认后再加 --yes 执行。")
+        }
+    }
 }
 
-struct NolonWorkflowUninstallCommand: ParsableCommand {
-    static let configuration = CommandConfiguration(commandName: "uninstall")
+struct NolonWorkflowAddCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(commandName: "add")
+
+    @Argument(help: "Workflow slug.")
+    var slug: String
+
+    @Option(name: .long)
+    var provider: String?
+
+    @Option(name: .long)
+    var providerID: String?
+
+    @Option(name: .long)
+    var version: String?
+
+    @Option(name: .long)
+    var baseURL: String = "https://clawdhub.com"
+
+    @Option(name: .long)
+    var installMethod: NolonSkillInstallMethod = .symlink
+
+    @Option(name: .long)
+    var repositoriesRoot: String = NolonCoreCLIPathDefaults.repositoriesRootPath()
+
+    @Flag(name: .long)
+    var dryRun: Bool = false
+}
+
+struct NolonWorkflowRemoveCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(commandName: "remove")
 
     @Option(name: .long)
     var resourceName: String
 
     @Option(name: .long)
-    var targetPath: String
+    var targetPath: String?
+
+    @Option(name: .long)
+    var provider: String?
+
+    @Option(name: .long)
+    var providerID: String?
+
+    func validate() throws {
+        if targetPath == nil, provider == nil, providerID == nil {
+            throw ValidationError("Missing required option: --target-path or --provider/--provider-id")
+        }
+    }
 }
 
 struct NolonMcpRootCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "mcp",
         subcommands: [
-            NolonMcpDiscoverCommand.self,
-            NolonMcpInstallCommand.self,
-            NolonMcpUninstallCommand.self,
+            NolonMcpListCommand.self,
+            NolonMcpSyncCommand.self,
+            NolonMcpSearchCommand.self,
+            NolonMcpAddCommand.self,
+            NolonMcpRemoveCommand.self,
+            NolonMcpLegacyDiscoverCommand.self,
+            NolonMcpLegacyInstallCommand.self,
+            NolonMcpLegacyUninstallCommand.self,
         ]
     )
 }
 
-struct NolonMcpDiscoverCommand: ParsableCommand {
-    static let configuration = CommandConfiguration(commandName: "discover")
-
-    @Option(name: .long)
-    var path: String
-
-    @Option(name: .long)
-    var maxDepth: Int = 5
+struct NolonMcpLegacyDiscoverCommand: NolonLegacyCommand {
+    static let configuration = CommandConfiguration(commandName: "discover", shouldDisplay: false)
+    static let legacyCommand = "mcp discover"
+    static let replacementHint = "nolon mcp list"
 }
 
-struct NolonMcpInstallCommand: ParsableCommand {
-    static let configuration = CommandConfiguration(commandName: "install")
+struct NolonMcpLegacyInstallCommand: NolonLegacyCommand {
+    static let configuration = CommandConfiguration(commandName: "install", shouldDisplay: false)
+    static let legacyCommand = "mcp install"
+    static let replacementHint = "nolon mcp add <slug> --provider <id>"
+}
+
+struct NolonMcpLegacyUninstallCommand: NolonLegacyCommand {
+    static let configuration = CommandConfiguration(commandName: "uninstall", shouldDisplay: false)
+    static let legacyCommand = "mcp uninstall"
+    static let replacementHint = "nolon mcp remove --resource-name <name> --provider <id>"
+}
+
+struct NolonMcpListCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(commandName: "list")
 
     @Option(name: .long)
-    var filePath: String
+    var provider: String?
 
     @Option(name: .long)
-    var targetPath: String
+    var providerID: String?
+
+    @Flag(name: .long)
+    var includeEmpty: Bool = false
 
     @Option(name: .long)
-    var resourceName: String?
+    var state: NolonProviderSkillStateKind?
+
+    @Flag(name: .long)
+    var verbose: Bool = false
+
+    @Flag(name: .long)
+    var showFixes: Bool = false
+
+    func validate() throws {
+        if let provider, let providerID, provider.lowercased() != providerID.lowercased() {
+            throw ValidationError("Use either --provider or --provider-id, not both with different values.")
+        }
+    }
+}
+
+struct NolonMcpSyncCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(commandName: "sync")
+
+    @Option(name: .long)
+    var source: String
+
+    @Option(name: .long)
+    var repositoriesRoot: String = NolonCoreCLIPathDefaults.repositoriesRootPath()
+
+    @Option(name: .long)
+    var pullStrategy: NolonGitPullStrategy = .ffOnly
+
+    @Option(name: .long)
+    var credentialStrategy: NolonGitCredentialStrategy = .automatic
+
+    @Option(name: .long)
+    var accessToken: String?
+}
+
+struct NolonMcpSearchCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(commandName: "search")
+
+    @Argument(help: "Search keyword.")
+    var keyword: String?
+
+    @Option(name: .long)
+    var query: String?
+
+    @Option(name: .long)
+    var limit: Int = 20
+
+    @Option(name: .long)
+    var baseURL: String = "https://clawdhub.com"
+
+    @Flag(name: .long)
+    var install: Bool = false
+
+    @Option(name: .long)
+    var provider: String?
+
+    @Option(name: .long)
+    var providerID: String?
 
     @Option(name: .long)
     var installMethod: NolonSkillInstallMethod = .symlink
+
+    @Option(name: .long)
+    var pick: Int?
+
+    @Flag(name: .long)
+    var dryRun: Bool = false
+
+    @Flag(name: .long)
+    var yes: Bool = false
 }
 
-struct NolonMcpUninstallCommand: ParsableCommand {
-    static let configuration = CommandConfiguration(commandName: "uninstall")
+struct NolonMcpAddCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(commandName: "add")
+
+    @Argument(help: "MCP slug.")
+    var slug: String
+
+    @Option(name: .long)
+    var provider: String?
+
+    @Option(name: .long)
+    var providerID: String?
+
+    @Option(name: .long)
+    var version: String?
+
+    @Option(name: .long)
+    var baseURL: String = "https://clawdhub.com"
+
+    @Option(name: .long)
+    var installMethod: NolonSkillInstallMethod = .symlink
+
+    @Option(name: .long)
+    var repositoriesRoot: String = NolonCoreCLIPathDefaults.repositoriesRootPath()
+
+    @Flag(name: .long)
+    var dryRun: Bool = false
+}
+
+struct NolonMcpRemoveCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(commandName: "remove")
 
     @Option(name: .long)
     var resourceName: String
 
     @Option(name: .long)
-    var targetPath: String
+    var targetPath: String?
+
+    @Option(name: .long)
+    var provider: String?
+
+    @Option(name: .long)
+    var providerID: String?
 }
 
 struct NolonRemoteRootCommand: ParsableCommand {
@@ -469,6 +1023,28 @@ enum NolonCoreCLIArgumentParser {
         }
 
         switch parsed {
+        case let command as NolonSkillsListCommand:
+            return .skillsList(
+                provider: command.provider ?? command.providerID,
+                includeEmpty: command.includeEmpty,
+                state: command.state,
+                verbose: command.verbose,
+                showFixes: command.showFixes
+            )
+        case let command as NolonSkillsSyncCommand:
+            return .skillsRepoSync(
+                source: command.source,
+                repositoriesRoot: command.repositoriesRoot,
+                accessToken: command.accessToken,
+                pullStrategy: command.pullStrategy,
+                credentialStrategy: command.credentialStrategy
+            )
+        case let command as NolonSkillsRepoListCommand:
+            return .skillsRepoList(
+                repositoriesRoot: command.repositoriesRoot,
+                maxDepth: command.maxDepth,
+                verbose: command.verbose
+            )
         case let command as NolonSkillsRepoPlanCommand:
             return .skillsRepoPlan(
                 source: command.source,
@@ -492,6 +1068,28 @@ enum NolonCoreCLIArgumentParser {
                 pullStrategy: command.pullStrategy,
                 credentialStrategy: command.credentialStrategy
             )
+        case let command as NolonSkillsSearchCommand:
+            return .skillsSearch(
+                query: command.query ?? command.keyword,
+                limit: command.limit,
+                baseURL: command.baseURL,
+                install: command.install,
+                provider: command.provider ?? command.providerID,
+                installMethod: command.installMethod,
+                pick: command.pick,
+                dryRun: command.dryRun,
+                assumeYes: command.yes
+            )
+        case let command as NolonSkillsAddCommand:
+            return .skillsAdd(
+                slug: command.slug,
+                provider: command.provider ?? command.providerID,
+                version: command.version,
+                baseURL: command.baseURL,
+                installMethod: command.installMethod,
+                repositoriesRoot: command.repositoriesRoot,
+                dryRun: command.dryRun
+            )
         case let command as NolonSkillsDiscoverCommand:
             return .skillsDiscover(path: command.path, maxDepth: command.maxDepth)
         case let command as NolonSkillsParseCommand:
@@ -505,6 +1103,12 @@ enum NolonCoreCLIArgumentParser {
             )
         case let command as NolonSkillsUninstallCommand:
             return .skillsUninstall(skillID: command.skillID, providerPath: command.providerPath)
+        case let command as NolonSkillsRemoveCommand:
+            let providerPath = try resolveSkillProviderPath(
+                explicitProviderPath: command.providerPath,
+                providerID: command.provider ?? command.providerID
+            )
+            return .skillsUninstall(skillID: command.skillID, providerPath: providerPath)
         case let command as NolonSkillsMigrateScanCommand:
             return .skillsMigrateScan(
                 providerPath: command.providerPath,
@@ -517,28 +1121,96 @@ enum NolonCoreCLIArgumentParser {
                 globalSkillsPath: command.globalSkillsPath,
                 installMethod: command.installMethod
             )
-        case let command as NolonWorkflowDiscoverCommand:
-            return .workflowDiscover(path: command.path, maxDepth: command.maxDepth)
-        case let command as NolonWorkflowInstallCommand:
-            return .workflowInstall(
-                filePath: command.filePath,
-                resourceName: command.resourceName,
-                targetPath: command.targetPath,
-                installMethod: command.installMethod
+        case let command as NolonWorkflowListCommand:
+            return .workflowList(
+                provider: command.provider ?? command.providerID,
+                includeEmpty: command.includeEmpty,
+                state: command.state,
+                verbose: command.verbose,
+                showFixes: command.showFixes
             )
-        case let command as NolonWorkflowUninstallCommand:
-            return .workflowUninstall(resourceName: command.resourceName, targetPath: command.targetPath)
-        case let command as NolonMcpDiscoverCommand:
-            return .mcpDiscover(path: command.path, maxDepth: command.maxDepth)
-        case let command as NolonMcpInstallCommand:
-            return .mcpInstall(
-                filePath: command.filePath,
-                resourceName: command.resourceName,
-                targetPath: command.targetPath,
-                installMethod: command.installMethod
+        case let command as NolonWorkflowSyncCommand:
+            return .workflowSync(
+                source: command.source,
+                repositoriesRoot: command.repositoriesRoot,
+                accessToken: command.accessToken,
+                pullStrategy: command.pullStrategy,
+                credentialStrategy: command.credentialStrategy
             )
-        case let command as NolonMcpUninstallCommand:
-            return .mcpUninstall(resourceName: command.resourceName, targetPath: command.targetPath)
+        case let command as NolonWorkflowSearchCommand:
+            return .workflowSearch(
+                query: command.query ?? command.keyword,
+                limit: command.limit,
+                baseURL: command.baseURL,
+                install: command.install,
+                provider: command.provider ?? command.providerID,
+                installMethod: command.installMethod,
+                pick: command.pick,
+                dryRun: command.dryRun,
+                assumeYes: command.yes
+            )
+        case let command as NolonWorkflowAddCommand:
+            return .workflowAdd(
+                slug: command.slug,
+                provider: command.provider ?? command.providerID,
+                version: command.version,
+                baseURL: command.baseURL,
+                installMethod: command.installMethod,
+                repositoriesRoot: command.repositoriesRoot,
+                dryRun: command.dryRun
+            )
+        case let command as NolonWorkflowRemoveCommand:
+            let targetPath = try resolveResourceTargetPath(
+                kind: .workflow,
+                explicitTargetPath: command.targetPath,
+                providerID: command.provider ?? command.providerID
+            )
+            return .workflowRemove(resourceName: command.resourceName, targetPath: targetPath)
+        case let command as NolonMcpListCommand:
+            return .mcpList(
+                provider: command.provider ?? command.providerID,
+                includeEmpty: command.includeEmpty,
+                state: command.state,
+                verbose: command.verbose,
+                showFixes: command.showFixes
+            )
+        case let command as NolonMcpSyncCommand:
+            return .mcpSync(
+                source: command.source,
+                repositoriesRoot: command.repositoriesRoot,
+                accessToken: command.accessToken,
+                pullStrategy: command.pullStrategy,
+                credentialStrategy: command.credentialStrategy
+            )
+        case let command as NolonMcpSearchCommand:
+            return .mcpSearch(
+                query: command.query ?? command.keyword,
+                limit: command.limit,
+                baseURL: command.baseURL,
+                install: command.install,
+                provider: command.provider ?? command.providerID,
+                installMethod: command.installMethod,
+                pick: command.pick,
+                dryRun: command.dryRun,
+                assumeYes: command.yes
+            )
+        case let command as NolonMcpAddCommand:
+            return .mcpAdd(
+                slug: command.slug,
+                provider: command.provider ?? command.providerID,
+                version: command.version,
+                baseURL: command.baseURL,
+                installMethod: command.installMethod,
+                repositoriesRoot: command.repositoriesRoot,
+                dryRun: command.dryRun
+            )
+        case let command as NolonMcpRemoveCommand:
+            let targetPath = try resolveResourceTargetPath(
+                kind: .mcp,
+                explicitTargetPath: command.targetPath,
+                providerID: command.provider ?? command.providerID
+            )
+            return .mcpRemove(resourceName: command.resourceName, targetPath: targetPath)
         case let command as NolonRemoteListCommand:
             return .remoteList(
                 kind: command.kind,
@@ -624,8 +1296,107 @@ enum NolonCoreCLIArgumentParser {
                     resourceName: command.resourceName
                 )
             }
+        case is NolonSkillsRepoGroupCommand:
+            throw NolonCoreCLIError.invalidArguments("Missing command. Expected: skills repo <action> ...")
+        case is NolonSkillsMigrateGroupCommand:
+            throw NolonCoreCLIError.invalidArguments("Missing command. Expected: skills migrate <action> ...")
         default:
             throw NolonCoreCLIError.invalidArguments("Unsupported parsed command type: \(type(of: parsed))")
+        }
+    }
+}
+
+private func resolveSkillProviderPath(
+    explicitProviderPath: String?,
+    providerID: String?
+) throws -> String {
+    if let explicitProviderPath, !explicitProviderPath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        return explicitProviderPath
+    }
+    guard let providerID, !providerID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+        throw NolonCoreCLIError.invalidArguments("Missing required option: --provider-path or --provider/--provider-id")
+    }
+    guard let template = resolveProviderTemplate(providerID: providerID) else {
+        throw NolonCoreCLIError.invalidArguments("Unsupported --provider: \(providerID)")
+    }
+    return template.defaultSkillsPath.path
+}
+
+private func resolveResourceTargetPath(
+    kind: NolonResourceKind,
+    explicitTargetPath: String?,
+    providerID: String?
+) throws -> String {
+    if let explicitTargetPath, !explicitTargetPath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        return explicitTargetPath
+    }
+    guard let providerID, !providerID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+        throw NolonCoreCLIError.invalidArguments("Missing required option: --target-path or --provider/--provider-id")
+    }
+    guard let template = resolveProviderTemplate(providerID: providerID) else {
+        throw NolonCoreCLIError.invalidArguments("Unsupported --provider: \(providerID)")
+    }
+    switch kind {
+    case .workflow:
+        return template.defaultCommandPath?.path ?? template.defaultWorkflowPath.path
+    case .mcp:
+        return template.defaultMcpConfigPath.deletingLastPathComponent().path
+    }
+}
+
+private func resolveProviderTemplate(providerID: String) -> ProviderTemplate? {
+    let normalized = providerID.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    if normalized == "codex-xcode" || normalized == "codexxcode" {
+        return .codexXcode
+    }
+    return ProviderTemplate.allCases.first { template in
+        let raw = template.rawValue.lowercased()
+        let stable = template.providerID.lowercased()
+        return normalized == raw || normalized == stable
+    }
+}
+struct NolonSkillsRemoveCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "remove",
+        abstract: "Remove one installed skill from provider.",
+        discussion: """
+        注意: 该操作会直接移除 provider 下的技能链接/目录，请先用 `nolon skills list --provider <id>` 确认 skill-id。
+        Examples:
+          nolon skills remove --skill-id xcode --provider codex
+        """
+    )
+
+    @Option(name: .long, help: "Exact skill id (slug).")
+    var skillID: String
+
+    @Option(name: .long, help: "Explicit provider skills path.")
+    var providerPath: String?
+
+    @Option(name: .long, help: "Provider ID (recommended).")
+    var provider: String?
+
+    @Option(name: .long, help: "Alias of --provider.")
+    var providerID: String?
+
+    func validate() throws {
+        if let provider, let providerID,
+           provider.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+           != providerID.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+            throw ValidationError("Use either --provider or --provider-id, not both with different values.")
+        }
+
+        let selectorCount = [providerPath, provider ?? providerID]
+            .compactMap { raw -> String? in
+                guard let raw else { return nil }
+                let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+                return trimmed.isEmpty ? nil : trimmed
+            }
+            .count
+        if selectorCount == 0 {
+            throw ValidationError("Missing required option: --provider-path or --provider/--provider-id")
+        }
+        if selectorCount > 1 {
+            throw ValidationError("Use only one target selector: --provider-path or --provider/--provider-id")
         }
     }
 }

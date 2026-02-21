@@ -152,6 +152,39 @@ struct NolonCoreCLIKitTests {
         #expect(credentialStrategy == .tokenOnly)
     }
 
+    @Test("parse skills sync command defaults repositories root")
+    func parseSkillsSyncDefaultsRepositoriesRoot() throws {
+        let command = try NolonCoreCLIArgumentParser.parse(
+            [
+                "skills", "sync",
+                "--source", "vercel/agent-skills",
+            ]
+        )
+
+        guard case let .skillsRepoSync(source, repositoriesRoot, accessToken, pullStrategy, credentialStrategy) = command else {
+            Issue.record("Expected .skillsRepoSync")
+            return
+        }
+        #expect(source == "vercel/agent-skills")
+        #expect(repositoriesRoot.hasSuffix("/repositories"))
+        #expect(accessToken == nil)
+        #expect(pullStrategy == .ffOnly)
+        #expect(credentialStrategy == .automatic)
+    }
+
+    @Test("parse skills repo without action returns missing subcommand error")
+    func parseSkillsRepoWithoutActionReturnsMissingSubcommandError() {
+        do {
+            _ = try NolonCoreCLIArgumentParser.parse(["skills", "repo"])
+            Issue.record("Expected invalid_arguments")
+        } catch let error as NolonCoreCLIError {
+            #expect(error.code == "invalid_arguments")
+            #expect((error.errorDescription ?? "").contains("Missing command. Expected: skills repo <action> ..."))
+        } catch {
+            Issue.record("Unexpected error: \(error)")
+        }
+    }
+
     @Test("parse skills repo preflight command")
     func parseSkillsRepoPreflight() throws {
         let command = try NolonCoreCLIArgumentParser.parse(
@@ -171,6 +204,406 @@ struct NolonCoreCLIKitTests {
         #expect(pull == .ffOnly)
         #expect(credential == .tokenOnly)
         #expect(accessToken == nil)
+    }
+
+    @Test("parse skills repo list command")
+    func parseSkillsRepoList() throws {
+        let command = try NolonCoreCLIArgumentParser.parse(
+            [
+                "skills", "repo", "list",
+                "--repositories-root", "/tmp/repos",
+                "--max-depth", "7",
+                "--verbose",
+            ]
+        )
+
+        guard case let .skillsRepoList(repositoriesRoot, maxDepth, verbose) = command else {
+            Issue.record("Expected .skillsRepoList")
+            return
+        }
+        #expect(repositoriesRoot == "/tmp/repos")
+        #expect(maxDepth == 7)
+        #expect(verbose == true)
+    }
+
+    @Test("parse skills list command")
+    func parseSkillsList() throws {
+        let command = try NolonCoreCLIArgumentParser.parse(
+            [
+                "skills", "list",
+                "--provider", "codex",
+                "--include-empty",
+            ]
+        )
+
+        guard case let .skillsList(provider, includeEmpty, state, verbose, showFixes) = command else {
+            Issue.record("Expected .skillsList")
+            return
+        }
+        #expect(provider == "codex")
+        #expect(includeEmpty == true)
+        #expect(state == nil)
+        #expect(verbose == false)
+        #expect(showFixes == false)
+    }
+
+    @Test("parse skills list command without options")
+    func parseSkillsListWithoutOptions() throws {
+        let command = try NolonCoreCLIArgumentParser.parse(
+            [
+                "skills", "list",
+            ]
+        )
+
+        guard case let .skillsList(provider, includeEmpty, state, verbose, showFixes) = command else {
+            Issue.record("Expected .skillsList")
+            return
+        }
+        #expect(provider == nil)
+        #expect(includeEmpty == false)
+        #expect(state == nil)
+        #expect(verbose == false)
+        #expect(showFixes == false)
+    }
+
+    @Test("parse skills list command with state filter")
+    func parseSkillsListWithStateFilter() throws {
+        let command = try NolonCoreCLIArgumentParser.parse(
+            [
+                "skills", "list",
+                "--provider", "codex",
+                "--state", "broken",
+            ]
+        )
+
+        guard case let .skillsList(provider, includeEmpty, state, verbose, showFixes) = command else {
+            Issue.record("Expected .skillsList")
+            return
+        }
+        #expect(provider == "codex")
+        #expect(includeEmpty == false)
+        #expect(state == .broken)
+        #expect(verbose == false)
+        #expect(showFixes == false)
+    }
+
+    @Test("parse skills list command with verbose")
+    func parseSkillsListWithVerbose() throws {
+        let command = try NolonCoreCLIArgumentParser.parse(
+            [
+                "skills", "list",
+                "--provider", "codex",
+                "--verbose",
+            ]
+        )
+
+        guard case let .skillsList(provider, includeEmpty, state, verbose, showFixes) = command else {
+            Issue.record("Expected .skillsList")
+            return
+        }
+        #expect(provider == "codex")
+        #expect(includeEmpty == false)
+        #expect(state == nil)
+        #expect(verbose == true)
+        #expect(showFixes == false)
+    }
+
+    @Test("parse skills list command with show fixes")
+    func parseSkillsListWithShowFixes() throws {
+        let command = try NolonCoreCLIArgumentParser.parse(
+            [
+                "skills", "list",
+                "--provider", "codex",
+                "--show-fixes",
+            ]
+        )
+
+        guard case let .skillsList(provider, includeEmpty, state, verbose, showFixes) = command else {
+            Issue.record("Expected .skillsList")
+            return
+        }
+        #expect(provider == "codex")
+        #expect(includeEmpty == false)
+        #expect(state == nil)
+        #expect(verbose == false)
+        #expect(showFixes == true)
+    }
+
+    @Test("parse skills search command")
+    func parseSkillsSearch() throws {
+        let command = try NolonCoreCLIArgumentParser.parse(
+            [
+                "skills", "search",
+                "--query", "agent",
+                "--limit", "9",
+                "--base-url", "https://clawdhub.com",
+            ]
+        )
+
+        guard case let .skillsSearch(query, limit, baseURL, install, provider, installMethod, pick, dryRun, assumeYes) = command else {
+            Issue.record("Expected .skillsSearch")
+            return
+        }
+        #expect(query == "agent")
+        #expect(limit == 9)
+        #expect(baseURL == "https://clawdhub.com")
+        #expect(install == false)
+        #expect(provider == nil)
+        #expect(installMethod == .symlink)
+        #expect(pick == nil)
+        #expect(dryRun == false)
+        #expect(assumeYes == false)
+    }
+
+    @Test("parse skills search positional query command")
+    func parseSkillsSearchPositionalQuery() throws {
+        let command = try NolonCoreCLIArgumentParser.parse(
+            [
+                "skills", "search", "xcode",
+                "--limit", "9",
+            ]
+        )
+
+        guard case let .skillsSearch(query, limit, baseURL, install, provider, installMethod, pick, dryRun, assumeYes) = command else {
+            Issue.record("Expected .skillsSearch")
+            return
+        }
+        #expect(query == "xcode")
+        #expect(limit == 9)
+        #expect(baseURL == "https://clawdhub.com")
+        #expect(install == false)
+        #expect(provider == nil)
+        #expect(installMethod == .symlink)
+        #expect(pick == nil)
+        #expect(dryRun == false)
+        #expect(assumeYes == false)
+    }
+
+    @Test("parse skills search install command")
+    func parseSkillsSearchInstall() throws {
+        let command = try NolonCoreCLIArgumentParser.parse(
+            [
+                "skills", "search", "xcode",
+                "--install",
+                "--provider", "codex",
+                "--install-method", "copy",
+                "--dry-run",
+            ]
+        )
+
+        guard case let .skillsSearch(query, limit, baseURL, install, provider, installMethod, pick, dryRun, assumeYes) = command else {
+            Issue.record("Expected .skillsSearch")
+            return
+        }
+        #expect(query == "xcode")
+        #expect(limit == 20)
+        #expect(baseURL == "https://clawdhub.com")
+        #expect(install == true)
+        #expect(provider == "codex")
+        #expect(installMethod == .copy)
+        #expect(pick == nil)
+        #expect(dryRun == true)
+        #expect(assumeYes == false)
+    }
+
+    @Test("parse skills search install command with yes")
+    func parseSkillsSearchInstallWithYes() throws {
+        let command = try NolonCoreCLIArgumentParser.parse(
+            ["skills", "search", "xcodebuildmcp", "--install", "--yes", "--provider", "codex"]
+        )
+
+        guard case let .skillsSearch(query, _, _, install, _, _, pick, dryRun, assumeYes) = command else {
+            Issue.record("Expected .skillsSearch")
+            return
+        }
+        #expect(query == "xcodebuildmcp")
+        #expect(install == true)
+        #expect(pick == nil)
+        #expect(dryRun == false)
+        #expect(assumeYes == true)
+    }
+
+    @Test("parse skills search install command with pick")
+    func parseSkillsSearchInstallWithPick() throws {
+        let command = try NolonCoreCLIArgumentParser.parse(
+            ["skills", "search", "xco", "--install", "--pick", "2", "--dry-run"]
+        )
+
+        guard case let .skillsSearch(query, _, _, install, _, _, pick, dryRun, assumeYes) = command else {
+            Issue.record("Expected .skillsSearch")
+            return
+        }
+        #expect(query == "xco")
+        #expect(install == true)
+        #expect(pick == 2)
+        #expect(dryRun == true)
+        #expect(assumeYes == false)
+    }
+
+    @Test("parse skills search rejects install options without install")
+    func parseSkillsSearchRejectsInstallOptionsWithoutInstall() {
+        do {
+            _ = try NolonCoreCLIArgumentParser.parse(
+                ["skills", "search", "xcode", "--provider", "codex"]
+            )
+            Issue.record("Expected invalid install options error")
+        } catch let error as NolonCoreCLIError {
+            #expect(error.code == "invalid_arguments")
+            #expect((error.errorDescription ?? "").contains("--provider requires --install"))
+        } catch {
+            Issue.record("Unexpected error: \(error)")
+        }
+    }
+
+    @Test("parse skills search install requires yes or dry-run")
+    func parseSkillsSearchInstallRequiresYesOrDryRun() {
+        do {
+            _ = try NolonCoreCLIArgumentParser.parse(
+                ["skills", "search", "xcodebuildmcp", "--install", "--provider", "codex"]
+            )
+            Issue.record("Expected missing confirmation error")
+        } catch let error as NolonCoreCLIError {
+            #expect(error.code == "invalid_arguments")
+            #expect((error.errorDescription ?? "").contains("--yes"))
+            #expect((error.errorDescription ?? "").contains("--dry-run"))
+            #expect((error.errorDescription ?? "").contains("nolon skills search <keyword> --install --dry-run"))
+            #expect((error.errorDescription ?? "").contains("nolon skills search --query <text> --install --dry-run"))
+        } catch {
+            Issue.record("Unexpected error: \(error)")
+        }
+    }
+
+    @Test("parse skills search rejects duplicate positional and option query")
+    func parseSkillsSearchRejectsDuplicateQueryInputs() {
+        do {
+            _ = try NolonCoreCLIArgumentParser.parse(
+                ["skills", "search", "xcode", "--query", "swift"]
+            )
+            Issue.record("Expected invalid query input error")
+        } catch let error as NolonCoreCLIError {
+            #expect(error.code == "invalid_arguments")
+            let message = error.errorDescription ?? ""
+            #expect(message.contains("xcode"))
+            #expect(message.contains("swift"))
+            #expect(message.contains("nolon skills search xcode"))
+            #expect(message.contains("nolon skills search --query swift"))
+        } catch {
+            Issue.record("Unexpected error: \(error)")
+        }
+    }
+
+    @Test("parse skills add command")
+    func parseSkillsAdd() throws {
+        let command = try NolonCoreCLIArgumentParser.parse(
+            [
+                "skills", "add", "xcode",
+                "--provider", "codex",
+                "--version", "1.0.0",
+                "--install-method", "copy",
+            ]
+        )
+        guard case let .skillsAdd(slug, provider, version, baseURL, installMethod, repositoriesRoot, dryRun) = command else {
+            Issue.record("Expected .skillsAdd")
+            return
+        }
+        #expect(slug == "xcode")
+        #expect(provider == "codex")
+        #expect(version == "1.0.0")
+        #expect(baseURL == "https://clawdhub.com")
+        #expect(installMethod == .copy)
+        #expect(!repositoriesRoot.isEmpty)
+        #expect(dryRun == false)
+    }
+
+    @Test("parse skills add accepts provider-id alias")
+    func parseSkillsAddProviderIDAlias() throws {
+        let command = try NolonCoreCLIArgumentParser.parse(
+            ["skills", "add", "xcode", "--provider-id", "codex"]
+        )
+        guard case let .skillsAdd(_, provider, _, _, _, _, _) = command else {
+            Issue.record("Expected .skillsAdd")
+            return
+        }
+        #expect(provider == "codex")
+    }
+
+    @Test("parse skills add supports dry-run")
+    func parseSkillsAddDryRun() throws {
+        let command = try NolonCoreCLIArgumentParser.parse(
+            ["skills", "add", "xcode", "--dry-run"]
+        )
+        guard case let .skillsAdd(_, _, _, _, _, _, dryRun) = command else {
+            Issue.record("Expected .skillsAdd")
+            return
+        }
+        #expect(dryRun == true)
+    }
+
+    @Test("parse skills add rejects conflicting provider options")
+    func parseSkillsAddRejectsConflictingProviderOptions() {
+        do {
+            _ = try NolonCoreCLIArgumentParser.parse(
+                ["skills", "add", "xcode", "--provider", "codex", "--provider-id", "opencode"]
+            )
+            Issue.record("Expected invalid provider conflict")
+        } catch let error as NolonCoreCLIError {
+            #expect(error.code == "invalid_arguments")
+            #expect((error.errorDescription ?? "").contains("--provider"))
+        } catch {
+            Issue.record("Unexpected error: \(error)")
+        }
+    }
+
+    @Test("parse skills search rejects non-positive limit")
+    func parseSkillsSearchRejectsNonPositiveLimit() {
+        do {
+            _ = try NolonCoreCLIArgumentParser.parse(
+                ["skills", "search", "--limit", "0"]
+            )
+            Issue.record("Expected invalid limit error")
+        } catch let error as NolonCoreCLIError {
+            #expect(error.code == "invalid_arguments")
+            let message = error.errorDescription ?? ""
+            #expect(message.contains("greater than 0"))
+            #expect(message.contains("received 0"))
+            #expect(message.contains("Try --limit 10"))
+        } catch {
+            Issue.record("Unexpected error: \(error)")
+        }
+    }
+
+    @Test("parse skills search rejects too-large limit")
+    func parseSkillsSearchRejectsTooLargeLimit() {
+        do {
+            _ = try NolonCoreCLIArgumentParser.parse(
+                ["skills", "search", "--limit", "201"]
+            )
+            Issue.record("Expected invalid limit error")
+        } catch let error as NolonCoreCLIError {
+            #expect(error.code == "invalid_arguments")
+            #expect((error.errorDescription ?? "").contains("--limit"))
+        } catch {
+            Issue.record("Unexpected error: \(error)")
+        }
+    }
+
+    @Test("parse skills repo list rejects non-positive max depth")
+    func parseSkillsRepoListRejectsNonPositiveMaxDepth() {
+        do {
+            _ = try NolonCoreCLIArgumentParser.parse(
+                [
+                    "skills", "repo", "list",
+                    "--repositories-root", "/tmp/repos",
+                    "--max-depth", "0",
+                ]
+            )
+            Issue.record("Expected invalid max-depth error")
+        } catch let error as NolonCoreCLIError {
+            #expect(error.code == "invalid_arguments")
+            #expect((error.errorDescription ?? "").contains("--max-depth"))
+        } catch {
+            Issue.record("Unexpected error: \(error)")
+        }
     }
 
     @Test("invalid pull strategy is rejected by parser")
@@ -275,6 +708,859 @@ struct NolonCoreCLIKitTests {
         #expect(result.stdout.contains("\"code\":\"access_token_required\""))
     }
 
+    @Test("runner renders skills repo list result")
+    func runnerRendersSkillsRepoListResult() async {
+        let runner = NolonCoreCLIRunner(
+            service: MockSkillsRepositoryService(),
+            fileReader: { _ in "" }
+        )
+        let result = await runner.execute(
+            arguments: [
+                "skills", "repo", "list",
+                "--repositories-root", "/tmp/repos",
+                "--max-depth", "6",
+            ]
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stdout.contains("\"command\":\"skills.repo.list\""))
+        #expect(result.stdout.contains("\"repositories_root\""))
+        #expect(result.stdout.contains("\"skills_directory_count\":1"))
+    }
+
+    @Test("runner renders skills repo list text table")
+    func runnerRendersSkillsRepoListTextTable() async {
+        let runner = NolonCoreCLIRunner(
+            service: MockSkillsRepositoryService(),
+            fileReader: { _ in "" }
+        )
+        let result = await runner.execute(
+            arguments: [
+                "skills", "repo", "list",
+                "--repositories-root", "/tmp/repos",
+                "--verbose",
+            ],
+            outputMode: .text
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stdout.contains("repositories_root: /tmp/repos"))
+        #expect(result.stdout.contains("repo"))
+        #expect(result.stdout.contains("path"))
+        #expect(result.stdout.contains("vercel@agent-skills"))
+    }
+
+    @Test("runner renders skills search result")
+    func runnerRendersSkillsSearchResult() async {
+        let runner = NolonCoreCLIRunner(
+            service: MockSkillsRepositoryService(),
+            fileReader: { _ in "" }
+        )
+        let result = await runner.execute(
+            arguments: [
+                "skills", "search",
+                "--query", "react",
+                "--limit", "10",
+            ]
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stdout.contains("\"command\":\"skills.search\""))
+        #expect(result.stdout.contains("\"kind\":\"skill\""))
+        #expect(result.stdout.contains("\"query\":\"react\""))
+    }
+
+    @Test("runner renders skills search text empty result")
+    func runnerRendersSkillsSearchTextEmptyResult() async {
+        let runner = NolonCoreCLIRunner(
+            service: MockSkillsRepositoryService(),
+            fileReader: { _ in "" }
+        )
+        let result = await runner.execute(
+            arguments: [
+                "skills", "search",
+                "--query", "react",
+                "--limit", "10",
+            ],
+            outputMode: .text
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stdout.contains("base_url:") == false)
+        #expect(result.stdout.contains("query:") == false)
+        #expect(result.stdout.contains("未找到匹配 skill"))
+        #expect(result.stdout.contains("提示:"))
+        #expect(result.stdout.contains("nolon skills sync --source <owner/repo>"))
+    }
+
+    @Test("runner renders skills search text list")
+    func runnerRendersSkillsSearchTextList() async {
+        let runner = NolonCoreCLIRunner(
+            service: RemoteFallbackMockSkillsRepositoryService(),
+            fileReader: { _ in "" }
+        )
+        let result = await runner.execute(
+            arguments: [
+                "skills", "search",
+                "--query", "xcode",
+                "--limit", "10",
+            ],
+            outputMode: .text
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stdout.contains("匹配结果: 1"))
+        #expect(result.stdout.contains("source: remote-api (https://clawdhub.com)"))
+        #expect(result.stdout.contains("提示: 结果来自远端 API 索引；若与网页不一致，通常由筛选、排序或索引延迟导致。"))
+        #expect(result.stdout.contains("字段说明: updated 为远端目录时间（非本地缓存同步时间）。"))
+        #expect(result.stdout.contains("快速安装(单目标示例): nolon skills add xcode --provider codex --dry-run"))
+        #expect(result.stdout.contains("安装模板:"))
+        #expect(result.stdout.contains("指定 provider: nolon skills add <slug> --provider codex --dry-run"))
+        #expect(result.stdout.contains("全部 providers: nolon skills add <slug> --dry-run [可能批量写入]"))
+        #expect(result.stdout.contains("搜索并挑选: nolon skills search xcode --install --pick 1 --provider codex --dry-run"))
+        #expect(result.stdout.contains("[1] xcode"))
+        #expect(result.stdout.contains("version: 1.0.0"))
+        #expect(result.stdout.contains("updated: 1970-01-01"))
+        #expect(result.stdout.contains("summary: Xcode skill"))
+        #expect(result.stdout.contains("updated: 1970-01-01\n\n  summary:") == false)
+        #expect(result.stdout.contains("install: nolon skills add xcode --provider codex --dry-run") == false)
+        #expect(result.stdout.contains("install_all_providers: nolon skills add xcode --dry-run [可能批量写入]") == false)
+        #expect(result.stdout.contains("name:") == false)
+        #expect(result.stdout.contains("slug | name | version | updated") == false)
+        #expect(result.stdout.contains("---") == false)
+        #expect(result.stdout.contains("下一步:") == false)
+        #expect(result.stdout.contains("注意：未指定 `--provider` 将分发到全部 providers（可能批量写入），建议先 `--dry-run`。"))
+        #expect(result.stdout.contains("提示: 序号可用于 `--pick` 安装；也可使用 slug 安装。"))
+    }
+
+    @Test("runner compacts and truncates long summary in skills search text list")
+    func runnerCompactsAndTruncatesLongSummaryInSkillsSearchTextList() async {
+        let runner = NolonCoreCLIRunner(
+            service: LongSummaryRemoteSearchMockSkillsRepositoryService(),
+            fileReader: { _ in "" }
+        )
+        let result = await runner.execute(
+            arguments: [
+                "skills", "search",
+                "--query", "xcode",
+                "--limit", "10",
+            ],
+            outputMode: .text
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stdout.contains("summary: Xcode long summary line one line two"))
+        #expect(result.stdout.contains("...\n\n[") == false)
+        #expect(result.stdout.contains("安装模板:"))
+        #expect(result.stdout.contains("\n\n  summary:") == false)
+    }
+
+    @Test("runner omits summary in skills search text list when result is large")
+    func runnerOmitsSummaryInSkillsSearchTextListWhenResultIsLarge() async {
+        let runner = NolonCoreCLIRunner(
+            service: ManyMatchRemoteSearchMockSkillsRepositoryService(),
+            fileReader: { _ in "" }
+        )
+        let result = await runner.execute(
+            arguments: [
+                "skills", "search",
+                "--query", "gitlab-cli-skills",
+                "--limit", "20",
+            ],
+            outputMode: .text
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stdout.contains("匹配结果: 20 (query: gitlab-cli-skills)"))
+        #expect(result.stdout.contains("提示: 结果较多，已省略 summary；可用 `--limit 5` 缩小范围后查看详情。"))
+        #expect(result.stdout.contains("summary:") == false)
+        #expect(result.stdout.contains("[1] skill-1"))
+        #expect(result.stdout.contains("[2] skill-2"))
+        #expect(result.stdout.contains("[1] skill-1\n  version: 1.0.0\n  updated: 1970-01-01\n\n[2] skill-2"))
+    }
+
+    @Test("runner annotates future updated date in skills search text list")
+    func runnerAnnotatesFutureUpdatedDateInSkillsSearchTextList() async {
+        let runner = NolonCoreCLIRunner(
+            service: FutureDateRemoteSearchMockSkillsRepositoryService(),
+            fileReader: { _ in "" }
+        )
+        let result = await runner.execute(
+            arguments: [
+                "skills", "search",
+                "--query", "xcode",
+                "--limit", "10",
+            ],
+            outputMode: .text
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stdout.contains("updated: 2100-01-"))
+        #expect(result.stdout.contains("(future +"))
+    }
+
+    @Test("runner executes skills search install dry-run for unique match")
+    func runnerExecutesSkillsSearchInstallDryRunForUniqueMatch() async throws {
+        let tempRoot = try STFolder(sanbox: .temporary).folder("nolon-cli-search-install-\(UUID().uuidString)").create()
+        defer { try? tempRoot.delete() }
+
+        let nolonHome = tempRoot.folder("nolon-home")
+        _ = nolonHome.createIfNotExists()
+        setenv("NOLON_HOME", nolonHome.url.path, 1)
+        defer { unsetenv("NOLON_HOME") }
+
+        let runner = NolonCoreCLIRunner(
+            service: RemoteFallbackMockSkillsRepositoryService(),
+            fileReader: { _ in "" }
+        )
+        let result = await runner.execute(
+            arguments: [
+                "skills", "search", "xcode",
+                "--install",
+                "--provider", "codex",
+                "--dry-run",
+            ],
+            outputMode: .text
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stdout.contains("skill: xcode (remote)"))
+        #expect(result.stdout.contains("status: dry-run (no cache writes, no installation)"))
+        #expect(result.stdout.contains("[PLAN] codex"))
+    }
+
+    @Test("runner search install prefers exact slug when multiple matches")
+    func runnerSearchInstallPrefersExactSlugWhenMultipleMatches() async throws {
+        let tempRoot = try STFolder(sanbox: .temporary).folder("nolon-cli-search-install-exact-\(UUID().uuidString)").create()
+        defer { try? tempRoot.delete() }
+
+        let nolonHome = tempRoot.folder("nolon-home")
+        _ = nolonHome.createIfNotExists()
+        setenv("NOLON_HOME", nolonHome.url.path, 1)
+        defer { unsetenv("NOLON_HOME") }
+
+        let runner = NolonCoreCLIRunner(
+            service: MultiMatchRemoteSearchMockSkillsRepositoryService(),
+            fileReader: { _ in "" }
+        )
+        let result = await runner.execute(
+            arguments: [
+                "skills", "search", "xcode",
+                "--install",
+                "--provider", "codex",
+                "--dry-run",
+            ],
+            outputMode: .text
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stdout.contains("skill: xcode (remote)"))
+        #expect(result.stdout.contains("[PLAN] codex"))
+    }
+
+    @Test("runner search install keeps ambiguity error when no exact slug")
+    func runnerSearchInstallKeepsAmbiguityErrorWhenNoExactSlug() async {
+        let runner = NolonCoreCLIRunner(
+            service: MultiMatchRemoteSearchMockSkillsRepositoryService(),
+            fileReader: { _ in "" }
+        )
+        let result = await runner.execute(
+            arguments: [
+                "skills", "search", "xco",
+                "--install",
+                "--provider", "codex",
+                "--dry-run",
+            ],
+            outputMode: .text
+        )
+
+        #expect(result.exitCode == 2)
+        #expect(result.stderr.contains("\"code\":\"invalid_arguments\""))
+        #expect(result.stderr.contains("--install requires exactly one match"))
+        #expect(result.stderr.contains("matches(2): [1] xcode; [2] xcodebuildmcp"))
+        #expect(result.stderr.contains("Next: nolon skills search xcode --install --provider codex --dry-run"))
+    }
+
+    @Test("runner search install supports pick disambiguation")
+    func runnerSearchInstallSupportsPickDisambiguation() async throws {
+        let tempRoot = try STFolder(sanbox: .temporary).folder("nolon-cli-search-install-pick-\(UUID().uuidString)").create()
+        defer { try? tempRoot.delete() }
+
+        let nolonHome = tempRoot.folder("nolon-home")
+        _ = nolonHome.createIfNotExists()
+        setenv("NOLON_HOME", nolonHome.url.path, 1)
+        defer { unsetenv("NOLON_HOME") }
+
+        let runner = NolonCoreCLIRunner(
+            service: MultiMatchRemoteSearchMockSkillsRepositoryService(),
+            fileReader: { _ in "" }
+        )
+        let result = await runner.execute(
+            arguments: [
+                "skills", "search", "xco",
+                "--install",
+                "--pick", "2",
+                "--provider", "codex",
+                "--dry-run",
+            ],
+            outputMode: .text
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stdout.contains("skill: xcodebuildmcp (remote)"))
+        #expect(result.stdout.contains("[PLAN] codex"))
+    }
+
+    @Test("runner search install not-found returns actionable hint")
+    func runnerSearchInstallNotFoundReturnsActionableHint() async {
+        let runner = NolonCoreCLIRunner(
+            service: EmptySkillLookupMockSkillsRepositoryService(),
+            fileReader: { _ in "" }
+        )
+        let result = await runner.execute(
+            arguments: [
+                "skills", "search", "nomatchkeyword123",
+                "--install",
+                "--dry-run",
+            ],
+            outputMode: .text
+        )
+
+        #expect(result.exitCode == 2)
+        #expect(result.stderr.contains("\"code\":\"skill_not_found\""))
+        #expect(result.stderr.contains("Skill not found by query: nomatchkeyword123"))
+        #expect(result.stderr.contains("nolon skills sync --source"))
+        #expect(result.stderr.contains("nolon skills search nomatchkeyword123"))
+    }
+
+    @Test("runner maps remote 429 to actionable rate limit error")
+    func runnerMapsRemote429ToActionableRateLimitError() async {
+        let runner = NolonCoreCLIRunner(
+            service: RateLimitedRemoteSearchMockSkillsRepositoryService(),
+            fileReader: { _ in "" }
+        )
+        let result = await runner.execute(
+            arguments: [
+                "skills", "search", "xcode",
+            ],
+            outputMode: .text
+        )
+
+        #expect(result.exitCode == 2)
+        #expect(result.stderr.contains("Error [rate_limited]"))
+        #expect(result.stderr.contains("远端请求被限流（429）"))
+        #expect(result.stderr.contains("请等待 30 秒后重试"))
+        #expect(result.stderr.contains("nolon skills sync --source <owner/repo>"))
+        #expect(result.stderr.contains("nolon skills add <slug> --dry-run"))
+    }
+
+    @Test("runner maps permission denied to actionable error")
+    func runnerMapsPermissionDeniedToActionableError() async {
+        let runner = NolonCoreCLIRunner(
+            service: PermissionDeniedRemoteSearchMockSkillsRepositoryService(),
+            fileReader: { _ in "" }
+        )
+        let result = await runner.execute(
+            arguments: [
+                "skills", "search", "xcode",
+            ],
+            outputMode: .text
+        )
+
+        #expect(result.exitCode == 2)
+        #expect(result.stderr.contains("Error [permission_denied]"))
+        #expect(result.stderr.contains("权限不足（Operation not permitted）"))
+        #expect(result.stderr.contains("建议: NOLON_HOME=/tmp/nolon-home"))
+        #expect(result.stderr.contains("建议: 使用 `nolon skills list`"))
+    }
+
+    @Test("runner keeps json envelope for permission denied in json mode")
+    func runnerKeepsJSONEnvelopeForPermissionDeniedInJSONMode() async {
+        let runner = NolonCoreCLIRunner(
+            service: PermissionDeniedRemoteSearchMockSkillsRepositoryService(),
+            fileReader: { _ in "" }
+        )
+        let result = await runner.execute(
+            arguments: [
+                "skills", "search", "xcode",
+            ],
+            outputMode: .json
+        )
+
+        #expect(result.exitCode == 2)
+        #expect(result.stderr.contains("\"code\":\"permission_denied\""))
+        #expect(result.stderr.contains("\"ok\":false"))
+    }
+
+    @Test("runner search install requires non-empty query with actionable hint")
+    func runnerSearchInstallRequiresNonEmptyQueryWithActionableHint() async {
+        let runner = NolonCoreCLIRunner(
+            service: EmptySkillLookupMockSkillsRepositoryService(),
+            fileReader: { _ in "" }
+        )
+        let result = await runner.execute(
+            arguments: [
+                "skills", "search",
+                "--install",
+                "--dry-run",
+            ],
+            outputMode: .text
+        )
+
+        #expect(result.exitCode == 2)
+        #expect(result.stderr.contains("\"code\":\"invalid_arguments\""))
+        #expect(result.stderr.contains("--install requires a non-empty query"))
+        #expect(result.stderr.contains("nolon skills search <keyword> --install --dry-run"))
+        #expect(result.stderr.contains("nolon skills search --query <text> --install --dry-run"))
+    }
+
+    @Test("runner renders skills list text as compact list")
+    func runnerRendersSkillsListTextAsCompactList() async {
+        let runner = NolonCoreCLIRunner(
+            service: MockSkillsRepositoryService(),
+            fileReader: { _ in "" }
+        )
+        let result = await runner.execute(
+            arguments: [
+                "skills", "list",
+                "--provider", "codex",
+            ],
+            outputMode: .text
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stdout.contains("providers_scanned: 1"))
+        #expect(result.stdout.contains("providers_matched: 1"))
+        #expect(result.stdout.contains("health(installed/total): 0/1 (0.0%)"))
+        #expect(result.stdout.contains("state(installed/orphaned/broken): 0/1/0 (0.0%/100.0%/0.0%)"))
+        #expect(result.stdout.contains("- codex/react-best-practices [orphaned]"))
+        #expect(result.stdout.contains("异常提供方(1): codex"))
+        #expect(result.stdout.contains("修复建议（可复制）:"))
+        #expect(result.stdout.contains("查看孤链详情"))
+        #expect(result.stdout.contains("/Users/") == false)
+        #expect(result.stdout.contains("nolon skills list --verbose"))
+        #expect(result.stdout.contains("provider | skill | state | path") == false)
+        #expect(result.stdout.contains("异常项(orphaned/broken): 1"))
+        #expect(result.stdout.contains("nolon skills list --state orphaned"))
+        #expect(result.stdout.contains("快速筛坏链") == false)
+        #expect(result.stdout.contains("快速筛孤链") == false)
+        #expect(result.stdout.contains("修复建议:") == false)
+        #expect(result.stdout.contains("一键修复(all):") == false)
+        #expect(result.stdout.contains("nolon skills list --show-fixes"))
+    }
+
+    @Test("runner hides installed items in default list mode")
+    func runnerHidesInstalledItemsInDefaultListMode() async {
+        let runner = NolonCoreCLIRunner(
+            service: InstalledAndBrokenSkillsRepositoryService(),
+            fileReader: { _ in "" }
+        )
+        let result = await runner.execute(
+            arguments: [
+                "skills", "list",
+                "--provider", "codex",
+            ],
+            outputMode: .text
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stdout.contains("- codex/xcode [installed]") == false)
+        #expect(result.stdout.contains("- codex/find-skills [broken]"))
+        #expect(result.stdout.contains("修复建议（可复制）:"))
+        #expect(result.stdout.contains("查看坏链详情"))
+        #expect(result.stdout.contains("nolon skills list --state broken"))
+        #expect(result.stdout.contains("nolon skills list --state orphaned") == false)
+        #expect(result.stdout.contains("快速筛坏链") == false)
+    }
+
+    @Test("runner renders skills list verbose with path")
+    func runnerRendersSkillsListVerboseWithPath() async {
+        let runner = NolonCoreCLIRunner(
+            service: MockSkillsRepositoryService(),
+            fileReader: { _ in "" }
+        )
+        let result = await runner.execute(
+            arguments: [
+                "skills", "list",
+                "--provider", "codex",
+                "--verbose",
+            ],
+            outputMode: .text
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stdout.contains("- codex/react-best-practices [orphaned]"))
+        #expect(result.stdout.contains("/Users/linhey/.codex/skills/react-best-practices"))
+    }
+
+    @Test("runner renders skills list with state filter")
+    func runnerRendersSkillsListWithStateFilter() async {
+        let runner = NolonCoreCLIRunner(
+            service: MockSkillsRepositoryService(),
+            fileReader: { _ in "" }
+        )
+        let result = await runner.execute(
+            arguments: [
+                "skills", "list",
+                "--provider", "codex",
+                "--state", "orphaned",
+            ],
+            outputMode: .text
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stdout.contains("state_filter: orphaned"))
+        #expect(result.stdout.contains("- codex/react-best-practices [orphaned]"))
+        #expect(result.stdout.contains("异常提供方(1): codex"))
+        #expect(result.stdout.contains("修复建议（可复制）:"))
+        #expect(result.stdout.contains("查看孤链详情"))
+        #expect(result.stdout.contains("修复建议:") == false)
+        #expect(result.stdout.contains("nolon skills list --show-fixes"))
+    }
+
+    @Test("runner renders skills list with show fixes")
+    func runnerRendersSkillsListWithShowFixes() async {
+        let runner = NolonCoreCLIRunner(
+            service: MockSkillsRepositoryService(),
+            fileReader: { _ in "" }
+        )
+        let result = await runner.execute(
+            arguments: [
+                "skills", "list",
+                "--provider", "codex",
+                "--show-fixes",
+            ],
+            outputMode: .text
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stdout.contains("修复命令（可复制）:"))
+        #expect(result.stdout.contains("- 清理 orphaned(1):"))
+        #expect(result.stdout.contains("- 执行命令:"))
+        #expect(result.stdout.contains("明细查看:"))
+        #expect(result.stdout.contains("修复建议（可复制）:") == false)
+        #expect(result.stdout.contains("\norphaned(1):") == false)
+        #expect(result.stdout.contains("一键清理(orphaned):") == false)
+        #expect(result.stdout.contains("一键修复(all):") == false)
+        #expect(result.stdout.contains("修复全部(all):") == false)
+    }
+
+    @Test("runner renders skills list with show fixes in two-step mode when orphaned and broken coexist")
+    func runnerRendersSkillsListWithShowFixesInTwoStepMode() async {
+        let runner = NolonCoreCLIRunner(
+            service: OrphanedAndBrokenSkillsRepositoryService(),
+            fileReader: { _ in "" }
+        )
+        let result = await runner.execute(
+            arguments: [
+                "skills", "list",
+                "--provider", "codex",
+                "--show-fixes",
+            ],
+            outputMode: .text
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stdout.contains("- 清理 orphaned(1):"))
+        #expect(result.stdout.contains("- 修复 broken(1):"))
+        #expect(result.stdout.contains("- 执行顺序: 先执行「清理 orphaned」，再执行「修复 broken」。"))
+        #expect(result.stdout.contains("- 执行命令:") == false)
+        #expect(result.stdout.contains("修复全部(all):") == false)
+    }
+
+    @Test("runner renders contextual empty message for filtered skills list")
+    func runnerRendersContextualEmptyMessageForFilteredSkillsList() async {
+        let runner = NolonCoreCLIRunner(
+            service: MockSkillsRepositoryService(),
+            fileReader: { _ in "" }
+        )
+        let result = await runner.execute(
+            arguments: [
+                "skills", "list",
+                "--provider", "codex",
+                "--state", "broken",
+            ],
+            outputMode: .text
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stdout.contains("provider_filter: codex"))
+        #expect(result.stdout.contains("state_filter: broken"))
+        #expect(result.stdout.contains("在 provider=codex 且 state=broken 下，未发现匹配 skills。"))
+    }
+
+    @Test("runner renders skills add local-first success")
+    func runnerRendersSkillsAddLocalFirstSuccess() async throws {
+        let tempRoot = try STFolder(sanbox: .temporary).folder("nolon-cli-add-\(UUID().uuidString)").create()
+        defer { try? tempRoot.delete() }
+
+        let repoPath = tempRoot.folder("repos/repo-a")
+        _ = repoPath.createIfNotExists()
+        _ = repoPath.folder(".git").createIfNotExists()
+        let localSkillPath = repoPath.folder("skills/xcode")
+        _ = localSkillPath.createIfNotExists()
+        try """
+        ---
+        name: xcode
+        description: xcode
+        ---
+        """.write(to: localSkillPath.file("SKILL.md").url, atomically: true, encoding: .utf8)
+
+        let nolonHome = tempRoot.folder("nolon-home")
+        _ = nolonHome.createIfNotExists()
+        setenv("NOLON_HOME", nolonHome.url.path, 1)
+        defer { unsetenv("NOLON_HOME") }
+
+        let service = MockSkillsRepositoryService(
+            repositoryResources: NolonRepositoryResources(
+                skillsDirectories: [NolonSkillsDirectoryCandidate(path: "skills", skillCount: 1, skillNames: ["xcode"])],
+                workflows: [],
+                mcps: []
+            ),
+            localRepositories: [
+                NolonLocalRepositorySummary(
+                    name: "repo-a",
+                    path: repoPath.url.path,
+                    skillsDirectoryCount: 1,
+                    workflowCount: 0,
+                    mcpCount: 0
+                ),
+            ]
+        )
+        let runner = NolonCoreCLIRunner(service: service, fileReader: { _ in "" })
+        let result = await runner.execute(
+            arguments: [
+                "skills", "add", "xcode",
+                "--provider", "codex",
+                "--repositories-root", tempRoot.folder("repos").url.path,
+            ],
+            outputMode: .json
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("\"command\":\"skills.add\""))
+        #expect(result.stdout.contains("\"source\":\"local\""))
+        #expect(result.stdout.contains("\"success_count\":1"))
+    }
+
+    @Test("runner renders skills add concise text output")
+    func runnerRendersSkillsAddConciseTextOutput() async throws {
+        let tempRoot = try STFolder(sanbox: .temporary).folder("nolon-cli-add-text-\(UUID().uuidString)").create()
+        defer { try? tempRoot.delete() }
+
+        let repoPath = tempRoot.folder("repos/repo-a")
+        _ = repoPath.createIfNotExists()
+        _ = repoPath.folder(".git").createIfNotExists()
+        let localSkillPath = repoPath.folder("skills/xcode")
+        _ = localSkillPath.createIfNotExists()
+        try """
+        ---
+        name: xcode
+        description: xcode
+        ---
+        """.write(to: localSkillPath.file("SKILL.md").url, atomically: true, encoding: .utf8)
+
+        let nolonHome = tempRoot.folder("nolon-home")
+        _ = nolonHome.createIfNotExists()
+        setenv("NOLON_HOME", nolonHome.url.path, 1)
+        defer { unsetenv("NOLON_HOME") }
+
+        let service = MockSkillsRepositoryService(
+            repositoryResources: NolonRepositoryResources(
+                skillsDirectories: [NolonSkillsDirectoryCandidate(path: "skills", skillCount: 1, skillNames: ["xcode"])],
+                workflows: [],
+                mcps: []
+            ),
+            localRepositories: [
+                NolonLocalRepositorySummary(
+                    name: "repo-a",
+                    path: repoPath.url.path,
+                    skillsDirectoryCount: 1,
+                    workflowCount: 0,
+                    mcpCount: 0
+                ),
+            ]
+        )
+        let runner = NolonCoreCLIRunner(service: service, fileReader: { _ in "" })
+        let result = await runner.execute(
+            arguments: [
+                "skills", "add", "xcode",
+                "--provider", "codex",
+                "--repositories-root", tempRoot.folder("repos").url.path,
+            ],
+            outputMode: .text
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("skill: xcode (local)"))
+        #expect(result.stdout.contains("result: installed=1, failed=0"))
+        #expect(result.stdout.contains("targets:"))
+        #expect(result.stdout.contains("[OK] codex ->"))
+    }
+
+    @Test("runner skills add falls back to remote when local slug is absent")
+    func runnerSkillsAddFallsBackToRemoteWhenLocalAbsent() async throws {
+        let tempRoot = try STFolder(sanbox: .temporary).folder("nolon-cli-add-remote-\(UUID().uuidString)").create()
+        defer { try? tempRoot.delete() }
+
+        let nolonHome = tempRoot.folder("nolon-home")
+        _ = nolonHome.createIfNotExists()
+        setenv("NOLON_HOME", nolonHome.url.path, 1)
+        defer { unsetenv("NOLON_HOME") }
+
+        let runner = NolonCoreCLIRunner(
+            service: RemoteFallbackMockSkillsRepositoryService(),
+            fileReader: { _ in "" }
+        )
+        let result = await runner.execute(
+            arguments: [
+                "skills", "add", "xcode",
+                "--provider", "codex",
+                "--repositories-root", tempRoot.folder("repos").url.path,
+            ],
+            outputMode: .json
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("\"source\":\"remote\""))
+        #expect(result.stdout.contains("\"success_count\":1"))
+        #expect(result.stdout.contains("\"slug\":\"xcode\""))
+    }
+
+    @Test("runner skills add returns skill_not_found when local and remote are absent")
+    func runnerSkillsAddReturnsSkillNotFoundWhenLocalAndRemoteAbsent() async throws {
+        let tempRoot = try STFolder(sanbox: .temporary).folder("nolon-cli-add-miss-\(UUID().uuidString)").create()
+        defer { try? tempRoot.delete() }
+
+        let nolonHome = tempRoot.folder("nolon-home")
+        _ = nolonHome.createIfNotExists()
+        setenv("NOLON_HOME", nolonHome.url.path, 1)
+        defer { unsetenv("NOLON_HOME") }
+
+        let runner = NolonCoreCLIRunner(
+            service: EmptySkillLookupMockSkillsRepositoryService(),
+            fileReader: { _ in "" }
+        )
+        let result = await runner.execute(
+            arguments: [
+                "skills", "add", "does-not-exist",
+                "--provider", "codex",
+                "--repositories-root", tempRoot.folder("repos").url.path,
+            ],
+            outputMode: .json
+        )
+
+        #expect(result.exitCode == 2)
+        #expect(result.stdout.isEmpty)
+        #expect(result.stderr.contains("\"code\":\"skill_not_found\""))
+        #expect(result.stderr.contains("Skill not found by slug: does-not-exist"))
+    }
+
+    @Test("runner skills add dry-run does not install")
+    func runnerSkillsAddDryRunDoesNotInstall() async throws {
+        let tempRoot = try STFolder(sanbox: .temporary).folder("nolon-cli-add-dry-run-\(UUID().uuidString)").create()
+        defer { try? tempRoot.delete() }
+
+        let repoPath = tempRoot.folder("repos/repo-a")
+        _ = repoPath.createIfNotExists()
+        _ = repoPath.folder(".git").createIfNotExists()
+        let localSkillPath = repoPath.folder("skills/xcode")
+        _ = localSkillPath.createIfNotExists()
+        try """
+        ---
+        name: xcode
+        description: xcode
+        ---
+        """.write(to: localSkillPath.file("SKILL.md").url, atomically: true, encoding: .utf8)
+
+        let nolonHome = tempRoot.folder("nolon-home")
+        _ = nolonHome.createIfNotExists()
+        setenv("NOLON_HOME", nolonHome.url.path, 1)
+        defer { unsetenv("NOLON_HOME") }
+
+        let service = DryRunInstallGuardMockSkillsRepositoryService(
+            repositoryResources: NolonRepositoryResources(
+                skillsDirectories: [NolonSkillsDirectoryCandidate(path: "skills", skillCount: 1, skillNames: ["xcode"])],
+                workflows: [],
+                mcps: []
+            ),
+            localRepositories: [
+                NolonLocalRepositorySummary(
+                    name: "repo-a",
+                    path: repoPath.url.path,
+                    skillsDirectoryCount: 1,
+                    workflowCount: 0,
+                    mcpCount: 0
+                ),
+            ]
+        )
+        let runner = NolonCoreCLIRunner(service: service, fileReader: { _ in "" })
+        let result = await runner.execute(
+            arguments: [
+                "skills", "add", "xcode",
+                "--provider", "codex",
+                "--repositories-root", tempRoot.folder("repos").url.path,
+                "--dry-run",
+            ],
+            outputMode: .text
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("[DRY-RUN] No changes applied"))
+        #expect(result.stdout.contains("status: dry-run (no cache writes, no installation)"))
+        #expect(result.stdout.contains("warnings:\n- Dry run enabled: no cache writes and no provider installation performed.") == false)
+        #expect(result.stdout.contains("result: planned=1, invalid=0"))
+        #expect(result.stdout.contains("[PLAN] codex ->"))
+    }
+
+    @Test("skills add safety warning for multi-provider targets")
+    func skillsAddSafetyWarningForMultiProviderTargets() {
+        let targets = [
+            NolonSkillsAddTargetResult(
+                providerID: "codex",
+                providerPath: "/tmp/codex",
+                sourcePath: "/tmp/skill",
+                installedPath: "/tmp/codex/skill",
+                status: .planned,
+                errorCode: nil,
+                errorMessage: nil
+            ),
+            NolonSkillsAddTargetResult(
+                providerID: "claude",
+                providerPath: "/tmp/claude",
+                sourcePath: "/tmp/skill",
+                installedPath: "/tmp/claude/skill",
+                status: .planned,
+                errorCode: nil,
+                errorMessage: nil
+            ),
+        ]
+
+        let dryRunWarning = NolonCoreCLIRunner.makeMultiProviderSafetyWarning(targets: targets, dryRun: true)
+        #expect(dryRunWarning != nil)
+        #expect(dryRunWarning?.contains("未指定 --provider") == true)
+        #expect(dryRunWarning?.contains("2 个 providers") == true)
+
+        let executeWarning = NolonCoreCLIRunner.makeMultiProviderSafetyWarning(targets: targets, dryRun: false)
+        #expect(executeWarning?.contains("[WARN]") == true)
+        #expect(executeWarning?.contains("--dry-run") == true)
+
+        let singleProviderWarning = NolonCoreCLIRunner.makeMultiProviderSafetyWarning(
+            targets: [targets[0]],
+            dryRun: true
+        )
+        #expect(singleProviderWarning == nil)
+
+        let scope = NolonCoreCLIRunner.makeInstallScopeLabel(targets: targets)
+        #expect(scope == "multi-provider (2: claude,codex)")
+        let singleScope = NolonCoreCLIRunner.makeInstallScopeLabel(targets: [targets[0]])
+        #expect(singleScope == nil)
+    }
+
     @Test("runner renders structured sync error code")
     func runnerRendersStructuredSyncErrorCode() async {
         let runner = NolonCoreCLIRunner(
@@ -296,54 +1582,89 @@ struct NolonCoreCLIKitTests {
         #expect(result.stderr.contains("\"credential_strategy\":\"token-only\""))
     }
 
-    @Test("parse workflow discover command")
-    func parseWorkflowDiscover() throws {
+    @Test("parse workflow list command")
+    func parseWorkflowList() throws {
         let command = try NolonCoreCLIArgumentParser.parse(
-            ["workflow", "discover", "--path", "/tmp/repo", "--max-depth", "3"]
+            ["workflow", "list", "--provider", "codex", "--state", "broken", "--verbose"]
         )
-        guard case let .workflowDiscover(path, maxDepth) = command else {
-            Issue.record("Expected .workflowDiscover")
+        guard case let .workflowList(provider, includeEmpty, state, verbose, showFixes) = command else {
+            Issue.record("Expected .workflowList")
             return
         }
-        #expect(path == "/tmp/repo")
-        #expect(maxDepth == 3)
+        #expect(provider == "codex")
+        #expect(includeEmpty == false)
+        #expect(state == .broken)
+        #expect(verbose == true)
+        #expect(showFixes == false)
     }
 
-    @Test("parse workflow install command")
-    func parseWorkflowInstall() throws {
+    @Test("parse workflow add command")
+    func parseWorkflowAdd() throws {
         let command = try NolonCoreCLIArgumentParser.parse(
             [
-                "workflow", "install",
-                "--file-path", "/tmp/source/review.md",
-                "--target-path", "/tmp/provider/workflows",
+                "workflow", "add", "review",
+                "--provider", "codex",
                 "--install-method", "copy",
+                "--dry-run",
             ]
         )
-        guard case let .workflowInstall(filePath, resourceName, targetPath, installMethod) = command else {
-            Issue.record("Expected .workflowInstall")
+        guard case let .workflowAdd(slug, provider, version, _, installMethod, repositoriesRoot, dryRun) = command else {
+            Issue.record("Expected .workflowAdd")
             return
         }
-        #expect(filePath == "/tmp/source/review.md")
-        #expect(resourceName == nil)
-        #expect(targetPath == "/tmp/provider/workflows")
+        #expect(slug == "review")
+        #expect(provider == "codex")
+        #expect(version == nil)
         #expect(installMethod == .copy)
+        #expect(repositoriesRoot.hasSuffix("/repositories"))
+        #expect(dryRun == true)
     }
 
-    @Test("parse mcp uninstall command")
-    func parseMcpUninstall() throws {
+    @Test("parse mcp remove command")
+    func parseMcpRemove() throws {
         let command = try NolonCoreCLIArgumentParser.parse(
             [
-                "mcp", "uninstall",
+                "mcp", "remove",
                 "--resource-name", "cursor-mcp.json",
-                "--target-path", "/tmp/provider/mcp",
+                "--provider", "codex",
             ]
         )
-        guard case let .mcpUninstall(resourceName, targetPath) = command else {
-            Issue.record("Expected .mcpUninstall")
+        guard case let .mcpRemove(resourceName, targetPath) = command else {
+            Issue.record("Expected .mcpRemove")
             return
         }
         #expect(resourceName == "cursor-mcp.json")
-        #expect(targetPath == "/tmp/provider/mcp")
+        #expect(targetPath.contains(".codex"))
+    }
+
+    @Test("parse workflow legacy discover returns migration hint")
+    func parseWorkflowLegacyDiscoverReturnsMigrationHint() {
+        do {
+            _ = try NolonCoreCLIArgumentParser.parse(["workflow", "discover"])
+            Issue.record("Expected invalid_arguments")
+        } catch let error as NolonCoreCLIError {
+            #expect(error.code == "invalid_arguments")
+            let message = error.errorDescription ?? ""
+            #expect(message.contains("workflow discover"))
+            #expect(message.contains("nolon workflow list"))
+        } catch {
+            Issue.record("Unexpected error: \(error)")
+        }
+    }
+
+    @Test("parse mcp legacy install returns migration hint")
+    func parseMcpLegacyInstallReturnsMigrationHint() {
+        do {
+            _ = try NolonCoreCLIArgumentParser.parse(["mcp", "install"])
+            Issue.record("Expected invalid_arguments")
+        } catch let error as NolonCoreCLIError {
+            #expect(error.code == "invalid_arguments")
+            let message = error.errorDescription ?? ""
+            #expect(message.contains("mcp install"))
+            #expect(message.contains("nolon mcp add"))
+        } catch {
+            Issue.record("Unexpected error: \(error)")
+        }
     }
 
     @Test("parse remote list command")
@@ -781,6 +2102,42 @@ struct NolonCoreCLIKitTests {
         #expect(providerPath == "/tmp/provider")
     }
 
+    @Test("parse skills remove command with provider id")
+    func parseSkillsRemoveWithProviderID() throws {
+        let command = try NolonCoreCLIArgumentParser.parse(
+            [
+                "skills", "remove",
+                "--skill-id", "react-best-practices",
+                "--provider", "codex",
+            ]
+        )
+
+        guard case let .skillsUninstall(skillID, providerPath) = command else {
+            Issue.record("Expected .skillsUninstall")
+            return
+        }
+        #expect(skillID == "react-best-practices")
+        #expect(providerPath.hasSuffix("/.codex/skills"))
+    }
+
+    @Test("parse skills remove command rejects missing target selector")
+    func parseSkillsRemoveRejectsMissingTargetSelector() {
+        do {
+            _ = try NolonCoreCLIArgumentParser.parse(
+                [
+                    "skills", "remove",
+                    "--skill-id", "react-best-practices",
+                ]
+            )
+            Issue.record("Expected invalid target selector")
+        } catch let error as NolonCoreCLIError {
+            #expect(error.code == "invalid_arguments")
+            #expect(error.localizedDescription.contains("--provider-path"))
+        } catch {
+            Issue.record("Unexpected error: \(error)")
+        }
+    }
+
     @Test("parse skills migrate scan command")
     func parseSkillsMigrateScan() throws {
         let command = try NolonCoreCLIArgumentParser.parse(
@@ -900,75 +2257,53 @@ struct NolonCoreCLIKitTests {
         #expect(result.stdout.contains("\"skill_id\":\"react-best-practices\""))
     }
 
-    @Test("runner renders workflow discover json")
-    func runnerRendersWorkflowDiscover() async {
+    @Test("runner renders workflow list json")
+    func runnerRendersWorkflowList() async {
         let runner = NolonCoreCLIRunner(
             service: MockSkillsRepositoryService(),
             fileReader: { _ in "" }
         )
 
         let result = await runner.execute(
-            arguments: ["workflow", "discover", "--path", "/tmp/repo"]
+            arguments: ["workflow", "list", "--provider", "codex"]
         )
 
         #expect(result.exitCode == 0)
-        #expect(result.stdout.contains("\"command\":\"workflow.discover\""))
-        #expect(result.stdout.contains("\"workflows\""))
-        #expect(result.stdout.contains("\"mcps\":[]"))
+        #expect(result.stdout.contains("\"command\":\"workflow.list\""))
+        #expect(result.stdout.contains("\"result\""))
     }
 
-    @Test("runner renders mcp discover json")
-    func runnerRendersMcpDiscover() async {
+    @Test("runner renders mcp list json")
+    func runnerRendersMcpList() async {
         let runner = NolonCoreCLIRunner(
             service: MockSkillsRepositoryService(),
             fileReader: { _ in "" }
         )
 
         let result = await runner.execute(
-            arguments: ["mcp", "discover", "--path", "/tmp/repo"]
+            arguments: ["mcp", "list", "--provider", "codex"]
         )
 
         #expect(result.exitCode == 0)
-        #expect(result.stdout.contains("\"command\":\"mcp.discover\""))
-        #expect(result.stdout.contains("\"workflows\":[]"))
-        #expect(result.stdout.contains("\"mcps\""))
+        #expect(result.stdout.contains("\"command\":\"mcp.list\""))
+        #expect(result.stdout.contains("\"result\""))
     }
 
-    @Test("runner renders workflow install result")
-    func runnerRendersWorkflowInstallResult() async {
+    @Test("runner renders mcp remove result")
+    func runnerRendersMcpRemoveResult() async {
         let runner = NolonCoreCLIRunner(
             service: MockSkillsRepositoryService(),
             fileReader: { _ in "" }
         )
         let result = await runner.execute(
             arguments: [
-                "workflow", "install",
-                "--file-path", "/tmp/source/review.md",
-                "--target-path", "/tmp/provider/workflows",
-                "--install-method", "copy",
-            ]
-        )
-        #expect(result.exitCode == 0)
-        #expect(result.stdout.contains("\"command\":\"workflow.install\""))
-        #expect(result.stdout.contains("\"kind\":\"workflow\""))
-        #expect(result.stdout.contains("\"install_method\":\"copy\""))
-    }
-
-    @Test("runner renders mcp uninstall result")
-    func runnerRendersMcpUninstallResult() async {
-        let runner = NolonCoreCLIRunner(
-            service: MockSkillsRepositoryService(),
-            fileReader: { _ in "" }
-        )
-        let result = await runner.execute(
-            arguments: [
-                "mcp", "uninstall",
+                "mcp", "remove",
                 "--resource-name", "cursor-mcp.json",
                 "--target-path", "/tmp/provider/mcp",
             ]
         )
         #expect(result.exitCode == 0)
-        #expect(result.stdout.contains("\"command\":\"mcp.uninstall\""))
+        #expect(result.stdout.contains("\"command\":\"mcp.remove\""))
         #expect(result.stdout.contains("\"removed\":true"))
         #expect(result.stdout.contains("\"kind\":\"mcp\""))
     }
@@ -1497,8 +2832,12 @@ private struct SyncErrorMockSkillsRepositoryService: NolonSkillsRepositoryServin
 
 private struct MockSkillsRepositoryService: NolonSkillsRepositoryServing {
     let repositoryResources: NolonRepositoryResources
+    let localRepositories: [NolonLocalRepositorySummary]
 
-    init(repositoryResources: NolonRepositoryResources? = nil) {
+    init(
+        repositoryResources: NolonRepositoryResources? = nil,
+        localRepositories: [NolonLocalRepositorySummary]? = nil
+    ) {
         self.repositoryResources = repositoryResources ?? NolonRepositoryResources(
             skillsDirectories: [NolonSkillsDirectoryCandidate(path: "skills", skillCount: 1, skillNames: ["agent-browser"])],
             workflows: [
@@ -1507,6 +2846,15 @@ private struct MockSkillsRepositoryService: NolonSkillsRepositoryServing {
             ],
             mcps: [NolonResourceFile(path: "mcp_settings.json", kind: "mcp")]
         )
+        self.localRepositories = localRepositories ?? [
+            NolonLocalRepositorySummary(
+                name: "vercel@agent-skills",
+                path: "/tmp/repos/github.com/vercel@agent-skills",
+                skillsDirectoryCount: 1,
+                workflowCount: 2,
+                mcpCount: 1
+            ),
+        ]
     }
 
     func planGitImport(source: String, repositoriesRoot: STFolder) throws -> NolonGitImportPlan {
@@ -1564,6 +2912,10 @@ private struct MockSkillsRepositoryService: NolonSkillsRepositoryServing {
 
     func discoverSkillsDirectories(at repositoryPath: STFolder, maxDepth: Int) -> [NolonSkillsDirectoryCandidate] {
         repositoryResources.skillsDirectories
+    }
+
+    func listLocalRepositories(repositoriesRoot: STFolder, maxDepth: Int) -> [NolonLocalRepositorySummary] {
+        localRepositories
     }
 
     func parseSkillMetadata(content: String, directoryName: String?) -> NolonSkillStandardMetadata? {
@@ -1686,6 +3038,1316 @@ private struct MockSkillsRepositoryService: NolonSkillsRepositoryServing {
         }
         return NolonRemoteDownloadResult(kind: kind, slug: slug, version: version, baseURL: baseURL, filePath: "/tmp/\(slug).bin")
     }
+}
+
+private struct RemoteFallbackMockSkillsRepositoryService: NolonSkillsRepositoryServing {
+    private let base = MockSkillsRepositoryService(
+        repositoryResources: NolonRepositoryResources(skillsDirectories: [], workflows: [], mcps: []),
+        localRepositories: []
+    )
+
+    func planGitImport(source: String, repositoriesRoot: STFolder) throws -> NolonGitImportPlan {
+        try base.planGitImport(source: source, repositoriesRoot: repositoriesRoot)
+    }
+    func preflightGitSync(
+        source: String,
+        accessToken: String?,
+        pullStrategy: NolonGitPullStrategy,
+        credentialStrategy: NolonGitCredentialStrategy
+    ) throws -> NolonGitSyncPreflight {
+        try base.preflightGitSync(
+            source: source,
+            accessToken: accessToken,
+            pullStrategy: pullStrategy,
+            credentialStrategy: credentialStrategy
+        )
+    }
+    func syncGitRepository(
+        plan: NolonGitImportPlan,
+        accessToken: String?,
+        pullStrategy: NolonGitPullStrategy,
+        credentialStrategy: NolonGitCredentialStrategy
+    ) async throws -> NolonGitSyncResult {
+        try await base.syncGitRepository(
+            plan: plan,
+            accessToken: accessToken,
+            pullStrategy: pullStrategy,
+            credentialStrategy: credentialStrategy
+        )
+    }
+    func discoverSkillsDirectories(at repositoryPath: STFolder, maxDepth: Int) -> [NolonSkillsDirectoryCandidate] {
+        base.discoverSkillsDirectories(at: repositoryPath, maxDepth: maxDepth)
+    }
+    func listLocalRepositories(repositoriesRoot: STFolder, maxDepth: Int) -> [NolonLocalRepositorySummary] {
+        []
+    }
+    func parseSkillMetadata(content: String, directoryName: String?) -> NolonSkillStandardMetadata? {
+        base.parseSkillMetadata(content: content, directoryName: directoryName)
+    }
+    func discoverRepositoryResources(at repositoryPath: STFolder, maxDepth: Int) -> NolonRepositoryResources {
+        NolonRepositoryResources(skillsDirectories: [], workflows: [], mcps: [])
+    }
+    func installSkill(
+        skillPath: STPath,
+        skillID: String?,
+        providerPath: STFolder,
+        installMethod: NolonSkillInstallMethod
+    ) throws -> NolonSkillInstallResult {
+        try base.installSkill(
+            skillPath: skillPath,
+            skillID: skillID,
+            providerPath: providerPath,
+            installMethod: installMethod
+        )
+    }
+    func uninstallSkill(skillID: String, providerPath: STFolder) throws -> NolonSkillUninstallResult {
+        try base.uninstallSkill(skillID: skillID, providerPath: providerPath)
+    }
+    func scanProviderSkills(providerPath: STFolder, globalSkillsPath: STFolder) throws -> NolonSkillMigrateScanResult {
+        try base.scanProviderSkills(providerPath: providerPath, globalSkillsPath: globalSkillsPath)
+    }
+    func migrateSkill(
+        skillID: String,
+        providerPath: STFolder,
+        globalSkillsPath: STFolder,
+        installMethod: NolonSkillInstallMethod
+    ) throws -> NolonSkillInstallResult {
+        try base.migrateSkill(
+            skillID: skillID,
+            providerPath: providerPath,
+            globalSkillsPath: globalSkillsPath,
+            installMethod: installMethod
+        )
+    }
+    func installResource(
+        kind: NolonResourceKind,
+        filePath: STPath,
+        resourceName: String?,
+        targetPath: STFolder,
+        installMethod: NolonSkillInstallMethod
+    ) throws -> NolonResourceInstallResult {
+        try base.installResource(
+            kind: kind,
+            filePath: filePath,
+            resourceName: resourceName,
+            targetPath: targetPath,
+            installMethod: installMethod
+        )
+    }
+    func uninstallResource(
+        kind: NolonResourceKind,
+        resourceName: String,
+        targetPath: STFolder
+    ) throws -> NolonResourceUninstallResult {
+        try base.uninstallResource(kind: kind, resourceName: resourceName, targetPath: targetPath)
+    }
+    func listRemoteResources(
+        kind: NolonRemoteCatalogKind,
+        query: String?,
+        limit: Int,
+        baseURL: String
+    ) async throws -> NolonRemoteListResult {
+        let item = NolonRemoteCatalogItem(
+            kind: .skill,
+            slug: "xcode",
+            displayName: "Xcode",
+            summary: "Xcode skill",
+            latestVersion: "1.0.0",
+            updatedAt: Date(timeIntervalSince1970: 0),
+            downloads: nil,
+            stars: nil,
+            installs: nil
+        )
+        return NolonRemoteListResult(kind: kind, baseURL: baseURL, query: query, limit: limit, items: [item])
+    }
+    func downloadRemoteResource(
+        kind: NolonRemoteCatalogKind,
+        slug: String,
+        version: String?,
+        baseURL: String
+    ) async throws -> NolonRemoteDownloadResult {
+        try await base.downloadRemoteResource(kind: kind, slug: slug, version: version, baseURL: baseURL)
+    }
+}
+
+private struct EmptySkillLookupMockSkillsRepositoryService: NolonSkillsRepositoryServing {
+    private let base = MockSkillsRepositoryService(
+        repositoryResources: NolonRepositoryResources(skillsDirectories: [], workflows: [], mcps: []),
+        localRepositories: []
+    )
+
+    func planGitImport(source: String, repositoriesRoot: STFolder) throws -> NolonGitImportPlan {
+        try base.planGitImport(source: source, repositoriesRoot: repositoriesRoot)
+    }
+    func preflightGitSync(
+        source: String,
+        accessToken: String?,
+        pullStrategy: NolonGitPullStrategy,
+        credentialStrategy: NolonGitCredentialStrategy
+    ) throws -> NolonGitSyncPreflight {
+        try base.preflightGitSync(
+            source: source,
+            accessToken: accessToken,
+            pullStrategy: pullStrategy,
+            credentialStrategy: credentialStrategy
+        )
+    }
+    func syncGitRepository(
+        plan: NolonGitImportPlan,
+        accessToken: String?,
+        pullStrategy: NolonGitPullStrategy,
+        credentialStrategy: NolonGitCredentialStrategy
+    ) async throws -> NolonGitSyncResult {
+        try await base.syncGitRepository(
+            plan: plan,
+            accessToken: accessToken,
+            pullStrategy: pullStrategy,
+            credentialStrategy: credentialStrategy
+        )
+    }
+    func discoverSkillsDirectories(at repositoryPath: STFolder, maxDepth: Int) -> [NolonSkillsDirectoryCandidate] {
+        []
+    }
+    func listLocalRepositories(repositoriesRoot: STFolder, maxDepth: Int) -> [NolonLocalRepositorySummary] {
+        []
+    }
+    func parseSkillMetadata(content: String, directoryName: String?) -> NolonSkillStandardMetadata? {
+        base.parseSkillMetadata(content: content, directoryName: directoryName)
+    }
+    func discoverRepositoryResources(at repositoryPath: STFolder, maxDepth: Int) -> NolonRepositoryResources {
+        NolonRepositoryResources(skillsDirectories: [], workflows: [], mcps: [])
+    }
+    func installSkill(
+        skillPath: STPath,
+        skillID: String?,
+        providerPath: STFolder,
+        installMethod: NolonSkillInstallMethod
+    ) throws -> NolonSkillInstallResult {
+        try base.installSkill(
+            skillPath: skillPath,
+            skillID: skillID,
+            providerPath: providerPath,
+            installMethod: installMethod
+        )
+    }
+    func uninstallSkill(skillID: String, providerPath: STFolder) throws -> NolonSkillUninstallResult {
+        try base.uninstallSkill(skillID: skillID, providerPath: providerPath)
+    }
+    func scanProviderSkills(providerPath: STFolder, globalSkillsPath: STFolder) throws -> NolonSkillMigrateScanResult {
+        try base.scanProviderSkills(providerPath: providerPath, globalSkillsPath: globalSkillsPath)
+    }
+    func migrateSkill(
+        skillID: String,
+        providerPath: STFolder,
+        globalSkillsPath: STFolder,
+        installMethod: NolonSkillInstallMethod
+    ) throws -> NolonSkillInstallResult {
+        try base.migrateSkill(
+            skillID: skillID,
+            providerPath: providerPath,
+            globalSkillsPath: globalSkillsPath,
+            installMethod: installMethod
+        )
+    }
+    func installResource(
+        kind: NolonResourceKind,
+        filePath: STPath,
+        resourceName: String?,
+        targetPath: STFolder,
+        installMethod: NolonSkillInstallMethod
+    ) throws -> NolonResourceInstallResult {
+        try base.installResource(
+            kind: kind,
+            filePath: filePath,
+            resourceName: resourceName,
+            targetPath: targetPath,
+            installMethod: installMethod
+        )
+    }
+    func uninstallResource(
+        kind: NolonResourceKind,
+        resourceName: String,
+        targetPath: STFolder
+    ) throws -> NolonResourceUninstallResult {
+        try base.uninstallResource(kind: kind, resourceName: resourceName, targetPath: targetPath)
+    }
+    func listRemoteResources(
+        kind: NolonRemoteCatalogKind,
+        query: String?,
+        limit: Int,
+        baseURL: String
+    ) async throws -> NolonRemoteListResult {
+        NolonRemoteListResult(kind: kind, baseURL: baseURL, query: query, limit: limit, items: [])
+    }
+    func downloadRemoteResource(
+        kind: NolonRemoteCatalogKind,
+        slug: String,
+        version: String?,
+        baseURL: String
+    ) async throws -> NolonRemoteDownloadResult {
+        try await base.downloadRemoteResource(kind: kind, slug: slug, version: version, baseURL: baseURL)
+    }
+}
+
+private struct MultiMatchRemoteSearchMockSkillsRepositoryService: NolonSkillsRepositoryServing {
+    private let base = MockSkillsRepositoryService(
+        repositoryResources: NolonRepositoryResources(skillsDirectories: [], workflows: [], mcps: []),
+        localRepositories: []
+    )
+
+    func planGitImport(source: String, repositoriesRoot: STFolder) throws -> NolonGitImportPlan {
+        try base.planGitImport(source: source, repositoriesRoot: repositoriesRoot)
+    }
+    func preflightGitSync(
+        source: String,
+        accessToken: String?,
+        pullStrategy: NolonGitPullStrategy,
+        credentialStrategy: NolonGitCredentialStrategy
+    ) throws -> NolonGitSyncPreflight {
+        try base.preflightGitSync(
+            source: source,
+            accessToken: accessToken,
+            pullStrategy: pullStrategy,
+            credentialStrategy: credentialStrategy
+        )
+    }
+    func syncGitRepository(
+        plan: NolonGitImportPlan,
+        accessToken: String?,
+        pullStrategy: NolonGitPullStrategy,
+        credentialStrategy: NolonGitCredentialStrategy
+    ) async throws -> NolonGitSyncResult {
+        try await base.syncGitRepository(
+            plan: plan,
+            accessToken: accessToken,
+            pullStrategy: pullStrategy,
+            credentialStrategy: credentialStrategy
+        )
+    }
+    func discoverSkillsDirectories(at repositoryPath: STFolder, maxDepth: Int) -> [NolonSkillsDirectoryCandidate] {
+        []
+    }
+    func listLocalRepositories(repositoriesRoot: STFolder, maxDepth: Int) -> [NolonLocalRepositorySummary] {
+        []
+    }
+    func parseSkillMetadata(content: String, directoryName: String?) -> NolonSkillStandardMetadata? {
+        base.parseSkillMetadata(content: content, directoryName: directoryName)
+    }
+    func discoverRepositoryResources(at repositoryPath: STFolder, maxDepth: Int) -> NolonRepositoryResources {
+        NolonRepositoryResources(skillsDirectories: [], workflows: [], mcps: [])
+    }
+    func installSkill(
+        skillPath: STPath,
+        skillID: String?,
+        providerPath: STFolder,
+        installMethod: NolonSkillInstallMethod
+    ) throws -> NolonSkillInstallResult {
+        try base.installSkill(
+            skillPath: skillPath,
+            skillID: skillID,
+            providerPath: providerPath,
+            installMethod: installMethod
+        )
+    }
+    func uninstallSkill(skillID: String, providerPath: STFolder) throws -> NolonSkillUninstallResult {
+        try base.uninstallSkill(skillID: skillID, providerPath: providerPath)
+    }
+    func scanProviderSkills(providerPath: STFolder, globalSkillsPath: STFolder) throws -> NolonSkillMigrateScanResult {
+        try base.scanProviderSkills(providerPath: providerPath, globalSkillsPath: globalSkillsPath)
+    }
+    func migrateSkill(
+        skillID: String,
+        providerPath: STFolder,
+        globalSkillsPath: STFolder,
+        installMethod: NolonSkillInstallMethod
+    ) throws -> NolonSkillInstallResult {
+        try base.migrateSkill(
+            skillID: skillID,
+            providerPath: providerPath,
+            globalSkillsPath: globalSkillsPath,
+            installMethod: installMethod
+        )
+    }
+    func installResource(
+        kind: NolonResourceKind,
+        filePath: STPath,
+        resourceName: String?,
+        targetPath: STFolder,
+        installMethod: NolonSkillInstallMethod
+    ) throws -> NolonResourceInstallResult {
+        try base.installResource(
+            kind: kind,
+            filePath: filePath,
+            resourceName: resourceName,
+            targetPath: targetPath,
+            installMethod: installMethod
+        )
+    }
+    func uninstallResource(
+        kind: NolonResourceKind,
+        resourceName: String,
+        targetPath: STFolder
+    ) throws -> NolonResourceUninstallResult {
+        try base.uninstallResource(kind: kind, resourceName: resourceName, targetPath: targetPath)
+    }
+    func listRemoteResources(
+        kind: NolonRemoteCatalogKind,
+        query: String?,
+        limit: Int,
+        baseURL: String
+    ) async throws -> NolonRemoteListResult {
+        let items = [
+            NolonRemoteCatalogItem(
+                kind: .skill,
+                slug: "xcode",
+                displayName: "Xcode",
+                summary: "Xcode skill",
+                latestVersion: "1.0.0",
+                updatedAt: Date(timeIntervalSince1970: 0),
+                downloads: nil,
+                stars: nil,
+                installs: nil
+            ),
+            NolonRemoteCatalogItem(
+                kind: .skill,
+                slug: "xcodebuildmcp",
+                displayName: "xcodebuildmcp",
+                summary: "xcodebuildmcp skill",
+                latestVersion: "1.0.0",
+                updatedAt: Date(timeIntervalSince1970: 0),
+                downloads: nil,
+                stars: nil,
+                installs: nil
+            ),
+        ]
+        return NolonRemoteListResult(kind: kind, baseURL: baseURL, query: query, limit: limit, items: items)
+    }
+    func downloadRemoteResource(
+        kind: NolonRemoteCatalogKind,
+        slug: String,
+        version: String?,
+        baseURL: String
+    ) async throws -> NolonRemoteDownloadResult {
+        try await base.downloadRemoteResource(kind: kind, slug: slug, version: version, baseURL: baseURL)
+    }
+}
+
+private struct ManyMatchRemoteSearchMockSkillsRepositoryService: NolonSkillsRepositoryServing {
+    private let base = MockSkillsRepositoryService(
+        repositoryResources: NolonRepositoryResources(skillsDirectories: [], workflows: [], mcps: []),
+        localRepositories: []
+    )
+
+    func planGitImport(source: String, repositoriesRoot: STFolder) throws -> NolonGitImportPlan {
+        try base.planGitImport(source: source, repositoriesRoot: repositoriesRoot)
+    }
+    func preflightGitSync(
+        source: String,
+        accessToken: String?,
+        pullStrategy: NolonGitPullStrategy,
+        credentialStrategy: NolonGitCredentialStrategy
+    ) throws -> NolonGitSyncPreflight {
+        try base.preflightGitSync(
+            source: source,
+            accessToken: accessToken,
+            pullStrategy: pullStrategy,
+            credentialStrategy: credentialStrategy
+        )
+    }
+    func syncGitRepository(
+        plan: NolonGitImportPlan,
+        accessToken: String?,
+        pullStrategy: NolonGitPullStrategy,
+        credentialStrategy: NolonGitCredentialStrategy
+    ) async throws -> NolonGitSyncResult {
+        try await base.syncGitRepository(
+            plan: plan,
+            accessToken: accessToken,
+            pullStrategy: pullStrategy,
+            credentialStrategy: credentialStrategy
+        )
+    }
+    func discoverSkillsDirectories(at repositoryPath: STFolder, maxDepth: Int) -> [NolonSkillsDirectoryCandidate] {
+        []
+    }
+    func listLocalRepositories(repositoriesRoot: STFolder, maxDepth: Int) -> [NolonLocalRepositorySummary] {
+        []
+    }
+    func parseSkillMetadata(content: String, directoryName: String?) -> NolonSkillStandardMetadata? {
+        base.parseSkillMetadata(content: content, directoryName: directoryName)
+    }
+    func discoverRepositoryResources(at repositoryPath: STFolder, maxDepth: Int) -> NolonRepositoryResources {
+        NolonRepositoryResources(skillsDirectories: [], workflows: [], mcps: [])
+    }
+    func installSkill(
+        skillPath: STPath,
+        skillID: String?,
+        providerPath: STFolder,
+        installMethod: NolonSkillInstallMethod
+    ) throws -> NolonSkillInstallResult {
+        try base.installSkill(skillPath: skillPath, skillID: skillID, providerPath: providerPath, installMethod: installMethod)
+    }
+    func uninstallSkill(skillID: String, providerPath: STFolder) throws -> NolonSkillUninstallResult {
+        try base.uninstallSkill(skillID: skillID, providerPath: providerPath)
+    }
+    func scanProviderSkills(providerPath: STFolder, globalSkillsPath: STFolder) throws -> NolonSkillMigrateScanResult {
+        try base.scanProviderSkills(providerPath: providerPath, globalSkillsPath: globalSkillsPath)
+    }
+    func migrateSkill(
+        skillID: String,
+        providerPath: STFolder,
+        globalSkillsPath: STFolder,
+        installMethod: NolonSkillInstallMethod
+    ) throws -> NolonSkillInstallResult {
+        try base.migrateSkill(
+            skillID: skillID,
+            providerPath: providerPath,
+            globalSkillsPath: globalSkillsPath,
+            installMethod: installMethod
+        )
+    }
+    func installResource(
+        kind: NolonResourceKind,
+        filePath: STPath,
+        resourceName: String?,
+        targetPath: STFolder,
+        installMethod: NolonSkillInstallMethod
+    ) throws -> NolonResourceInstallResult {
+        try base.installResource(kind: kind, filePath: filePath, resourceName: resourceName, targetPath: targetPath, installMethod: installMethod)
+    }
+    func uninstallResource(
+        kind: NolonResourceKind,
+        resourceName: String,
+        targetPath: STFolder
+    ) throws -> NolonResourceUninstallResult {
+        try base.uninstallResource(kind: kind, resourceName: resourceName, targetPath: targetPath)
+    }
+    func listRemoteResources(
+        kind: NolonRemoteCatalogKind,
+        query: String?,
+        limit: Int,
+        baseURL: String
+    ) async throws -> NolonRemoteListResult {
+        let items = (1...20).map { index in
+            NolonRemoteCatalogItem(
+                kind: .skill,
+                slug: "skill-\(index)",
+                displayName: "Skill \(index)",
+                summary: "summary \(index)",
+                latestVersion: "1.0.0",
+                updatedAt: Date(timeIntervalSince1970: 0),
+                downloads: nil,
+                stars: nil,
+                installs: nil
+            )
+        }
+        return NolonRemoteListResult(kind: kind, baseURL: baseURL, query: query, limit: limit, items: items)
+    }
+    func downloadRemoteResource(
+        kind: NolonRemoteCatalogKind,
+        slug: String,
+        version: String?,
+        baseURL: String
+    ) async throws -> NolonRemoteDownloadResult {
+        try await base.downloadRemoteResource(kind: kind, slug: slug, version: version, baseURL: baseURL)
+    }
+}
+
+private struct RateLimitedRemoteSearchMockSkillsRepositoryService: NolonSkillsRepositoryServing {
+    private let base = MockSkillsRepositoryService(
+        repositoryResources: NolonRepositoryResources(skillsDirectories: [], workflows: [], mcps: []),
+        localRepositories: []
+    )
+
+    func planGitImport(source: String, repositoriesRoot: STFolder) throws -> NolonGitImportPlan {
+        try base.planGitImport(source: source, repositoriesRoot: repositoriesRoot)
+    }
+    func preflightGitSync(
+        source: String,
+        accessToken: String?,
+        pullStrategy: NolonGitPullStrategy,
+        credentialStrategy: NolonGitCredentialStrategy
+    ) throws -> NolonGitSyncPreflight {
+        try base.preflightGitSync(
+            source: source,
+            accessToken: accessToken,
+            pullStrategy: pullStrategy,
+            credentialStrategy: credentialStrategy
+        )
+    }
+    func syncGitRepository(
+        plan: NolonGitImportPlan,
+        accessToken: String?,
+        pullStrategy: NolonGitPullStrategy,
+        credentialStrategy: NolonGitCredentialStrategy
+    ) async throws -> NolonGitSyncResult {
+        try await base.syncGitRepository(
+            plan: plan,
+            accessToken: accessToken,
+            pullStrategy: pullStrategy,
+            credentialStrategy: credentialStrategy
+        )
+    }
+    func discoverSkillsDirectories(at repositoryPath: STFolder, maxDepth: Int) -> [NolonSkillsDirectoryCandidate] {
+        []
+    }
+    func listLocalRepositories(repositoriesRoot: STFolder, maxDepth: Int) -> [NolonLocalRepositorySummary] {
+        []
+    }
+    func parseSkillMetadata(content: String, directoryName: String?) -> NolonSkillStandardMetadata? {
+        base.parseSkillMetadata(content: content, directoryName: directoryName)
+    }
+    func discoverRepositoryResources(at repositoryPath: STFolder, maxDepth: Int) -> NolonRepositoryResources {
+        NolonRepositoryResources(skillsDirectories: [], workflows: [], mcps: [])
+    }
+    func installSkill(
+        skillPath: STPath,
+        skillID: String?,
+        providerPath: STFolder,
+        installMethod: NolonSkillInstallMethod
+    ) throws -> NolonSkillInstallResult {
+        try base.installSkill(
+            skillPath: skillPath,
+            skillID: skillID,
+            providerPath: providerPath,
+            installMethod: installMethod
+        )
+    }
+    func uninstallSkill(skillID: String, providerPath: STFolder) throws -> NolonSkillUninstallResult {
+        try base.uninstallSkill(skillID: skillID, providerPath: providerPath)
+    }
+    func scanProviderSkills(providerPath: STFolder, globalSkillsPath: STFolder) throws -> NolonSkillMigrateScanResult {
+        try base.scanProviderSkills(providerPath: providerPath, globalSkillsPath: globalSkillsPath)
+    }
+    func migrateSkill(
+        skillID: String,
+        providerPath: STFolder,
+        globalSkillsPath: STFolder,
+        installMethod: NolonSkillInstallMethod
+    ) throws -> NolonSkillInstallResult {
+        try base.migrateSkill(
+            skillID: skillID,
+            providerPath: providerPath,
+            globalSkillsPath: globalSkillsPath,
+            installMethod: installMethod
+        )
+    }
+    func installResource(
+        kind: NolonResourceKind,
+        filePath: STPath,
+        resourceName: String?,
+        targetPath: STFolder,
+        installMethod: NolonSkillInstallMethod
+    ) throws -> NolonResourceInstallResult {
+        try base.installResource(
+            kind: kind,
+            filePath: filePath,
+            resourceName: resourceName,
+            targetPath: targetPath,
+            installMethod: installMethod
+        )
+    }
+    func uninstallResource(
+        kind: NolonResourceKind,
+        resourceName: String,
+        targetPath: STFolder
+    ) throws -> NolonResourceUninstallResult {
+        try base.uninstallResource(kind: kind, resourceName: resourceName, targetPath: targetPath)
+    }
+    func listRemoteResources(
+        kind: NolonRemoteCatalogKind,
+        query: String?,
+        limit: Int,
+        baseURL: String
+    ) async throws -> NolonRemoteListResult {
+        throw NolonCoreCLIError.executionFailed("Failed to run command: Remote list failed with status 429")
+    }
+    func downloadRemoteResource(
+        kind: NolonRemoteCatalogKind,
+        slug: String,
+        version: String?,
+        baseURL: String
+    ) async throws -> NolonRemoteDownloadResult {
+        try await base.downloadRemoteResource(kind: kind, slug: slug, version: version, baseURL: baseURL)
+    }
+}
+
+private struct PermissionDeniedRemoteSearchMockSkillsRepositoryService: NolonSkillsRepositoryServing {
+    private let base = MockSkillsRepositoryService(
+        repositoryResources: NolonRepositoryResources(skillsDirectories: [], workflows: [], mcps: []),
+        localRepositories: []
+    )
+
+    func planGitImport(source: String, repositoriesRoot: STFolder) throws -> NolonGitImportPlan {
+        try base.planGitImport(source: source, repositoriesRoot: repositoriesRoot)
+    }
+    func preflightGitSync(
+        source: String,
+        accessToken: String?,
+        pullStrategy: NolonGitPullStrategy,
+        credentialStrategy: NolonGitCredentialStrategy
+    ) throws -> NolonGitSyncPreflight {
+        try base.preflightGitSync(
+            source: source,
+            accessToken: accessToken,
+            pullStrategy: pullStrategy,
+            credentialStrategy: credentialStrategy
+        )
+    }
+    func syncGitRepository(
+        plan: NolonGitImportPlan,
+        accessToken: String?,
+        pullStrategy: NolonGitPullStrategy,
+        credentialStrategy: NolonGitCredentialStrategy
+    ) async throws -> NolonGitSyncResult {
+        try await base.syncGitRepository(
+            plan: plan,
+            accessToken: accessToken,
+            pullStrategy: pullStrategy,
+            credentialStrategy: credentialStrategy
+        )
+    }
+    func discoverSkillsDirectories(at repositoryPath: STFolder, maxDepth: Int) -> [NolonSkillsDirectoryCandidate] { [] }
+    func listLocalRepositories(repositoriesRoot: STFolder, maxDepth: Int) -> [NolonLocalRepositorySummary] { [] }
+    func parseSkillMetadata(content: String, directoryName: String?) -> NolonSkillStandardMetadata? {
+        base.parseSkillMetadata(content: content, directoryName: directoryName)
+    }
+    func discoverRepositoryResources(at repositoryPath: STFolder, maxDepth: Int) -> NolonRepositoryResources {
+        NolonRepositoryResources(skillsDirectories: [], workflows: [], mcps: [])
+    }
+    func installSkill(
+        skillPath: STPath,
+        skillID: String?,
+        providerPath: STFolder,
+        installMethod: NolonSkillInstallMethod
+    ) throws -> NolonSkillInstallResult {
+        try base.installSkill(skillPath: skillPath, skillID: skillID, providerPath: providerPath, installMethod: installMethod)
+    }
+    func uninstallSkill(skillID: String, providerPath: STFolder) throws -> NolonSkillUninstallResult {
+        try base.uninstallSkill(skillID: skillID, providerPath: providerPath)
+    }
+    func scanProviderSkills(providerPath: STFolder, globalSkillsPath: STFolder) throws -> NolonSkillMigrateScanResult {
+        try base.scanProviderSkills(providerPath: providerPath, globalSkillsPath: globalSkillsPath)
+    }
+    func migrateSkill(
+        skillID: String,
+        providerPath: STFolder,
+        globalSkillsPath: STFolder,
+        installMethod: NolonSkillInstallMethod
+    ) throws -> NolonSkillInstallResult {
+        try base.migrateSkill(
+            skillID: skillID,
+            providerPath: providerPath,
+            globalSkillsPath: globalSkillsPath,
+            installMethod: installMethod
+        )
+    }
+    func installResource(
+        kind: NolonResourceKind,
+        filePath: STPath,
+        resourceName: String?,
+        targetPath: STFolder,
+        installMethod: NolonSkillInstallMethod
+    ) throws -> NolonResourceInstallResult {
+        try base.installResource(kind: kind, filePath: filePath, resourceName: resourceName, targetPath: targetPath, installMethod: installMethod)
+    }
+    func uninstallResource(
+        kind: NolonResourceKind,
+        resourceName: String,
+        targetPath: STFolder
+    ) throws -> NolonResourceUninstallResult {
+        try base.uninstallResource(kind: kind, resourceName: resourceName, targetPath: targetPath)
+    }
+    func listRemoteResources(
+        kind: NolonRemoteCatalogKind,
+        query: String?,
+        limit: Int,
+        baseURL: String
+    ) async throws -> NolonRemoteListResult {
+        throw NolonCoreCLIError.executionFailed("Operation not permitted")
+    }
+    func downloadRemoteResource(
+        kind: NolonRemoteCatalogKind,
+        slug: String,
+        version: String?,
+        baseURL: String
+    ) async throws -> NolonRemoteDownloadResult {
+        try await base.downloadRemoteResource(kind: kind, slug: slug, version: version, baseURL: baseURL)
+    }
+}
+
+private struct LongSummaryRemoteSearchMockSkillsRepositoryService: NolonSkillsRepositoryServing {
+    private let base = MockSkillsRepositoryService(
+        repositoryResources: NolonRepositoryResources(skillsDirectories: [], workflows: [], mcps: []),
+        localRepositories: []
+    )
+
+    func planGitImport(source: String, repositoriesRoot: STFolder) throws -> NolonGitImportPlan {
+        try base.planGitImport(source: source, repositoriesRoot: repositoriesRoot)
+    }
+    func preflightGitSync(
+        source: String,
+        accessToken: String?,
+        pullStrategy: NolonGitPullStrategy,
+        credentialStrategy: NolonGitCredentialStrategy
+    ) throws -> NolonGitSyncPreflight {
+        try base.preflightGitSync(
+            source: source,
+            accessToken: accessToken,
+            pullStrategy: pullStrategy,
+            credentialStrategy: credentialStrategy
+        )
+    }
+    func syncGitRepository(
+        plan: NolonGitImportPlan,
+        accessToken: String?,
+        pullStrategy: NolonGitPullStrategy,
+        credentialStrategy: NolonGitCredentialStrategy
+    ) async throws -> NolonGitSyncResult {
+        try await base.syncGitRepository(
+            plan: plan,
+            accessToken: accessToken,
+            pullStrategy: pullStrategy,
+            credentialStrategy: credentialStrategy
+        )
+    }
+    func discoverSkillsDirectories(at repositoryPath: STFolder, maxDepth: Int) -> [NolonSkillsDirectoryCandidate] { [] }
+    func listLocalRepositories(repositoriesRoot: STFolder, maxDepth: Int) -> [NolonLocalRepositorySummary] { [] }
+    func parseSkillMetadata(content: String, directoryName: String?) -> NolonSkillStandardMetadata? {
+        base.parseSkillMetadata(content: content, directoryName: directoryName)
+    }
+    func discoverRepositoryResources(at repositoryPath: STFolder, maxDepth: Int) -> NolonRepositoryResources {
+        NolonRepositoryResources(skillsDirectories: [], workflows: [], mcps: [])
+    }
+    func installSkill(
+        skillPath: STPath,
+        skillID: String?,
+        providerPath: STFolder,
+        installMethod: NolonSkillInstallMethod
+    ) throws -> NolonSkillInstallResult {
+        try base.installSkill(skillPath: skillPath, skillID: skillID, providerPath: providerPath, installMethod: installMethod)
+    }
+    func uninstallSkill(skillID: String, providerPath: STFolder) throws -> NolonSkillUninstallResult {
+        try base.uninstallSkill(skillID: skillID, providerPath: providerPath)
+    }
+    func scanProviderSkills(providerPath: STFolder, globalSkillsPath: STFolder) throws -> NolonSkillMigrateScanResult {
+        try base.scanProviderSkills(providerPath: providerPath, globalSkillsPath: globalSkillsPath)
+    }
+    func migrateSkill(
+        skillID: String,
+        providerPath: STFolder,
+        globalSkillsPath: STFolder,
+        installMethod: NolonSkillInstallMethod
+    ) throws -> NolonSkillInstallResult {
+        try base.migrateSkill(skillID: skillID, providerPath: providerPath, globalSkillsPath: globalSkillsPath, installMethod: installMethod)
+    }
+    func installResource(
+        kind: NolonResourceKind,
+        filePath: STPath,
+        resourceName: String?,
+        targetPath: STFolder,
+        installMethod: NolonSkillInstallMethod
+    ) throws -> NolonResourceInstallResult {
+        try base.installResource(kind: kind, filePath: filePath, resourceName: resourceName, targetPath: targetPath, installMethod: installMethod)
+    }
+    func uninstallResource(
+        kind: NolonResourceKind,
+        resourceName: String,
+        targetPath: STFolder
+    ) throws -> NolonResourceUninstallResult {
+        try base.uninstallResource(kind: kind, resourceName: resourceName, targetPath: targetPath)
+    }
+    func listRemoteResources(
+        kind: NolonRemoteCatalogKind,
+        query: String?,
+        limit: Int,
+        baseURL: String
+    ) async throws -> NolonRemoteListResult {
+        let summary = """
+        Xcode long summary line one
+        line two and line three with additional details that should be compacted into one single line for CLI readability and then truncated because it is too long for concise output.
+        """
+        let item = NolonRemoteCatalogItem(
+            kind: .skill,
+            slug: "xcode",
+            displayName: "Xcode",
+            summary: summary,
+            latestVersion: "1.0.0",
+            updatedAt: Date(timeIntervalSince1970: 0),
+            downloads: nil,
+            stars: nil,
+            installs: nil
+        )
+        return NolonRemoteListResult(kind: kind, baseURL: baseURL, query: query, limit: limit, items: [item])
+    }
+    func downloadRemoteResource(
+        kind: NolonRemoteCatalogKind,
+        slug: String,
+        version: String?,
+        baseURL: String
+    ) async throws -> NolonRemoteDownloadResult {
+        try await base.downloadRemoteResource(kind: kind, slug: slug, version: version, baseURL: baseURL)
+    }
+}
+
+private struct FutureDateRemoteSearchMockSkillsRepositoryService: NolonSkillsRepositoryServing {
+    private let base = MockSkillsRepositoryService(
+        repositoryResources: NolonRepositoryResources(skillsDirectories: [], workflows: [], mcps: []),
+        localRepositories: []
+    )
+
+    func planGitImport(source: String, repositoriesRoot: STFolder) throws -> NolonGitImportPlan {
+        try base.planGitImport(source: source, repositoriesRoot: repositoriesRoot)
+    }
+    func preflightGitSync(
+        source: String,
+        accessToken: String?,
+        pullStrategy: NolonGitPullStrategy,
+        credentialStrategy: NolonGitCredentialStrategy
+    ) throws -> NolonGitSyncPreflight {
+        try base.preflightGitSync(
+            source: source,
+            accessToken: accessToken,
+            pullStrategy: pullStrategy,
+            credentialStrategy: credentialStrategy
+        )
+    }
+    func syncGitRepository(
+        plan: NolonGitImportPlan,
+        accessToken: String?,
+        pullStrategy: NolonGitPullStrategy,
+        credentialStrategy: NolonGitCredentialStrategy
+    ) async throws -> NolonGitSyncResult {
+        try await base.syncGitRepository(
+            plan: plan,
+            accessToken: accessToken,
+            pullStrategy: pullStrategy,
+            credentialStrategy: credentialStrategy
+        )
+    }
+    func discoverSkillsDirectories(at repositoryPath: STFolder, maxDepth: Int) -> [NolonSkillsDirectoryCandidate] { [] }
+    func listLocalRepositories(repositoriesRoot: STFolder, maxDepth: Int) -> [NolonLocalRepositorySummary] { [] }
+    func parseSkillMetadata(content: String, directoryName: String?) -> NolonSkillStandardMetadata? {
+        base.parseSkillMetadata(content: content, directoryName: directoryName)
+    }
+    func discoverRepositoryResources(at repositoryPath: STFolder, maxDepth: Int) -> NolonRepositoryResources {
+        NolonRepositoryResources(skillsDirectories: [], workflows: [], mcps: [])
+    }
+    func installSkill(
+        skillPath: STPath,
+        skillID: String?,
+        providerPath: STFolder,
+        installMethod: NolonSkillInstallMethod
+    ) throws -> NolonSkillInstallResult {
+        try base.installSkill(skillPath: skillPath, skillID: skillID, providerPath: providerPath, installMethod: installMethod)
+    }
+    func uninstallSkill(skillID: String, providerPath: STFolder) throws -> NolonSkillUninstallResult {
+        try base.uninstallSkill(skillID: skillID, providerPath: providerPath)
+    }
+    func scanProviderSkills(providerPath: STFolder, globalSkillsPath: STFolder) throws -> NolonSkillMigrateScanResult {
+        try base.scanProviderSkills(providerPath: providerPath, globalSkillsPath: globalSkillsPath)
+    }
+    func migrateSkill(
+        skillID: String,
+        providerPath: STFolder,
+        globalSkillsPath: STFolder,
+        installMethod: NolonSkillInstallMethod
+    ) throws -> NolonSkillInstallResult {
+        try base.migrateSkill(skillID: skillID, providerPath: providerPath, globalSkillsPath: globalSkillsPath, installMethod: installMethod)
+    }
+    func installResource(
+        kind: NolonResourceKind,
+        filePath: STPath,
+        resourceName: String?,
+        targetPath: STFolder,
+        installMethod: NolonSkillInstallMethod
+    ) throws -> NolonResourceInstallResult {
+        try base.installResource(kind: kind, filePath: filePath, resourceName: resourceName, targetPath: targetPath, installMethod: installMethod)
+    }
+    func uninstallResource(
+        kind: NolonResourceKind,
+        resourceName: String,
+        targetPath: STFolder
+    ) throws -> NolonResourceUninstallResult {
+        try base.uninstallResource(kind: kind, resourceName: resourceName, targetPath: targetPath)
+    }
+    func listRemoteResources(
+        kind: NolonRemoteCatalogKind,
+        query: String?,
+        limit: Int,
+        baseURL: String
+    ) async throws -> NolonRemoteListResult {
+        let item = NolonRemoteCatalogItem(
+            kind: .skill,
+            slug: "xcode",
+            displayName: "Xcode",
+            summary: "Xcode skill",
+            latestVersion: "1.0.0",
+            updatedAt: Date(timeIntervalSince1970: 4_102_444_800), // 2100-01-02
+            downloads: nil,
+            stars: nil,
+            installs: nil
+        )
+        return NolonRemoteListResult(kind: kind, baseURL: baseURL, query: query, limit: limit, items: [item])
+    }
+    func downloadRemoteResource(
+        kind: NolonRemoteCatalogKind,
+        slug: String,
+        version: String?,
+        baseURL: String
+    ) async throws -> NolonRemoteDownloadResult {
+        try await base.downloadRemoteResource(kind: kind, slug: slug, version: version, baseURL: baseURL)
+    }
+}
+
+private struct DryRunInstallGuardMockSkillsRepositoryService: NolonSkillsRepositoryServing {
+    private let base: MockSkillsRepositoryService
+
+    init(
+        repositoryResources: NolonRepositoryResources,
+        localRepositories: [NolonLocalRepositorySummary]
+    ) {
+        self.base = MockSkillsRepositoryService(
+            repositoryResources: repositoryResources,
+            localRepositories: localRepositories
+        )
+    }
+
+    func planGitImport(source: String, repositoriesRoot: STFolder) throws -> NolonGitImportPlan {
+        try base.planGitImport(source: source, repositoriesRoot: repositoriesRoot)
+    }
+    func preflightGitSync(
+        source: String,
+        accessToken: String?,
+        pullStrategy: NolonGitPullStrategy,
+        credentialStrategy: NolonGitCredentialStrategy
+    ) throws -> NolonGitSyncPreflight {
+        try base.preflightGitSync(
+            source: source,
+            accessToken: accessToken,
+            pullStrategy: pullStrategy,
+            credentialStrategy: credentialStrategy
+        )
+    }
+    func syncGitRepository(
+        plan: NolonGitImportPlan,
+        accessToken: String?,
+        pullStrategy: NolonGitPullStrategy,
+        credentialStrategy: NolonGitCredentialStrategy
+    ) async throws -> NolonGitSyncResult {
+        try await base.syncGitRepository(
+            plan: plan,
+            accessToken: accessToken,
+            pullStrategy: pullStrategy,
+            credentialStrategy: credentialStrategy
+        )
+    }
+    func discoverSkillsDirectories(at repositoryPath: STFolder, maxDepth: Int) -> [NolonSkillsDirectoryCandidate] {
+        base.discoverSkillsDirectories(at: repositoryPath, maxDepth: maxDepth)
+    }
+    func listLocalRepositories(repositoriesRoot: STFolder, maxDepth: Int) -> [NolonLocalRepositorySummary] {
+        base.listLocalRepositories(repositoriesRoot: repositoriesRoot, maxDepth: maxDepth)
+    }
+    func parseSkillMetadata(content: String, directoryName: String?) -> NolonSkillStandardMetadata? {
+        base.parseSkillMetadata(content: content, directoryName: directoryName)
+    }
+    func discoverRepositoryResources(at repositoryPath: STFolder, maxDepth: Int) -> NolonRepositoryResources {
+        base.discoverRepositoryResources(at: repositoryPath, maxDepth: maxDepth)
+    }
+    func installSkill(
+        skillPath: STPath,
+        skillID: String?,
+        providerPath: STFolder,
+        installMethod: NolonSkillInstallMethod
+    ) throws -> NolonSkillInstallResult {
+        throw NolonCoreCLIError.executionFailed("install should not be called during dry-run")
+    }
+    func uninstallSkill(skillID: String, providerPath: STFolder) throws -> NolonSkillUninstallResult {
+        try base.uninstallSkill(skillID: skillID, providerPath: providerPath)
+    }
+    func scanProviderSkills(providerPath: STFolder, globalSkillsPath: STFolder) throws -> NolonSkillMigrateScanResult {
+        try base.scanProviderSkills(providerPath: providerPath, globalSkillsPath: globalSkillsPath)
+    }
+    func migrateSkill(
+        skillID: String,
+        providerPath: STFolder,
+        globalSkillsPath: STFolder,
+        installMethod: NolonSkillInstallMethod
+    ) throws -> NolonSkillInstallResult {
+        try base.migrateSkill(
+            skillID: skillID,
+            providerPath: providerPath,
+            globalSkillsPath: globalSkillsPath,
+            installMethod: installMethod
+        )
+    }
+    func installResource(
+        kind: NolonResourceKind,
+        filePath: STPath,
+        resourceName: String?,
+        targetPath: STFolder,
+        installMethod: NolonSkillInstallMethod
+    ) throws -> NolonResourceInstallResult {
+        try base.installResource(
+            kind: kind,
+            filePath: filePath,
+            resourceName: resourceName,
+            targetPath: targetPath,
+            installMethod: installMethod
+        )
+    }
+    func uninstallResource(
+        kind: NolonResourceKind,
+        resourceName: String,
+        targetPath: STFolder
+    ) throws -> NolonResourceUninstallResult {
+        try base.uninstallResource(kind: kind, resourceName: resourceName, targetPath: targetPath)
+    }
+    func listRemoteResources(
+        kind: NolonRemoteCatalogKind,
+        query: String?,
+        limit: Int,
+        baseURL: String
+    ) async throws -> NolonRemoteListResult {
+        try await base.listRemoteResources(kind: kind, query: query, limit: limit, baseURL: baseURL)
+    }
+    func downloadRemoteResource(
+        kind: NolonRemoteCatalogKind,
+        slug: String,
+        version: String?,
+        baseURL: String
+    ) async throws -> NolonRemoteDownloadResult {
+        try await base.downloadRemoteResource(kind: kind, slug: slug, version: version, baseURL: baseURL)
+    }
+}
+
+private struct InstalledAndBrokenSkillsRepositoryService: NolonSkillsRepositoryServing {
+    private let base = MockSkillsRepositoryService()
+
+    func planGitImport(source: String, repositoriesRoot: STFolder) throws -> NolonGitImportPlan {
+        try base.planGitImport(source: source, repositoriesRoot: repositoriesRoot)
+    }
+    func preflightGitSync(
+        source: String,
+        accessToken: String?,
+        pullStrategy: NolonGitPullStrategy,
+        credentialStrategy: NolonGitCredentialStrategy
+    ) throws -> NolonGitSyncPreflight {
+        try base.preflightGitSync(
+            source: source,
+            accessToken: accessToken,
+            pullStrategy: pullStrategy,
+            credentialStrategy: credentialStrategy
+        )
+    }
+    func syncGitRepository(
+        plan: NolonGitImportPlan,
+        accessToken: String?,
+        pullStrategy: NolonGitPullStrategy,
+        credentialStrategy: NolonGitCredentialStrategy
+    ) async throws -> NolonGitSyncResult {
+        try await base.syncGitRepository(
+            plan: plan,
+            accessToken: accessToken,
+            pullStrategy: pullStrategy,
+            credentialStrategy: credentialStrategy
+        )
+    }
+    func discoverSkillsDirectories(at repositoryPath: STFolder, maxDepth: Int) -> [NolonSkillsDirectoryCandidate] {
+        base.discoverSkillsDirectories(at: repositoryPath, maxDepth: maxDepth)
+    }
+    func listLocalRepositories(repositoriesRoot: STFolder, maxDepth: Int) -> [NolonLocalRepositorySummary] {
+        base.listLocalRepositories(repositoriesRoot: repositoriesRoot, maxDepth: maxDepth)
+    }
+    func parseSkillMetadata(content: String, directoryName: String?) -> NolonSkillStandardMetadata? {
+        base.parseSkillMetadata(content: content, directoryName: directoryName)
+    }
+    func discoverRepositoryResources(at repositoryPath: STFolder, maxDepth: Int) -> NolonRepositoryResources {
+        base.discoverRepositoryResources(at: repositoryPath, maxDepth: maxDepth)
+    }
+    func installSkill(
+        skillPath: STPath,
+        skillID: String?,
+        providerPath: STFolder,
+        installMethod: NolonSkillInstallMethod
+    ) throws -> NolonSkillInstallResult {
+        try base.installSkill(skillPath: skillPath, skillID: skillID, providerPath: providerPath, installMethod: installMethod)
+    }
+    func uninstallSkill(skillID: String, providerPath: STFolder) throws -> NolonSkillUninstallResult {
+        try base.uninstallSkill(skillID: skillID, providerPath: providerPath)
+    }
+    func scanProviderSkills(providerPath: STFolder, globalSkillsPath: STFolder) throws -> NolonSkillMigrateScanResult {
+        NolonSkillMigrateScanResult(
+            providerPath: providerPath.url.path,
+            globalSkillsPath: globalSkillsPath.url.path,
+            states: [
+                NolonProviderSkillState(skillID: "xcode", path: providerPath.subpath("xcode").url.path, state: .installed),
+                NolonProviderSkillState(skillID: "find-skills", path: providerPath.subpath("find-skills").url.path, state: .broken),
+            ]
+        )
+    }
+    func migrateSkill(
+        skillID: String,
+        providerPath: STFolder,
+        globalSkillsPath: STFolder,
+        installMethod: NolonSkillInstallMethod
+    ) throws -> NolonSkillInstallResult {
+        try base.migrateSkill(
+            skillID: skillID,
+            providerPath: providerPath,
+            globalSkillsPath: globalSkillsPath,
+            installMethod: installMethod
+        )
+    }
+    func installResource(
+        kind: NolonResourceKind,
+        filePath: STPath,
+        resourceName: String?,
+        targetPath: STFolder,
+        installMethod: NolonSkillInstallMethod
+    ) throws -> NolonResourceInstallResult {
+        try base.installResource(
+            kind: kind,
+            filePath: filePath,
+            resourceName: resourceName,
+            targetPath: targetPath,
+            installMethod: installMethod
+        )
+    }
+    func uninstallResource(
+        kind: NolonResourceKind,
+        resourceName: String,
+        targetPath: STFolder
+    ) throws -> NolonResourceUninstallResult {
+        try base.uninstallResource(kind: kind, resourceName: resourceName, targetPath: targetPath)
+    }
+    func listRemoteResources(
+        kind: NolonRemoteCatalogKind,
+        query: String?,
+        limit: Int,
+        baseURL: String
+    ) async throws -> NolonRemoteListResult {
+        try await base.listRemoteResources(kind: kind, query: query, limit: limit, baseURL: baseURL)
+    }
+    func downloadRemoteResource(
+        kind: NolonRemoteCatalogKind,
+        slug: String,
+        version: String?,
+        baseURL: String
+    ) async throws -> NolonRemoteDownloadResult {
+        try await base.downloadRemoteResource(kind: kind, slug: slug, version: version, baseURL: baseURL)
+    }
+}
+
+private struct OrphanedAndBrokenSkillsRepositoryService: NolonSkillsRepositoryServing {
+    private let base = MockSkillsRepositoryService(
+        repositoryResources: NolonRepositoryResources(skillsDirectories: [], workflows: [], mcps: []),
+        localRepositories: []
+    )
+
+    func planGitImport(source: String, repositoriesRoot: STFolder) throws -> NolonGitImportPlan {
+        try base.planGitImport(source: source, repositoriesRoot: repositoriesRoot)
+    }
+    func preflightGitSync(
+        source: String,
+        accessToken: String?,
+        pullStrategy: NolonGitPullStrategy,
+        credentialStrategy: NolonGitCredentialStrategy
+    ) throws -> NolonGitSyncPreflight {
+        try base.preflightGitSync(
+            source: source,
+            accessToken: accessToken,
+            pullStrategy: pullStrategy,
+            credentialStrategy: credentialStrategy
+        )
+    }
+    func syncGitRepository(
+        plan: NolonGitImportPlan,
+        accessToken: String?,
+        pullStrategy: NolonGitPullStrategy,
+        credentialStrategy: NolonGitCredentialStrategy
+    ) async throws -> NolonGitSyncResult {
+        try await base.syncGitRepository(
+            plan: plan,
+            accessToken: accessToken,
+            pullStrategy: pullStrategy,
+            credentialStrategy: credentialStrategy
+        )
+    }
+    func discoverSkillsDirectories(at repositoryPath: STFolder, maxDepth: Int) -> [NolonSkillsDirectoryCandidate] {
+        []
+    }
+    func listLocalRepositories(repositoriesRoot: STFolder, maxDepth: Int) -> [NolonLocalRepositorySummary] {
+        []
+    }
+    func parseSkillMetadata(content: String, directoryName: String?) -> NolonSkillStandardMetadata? {
+        base.parseSkillMetadata(content: content, directoryName: directoryName)
+    }
+    func discoverRepositoryResources(at repositoryPath: STFolder, maxDepth: Int) -> NolonRepositoryResources {
+        NolonRepositoryResources(skillsDirectories: [], workflows: [], mcps: [])
+    }
+    func installSkill(
+        skillPath: STPath,
+        skillID: String?,
+        providerPath: STFolder,
+        installMethod: NolonSkillInstallMethod
+    ) throws -> NolonSkillInstallResult {
+        try base.installSkill(skillPath: skillPath, skillID: skillID, providerPath: providerPath, installMethod: installMethod)
+    }
+    func uninstallSkill(skillID: String, providerPath: STFolder) throws -> NolonSkillUninstallResult {
+        try base.uninstallSkill(skillID: skillID, providerPath: providerPath)
+    }
+    func scanProviderSkills(providerPath: STFolder, globalSkillsPath: STFolder) throws -> NolonSkillMigrateScanResult {
+        return NolonSkillMigrateScanResult(
+            providerPath: providerPath.url.path,
+            globalSkillsPath: globalSkillsPath.url.path,
+            states: [
+                NolonProviderSkillState(skillID: "agent-browser", path: providerPath.subpath("agent-browser").url.path, state: .orphaned),
+                NolonProviderSkillState(skillID: "find-skills", path: providerPath.subpath("find-skills").url.path, state: .broken),
+            ]
+        )
+    }
+    func migrateSkill(
+        skillID: String,
+        providerPath: STFolder,
+        globalSkillsPath: STFolder,
+        installMethod: NolonSkillInstallMethod
+    ) throws -> NolonSkillInstallResult {
+        try base.migrateSkill(skillID: skillID, providerPath: providerPath, globalSkillsPath: globalSkillsPath, installMethod: installMethod)
+    }
+    func installResource(
+        kind: NolonResourceKind,
+        filePath: STPath,
+        resourceName: String?,
+        targetPath: STFolder,
+        installMethod: NolonSkillInstallMethod
+    ) throws -> NolonResourceInstallResult {
+        try base.installResource(kind: kind, filePath: filePath, resourceName: resourceName, targetPath: targetPath, installMethod: installMethod)
+    }
+    func uninstallResource(
+        kind: NolonResourceKind,
+        resourceName: String,
+        targetPath: STFolder
+    ) throws -> NolonResourceUninstallResult {
+        try base.uninstallResource(kind: kind, resourceName: resourceName, targetPath: targetPath)
+    }
+    func listRemoteResources(
+        kind: NolonRemoteCatalogKind,
+        query: String?,
+        limit: Int,
+        baseURL: String
+    ) async throws -> NolonRemoteListResult {
+        NolonRemoteListResult(kind: kind, baseURL: baseURL, query: query, limit: limit, items: [])
+    }
+    func downloadRemoteResource(
+        kind: NolonRemoteCatalogKind,
+        slug: String,
+        version: String?,
+        baseURL: String
+    ) async throws -> NolonRemoteDownloadResult {
+        try await base.downloadRemoteResource(kind: kind, slug: slug, version: version, baseURL: baseURL)
+    }
+
 }
 
 private func makeMockRemoteSkillFolder(slug: String) throws -> URL {
