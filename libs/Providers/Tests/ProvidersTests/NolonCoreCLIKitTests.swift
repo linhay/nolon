@@ -1133,7 +1133,7 @@ struct NolonCoreCLIKitTests {
         #expect(result.stdout.contains("providers_matched: 1"))
         #expect(result.stdout.contains("health(installed/total): 0/1 (0.0%)"))
         #expect(result.stdout.contains("state(installed/orphaned/broken): 0/1/0 (0.0%/100.0%/0.0%)"))
-        #expect(result.stdout.contains("- codex/react-best-practices [orphaned]"))
+        #expect(result.stdout.contains("- codex/react-best-practices [孤链]"))
         #expect(result.stdout.contains("异常提供方(1): codex"))
         #expect(result.stdout.contains("修复建议（可复制）:"))
         #expect(result.stdout.contains("查看孤链详情"))
@@ -1164,8 +1164,8 @@ struct NolonCoreCLIKitTests {
         )
 
         #expect(result.exitCode == 0)
-        #expect(result.stdout.contains("- codex/xcode [installed]") == false)
-        #expect(result.stdout.contains("- codex/find-skills [broken]"))
+        #expect(result.stdout.contains("- codex/xcode [已安装]") == false)
+        #expect(result.stdout.contains("- codex/find-skills [损坏]"))
         #expect(result.stdout.contains("修复建议（可复制）:"))
         #expect(result.stdout.contains("查看坏链详情"))
         #expect(result.stdout.contains("nolon skills list --state broken"))
@@ -1189,7 +1189,7 @@ struct NolonCoreCLIKitTests {
         )
 
         #expect(result.exitCode == 0)
-        #expect(result.stdout.contains("- codex/react-best-practices [orphaned]"))
+        #expect(result.stdout.contains("- codex/react-best-practices [孤链]"))
         #expect(result.stdout.contains("/Users/linhey/.codex/skills/react-best-practices"))
     }
 
@@ -1210,7 +1210,7 @@ struct NolonCoreCLIKitTests {
 
         #expect(result.exitCode == 0)
         #expect(result.stdout.contains("state_filter: orphaned"))
-        #expect(result.stdout.contains("- codex/react-best-practices [orphaned]"))
+        #expect(result.stdout.contains("- codex/react-best-practices [孤链]"))
         #expect(result.stdout.contains("异常提供方(1): codex"))
         #expect(result.stdout.contains("修复建议（可复制）:"))
         #expect(result.stdout.contains("查看孤链详情"))
@@ -2257,6 +2257,48 @@ struct NolonCoreCLIKitTests {
         #expect(result.exitCode == 0)
         #expect(result.stdout.contains("\"command\":\"mcp.list\""))
         #expect(result.stdout.contains("\"result\""))
+    }
+
+    @Test("mcp parser reads server names from toml sections")
+    func parseMcpServerNamesFromToml() throws {
+        let names = try NolonCoreCLIRunner.parseMCPServerNames(
+            content: """
+            [mcp_servers.filesystem]
+            command = "npx"
+
+            [mcp.servers.git]
+            command = "uvx"
+            """,
+            fileExtension: "toml"
+        )
+
+        #expect(names == ["filesystem", "git"])
+    }
+
+    @Test("mcp list uses config file entries instead of scanning sibling files")
+    func mcpListUsesConfigEntriesInsteadOfDirectoryScan() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("nolon-mcp-config-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let config = root.appendingPathComponent("config.toml")
+        try """
+        [mcp_servers.filesystem]
+        command = "npx"
+        """.write(to: config, atomically: true, encoding: .utf8)
+
+        let sibling = root.appendingPathComponent("AGENTS.md")
+        try "noise".write(to: sibling, atomically: true, encoding: .utf8)
+
+        let items = NolonCoreCLIRunner.buildMCPListItemsForConfig(
+            providerID: "codex",
+            configPath: config.path
+        )
+
+        #expect(items.count == 1)
+        #expect(items.first?.skillID == "filesystem")
+        #expect(items.first?.state == .installed)
     }
 
     @Test("runner renders mcp remove result")

@@ -907,6 +907,9 @@ public struct NolonCoreCLIRunner: Sendable {
         includeEmpty: Bool,
         state: NolonProviderSkillStateKind?
     ) throws -> NolonSkillsListResult {
+        if kind == .mcp {
+            return try executeMCPList(provider: provider, includeEmpty: includeEmpty, state: state)
+        }
         let targets = try Self.resolveResourceTargets(kind: kind, provider: provider)
         let cacheRoot = try Self.resolveNolonResourceCacheRootFolder(kind: kind)
         var items: [NolonSkillsListItem] = []
@@ -964,6 +967,47 @@ public struct NolonCoreCLIRunner: Sendable {
         let installedCount = effectiveItems.filter { $0.state == .installed }.count
         let orphanedCount = effectiveItems.filter { $0.state == .orphaned }.count
         let brokenCount = effectiveItems.filter { $0.state == .broken }.count
+        return NolonSkillsListResult(
+            providerFilter: provider,
+            stateFilter: state,
+            includeEmpty: includeEmpty,
+            items: effectiveItems,
+            summary: NolonSkillsListSummary(
+                providerCount: providersScanned,
+                itemCount: effectiveItems.count,
+                installedCount: installedCount,
+                orphanedCount: orphanedCount,
+                brokenCount: brokenCount
+            )
+        )
+    }
+
+    private func executeMCPList(
+        provider: String?,
+        includeEmpty: Bool,
+        state: NolonProviderSkillStateKind?
+    ) throws -> NolonSkillsListResult {
+        let targets = try Self.resolveMCPConfigTargets(provider: provider)
+        var items: [NolonSkillsListItem] = []
+        var providersScanned = 0
+
+        for target in targets {
+            providersScanned += 1
+            items.append(contentsOf: Self.buildMCPListItemsForConfig(providerID: target.providerID, configPath: target.providerPath))
+        }
+
+        items.sort {
+            if $0.providerID.caseInsensitiveCompare($1.providerID) == .orderedSame {
+                return $0.skillID.caseInsensitiveCompare($1.skillID) == .orderedAscending
+            }
+            return $0.providerID.caseInsensitiveCompare($1.providerID) == .orderedAscending
+        }
+
+        let effectiveItems = state == nil ? items : items.filter { $0.state == state }
+        let installedCount = effectiveItems.filter { $0.state == .installed }.count
+        let orphanedCount = effectiveItems.filter { $0.state == .orphaned }.count
+        let brokenCount = effectiveItems.filter { $0.state == .broken }.count
+
         return NolonSkillsListResult(
             providerFilter: provider,
             stateFilter: state,
@@ -1699,6 +1743,119 @@ public struct NolonCoreCLIRunner: Sendable {
         return targets.sorted { $0.providerID.localizedCaseInsensitiveCompare($1.providerID) == .orderedAscending }
     }
 
+    private static func resolveMCPConfigTargets(provider: String?) throws -> [SkillsAddTarget] {
+        if let provider, !provider.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            guard let template = resolveProviderTemplate(providerID: provider) else {
+                throw NolonCoreCLIError.invalidArguments("Unsupported --provider: \(provider)")
+            }
+            return [SkillsAddTarget(providerID: template.providerID, providerPath: template.defaultMcpConfigPath.path)]
+        }
+
+        var targets: [SkillsAddTarget] = []
+        var seen: Set<String> = []
+        for template in ProviderTemplate.allCases {
+            let executable = template.cliName.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !executable.isEmpty else { continue }
+            guard Self.resolveCLIInOfficialPaths(named: executable) != nil else { continue }
+            let key = template.providerID.lowercased()
+            if seen.contains(key) { continue }
+            seen.insert(key)
+            targets.append(SkillsAddTarget(providerID: template.providerID, providerPath: template.defaultMcpConfigPath.path))
+        }
+        return targets.sorted { $0.providerID.localizedCaseInsensitiveCompare($1.providerID) == .orderedAscending }
+    }
+
+    static func buildMCPListItemsForConfig(providerID: String, configPath: String) -> [NolonSkillsListItem] {
+        let config = STPath(configPath)
+        guard config.isExists else { return [] }
+
+        let ext = config.url.pathExtension.lowercased()
+        do {
+            let content = try STFile(configPath).read()
+            let names = try parseMCPServerNames(content: content, fileExtension: ext)
+            return names.map { name in
+                NolonSkillsListItem(
+                    providerID: providerID,
+                    providerPath: configPath,
+                    skillID: name,
+                    state: .installed,
+                    path: configPath,
+                    origin: nil
+                )
+            }
+        } catch {
+            return [
+                NolonSkillsListItem(
+                    providerID: providerID,
+                    providerPath: configPath,
+                    skillID: config.url.lastPathComponent,
+                    state: .broken,
+                    path: configPath,
+                    origin: nil
+                ),
+            ]
+        }
+    }
+
+    static func parseMCPServerNames(content: String, fileExtension: String) throws -> [String] {
+        switch fileExtension {
+        case "json":
+            return try parseMCPServerNamesFromJSON(content: content)
+        case "toml":
+            return parseMCPServerNamesFromTOML(content: content)
+        default:
+            return []
+        }
+    }
+
+    private static func parseMCPServerNamesFromJSON(content: String) throws -> [String] {
+        guard let data = content.data(using: .utf8) else { return [] }
+        let object = try JSONSerialization.jsonObject(with: data, options: [])
+        var names: Set<String> = []
+        collectMCPServerNames(in: object, names: &names)
+        return names.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+    }
+
+    private static func collectMCPServerNames(in object: Any, names: inout Set<String>) {
+        if let dictionary = object as? [String: Any] {
+            for (key, value) in dictionary {
+                let lower = key.lowercased()
+                if lower == "mcpservers" || lower == "mcp_servers" {
+                    if let serverMap = value as? [String: Any] {
+                        names.formUnion(serverMap.keys.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty })
+                    }
+                }
+                if lower == "mcp", let mcp = value as? [String: Any], let servers = mcp["servers"] as? [String: Any] {
+                    names.formUnion(servers.keys.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty })
+                }
+                collectMCPServerNames(in: value, names: &names)
+            }
+        } else if let array = object as? [Any] {
+            array.forEach { collectMCPServerNames(in: $0, names: &names) }
+        }
+    }
+
+    private static func parseMCPServerNamesFromTOML(content: String) -> [String] {
+        let patterns = [
+            #"^\s*\[(?:mcp_servers|mcp\.servers|mcpServers)\.([^\]]+)\]\s*$"#,
+        ]
+        var names: Set<String> = []
+        content.split(separator: "\n").forEach { rawLine in
+            let line = String(rawLine)
+            for pattern in patterns {
+                guard let regex = try? NSRegularExpression(pattern: pattern) else { continue }
+                let range = NSRange(line.startIndex..<line.endIndex, in: line)
+                guard let match = regex.firstMatch(in: line, options: [], range: range), match.numberOfRanges > 1 else { continue }
+                guard let captureRange = Range(match.range(at: 1), in: line) else { continue }
+                let name = String(line[captureRange]).trimmingCharacters(in: .whitespacesAndNewlines)
+                if !name.isEmpty {
+                    names.insert(name)
+                }
+            }
+        }
+        return names.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+    }
+
     private static func resolveCLIInOfficialPaths(named executable: String) -> String? {
         let candidates = [
             "/opt/homebrew/bin/\(executable)",
@@ -1965,13 +2122,14 @@ public struct NolonCoreCLIRunner: Sendable {
         }
 
         lines.append(contentsOf: effectiveItems.map { item in
+            let stateLabel = Self.localizedStateLabel(item.state)
             if verbose {
                 if let origin = item.origin {
-                    return "- \(item.providerID)/\(item.skillID) [\(item.state.rawValue)] \(item.path) origin=\(origin.sourceType.rawValue):\(origin.sourceRef)"
+                    return "- \(item.providerID)/\(item.skillID) [\(stateLabel)] \(item.path) origin=\(origin.sourceType.rawValue):\(origin.sourceRef)"
                 }
-                return "- \(item.providerID)/\(item.skillID) [\(item.state.rawValue)] \(item.path) origin=unknown"
+                return "- \(item.providerID)/\(item.skillID) [\(stateLabel)] \(item.path) origin=unknown"
             }
-            return "- \(item.providerID)/\(item.skillID) [\(item.state.rawValue)]"
+            return "- \(item.providerID)/\(item.skillID) [\(stateLabel)]"
         })
         if !verbose {
             lines.append("")
@@ -2206,13 +2364,14 @@ public struct NolonCoreCLIRunner: Sendable {
             lines.append("异常提供方(\(providers.count)): \(providers.joined(separator: ", "))")
         }
         lines.append(contentsOf: items.map { item in
+            let stateLabel = Self.localizedStateLabel(item.state)
             if verbose {
                 if let origin = item.origin {
-                    return "- \(item.providerID)/\(item.skillID) [\(item.state.rawValue)] \(item.path) origin=\(origin.sourceType.rawValue):\(origin.sourceRef)"
+                    return "- \(item.providerID)/\(item.skillID) [\(stateLabel)] \(item.path) origin=\(origin.sourceType.rawValue):\(origin.sourceRef)"
                 }
-                return "- \(item.providerID)/\(item.skillID) [\(item.state.rawValue)] \(item.path) origin=unknown"
+                return "- \(item.providerID)/\(item.skillID) [\(stateLabel)] \(item.path) origin=unknown"
             }
-            return "- \(item.providerID)/\(item.skillID) [\(item.state.rawValue)]"
+            return "- \(item.providerID)/\(item.skillID) [\(stateLabel)]"
         })
         if !verbose {
             lines.append("")
@@ -2250,6 +2409,17 @@ public struct NolonCoreCLIRunner: Sendable {
         guard compact.count > maxLength else { return compact }
         let prefix = compact.prefix(max(0, maxLength - 3))
         return "\(prefix)..."
+    }
+
+    private static func localizedStateLabel(_ state: NolonProviderSkillStateKind) -> String {
+        switch state {
+        case .installed:
+            return "已安装"
+        case .orphaned:
+            return "孤链"
+        case .broken:
+            return "损坏"
+        }
     }
 
     private func renderTable(headers: [String], rows: [[String]]) -> [String] {
