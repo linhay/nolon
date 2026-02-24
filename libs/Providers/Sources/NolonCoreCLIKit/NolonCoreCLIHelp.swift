@@ -33,11 +33,11 @@ enum NolonCoreCLIHelpResolver {
                     注意：省略 --provider 可能触发多 provider 批量写入/覆盖；建议先使用 --dry-run 预览范围。
           remove    --skill-id <id> (--provider-path <path> | --provider <id> | --provider-id <id>)
 
-        场景: 发现技能
+        场景: 搜索技能
           nolon skills search xcode
 
         场景: 安装技能
-          nolon skills add xcode --provider codex
+          nolon skills add xcode --provider codex --dry-run
 
         场景: 修复异常
           nolon skills list --provider codex --state broken

@@ -2943,7 +2943,10 @@ struct NolonCoreCLIKitTests {
             #expect(result.stdout.contains("修复建议（可复制）:"))
             #expect(result.stdout.contains("[下一步（可复制执行）]"))
             #expect(result.stdout.contains("先设置前缀变量（与本次入口一致）"))
-            #expect(result.stdout.contains("1) 生成分条修复命令: `$NOLON_CMD workflow list --provider codex --show-fixes`"))
+            #expect(
+                result.stdout.contains("1) 生成分条修复命令: `$NOLON_CMD workflow list --provider codex --show-fixes`")
+                || result.stdout.contains("1) `$NOLON_CMD workflow remove --resource-name")
+            )
             #expect(result.stdout.contains("2) 查看路径与来源: `$NOLON_CMD workflow list --provider codex --verbose --show-fixes`"))
         }
         #expect(result.stdout.contains("[下一步]") == false)
@@ -3002,6 +3005,16 @@ struct NolonCoreCLIKitTests {
         #expect(help.contains("场景: 搜索 MCP"))
         #expect(help.contains("nolon mcp search xcode"))
         #expect(help.contains("场景: 修复异常"))
+    }
+
+    @Test("skills help text contains safe install scenario")
+    func skillsHelpTextContainsSafeInstallScenario() {
+        let help = NolonCoreCLIHelpResolver.resolvedHelpText(arguments: ["skills"]) ?? ""
+        #expect(help.contains("场景: 搜索技能"))
+        #expect(help.contains("nolon skills search xcode"))
+        #expect(help.contains("场景: 安装技能"))
+        #expect(help.contains("nolon skills add xcode --provider codex --dry-run"))
+        #expect(help.contains("nolon skills add xcode --provider codex\n") == false)
     }
 
     @Test("runner renders mcp list with state filter keeps matched provider count")
