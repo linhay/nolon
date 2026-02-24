@@ -2470,9 +2470,9 @@ public struct NolonCoreCLIRunner: Sendable {
                 if item.state != .installed {
                     line += " [\(stateLabel)]"
                 }
-                line += " | path: \(item.path)"
+                line += "\n  path: \(item.path)"
                 if let origin = item.origin, origin.sourceType != .unknown {
-                    line += " | origin: \(origin.sourceType.rawValue):\(origin.sourceRef)"
+                    line += "\n  origin: \(origin.sourceType.rawValue):\(origin.sourceRef)"
                 }
                 return line
             }
@@ -2850,9 +2850,9 @@ public struct NolonCoreCLIRunner: Sendable {
             let installedLines = installedItems.map { item in
                 if verbose {
                     var line = "- \(item.providerID)/\(item.skillID)"
-                    line += " | path: \(item.path)"
+                    line += "\n  path: \(item.path)"
                     if let origin = item.origin, origin.sourceType != .unknown {
-                        line += " | origin: \(origin.sourceType.rawValue):\(origin.sourceRef)"
+                        line += "\n  origin: \(origin.sourceType.rawValue):\(origin.sourceRef)"
                     }
                     return line
                 }

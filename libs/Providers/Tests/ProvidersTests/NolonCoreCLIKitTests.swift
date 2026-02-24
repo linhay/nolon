@@ -1621,7 +1621,7 @@ struct NolonCoreCLIKitTests {
         )
 
         #expect(result.exitCode == 0)
-        #expect(result.stdout.contains("- codex/react-best-practices [失效链接] | path:"))
+        #expect(result.stdout.contains("- codex/react-best-practices [失效链接]\n  path:"))
         #expect(result.stdout.contains("/Users/linhey/.codex/skills/react-best-practices"))
     }
 
@@ -1641,7 +1641,7 @@ struct NolonCoreCLIKitTests {
             outputMode: .text
         )
         #expect(result.exitCode == 0)
-        #expect(result.stdout.contains("- codex/xcode | path: /Users/linhey/.codex/skills/xcode"))
+        #expect(result.stdout.contains("- codex/xcode\n  path: /Users/linhey/.codex/skills/xcode"))
         #expect(result.stdout.contains("- codex/xcode [已安装]") == false)
         #expect(result.stdout.contains("origin=unknown") == false)
     }
@@ -3243,7 +3243,7 @@ struct NolonCoreCLIKitTests {
             outputMode: .text
         )
         #expect(result.exitCode == 0)
-        #expect(result.stdout.contains("- codex/xcode | path:"))
+        #expect(result.stdout.contains("- codex/xcode\n  path:"))
         #expect(result.stdout.contains("[配置路径]") == false)
         #expect(result.stdout.contains("config_path:") == false)
     }
