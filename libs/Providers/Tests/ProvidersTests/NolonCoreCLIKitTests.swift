@@ -467,7 +467,9 @@ struct NolonCoreCLIKitTests {
             #expect((error.errorDescription ?? "").contains("--yes"))
             #expect((error.errorDescription ?? "").contains("--dry-run"))
             #expect((error.errorDescription ?? "").contains("nolon skills search <keyword> --install --dry-run"))
+            #expect((error.errorDescription ?? "").contains("nolon skills search <keyword> --install --yes --provider codex"))
             #expect((error.errorDescription ?? "").contains("nolon skills search --query <text> --install --dry-run"))
+            #expect((error.errorDescription ?? "").contains("nolon skills search --query <text> --install --yes --provider codex"))
         } catch {
             Issue.record("Unexpected error: \(error)")
         }
@@ -809,15 +811,12 @@ struct NolonCoreCLIKitTests {
         )
 
         #expect(result.exitCode == 0)
-        #expect(result.stdout.contains("匹配结果: 1"))
-        #expect(result.stdout.contains("source: remote-api (https://clawdhub.com)"))
-        #expect(result.stdout.contains("提示: 结果来自远端 API 索引；若与网页不一致，通常由筛选、排序或索引延迟导致。"))
-        #expect(result.stdout.contains("字段说明: updated 为远端目录时间（非本地缓存同步时间）。"))
-        #expect(result.stdout.contains("快速安装(单目标示例): nolon skills add xcode --provider codex --dry-run"))
-        #expect(result.stdout.contains("安装模板:"))
-        #expect(result.stdout.contains("指定 provider: nolon skills add <slug> --provider codex --dry-run"))
-        #expect(result.stdout.contains("全部 providers: nolon skills add <slug> --dry-run [可能批量写入]"))
-        #expect(result.stdout.contains("搜索并挑选: nolon skills search xcode --install --pick 1 --provider codex --dry-run"))
+        #expect(result.stdout.contains("精确命中: xcode (query: xcode), candidates: 1"))
+        #expect(result.stdout.contains("source: remote-api") == false)
+        #expect(result.stdout.contains("安装:"))
+        #expect(result.stdout.contains("- nolon skills add xcode --provider codex --dry-run"))
+        #expect(result.stdout.contains("--install --pick") == false)
+        #expect(result.stdout.contains("全部 providers:") == false)
         #expect(result.stdout.contains("[1] xcode"))
         #expect(result.stdout.contains("version: 1.0.0"))
         #expect(result.stdout.contains("updated: 1970-01-01"))
@@ -829,8 +828,7 @@ struct NolonCoreCLIKitTests {
         #expect(result.stdout.contains("slug | name | version | updated") == false)
         #expect(result.stdout.contains("---") == false)
         #expect(result.stdout.contains("下一步:") == false)
-        #expect(result.stdout.contains("注意：未指定 `--provider` 将分发到全部 providers（可能批量写入），建议先 `--dry-run`。"))
-        #expect(result.stdout.contains("提示: 序号可用于 `--pick` 安装；也可使用 slug 安装。"))
+        #expect(result.stdout.contains("提示: 用 `--install --pick <序号>` 或直接 slug 安装。") == false)
     }
 
     @Test("runner compacts and truncates long summary in skills search text list")
@@ -851,8 +849,33 @@ struct NolonCoreCLIKitTests {
         #expect(result.exitCode == 0)
         #expect(result.stdout.contains("summary: Xcode long summary line one line two"))
         #expect(result.stdout.contains("...\n\n[") == false)
-        #expect(result.stdout.contains("安装模板:"))
+        #expect(result.stdout.contains("安装:"))
         #expect(result.stdout.contains("\n\n  summary:") == false)
+    }
+
+    @Test("runner prefers exact slug display in skills search text list")
+    func runnerPrefersExactSlugDisplayInSkillsSearchTextList() async {
+        let runner = NolonCoreCLIRunner(
+            service: MultiMatchRemoteSearchMockSkillsRepositoryService(),
+            fileReader: { _ in "" }
+        )
+        let result = await runner.execute(
+            arguments: [
+                "skills", "search",
+                "--query", "xcode",
+                "--limit", "20",
+            ],
+            outputMode: .text
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stdout.contains("精确命中: xcode (query: xcode), candidates: 2"))
+        #expect(result.stdout.contains("检测到精确 slug 命中") == false)
+        #expect(result.stdout.contains("--install --pick") == false)
+        #expect(result.stdout.contains("- nolon skills add xcode --provider codex --dry-run"))
+        #expect(result.stdout.contains("[1] xcode"))
+        #expect(result.stdout.contains("[2] xcodebuildmcp") == false)
+        #expect(result.stdout.contains("其他候选(1): xcodebuildmcp"))
     }
 
     @Test("runner omits summary in skills search text list when result is large")
@@ -872,11 +895,53 @@ struct NolonCoreCLIKitTests {
 
         #expect(result.exitCode == 0)
         #expect(result.stdout.contains("匹配结果: 20 (query: gitlab-cli-skills)"))
-        #expect(result.stdout.contains("提示: 结果较多，已省略 summary；可用 `--limit 5` 缩小范围后查看详情。"))
+        #expect(result.stdout.contains("提示: 已省略 summary（将 `--limit` 设为 8 或更小可查看摘要）；仅展示前 10 条"))
+        #expect(result.stdout.contains("- nolon skills search gitlab-cli-skills --install --pick <序号> --provider codex --dry-run"))
         #expect(result.stdout.contains("summary:") == false)
         #expect(result.stdout.contains("[1] skill-1"))
         #expect(result.stdout.contains("[2] skill-2"))
         #expect(result.stdout.contains("[1] skill-1\n  version: 1.0.0\n  updated: 1970-01-01\n\n[2] skill-2"))
+    }
+
+    @Test("runner truncates large skills search text list to top 10")
+    func runnerTruncatesLargeSkillsSearchTextListToTopTen() async {
+        let runner = NolonCoreCLIRunner(
+            service: ManyMatchRemoteSearchMockSkillsRepositoryService(),
+            fileReader: { _ in "" }
+        )
+        let result = await runner.execute(
+            arguments: [
+                "skills", "search",
+                "--query", "gitlab-cli-skills",
+                "--limit", "20",
+            ],
+            outputMode: .text
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stdout.contains("[10] skill-10"))
+        #expect(result.stdout.contains("[11] skill-11") == false)
+        #expect(result.stdout.contains("仅展示前 10 条"))
+    }
+
+    @Test("runner large skills search hint does not suggest same limit value")
+    func runnerLargeSkillsSearchHintDoesNotSuggestSameLimitValue() async {
+        let runner = NolonCoreCLIRunner(
+            service: ManyMatchRemoteSearchMockSkillsRepositoryService(),
+            fileReader: { _ in "" }
+        )
+        let result = await runner.execute(
+            arguments: [
+                "skills", "search",
+                "--query", "gitlab-cli-skills",
+                "--limit", "20",
+            ],
+            outputMode: .text
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stdout.contains("`--limit 20` 查看更多") == false)
+        #expect(result.stdout.contains("可增大 `--limit` 查看更多"))
     }
 
     @Test("runner annotates future updated date in skills search text list")
@@ -1011,6 +1076,81 @@ struct NolonCoreCLIKitTests {
         #expect(result.stdout.contains("[PLAN] codex"))
     }
 
+    @Test("runner search install out-of-range pick returns actionable hint")
+    func runnerSearchInstallOutOfRangePickReturnsActionableHint() async {
+        let runner = NolonCoreCLIRunner(
+            service: MultiMatchRemoteSearchMockSkillsRepositoryService(),
+            fileReader: { _ in "" }
+        )
+        let result = await runner.execute(
+            arguments: [
+                "skills", "search", "xco",
+                "--install",
+                "--pick", "99",
+                "--provider", "codex",
+                "--dry-run",
+            ],
+            outputMode: .text
+        )
+
+        #expect(result.exitCode == 2)
+        #expect(result.stderr.contains("--pick is out of range"))
+        #expect(result.stderr.contains("available range: 1...2"))
+        #expect(result.stderr.contains("Review candidates: nolon skills search xco --provider codex"))
+        #expect(result.stderr.contains("Then retry: nolon skills search xco --install --pick <1-2> --provider codex --dry-run"))
+    }
+
+    @Test("runner search install out-of-range pick quotes spaced query in hint")
+    func runnerSearchInstallOutOfRangePickQuotesSpacedQueryInHint() async {
+        let runner = NolonCoreCLIRunner(
+            service: ManyMatchRemoteSearchMockSkillsRepositoryService(),
+            fileReader: { _ in "" }
+        )
+        let result = await runner.execute(
+            arguments: [
+                "skills", "search", "ios app",
+                "--install",
+                "--pick", "99",
+                "--provider", "codex",
+                "--dry-run",
+            ],
+            outputMode: .text
+        )
+
+        #expect(result.exitCode == 2)
+        #expect(result.stderr.contains("Review candidates: nolon skills search 'ios app' --provider codex"))
+        #expect(result.stderr.contains("Then retry: nolon skills search 'ios app' --install --pick <1-20> --provider codex --dry-run"))
+    }
+
+    @Test("runner search install prioritizes explicit pick over exact match")
+    func runnerSearchInstallPrioritizesExplicitPickOverExactMatch() async throws {
+        let tempRoot = try STFolder(sanbox: .temporary).folder("nolon-cli-search-install-pick-over-exact-\(UUID().uuidString)").create()
+        defer { try? tempRoot.delete() }
+
+        let nolonHome = tempRoot.folder("nolon-home")
+        _ = nolonHome.createIfNotExists()
+        setenv("NOLON_HOME", nolonHome.url.path, 1)
+        defer { unsetenv("NOLON_HOME") }
+
+        let runner = NolonCoreCLIRunner(
+            service: MultiMatchRemoteSearchMockSkillsRepositoryService(),
+            fileReader: { _ in "" }
+        )
+        let result = await runner.execute(
+            arguments: [
+                "skills", "search", "xcode",
+                "--install",
+                "--pick", "2",
+                "--provider", "codex",
+                "--dry-run",
+            ],
+            outputMode: .text
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stdout.contains("skill: xcodebuildmcp (remote)"))
+    }
+
     @Test("runner search install not-found returns actionable hint")
     func runnerSearchInstallNotFoundReturnsActionableHint() async {
         let runner = NolonCoreCLIRunner(
@@ -1033,6 +1173,116 @@ struct NolonCoreCLIKitTests {
         #expect(result.stderr.contains("nolon skills search nomatchkeyword123"))
     }
 
+    @Test("runner workflow search install not-found returns workflow-specific hint")
+    func runnerWorkflowSearchInstallNotFoundReturnsWorkflowSpecificHint() async {
+        let runner = NolonCoreCLIRunner(
+            service: EmptySkillLookupMockSkillsRepositoryService(),
+            fileReader: { _ in "" }
+        )
+        let result = await runner.execute(
+            arguments: [
+                "workflow", "search", "nomatchkeyword123",
+                "--install",
+                "--dry-run",
+            ],
+            outputMode: .text
+        )
+
+        #expect(result.exitCode == 2)
+        #expect(result.stderr.contains("\"code\":\"workflow_not_found\""))
+        #expect(result.stderr.contains("Workflow not found by query: nomatchkeyword123"))
+        #expect(result.stderr.contains("nolon workflow sync --source"))
+        #expect(result.stderr.contains("nolon workflow search nomatchkeyword123"))
+    }
+
+    @Test("runner mcp search install not-found returns mcp-specific hint")
+    func runnerMcpSearchInstallNotFoundReturnsMcpSpecificHint() async {
+        let runner = NolonCoreCLIRunner(
+            service: EmptySkillLookupMockSkillsRepositoryService(),
+            fileReader: { _ in "" }
+        )
+        let result = await runner.execute(
+            arguments: [
+                "mcp", "search", "nomatchkeyword123",
+                "--install",
+                "--dry-run",
+            ],
+            outputMode: .text
+        )
+
+        #expect(result.exitCode == 2)
+        #expect(result.stderr.contains("\"code\":\"mcp_not_found\""))
+        #expect(result.stderr.contains("MCP not found by query: nomatchkeyword123"))
+        #expect(result.stderr.contains("nolon mcp sync --source"))
+        #expect(result.stderr.contains("nolon mcp search nomatchkeyword123"))
+    }
+
+    @Test("runner workflow search install keeps workflow-specific ambiguity hints")
+    func runnerWorkflowSearchInstallKeepsWorkflowSpecificAmbiguityHints() async {
+        let runner = NolonCoreCLIRunner(
+            service: MultiMatchRemoteSearchMockSkillsRepositoryService(),
+            fileReader: { _ in "" }
+        )
+        let result = await runner.execute(
+            arguments: [
+                "workflow", "search", "xco",
+                "--install",
+                "--provider", "codex",
+                "--dry-run",
+            ],
+            outputMode: .text
+        )
+
+        #expect(result.exitCode == 2)
+        #expect(result.stderr.contains("--install requires exactly one match"))
+        #expect(result.stderr.contains("nolon workflow add <slug>"))
+        #expect(result.stderr.contains("nolon workflow search xcode --install --provider codex --dry-run"))
+        #expect(result.stderr.contains("nolon workflow search xco --install --pick 1 --provider codex --dry-run"))
+    }
+
+    @Test("runner search install ambiguity hint quotes spaced query")
+    func runnerSearchInstallAmbiguityHintQuotesSpacedQuery() async {
+        let runner = NolonCoreCLIRunner(
+            service: ManyMatchRemoteSearchMockSkillsRepositoryService(),
+            fileReader: { _ in "" }
+        )
+        let result = await runner.execute(
+            arguments: [
+                "skills", "search", "ios app",
+                "--install",
+                "--provider", "codex",
+                "--dry-run",
+            ],
+            outputMode: .text
+        )
+
+        #expect(result.exitCode == 2)
+        #expect(result.stderr.contains("Or disambiguate with --pick: nolon skills search 'ios app' --install --pick 1 --provider codex --dry-run"))
+    }
+
+    @Test("runner workflow search out-of-range pick keeps workflow namespace hint")
+    func runnerWorkflowSearchOutOfRangePickKeepsWorkflowNamespaceHint() async {
+        let runner = NolonCoreCLIRunner(
+            service: MultiMatchRemoteSearchMockSkillsRepositoryService(),
+            fileReader: { _ in "" }
+        )
+        let result = await runner.execute(
+            arguments: [
+                "workflow", "search", "xco",
+                "--install",
+                "--pick", "99",
+                "--provider", "codex",
+                "--dry-run",
+            ],
+            outputMode: .text
+        )
+
+        #expect(result.exitCode == 2)
+        #expect(result.stderr.contains("--pick is out of range"))
+        #expect(result.stderr.contains("Review candidates: nolon workflow search xco --provider codex"))
+        #expect(result.stderr.contains("Then retry: nolon workflow search xco --install --pick <1-2> --provider codex --dry-run"))
+    }
+
     @Test("runner maps remote 429 to actionable rate limit error")
     func runnerMapsRemote429ToActionableRateLimitError() async {
         let runner = NolonCoreCLIRunner(
@@ -1052,6 +1302,53 @@ struct NolonCoreCLIKitTests {
         #expect(result.stderr.contains("请等待 30 秒后重试"))
         #expect(result.stderr.contains("nolon skills sync --source <owner/repo>"))
         #expect(result.stderr.contains("nolon skills add <slug> --dry-run"))
+    }
+
+    @Test("runner maps remote 404 to actionable catalog unavailable error")
+    func runnerMapsRemote404ToActionableCatalogUnavailableError() async {
+        let runner = NolonCoreCLIRunner(
+            service: RemoteCatalogUnavailableMockSkillsRepositoryService(),
+            fileReader: { _ in "" }
+        )
+        let result = await runner.execute(
+            arguments: [
+                "workflow", "search", "xcode",
+            ],
+            outputMode: .text
+        )
+
+        #expect(result.exitCode == 2)
+        #expect(result.stderr.contains("Error [remote_catalog_unavailable]"))
+        #expect(result.stderr.contains("远端目录当前不可用或不支持该资源类型（404）"))
+        #expect(result.stderr.contains("nolon workflow sync --source <owner/repo>"))
+        #expect(result.stderr.contains("nolon workflow add <slug> --provider codex --dry-run"))
+        #expect(result.stderr.contains("nolon workflow list --verbose"))
+        #expect(result.stderr.contains("nolon skills repo list --verbose"))
+        #expect(result.stderr.contains("nolon skills sync --source") == false)
+        #expect(result.stderr.contains("nolon mcp sync --source") == false)
+    }
+
+    @Test("runner maps remote 404 to mcp-specific catalog unavailable error")
+    func runnerMapsRemote404ToMcpSpecificCatalogUnavailableError() async {
+        let runner = NolonCoreCLIRunner(
+            service: RemoteCatalogUnavailableMockSkillsRepositoryService(),
+            fileReader: { _ in "" }
+        )
+        let result = await runner.execute(
+            arguments: [
+                "mcp", "search", "xcode",
+            ],
+            outputMode: .text
+        )
+
+        #expect(result.exitCode == 2)
+        #expect(result.stderr.contains("Error [remote_catalog_unavailable]"))
+        #expect(result.stderr.contains("nolon mcp sync --source <owner/repo>"))
+        #expect(result.stderr.contains("nolon mcp add <slug> --provider codex --dry-run"))
+        #expect(result.stderr.contains("nolon mcp list --verbose"))
+        #expect(result.stderr.contains("nolon skills repo list --verbose"))
+        #expect(result.stderr.contains("nolon skills sync --source") == false)
+        #expect(result.stderr.contains("nolon workflow sync --source") == false)
     }
 
     @Test("runner maps permission denied to actionable error")
@@ -1111,7 +1408,53 @@ struct NolonCoreCLIKitTests {
         #expect(result.stderr.contains("\"code\":\"invalid_arguments\""))
         #expect(result.stderr.contains("--install requires a non-empty query"))
         #expect(result.stderr.contains("nolon skills search <keyword> --install --dry-run"))
+        #expect(result.stderr.contains("nolon skills search <keyword> --install --yes --provider codex"))
         #expect(result.stderr.contains("nolon skills search --query <text> --install --dry-run"))
+        #expect(result.stderr.contains("nolon skills search --query <text> --install --yes --provider codex"))
+    }
+
+    @Test("runner mcp search install requires non-empty query with mcp-specific hint")
+    func runnerMcpSearchInstallRequiresNonEmptyQueryWithMcpSpecificHint() async {
+        let runner = NolonCoreCLIRunner(
+            service: EmptySkillLookupMockSkillsRepositoryService(),
+            fileReader: { _ in "" }
+        )
+        let result = await runner.execute(
+            arguments: [
+                "mcp", "search",
+                "--install",
+                "--dry-run",
+            ],
+            outputMode: .text
+        )
+
+        #expect(result.exitCode == 2)
+        #expect(result.stderr.contains("\"code\":\"invalid_arguments\""))
+        #expect(result.stderr.contains("nolon mcp search <keyword> --install --dry-run"))
+        #expect(result.stderr.contains("nolon mcp search <keyword> --install --yes --provider codex"))
+        #expect(result.stderr.contains("nolon mcp search --query <text> --install --dry-run"))
+        #expect(result.stderr.contains("nolon mcp search --query <text> --install --yes --provider codex"))
+    }
+
+    @Test("runner workflow search install validates empty query before remote call")
+    func runnerWorkflowSearchInstallValidatesEmptyQueryBeforeRemoteCall() async {
+        let runner = NolonCoreCLIRunner(
+            service: RemoteCatalogUnavailableMockSkillsRepositoryService(),
+            fileReader: { _ in "" }
+        )
+        let result = await runner.execute(
+            arguments: [
+                "workflow", "search",
+                "--install",
+                "--dry-run",
+            ],
+            outputMode: .text
+        )
+
+        #expect(result.exitCode == 2)
+        #expect(result.stderr.contains("\"code\":\"invalid_arguments\""))
+        #expect(result.stderr.contains("nolon workflow search <keyword> --install --dry-run"))
+        #expect(result.stderr.contains("remote_catalog_unavailable") == false)
     }
 
     @Test("runner renders skills list text as compact list")
@@ -1129,24 +1472,32 @@ struct NolonCoreCLIKitTests {
         )
 
         #expect(result.exitCode == 0)
+        #expect(result.stdout.contains("[结论]"))
         #expect(result.stdout.contains("providers_scanned: 1"))
         #expect(result.stdout.contains("providers_matched: 1"))
-        #expect(result.stdout.contains("health(installed/total): 0/1 (0.0%)"))
-        #expect(result.stdout.contains("state(installed/orphaned/broken): 0/1/0 (0.0%/100.0%/0.0%)"))
-        #expect(result.stdout.contains("- codex/react-best-practices [孤链]"))
+        #expect(result.stdout.contains("健康度(已安装/总数): 0/1 (0.0%)"))
+        #expect(result.stdout.contains("状态：已安装 0 项（0.0%），失效链接 1 项（100.0%），损坏 0 项（0.0%）。"))
+        #expect(result.stdout.contains("行动建议: 需处理 1 项异常（高优先级）"))
+        #expect(result.stdout.contains("摘要: 当前有 1 个异常项（1 个失效链接，0 个损坏），建议按下方修复计划执行。"))
+        #expect(result.stdout.contains("- codex/react-best-practices [失效链接]"))
         #expect(result.stdout.contains("异常提供方(1): codex"))
         #expect(result.stdout.contains("修复建议（可复制）:"))
-        #expect(result.stdout.contains("查看孤链详情"))
+        #expect(result.stdout.contains("[下一步（可复制执行）]"))
+        #expect(result.stdout.contains("先设置前缀变量（与本次入口一致）"))
+        #expect(result.stdout.contains("`NOLON_CMD='nolon'`"))
+        #expect(result.stdout.contains("[下一步]") == false)
+        #expect(result.stdout.contains("[立即执行（复制即用）]") == false)
+        #expect(result.stdout.contains("查看失效链接详情"))
         #expect(result.stdout.contains("/Users/") == false)
         #expect(result.stdout.contains("nolon skills list --verbose"))
         #expect(result.stdout.contains("provider | skill | state | path") == false)
-        #expect(result.stdout.contains("异常项(orphaned/broken): 1"))
-        #expect(result.stdout.contains("nolon skills list --state orphaned"))
+        #expect(result.stdout.contains("需处理异常: 1（失效链接 1，损坏 0）"))
+        #expect(result.stdout.contains("$NOLON_CMD skills list --state orphaned"))
         #expect(result.stdout.contains("快速筛坏链") == false)
-        #expect(result.stdout.contains("快速筛孤链") == false)
+        #expect(result.stdout.contains("快速筛失效链接") == false)
         #expect(result.stdout.contains("修复建议:") == false)
         #expect(result.stdout.contains("一键修复(all):") == false)
-        #expect(result.stdout.contains("nolon skills list --show-fixes"))
+        #expect(result.stdout.contains("$NOLON_CMD skills list --show-fixes"))
     }
 
     @Test("runner hides installed items in default list mode")
@@ -1168,7 +1519,7 @@ struct NolonCoreCLIKitTests {
         #expect(result.stdout.contains("- codex/find-skills [损坏]"))
         #expect(result.stdout.contains("修复建议（可复制）:"))
         #expect(result.stdout.contains("查看坏链详情"))
-        #expect(result.stdout.contains("nolon skills list --state broken"))
+        #expect(result.stdout.contains("$NOLON_CMD skills list --state broken"))
         #expect(result.stdout.contains("nolon skills list --state orphaned") == false)
         #expect(result.stdout.contains("快速筛坏链") == false)
     }
@@ -1189,7 +1540,7 @@ struct NolonCoreCLIKitTests {
         )
 
         #expect(result.exitCode == 0)
-        #expect(result.stdout.contains("- codex/react-best-practices [孤链]"))
+        #expect(result.stdout.contains("- codex/react-best-practices [失效链接]"))
         #expect(result.stdout.contains("/Users/linhey/.codex/skills/react-best-practices"))
     }
 
@@ -1210,12 +1561,37 @@ struct NolonCoreCLIKitTests {
 
         #expect(result.exitCode == 0)
         #expect(result.stdout.contains("state_filter: orphaned"))
-        #expect(result.stdout.contains("- codex/react-best-practices [孤链]"))
+        #expect(result.stdout.contains("[异常]"))
+        #expect(result.stdout.contains("- codex/react-best-practices [失效链接]"))
         #expect(result.stdout.contains("异常提供方(1): codex"))
         #expect(result.stdout.contains("修复建议（可复制）:"))
-        #expect(result.stdout.contains("查看孤链详情"))
+        #expect(result.stdout.contains("查看失效链接详情"))
         #expect(result.stdout.contains("修复建议:") == false)
-        #expect(result.stdout.contains("nolon skills list --show-fixes"))
+        #expect(result.stdout.contains("$NOLON_CMD skills list --show-fixes"))
+    }
+
+    @Test("runner skills show-fixes with installed filter prints explicit no-op hint")
+    func runnerSkillsShowFixesWithInstalledFilterPrintsNoOpHint() async {
+        let runner = NolonCoreCLIRunner(
+            service: MockSkillsRepositoryService(),
+            fileReader: { _ in "" }
+        )
+        let result = await runner.execute(
+            arguments: [
+                "skills", "list",
+                "--provider", "codex",
+                "--state", "installed",
+                "--show-fixes",
+            ],
+            outputMode: .text
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stdout.contains("state_filter: installed"))
+        #expect(result.stdout.contains("在 provider=codex 且 state=installed 下，未发现匹配技能。"))
+        #expect(result.stdout.contains("[下一步（可复制执行）]"))
+        #expect(result.stdout.contains("状态健康，无需修复；修复建议已启用但当前无可修复项。"))
+        #expect(result.stdout.contains("立即执行（清理失效链接，") == false)
     }
 
     @Test("runner renders skills list with show fixes")
@@ -1234,10 +1610,22 @@ struct NolonCoreCLIKitTests {
         )
 
         #expect(result.exitCode == 0)
-        #expect(result.stdout.contains("修复命令（可复制）:"))
-        #expect(result.stdout.contains("- 清理 orphaned(1):"))
-        #expect(result.stdout.contains("- 执行命令:"))
-        #expect(result.stdout.contains("明细查看:"))
+        #expect(result.stdout.contains("[结论]"))
+        #expect(result.stdout.contains("[异常]"))
+        #expect(result.stdout.contains("[下一步（按顺序执行）]"))
+        #expect(result.stdout.contains("`NOLON_CMD='nolon'`"))
+        #expect(result.stdout.contains("# 1) 清理失效链接（1项）"))
+        #expect(result.stdout.contains("# 3) 复检"))
+        #expect(result.stdout.contains("[一键执行（可复制）]"))
+        #expect(result.stdout.contains("```bash"))
+        #expect(result.stdout.contains("$NOLON_CMD skills remove --skill-id react-best-practices --provider codex && $NOLON_CMD skills list --show-fixes"))
+        #expect(result.stdout.contains("[下一步]") == false)
+        #expect(result.stdout.contains("[立即执行（复制即用）]") == false)
+        #expect(result.stdout.contains("`$NOLON_CMD skills list --show-fixes`"))
+        #expect(result.stdout.contains("- 一键清理失效链接:") == false)
+        #expect(result.stdout.contains("1. `$NOLON_CMD skills remove --skill-id react-best-practices --provider codex`"))
+        #expect(result.stdout.contains("明细查看:") == false)
+        #expect(result.stdout.contains("提示: 使用 `nolon skills list --verbose` 查看安装路径。") == false)
         #expect(result.stdout.contains("修复建议（可复制）:") == false)
         #expect(result.stdout.contains("\norphaned(1):") == false)
         #expect(result.stdout.contains("一键清理(orphaned):") == false)
@@ -1261,9 +1649,16 @@ struct NolonCoreCLIKitTests {
         )
 
         #expect(result.exitCode == 0)
-        #expect(result.stdout.contains("- 清理 orphaned(1):"))
-        #expect(result.stdout.contains("- 修复 broken(1):"))
-        #expect(result.stdout.contains("- 执行顺序: 先执行「清理 orphaned」，再执行「修复 broken」。"))
+        #expect(result.stdout.contains("[下一步（按顺序执行）]"))
+        #expect(result.stdout.contains("# 1) 清理失效链接（1项）"))
+        #expect(result.stdout.contains("# 2) 修复损坏（1项：先 remove 再 add）"))
+        #expect(result.stdout.contains("# 3) 复检"))
+        #expect(result.stdout.contains("[一键执行（可复制）]"))
+        #expect(result.stdout.contains("```bash"))
+        #expect(result.stdout.contains("$NOLON_CMD skills remove --skill-id agent-browser --provider codex &&"))
+        #expect(result.stdout.contains("- 一键清理失效链接:") == false)
+        #expect(result.stdout.contains("- 一键修复损坏:") == false)
+        #expect(result.stdout.contains("执行顺序: 先执行「失效链接」，再执行「损坏」。") == false)
         #expect(result.stdout.contains("- 执行命令:") == false)
         #expect(result.stdout.contains("修复全部(all):") == false)
     }
@@ -1286,7 +1681,8 @@ struct NolonCoreCLIKitTests {
         #expect(result.exitCode == 0)
         #expect(result.stdout.contains("provider_filter: codex"))
         #expect(result.stdout.contains("state_filter: broken"))
-        #expect(result.stdout.contains("在 provider=codex 且 state=broken 下，未发现匹配 skills。"))
+        #expect(result.stdout.contains("providers_matched: 1"))
+        #expect(result.stdout.contains("在 provider=codex 且 state=broken 下，未发现匹配技能。"))
     }
 
     @Test("runner renders skills add local-first success")
@@ -1333,6 +1729,7 @@ struct NolonCoreCLIKitTests {
                 "skills", "add", "xcode",
                 "--provider", "codex",
                 "--repositories-root", tempRoot.folder("repos").url.path,
+                "--dry-run",
             ],
             outputMode: .json
         )
@@ -1341,6 +1738,7 @@ struct NolonCoreCLIKitTests {
         #expect(result.stderr.isEmpty)
         #expect(result.stdout.contains("\"command\":\"skills.add\""))
         #expect(result.stdout.contains("\"source\":\"local\""))
+        #expect(result.stdout.contains("\"dry_run\":true"))
         #expect(result.stdout.contains("\"success_count\":1"))
     }
 
@@ -1388,16 +1786,19 @@ struct NolonCoreCLIKitTests {
                 "skills", "add", "xcode",
                 "--provider", "codex",
                 "--repositories-root", tempRoot.folder("repos").url.path,
+                "--dry-run",
             ],
             outputMode: .text
         )
 
         #expect(result.exitCode == 0)
         #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("[DRY-RUN] No changes applied"))
         #expect(result.stdout.contains("skill: xcode (local)"))
-        #expect(result.stdout.contains("result: installed=1, failed=0"))
+        #expect(result.stdout.contains("status: dry-run (no cache writes, no installation)"))
+        #expect(result.stdout.contains("result: planned=1, invalid=0"))
         #expect(result.stdout.contains("targets:"))
-        #expect(result.stdout.contains("[OK] codex ->"))
+        #expect(result.stdout.contains("[PLAN] codex ->"))
     }
 
     @Test("runner skills add falls back to remote when local slug is absent")
@@ -1419,6 +1820,7 @@ struct NolonCoreCLIKitTests {
                 "skills", "add", "xcode",
                 "--provider", "codex",
                 "--repositories-root", tempRoot.folder("repos").url.path,
+                "--dry-run",
             ],
             outputMode: .json
         )
@@ -1426,6 +1828,7 @@ struct NolonCoreCLIKitTests {
         #expect(result.exitCode == 0)
         #expect(result.stderr.isEmpty)
         #expect(result.stdout.contains("\"source\":\"remote\""))
+        #expect(result.stdout.contains("\"dry_run\":true"))
         #expect(result.stdout.contains("\"success_count\":1"))
         #expect(result.stdout.contains("\"slug\":\"xcode\""))
     }
@@ -1582,6 +1985,59 @@ struct NolonCoreCLIKitTests {
         #expect(result.stderr.contains("\"credential_strategy\":\"token-only\""))
     }
 
+    @Test("runner renders git pull failed in text mode with actionable hints")
+    func runnerRendersGitPullFailedInTextModeWithActionableHints() async {
+        let runner = NolonCoreCLIRunner(
+            service: GitPullFastForwardFailedMockSkillsRepositoryService(),
+            fileReader: { _ in "" }
+        )
+
+        let result = await runner.execute(
+            arguments: [
+                "workflow", "sync",
+                "--source", "linhay/STFilePath",
+            ],
+            outputMode: .text
+        )
+
+        #expect(result.exitCode == 2)
+        #expect(result.stderr.contains("Error [git_pull_failed]"))
+        #expect(result.stderr.contains("Cannot fast-forward to multiple branches"))
+        #expect(result.stderr.contains("nolon workflow sync --source linhay/STFilePath --pull-strategy rebase"))
+        #expect(result.stderr.contains("nolon skills/workflow/mcp sync") == false)
+        #expect(result.stderr.contains("<owner/repo>") == false)
+        #expect(result.stderr.contains("git -C "))
+        #expect(result.stderr.contains("github.com/linhay@STFilePath"))
+        #expect(result.stderr.contains("source_hint: linhay/STFilePath"))
+        #expect(result.stderr.contains("repo_path_hint:"))
+        #expect(result.stderr.contains("nolon skills repo list --verbose"))
+    }
+
+    @Test("runner maps git pull ref conflict to actionable guidance")
+    func runnerMapsGitPullRefConflictToActionableGuidance() async {
+        let runner = NolonCoreCLIRunner(
+            service: GitRefConflictSyncMockSkillsRepositoryService(),
+            fileReader: { _ in "" }
+        )
+
+        let result = await runner.execute(
+            arguments: [
+                "workflow", "sync",
+                "--source", "linhay/STFilePath",
+            ],
+            outputMode: .text
+        )
+
+        #expect(result.exitCode == 2)
+        #expect(result.stderr.contains("Error [git_ref_conflict]"))
+        #expect(result.stderr.contains("nolon skills repo list --verbose"))
+        #expect(result.stderr.contains("git -C "))
+        #expect(result.stderr.contains("github.com/linhay@STFilePath"))
+        #expect(result.stderr.contains("nolon workflow sync --source linhay/STFilePath"))
+        #expect(result.stderr.contains("<owner/repo>") == false)
+        #expect(result.stderr.contains("参考仓库: https://github.com/linhay/STFilePath.git"))
+    }
+
     @Test("parse workflow list command")
     func parseWorkflowList() throws {
         let command = try NolonCoreCLIArgumentParser.parse(
@@ -1596,6 +2052,44 @@ struct NolonCoreCLIKitTests {
         #expect(state == .broken)
         #expect(verbose == true)
         #expect(showFixes == false)
+    }
+
+    @Test("runner renders workflow sync text summary in text mode")
+    func runnerRendersWorkflowSyncTextSummaryInTextMode() async {
+        let runner = NolonCoreCLIRunner(
+            service: MockSkillsRepositoryService(),
+            fileReader: { _ in "" }
+        )
+        let result = await runner.execute(
+            arguments: [
+                "workflow", "sync",
+                "--source", "vercel/agent-skills",
+            ],
+            outputMode: .text
+        )
+        #expect(result.exitCode == 0)
+        #expect(result.stdout.contains("workflow sync: cloned"))
+        #expect(result.stdout.contains("workflows_discovered: 2"))
+        #expect(result.stdout.contains("\"command\":\"workflow.sync\"") == false)
+    }
+
+    @Test("runner renders mcp sync text summary in text mode")
+    func runnerRendersMcpSyncTextSummaryInTextMode() async {
+        let runner = NolonCoreCLIRunner(
+            service: MockSkillsRepositoryService(),
+            fileReader: { _ in "" }
+        )
+        let result = await runner.execute(
+            arguments: [
+                "mcp", "sync",
+                "--source", "vercel/agent-skills",
+            ],
+            outputMode: .text
+        )
+        #expect(result.exitCode == 0)
+        #expect(result.stdout.contains("mcp sync: cloned"))
+        #expect(result.stdout.contains("mcps_discovered: 1"))
+        #expect(result.stdout.contains("\"command\":\"mcp.sync\"") == false)
     }
 
     @Test("parse workflow add command")
@@ -2275,6 +2769,22 @@ struct NolonCoreCLIKitTests {
         #expect(names == ["filesystem", "git"])
     }
 
+    @Test("mcp parser ignores nested env subsection in toml")
+    func parseMcpServerNamesIgnoresNestedEnvSubsectionInToml() throws {
+        let names = try NolonCoreCLIRunner.parseMCPServerNames(
+            content: """
+            [mcp_servers.xcode-tools]
+            command = "npx"
+
+            [mcp_servers.xcode-tools.env]
+            FOO = "bar"
+            """,
+            fileExtension: "toml"
+        )
+
+        #expect(names == ["xcode-tools"])
+    }
+
     @Test("mcp list uses config file entries instead of scanning sibling files")
     func mcpListUsesConfigEntriesInsteadOfDirectoryScan() throws {
         let root = FileManager.default.temporaryDirectory
@@ -2310,7 +2820,7 @@ struct NolonCoreCLIKitTests {
         ]
 
         let commands = NolonCoreCLIRunner.buildResourceFixCommands(kind: .workflow, items: items)
-        #expect(commands.simple == "nolon workflow remove --resource-name a.md --provider codex && nolon workflow remove --resource-name b.md --provider opencode")
+        #expect(commands.simple == "nolon workflow remove --resource-name a.md --provider codex")
         #expect(commands.detailed.count == 2)
         #expect(commands.detailed[0] == "nolon workflow remove --resource-name a.md --provider codex")
         #expect(commands.detailed[1] == "nolon workflow remove --resource-name b.md --provider opencode")
@@ -2344,6 +2854,282 @@ struct NolonCoreCLIKitTests {
         #expect(result.stdout.contains("\"command\":\"mcp.remove\""))
         #expect(result.stdout.contains("\"removed\":true"))
         #expect(result.stdout.contains("\"kind\":\"mcp\""))
+    }
+
+    @Test("runner renders workflow list text with state filter label")
+    func runnerRendersWorkflowListTextWithStateFilterLabel() async {
+        let runner = NolonCoreCLIRunner(
+            service: MockSkillsRepositoryService(),
+            fileReader: { _ in "" }
+        )
+        let result = await runner.execute(
+            arguments: [
+                "workflow", "list",
+                "--provider", "codex",
+                "--state", "orphaned",
+            ],
+            outputMode: .text
+        )
+        #expect(result.exitCode == 0)
+        #expect(result.stdout.contains("provider_filter: codex"))
+        #expect(result.stdout.contains("state_filter: orphaned"))
+    }
+
+    @Test("runner workflow fix hints keep provider filter in commands")
+    func runnerWorkflowFixHintsKeepProviderFilterInCommands() async {
+        let runner = NolonCoreCLIRunner(
+            service: MockSkillsRepositoryService(),
+            fileReader: { _ in "" }
+        )
+        let result = await runner.execute(
+            arguments: [
+                "workflow", "list",
+                "--provider", "codex",
+            ],
+            outputMode: .text
+        )
+        #expect(result.exitCode == 0)
+        #expect(result.stdout.contains("[结论]"))
+        if result.stdout.contains("需处理异常: 0") {
+            #expect(result.stdout.contains("在 provider=codex 下，未发现异常工作流资源（失效链接/损坏）。"))
+            #expect(result.stdout.contains("[下一步（可复制执行）]") == false)
+        } else {
+            #expect(result.stdout.contains("摘要: 当前有"))
+            #expect(result.stdout.contains("行动建议: 需处理"))
+            #expect(result.stdout.contains("修复建议（可复制）:"))
+            #expect(result.stdout.contains("[下一步（可复制执行）]"))
+            #expect(result.stdout.contains("先设置前缀变量（与本次入口一致）"))
+            #expect(result.stdout.contains("1) 生成分条修复命令: `$NOLON_CMD workflow list --provider codex --show-fixes`"))
+            #expect(result.stdout.contains("2) 查看路径与来源: `$NOLON_CMD workflow list --provider codex --verbose --show-fixes`"))
+        }
+        #expect(result.stdout.contains("[下一步]") == false)
+        #expect(result.stdout.contains("[立即执行（复制即用）]") == false)
+    }
+
+    @Test("runner renders mcp list text with provider filter label")
+    func runnerRendersMcpListTextWithProviderFilterLabel() async {
+        let runner = NolonCoreCLIRunner(
+            service: MockSkillsRepositoryService(),
+            fileReader: { _ in "" }
+        )
+        let result = await runner.execute(
+            arguments: [
+                "mcp", "list",
+                "--provider", "codex",
+            ],
+            outputMode: .text
+        )
+        #expect(result.exitCode == 0)
+        #expect(result.stdout.contains("provider_filter: codex"))
+    }
+
+    @Test("runner mcp show-fixes prints explicit no-op hint when no issues")
+    func runnerMcpShowFixesPrintsNoOpHintWhenNoIssues() async {
+        let runner = NolonCoreCLIRunner(
+            service: MockSkillsRepositoryService(),
+            fileReader: { _ in "" }
+        )
+        let result = await runner.execute(
+            arguments: [
+                "mcp", "list",
+                "--show-fixes",
+            ],
+            outputMode: .text
+        )
+        #expect(result.exitCode == 0)
+        #expect(result.stdout.contains("健康：11/11（100.0%），异常 0，修复动作：无。"))
+        #expect(result.stdout.contains("未发现异常 MCP 资源（失效链接/损坏）。") == false)
+        #expect(result.stdout.contains("[下一步（可复制执行）]") == false)
+        #expect(result.stdout.contains("可选复检:") == false)
+        #expect(result.stdout.contains("立即执行（清理失效链接，") == false)
+    }
+
+    @Test("workflow help text contains scenarios")
+    func workflowHelpTextContainsScenarios() {
+        let help = NolonCoreCLIHelpResolver.resolvedHelpText(arguments: ["workflow"]) ?? ""
+        #expect(help.contains("场景: 搜索工作流"))
+        #expect(help.contains("nolon workflow search xcode"))
+        #expect(help.contains("场景: 安装工作流"))
+    }
+
+    @Test("mcp help text contains scenarios")
+    func mcpHelpTextContainsScenarios() {
+        let help = NolonCoreCLIHelpResolver.resolvedHelpText(arguments: ["mcp"]) ?? ""
+        #expect(help.contains("场景: 搜索 MCP"))
+        #expect(help.contains("nolon mcp search xcode"))
+        #expect(help.contains("场景: 修复异常"))
+    }
+
+    @Test("runner renders mcp list with state filter keeps matched provider count")
+    func runnerRendersMcpListWithStateFilterKeepsMatchedProviderCount() async {
+        let runner = NolonCoreCLIRunner(
+            service: MockSkillsRepositoryService(),
+            fileReader: { _ in "" }
+        )
+        let result = await runner.execute(
+            arguments: [
+                "mcp", "list",
+                "--provider", "codex",
+                "--state", "orphaned",
+            ],
+            outputMode: .text
+        )
+        #expect(result.exitCode == 0)
+        #expect(result.stdout.contains("provider_filter: codex"))
+        #expect(result.stdout.contains("state_filter: orphaned"))
+        #expect(result.stdout.contains("providers_matched: 1"))
+        #expect(result.stdout.contains("在 provider=codex 且 state=orphaned 下，未发现匹配 MCP 资源。"))
+    }
+
+    @Test("runner mcp verbose list renders config paths in dedicated section")
+    func runnerMcpVerboseListRendersConfigPathsInDedicatedSection() async {
+        let runner = NolonCoreCLIRunner(
+            service: MockSkillsRepositoryService(),
+            fileReader: { _ in "" }
+        )
+        let result = await runner.execute(
+            arguments: [
+                "mcp", "list",
+                "--verbose",
+            ],
+            outputMode: .text
+        )
+        #expect(result.exitCode == 0)
+        #expect(result.stdout.contains("[配置路径]"))
+        #expect(result.stdout.contains("config_path:") == false)
+    }
+
+    @Test("runner renders workflow list contextual empty message with state filter")
+    func runnerRendersWorkflowListContextualEmptyMessageWithStateFilter() async {
+        let runner = NolonCoreCLIRunner(
+            service: MockSkillsRepositoryService(),
+            fileReader: { _ in "" }
+        )
+        let result = await runner.execute(
+            arguments: [
+                "workflow", "list",
+                "--provider", "codex",
+                "--state", "broken",
+            ],
+            outputMode: .text
+        )
+        #expect(result.exitCode == 0)
+        #expect(result.stdout.contains("provider_filter: codex"))
+        #expect(result.stdout.contains("state_filter: broken"))
+        #expect(result.stdout.contains("在 provider=codex 且 state=broken 下，未发现匹配工作流资源。"))
+    }
+
+    @Test("runner workflow show-fixes hides compact summary and keeps detailed commands")
+    func runnerWorkflowShowFixesHidesCompactSummaryAndKeepsDetailedCommands() async throws {
+        let tempRoot = try STFolder(sanbox: .temporary).folder("nolon-cli-workflow-fixture-\(UUID().uuidString)").create()
+        defer { try? tempRoot.delete() }
+        let tempHome = tempRoot.folder("home")
+        _ = tempHome.createIfNotExists()
+        let nolonHome = tempRoot.folder("nolon-home")
+        _ = nolonHome.createIfNotExists()
+        let workflowCache = nolonHome.folder("workflows")
+        _ = workflowCache.createIfNotExists()
+        let cacheFile = workflowCache.file("update-agent-skills-workflows.md")
+        try "fixture".write(to: cacheFile.url, atomically: true, encoding: .utf8)
+
+        let codexPrompts = tempHome.folder(".codex/prompts")
+        _ = codexPrompts.createIfNotExists()
+        let opencodeCommands = tempHome.folder(".config/opencode/commands")
+        _ = opencodeCommands.createIfNotExists()
+
+        // Two broken links for codex.
+        try? FileManager.default.createSymbolicLink(
+            atPath: codexPrompts.subpath("find-skills.md").url.path,
+            withDestinationPath: "/tmp/non-existent-find-skills.md"
+        )
+        try? FileManager.default.createSymbolicLink(
+            atPath: codexPrompts.subpath("uiagent.md").url.path,
+            withDestinationPath: "/tmp/non-existent-uiagent.md"
+        )
+
+        // Two installed links (codex + opencode) pointing to cache.
+        try? FileManager.default.createSymbolicLink(
+            atPath: codexPrompts.subpath("update-agent-skills-workflows.md").url.path,
+            withDestinationPath: cacheFile.url.path
+        )
+        try? FileManager.default.createSymbolicLink(
+            atPath: opencodeCommands.subpath("update-agent-skills-workflows.md").url.path,
+            withDestinationPath: cacheFile.url.path
+        )
+
+        let backupHome = getenv("HOME").map { String(cString: $0) }
+        let backupNolon = getenv("NOLON_HOME").map { String(cString: $0) }
+        setenv("HOME", tempHome.url.path, 1)
+        setenv("NOLON_HOME", nolonHome.url.path, 1)
+        defer {
+            if let backupHome { setenv("HOME", backupHome, 1) } else { unsetenv("HOME") }
+            if let backupNolon { setenv("NOLON_HOME", backupNolon, 1) } else { unsetenv("NOLON_HOME") }
+        }
+
+        let runner = NolonCoreCLIRunner(
+            service: MockSkillsRepositoryService(),
+            fileReader: { _ in "" }
+        )
+        let result = await runner.execute(
+            arguments: [
+                "workflow", "list",
+                "--show-fixes",
+            ],
+            outputMode: .text
+        )
+        #expect(result.exitCode == 0)
+        #expect(result.stdout.contains("[结论]"))
+        #expect(result.stdout.contains("需处理异常:") == false)
+        #expect(result.stdout.contains("行动建议:") == false)
+        #expect(result.stdout.contains("摘要:") == false)
+        #expect(result.stdout.contains("先设置前缀变量（与本次入口一致）") == false)
+        #expect(result.stdout.contains("[执行约束]") == false)
+        #expect(result.stdout.contains("立即执行（清理失效链接，2 项，仅支持 --resource-name <xxx.md>）:") == false)
+        #expect(result.stdout.contains("[下一步]") == false)
+        #expect(result.stdout.contains("[立即执行（复制即用）]") == false)
+        #expect(result.stdout.contains("首条:") == false)
+        #expect(result.stdout.contains("其余") == false)
+
+        if result.stdout.contains("异常 0") {
+            #expect(result.stdout.contains("健康："))
+            #expect(result.stdout.contains("修复计划:") == false)
+            #expect(result.stdout.contains("[下一步（按顺序执行）]") == false)
+            #expect(result.stdout.contains("[一键执行（可复制）]") == false)
+        } else {
+            #expect(result.stdout.contains("修复计划:"))
+            #expect(result.stdout.contains("1) 清理异常项（"))
+            #expect(result.stdout.contains("2) 复检"))
+            #expect(result.stdout.contains("1. `$NOLON_CMD workflow remove --resource-name") == false)
+            #expect(result.stdout.contains("- `$NOLON_CMD workflow remove --resource-name"))
+            #expect(result.stdout.contains("[一键执行（可复制）]"))
+            #expect(result.stdout.contains("```bash"))
+            #expect(result.stdout.contains("`$NOLON_CMD workflow list --show-fixes`"))
+            #expect(result.stdout.contains("[下一步（按顺序执行）]"))
+        }
+    }
+
+    @Test("runner workflow default list shows compact fix summary")
+    func runnerWorkflowDefaultListShowsCompactFixSummary() async {
+        let runner = NolonCoreCLIRunner(
+            service: MockSkillsRepositoryService(),
+            fileReader: { _ in "" }
+        )
+        let result = await runner.execute(
+            arguments: [
+                "workflow", "list",
+            ],
+            outputMode: .text
+        )
+        #expect(result.exitCode == 0)
+        if result.stdout.contains("需处理异常: 0") {
+            #expect(result.stdout.contains("修复建议（可复制）:") == false)
+            #expect(result.stdout.contains("未发现异常工作流资源（失效链接/损坏）。"))
+        } else {
+            #expect(result.stdout.contains("修复建议（可复制）:"))
+            #expect(result.stdout.contains("1) 生成分条修复命令: `$NOLON_CMD workflow list --show-fixes`"))
+            #expect(result.stdout.contains("2) 查看路径与来源: `$NOLON_CMD workflow list --verbose --show-fixes`"))
+        }
+        #expect(result.stdout.contains("立即执行（清理失效链接，") == false)
     }
 
     @Test("runner renders remote list result")
@@ -2865,6 +3651,285 @@ private struct SyncErrorMockSkillsRepositoryService: NolonSkillsRepositoryServin
             baseURL: baseURL,
             filePath: "/tmp/\(slug).bin"
         )
+    }
+}
+
+private struct GitRefConflictSyncMockSkillsRepositoryService: NolonSkillsRepositoryServing {
+    func planGitImport(source: String, repositoriesRoot: STFolder) throws -> NolonGitImportPlan {
+        NolonGitImportPlan(
+            source: source,
+            normalizedGitURL: "https://github.com/linhay/STFilePath.git",
+            subpath: nil,
+            providerHost: "github.com",
+            owner: "linhay",
+            repo: "STFilePath",
+            localClonePath: repositoriesRoot.folder("github.com/linhay@STFilePath").url
+        )
+    }
+
+    func preflightGitSync(
+        source: String,
+        accessToken: String?,
+        pullStrategy: NolonGitPullStrategy,
+        credentialStrategy: NolonGitCredentialStrategy
+    ) throws -> NolonGitSyncPreflight {
+        NolonGitSyncPreflight(
+            isValidURL: true,
+            normalizedGitURL: "https://github.com/linhay/STFilePath.git",
+            pullStrategy: pullStrategy,
+            credentialStrategy: credentialStrategy,
+            credentialMode: "https_anonymous",
+            requiresAccessToken: false,
+            warnings: [],
+            issues: []
+        )
+    }
+
+    func syncGitRepository(
+        plan: NolonGitImportPlan,
+        accessToken: String?,
+        pullStrategy: NolonGitPullStrategy,
+        credentialStrategy: NolonGitCredentialStrategy
+    ) async throws -> NolonGitSyncResult {
+        throw NolonCoreCLIError.syncFailed(
+            code: "git_pull_failed",
+            message: "Failed to update repository: error: cannot lock ref 'refs/remotes/origin/main': is at aaa but expected bbb\nFrom github.com:linhay/STFilePath\n ! bbb..aaa  main -> origin/main  (unable to update local ref)",
+            detail: NolonGitSyncErrorDetail(
+                gitURL: "https://github.com/linhay/STFilePath.git",
+                pullStrategy: .ffOnly,
+                credentialStrategy: .automatic,
+                hasAccessToken: false
+            )
+        )
+    }
+
+    func discoverSkillsDirectories(at repositoryPath: STFolder, maxDepth: Int) -> [NolonSkillsDirectoryCandidate] { [] }
+    func discoverRepositoryResources(at repositoryPath: STFolder, maxDepth: Int) -> NolonRepositoryResources {
+        NolonRepositoryResources(skillsDirectories: [], workflows: [], mcps: [])
+    }
+    func parseSkillMetadata(content: String, directoryName: String?) -> NolonSkillStandardMetadata? { nil }
+
+    func installSkill(
+        skillPath: STPath,
+        skillID: String?,
+        providerPath: STFolder,
+        installMethod: NolonSkillInstallMethod
+    ) throws -> NolonSkillInstallResult {
+        NolonSkillInstallResult(
+            skillID: skillID ?? "react-best-practices",
+            sourcePath: skillPath.url.path,
+            targetPath: providerPath.subpath(skillID ?? "react-best-practices").url.path,
+            installMethod: installMethod
+        )
+    }
+
+    func uninstallSkill(skillID: String, providerPath: STFolder) throws -> NolonSkillUninstallResult {
+        NolonSkillUninstallResult(
+            skillID: skillID,
+            targetPath: providerPath.subpath(skillID).url.path,
+            removed: true
+        )
+    }
+
+    func scanProviderSkills(providerPath: STFolder, globalSkillsPath: STFolder) throws -> NolonSkillMigrateScanResult {
+        NolonSkillMigrateScanResult(providerPath: providerPath.url.path, globalSkillsPath: globalSkillsPath.url.path, states: [])
+    }
+
+    func migrateSkill(
+        skillID: String,
+        providerPath: STFolder,
+        globalSkillsPath: STFolder,
+        installMethod: NolonSkillInstallMethod
+    ) throws -> NolonSkillInstallResult {
+        NolonSkillInstallResult(
+            skillID: skillID,
+            sourcePath: globalSkillsPath.subpath(skillID).url.path,
+            targetPath: providerPath.subpath(skillID).url.path,
+            installMethod: installMethod
+        )
+    }
+
+    func installResource(
+        kind: NolonResourceKind,
+        filePath: STPath,
+        resourceName: String?,
+        targetPath: STFolder,
+        installMethod: NolonSkillInstallMethod
+    ) throws -> NolonResourceInstallResult {
+        let resolvedName = resourceName ?? filePath.url.lastPathComponent
+        return NolonResourceInstallResult(
+            kind: kind,
+            resourceName: resolvedName,
+            sourcePath: filePath.url.path,
+            targetPath: targetPath.subpath(resolvedName).url.path,
+            installMethod: installMethod
+        )
+    }
+
+    func uninstallResource(
+        kind: NolonResourceKind,
+        resourceName: String,
+        targetPath: STFolder
+    ) throws -> NolonResourceUninstallResult {
+        NolonResourceUninstallResult(kind: kind, resourceName: resourceName, targetPath: targetPath.subpath(resourceName).url.path, removed: true)
+    }
+
+    func listRemoteResources(
+        kind: NolonRemoteCatalogKind,
+        query: String?,
+        limit: Int,
+        baseURL: String
+    ) async throws -> NolonRemoteListResult {
+        NolonRemoteListResult(kind: kind, baseURL: baseURL, query: query, limit: limit, items: [])
+    }
+
+    func downloadRemoteResource(
+        kind: NolonRemoteCatalogKind,
+        slug: String,
+        version: String?,
+        baseURL: String
+    ) async throws -> NolonRemoteDownloadResult {
+        NolonRemoteDownloadResult(
+            kind: kind,
+            slug: slug,
+            version: version ?? "latest",
+            baseURL: baseURL,
+            filePath: "/tmp/\(slug).zip"
+        )
+    }
+
+    func listLocalRepositories(repositoriesRoot: STFolder, maxDepth: Int) -> [NolonLocalRepositorySummary] { [] }
+}
+
+private struct GitPullFastForwardFailedMockSkillsRepositoryService: NolonSkillsRepositoryServing {
+    private let base = MockSkillsRepositoryService(
+        repositoryResources: NolonRepositoryResources(skillsDirectories: [], workflows: [], mcps: []),
+        localRepositories: []
+    )
+
+    func planGitImport(source: String, repositoriesRoot: STFolder) throws -> NolonGitImportPlan {
+        try base.planGitImport(source: source, repositoriesRoot: repositoriesRoot)
+    }
+
+    func preflightGitSync(
+        source: String,
+        accessToken: String?,
+        pullStrategy: NolonGitPullStrategy,
+        credentialStrategy: NolonGitCredentialStrategy
+    ) throws -> NolonGitSyncPreflight {
+        try base.preflightGitSync(
+            source: source,
+            accessToken: accessToken,
+            pullStrategy: pullStrategy,
+            credentialStrategy: credentialStrategy
+        )
+    }
+
+    func syncGitRepository(
+        plan: NolonGitImportPlan,
+        accessToken: String?,
+        pullStrategy: NolonGitPullStrategy,
+        credentialStrategy: NolonGitCredentialStrategy
+    ) async throws -> NolonGitSyncResult {
+        throw NolonCoreCLIError.syncFailed(
+            code: "git_pull_failed",
+            message: "Failed to update repository: fatal: Cannot fast-forward to multiple branches.",
+            detail: NolonGitSyncErrorDetail(
+                gitURL: "https://github.com/linhay/STFilePath.git",
+                pullStrategy: .ffOnly,
+                credentialStrategy: .automatic,
+                hasAccessToken: false
+            )
+        )
+    }
+
+    func discoverSkillsDirectories(at repositoryPath: STFolder, maxDepth: Int) -> [NolonSkillsDirectoryCandidate] {
+        base.discoverSkillsDirectories(at: repositoryPath, maxDepth: maxDepth)
+    }
+
+    func listLocalRepositories(repositoriesRoot: STFolder, maxDepth: Int) -> [NolonLocalRepositorySummary] {
+        base.listLocalRepositories(repositoriesRoot: repositoriesRoot, maxDepth: maxDepth)
+    }
+
+    func parseSkillMetadata(content: String, directoryName: String?) -> NolonSkillStandardMetadata? {
+        base.parseSkillMetadata(content: content, directoryName: directoryName)
+    }
+
+    func discoverRepositoryResources(at repositoryPath: STFolder, maxDepth: Int) -> NolonRepositoryResources {
+        base.discoverRepositoryResources(at: repositoryPath, maxDepth: maxDepth)
+    }
+
+    func installSkill(
+        skillPath: STPath,
+        skillID: String?,
+        providerPath: STFolder,
+        installMethod: NolonSkillInstallMethod
+    ) throws -> NolonSkillInstallResult {
+        try base.installSkill(skillPath: skillPath, skillID: skillID, providerPath: providerPath, installMethod: installMethod)
+    }
+
+    func uninstallSkill(skillID: String, providerPath: STFolder) throws -> NolonSkillUninstallResult {
+        try base.uninstallSkill(skillID: skillID, providerPath: providerPath)
+    }
+
+    func scanProviderSkills(providerPath: STFolder, globalSkillsPath: STFolder) throws -> NolonSkillMigrateScanResult {
+        try base.scanProviderSkills(providerPath: providerPath, globalSkillsPath: globalSkillsPath)
+    }
+
+    func migrateSkill(
+        skillID: String,
+        providerPath: STFolder,
+        globalSkillsPath: STFolder,
+        installMethod: NolonSkillInstallMethod
+    ) throws -> NolonSkillInstallResult {
+        try base.migrateSkill(
+            skillID: skillID,
+            providerPath: providerPath,
+            globalSkillsPath: globalSkillsPath,
+            installMethod: installMethod
+        )
+    }
+
+    func installResource(
+        kind: NolonResourceKind,
+        filePath: STPath,
+        resourceName: String?,
+        targetPath: STFolder,
+        installMethod: NolonSkillInstallMethod
+    ) throws -> NolonResourceInstallResult {
+        try base.installResource(
+            kind: kind,
+            filePath: filePath,
+            resourceName: resourceName,
+            targetPath: targetPath,
+            installMethod: installMethod
+        )
+    }
+
+    func uninstallResource(
+        kind: NolonResourceKind,
+        resourceName: String,
+        targetPath: STFolder
+    ) throws -> NolonResourceUninstallResult {
+        try base.uninstallResource(kind: kind, resourceName: resourceName, targetPath: targetPath)
+    }
+
+    func listRemoteResources(
+        kind: NolonRemoteCatalogKind,
+        query: String?,
+        limit: Int,
+        baseURL: String
+    ) async throws -> NolonRemoteListResult {
+        try await base.listRemoteResources(kind: kind, query: query, limit: limit, baseURL: baseURL)
+    }
+
+    func downloadRemoteResource(
+        kind: NolonRemoteCatalogKind,
+        slug: String,
+        version: String?,
+        baseURL: String
+    ) async throws -> NolonRemoteDownloadResult {
+        try await base.downloadRemoteResource(kind: kind, slug: slug, version: version, baseURL: baseURL)
     }
 }
 
@@ -3803,6 +4868,110 @@ private struct PermissionDeniedRemoteSearchMockSkillsRepositoryService: NolonSki
         baseURL: String
     ) async throws -> NolonRemoteListResult {
         throw NolonCoreCLIError.executionFailed("Operation not permitted")
+    }
+    func downloadRemoteResource(
+        kind: NolonRemoteCatalogKind,
+        slug: String,
+        version: String?,
+        baseURL: String
+    ) async throws -> NolonRemoteDownloadResult {
+        try await base.downloadRemoteResource(kind: kind, slug: slug, version: version, baseURL: baseURL)
+    }
+}
+
+private struct RemoteCatalogUnavailableMockSkillsRepositoryService: NolonSkillsRepositoryServing {
+    private let base = MockSkillsRepositoryService(
+        repositoryResources: NolonRepositoryResources(skillsDirectories: [], workflows: [], mcps: []),
+        localRepositories: []
+    )
+
+    func planGitImport(source: String, repositoriesRoot: STFolder) throws -> NolonGitImportPlan {
+        try base.planGitImport(source: source, repositoriesRoot: repositoriesRoot)
+    }
+    func preflightGitSync(
+        source: String,
+        accessToken: String?,
+        pullStrategy: NolonGitPullStrategy,
+        credentialStrategy: NolonGitCredentialStrategy
+    ) throws -> NolonGitSyncPreflight {
+        try base.preflightGitSync(
+            source: source,
+            accessToken: accessToken,
+            pullStrategy: pullStrategy,
+            credentialStrategy: credentialStrategy
+        )
+    }
+    func syncGitRepository(
+        plan: NolonGitImportPlan,
+        accessToken: String?,
+        pullStrategy: NolonGitPullStrategy,
+        credentialStrategy: NolonGitCredentialStrategy
+    ) async throws -> NolonGitSyncResult {
+        try await base.syncGitRepository(
+            plan: plan,
+            accessToken: accessToken,
+            pullStrategy: pullStrategy,
+            credentialStrategy: credentialStrategy
+        )
+    }
+    func discoverSkillsDirectories(at repositoryPath: STFolder, maxDepth: Int) -> [NolonSkillsDirectoryCandidate] { [] }
+    func listLocalRepositories(repositoriesRoot: STFolder, maxDepth: Int) -> [NolonLocalRepositorySummary] { [] }
+    func parseSkillMetadata(content: String, directoryName: String?) -> NolonSkillStandardMetadata? {
+        base.parseSkillMetadata(content: content, directoryName: directoryName)
+    }
+    func discoverRepositoryResources(at repositoryPath: STFolder, maxDepth: Int) -> NolonRepositoryResources {
+        NolonRepositoryResources(skillsDirectories: [], workflows: [], mcps: [])
+    }
+    func installSkill(
+        skillPath: STPath,
+        skillID: String?,
+        providerPath: STFolder,
+        installMethod: NolonSkillInstallMethod
+    ) throws -> NolonSkillInstallResult {
+        try base.installSkill(skillPath: skillPath, skillID: skillID, providerPath: providerPath, installMethod: installMethod)
+    }
+    func uninstallSkill(skillID: String, providerPath: STFolder) throws -> NolonSkillUninstallResult {
+        try base.uninstallSkill(skillID: skillID, providerPath: providerPath)
+    }
+    func scanProviderSkills(providerPath: STFolder, globalSkillsPath: STFolder) throws -> NolonSkillMigrateScanResult {
+        try base.scanProviderSkills(providerPath: providerPath, globalSkillsPath: globalSkillsPath)
+    }
+    func migrateSkill(
+        skillID: String,
+        providerPath: STFolder,
+        globalSkillsPath: STFolder,
+        installMethod: NolonSkillInstallMethod
+    ) throws -> NolonSkillInstallResult {
+        try base.migrateSkill(
+            skillID: skillID,
+            providerPath: providerPath,
+            globalSkillsPath: globalSkillsPath,
+            installMethod: installMethod
+        )
+    }
+    func installResource(
+        kind: NolonResourceKind,
+        filePath: STPath,
+        resourceName: String?,
+        targetPath: STFolder,
+        installMethod: NolonSkillInstallMethod
+    ) throws -> NolonResourceInstallResult {
+        try base.installResource(kind: kind, filePath: filePath, resourceName: resourceName, targetPath: targetPath, installMethod: installMethod)
+    }
+    func uninstallResource(
+        kind: NolonResourceKind,
+        resourceName: String,
+        targetPath: STFolder
+    ) throws -> NolonResourceUninstallResult {
+        try base.uninstallResource(kind: kind, resourceName: resourceName, targetPath: targetPath)
+    }
+    func listRemoteResources(
+        kind: NolonRemoteCatalogKind,
+        query: String?,
+        limit: Int,
+        baseURL: String
+    ) async throws -> NolonRemoteListResult {
+        throw NolonCoreCLIError.executionFailed("Failed to run command: Remote list failed with status 404")
     }
     func downloadRemoteResource(
         kind: NolonRemoteCatalogKind,
