@@ -1739,6 +1739,12 @@ struct NolonCoreCLIKitTests {
         #expect(result.stdout.contains("[结论]"))
         #expect(result.stdout.contains("summary: issues=1 | installed=0/1 | action=fix"))
         #expect(result.stdout.contains("[详情]"))
+        if let providerIdx = result.stdout.range(of: "provider_filter: codex")?.lowerBound,
+           let scannedIdx = result.stdout.range(of: "providers_scanned: 1")?.lowerBound {
+            #expect(providerIdx < scannedIdx)
+        } else {
+            #expect(Bool(false))
+        }
         #expect(result.stdout.contains("健康度(已安装/总数):") == false)
         #expect(result.stdout.contains("[异常]"))
         #expect(result.stdout.contains("[下一步（按顺序执行）]"))

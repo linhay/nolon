@@ -2351,11 +2351,23 @@ public struct NolonCoreCLIRunner: Sendable {
         let orphanedLabel = "失效链接"
         let issueCount = result.summary.orphanedCount + result.summary.brokenCount
         let compactHealthySummary = showFixes && issueCount == 0 && !verbose && result.providerFilter == nil && result.stateFilter == nil
+        var filtersAppended = false
+        func appendFiltersIfNeeded() {
+            if filtersAppended { return }
+            if let filter = result.providerFilter, !filter.isEmpty {
+                lines.append("provider_filter: \(filter)")
+            }
+            if let stateFilter = result.stateFilter {
+                lines.append("state_filter: \(stateFilter.rawValue)")
+            }
+            filtersAppended = true
+        }
         lines.append("[结论]")
         if showFixes {
             let actionLabel = issueCount > 0 ? "fix" : "none"
             lines.append("summary: issues=\(issueCount) | installed=\(result.summary.installedCount)/\(result.summary.itemCount) | action=\(actionLabel)")
             lines.append("[详情]")
+            appendFiltersIfNeeded()
         }
         if !compactHealthySummary {
             lines.append("providers_scanned: \(result.summary.providerCount)")
@@ -2389,12 +2401,7 @@ public struct NolonCoreCLIRunner: Sendable {
                 lines.append("摘要: 当前无异常项，状态健康。")
             }
         }
-        if let filter = result.providerFilter, !filter.isEmpty {
-            lines.append("provider_filter: \(filter)")
-        }
-        if let stateFilter = result.stateFilter {
-            lines.append("state_filter: \(stateFilter.rawValue)")
-        }
+        appendFiltersIfNeeded()
         if showFixes, issueCount == 0, !verbose, result.providerFilter == nil, result.stateFilter == nil {
             return lines.joined(separator: "\n")
         }
@@ -2747,11 +2754,23 @@ public struct NolonCoreCLIRunner: Sendable {
         let orphanedLabel = "失效链接"
         let issueCount = result.summary.orphanedCount + result.summary.brokenCount
         let compactHealthySummary = showFixes && issueCount == 0 && !verbose && result.providerFilter == nil && result.stateFilter == nil
+        var filtersAppended = false
+        func appendFiltersIfNeeded() {
+            if filtersAppended { return }
+            if let filter = result.providerFilter, !filter.isEmpty {
+                lines.append("provider_filter: \(filter)")
+            }
+            if let stateFilter = result.stateFilter {
+                lines.append("state_filter: \(stateFilter.rawValue)")
+            }
+            filtersAppended = true
+        }
         lines.append("[结论]")
         if showFixes {
             let actionLabel = issueCount > 0 ? "fix" : "none"
             lines.append("summary: issues=\(issueCount) | installed=\(result.summary.installedCount)/\(result.summary.itemCount) | action=\(actionLabel)")
             lines.append("[详情]")
+            appendFiltersIfNeeded()
         }
         let installedPct = percent(result.summary.installedCount, total: result.summary.itemCount)
         let orphanedPct = percent(result.summary.orphanedCount, total: result.summary.itemCount)
@@ -2784,12 +2803,7 @@ public struct NolonCoreCLIRunner: Sendable {
                 lines.append("摘要: 当前无异常项，状态健康。")
             }
         }
-        if let filter = result.providerFilter, !filter.isEmpty {
-            lines.append("provider_filter: \(filter)")
-        }
-        if let stateFilter = result.stateFilter {
-            lines.append("state_filter: \(stateFilter.rawValue)")
-        }
+        appendFiltersIfNeeded()
         if showFixes, issueCount == 0, !verbose, result.providerFilter == nil, result.stateFilter == nil {
             return lines.joined(separator: "\n")
         }
