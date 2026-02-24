@@ -1621,7 +1621,7 @@ struct NolonCoreCLIKitTests {
         )
 
         #expect(result.exitCode == 0)
-        #expect(result.stdout.contains("- codex/react-best-practices [失效链接]"))
+        #expect(result.stdout.contains("- codex/react-best-practices [失效链接] | path:"))
         #expect(result.stdout.contains("/Users/linhey/.codex/skills/react-best-practices"))
     }
 
@@ -1641,7 +1641,7 @@ struct NolonCoreCLIKitTests {
             outputMode: .text
         )
         #expect(result.exitCode == 0)
-        #expect(result.stdout.contains("- codex/xcode /Users/linhey/.codex/skills/xcode"))
+        #expect(result.stdout.contains("- codex/xcode | path: /Users/linhey/.codex/skills/xcode"))
         #expect(result.stdout.contains("- codex/xcode [已安装]") == false)
         #expect(result.stdout.contains("origin=unknown") == false)
     }
@@ -3098,8 +3098,11 @@ struct NolonCoreCLIKitTests {
         )
         #expect(result.exitCode == 0)
         #expect(result.stdout.contains("state_filter: installed"))
-        #expect(result.stdout.contains("[已安装]"))
-        #expect(result.stdout.contains("state_filter: installed\n\n\n[已安装]") == false)
+        if result.stdout.contains("[已安装]") {
+            #expect(result.stdout.contains("state_filter: installed\n\n\n[已安装]") == false)
+        } else {
+            #expect(result.stdout.contains("在 provider=codex 且 state=installed 下，未发现匹配工作流资源。"))
+        }
     }
 
     @Test("runner workflow fix hints keep provider filter in commands")

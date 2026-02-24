@@ -2465,9 +2465,9 @@ public struct NolonCoreCLIRunner: Sendable {
                 if item.state != .installed {
                     line += " [\(stateLabel)]"
                 }
-                line += " \(item.path)"
+                line += " | path: \(item.path)"
                 if let origin = item.origin, origin.sourceType != .unknown {
-                    line += " origin=\(origin.sourceType.rawValue):\(origin.sourceRef)"
+                    line += " | origin: \(origin.sourceType.rawValue):\(origin.sourceRef)"
                 }
                 return line
             }
