@@ -2838,9 +2838,7 @@ public struct NolonCoreCLIRunner: Sendable {
             let installedLines = installedItems.map { item in
                 if verbose {
                     var line = "- \(item.providerID)/\(item.skillID)"
-                    if kind != .mcp {
-                        line += " | path: \(item.path)"
-                    }
+                    line += " | path: \(item.path)"
                     if let origin = item.origin, origin.sourceType != .unknown {
                         line += " | origin: \(origin.sourceType.rawValue):\(origin.sourceRef)"
                     }

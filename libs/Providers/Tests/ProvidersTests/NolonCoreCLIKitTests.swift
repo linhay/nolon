@@ -3238,6 +3238,7 @@ struct NolonCoreCLIKitTests {
             outputMode: .text
         )
         #expect(result.exitCode == 0)
+        #expect(result.stdout.contains("- codex/xcode | path:"))
         #expect(result.stdout.contains("[配置路径]"))
         #expect(result.stdout.contains("config_path:") == false)
     }
