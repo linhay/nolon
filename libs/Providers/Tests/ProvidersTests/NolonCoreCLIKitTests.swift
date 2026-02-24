@@ -3189,6 +3189,26 @@ struct NolonCoreCLIKitTests {
         #expect(result.stdout.contains("立即执行（清理失效链接，") == false)
     }
 
+    @Test("runner mcp verbose show-fixes uses unified healthy summary line")
+    func runnerMcpVerboseShowFixesUsesUnifiedHealthySummaryLine() async {
+        let runner = NolonCoreCLIRunner(
+            service: MockSkillsRepositoryService(),
+            fileReader: { _ in "" }
+        )
+        let result = await runner.execute(
+            arguments: [
+                "mcp", "list",
+                "--verbose",
+                "--show-fixes",
+            ],
+            outputMode: .text
+        )
+        #expect(result.exitCode == 0)
+        #expect(result.stdout.contains("[详情]"))
+        #expect(result.stdout.contains("健康：11/11（100.0%），异常 0，修复动作：无。"))
+        #expect(result.stdout.contains("结论：全部健康") == false)
+    }
+
     @Test("workflow help text contains scenarios")
     func workflowHelpTextContainsScenarios() {
         let help = NolonCoreCLIHelpResolver.resolvedHelpText(arguments: ["workflow"]) ?? ""

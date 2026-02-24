@@ -2774,9 +2774,6 @@ public struct NolonCoreCLIRunner: Sendable {
         let installedPct = percent(result.summary.installedCount, total: result.summary.itemCount)
         let orphanedPct = percent(result.summary.orphanedCount, total: result.summary.itemCount)
         let brokenPct = percent(result.summary.brokenCount, total: result.summary.itemCount)
-        if showFixes && issueCount == 0 && verbose {
-            lines.append("结论：全部健康（\(result.summary.installedCount)/\(result.summary.itemCount)），异常 0，修复动作 0。")
-        }
         if !compactHealthySummary {
             lines.append("providers_scanned: \(result.summary.providerCount)")
             lines.append("providers_matched: \(matchedProvidersCount(for: result))")
@@ -2787,9 +2784,7 @@ public struct NolonCoreCLIRunner: Sendable {
                 lines.append("状态：已安装 \(result.summary.installedCount) 项（\(installedPct)），\(orphanedLabel) \(result.summary.orphanedCount) 项（\(orphanedPct)），损坏 \(result.summary.brokenCount) 项（\(brokenPct)）。")
                 lines.append("结论：发现 \(issueCount) 项异常（\(orphanedLabel) \(result.summary.orphanedCount)、损坏 \(result.summary.brokenCount)），请按下方修复计划依序处理。")
             } else {
-                if !verbose {
-                    lines.append("健康：\(result.summary.installedCount)/\(result.summary.itemCount)（\(installedPct)），异常 0，修复动作：无。")
-                }
+                lines.append("健康：\(result.summary.installedCount)/\(result.summary.itemCount)（\(installedPct)），异常 0，修复动作：无。")
             }
         } else {
             lines.append("状态(已安装/\(orphanedLabel)/损坏): \(result.summary.installedCount)/\(result.summary.orphanedCount)/\(result.summary.brokenCount) (\(percent(result.summary.installedCount, total: result.summary.itemCount))/\(percent(result.summary.orphanedCount, total: result.summary.itemCount))/\(percent(result.summary.brokenCount, total: result.summary.itemCount)))")
