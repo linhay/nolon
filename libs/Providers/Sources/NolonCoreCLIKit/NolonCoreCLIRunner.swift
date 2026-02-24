@@ -2368,8 +2368,8 @@ public struct NolonCoreCLIRunner: Sendable {
         }
         lines.append("[结论]")
         if showFixes {
-            let actionLabel = issueCount > 0 ? "fix" : "none"
-            lines.append("summary: issues=\(issueCount) | installed=\(result.summary.installedCount)/\(result.summary.itemCount) | action=\(actionLabel)")
+            let actionLabel = issueCount > 0 ? "需修复" : "无"
+            lines.append("摘要: 异常=\(issueCount) | 已安装=\(result.summary.installedCount)/\(result.summary.itemCount) | 修复动作=\(actionLabel)")
             lines.append("[详情]")
             appendFiltersIfNeeded()
         }
@@ -2764,8 +2764,8 @@ public struct NolonCoreCLIRunner: Sendable {
         }
         lines.append("[结论]")
         if showFixes {
-            let actionLabel = issueCount > 0 ? "fix" : "none"
-            lines.append("summary: issues=\(issueCount) | installed=\(result.summary.installedCount)/\(result.summary.itemCount) | action=\(actionLabel)")
+            let actionLabel = issueCount > 0 ? "需修复" : "无"
+            lines.append("摘要: 异常=\(issueCount) | 已安装=\(result.summary.installedCount)/\(result.summary.itemCount) | 修复动作=\(actionLabel)")
             lines.append("[详情]")
             appendFiltersIfNeeded()
         }

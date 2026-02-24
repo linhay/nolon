@@ -1784,7 +1784,8 @@ struct NolonCoreCLIKitTests {
 
         #expect(result.exitCode == 0)
         #expect(result.stdout.contains("[结论]"))
-        #expect(result.stdout.contains("summary: issues=1 | installed=0/1 | action=fix"))
+        #expect(result.stdout.contains("摘要: 异常=1 | 已安装=0/1 | 修复动作=需修复"))
+        #expect(result.stdout.contains("summary: issues=") == false)
         #expect(result.stdout.contains("[详情]"))
         if let providerIdx = result.stdout.range(of: "筛选-提供方: codex")?.lowerBound,
            let scannedIdx = result.stdout.range(of: "providers_scanned: 1")?.lowerBound {
@@ -3283,6 +3284,8 @@ struct NolonCoreCLIKitTests {
         )
         #expect(result.exitCode == 0)
         #expect(result.stdout.contains("[详情]"))
+        #expect(result.stdout.contains("摘要: 异常=0 | 已安装=11/11 | 修复动作=无"))
+        #expect(result.stdout.contains("summary: issues=") == false)
         #expect(result.stdout.contains("健康：11/11（100.0%），异常 0，修复动作：无。"))
         #expect(result.stdout.contains("结论：全部健康") == false)
     }
@@ -3464,7 +3467,8 @@ struct NolonCoreCLIKitTests {
         #expect(result.stdout.contains("[详情]"))
         #expect(result.stdout.contains("需处理异常:") == false)
         #expect(result.stdout.contains("行动建议:") == false)
-        #expect(result.stdout.contains("摘要:") == false)
+        #expect(result.stdout.contains("摘要: 异常="))
+        #expect(result.stdout.contains("summary: issues=") == false)
         #expect(result.stdout.contains("先设置前缀变量（与本次入口一致）") == false)
         #expect(result.stdout.contains("[执行约束]") == false)
         #expect(result.stdout.contains("立即执行（清理失效链接，2 项，仅支持 --resource-name <xxx.md>）:") == false)
