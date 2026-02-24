@@ -2456,8 +2456,7 @@ public struct NolonCoreCLIRunner: Sendable {
             }
             if showFixes {
                 lines.append("")
-                let followUp = Self.copyableCommand("nolon skills list --show-fixes")
-                lines.append("可选复检: `\(Self.runtimeCommandEnvAssignment()); \(followUp)`")
+                Self.appendOptionalRecheck(lines: &lines, command: "nolon skills list --show-fixes")
             }
             return lines.joined(separator: "\n")
         }
@@ -2828,8 +2827,7 @@ public struct NolonCoreCLIRunner: Sendable {
             }
             if showFixes {
                 lines.append("")
-                let followUp = Self.copyableCommand("nolon \(kind.rawValue) list --show-fixes")
-                lines.append("可选复检: `\(Self.runtimeCommandEnvAssignment()); \(followUp)`")
+                Self.appendOptionalRecheck(lines: &lines, command: "nolon \(kind.rawValue) list --show-fixes")
             }
             return lines.joined(separator: "\n")
         }
@@ -2970,6 +2968,16 @@ public struct NolonCoreCLIRunner: Sendable {
 
     private static func copyableCommand(_ command: String) -> String {
         command.replacingOccurrences(of: "nolon ", with: "$NOLON_CMD ")
+    }
+
+    private static func sourceModeCommand(_ command: String) -> String {
+        command.replacingOccurrences(of: "nolon ", with: "swift run --package-path libs/Providers nolon ")
+    }
+
+    private static func appendOptionalRecheck(lines: inout [String], command: String) {
+        lines.append("可选复检:")
+        lines.append("- 直接运行: `\(command)`")
+        lines.append("- 源码模式: `\(sourceModeCommand(command))`")
     }
 
     private func formatUpdatedDate(_ date: Date, formatter: DateFormatter) -> String {
