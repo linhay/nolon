@@ -2253,6 +2253,46 @@ struct NolonCoreCLIKitTests {
         }
     }
 
+    @Test("parse workflow remove rejects multiple target selectors")
+    func parseWorkflowRemoveRejectsMultipleTargetSelectors() {
+        do {
+            _ = try NolonCoreCLIArgumentParser.parse(
+                [
+                    "workflow", "remove",
+                    "--resource-name", "review.md",
+                    "--target-path", "/tmp/workflows",
+                    "--provider", "codex",
+                ]
+            )
+            Issue.record("Expected invalid target selector error")
+        } catch let error as NolonCoreCLIError {
+            #expect(error.code == "invalid_arguments")
+            #expect((error.errorDescription ?? "").contains("Use only one target selector: --target-path or --provider/--provider-id"))
+        } catch {
+            Issue.record("Unexpected error: \(error)")
+        }
+    }
+
+    @Test("parse mcp remove rejects multiple target selectors")
+    func parseMcpRemoveRejectsMultipleTargetSelectors() {
+        do {
+            _ = try NolonCoreCLIArgumentParser.parse(
+                [
+                    "mcp", "remove",
+                    "--resource-name", "cursor-mcp.json",
+                    "--target-path", "/tmp/mcp",
+                    "--provider", "codex",
+                ]
+            )
+            Issue.record("Expected invalid target selector error")
+        } catch let error as NolonCoreCLIError {
+            #expect(error.code == "invalid_arguments")
+            #expect((error.errorDescription ?? "").contains("Use only one target selector: --target-path or --provider/--provider-id"))
+        } catch {
+            Issue.record("Unexpected error: \(error)")
+        }
+    }
+
     @Test("parse remote list command")
     func parseRemoteList() throws {
         let command = try NolonCoreCLIArgumentParser.parse(

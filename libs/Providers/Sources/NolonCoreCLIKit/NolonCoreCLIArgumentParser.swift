@@ -637,8 +637,18 @@ struct NolonWorkflowRemoveCommand: ParsableCommand {
         if let provider, let providerID, provider.lowercased() != providerID.lowercased() {
             throw ValidationError("Use either --provider or --provider-id, not both with different values.")
         }
-        if targetPath == nil, provider == nil, providerID == nil {
+        let selectorCount = [targetPath, provider ?? providerID]
+            .compactMap { raw -> String? in
+                guard let raw else { return nil }
+                let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+                return trimmed.isEmpty ? nil : trimmed
+            }
+            .count
+        if selectorCount == 0 {
             throw ValidationError("Missing required option: --target-path or --provider/--provider-id")
+        }
+        if selectorCount > 1 {
+            throw ValidationError("Use only one target selector: --target-path or --provider/--provider-id")
         }
     }
 }
@@ -821,8 +831,18 @@ struct NolonMcpRemoveCommand: ParsableCommand {
         if let provider, let providerID, provider.lowercased() != providerID.lowercased() {
             throw ValidationError("Use either --provider or --provider-id, not both with different values.")
         }
-        if targetPath == nil, provider == nil, providerID == nil {
+        let selectorCount = [targetPath, provider ?? providerID]
+            .compactMap { raw -> String? in
+                guard let raw else { return nil }
+                let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+                return trimmed.isEmpty ? nil : trimmed
+            }
+            .count
+        if selectorCount == 0 {
             throw ValidationError("Missing required option: --target-path or --provider/--provider-id")
+        }
+        if selectorCount > 1 {
+            throw ValidationError("Use only one target selector: --target-path or --provider/--provider-id")
         }
     }
 }
