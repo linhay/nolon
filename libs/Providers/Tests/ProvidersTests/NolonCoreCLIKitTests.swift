@@ -3060,6 +3060,27 @@ struct NolonCoreCLIKitTests {
         #expect(result.stdout.contains("state_filter: orphaned"))
     }
 
+    @Test("runner workflow installed filter does not add extra blank lines before installed section")
+    func runnerWorkflowInstalledFilterAvoidsExtraBlankLinesBeforeInstalledSection() async {
+        let runner = NolonCoreCLIRunner(
+            service: InstalledAndBrokenSkillsRepositoryService(),
+            fileReader: { _ in "" }
+        )
+        let result = await runner.execute(
+            arguments: [
+                "workflow", "list",
+                "--provider", "codex",
+                "--state", "installed",
+                "--show-fixes",
+            ],
+            outputMode: .text
+        )
+        #expect(result.exitCode == 0)
+        #expect(result.stdout.contains("state_filter: installed"))
+        #expect(result.stdout.contains("[已安装]"))
+        #expect(result.stdout.contains("state_filter: installed\n\n\n[已安装]") == false)
+    }
+
     @Test("runner workflow fix hints keep provider filter in commands")
     func runnerWorkflowFixHintsKeepProviderFilterInCommands() async {
         let runner = NolonCoreCLIRunner(

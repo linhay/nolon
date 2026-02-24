@@ -2776,7 +2776,6 @@ public struct NolonCoreCLIRunner: Sendable {
         if showFixes, issueCount == 0, !verbose, result.providerFilter == nil, result.stateFilter == nil {
             return lines.joined(separator: "\n")
         }
-        lines.append("")
 
         let items: [NolonSkillsListItem]
         if verbose || result.stateFilter != nil {
