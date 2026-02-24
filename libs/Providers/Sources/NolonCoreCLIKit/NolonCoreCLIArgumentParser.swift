@@ -475,10 +475,10 @@ struct NolonWorkflowRootCommand: ParsableCommand {
 struct NolonWorkflowListCommand: ParsableCommand {
     static let configuration = CommandConfiguration(commandName: "list")
 
-    @Option(name: .long, help: "Target provider ID. Omit to distribute to all detected CLI providers.")
+    @Option(name: .long, help: "Target provider ID. Omit only if you intend multi-provider distribution to all detected CLI providers.")
     var provider: String?
 
-    @Option(name: .long, help: "Alias of --provider.")
+    @Option(name: .long, help: "Alias of --provider. Omit only if you intend multi-provider distribution to all detected CLI providers.")
     var providerID: String?
 
     @Flag(name: .long)
@@ -487,10 +487,10 @@ struct NolonWorkflowListCommand: ParsableCommand {
     @Option(name: .long)
     var state: NolonProviderSkillStateKind?
 
-    @Flag(name: .long)
+    @Flag(name: .long, help: "Show full install path for each workflow item.")
     var verbose: Bool = false
 
-    @Flag(name: .long)
+    @Flag(name: .long, help: "Show repair commands for orphaned/broken items.")
     var showFixes: Bool = false
 
     func validate() throws {
@@ -669,10 +669,10 @@ struct NolonMcpRootCommand: ParsableCommand {
 struct NolonMcpListCommand: ParsableCommand {
     static let configuration = CommandConfiguration(commandName: "list")
 
-    @Option(name: .long)
+    @Option(name: .long, help: "Target provider ID. Omit only if you intend multi-provider distribution to all detected CLI providers.")
     var provider: String?
 
-    @Option(name: .long)
+    @Option(name: .long, help: "Alias of --provider. Omit only if you intend multi-provider distribution to all detected CLI providers.")
     var providerID: String?
 
     @Flag(name: .long)
@@ -681,10 +681,10 @@ struct NolonMcpListCommand: ParsableCommand {
     @Option(name: .long)
     var state: NolonProviderSkillStateKind?
 
-    @Flag(name: .long)
+    @Flag(name: .long, help: "Show full install path for each MCP item.")
     var verbose: Bool = false
 
-    @Flag(name: .long)
+    @Flag(name: .long, help: "Show repair commands for orphaned/broken items.")
     var showFixes: Bool = false
 
     func validate() throws {

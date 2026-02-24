@@ -1,4 +1,5 @@
 import Foundation
+import ArgumentParser
 import STFilePath
 import Testing
 @testable import NolonCoreCLIKit
@@ -3262,6 +3263,26 @@ struct NolonCoreCLIKitTests {
         #expect(help.contains("场景: 安装技能"))
         #expect(help.contains("nolon skills add xcode --provider codex --dry-run"))
         #expect(help.contains("nolon skills add xcode --provider codex\n") == false)
+    }
+
+    @Test("workflow list help includes option descriptions")
+    func workflowListHelpIncludesOptionDescriptions() {
+        let help = NolonRootCommand.message(for: CleanExit.helpRequest(NolonWorkflowListCommand.self))
+        #expect(help.contains("Target provider ID. Omit only if you intend"))
+        #expect(help.contains("multi-provider distribution to all detected CLI"))
+        #expect(help.contains("Alias of --provider. Omit only if you intend"))
+        #expect(help.contains("Show full install path for each workflow item."))
+        #expect(help.contains("Show repair commands for orphaned/broken items."))
+    }
+
+    @Test("mcp list help includes option descriptions")
+    func mcpListHelpIncludesOptionDescriptions() {
+        let help = NolonRootCommand.message(for: CleanExit.helpRequest(NolonMcpListCommand.self))
+        #expect(help.contains("Target provider ID. Omit only if you intend"))
+        #expect(help.contains("multi-provider distribution to all detected CLI"))
+        #expect(help.contains("Alias of --provider. Omit only if you intend"))
+        #expect(help.contains("Show full install path for each MCP item."))
+        #expect(help.contains("Show repair commands for orphaned/broken items."))
     }
 
     @Test("runner renders mcp list with state filter keeps matched provider count")
