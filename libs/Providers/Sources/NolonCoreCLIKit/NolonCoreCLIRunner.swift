@@ -2466,6 +2466,9 @@ public struct NolonCoreCLIRunner: Sendable {
                 }
                 return "- \(item.providerID)/\(item.skillID) [\(stateLabel)] \(item.path) origin=unknown"
             }
+            if item.state == .installed {
+                return "- \(item.providerID)/\(item.skillID)"
+            }
             return "- \(item.providerID)/\(item.skillID) [\(stateLabel)]"
         })
         if !verbose && !showFixes {

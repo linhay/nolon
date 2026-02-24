@@ -1677,6 +1677,28 @@ struct NolonCoreCLIKitTests {
         #expect(result.stdout.contains("立即执行（清理失效链接，") == false)
     }
 
+    @Test("runner skills installed filter omits redundant installed tag in compact mode")
+    func runnerSkillsInstalledFilterOmitsInstalledTagInCompactMode() async {
+        let runner = NolonCoreCLIRunner(
+            service: InstalledAndBrokenSkillsRepositoryService(),
+            fileReader: { _ in "" }
+        )
+        let result = await runner.execute(
+            arguments: [
+                "skills", "list",
+                "--provider", "codex",
+                "--state", "installed",
+                "--show-fixes",
+            ],
+            outputMode: .text
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stdout.contains("[已安装]"))
+        #expect(result.stdout.contains("- codex/xcode"))
+        #expect(result.stdout.contains("- codex/xcode [已安装]") == false)
+    }
+
     @Test("runner renders skills list with show fixes")
     func runnerRendersSkillsListWithShowFixes() async {
         let runner = NolonCoreCLIRunner(
