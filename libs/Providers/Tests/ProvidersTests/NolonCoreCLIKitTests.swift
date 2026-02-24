@@ -1574,6 +1574,7 @@ struct NolonCoreCLIKitTests {
         #expect(result.stdout.contains("provider | skill | state | path") == false)
         #expect(result.stdout.contains("需处理异常: 1（失效链接 1，损坏 0）"))
         #expect(result.stdout.contains("$NOLON_CMD skills list --state orphaned"))
+        #expect(result.stdout.contains("提示: 使用 `nolon skills list --verbose` 查看安装路径与来源。"))
         #expect(result.stdout.contains("快速筛坏链") == false)
         #expect(result.stdout.contains("快速筛失效链接") == false)
         #expect(result.stdout.contains("修复建议:") == false)
@@ -3408,6 +3409,27 @@ struct NolonCoreCLIKitTests {
             #expect(result.stdout.contains("2) 查看路径与来源: `$NOLON_CMD workflow list --verbose --show-fixes`"))
         }
         #expect(result.stdout.contains("立即执行（清理失效链接，") == false)
+    }
+
+    @Test("runner workflow verbose abnormal items keep trailing state label format")
+    func runnerWorkflowVerboseAbnormalItemsKeepTrailingStateLabelFormat() async {
+        let runner = NolonCoreCLIRunner(
+            service: MockSkillsRepositoryService(),
+            fileReader: { _ in "" }
+        )
+        let result = await runner.execute(
+            arguments: [
+                "workflow", "list",
+                "--verbose",
+            ],
+            outputMode: .text
+        )
+
+        #expect(result.exitCode == 0)
+        if result.stdout.contains("[异常]") {
+            #expect(result.stdout.contains("- [失效链接] ") == false)
+            #expect(result.stdout.contains(" [失效链接]\n  path: "))
+        }
     }
 
     @Test("runner renders remote list result")

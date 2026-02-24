@@ -2489,7 +2489,7 @@ public struct NolonCoreCLIRunner: Sendable {
         })
         if !verbose && !showFixes {
             lines.append("")
-            lines.append("提示: 使用 `nolon skills list --verbose` 查看安装路径。")
+            lines.append("提示: 使用 `nolon skills list --verbose` 查看安装路径与来源。")
         }
         if !issueProviders.isEmpty && !showFixes {
             lines.append("")
@@ -2842,7 +2842,7 @@ public struct NolonCoreCLIRunner: Sendable {
                     return Self.localizedStateLabel(item.state)
                 }()
                 if verbose {
-                    var line = "- [\(stateLabel)] \(item.providerID)/\(item.skillID)\n  path: \(item.path)"
+                    var line = "- \(item.providerID)/\(item.skillID) [\(stateLabel)]\n  path: \(item.path)"
                     if let origin = item.origin, origin.sourceType != .unknown {
                         line += "\n  origin: \(origin.sourceType.rawValue):\(origin.sourceRef)"
                     }
