@@ -2524,16 +2524,29 @@ public struct NolonCoreCLIRunner: Sendable {
             if !orphanedCommands.isEmpty {
                 lines.append("")
                 lines.append("# 1) 清理\(orphanedLabel)（\(orphanedItems.count)项）")
-                lines.append(contentsOf: orphanedCommands.enumerated().map { index, command in
-                    "\(index + 1). `\(Self.copyableCommand(command))`"
-                })
+                let groupedOrphaned = Dictionary(grouping: orphanedItems, by: \.providerID)
+                for providerID in groupedOrphaned.keys.sorted(by: { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }) {
+                    guard let items = groupedOrphaned[providerID] else { continue }
+                    lines.append("provider: \(providerID) (\(items.count))")
+                    for item in items.sorted(by: { $0.skillID.localizedCaseInsensitiveCompare($1.skillID) == .orderedAscending }) {
+                        let command = "nolon skills remove --skill-id \(item.skillID) --provider \(item.providerID)"
+                        lines.append("- `\(Self.copyableCommand(command))`")
+                    }
+                }
             }
             if !brokenCommands.isEmpty {
                 lines.append("")
                 lines.append("# 2) 修复损坏（\(brokenItems.count)项：先 remove 再 add）")
-                lines.append(contentsOf: brokenCommands.enumerated().map { index, command in
-                    "\(index + 1). `\(Self.copyableCommand(command))`"
-                })
+                let groupedBroken = Dictionary(grouping: brokenItems, by: \.providerID)
+                for providerID in groupedBroken.keys.sorted(by: { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }) {
+                    guard let items = groupedBroken[providerID] else { continue }
+                    lines.append("provider: \(providerID) (\(items.count))")
+                    for item in items.sorted(by: { $0.skillID.localizedCaseInsensitiveCompare($1.skillID) == .orderedAscending }) {
+                        let remove = "nolon skills remove --skill-id \(item.skillID) --provider \(item.providerID)"
+                        let add = "nolon skills add \(item.skillID) --provider \(item.providerID)"
+                        lines.append("- `\(Self.copyableCommand("\(remove) && \(add)"))`")
+                    }
+                }
             }
             lines.append("")
             lines.append("# 3) 复检")
@@ -2862,9 +2875,15 @@ public struct NolonCoreCLIRunner: Sendable {
             lines.append("`\(Self.runtimeCommandEnvAssignment())`")
             lines.append("修复计划:")
             lines.append("1) 清理异常项（\(fixCommands.detailed.count)项）")
-            lines.append(contentsOf: fixCommands.detailed.enumerated().map { index, command in
-                "- `\(Self.copyableCommand(command))`"
-            })
+            let groupedByProvider = Dictionary(grouping: problematicItems, by: \.providerID)
+            for providerID in groupedByProvider.keys.sorted(by: { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }) {
+                guard let items = groupedByProvider[providerID] else { continue }
+                lines.append("provider: \(providerID) (\(items.count))")
+                for item in items.sorted(by: { $0.skillID.localizedCaseInsensitiveCompare($1.skillID) == .orderedAscending }) {
+                    let command = "nolon \(kind.rawValue) remove --resource-name \(item.skillID) --provider \(item.providerID)"
+                    lines.append("- `\(Self.copyableCommand(command))`")
+                }
+            }
             lines.append("")
             lines.append("2) 复检")
             lines.append("`\(Self.copyableCommand("nolon \(kind.rawValue) list --show-fixes"))`")
