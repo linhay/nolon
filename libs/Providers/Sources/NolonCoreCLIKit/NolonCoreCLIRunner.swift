@@ -2497,7 +2497,7 @@ public struct NolonCoreCLIRunner: Sendable {
             lines.append("修复建议（可复制）:")
             var quickActions: [String] = []
             if !brokenIssueProviders.isEmpty {
-                quickActions.append("查看坏链详情: `\(Self.copyableCommand("nolon skills list --state broken --verbose"))`")
+                quickActions.append("查看损坏详情: `\(Self.copyableCommand("nolon skills list --state broken --verbose"))`")
             }
             if !orphanedIssueProviders.isEmpty {
                 quickActions.append("查看失效链接详情: `\(Self.copyableCommand("nolon skills list --state orphaned --verbose"))`")
@@ -2560,10 +2560,10 @@ public struct NolonCoreCLIRunner: Sendable {
             lines.append("")
             lines.append("3. 复检")
             lines.append("`\(Self.copyableCommand("nolon skills list --show-fixes"))`")
-        } else if showFixes, issueCount > 0 {
+        } else if showFixes, result.providerFilter != nil || result.stateFilter != nil || issueCount > 0 {
             lines.append("")
             lines.append("[下一步（可复制执行）]")
-            lines.append("状态健康，无需修复；修复建议已启用但当前无可修复项。")
+            lines.append("当前筛选条件下无可修复项；请移除筛选后重试 --show-fixes。")
         }
         return lines.joined(separator: "\n")
     }
@@ -2908,10 +2908,10 @@ public struct NolonCoreCLIRunner: Sendable {
             lines.append("")
             lines.append("2. 复检")
             lines.append("`\(Self.copyableCommand("nolon \(kind.rawValue) list --show-fixes"))`")
-        } else if showFixes, issueCount > 0 {
+        } else if showFixes, result.providerFilter != nil || result.stateFilter != nil || issueCount > 0 {
             lines.append("")
             lines.append("[下一步（可复制执行）]")
-            lines.append("状态健康，无需修复；修复建议已启用但当前无可修复项。")
+            lines.append("当前筛选条件下无可修复项；请移除筛选后重试 --show-fixes。")
         }
         return lines.joined(separator: "\n")
     }

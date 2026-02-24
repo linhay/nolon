@@ -1600,7 +1600,8 @@ struct NolonCoreCLIKitTests {
         #expect(result.stdout.contains("- codex/xcode [已安装]") == false)
         #expect(result.stdout.contains("- codex/find-skills [损坏]"))
         #expect(result.stdout.contains("修复建议（可复制）:"))
-        #expect(result.stdout.contains("查看坏链详情"))
+        #expect(result.stdout.contains("查看损坏详情"))
+        #expect(result.stdout.contains("查看坏链详情") == false)
         #expect(result.stdout.contains("$NOLON_CMD skills list --state broken"))
         #expect(result.stdout.contains("nolon skills list --state orphaned") == false)
         #expect(result.stdout.contains("快速筛坏链") == false)
@@ -1741,6 +1742,8 @@ struct NolonCoreCLIKitTests {
         #expect(result.stdout.contains("[已安装]"))
         #expect(result.stdout.contains("- codex/xcode"))
         #expect(result.stdout.contains("- codex/xcode [已安装]") == false)
+        #expect(result.stdout.contains("当前筛选条件下无可修复项；请移除筛选后重试 --show-fixes。"))
+        #expect(result.stdout.contains("状态健康，无需修复；修复建议已启用但当前无可修复项。") == false)
     }
 
     @Test("runner renders skills list with show fixes")
@@ -3135,6 +3138,8 @@ struct NolonCoreCLIKitTests {
         #expect(result.stdout.contains("state_filter: installed"))
         if result.stdout.contains("[已安装]") {
             #expect(result.stdout.contains("state_filter: installed\n\n\n[已安装]") == false)
+            #expect(result.stdout.contains("当前筛选条件下无可修复项；请移除筛选后重试 --show-fixes。"))
+            #expect(result.stdout.contains("状态健康，无需修复；修复建议已启用但当前无可修复项。") == false)
         } else {
             #expect(result.stdout.contains("在 provider=codex 且 state=installed 下，未发现匹配工作流资源。"))
         }
