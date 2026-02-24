@@ -2538,17 +2538,6 @@ public struct NolonCoreCLIRunner: Sendable {
             lines.append("")
             lines.append("# 3) 复检")
             lines.append("`\(Self.copyableCommand("nolon skills list --show-fixes"))`")
-            let oneShotCommands = orphanedCommands + brokenCommands
-            if !oneShotCommands.isEmpty {
-                let oneShot = oneShotCommands
-                    .map(Self.copyableCommand)
-                    .joined(separator: " && ")
-                lines.append("")
-                lines.append("[一键执行（可复制）]")
-                lines.append("```bash")
-                lines.append("\(oneShot) && \(Self.copyableCommand("nolon skills list --show-fixes"))")
-                lines.append("```")
-            }
         } else if showFixes, issueCount > 0 {
             lines.append("")
             lines.append("[下一步（可复制执行）]")
@@ -2879,15 +2868,6 @@ public struct NolonCoreCLIRunner: Sendable {
             lines.append("")
             lines.append("2) 复检")
             lines.append("`\(Self.copyableCommand("nolon \(kind.rawValue) list --show-fixes"))`")
-            let oneShot = fixCommands.detailed
-                .map(Self.copyableCommand)
-                .joined(separator: " && ")
-            let oneShotWithCheck = "\(oneShot) && \(Self.copyableCommand("nolon \(kind.rawValue) list --show-fixes"))"
-            lines.append("")
-            lines.append("[一键执行（可复制）]")
-            lines.append("```bash")
-            lines.append(oneShotWithCheck)
-            lines.append("```")
         } else if showFixes, issueCount > 0 {
             lines.append("")
             lines.append("[下一步（可复制执行）]")
