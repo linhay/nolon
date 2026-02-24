@@ -1686,7 +1686,7 @@ struct NolonCoreCLIKitTests {
         )
 
         #expect(result.exitCode == 0)
-        #expect(result.stdout.contains("state_filter: orphaned"))
+        #expect(result.stdout.contains("state筛选: orphaned"))
         #expect(result.stdout.contains("[异常]"))
         #expect(result.stdout.contains("- codex/react-best-practices [失效链接]"))
         #expect(result.stdout.contains("异常提供方(1): codex"))
@@ -1733,7 +1733,7 @@ struct NolonCoreCLIKitTests {
         )
 
         #expect(result.exitCode == 0)
-        #expect(result.stdout.contains("state_filter: installed"))
+        #expect(result.stdout.contains("state筛选: installed"))
         #expect(result.stdout.contains("在 provider=codex 且 state=installed 下，未发现匹配技能。"))
         #expect(result.stdout.contains("可选复检:"))
         #expect(result.stdout.contains("- 直接运行: `nolon skills list --show-fixes`"))
@@ -1786,7 +1786,7 @@ struct NolonCoreCLIKitTests {
         #expect(result.stdout.contains("[结论]"))
         #expect(result.stdout.contains("summary: issues=1 | installed=0/1 | action=fix"))
         #expect(result.stdout.contains("[详情]"))
-        if let providerIdx = result.stdout.range(of: "provider_filter: codex")?.lowerBound,
+        if let providerIdx = result.stdout.range(of: "provider筛选: codex")?.lowerBound,
            let scannedIdx = result.stdout.range(of: "providers_scanned: 1")?.lowerBound {
             #expect(providerIdx < scannedIdx)
         } else {
@@ -1863,8 +1863,8 @@ struct NolonCoreCLIKitTests {
         )
 
         #expect(result.exitCode == 0)
-        #expect(result.stdout.contains("provider_filter: codex"))
-        #expect(result.stdout.contains("state_filter: broken"))
+        #expect(result.stdout.contains("provider筛选: codex"))
+        #expect(result.stdout.contains("state筛选: broken"))
         #expect(result.stdout.contains("providers_matched: 1"))
         #expect(result.stdout.contains("在 provider=codex 且 state=broken 下，未发现匹配技能。"))
     }
@@ -3135,8 +3135,8 @@ struct NolonCoreCLIKitTests {
             outputMode: .text
         )
         #expect(result.exitCode == 0)
-        #expect(result.stdout.contains("provider_filter: codex"))
-        #expect(result.stdout.contains("state_filter: orphaned"))
+        #expect(result.stdout.contains("provider筛选: codex"))
+        #expect(result.stdout.contains("state筛选: orphaned"))
         #expect(result.stdout.contains("workflow_total: "))
     }
 
@@ -3156,9 +3156,9 @@ struct NolonCoreCLIKitTests {
             outputMode: .text
         )
         #expect(result.exitCode == 0)
-        #expect(result.stdout.contains("state_filter: installed"))
+        #expect(result.stdout.contains("state筛选: installed"))
         if result.stdout.contains("[已安装]") {
-            #expect(result.stdout.contains("state_filter: installed\n\n\n[已安装]") == false)
+            #expect(result.stdout.contains("state筛选: installed\n\n\n[已安装]") == false)
             #expect(result.stdout.contains("当前筛选条件下无可修复项；请移除筛选后重试 --show-fixes。"))
             #expect(result.stdout.contains("状态健康，无需修复；修复建议已启用但当前无可修复项。") == false)
         } else {
@@ -3214,7 +3214,7 @@ struct NolonCoreCLIKitTests {
             outputMode: .text
         )
         #expect(result.exitCode == 0)
-        #expect(result.stdout.contains("provider_filter: codex"))
+        #expect(result.stdout.contains("provider筛选: codex"))
         #expect(result.stdout.contains("mcp_total: "))
     }
 
@@ -3328,8 +3328,8 @@ struct NolonCoreCLIKitTests {
             outputMode: .text
         )
         #expect(result.exitCode == 0)
-        #expect(result.stdout.contains("provider_filter: codex"))
-        #expect(result.stdout.contains("state_filter: orphaned"))
+        #expect(result.stdout.contains("provider筛选: codex"))
+        #expect(result.stdout.contains("state筛选: orphaned"))
         #expect(result.stdout.contains("providers_matched: 1"))
         #expect(result.stdout.contains("在 provider=codex 且 state=orphaned 下，未发现匹配 MCP 资源。"))
     }
@@ -3368,8 +3368,8 @@ struct NolonCoreCLIKitTests {
             outputMode: .text
         )
         #expect(result.exitCode == 0)
-        #expect(result.stdout.contains("provider_filter: codex"))
-        #expect(result.stdout.contains("state_filter: broken"))
+        #expect(result.stdout.contains("provider筛选: codex"))
+        #expect(result.stdout.contains("state筛选: broken"))
         #expect(result.stdout.contains("在 provider=codex 且 state=broken 下，未发现匹配工作流资源。"))
     }
 

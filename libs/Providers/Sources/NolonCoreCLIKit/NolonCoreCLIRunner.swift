@@ -2359,10 +2359,10 @@ public struct NolonCoreCLIRunner: Sendable {
         func appendFiltersIfNeeded() {
             if filtersAppended { return }
             if let filter = result.providerFilter, !filter.isEmpty {
-                lines.append("provider_filter: \(filter)")
+                lines.append("provider筛选: \(filter)")
             }
             if let stateFilter = result.stateFilter {
-                lines.append("state_filter: \(stateFilter.rawValue)")
+                lines.append("state筛选: \(stateFilter.rawValue)")
             }
             filtersAppended = true
         }
@@ -2759,10 +2759,10 @@ public struct NolonCoreCLIRunner: Sendable {
         func appendFiltersIfNeeded() {
             if filtersAppended { return }
             if let filter = result.providerFilter, !filter.isEmpty {
-                lines.append("provider_filter: \(filter)")
+                lines.append("provider筛选: \(filter)")
             }
             if let stateFilter = result.stateFilter {
-                lines.append("state_filter: \(stateFilter.rawValue)")
+                lines.append("state筛选: \(stateFilter.rawValue)")
             }
             filtersAppended = true
         }
