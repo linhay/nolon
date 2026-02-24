@@ -2362,7 +2362,7 @@ public struct NolonCoreCLIRunner: Sendable {
                 lines.append("provider筛选: \(filter)")
             }
             if let stateFilter = result.stateFilter {
-                lines.append("state筛选: \(stateFilter.rawValue)")
+                lines.append("state筛选: \(Self.localizedStateLabel(stateFilter))")
             }
             filtersAppended = true
         }
@@ -2760,7 +2760,7 @@ public struct NolonCoreCLIRunner: Sendable {
                 lines.append("provider筛选: \(filter)")
             }
             if let stateFilter = result.stateFilter {
-                lines.append("state筛选: \(stateFilter.rawValue)")
+                lines.append("state筛选: \(Self.localizedStateLabel(stateFilter))")
             }
             filtersAppended = true
         }
