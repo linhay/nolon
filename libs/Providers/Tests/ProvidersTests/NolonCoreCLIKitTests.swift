@@ -3376,6 +3376,8 @@ struct NolonCoreCLIKitTests {
             #expect(result.stdout.contains("[下一步（按顺序执行）]") == false)
             #expect(result.stdout.contains("[一键执行（可复制）]") == false)
         } else {
+            #expect(result.stdout.contains("状态(已安装/失效链接/损坏): "))
+            #expect(result.stdout.contains("状态：已安装 ") == false)
             #expect(result.stdout.contains("修复计划:"))
             #expect(result.stdout.contains("1. 清理异常项（"))
             #expect(result.stdout.contains("provider: codex"))

@@ -2780,7 +2780,7 @@ public struct NolonCoreCLIRunner: Sendable {
         }
         if showFixes {
             if issueCount > 0 {
-                lines.append("状态：已安装 \(result.summary.installedCount) 项（\(installedPct)），\(orphanedLabel) \(result.summary.orphanedCount) 项（\(orphanedPct)），损坏 \(result.summary.brokenCount) 项（\(brokenPct)）。")
+                lines.append("状态(已安装/\(orphanedLabel)/损坏): \(result.summary.installedCount)/\(result.summary.orphanedCount)/\(result.summary.brokenCount) (\(installedPct)/\(orphanedPct)/\(brokenPct))")
                 lines.append("结论：发现 \(issueCount) 项异常（\(orphanedLabel) \(result.summary.orphanedCount)、损坏 \(result.summary.brokenCount)），请按下方修复计划依序处理。")
             } else {
                 lines.append("健康：\(result.summary.installedCount)/\(result.summary.itemCount)（\(installedPct)），异常 0，修复动作：无。")
