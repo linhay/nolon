@@ -2374,16 +2374,9 @@ public struct NolonCoreCLIRunner: Sendable {
             let matchedProviders = matchedProvidersCount(for: result)
             lines.append("providers_matched: \(matchedProviders)")
             lines.append("skills_total: \(result.summary.itemCount)")
-            if !showFixes {
-                lines.append(
-                    "健康度(已安装/总数): \(result.summary.installedCount)/\(result.summary.itemCount) (\(percent(result.summary.installedCount, total: result.summary.itemCount)))"
-                )
-            }
         }
         if !showFixes || issueCount > 0 {
-            lines.append(
-                "状态：已安装 \(result.summary.installedCount) 项（\(percent(result.summary.installedCount, total: result.summary.itemCount))），\(orphanedLabel) \(result.summary.orphanedCount) 项（\(percent(result.summary.orphanedCount, total: result.summary.itemCount))），损坏 \(result.summary.brokenCount) 项（\(percent(result.summary.brokenCount, total: result.summary.itemCount))）。"
-            )
+            lines.append("状态(已安装/\(orphanedLabel)/损坏): \(result.summary.installedCount)/\(result.summary.orphanedCount)/\(result.summary.brokenCount) (\(percent(result.summary.installedCount, total: result.summary.itemCount))/\(percent(result.summary.orphanedCount, total: result.summary.itemCount))/\(percent(result.summary.brokenCount, total: result.summary.itemCount)))")
         }
         if showFixes {
             if issueCount > 0 {
