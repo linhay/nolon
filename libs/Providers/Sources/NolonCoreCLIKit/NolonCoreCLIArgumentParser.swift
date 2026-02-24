@@ -77,7 +77,7 @@ struct NolonSkillsMigrateGroupCommand: ParsableCommand {
 struct NolonSkillsListCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "list",
-        abstract: "List installed skills by provider."
+        abstract: "Inspect skill install states by provider (defaults to orphaned/broken view)."
     )
 
     @Option(name: .long, help: "Target provider ID. Omit only if you intend multi-provider distribution to all detected CLI providers.")

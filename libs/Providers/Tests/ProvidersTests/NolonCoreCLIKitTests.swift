@@ -3265,6 +3265,14 @@ struct NolonCoreCLIKitTests {
         #expect(help.contains("nolon skills add xcode --provider codex\n") == false)
     }
 
+    @Test("skills list help summary reflects default abnormal-focus behavior")
+    func skillsListHelpSummaryReflectsDefaultAbnormalFocus() {
+        let help = NolonRootCommand.message(for: CleanExit.helpRequest(NolonSkillsListCommand.self))
+        #expect(help.contains("Inspect skill install states by provider (defaults to orphaned/broken"))
+        #expect(help.contains("view)."))
+        #expect(help.contains("List installed skills by provider.") == false)
+    }
+
     @Test("workflow list help includes option descriptions")
     func workflowListHelpIncludesOptionDescriptions() {
         let help = NolonRootCommand.message(for: CleanExit.helpRequest(NolonWorkflowListCommand.self))
