@@ -2213,6 +2213,46 @@ struct NolonCoreCLIKitTests {
         #expect(targetPath.contains(".codex"))
     }
 
+    @Test("parse workflow remove rejects conflicting provider selectors")
+    func parseWorkflowRemoveRejectsConflictingProviderSelectors() {
+        do {
+            _ = try NolonCoreCLIArgumentParser.parse(
+                [
+                    "workflow", "remove",
+                    "--resource-name", "review.md",
+                    "--provider", "codex",
+                    "--provider-id", "opencode",
+                ]
+            )
+            Issue.record("Expected invalid provider selector error")
+        } catch let error as NolonCoreCLIError {
+            #expect(error.code == "invalid_arguments")
+            #expect((error.errorDescription ?? "").contains("Use either --provider or --provider-id"))
+        } catch {
+            Issue.record("Unexpected error: \(error)")
+        }
+    }
+
+    @Test("parse mcp remove rejects conflicting provider selectors")
+    func parseMcpRemoveRejectsConflictingProviderSelectors() {
+        do {
+            _ = try NolonCoreCLIArgumentParser.parse(
+                [
+                    "mcp", "remove",
+                    "--resource-name", "cursor-mcp.json",
+                    "--provider", "codex",
+                    "--provider-id", "opencode",
+                ]
+            )
+            Issue.record("Expected invalid provider selector error")
+        } catch let error as NolonCoreCLIError {
+            #expect(error.code == "invalid_arguments")
+            #expect((error.errorDescription ?? "").contains("Use either --provider or --provider-id"))
+        } catch {
+            Issue.record("Unexpected error: \(error)")
+        }
+    }
+
     @Test("parse remote list command")
     func parseRemoteList() throws {
         let command = try NolonCoreCLIArgumentParser.parse(

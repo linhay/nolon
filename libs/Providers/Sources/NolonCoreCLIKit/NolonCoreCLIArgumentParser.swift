@@ -634,6 +634,9 @@ struct NolonWorkflowRemoveCommand: ParsableCommand {
     var providerID: String?
 
     func validate() throws {
+        if let provider, let providerID, provider.lowercased() != providerID.lowercased() {
+            throw ValidationError("Use either --provider or --provider-id, not both with different values.")
+        }
         if targetPath == nil, provider == nil, providerID == nil {
             throw ValidationError("Missing required option: --target-path or --provider/--provider-id")
         }
@@ -813,6 +816,15 @@ struct NolonMcpRemoveCommand: ParsableCommand {
 
     @Option(name: .long)
     var providerID: String?
+
+    func validate() throws {
+        if let provider, let providerID, provider.lowercased() != providerID.lowercased() {
+            throw ValidationError("Use either --provider or --provider-id, not both with different values.")
+        }
+        if targetPath == nil, provider == nil, providerID == nil {
+            throw ValidationError("Missing required option: --target-path or --provider/--provider-id")
+        }
+    }
 }
 
 struct NolonRemoteRootCommand: ParsableCommand {
