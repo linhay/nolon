@@ -2523,7 +2523,7 @@ public struct NolonCoreCLIRunner: Sendable {
             }
             if !orphanedCommands.isEmpty {
                 lines.append("")
-                lines.append("# 1) 清理\(orphanedLabel)（\(orphanedItems.count)项）")
+                lines.append("1. 清理\(orphanedLabel)（\(orphanedItems.count)项）")
                 let groupedOrphaned = Dictionary(grouping: orphanedItems, by: \.providerID)
                 for providerID in groupedOrphaned.keys.sorted(by: { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }) {
                     guard let items = groupedOrphaned[providerID] else { continue }
@@ -2536,7 +2536,7 @@ public struct NolonCoreCLIRunner: Sendable {
             }
             if !brokenCommands.isEmpty {
                 lines.append("")
-                lines.append("# 2) 修复损坏（\(brokenItems.count)项：先 remove 再 add）")
+                lines.append("2. 修复损坏（\(brokenItems.count)项：先 remove 再 add）")
                 let groupedBroken = Dictionary(grouping: brokenItems, by: \.providerID)
                 for providerID in groupedBroken.keys.sorted(by: { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }) {
                     guard let items = groupedBroken[providerID] else { continue }
@@ -2549,7 +2549,7 @@ public struct NolonCoreCLIRunner: Sendable {
                 }
             }
             lines.append("")
-            lines.append("# 3) 复检")
+            lines.append("3. 复检")
             lines.append("`\(Self.copyableCommand("nolon skills list --show-fixes"))`")
         } else if showFixes, issueCount > 0 {
             lines.append("")
@@ -2874,7 +2874,7 @@ public struct NolonCoreCLIRunner: Sendable {
             lines.append("[下一步（按顺序执行）]")
             lines.append("`\(Self.runtimeCommandEnvAssignment())`")
             lines.append("修复计划:")
-            lines.append("1) 清理异常项（\(fixCommands.detailed.count)项）")
+            lines.append("1. 清理异常项（\(fixCommands.detailed.count)项）")
             let groupedByProvider = Dictionary(grouping: problematicItems, by: \.providerID)
             for providerID in groupedByProvider.keys.sorted(by: { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }) {
                 guard let items = groupedByProvider[providerID] else { continue }
@@ -2885,7 +2885,7 @@ public struct NolonCoreCLIRunner: Sendable {
                 }
             }
             lines.append("")
-            lines.append("2) 复检")
+            lines.append("2. 复检")
             lines.append("`\(Self.copyableCommand("nolon \(kind.rawValue) list --show-fixes"))`")
         } else if showFixes, issueCount > 0 {
             lines.append("")
