@@ -537,6 +537,44 @@ struct NolonCoreCLIKitTests {
         }
     }
 
+    @Test("parse workflow search rejects duplicate positional and option query")
+    func parseWorkflowSearchRejectsDuplicateQueryInputs() {
+        do {
+            _ = try NolonCoreCLIArgumentParser.parse(
+                ["workflow", "search", "xcode", "--query", "swift"]
+            )
+            Issue.record("Expected invalid query input error")
+        } catch let error as NolonCoreCLIError {
+            #expect(error.code == "invalid_arguments")
+            let message = error.errorDescription ?? ""
+            #expect(message.contains("xcode"))
+            #expect(message.contains("swift"))
+            #expect(message.contains("nolon workflow search xcode"))
+            #expect(message.contains("nolon workflow search --query swift"))
+        } catch {
+            Issue.record("Unexpected error: \(error)")
+        }
+    }
+
+    @Test("parse mcp search rejects duplicate positional and option query")
+    func parseMcpSearchRejectsDuplicateQueryInputs() {
+        do {
+            _ = try NolonCoreCLIArgumentParser.parse(
+                ["mcp", "search", "xcode", "--query", "swift"]
+            )
+            Issue.record("Expected invalid query input error")
+        } catch let error as NolonCoreCLIError {
+            #expect(error.code == "invalid_arguments")
+            let message = error.errorDescription ?? ""
+            #expect(message.contains("xcode"))
+            #expect(message.contains("swift"))
+            #expect(message.contains("nolon mcp search xcode"))
+            #expect(message.contains("nolon mcp search --query swift"))
+        } catch {
+            Issue.record("Unexpected error: \(error)")
+        }
+    }
+
     @Test("parse skills add command")
     func parseSkillsAdd() throws {
         let command = try NolonCoreCLIArgumentParser.parse(

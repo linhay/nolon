@@ -557,7 +557,17 @@ struct NolonWorkflowSearchCommand: ParsableCommand {
 
     func validate() throws {
         if keyword != nil, query != nil {
-            throw ValidationError("Use either positional query or --query.")
+            let positional = keyword ?? "<keyword>"
+            let optionQuery = query ?? "<text>"
+            throw ValidationError(
+                """
+                Conflicting query input: received positional <query> (\(positional)) and --query (\(optionQuery)).
+                Use one form only.
+                Examples:
+                - nolon workflow search \(positional)
+                - nolon workflow search --query \(optionQuery)
+                """
+            )
         }
         if let provider, let providerID, provider.lowercased() != providerID.lowercased() {
             throw ValidationError("Use either --provider or --provider-id, not both with different values.")
@@ -728,7 +738,17 @@ struct NolonMcpSearchCommand: ParsableCommand {
 
     func validate() throws {
         if keyword != nil, query != nil {
-            throw ValidationError("Use either positional query or --query.")
+            let positional = keyword ?? "<keyword>"
+            let optionQuery = query ?? "<text>"
+            throw ValidationError(
+                """
+                Conflicting query input: received positional <query> (\(positional)) and --query (\(optionQuery)).
+                Use one form only.
+                Examples:
+                - nolon mcp search \(positional)
+                - nolon mcp search --query \(optionQuery)
+                """
+            )
         }
         if let provider, let providerID, provider.lowercased() != providerID.lowercased() {
             throw ValidationError("Use either --provider or --provider-id, not both with different values.")
