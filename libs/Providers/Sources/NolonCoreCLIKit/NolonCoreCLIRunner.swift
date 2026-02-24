@@ -2454,15 +2454,10 @@ public struct NolonCoreCLIRunner: Sendable {
             return lines.joined(separator: "\n")
         }
 
-        let installedCount = effectiveItems.filter { $0.state == .installed }.count
-        let problematicCount = effectiveItems.count - installedCount
-        if problematicCount > 0, installedCount == 0 {
-            lines.append("[异常]")
-        } else if installedCount > 0, problematicCount == 0 {
-            lines.append("[已安装]")
-        }
+        let problematicItems = effectiveItems.filter { $0.state != .installed }
+        let installedItems = effectiveItems.filter { $0.state == .installed }
 
-        lines.append(contentsOf: effectiveItems.map { item in
+        let itemLine: (NolonSkillsListItem) -> String = { item in
             let stateLabel = Self.localizedStateLabel(item.state)
             if verbose {
                 var line = "- \(item.providerID)/\(item.skillID)"
@@ -2479,7 +2474,17 @@ public struct NolonCoreCLIRunner: Sendable {
                 return "- \(item.providerID)/\(item.skillID)"
             }
             return "- \(item.providerID)/\(item.skillID) [\(stateLabel)]"
-        })
+        }
+
+        if !problematicItems.isEmpty {
+            lines.append("[异常]")
+            lines.append(contentsOf: problematicItems.map(itemLine))
+        }
+        if !installedItems.isEmpty {
+            lines.append("")
+            lines.append("[已安装]")
+            lines.append(contentsOf: installedItems.map(itemLine))
+        }
         if !verbose && !showFixes {
             lines.append("")
             lines.append("提示: 使用 `nolon skills list --verbose` 查看安装路径与来源。")

@@ -1647,6 +1647,27 @@ struct NolonCoreCLIKitTests {
         #expect(result.stdout.contains("origin=unknown") == false)
     }
 
+    @Test("runner skills verbose mixed states are grouped into abnormal and installed sections")
+    func runnerSkillsVerboseMixedStatesAreGroupedIntoSections() async {
+        let runner = NolonCoreCLIRunner(
+            service: InstalledAndBrokenSkillsRepositoryService(),
+            fileReader: { _ in "" }
+        )
+        let result = await runner.execute(
+            arguments: [
+                "skills", "list",
+                "--provider", "codex",
+                "--verbose",
+            ],
+            outputMode: .text
+        )
+        #expect(result.exitCode == 0)
+        #expect(result.stdout.contains("[异常]"))
+        #expect(result.stdout.contains("[已安装]"))
+        #expect(result.stdout.contains("- codex/find-skills [损坏]\n  path: "))
+        #expect(result.stdout.contains("- codex/xcode\n  path: "))
+    }
+
     @Test("runner renders skills list with state filter")
     func runnerRendersSkillsListWithStateFilter() async {
         let runner = NolonCoreCLIRunner(
