@@ -1762,6 +1762,7 @@ struct NolonCoreCLIKitTests {
         #expect(result.stdout.contains("[已安装]"))
         #expect(result.stdout.contains("- codex/xcode"))
         #expect(result.stdout.contains("- codex/xcode [已安装]") == false)
+        #expect(result.stdout.contains("修复动作：无。\n\n\n[已安装]") == false)
         #expect(result.stdout.contains("当前筛选条件下无可修复项；请移除筛选后重试 --show-fixes。"))
         #expect(result.stdout.contains("复检命令: `nolon skills list --show-fixes`"))
         #expect(result.stdout.contains("状态健康，无需修复；修复建议已启用但当前无可修复项。") == false)

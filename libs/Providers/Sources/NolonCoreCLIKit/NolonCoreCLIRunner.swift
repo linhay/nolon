@@ -2400,7 +2400,6 @@ public struct NolonCoreCLIRunner: Sendable {
         if showFixes, issueCount == 0, !verbose, result.providerFilter == nil, result.stateFilter == nil {
             return lines.joined(separator: "\n")
         }
-        lines.append("")
 
         let effectiveItems: [NolonSkillsListItem]
         if verbose || result.stateFilter != nil {
@@ -2481,6 +2480,7 @@ public struct NolonCoreCLIRunner: Sendable {
         }
 
         if !problematicItems.isEmpty {
+            lines.append("")
             lines.append("[异常]")
             lines.append(contentsOf: problematicItems.map(itemLine))
         }
