@@ -462,7 +462,9 @@ public enum NolonCoreCLICommandParser {
                         检测到写入操作。请先用 --dry-run 预览，确认后再加 --yes 执行。
                         示例：
                         - nolon skills search <keyword> --install --dry-run
+                        - nolon skills search <keyword> --install --yes --provider codex
                         - nolon skills search --query <text> --install --dry-run
+                        - nolon skills search --query <text> --install --yes --provider codex
                         """
                     )
                 }

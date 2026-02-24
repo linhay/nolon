@@ -67,7 +67,33 @@ public struct NolonCoreCLIRunner: Sendable {
         case .json:
             return errorJSON(for: error)
         case .text:
-            if error.code == "permission_denied" || error.code == "rate_limited" {
+            if case let .syncFailed(code, message, detail) = error {
+                let inferredRepoPath = Self.inferredRepositoryPath(fromGitURL: detail.gitURL) ?? "<repo-path>"
+                let inferredSource = Self.inferredSource(fromGitURL: detail.gitURL) ?? "<owner/repo>"
+                var lines = [
+                    "Error [\(code)]",
+                    message,
+                ]
+                if code == "git_pull_failed" {
+                    let normalized = message.lowercased()
+                    if normalized.contains("cannot fast-forward to multiple branches") {
+                        lines.append("建议:")
+                        lines.append("- 改用 rebase/merge（任选其一）:")
+                        lines.append("  - `nolon skills sync --source \(inferredSource) --pull-strategy rebase`")
+                        lines.append("  - `nolon workflow sync --source \(inferredSource) --pull-strategy rebase`")
+                        lines.append("  - `nolon mcp sync --source \(inferredSource) --pull-strategy rebase`")
+                        lines.append("- 先清理远端跟踪分支：`git -C \(inferredRepoPath) fetch --all --prune`")
+                        lines.append("- 查看本地仓库索引：`nolon skills repo list --verbose`")
+                    }
+                }
+                lines.append("git_url: \(detail.gitURL)")
+                lines.append("source_hint: \(inferredSource)")
+                lines.append("repo_path_hint: \(inferredRepoPath)")
+                lines.append("pull_strategy: \(detail.pullStrategy.rawValue)")
+                lines.append("credential_strategy: \(detail.credentialStrategy.rawValue)")
+                return lines.joined(separator: "\n")
+            }
+            if error.code == "permission_denied" || error.code == "rate_limited" || error.code == "remote_catalog_unavailable" || error.code == "git_ref_conflict" {
                 return """
                 Error [\(error.code)]
                 \(error.errorDescription ?? error.localizedDescription)
@@ -78,6 +104,28 @@ public struct NolonCoreCLIRunner: Sendable {
     }
 
     private func normalizeError(_ error: NolonCoreCLIError) -> NolonCoreCLIError {
+        if case let .syncFailed(code, message, detail) = error,
+           code == "git_pull_failed" {
+            let normalizedSync = message.lowercased()
+            if normalizedSync.contains("cannot lock ref"), normalizedSync.contains("unable to update local ref") {
+                let inferredRepoPath = Self.inferredRepositoryPath(fromGitURL: detail.gitURL) ?? "<repo-path>"
+                let inferredSource = Self.inferredSource(fromGitURL: detail.gitURL) ?? "<owner/repo>"
+                return .domainFailed(
+                    code: "git_ref_conflict",
+                    message: """
+                    检测到本地 Git 引用冲突（cannot lock ref / unable to update local ref）。
+                    建议:
+                    - 查看仓库目录：`nolon skills repo list --verbose`
+                    - 在对应仓库执行：`git -C \(inferredRepoPath) fetch --all --prune`
+                    - 若仍失败，删除冲突仓库后重试 sync（任选其一）:
+                      - `rm -rf \(inferredRepoPath)` 后 `nolon skills sync --source \(inferredSource)`
+                      - `rm -rf \(inferredRepoPath)` 后 `nolon workflow sync --source \(inferredSource)`
+                      - `rm -rf \(inferredRepoPath)` 后 `nolon mcp sync --source \(inferredSource)`
+                    参考仓库: \(detail.gitURL)
+                    """
+                )
+            }
+        }
         guard case let .executionFailed(message) = error else {
             return error
         }
@@ -86,6 +134,17 @@ public struct NolonCoreCLIRunner: Sendable {
             return .domainFailed(
                 code: "rate_limited",
                 message: "远端请求被限流（429）。请等待 30 秒后重试；若持续失败，检查 API 配额/令牌配置。可先执行 `nolon skills sync --source <owner/repo>` 更新本地仓库，再使用 `nolon skills add <slug> --dry-run` 走本地安装预览。"
+            )
+        }
+        if normalized.contains("status 404") || normalized.contains("404 not found") {
+            return .domainFailed(
+                code: "remote_catalog_unavailable",
+                message: """
+                远端目录当前不可用或不支持该资源类型（404）。
+                建议:
+                - 先走本地源：`nolon skills sync --source <owner/repo>` / `nolon workflow sync --source <owner/repo>` / `nolon mcp sync --source <owner/repo>`
+                - 再执行：`nolon skills add <slug> --provider codex --dry-run` / `nolon workflow add <slug> --provider codex --dry-run` / `nolon mcp add <slug> --provider codex --dry-run`
+                """
             )
         }
         if normalized.contains("operation not permitted") || normalized.contains("permission denied") {
@@ -99,6 +158,53 @@ public struct NolonCoreCLIRunner: Sendable {
             )
         }
         return error
+    }
+
+    private func fetchRemoteResources(
+        kind: NolonRemoteCatalogKind,
+        query: String?,
+        limit: Int,
+        baseURL: String
+    ) async throws -> NolonRemoteListResult {
+        do {
+            return try await service.listRemoteResources(
+                kind: kind,
+                query: query,
+                limit: limit,
+                baseURL: baseURL
+            )
+        } catch let error as NolonCoreCLIError {
+            throw mapRemoteCatalogErrorIfNeeded(error, kind: kind) ?? error
+        } catch {
+            let wrapped = NolonCoreCLIError.executionFailed(error.localizedDescription)
+            throw mapRemoteCatalogErrorIfNeeded(wrapped, kind: kind) ?? wrapped
+        }
+    }
+
+    private func mapRemoteCatalogErrorIfNeeded(_ error: NolonCoreCLIError, kind: NolonRemoteCatalogKind) -> NolonCoreCLIError? {
+        guard case let .executionFailed(message) = error else { return nil }
+        let normalized = message.lowercased()
+        guard normalized.contains("status 404") || normalized.contains("404 not found") else {
+            return nil
+        }
+        let commandNamespace: String = {
+            switch kind {
+            case .skill: return "skills"
+            case .workflow: return "workflow"
+            case .mcp: return "mcp"
+            }
+        }()
+        return .domainFailed(
+            code: "remote_catalog_unavailable",
+            message: """
+            远端目录当前不可用或不支持该资源类型（404）。
+            建议:
+            - 先走本地源：`nolon \(commandNamespace) sync --source <owner/repo>`
+            - 再执行：`nolon \(commandNamespace) add <slug> --provider codex --dry-run`
+            - 检查本地状态：`nolon \(commandNamespace) list --verbose`
+            - 查看本地仓库索引：`nolon skills repo list --verbose`
+            """
+        )
     }
 
     private func executeCommand(_ command: NolonCoreCLICommand) async throws -> String {
@@ -212,7 +318,10 @@ public struct NolonCoreCLIRunner: Sendable {
             )
 
         case let .skillsSearch(query, limit, baseURL, install, provider, installMethod, pick, dryRun, _):
-            let result = try await service.listRemoteResources(
+            if install {
+                try validateInstallQuery(query, kind: .skill)
+            }
+            let result = try await fetchRemoteResources(
                 kind: .skill,
                 query: query,
                 limit: limit,
@@ -221,7 +330,7 @@ public struct NolonCoreCLIRunner: Sendable {
             if !install {
                 return try encodeSuccess(command: command.commandID, data: RemoteListPayload(result: result))
             }
-            guard let selected = try resolveSingleSearchInstallMatch(result: result, query: query, provider: provider, pick: pick) else {
+            guard let selected = try resolveSingleSearchInstallMatch(result: result, query: query, provider: provider, pick: pick, kind: .skill) else {
                 return try encodeSuccess(command: command.commandID, data: RemoteListPayload(result: result))
             }
             let add = try await executeSkillsAdd(
@@ -282,7 +391,10 @@ public struct NolonCoreCLIRunner: Sendable {
             )
 
         case let .workflowSearch(query, limit, baseURL, install, provider, installMethod, pick, dryRun, _):
-            let result = try await service.listRemoteResources(
+            if install {
+                try validateInstallQuery(query, kind: .workflow)
+            }
+            let result = try await fetchRemoteResources(
                 kind: .workflow,
                 query: query,
                 limit: limit,
@@ -291,7 +403,7 @@ public struct NolonCoreCLIRunner: Sendable {
             if !install {
                 return try encodeSuccess(command: command.commandID, data: RemoteListPayload(result: result))
             }
-            guard let selected = try resolveSingleSearchInstallMatch(result: result, query: query, provider: provider, pick: pick) else {
+            guard let selected = try resolveSingleSearchInstallMatch(result: result, query: query, provider: provider, pick: pick, kind: .workflow) else {
                 return try encodeSuccess(command: command.commandID, data: RemoteListPayload(result: result))
             }
             let add = try await executeResourceAdd(
@@ -410,7 +522,10 @@ public struct NolonCoreCLIRunner: Sendable {
             )
 
         case let .mcpSearch(query, limit, baseURL, install, provider, installMethod, pick, dryRun, _):
-            let result = try await service.listRemoteResources(
+            if install {
+                try validateInstallQuery(query, kind: .mcp)
+            }
+            let result = try await fetchRemoteResources(
                 kind: .mcp,
                 query: query,
                 limit: limit,
@@ -419,7 +534,7 @@ public struct NolonCoreCLIRunner: Sendable {
             if !install {
                 return try encodeSuccess(command: command.commandID, data: RemoteListPayload(result: result))
             }
-            guard let selected = try resolveSingleSearchInstallMatch(result: result, query: query, provider: provider, pick: pick) else {
+            guard let selected = try resolveSingleSearchInstallMatch(result: result, query: query, provider: provider, pick: pick, kind: .mcp) else {
                 return try encodeSuccess(command: command.commandID, data: RemoteListPayload(result: result))
             }
             let add = try await executeResourceAdd(
@@ -703,14 +818,17 @@ public struct NolonCoreCLIRunner: Sendable {
                 verbose: verbose
             )
         case let .skillsSearch(query, limit, baseURL, install, provider, installMethod, pick, dryRun, _):
-            let result = try await service.listRemoteResources(
+            if install {
+                try validateInstallQuery(query, kind: .skill)
+            }
+            let result = try await fetchRemoteResources(
                 kind: .skill,
                 query: query,
                 limit: limit,
                 baseURL: baseURL
             )
             if install {
-                guard let selected = try resolveSingleSearchInstallMatch(result: result, query: query, provider: provider, pick: pick) else {
+                guard let selected = try resolveSingleSearchInstallMatch(result: result, query: query, provider: provider, pick: pick, kind: .skill) else {
                     return formatSkillsSearchText(result)
                 }
                 let add = try await executeSkillsAdd(
@@ -742,14 +860,17 @@ public struct NolonCoreCLIRunner: Sendable {
             let result = try executeResourceList(kind: .workflow, provider: provider, includeEmpty: includeEmpty, state: state)
             return formatResourceListText(kind: .workflow, result, verbose: verbose, showFixes: showFixes)
         case let .workflowSearch(query, limit, baseURL, install, provider, installMethod, pick, dryRun, _):
-            let result = try await service.listRemoteResources(
+            if install {
+                try validateInstallQuery(query, kind: .workflow)
+            }
+            let result = try await fetchRemoteResources(
                 kind: .workflow,
                 query: query,
                 limit: limit,
                 baseURL: baseURL
             )
             if install {
-                guard let selected = try resolveSingleSearchInstallMatch(result: result, query: query, provider: provider, pick: pick) else {
+                guard let selected = try resolveSingleSearchInstallMatch(result: result, query: query, provider: provider, pick: pick, kind: .workflow) else {
                     return formatResourceSearchText(kind: .workflow, result: result)
                 }
                 let add = try await executeResourceAdd(
@@ -779,18 +900,37 @@ public struct NolonCoreCLIRunner: Sendable {
                 outputMode: .text
             )
             return add.output
+        case let .workflowSync(source, repositoriesRoot, accessToken, pullStrategy, credentialStrategy):
+            let plan = try service.planGitImport(
+                source: source,
+                repositoriesRoot: STFolder(repositoriesRoot)
+            )
+            let result = try await service.syncGitRepository(
+                plan: plan,
+                accessToken: accessToken,
+                pullStrategy: pullStrategy,
+                credentialStrategy: credentialStrategy
+            )
+            let resources = service.discoverRepositoryResources(
+                at: STFolder(plan.localClonePath),
+                maxDepth: 5
+            )
+            return formatResourceSyncText(kind: .workflow, plan: plan, result: result, resources: resources)
         case let .mcpList(provider, includeEmpty, state, verbose, showFixes):
             let result = try executeResourceList(kind: .mcp, provider: provider, includeEmpty: includeEmpty, state: state)
             return formatResourceListText(kind: .mcp, result, verbose: verbose, showFixes: showFixes)
         case let .mcpSearch(query, limit, baseURL, install, provider, installMethod, pick, dryRun, _):
-            let result = try await service.listRemoteResources(
+            if install {
+                try validateInstallQuery(query, kind: .mcp)
+            }
+            let result = try await fetchRemoteResources(
                 kind: .mcp,
                 query: query,
                 limit: limit,
                 baseURL: baseURL
             )
             if install {
-                guard let selected = try resolveSingleSearchInstallMatch(result: result, query: query, provider: provider, pick: pick) else {
+                guard let selected = try resolveSingleSearchInstallMatch(result: result, query: query, provider: provider, pick: pick, kind: .mcp) else {
                     return formatResourceSearchText(kind: .mcp, result: result)
                 }
                 let add = try await executeResourceAdd(
@@ -820,9 +960,50 @@ public struct NolonCoreCLIRunner: Sendable {
                 outputMode: .text
             )
             return add.output
+        case let .mcpSync(source, repositoriesRoot, accessToken, pullStrategy, credentialStrategy):
+            let plan = try service.planGitImport(
+                source: source,
+                repositoriesRoot: STFolder(repositoriesRoot)
+            )
+            let result = try await service.syncGitRepository(
+                plan: plan,
+                accessToken: accessToken,
+                pullStrategy: pullStrategy,
+                credentialStrategy: credentialStrategy
+            )
+            let resources = service.discoverRepositoryResources(
+                at: STFolder(plan.localClonePath),
+                maxDepth: 5
+            )
+            return formatResourceSyncText(kind: .mcp, plan: plan, result: result, resources: resources)
         default:
             return try await executeCommand(command)
         }
+    }
+
+    private func formatResourceSyncText(
+        kind: NolonResourceKind,
+        plan: NolonGitImportPlan,
+        result: NolonGitSyncResult,
+        resources: NolonRepositoryResources
+    ) -> String {
+        let filtered = filterResources(resources, kind: kind)
+        let count: Int = {
+            switch kind {
+            case .workflow: filtered.workflows.count
+            case .mcp: filtered.mcps.count
+            }
+        }()
+        var lines: [String] = []
+        lines.append("\(kind.rawValue) sync: \(result.mode)")
+        lines.append("source: \(plan.source)")
+        lines.append("repo: \(plan.owner)/\(plan.repo)")
+        lines.append("default_branch: \(result.defaultBranch ?? "-")")
+        lines.append("credential_mode: \(result.credentialMode)")
+        lines.append("updated_at: \(ISO8601DateFormatter().string(from: result.updatedAt))")
+        lines.append("\(kind.rawValue)s_discovered: \(count)")
+        lines.append("clone_path: \(plan.localClonePath)")
+        return lines.joined(separator: "\n")
     }
 
     private func executeSkillsList(
@@ -1627,41 +1808,94 @@ public struct NolonCoreCLIRunner: Sendable {
             .path
     }
 
+    private static func inferredRepositoryPath(
+        fromGitURL gitURL: String,
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> String? {
+        guard let url = URL(string: gitURL),
+              let host = url.host
+        else { return nil }
+        let comps = url.pathComponents.filter { $0 != "/" && !$0.isEmpty }
+        guard comps.count >= 2 else { return nil }
+        let owner = comps[0]
+        var repo = comps[1]
+        if repo.hasSuffix(".git") {
+            repo.removeLast(4)
+        }
+        let root = defaultRepositoriesRootPath(environment: environment)
+        return STFolder(root).folder(host).subpath("\(owner)@\(repo)").url.path
+    }
+
+    private static func inferredSource(fromGitURL gitURL: String) -> String? {
+        guard let url = URL(string: gitURL) else { return nil }
+        let comps = url.pathComponents.filter { $0 != "/" && !$0.isEmpty }
+        guard comps.count >= 2 else { return nil }
+        var repo = comps[1]
+        if repo.hasSuffix(".git") {
+            repo.removeLast(4)
+        }
+        return "\(comps[0])/\(repo)"
+    }
+
     private func resolveSingleSearchInstallMatch(
         result: NolonRemoteListResult,
         query: String?,
         provider: String?,
-        pick: Int?
+        pick: Int?,
+        kind: NolonRemoteCatalogKind
     ) throws -> NolonRemoteCatalogItem? {
-        let q = (query ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !q.isEmpty else {
-            throw NolonCoreCLIError.invalidArguments(
-                """
-                --install requires a non-empty query. Try:
-                - nolon skills search <keyword> --install --dry-run
-                - nolon skills search --query <text> --install --dry-run
-                """
-            )
-        }
+        let commandNamespace: String = {
+            switch kind {
+            case .skill: return "skills"
+            case .workflow: return "workflow"
+            case .mcp: return "mcp"
+            }
+        }()
+        let q = try validateInstallQuery(query, kind: kind, commandNamespace: commandNamespace)
         if result.items.isEmpty {
+            let notFoundCode: String
+            let notFoundLabel: String
+            switch kind {
+            case .skill:
+                notFoundCode = "skill_not_found"
+                notFoundLabel = "Skill"
+            case .workflow:
+                notFoundCode = "workflow_not_found"
+                notFoundLabel = "Workflow"
+            case .mcp:
+                notFoundCode = "mcp_not_found"
+                notFoundLabel = "MCP"
+            }
             throw NolonCoreCLIError.domainFailed(
-                code: "skill_not_found",
+                code: notFoundCode,
                 message: """
-                Skill not found by query: \(q). Try:
-                - nolon skills search \(q)
-                - nolon skills sync --source <owner/repo>
+                \(notFoundLabel) not found by query: \(q). Try:
+                - nolon \(commandNamespace) search \(q)
+                - nolon \(commandNamespace) sync --source <owner/repo>
                 """
             )
-        }
-        if let exact = result.items.first(where: { $0.slug.compare(q, options: [.caseInsensitive]) == .orderedSame }) {
-            return exact
         }
         if let pick {
             let index = pick - 1
             guard index >= 0, index < result.items.count else {
-                throw NolonCoreCLIError.invalidArguments("--pick is out of range. received \(pick), available 1...\(result.items.count).")
+                let providerPart: String
+                if let provider, !provider.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    providerPart = " --provider \(provider)"
+                } else {
+                    providerPart = ""
+                }
+                let queryArg = Self.shellQuotedArgument(q)
+                let reviewCommand = "nolon \(commandNamespace) search \(queryArg)\(providerPart)"
+                let retryCommand = "nolon \(commandNamespace) search \(queryArg) --install --pick <1-\(result.items.count)>\(providerPart) --dry-run"
+                throw NolonCoreCLIError.invalidArguments(
+                    "--pick is out of range. received \(pick), available range: 1...\(result.items.count). Review candidates: \(reviewCommand). Then retry: \(retryCommand)"
+                )
             }
             return result.items[index]
+        }
+        let normalizedQuery = Self.normalizedSlug(q)
+        if let exact = result.items.first(where: { Self.normalizedSlug($0.slug) == normalizedQuery }) {
+            return exact
         }
         guard result.items.count == 1 else {
             let maxCandidates = 8
@@ -1676,13 +1910,41 @@ public struct NolonCoreCLIRunner: Sendable {
             } else {
                 providerPart = ""
             }
-            let nextCommand = "nolon skills search \(first) --install\(providerPart) --dry-run"
-            let pickCommand = "nolon skills search \(q) --install --pick 1\(providerPart) --dry-run"
+            let nextCommand = "nolon \(commandNamespace) search \(first) --install\(providerPart) --dry-run"
+            let pickCommand = "nolon \(commandNamespace) search \(Self.shellQuotedArgument(q)) --install --pick 1\(providerPart) --dry-run"
             throw NolonCoreCLIError.invalidArguments(
-                "--install requires exactly one match. refine query or use `nolon skills add <slug>`. matches(\(candidates.count)): \(matches). Next: \(nextCommand). Or disambiguate with --pick: \(pickCommand)"
+                "--install requires exactly one match. refine query or use `nolon \(commandNamespace) add <slug>`. matches(\(candidates.count)): \(matches). Next: \(nextCommand). Or disambiguate with --pick: \(pickCommand)"
             )
         }
         return result.items[0]
+    }
+
+    @discardableResult
+    private func validateInstallQuery(
+        _ query: String?,
+        kind: NolonRemoteCatalogKind,
+        commandNamespace: String? = nil
+    ) throws -> String {
+        let q = (query ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !q.isEmpty else {
+            let namespace: String = commandNamespace ?? {
+                switch kind {
+                case .skill: return "skills"
+                case .workflow: return "workflow"
+                case .mcp: return "mcp"
+                }
+            }()
+            throw NolonCoreCLIError.invalidArguments(
+                """
+                --install requires a non-empty query. Try:
+                - nolon \(namespace) search <keyword> --install --dry-run
+                - nolon \(namespace) search <keyword> --install --yes --provider codex
+                - nolon \(namespace) search --query <text> --install --dry-run
+                - nolon \(namespace) search --query <text> --install --yes --provider codex
+                """
+            )
+        }
+        return q
     }
 
     private static func resolveSkillsAddTargets(provider: String?) throws -> [SkillsAddTarget] {
@@ -1705,6 +1967,18 @@ public struct NolonCoreCLIRunner: Sendable {
             targets.append(SkillsAddTarget(providerID: template.providerID, providerPath: template.defaultSkillsPath.path))
         }
         return targets.sorted { $0.providerID.localizedCaseInsensitiveCompare($1.providerID) == .orderedAscending }
+    }
+
+    private static func normalizedSlug(_ value: String) -> String {
+        value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+
+    private static func shellQuotedArgument(_ value: String) -> String {
+        if value.rangeOfCharacter(from: .whitespacesAndNewlines) == nil, !value.isEmpty {
+            return value
+        }
+        let escaped = value.replacingOccurrences(of: "'", with: "'\\''")
+        return "'\(escaped)'"
     }
 
     private static func resolveResourceTargets(kind: NolonResourceKind, provider: String?) throws -> [SkillsAddTarget] {
@@ -1847,13 +2121,35 @@ public struct NolonCoreCLIRunner: Sendable {
                 let range = NSRange(line.startIndex..<line.endIndex, in: line)
                 guard let match = regex.firstMatch(in: line, options: [], range: range), match.numberOfRanges > 1 else { continue }
                 guard let captureRange = Range(match.range(at: 1), in: line) else { continue }
-                let name = String(line[captureRange]).trimmingCharacters(in: .whitespacesAndNewlines)
+                let rawName = String(line[captureRange]).trimmingCharacters(in: .whitespacesAndNewlines)
+                guard let name = normalizedMCPServerNameFromToml(rawName) else { continue }
                 if !name.isEmpty {
                     names.insert(name)
                 }
             }
         }
         return names.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+    }
+
+    private static func normalizedMCPServerNameFromToml(_ rawName: String) -> String? {
+        var token = rawName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !token.isEmpty else { return nil }
+
+        if token.hasPrefix("\""), token.hasSuffix("\""), token.count >= 2 {
+            token = String(token.dropFirst().dropLast()).trimmingCharacters(in: .whitespacesAndNewlines)
+            return token.isEmpty ? nil : token
+        }
+
+        if let dot = token.firstIndex(of: ".") {
+            token = String(token[..<dot])
+        }
+        token = token.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if token.hasPrefix("\""), token.hasSuffix("\""), token.count >= 2 {
+            token = String(token.dropFirst().dropLast()).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
+        return token.isEmpty ? nil : token
     }
 
     private static func resolveCLIInOfficialPaths(named executable: String) -> String? {
@@ -2052,22 +2348,48 @@ public struct NolonCoreCLIRunner: Sendable {
         }
 
         var lines: [String] = []
-        lines.append("providers_scanned: \(result.summary.providerCount)")
-        let matchedProviders = Set(result.items.map(\.providerID)).count
-        lines.append("providers_matched: \(matchedProviders)")
-        lines.append("skills_total: \(result.summary.itemCount)")
-        lines.append(
-            "health(installed/total): \(result.summary.installedCount)/\(result.summary.itemCount) (\(percent(result.summary.installedCount, total: result.summary.itemCount)))"
-        )
-        lines.append(
-            "state(installed/orphaned/broken): \(result.summary.installedCount)/\(result.summary.orphanedCount)/\(result.summary.brokenCount) (\(percent(result.summary.installedCount, total: result.summary.itemCount))/\(percent(result.summary.orphanedCount, total: result.summary.itemCount))/\(percent(result.summary.brokenCount, total: result.summary.itemCount)))"
-        )
-        lines.append("异常项(orphaned/broken): \(result.summary.orphanedCount + result.summary.brokenCount)")
+        let orphanedLabel = "失效链接"
+        let issueCount = result.summary.orphanedCount + result.summary.brokenCount
+        let compactHealthySummary = showFixes && issueCount == 0 && !verbose && result.providerFilter == nil && result.stateFilter == nil
+        lines.append("[结论]")
+        if !compactHealthySummary {
+            lines.append("providers_scanned: \(result.summary.providerCount)")
+            let matchedProviders = matchedProvidersCount(for: result)
+            lines.append("providers_matched: \(matchedProviders)")
+            lines.append("skills_total: \(result.summary.itemCount)")
+            lines.append(
+                "健康度(已安装/总数): \(result.summary.installedCount)/\(result.summary.itemCount) (\(percent(result.summary.installedCount, total: result.summary.itemCount)))"
+            )
+        }
+        if !showFixes || issueCount > 0 {
+            lines.append(
+                "状态：已安装 \(result.summary.installedCount) 项（\(percent(result.summary.installedCount, total: result.summary.itemCount))），\(orphanedLabel) \(result.summary.orphanedCount) 项（\(percent(result.summary.orphanedCount, total: result.summary.itemCount))），损坏 \(result.summary.brokenCount) 项（\(percent(result.summary.brokenCount, total: result.summary.itemCount))）。"
+            )
+        }
+        if showFixes {
+            if issueCount > 0 {
+                lines.append("结论：发现 \(issueCount) 项异常（\(orphanedLabel) \(result.summary.orphanedCount)、损坏 \(result.summary.brokenCount)），请按下方修复计划依序处理。")
+            } else {
+                lines.append("健康：\(result.summary.installedCount)/\(result.summary.itemCount)（\(percent(result.summary.installedCount, total: result.summary.itemCount))），异常 0，修复动作：无。")
+            }
+        } else {
+            lines.append("需处理异常: \(issueCount)（\(orphanedLabel) \(result.summary.orphanedCount)，损坏 \(result.summary.brokenCount)）")
+            if issueCount > 0 {
+                lines.append("行动建议: 需处理 \(issueCount) 项异常（高优先级）")
+                lines.append("摘要: 当前有 \(issueCount) 个异常项（\(result.summary.orphanedCount) 个\(orphanedLabel)，\(result.summary.brokenCount) 个损坏），建议按下方修复计划执行。")
+            } else {
+                lines.append("行动建议: 无需处理（系统健康）")
+                lines.append("摘要: 当前无异常项，状态健康。")
+            }
+        }
         if let filter = result.providerFilter, !filter.isEmpty {
             lines.append("provider_filter: \(filter)")
         }
         if let stateFilter = result.stateFilter {
             lines.append("state_filter: \(stateFilter.rawValue)")
+        }
+        if showFixes, issueCount == 0, !verbose, result.providerFilter == nil, result.stateFilter == nil {
+            return lines.joined(separator: "\n")
         }
         lines.append("")
 
@@ -2110,15 +2432,28 @@ public struct NolonCoreCLIRunner: Sendable {
 
         if effectiveItems.isEmpty {
             if let filter = result.providerFilter, !filter.isEmpty, let stateFilter = result.stateFilter {
-                lines.append("在 provider=\(filter) 且 state=\(stateFilter.rawValue) 下，未发现匹配 skills。")
+                lines.append("在 provider=\(filter) 且 state=\(stateFilter.rawValue) 下，未发现匹配技能。")
             } else if let filter = result.providerFilter, !filter.isEmpty {
-                lines.append("在 provider=\(filter) 下，未发现异常 skills（orphaned/broken）。")
+                lines.append("在 provider=\(filter) 下，未发现异常技能（\(orphanedLabel)/损坏）。")
             } else if let stateFilter = result.stateFilter {
-                lines.append("在 state=\(stateFilter.rawValue) 下，未发现匹配 skills。")
+                lines.append("在 state=\(stateFilter.rawValue) 下，未发现匹配技能。")
             } else {
-                lines.append("未发现异常 skills（orphaned/broken）。")
+                lines.append("未发现异常技能（\(orphanedLabel)/损坏）。")
+            }
+            if showFixes {
+                lines.append("")
+                lines.append("[下一步（可复制执行）]")
+                lines.append("状态健康，无需修复；修复建议已启用但当前无可修复项。")
             }
             return lines.joined(separator: "\n")
+        }
+
+        let installedCount = effectiveItems.filter { $0.state == .installed }.count
+        let problematicCount = effectiveItems.count - installedCount
+        if problematicCount > 0, installedCount == 0 {
+            lines.append("[异常]")
+        } else if installedCount > 0, problematicCount == 0 {
+            lines.append("[已安装]")
         }
 
         lines.append(contentsOf: effectiveItems.map { item in
@@ -2131,21 +2466,24 @@ public struct NolonCoreCLIRunner: Sendable {
             }
             return "- \(item.providerID)/\(item.skillID) [\(stateLabel)]"
         })
-        if !verbose {
+        if !verbose && !showFixes {
             lines.append("")
             lines.append("提示: 使用 `nolon skills list --verbose` 查看安装路径。")
         }
         if !issueProviders.isEmpty && !showFixes {
             lines.append("")
+            lines.append("[下一步（可复制执行）]")
+            lines.append("先设置前缀变量（与本次入口一致）: `\(Self.runtimeCommandEnvAssignment())`")
+            lines.append("本次入口: `\(Self.runtimeCommandPrefix())`")
             lines.append("修复建议（可复制）:")
             var quickActions: [String] = []
             if !brokenIssueProviders.isEmpty {
-                quickActions.append("查看坏链详情: `nolon skills list --state broken --verbose`")
+                quickActions.append("查看坏链详情: `\(Self.copyableCommand("nolon skills list --state broken --verbose"))`")
             }
             if !orphanedIssueProviders.isEmpty {
-                quickActions.append("查看孤链详情: `nolon skills list --state orphaned --verbose`")
+                quickActions.append("查看失效链接详情: `\(Self.copyableCommand("nolon skills list --state orphaned --verbose"))`")
             }
-            quickActions.append("生成修复命令: `nolon skills list --show-fixes`")
+            quickActions.append("生成修复命令: `\(Self.copyableCommand("nolon skills list --show-fixes"))`")
             lines.append(contentsOf: quickActions.enumerated().map { index, action in
                 "\(index + 1)) \(action)"
             })
@@ -2155,14 +2493,13 @@ public struct NolonCoreCLIRunner: Sendable {
         let brokenItems = effectiveItems.filter { $0.state == .broken }
         if showFixes && (!orphanedItems.isEmpty || !brokenItems.isEmpty) {
             lines.append("")
-            lines.append("修复命令（可复制）:")
-            var oneShotCommands: [String] = []
+            lines.append("[下一步（按顺序执行）]")
+            lines.append("`\(Self.runtimeCommandEnvAssignment())`")
             var orphanedCommands: [String] = []
             var brokenCommands: [String] = []
             if !orphanedItems.isEmpty {
                 orphanedItems.forEach { item in
                     let remove = "nolon skills remove --skill-id \(item.skillID) --provider \(item.providerID)"
-                    oneShotCommands.append(remove)
                     orphanedCommands.append(remove)
                 }
             }
@@ -2171,23 +2508,41 @@ public struct NolonCoreCLIRunner: Sendable {
                     let remove = "nolon skills remove --skill-id \(item.skillID) --provider \(item.providerID)"
                     let add = "nolon skills add \(item.skillID) --provider \(item.providerID)"
                     let repair = "\(remove) && \(add)"
-                    oneShotCommands.append(repair)
                     brokenCommands.append(repair)
                 }
             }
             if !orphanedCommands.isEmpty {
-                lines.append("- 清理 orphaned(\(orphanedItems.count)): `\(orphanedCommands.joined(separator: " && "))`")
+                lines.append("")
+                lines.append("# 1) 清理\(orphanedLabel)（\(orphanedItems.count)项）")
+                lines.append(contentsOf: orphanedCommands.enumerated().map { index, command in
+                    "\(index + 1). `\(Self.copyableCommand(command))`"
+                })
             }
             if !brokenCommands.isEmpty {
-                lines.append("- 修复 broken(\(brokenItems.count)): `\(brokenCommands.joined(separator: " && "))`")
-            }
-            if !orphanedCommands.isEmpty && !brokenCommands.isEmpty {
-                lines.append("- 执行顺序: 先执行「清理 orphaned」，再执行「修复 broken」。")
-            } else if !oneShotCommands.isEmpty {
-                lines.append("- 执行命令: `\(oneShotCommands.joined(separator: " && "))`")
+                lines.append("")
+                lines.append("# 2) 修复损坏（\(brokenItems.count)项：先 remove 再 add）")
+                lines.append(contentsOf: brokenCommands.enumerated().map { index, command in
+                    "\(index + 1). `\(Self.copyableCommand(command))`"
+                })
             }
             lines.append("")
-            lines.append("明细查看: `nolon skills list --state broken --verbose` / `nolon skills list --state orphaned --verbose`")
+            lines.append("# 3) 复检")
+            lines.append("`\(Self.copyableCommand("nolon skills list --show-fixes"))`")
+            let oneShotCommands = orphanedCommands + brokenCommands
+            if !oneShotCommands.isEmpty {
+                let oneShot = oneShotCommands
+                    .map(Self.copyableCommand)
+                    .joined(separator: " && ")
+                lines.append("")
+                lines.append("[一键执行（可复制）]")
+                lines.append("```bash")
+                lines.append("\(oneShot) && \(Self.copyableCommand("nolon skills list --show-fixes"))")
+                lines.append("```")
+            }
+        } else if showFixes, issueCount > 0 {
+            lines.append("")
+            lines.append("[下一步（可复制执行）]")
+            lines.append("状态健康，无需修复；修复建议已启用但当前无可修复项。")
         }
         return lines.joined(separator: "\n")
     }
@@ -2203,14 +2558,26 @@ public struct NolonCoreCLIRunner: Sendable {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "yyyy-MM-dd"
-        let showSummary = result.items.count <= 8
-        let queryPart: String
-        if let query = result.query?.trimmingCharacters(in: .whitespacesAndNewlines), !query.isEmpty {
-            queryPart = " (query: \(query))"
+        let queryValue = result.query?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let normalizedQueryValue = Self.normalizedSlug(queryValue)
+        let exactMatch = queryValue.isEmpty
+            ? nil
+            : result.items.first(where: { Self.normalizedSlug($0.slug) == normalizedQueryValue })
+        let displayPool = exactMatch.map { [$0] } ?? result.items
+        let alternativeCandidates = exactMatch.map { match in
+            result.items.filter { Self.normalizedSlug($0.slug) != Self.normalizedSlug(match.slug) }
+        } ?? []
+        let showSummary = displayPool.count <= 8
+        let queryPart = queryValue.isEmpty ? "" : " (query: \(queryValue))"
+        let headline: String
+        if let exactMatch {
+            headline = "精确命中: \(exactMatch.slug)\(queryPart), candidates: \(result.items.count)"
         } else {
-            queryPart = ""
+            headline = "匹配结果: \(result.items.count)\(queryPart)"
         }
-        let lines = result.items.enumerated().map { index, item in
+        let maxDisplay = 10
+        let displayedItems = Array(displayPool.prefix(maxDisplay))
+        let lines = displayedItems.enumerated().map { index, item in
             let version = item.latestVersion ?? "-"
             let updated = item.updatedAt.map { formatUpdatedDate($0, formatter: formatter) } ?? "-"
             var itemLines: [String] = [
@@ -2223,28 +2590,42 @@ public struct NolonCoreCLIRunner: Sendable {
             }
             return itemLines.joined(separator: "\n")
         }.joined(separator: "\n\n")
-        let queryValue = result.query?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let currentQueryExample = queryValue.isEmpty ? "<keyword>" : queryValue
-        let firstSlug = result.items[0].slug
-        let compactHint: String
-        if showSummary {
-            compactHint = ""
-        } else {
-            compactHint = "\n提示: 结果较多，已省略 summary；可用 `--limit 5` 缩小范围后查看详情。"
+        var hintParts: [String] = []
+        if !showSummary {
+            hintParts.append("已省略 summary（将 `--limit` 设为 8 或更小可查看摘要）")
         }
+        if exactMatch == nil, displayPool.count > displayedItems.count {
+            hintParts.append("仅展示前 \(displayedItems.count) 条（可增大 `--limit` 查看更多）")
+        }
+        let hintBlock = hintParts.isEmpty ? "" : "提示: " + hintParts.joined(separator: "；") + "。\n"
+        let alternativesBlock: String = {
+            guard !alternativeCandidates.isEmpty else { return "" }
+            let names = alternativeCandidates.prefix(5).map(\.slug).joined(separator: ", ")
+            let suffix = alternativeCandidates.count > 5 ? " 等" : ""
+            return "其他候选(\(alternativeCandidates.count)): \(names)\(suffix)\n"
+        }()
+        let installLines: [String]
+        if let exactMatch {
+            installLines = [
+                "- nolon skills add \(exactMatch.slug) --provider codex --dry-run",
+            ]
+        } else if result.items.count == 1, let first = result.items.first {
+            installLines = [
+                "- nolon skills add \(first.slug) --provider codex --dry-run",
+            ]
+        } else {
+            installLines = [
+                "- nolon skills add <slug> --provider codex --dry-run",
+                "- nolon skills search \(currentQueryExample) --install --pick <序号> --provider codex --dry-run",
+            ]
+        }
+        let installBlock = installLines.joined(separator: "\n")
         return """
-        匹配结果: \(result.items.count)\(queryPart)
-        source: remote-api (\(result.baseURL))
-        提示: 结果来自远端 API 索引；若与网页不一致，通常由筛选、排序或索引延迟导致。
-        字段说明: updated 为远端目录时间（非本地缓存同步时间）。
-        快速安装(单目标示例): nolon skills add \(firstSlug) --provider codex --dry-run
-        注意：未指定 `--provider` 将分发到全部 providers（可能批量写入），建议先 `--dry-run`。
-        安装模板:
-        - 指定 provider: nolon skills add <slug> --provider codex --dry-run
-        - 全部 providers: nolon skills add <slug> --dry-run [可能批量写入]
-        - 搜索并挑选: nolon skills search \(currentQueryExample) --install --pick 1 --provider codex --dry-run\(compactHint)
+        \(headline)
+        \(hintBlock)\(alternativesBlock)安装:
+        \(installBlock)
         \(lines)
-        提示: 序号可用于 `--pick` 安装；也可使用 slug 安装。
         """
     }
 
@@ -2261,7 +2642,9 @@ public struct NolonCoreCLIRunner: Sendable {
         let showSummary = result.items.count <= 8
         let query = result.query?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let queryPart = query.isEmpty ? "" : " (query: \(query))"
-        let lines = result.items.enumerated().map { index, item in
+        let maxDisplay = 10
+        let displayedItems = Array(result.items.prefix(maxDisplay))
+        let lines = displayedItems.enumerated().map { index, item in
             var itemLines = [
                 "[\(index + 1)] \(item.slug)",
                 "  version: \(item.latestVersion ?? "-")",
@@ -2273,17 +2656,19 @@ public struct NolonCoreCLIRunner: Sendable {
             return itemLines.joined(separator: "\n")
         }.joined(separator: "\n\n")
         let queryExample = query.isEmpty ? "<keyword>" : query
+        let truncatedHint = result.items.count > displayedItems.count
+            ? "提示: 仅展示前 \(displayedItems.count) 条；可增大 `--limit` 查看更多。"
+            : ""
         return """
         匹配结果: \(result.items.count)\(queryPart)
         source: remote-api (\(result.baseURL))
-        快速安装(单目标示例): nolon \(kind.rawValue) add \(result.items[0].slug) --provider codex --dry-run
-        注意：未指定 `--provider` 将分发到全部 providers（可能批量写入），建议先 `--dry-run`。
-        安装模板:
+        安装:
         - 指定 provider: nolon \(kind.rawValue) add <slug> --provider codex --dry-run
         - 全部 providers: nolon \(kind.rawValue) add <slug> --dry-run [可能批量写入]
         - 搜索并挑选: nolon \(kind.rawValue) search \(queryExample) --install --pick 1 --provider codex --dry-run
+        \(truncatedHint)
         \(lines)
-        提示: 序号可用于 `--pick` 安装；也可使用 slug 安装。
+        提示: 用 `--install --pick <序号>` 或直接 slug 安装。
         """
     }
 
@@ -2342,11 +2727,50 @@ public struct NolonCoreCLIRunner: Sendable {
             return String(format: "%.1f%%", (Double(value) / Double(total)) * 100)
         }
         var lines: [String] = []
-        lines.append("providers_scanned: \(result.summary.providerCount)")
-        lines.append("providers_matched: \(Set(result.items.map(\.providerID)).count)")
-        lines.append("\(kind.rawValue)s_total: \(result.summary.itemCount)")
-        lines.append("状态(已安装/孤链/损坏): \(result.summary.installedCount)/\(result.summary.orphanedCount)/\(result.summary.brokenCount) (\(percent(result.summary.installedCount, total: result.summary.itemCount))/\(percent(result.summary.orphanedCount, total: result.summary.itemCount))/\(percent(result.summary.brokenCount, total: result.summary.itemCount)))")
-        lines.append("异常项(孤链/损坏): \(result.summary.orphanedCount + result.summary.brokenCount)")
+        let orphanedLabel = "失效链接"
+        let issueCount = result.summary.orphanedCount + result.summary.brokenCount
+        let compactHealthySummary = showFixes && issueCount == 0 && !verbose && result.providerFilter == nil && result.stateFilter == nil
+        lines.append("[结论]")
+        let installedPct = percent(result.summary.installedCount, total: result.summary.itemCount)
+        let orphanedPct = percent(result.summary.orphanedCount, total: result.summary.itemCount)
+        let brokenPct = percent(result.summary.brokenCount, total: result.summary.itemCount)
+        if showFixes && issueCount == 0 && verbose {
+            lines.append("结论：全部健康（\(result.summary.installedCount)/\(result.summary.itemCount)），异常 0，修复动作 0。")
+        }
+        if !compactHealthySummary {
+            lines.append("providers_scanned: \(result.summary.providerCount)")
+            lines.append("providers_matched: \(matchedProvidersCount(for: result))")
+            lines.append("\(kind.rawValue)s_total: \(result.summary.itemCount)")
+        }
+        if showFixes {
+            if issueCount > 0 {
+                lines.append("状态：已安装 \(result.summary.installedCount) 项（\(installedPct)），\(orphanedLabel) \(result.summary.orphanedCount) 项（\(orphanedPct)），损坏 \(result.summary.brokenCount) 项（\(brokenPct)）。")
+                lines.append("结论：发现 \(issueCount) 项异常（\(orphanedLabel) \(result.summary.orphanedCount)、损坏 \(result.summary.brokenCount)），请按下方修复计划依序处理。")
+            } else {
+                if !verbose {
+                    lines.append("健康：\(result.summary.installedCount)/\(result.summary.itemCount)（\(installedPct)），异常 0，修复动作：无。")
+                }
+            }
+        } else {
+            lines.append("状态(已安装/\(orphanedLabel)/损坏): \(result.summary.installedCount)/\(result.summary.orphanedCount)/\(result.summary.brokenCount) (\(percent(result.summary.installedCount, total: result.summary.itemCount))/\(percent(result.summary.orphanedCount, total: result.summary.itemCount))/\(percent(result.summary.brokenCount, total: result.summary.itemCount)))")
+            lines.append("需处理异常: \(issueCount)（\(orphanedLabel) \(result.summary.orphanedCount)，损坏 \(result.summary.brokenCount)）")
+            if issueCount > 0 {
+                lines.append("行动建议: 需处理 \(issueCount) 项异常（高优先级）")
+                lines.append("摘要: 当前有 \(issueCount) 个异常项（\(result.summary.orphanedCount) 个\(orphanedLabel)，\(result.summary.brokenCount) 个损坏），建议按下方修复计划执行。")
+            } else {
+                lines.append("行动建议: 无需处理（系统健康）")
+                lines.append("摘要: 当前无异常项，状态健康。")
+            }
+        }
+        if let filter = result.providerFilter, !filter.isEmpty {
+            lines.append("provider_filter: \(filter)")
+        }
+        if let stateFilter = result.stateFilter {
+            lines.append("state_filter: \(stateFilter.rawValue)")
+        }
+        if showFixes, issueCount == 0, !verbose, result.providerFilter == nil, result.stateFilter == nil {
+            return lines.joined(separator: "\n")
+        }
         lines.append("")
 
         let items: [NolonSkillsListItem]
@@ -2356,7 +2780,22 @@ public struct NolonCoreCLIRunner: Sendable {
             items = result.items.filter { $0.state != .installed }
         }
         if items.isEmpty {
-            lines.append("未发现异常 \(kind.rawValue)s（孤链/损坏）。")
+            let resourceLabel = Self.localizedResourceKindLabel(kind)
+            let resourceDisplayLabel = Self.displayResourceLabel(resourceLabel)
+            if let filter = result.providerFilter, !filter.isEmpty, let stateFilter = result.stateFilter {
+                lines.append("在 provider=\(filter) 且 state=\(stateFilter.rawValue) 下，未发现匹配\(resourceDisplayLabel)。")
+            } else if let filter = result.providerFilter, !filter.isEmpty {
+                lines.append("在 provider=\(filter) 下，未发现异常\(resourceDisplayLabel)（\(orphanedLabel)/损坏）。")
+            } else if let stateFilter = result.stateFilter {
+                lines.append("在 state=\(stateFilter.rawValue) 下，未发现匹配\(resourceDisplayLabel)。")
+            } else {
+                lines.append("未发现异常\(resourceDisplayLabel)（\(orphanedLabel)/损坏）。")
+            }
+            if showFixes {
+                lines.append("")
+                let followUp = Self.copyableCommand("nolon \(kind.rawValue) list --show-fixes")
+                lines.append("可选复检: `\(Self.runtimeCommandEnvAssignment()); \(followUp)`")
+            }
             return lines.joined(separator: "\n")
         }
         let problematicItems = items.filter { $0.state != .installed }
@@ -2370,7 +2809,10 @@ public struct NolonCoreCLIRunner: Sendable {
             lines.append("")
             lines.append("[异常]")
             lines.append(contentsOf: problematicItems.map { item in
-                let stateLabel = Self.localizedStateLabel(item.state)
+                let stateLabel: String = {
+                    if item.state == .orphaned { return orphanedLabel }
+                    return Self.localizedStateLabel(item.state)
+                }()
                 if verbose {
                     var line = "- [\(stateLabel)] \(item.providerID)/\(item.skillID)\n  path: \(item.path)"
                     if let origin = item.origin, origin.sourceType != .unknown {
@@ -2384,38 +2826,80 @@ public struct NolonCoreCLIRunner: Sendable {
         if !installedItems.isEmpty {
             lines.append("")
             lines.append("[已安装]")
-            lines.append(contentsOf: installedItems.map { item in
-                let stateLabel = Self.localizedStateLabel(item.state)
+            let installedLines = installedItems.map { item in
                 if verbose {
-                    var line = "- [\(stateLabel)] \(item.providerID)/\(item.skillID)\n  path: \(item.path)"
+                    var line = "- \(item.providerID)/\(item.skillID)"
+                    if kind != .mcp {
+                        line += " | path: \(item.path)"
+                    }
                     if let origin = item.origin, origin.sourceType != .unknown {
-                        line += "\n  origin: \(origin.sourceType.rawValue):\(origin.sourceRef)"
+                        line += " | origin: \(origin.sourceType.rawValue):\(origin.sourceRef)"
                     }
                     return line
                 }
-                return "- \(item.providerID)/\(item.skillID) [\(stateLabel)]"
-            })
+                return "- \(item.providerID)/\(item.skillID)"
+            }
+            lines.append(contentsOf: installedLines)
+        }
+        if verbose, kind == .mcp, !installedItems.isEmpty {
+            let grouped = Dictionary(grouping: installedItems, by: \.providerID)
+                .mapValues { Set($0.map(\.path)).sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending } }
+            let configRows = grouped
+                .sorted { $0.key.localizedCaseInsensitiveCompare($1.key) == .orderedAscending }
+                .flatMap { providerID, paths in
+                    paths.map { "- \(providerID): \($0)" }
+                }
+            if !configRows.isEmpty {
+                lines.append("")
+                lines.append("[配置路径]")
+                lines.append(contentsOf: configRows)
+            }
         }
 
-        if !verbose {
+        if !verbose, !showFixes {
             lines.append("")
             lines.append("提示: 使用 `nolon \(kind.rawValue) list --verbose` 查看安装路径与来源。")
         }
         let fixCommands = Self.buildResourceFixCommands(kind: kind, items: problematicItems)
-        if !fixCommands.simple.isEmpty {
+        if !fixCommands.simple.isEmpty && !showFixes {
+            let filterSuffix = Self.listFilterSuffix(provider: result.providerFilter, state: result.stateFilter)
             lines.append("")
-            lines.append("修复命令（可复制）:")
-            lines.append("- 清理异常(\(problematicItems.count)): `\(fixCommands.simple)`")
-            if !showFixes {
-                lines.append("- 详细模式: `nolon \(kind.rawValue) list --verbose --show-fixes`")
+            lines.append("[下一步（可复制执行）]")
+            lines.append("先设置前缀变量（与本次入口一致）: `\(Self.runtimeCommandEnvAssignment())`")
+            lines.append("本次入口: `\(Self.runtimeCommandPrefix())`")
+            lines.append("修复建议（可复制）:")
+            if fixCommands.detailed.count == 1 {
+                lines.append("1) `\(Self.copyableCommand(fixCommands.simple))`")
+            } else {
+                lines.append("1) 生成分条修复命令: `\(Self.copyableCommand("nolon \(kind.rawValue) list\(filterSuffix) --show-fixes"))`")
             }
+            lines.append("2) 查看路径与来源: `\(Self.copyableCommand("nolon \(kind.rawValue) list\(filterSuffix) --verbose --show-fixes"))`")
         }
         if showFixes, !fixCommands.detailed.isEmpty {
             lines.append("")
-            lines.append("详细修复命令:")
+            lines.append("[下一步（按顺序执行）]")
+            lines.append("`\(Self.runtimeCommandEnvAssignment())`")
+            lines.append("修复计划:")
+            lines.append("1) 清理异常项（\(fixCommands.detailed.count)项）")
             lines.append(contentsOf: fixCommands.detailed.enumerated().map { index, command in
-                "\(index + 1). `\(command)`"
+                "- `\(Self.copyableCommand(command))`"
             })
+            lines.append("")
+            lines.append("2) 复检")
+            lines.append("`\(Self.copyableCommand("nolon \(kind.rawValue) list --show-fixes"))`")
+            let oneShot = fixCommands.detailed
+                .map(Self.copyableCommand)
+                .joined(separator: " && ")
+            let oneShotWithCheck = "\(oneShot) && \(Self.copyableCommand("nolon \(kind.rawValue) list --show-fixes"))"
+            lines.append("")
+            lines.append("[一键执行（可复制）]")
+            lines.append("```bash")
+            lines.append(oneShotWithCheck)
+            lines.append("```")
+        } else if showFixes, issueCount > 0 {
+            lines.append("")
+            lines.append("[下一步（可复制执行）]")
+            lines.append("状态健康，无需修复；修复建议已启用但当前无可修复项。")
         }
         return lines.joined(separator: "\n")
     }
@@ -2428,7 +2912,49 @@ public struct NolonCoreCLIRunner: Sendable {
         let detailed = problematic.map { item in
             "nolon \(kind.rawValue) remove --resource-name \(item.skillID) --provider \(item.providerID)"
         }
-        return (simple: detailed.joined(separator: " && "), detailed: detailed)
+        return (simple: detailed.first ?? "", detailed: detailed)
+    }
+
+    private func matchedProvidersCount(for result: NolonSkillsListResult) -> Int {
+        if let filter = result.providerFilter, !filter.isEmpty {
+            return 1
+        }
+        return Set(result.items.map(\.providerID)).count
+    }
+
+    private static func listFilterSuffix(provider: String?, state: NolonProviderSkillStateKind?) -> String {
+        var parts: [String] = []
+        if let provider, !provider.isEmpty {
+            parts.append("--provider \(provider)")
+        }
+        if let state {
+            parts.append("--state \(state.rawValue)")
+        }
+        guard !parts.isEmpty else { return "" }
+        return " " + parts.joined(separator: " ")
+    }
+
+    private static func combinedFixCommand(_ commands: [String]) -> String? {
+        guard !commands.isEmpty else { return nil }
+        guard commands.count <= 3 else { return nil }
+        let combined = commands.joined(separator: " && ")
+        return combined.count <= 280 ? combined : nil
+    }
+
+    private static func runtimeCommandPrefix() -> String {
+        let executable = CommandLine.arguments.first ?? ""
+        if executable.contains("/.build/") {
+            return "swift run --package-path libs/Providers nolon"
+        }
+        return "nolon"
+    }
+
+    private static func runtimeCommandEnvAssignment() -> String {
+        "NOLON_CMD='\(runtimeCommandPrefix())'"
+    }
+
+    private static func copyableCommand(_ command: String) -> String {
+        command.replacingOccurrences(of: "nolon ", with: "$NOLON_CMD ")
     }
 
     private func formatUpdatedDate(_ date: Date, formatter: DateFormatter) -> String {
@@ -2458,10 +2984,24 @@ public struct NolonCoreCLIRunner: Sendable {
         case .installed:
             return "已安装"
         case .orphaned:
-            return "孤链"
+            return "失效链接"
         case .broken:
             return "损坏"
         }
+    }
+
+    private static func localizedResourceKindLabel(_ kind: NolonResourceKind) -> String {
+        switch kind {
+        case .workflow:
+            return "工作流资源"
+        case .mcp:
+            return "MCP 资源"
+        }
+    }
+
+    private static func displayResourceLabel(_ label: String) -> String {
+        guard let first = label.unicodeScalars.first else { return label }
+        return first.isASCII ? " \(label)" : label
     }
 
     private func renderTable(headers: [String], rows: [[String]]) -> [String] {

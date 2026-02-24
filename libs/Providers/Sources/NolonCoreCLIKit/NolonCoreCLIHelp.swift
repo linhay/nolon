@@ -66,6 +66,15 @@ enum NolonCoreCLIHelpResolver {
           search    [<keyword> | --query <query>] [--limit <n>] [--base-url <url>] [--install [--provider <id>|--provider-id <id>] [--install-method symlink|copy] [--pick <index>] [--dry-run|--yes]]
           add       <slug> [--provider <id>|--provider-id <id>] [--version <ver>] [--install-method symlink|copy] [--dry-run]
           remove    --resource-name <name> (--target-path <path> | --provider <id> | --provider-id <id>)
+
+        场景: 搜索工作流
+          nolon workflow search xcode
+
+        场景: 安装工作流
+          nolon workflow add xcode --provider codex --dry-run
+
+        场景: 修复异常
+          nolon workflow list --provider codex --state broken
         """
     }
 
@@ -79,6 +88,15 @@ enum NolonCoreCLIHelpResolver {
           search    [<keyword> | --query <query>] [--limit <n>] [--base-url <url>] [--install [--provider <id>|--provider-id <id>] [--install-method symlink|copy] [--pick <index>] [--dry-run|--yes]]
           add       <slug> [--provider <id>|--provider-id <id>] [--version <ver>] [--install-method symlink|copy] [--dry-run]
           remove    --resource-name <name> (--target-path <path> | --provider <id> | --provider-id <id>)
+
+        场景: 搜索 MCP
+          nolon mcp search xcode
+
+        场景: 安装 MCP
+          nolon mcp add playwright --provider codex --dry-run
+
+        场景: 修复异常
+          nolon mcp list --provider codex --state broken
         """
     }
 
