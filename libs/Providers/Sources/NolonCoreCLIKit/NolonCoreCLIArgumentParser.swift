@@ -570,10 +570,10 @@ struct NolonWorkflowSearchCommand: ParsableCommand {
                 """
                 检测到写入操作。请先用 --dry-run 预览，确认后再加 --yes 执行。
                 示例：
-                - nolon skills search <keyword> --install --dry-run
-                - nolon skills search <keyword> --install --yes --provider codex
-                - nolon skills search --query <text> --install --dry-run
-                - nolon skills search --query <text> --install --yes --provider codex
+                - nolon workflow search <keyword> --install --dry-run
+                - nolon workflow search <keyword> --install --yes --provider codex
+                - nolon workflow search --query <text> --install --dry-run
+                - nolon workflow search --query <text> --install --yes --provider codex
                 """
             )
         }
@@ -725,6 +725,30 @@ struct NolonMcpSearchCommand: ParsableCommand {
 
     @Flag(name: .long)
     var yes: Bool = false
+
+    func validate() throws {
+        if keyword != nil, query != nil {
+            throw ValidationError("Use either positional query or --query.")
+        }
+        if let provider, let providerID, provider.lowercased() != providerID.lowercased() {
+            throw ValidationError("Use either --provider or --provider-id, not both with different values.")
+        }
+        if !install, (pick != nil || dryRun || yes || provider != nil || providerID != nil) {
+            throw ValidationError("--pick/--dry-run/--yes/--provider require --install.")
+        }
+        if install, !dryRun && !yes {
+            throw ValidationError(
+                """
+                检测到写入操作。请先用 --dry-run 预览，确认后再加 --yes 执行。
+                示例：
+                - nolon mcp search <keyword> --install --dry-run
+                - nolon mcp search <keyword> --install --yes --provider codex
+                - nolon mcp search --query <text> --install --dry-run
+                - nolon mcp search --query <text> --install --yes --provider codex
+                """
+            )
+        }
+    }
 }
 
 struct NolonMcpAddCommand: ParsableCommand {

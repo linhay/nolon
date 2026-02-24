@@ -494,6 +494,49 @@ struct NolonCoreCLIKitTests {
         }
     }
 
+    @Test("parse workflow search install requires yes or dry-run")
+    func parseWorkflowSearchInstallRequiresYesOrDryRun() {
+        do {
+            _ = try NolonCoreCLIArgumentParser.parse(
+                ["workflow", "search", "xcode", "--install", "--provider", "codex"]
+            )
+            Issue.record("Expected missing confirmation error")
+        } catch let error as NolonCoreCLIError {
+            #expect(error.code == "invalid_arguments")
+            let message = error.errorDescription ?? ""
+            #expect(message.contains("--yes"))
+            #expect(message.contains("--dry-run"))
+            #expect(message.contains("nolon workflow search <keyword> --install --dry-run"))
+            #expect(message.contains("nolon workflow search <keyword> --install --yes --provider codex"))
+            #expect(message.contains("nolon workflow search --query <text> --install --dry-run"))
+            #expect(message.contains("nolon workflow search --query <text> --install --yes --provider codex"))
+            #expect(message.contains("nolon skills search") == false)
+        } catch {
+            Issue.record("Unexpected error: \(error)")
+        }
+    }
+
+    @Test("parse mcp search install requires yes or dry-run")
+    func parseMcpSearchInstallRequiresYesOrDryRun() {
+        do {
+            _ = try NolonCoreCLIArgumentParser.parse(
+                ["mcp", "search", "xcode", "--install", "--provider", "codex"]
+            )
+            Issue.record("Expected missing confirmation error")
+        } catch let error as NolonCoreCLIError {
+            #expect(error.code == "invalid_arguments")
+            let message = error.errorDescription ?? ""
+            #expect(message.contains("--yes"))
+            #expect(message.contains("--dry-run"))
+            #expect(message.contains("nolon mcp search <keyword> --install --dry-run"))
+            #expect(message.contains("nolon mcp search <keyword> --install --yes --provider codex"))
+            #expect(message.contains("nolon mcp search --query <text> --install --dry-run"))
+            #expect(message.contains("nolon mcp search --query <text> --install --yes --provider codex"))
+        } catch {
+            Issue.record("Unexpected error: \(error)")
+        }
+    }
+
     @Test("parse skills add command")
     func parseSkillsAdd() throws {
         let command = try NolonCoreCLIArgumentParser.parse(
