@@ -3092,6 +3092,7 @@ struct NolonCoreCLIKitTests {
         #expect(result.exitCode == 0)
         #expect(result.stdout.contains("provider_filter: codex"))
         #expect(result.stdout.contains("state_filter: orphaned"))
+        #expect(result.stdout.contains("workflow_total: "))
     }
 
     @Test("runner workflow installed filter does not add extra blank lines before installed section")
@@ -3167,6 +3168,7 @@ struct NolonCoreCLIKitTests {
         )
         #expect(result.exitCode == 0)
         #expect(result.stdout.contains("provider_filter: codex"))
+        #expect(result.stdout.contains("mcp_total: "))
     }
 
     @Test("runner mcp show-fixes prints explicit no-op hint when no issues")

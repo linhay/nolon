@@ -2768,9 +2768,15 @@ public struct NolonCoreCLIRunner: Sendable {
         let orphanedPct = percent(result.summary.orphanedCount, total: result.summary.itemCount)
         let brokenPct = percent(result.summary.brokenCount, total: result.summary.itemCount)
         if !compactHealthySummary {
+            let totalKey: String = {
+                switch kind {
+                case .workflow: return "workflow_total"
+                case .mcp: return "mcp_total"
+                }
+            }()
             lines.append("providers_scanned: \(result.summary.providerCount)")
             lines.append("providers_matched: \(matchedProvidersCount(for: result))")
-            lines.append("\(kind.rawValue)s_total: \(result.summary.itemCount)")
+            lines.append("\(totalKey): \(result.summary.itemCount)")
         }
         if showFixes {
             if issueCount > 0 {
