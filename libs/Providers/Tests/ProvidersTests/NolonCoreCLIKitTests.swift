@@ -1734,11 +1734,11 @@ struct NolonCoreCLIKitTests {
         #expect(result.exitCode == 0)
         #expect(result.stdout.contains("筛选-状态: 已安装"))
         #expect(result.stdout.contains("在 provider=codex 且 state=installed 下，未发现匹配技能。"))
-        #expect(result.stdout.contains("可选复检:"))
-        #expect(result.stdout.contains("- 直接运行: `nolon skills list --show-fixes`"))
-        #expect(result.stdout.contains("- 源码模式: `swift run --package-path libs/Providers nolon skills list --show-fixes`"))
+        #expect(result.stdout.contains("[下一步（可复制执行）]"))
+        #expect(result.stdout.contains("当前筛选条件下无可修复项；请移除筛选后重试 --show-fixes。"))
+        #expect(result.stdout.contains("复检命令: `nolon skills list --show-fixes`"))
+        #expect(result.stdout.contains("可选复检:") == false)
         #expect(result.stdout.contains("健康度(已安装/总数):") == false)
-        #expect(result.stdout.contains("[下一步（可复制执行）]") == false)
         #expect(result.stdout.contains("立即执行（清理失效链接，") == false)
     }
 

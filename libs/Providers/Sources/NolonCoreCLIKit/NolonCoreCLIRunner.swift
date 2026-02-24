@@ -2451,7 +2451,9 @@ public struct NolonCoreCLIRunner: Sendable {
             }
             if showFixes {
                 lines.append("")
-                Self.appendOptionalRecheck(lines: &lines, command: "nolon skills list --show-fixes")
+                lines.append("[下一步（可复制执行）]")
+                lines.append("当前筛选条件下无可修复项；请移除筛选后重试 --show-fixes。")
+                lines.append("复检命令: `\(Self.copyableCommand("nolon skills list --show-fixes"))`")
             }
             return lines.joined(separator: "\n")
         }
