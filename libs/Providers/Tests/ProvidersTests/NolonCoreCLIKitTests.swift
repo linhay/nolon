@@ -1632,8 +1632,9 @@ struct NolonCoreCLIKitTests {
         #expect(result.exitCode == 0)
         #expect(result.stdout.contains("state_filter: installed"))
         #expect(result.stdout.contains("在 provider=codex 且 state=installed 下，未发现匹配技能。"))
-        #expect(result.stdout.contains("[下一步（可复制执行）]"))
-        #expect(result.stdout.contains("状态健康，无需修复；修复建议已启用但当前无可修复项。"))
+        #expect(result.stdout.contains("可选复检:"))
+        #expect(result.stdout.contains("$NOLON_CMD skills list --show-fixes"))
+        #expect(result.stdout.contains("[下一步（可复制执行）]") == false)
         #expect(result.stdout.contains("立即执行（清理失效链接，") == false)
     }
 

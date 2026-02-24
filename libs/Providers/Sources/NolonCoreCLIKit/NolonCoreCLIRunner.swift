@@ -2442,8 +2442,8 @@ public struct NolonCoreCLIRunner: Sendable {
             }
             if showFixes {
                 lines.append("")
-                lines.append("[下一步（可复制执行）]")
-                lines.append("状态健康，无需修复；修复建议已启用但当前无可修复项。")
+                let followUp = Self.copyableCommand("nolon skills list --show-fixes")
+                lines.append("可选复检: `\(Self.runtimeCommandEnvAssignment()); \(followUp)`")
             }
             return lines.joined(separator: "\n")
         }
