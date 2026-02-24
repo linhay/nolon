@@ -2494,8 +2494,6 @@ public struct NolonCoreCLIRunner: Sendable {
         if !issueProviders.isEmpty && !showFixes {
             lines.append("")
             lines.append("[下一步（可复制执行）]")
-            lines.append("先设置前缀变量（与本次入口一致）: `\(Self.runtimeCommandEnvAssignment())`")
-            lines.append("本次入口: `\(Self.runtimeCommandPrefix())`")
             lines.append("修复建议（可复制）:")
             var quickActions: [String] = []
             if !brokenIssueProviders.isEmpty {
@@ -2515,7 +2513,6 @@ public struct NolonCoreCLIRunner: Sendable {
         if showFixes && (!orphanedItems.isEmpty || !brokenItems.isEmpty) {
             lines.append("")
             lines.append("[下一步（按顺序执行）]")
-            lines.append("`\(Self.runtimeCommandEnvAssignment())`")
             var orphanedCommands: [String] = []
             var brokenCommands: [String] = []
             if !orphanedItems.isEmpty {
@@ -2880,8 +2877,6 @@ public struct NolonCoreCLIRunner: Sendable {
             let filterSuffix = Self.listFilterSuffix(provider: result.providerFilter, state: result.stateFilter)
             lines.append("")
             lines.append("[下一步（可复制执行）]")
-            lines.append("先设置前缀变量（与本次入口一致）: `\(Self.runtimeCommandEnvAssignment())`")
-            lines.append("本次入口: `\(Self.runtimeCommandPrefix())`")
             lines.append("修复建议（可复制）:")
             if fixCommands.detailed.count == 1 {
                 lines.append("1) `\(Self.copyableCommand(fixCommands.simple))`")
@@ -2893,7 +2888,6 @@ public struct NolonCoreCLIRunner: Sendable {
         if showFixes, !fixCommands.detailed.isEmpty {
             lines.append("")
             lines.append("[下一步（按顺序执行）]")
-            lines.append("`\(Self.runtimeCommandEnvAssignment())`")
             lines.append("修复计划:")
             lines.append("1. 清理异常项（\(fixCommands.detailed.count)项）")
             let groupedByProvider = Dictionary(grouping: problematicItems, by: \.providerID)
@@ -2966,7 +2960,7 @@ public struct NolonCoreCLIRunner: Sendable {
     }
 
     private static func copyableCommand(_ command: String) -> String {
-        command.replacingOccurrences(of: "nolon ", with: "$NOLON_CMD ")
+        command
     }
 
     private static func sourceModeCommand(_ command: String) -> String {
