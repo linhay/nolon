@@ -2848,21 +2848,6 @@ public struct NolonCoreCLIRunner: Sendable {
             }
             lines.append(contentsOf: installedLines)
         }
-        if verbose, kind == .mcp, !installedItems.isEmpty {
-            let grouped = Dictionary(grouping: installedItems, by: \.providerID)
-                .mapValues { Set($0.map(\.path)).sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending } }
-            let configRows = grouped
-                .sorted { $0.key.localizedCaseInsensitiveCompare($1.key) == .orderedAscending }
-                .flatMap { providerID, paths in
-                    paths.map { "- \(providerID): \($0)" }
-                }
-            if !configRows.isEmpty {
-                lines.append("")
-                lines.append("[配置路径]")
-                lines.append(contentsOf: configRows)
-            }
-        }
-
         if !verbose, !showFixes {
             lines.append("")
             lines.append("提示: 使用 `nolon \(kind.rawValue) list --verbose` 查看安装路径与来源。")

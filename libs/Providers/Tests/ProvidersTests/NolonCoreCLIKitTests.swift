@@ -3224,8 +3224,8 @@ struct NolonCoreCLIKitTests {
         #expect(result.stdout.contains("在 provider=codex 且 state=orphaned 下，未发现匹配 MCP 资源。"))
     }
 
-    @Test("runner mcp verbose list renders config paths in dedicated section")
-    func runnerMcpVerboseListRendersConfigPathsInDedicatedSection() async {
+    @Test("runner mcp verbose list renders inline paths without duplicated config section")
+    func runnerMcpVerboseListRendersInlinePathsWithoutDuplicatedConfigSection() async {
         let runner = NolonCoreCLIRunner(
             service: MockSkillsRepositoryService(),
             fileReader: { _ in "" }
@@ -3239,7 +3239,7 @@ struct NolonCoreCLIKitTests {
         )
         #expect(result.exitCode == 0)
         #expect(result.stdout.contains("- codex/xcode | path:"))
-        #expect(result.stdout.contains("[配置路径]"))
+        #expect(result.stdout.contains("[配置路径]") == false)
         #expect(result.stdout.contains("config_path:") == false)
     }
 
