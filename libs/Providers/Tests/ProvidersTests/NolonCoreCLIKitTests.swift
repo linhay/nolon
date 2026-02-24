@@ -1625,6 +1625,27 @@ struct NolonCoreCLIKitTests {
         #expect(result.stdout.contains("/Users/linhey/.codex/skills/react-best-practices"))
     }
 
+    @Test("runner skills verbose installed filter omits redundant installed tag and unknown origin")
+    func runnerSkillsVerboseInstalledFilterOmitsRedundantInstalledTagAndUnknownOrigin() async {
+        let runner = NolonCoreCLIRunner(
+            service: InstalledAndBrokenSkillsRepositoryService(),
+            fileReader: { _ in "" }
+        )
+        let result = await runner.execute(
+            arguments: [
+                "skills", "list",
+                "--provider", "codex",
+                "--state", "installed",
+                "--verbose",
+            ],
+            outputMode: .text
+        )
+        #expect(result.exitCode == 0)
+        #expect(result.stdout.contains("- codex/xcode /Users/linhey/.codex/skills/xcode"))
+        #expect(result.stdout.contains("- codex/xcode [已安装]") == false)
+        #expect(result.stdout.contains("origin=unknown") == false)
+    }
+
     @Test("runner renders skills list with state filter")
     func runnerRendersSkillsListWithStateFilter() async {
         let runner = NolonCoreCLIRunner(

@@ -2461,10 +2461,15 @@ public struct NolonCoreCLIRunner: Sendable {
         lines.append(contentsOf: effectiveItems.map { item in
             let stateLabel = Self.localizedStateLabel(item.state)
             if verbose {
-                if let origin = item.origin {
-                    return "- \(item.providerID)/\(item.skillID) [\(stateLabel)] \(item.path) origin=\(origin.sourceType.rawValue):\(origin.sourceRef)"
+                var line = "- \(item.providerID)/\(item.skillID)"
+                if item.state != .installed {
+                    line += " [\(stateLabel)]"
                 }
-                return "- \(item.providerID)/\(item.skillID) [\(stateLabel)] \(item.path) origin=unknown"
+                line += " \(item.path)"
+                if let origin = item.origin, origin.sourceType != .unknown {
+                    line += " origin=\(origin.sourceType.rawValue):\(origin.sourceRef)"
+                }
+                return line
             }
             if item.state == .installed {
                 return "- \(item.providerID)/\(item.skillID)"
