@@ -1733,7 +1733,7 @@ struct NolonCoreCLIKitTests {
 
         #expect(result.exitCode == 0)
         #expect(result.stdout.contains("筛选-状态: 已安装"))
-        #expect(result.stdout.contains("在 provider=codex 且 state=installed 下，未发现匹配技能。"))
+        #expect(result.stdout.contains("在 provider=codex 且 state=已安装 下，未发现匹配技能。"))
         #expect(result.stdout.contains("[下一步（可复制执行）]"))
         #expect(result.stdout.contains("当前筛选条件下无可修复项；请移除筛选后重试 --show-fixes。"))
         #expect(result.stdout.contains("复检命令: `nolon skills list --show-fixes`"))
@@ -1867,7 +1867,7 @@ struct NolonCoreCLIKitTests {
         #expect(result.stdout.contains("筛选-提供方: codex"))
         #expect(result.stdout.contains("筛选-状态: 损坏"))
         #expect(result.stdout.contains("providers_matched: 1"))
-        #expect(result.stdout.contains("在 provider=codex 且 state=broken 下，未发现匹配技能。"))
+        #expect(result.stdout.contains("在 provider=codex 且 state=损坏 下，未发现匹配技能。"))
     }
 
     @Test("runner renders skills add local-first success")
@@ -3164,7 +3164,7 @@ struct NolonCoreCLIKitTests {
             #expect(result.stdout.contains("复检命令: `nolon workflow list --show-fixes`"))
             #expect(result.stdout.contains("状态健康，无需修复；修复建议已启用但当前无可修复项。") == false)
         } else {
-            #expect(result.stdout.contains("在 provider=codex 且 state=installed 下，未发现匹配工作流资源。"))
+            #expect(result.stdout.contains("在 provider=codex 且 state=已安装 下，未发现匹配工作流资源。"))
         }
     }
 
@@ -3191,7 +3191,7 @@ struct NolonCoreCLIKitTests {
             #expect(result.stdout.contains("[已安装]\n- codex/update-agent-skills-workflows.md"))
             #expect(result.stdout.contains("复检命令: `nolon workflow list --show-fixes`"))
         } else {
-            #expect(result.stdout.contains("在 provider=codex 且 state=installed 下，未发现匹配工作流资源。"))
+            #expect(result.stdout.contains("在 provider=codex 且 state=已安装 下，未发现匹配工作流资源。"))
         }
     }
 
@@ -3363,7 +3363,7 @@ struct NolonCoreCLIKitTests {
         #expect(result.stdout.contains("筛选-提供方: codex"))
         #expect(result.stdout.contains("筛选-状态: 失效链接"))
         #expect(result.stdout.contains("providers_matched: 1"))
-        #expect(result.stdout.contains("在 provider=codex 且 state=orphaned 下，未发现匹配 MCP 资源。"))
+        #expect(result.stdout.contains("在 provider=codex 且 state=失效链接 下，未发现匹配 MCP 资源。"))
     }
 
     @Test("runner mcp verbose list renders inline paths without duplicated config section")
@@ -3402,7 +3402,7 @@ struct NolonCoreCLIKitTests {
         #expect(result.exitCode == 0)
         #expect(result.stdout.contains("筛选-提供方: codex"))
         #expect(result.stdout.contains("筛选-状态: 损坏"))
-        #expect(result.stdout.contains("在 provider=codex 且 state=broken 下，未发现匹配工作流资源。"))
+        #expect(result.stdout.contains("在 provider=codex 且 state=损坏 下，未发现匹配工作流资源。"))
     }
 
     @Test("runner workflow show-fixes hides compact summary and keeps detailed commands")

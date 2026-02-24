@@ -2439,12 +2439,13 @@ public struct NolonCoreCLIRunner: Sendable {
         }
 
         if effectiveItems.isEmpty {
+            let localizedState = result.stateFilter.map(Self.localizedStateLabel)
             if let filter = result.providerFilter, !filter.isEmpty, let stateFilter = result.stateFilter {
-                lines.append("在 provider=\(filter) 且 state=\(stateFilter.rawValue) 下，未发现匹配技能。")
+                lines.append("在 provider=\(filter) 且 state=\(localizedState ?? Self.localizedStateLabel(stateFilter)) 下，未发现匹配技能。")
             } else if let filter = result.providerFilter, !filter.isEmpty {
                 lines.append("在 provider=\(filter) 下，未发现异常技能（\(orphanedLabel)/损坏）。")
             } else if let stateFilter = result.stateFilter {
-                lines.append("在 state=\(stateFilter.rawValue) 下，未发现匹配技能。")
+                lines.append("在 state=\(localizedState ?? Self.localizedStateLabel(stateFilter)) 下，未发现匹配技能。")
             } else {
                 lines.append("未发现异常技能（\(orphanedLabel)/损坏）。")
             }
@@ -2815,12 +2816,13 @@ public struct NolonCoreCLIRunner: Sendable {
         if items.isEmpty {
             let resourceLabel = Self.localizedResourceKindLabel(kind)
             let resourceDisplayLabel = Self.displayResourceLabel(resourceLabel)
+            let localizedState = result.stateFilter.map(Self.localizedStateLabel)
             if let filter = result.providerFilter, !filter.isEmpty, let stateFilter = result.stateFilter {
-                lines.append("在 provider=\(filter) 且 state=\(stateFilter.rawValue) 下，未发现匹配\(resourceDisplayLabel)。")
+                lines.append("在 provider=\(filter) 且 state=\(localizedState ?? Self.localizedStateLabel(stateFilter)) 下，未发现匹配\(resourceDisplayLabel)。")
             } else if let filter = result.providerFilter, !filter.isEmpty {
                 lines.append("在 provider=\(filter) 下，未发现异常\(resourceDisplayLabel)（\(orphanedLabel)/损坏）。")
             } else if let stateFilter = result.stateFilter {
-                lines.append("在 state=\(stateFilter.rawValue) 下，未发现匹配\(resourceDisplayLabel)。")
+                lines.append("在 state=\(localizedState ?? Self.localizedStateLabel(stateFilter)) 下，未发现匹配\(resourceDisplayLabel)。")
             } else {
                 lines.append("未发现异常\(resourceDisplayLabel)（\(orphanedLabel)/损坏）。")
             }
