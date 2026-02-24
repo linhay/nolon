@@ -2392,10 +2392,8 @@ public struct NolonCoreCLIRunner: Sendable {
             lines.append("需处理异常: \(issueCount)（\(orphanedLabel) \(result.summary.orphanedCount)，损坏 \(result.summary.brokenCount)）")
             if issueCount > 0 {
                 lines.append("行动建议: 需处理 \(issueCount) 项异常（高优先级）")
-                lines.append("摘要: 当前有 \(issueCount) 个异常项（\(result.summary.orphanedCount) 个\(orphanedLabel)，\(result.summary.brokenCount) 个损坏），建议按下方修复计划执行。")
             } else {
                 lines.append("行动建议: 无需处理（系统健康）")
-                lines.append("摘要: 当前无异常项，状态健康。")
             }
         }
         appendFiltersIfNeeded()
@@ -2799,10 +2797,8 @@ public struct NolonCoreCLIRunner: Sendable {
             lines.append("需处理异常: \(issueCount)（\(orphanedLabel) \(result.summary.orphanedCount)，损坏 \(result.summary.brokenCount)）")
             if issueCount > 0 {
                 lines.append("行动建议: 需处理 \(issueCount) 项异常（高优先级）")
-                lines.append("摘要: 当前有 \(issueCount) 个异常项（\(result.summary.orphanedCount) 个\(orphanedLabel)，\(result.summary.brokenCount) 个损坏），建议按下方修复计划执行。")
             } else {
                 lines.append("行动建议: 无需处理（系统健康）")
-                lines.append("摘要: 当前无异常项，状态健康。")
             }
         }
         appendFiltersIfNeeded()

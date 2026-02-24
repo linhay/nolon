@@ -1560,7 +1560,7 @@ struct NolonCoreCLIKitTests {
         #expect(result.stdout.contains("健康度(已安装/总数):") == false)
         #expect(result.stdout.contains("状态(已安装/失效链接/损坏): 0/1/0 (0.0%/100.0%/0.0%)"))
         #expect(result.stdout.contains("行动建议: 需处理 1 项异常（高优先级）"))
-        #expect(result.stdout.contains("摘要: 当前有 1 个异常项（1 个失效链接，0 个损坏），建议按下方修复计划执行。"))
+        #expect(result.stdout.contains("摘要:") == false)
         #expect(result.stdout.contains("- codex/react-best-practices [失效链接]"))
         #expect(result.stdout.contains("异常提供方(1): codex"))
         #expect(result.stdout.contains("修复建议（可复制）:"))
@@ -3184,9 +3184,10 @@ struct NolonCoreCLIKitTests {
         if result.stdout.contains("需处理异常: 0") {
             #expect(result.stdout.contains("在 provider=codex 下，未发现异常工作流资源（失效链接/损坏）。"))
             #expect(result.stdout.contains("[下一步（可复制执行）]") == false)
+            #expect(result.stdout.contains("摘要:") == false)
         } else {
-            #expect(result.stdout.contains("摘要: 当前有"))
             #expect(result.stdout.contains("行动建议: 需处理"))
+            #expect(result.stdout.contains("摘要:") == false)
             #expect(result.stdout.contains("修复建议（可复制）:"))
             #expect(result.stdout.contains("[下一步（可复制执行）]"))
             #expect(result.stdout.contains("先设置前缀变量（与本次入口一致）"))
