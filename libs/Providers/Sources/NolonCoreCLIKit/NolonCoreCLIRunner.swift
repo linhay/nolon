@@ -2357,9 +2357,11 @@ public struct NolonCoreCLIRunner: Sendable {
             let matchedProviders = matchedProvidersCount(for: result)
             lines.append("providers_matched: \(matchedProviders)")
             lines.append("skills_total: \(result.summary.itemCount)")
-            lines.append(
-                "健康度(已安装/总数): \(result.summary.installedCount)/\(result.summary.itemCount) (\(percent(result.summary.installedCount, total: result.summary.itemCount)))"
-            )
+            if !showFixes || issueCount > 0 {
+                lines.append(
+                    "健康度(已安装/总数): \(result.summary.installedCount)/\(result.summary.itemCount) (\(percent(result.summary.installedCount, total: result.summary.itemCount)))"
+                )
+            }
         }
         if !showFixes || issueCount > 0 {
             lines.append(
