@@ -1696,6 +1696,26 @@ struct NolonCoreCLIKitTests {
         #expect(result.stdout.contains("$NOLON_CMD skills list --show-fixes"))
     }
 
+    @Test("runner skills list unsupported provider includes recovery hint")
+    func runnerSkillsListUnsupportedProviderIncludesRecoveryHint() async {
+        let runner = NolonCoreCLIRunner(
+            service: MockSkillsRepositoryService(),
+            fileReader: { _ in "" }
+        )
+        let result = await runner.execute(
+            arguments: [
+                "skills", "list",
+                "--provider", "not-exist",
+            ],
+            outputMode: .text
+        )
+
+        #expect(result.exitCode == 2)
+        #expect(result.stderr.contains("\"code\":\"invalid_arguments\""))
+        #expect(result.stderr.contains("Unsupported --provider: not-exist"))
+        #expect(result.stderr.contains("nolon provider list"))
+    }
+
     @Test("runner skills show-fixes with installed filter prints explicit no-op hint")
     func runnerSkillsShowFixesWithInstalledFilterPrintsNoOpHint() async {
         let runner = NolonCoreCLIRunner(

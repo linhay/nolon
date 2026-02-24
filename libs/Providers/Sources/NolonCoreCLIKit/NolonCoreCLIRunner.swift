@@ -1239,7 +1239,7 @@ public struct NolonCoreCLIRunner: Sendable {
             throw NolonCoreCLIError.invalidArguments("Missing required option: --provider-path or --provider-id")
         }
         guard let template = resolveProviderTemplate(providerID: providerID) else {
-            throw NolonCoreCLIError.invalidArguments("Unsupported --provider-id: \(providerID)")
+            throw NolonCoreCLIError.invalidArguments(unsupportedProviderHint(flag: "--provider-id", value: providerID))
         }
         return template.defaultSkillsPath.path
     }
@@ -1256,7 +1256,7 @@ public struct NolonCoreCLIRunner: Sendable {
             throw NolonCoreCLIError.invalidArguments("Missing required option: --target-path or --provider-id")
         }
         guard let template = resolveProviderTemplate(providerID: providerID) else {
-            throw NolonCoreCLIError.invalidArguments("Unsupported --provider-id: \(providerID)")
+            throw NolonCoreCLIError.invalidArguments(unsupportedProviderHint(flag: "--provider-id", value: providerID))
         }
         switch kind {
         case .workflow:
@@ -1276,6 +1276,10 @@ public struct NolonCoreCLIRunner: Sendable {
             let stable = template.providerID.lowercased()
             return normalized == raw || normalized == stable
         }
+    }
+
+    private static func unsupportedProviderHint(flag: String, value: String) -> String {
+        "Unsupported \(flag): \(value). Run `nolon provider list` to view available providers."
     }
 
     private func executeSkillsAdd(
@@ -1950,7 +1954,7 @@ public struct NolonCoreCLIRunner: Sendable {
     private static func resolveSkillsAddTargets(provider: String?) throws -> [SkillsAddTarget] {
         if let provider, !provider.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             guard let template = resolveProviderTemplate(providerID: provider) else {
-                throw NolonCoreCLIError.invalidArguments("Unsupported --provider: \(provider)")
+                throw NolonCoreCLIError.invalidArguments(unsupportedProviderHint(flag: "--provider", value: provider))
             }
             return [SkillsAddTarget(providerID: template.providerID, providerPath: template.defaultSkillsPath.path)]
         }
@@ -1984,7 +1988,7 @@ public struct NolonCoreCLIRunner: Sendable {
     private static func resolveResourceTargets(kind: NolonResourceKind, provider: String?) throws -> [SkillsAddTarget] {
         if let provider, !provider.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             guard let template = resolveProviderTemplate(providerID: provider) else {
-                throw NolonCoreCLIError.invalidArguments("Unsupported --provider: \(provider)")
+                throw NolonCoreCLIError.invalidArguments(unsupportedProviderHint(flag: "--provider", value: provider))
             }
             let providerPath: String
             switch kind {
@@ -2020,7 +2024,7 @@ public struct NolonCoreCLIRunner: Sendable {
     private static func resolveMCPConfigTargets(provider: String?) throws -> [SkillsAddTarget] {
         if let provider, !provider.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             guard let template = resolveProviderTemplate(providerID: provider) else {
-                throw NolonCoreCLIError.invalidArguments("Unsupported --provider: \(provider)")
+                throw NolonCoreCLIError.invalidArguments(unsupportedProviderHint(flag: "--provider", value: provider))
             }
             return [SkillsAddTarget(providerID: template.providerID, providerPath: template.defaultMcpConfigPath.path)]
         }
