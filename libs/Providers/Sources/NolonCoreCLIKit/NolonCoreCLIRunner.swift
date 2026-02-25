@@ -1,5 +1,6 @@
 import Foundation
 import ProviderCatalog
+import NolonResourceKit
 import STFilePath
 
 public enum NolonCoreCLIOutputMode: Sendable {
@@ -1243,9 +1244,14 @@ public struct NolonCoreCLIRunner: Sendable {
                 let child = providerFolder.subpath(name)
 
                 let stateKind: NolonProviderSkillStateKind
+                let resolvedDestinationPath: String?
                 if child.isSymbolicLink {
                     let destination = (try? FileManager.default.destinationOfSymbolicLink(atPath: child.url.path)) ?? ""
-                    let resolved = STPath(destination).url.standardizedFileURL.path
+                    let resolved = WorkflowSourceResolver.resolveSymlinkDestination(
+                        linkPath: child.url.path,
+                        destination: destination
+                    )
+                    resolvedDestinationPath = resolved
                     let exists = STPath(resolved).isExists
                     if !exists {
                         stateKind = .broken
@@ -1255,8 +1261,16 @@ public struct NolonCoreCLIRunner: Sendable {
                         stateKind = .orphaned
                     }
                 } else {
+                    resolvedDestinationPath = nil
                     stateKind = cacheRoot.subpath(name).isExists ? .installed : .orphaned
                 }
+
+                let origin = readResourceOrigin(kind: kind == .workflow ? .workflow : .mcp, identifier: name)
+                    ?? inferWorkflowOriginIfNeeded(
+                        kind: kind,
+                        itemPath: child.url.path,
+                        resolvedDestinationPath: resolvedDestinationPath
+                    )
 
                 items.append(
                     NolonSkillsListItem(
@@ -1265,7 +1279,7 @@ public struct NolonCoreCLIRunner: Sendable {
                         skillID: name,
                         state: stateKind,
                         path: child.url.path,
-                        origin: readResourceOrigin(kind: kind == .workflow ? .workflow : .mcp, identifier: name)
+                        origin: origin
                     )
                 )
             }
@@ -2295,6 +2309,58 @@ public struct NolonCoreCLIRunner: Sendable {
         guard file.isExists else { return nil }
         guard let data = try? Data(contentsOf: file.url) else { return nil }
         return try? JSONDecoder().decode(NolonResourceOrigin.self, from: data)
+    }
+
+    private func inferWorkflowOriginIfNeeded(
+        kind: NolonResourceKind,
+        itemPath: String,
+        resolvedDestinationPath: String?
+    ) -> NolonResourceOrigin? {
+        guard kind == .workflow else { return nil }
+        let sourceKind = WorkflowSourceResolver.resolve(
+            workflowPath: itemPath,
+            resolvedPath: resolvedDestinationPath
+        )
+        let resolvedRef = resolvedDestinationPath ?? itemPath
+        let now = Date()
+
+        switch sourceKind {
+        case .skill:
+            return NolonResourceOrigin(
+                resourceKind: .workflow,
+                sourceType: .fromSkill,
+                sourceKind: .skill,
+                sourceRef: resolvedRef,
+                sourceDisplay: resolvedRef,
+                createdAt: now,
+                updatedAt: now,
+                metadata: ["inferred": "true"]
+            )
+        case .mcp:
+            return NolonResourceOrigin(
+                resourceKind: .workflow,
+                sourceType: .fromMcp,
+                sourceKind: .mcp,
+                sourceRef: resolvedRef,
+                sourceDisplay: resolvedRef,
+                createdAt: now,
+                updatedAt: now,
+                metadata: ["inferred": "true"]
+            )
+        case .user:
+            return NolonResourceOrigin(
+                resourceKind: .workflow,
+                sourceType: .fromWorkflow,
+                sourceKind: .workflow,
+                sourceRef: resolvedRef,
+                sourceDisplay: resolvedRef,
+                createdAt: now,
+                updatedAt: now,
+                metadata: ["inferred": "true"]
+            )
+        case .unknown:
+            return nil
+        }
     }
 
     private static func encodePrettyJSON<T: Encodable>(_ value: T) throws -> Data {

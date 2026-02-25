@@ -159,4 +159,59 @@ struct NolonResourceKitTests {
         let cachePath = status.first?.cachePath ?? ""
         #expect(STFile(cachePath).isExists == true)
     }
+
+    @Test("WorkflowSourceResolver resolves relative symlink destination against link directory")
+    func workflowSourceResolverResolvesRelativeSymlinkDestination() {
+        let linkPath = "/tmp/providers/codex/prompts/find-skills.md"
+        let destination = "../../.nolon/workflows/find-skills.md"
+        let resolved = WorkflowSourceResolver.resolveSymlinkDestination(
+            linkPath: linkPath,
+            destination: destination
+        )
+        #expect(resolved == "/tmp/providers/.nolon/workflows/find-skills.md")
+    }
+
+    @Test("WorkflowSourceResolver classifies workflow source by resolved path")
+    func workflowSourceResolverClassifiesByResolvedPath() throws {
+        let root = try STFolder(sanbox: .temporary)
+            .folder("nolon-workflow-source-\(UUID().uuidString)")
+            .create()
+        defer { try? root.deleteIncludingBrokenSymlink() }
+
+        let manager = NolonManager(rootURL: root.url)
+        let providerWorkflow = root.folder("providers").folder("codex").folder("prompts").subpath("a.md").url.path
+
+        let skillResolved = root.folder("skills-workflows").subpath("a.md").url.path
+        let mcpResolved = root.folder("mcps-workflows").subpath("a.md").url.path
+        let userResolved = root.folder("workflows").subpath("a.md").url.path
+
+        #expect(
+            WorkflowSourceResolver.resolve(
+                workflowPath: providerWorkflow,
+                resolvedPath: skillResolved,
+                nolonManager: manager
+            ) == .skill
+        )
+        #expect(
+            WorkflowSourceResolver.resolve(
+                workflowPath: providerWorkflow,
+                resolvedPath: mcpResolved,
+                nolonManager: manager
+            ) == .mcp
+        )
+        #expect(
+            WorkflowSourceResolver.resolve(
+                workflowPath: providerWorkflow,
+                resolvedPath: userResolved,
+                nolonManager: manager
+            ) == .user
+        )
+        #expect(
+            WorkflowSourceResolver.resolve(
+                workflowPath: providerWorkflow,
+                resolvedPath: "/opt/other/a.md",
+                nolonManager: manager
+            ) == .unknown
+        )
+    }
 }

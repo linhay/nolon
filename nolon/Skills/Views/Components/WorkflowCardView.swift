@@ -7,6 +7,19 @@ enum WorkflowSource: String, CaseIterable {
     case user       // 用户自定义的
     case mcp        // MCP 相关的
     case unknown    // 未知
+
+    init(kind: WorkflowSourceKind) {
+        switch kind {
+        case .skill:
+            self = .skill
+        case .user:
+            self = .user
+        case .mcp:
+            self = .mcp
+        case .unknown:
+            self = .unknown
+        }
+    }
     
     var displayName: String {
         switch self {
@@ -45,21 +58,11 @@ struct WorkflowInfo: Identifiable, Hashable {
         let fileName = url.deletingPathExtension().lastPathComponent
         var description = ""
         
-        // Determine source based on path
-        let source: WorkflowSource
-        let nolon = NolonManager.shared
-        if resolvedPath.hasPrefix(nolon.generatedWorkflowsPath) {
-            source = .skill
-        } else if resolvedPath.hasPrefix(nolon.mcpsWorkflowsPath) {
-            source = .mcp
-        } else if resolvedPath.hasPrefix(nolon.userWorkflowsPath) {
-            source = .user
-        } else if path.contains("Skills/Workflows") || path.contains(".gemini/workflows") {
-            // Also check for common provider internal paths if needed
-            source = .skill
-        } else {
-            source = .unknown
-        }
+        let sourceKind = WorkflowSourceResolver.resolve(
+            workflowPath: path,
+            resolvedPath: resolvedPath
+        )
+        let source = WorkflowSource(kind: sourceKind)
         
         // Parse YAML frontmatter for required workflow metadata (name/description).
         let metadata = FrontmatterParser.parseMetadata(from: content)
