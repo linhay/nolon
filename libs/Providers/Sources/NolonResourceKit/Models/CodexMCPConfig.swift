@@ -139,3 +139,14 @@ public struct CodexMCPServer: Codable, Sendable {
         try container.encodeIfPresent(enabled, forKey: .enabled)
     }
 }
+
+public extension CodexMCPServer {
+    init(mcp: MCP) {
+        let dict = mcp.json.value as? [String: Any] ?? [:]
+        self.url = dict["url"] as? String
+        self.command = dict["command"] as? String
+        self.args = dict["args"] as? [String]
+        self.env = dict["env"] as? [String: String]
+        self.enabled = dict["enabled"] as? Bool
+    }
+}

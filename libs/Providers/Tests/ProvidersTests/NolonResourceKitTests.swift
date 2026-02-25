@@ -3,6 +3,7 @@ import STFilePath
 import Testing
 @testable import NolonResourceKit
 import ProviderCatalog
+import CodexProvider
 
 @Suite("NolonResourceKit", .serialized)
 struct NolonResourceKitTests {
@@ -59,6 +60,104 @@ struct NolonResourceKitTests {
         #expect(provider.codexDefaultRulesFileURL.standardizedFileURL.path == provider.codexDefaultRulesFile.url.standardizedFileURL.path)
         #expect(provider.codexAgentsFileURL.standardizedFileURL.path == provider.codexAgentsFile.url.standardizedFileURL.path)
         #expect(provider.codexAgentsOverrideFileURL.standardizedFileURL.path == provider.codexAgentsOverrideFile.url.standardizedFileURL.path)
+    }
+
+    @Test("CodexModelPreferenceService merges visible model slugs and reads config")
+    func codexModelPreferenceServiceLoadsModelsAndConfig() throws {
+        let root = try STFolder(sanbox: .temporary)
+            .folder("nolon-codex-pref-load-\(UUID().uuidString)")
+            .create()
+        defer { try? root.deleteIncludingBrokenSymlink() }
+
+        let providerHome = root.folder("provider-codex")
+        let providerSkills = providerHome.folder("skills")
+        _ = providerSkills.createIfNotExists()
+        let userCodex = root.folder(".codex")
+        _ = userCodex.createIfNotExists()
+
+        let provider = Provider(
+            kind: .vendor,
+            name: "Codex",
+            defaultSkillsPath: providerSkills.url.path,
+            workflowPath: providerHome.folder("prompts").url.path,
+            templateId: "codex"
+        )
+
+        let providerCache = providerHome.file("models_cache.json")
+        try """
+        {
+          "fetched_at": "2026-02-25T12:00:00Z",
+          "models": [
+            { "slug": "gpt-5-codex", "display_name": "GPT-5 Codex", "visibility": "list" },
+            { "slug": "hidden-model", "display_name": "Hidden", "visibility": "hide" }
+          ]
+        }
+        """.write(to: providerCache.url, atomically: true, encoding: .utf8)
+
+        let userCache = userCodex.file("models_cache.json")
+        try """
+        {
+          "fetched_at": "2026-02-25T12:01:00Z",
+          "models": [
+            { "slug": "gpt-5-codex", "display_name": "GPT-5 Codex", "visibility": "list" },
+            { "slug": "gpt-5-mini", "display_name": "GPT-5 Mini", "visibility": "list" }
+          ]
+        }
+        """.write(to: userCache.url, atomically: true, encoding: .utf8)
+
+        try """
+        model = "gpt-5-codex"
+        model_reasoning_effort = "high"
+        """.write(to: providerHome.file("config.toml").url, atomically: true, encoding: .utf8)
+
+        let previousHome = getenv("HOME").map { String(cString: $0) }
+        setenv("HOME", root.url.path, 1)
+        defer {
+            if let previousHome {
+                setenv("HOME", previousHome, 1)
+            }
+        }
+
+        let service = CodexModelPreferenceService(homeDirectoryPath: { root.url.path })
+        let snapshot = service.loadModelsCache(for: provider)
+        #expect(snapshot.sourcePath == providerCache.url.path)
+        #expect(snapshot.models.count == 2)
+        #expect(service.loadVisibleModelSlugs(for: provider) == ["gpt-5-codex", "gpt-5-mini"])
+        #expect(service.loadConfiguredModel(for: provider) == "gpt-5-codex")
+        #expect(service.loadConfiguredReasoningEffort(for: provider) == "high")
+    }
+
+    @Test("CodexModelPreferenceService saves and clears configured model")
+    func codexModelPreferenceServiceSavesConfiguredModel() async throws {
+        let root = try STFolder(sanbox: .temporary)
+            .folder("nolon-codex-pref-save-\(UUID().uuidString)")
+            .create()
+        defer { try? root.deleteIncludingBrokenSymlink() }
+
+        let providerHome = root.folder("provider-codex")
+        let providerSkills = providerHome.folder("skills")
+        _ = providerSkills.createIfNotExists()
+        let provider = Provider(
+            kind: .vendor,
+            name: "Codex",
+            defaultSkillsPath: providerSkills.url.path,
+            workflowPath: providerHome.folder("prompts").url.path,
+            templateId: "codex"
+        )
+
+        let manager = CodexBinaryManager(
+            homeURL: root.url,
+            nolonHomeURL: root.folder(".nolon").url
+        )
+        let service = CodexModelPreferenceService(homeDirectoryPath: { root.url.path })
+
+        let saved = try await service.saveSelectedModel("  gpt-5.3-codex  ", for: provider, manager: manager)
+        #expect(saved == "gpt-5.3-codex")
+        #expect(service.loadConfiguredModel(for: provider) == "gpt-5.3-codex")
+
+        let cleared = try await service.saveSelectedModel(nil, for: provider, manager: manager)
+        #expect(cleared == nil)
+        #expect(service.loadConfiguredModel(for: provider) == nil)
     }
 
     @Test("RemoteRepository local clone exposes STFolder view while keeping URL compatibility")
@@ -764,5 +863,11 @@ struct NolonResourceKitTests {
                 now: now
             ) == false
         )
+    }
+
+    @Test("RemoteRefreshPolicy centralizes app-facing refresh delays")
+    func remoteRefreshPolicyDelays() {
+        #expect(RemoteRefreshPolicy.installPropagationDelay == 0.35)
+        #expect(RemoteRefreshPolicy.repositorySelectionDelay == 0.35)
     }
 }

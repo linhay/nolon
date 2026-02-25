@@ -154,6 +154,7 @@ let package = Package(
             dependencies: [
                 "ProvidersShared",
                 "ProviderCatalog",
+                "CodexProvider",
                 .product(name: "SKProcessRunner", package: "SKProcessRunner"),
                 .product(name: "STFilePath", package: "STFilePath"),
                 .product(name: "STJSON", package: "STJSON"),
