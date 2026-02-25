@@ -3317,6 +3317,16 @@ struct NolonCoreCLIKitTests {
         #expect(help.contains("nolon skills add xcode --provider codex\n") == false)
     }
 
+    @Test("skills help text renders one-parameter-per-line with comments")
+    func skillsHelpTextRendersOneParameterPerLineWithComments() {
+        let help = NolonCoreCLIHelpResolver.resolvedHelpText(arguments: ["skills"]) ?? ""
+        #expect(help.contains("  list\n"))
+        #expect(help.contains("--provider <id>|--provider-id <id>           # 按 provider 过滤"))
+        #expect(help.contains("--state installed|orphaned|broken            # 按状态过滤"))
+        #expect(help.contains("--dry-run                                    # 仅预览，不落盘"))
+        #expect(help.contains("  list      [--provider <id>|--provider-id <id>]") == false)
+    }
+
     @Test("skills list help summary reflects default abnormal-focus behavior")
     func skillsListHelpSummaryReflectsDefaultAbnormalFocus() {
         let help = NolonRootCommand.message(for: CleanExit.helpRequest(NolonSkillsListCommand.self))
