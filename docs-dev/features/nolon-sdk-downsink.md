@@ -83,3 +83,25 @@
    - `ProviderDetailGridViewModel` 使用 `ProviderResourceSnapshotService`。
 6. CLI 同步：
    - `NolonLiveSkillsRepositoryService.listRemoteResources` 改走 `RemoteCatalogQueryService`，与 app 共用同一查询策略与数据源路由。
+
+## 迁移收口进展（2026-02-25 / 一次性收口·第二批）
+1. 资源视图映射下沉（SDK）：
+   - 新增 `ProviderResourceViewMapper`，统一将 `ProviderResourceItem` 映射为 workflow/rule/agent 的 UI 视图数据。
+   - App `ProviderDetailGridViewModel` 改为通过 `ProviderResourceSnapshotService + ProviderResourceViewMapper` 产出三类视图数据，删除本地重复扫描/解析分支。
+2. 仓库草稿与校验下沉（SDK）：
+   - 新增 `RepositoryDraftService`（默认模板、导入 URL 解析、重复校验）。
+   - App `AddRepositoryViewModel` 的 `pendingImportURL` 处理、名称自动推断、重复校验全部改走 SDK。
+3. 远端分页缓存下沉（SDK）：
+   - 新增 `RemoteCatalogPagingStore`，统一缓存键、分页上限、cache-buster 判定、错误缓存。
+   - App `RemoteSkillsGridViewModel` 改为使用该 store 管理分页状态与缓存命中。
+4. Usage 聚合策略下沉（SDK）：
+   - 新增 `ProviderUsageSnapshotService`，统一 usage outcome 的成功/失败/credits/latest 聚合口径。
+   - App `ProviderUsageViewModel` 接入该聚合服务并暴露 `usageAggregate`。
+5. CLI 文本渲染同步（SDK -> CLI）：
+   - 新增 `RemoteSearchTextPresenter`（workflow/mcp 搜索文本渲染）。
+   - CLI `NolonCoreCLIRunner.formatResourceSearchText` 改为调用该 presenter，仅保留数据映射。
+6. 测试与验证：
+   - 新增 SDK 测试覆盖：`ProviderResourceViewMapper`、`RepositoryDraftService`、`RemoteCatalogPagingStore`、`ProviderUsageSnapshotService`、`RemoteSearchTextPresenter`。
+   - `swift test --package-path libs/Providers --filter NolonResourceKitTests` 通过（40 tests）。
+   - `swift test --package-path libs/Providers --filter NolonCoreCLIKitTests` 通过（189 tests）。
+   - `./build.sh` 通过。
