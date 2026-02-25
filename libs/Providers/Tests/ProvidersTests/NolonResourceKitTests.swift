@@ -1044,4 +1044,132 @@ struct NolonResourceKitTests {
         #expect(snapshot.agents.count == 1)
         #expect(snapshot.mcps.contains(where: { $0.name == mcpName }))
     }
+
+    @Test("ProviderResourceViewMapper maps workflow/rule/agent view models")
+    func providerResourceViewMapperMapsItems() {
+        let mapper = ProviderResourceViewMapper()
+        let snapshot = ProviderResourceSnapshot(
+            workflows: [
+                .init(kind: .workflow, id: "b", name: "B", path: "/tmp/b.md", preview: "desc b", source: .mcp),
+                .init(kind: .workflow, id: "a", name: "A", path: "/tmp/a.md", preview: "desc a", source: .skill),
+            ],
+            rules: [
+                .init(kind: .rule, id: "default", name: "default", path: "/tmp/default.rules", preview: "rule", relativePath: "default.rules"),
+            ],
+            agents: [
+                .init(kind: .agent, id: "/tmp/AGENTS.override.md", name: "AGENTS.override.md", path: "/tmp/AGENTS.override.md", preview: "override", agentKind: .override),
+            ],
+            mcps: [],
+            mcpCacheStates: [:]
+        )
+
+        let mapped = mapper.map(snapshot: snapshot)
+        #expect(mapped.workflows.map(\.id) == ["a", "b"])
+        #expect(mapped.workflows.first?.source == .skill)
+        #expect(mapped.rules.first?.relativePath == "default.rules")
+        #expect(mapped.agents.first?.kind == .override)
+    }
+
+    @Test("RepositoryDraftService validates duplicates and parses imported URL")
+    func repositoryDraftServiceValidationAndImport() {
+        let service = RepositoryDraftService()
+        let existing: [RemoteRepository] = [
+            .init(name: "Repo1", templateType: .git, gitURL: "https://github.com/acme/repo1"),
+            .init(name: "Local1", templateType: .localFolder, localPath: "/tmp/skills"),
+        ]
+
+        let duplicateName = service.validate(
+            .init(
+                selectedTemplate: .git,
+                repositoryName: "Repo1",
+                gitURL: "https://github.com/acme/new",
+                localPath: "",
+                repositories: existing,
+                editingRepositoryID: nil
+            )
+        )
+        #expect(duplicateName == "A repository with this name already exists.")
+
+        let duplicateGit = service.validate(
+            .init(
+                selectedTemplate: .git,
+                repositoryName: "Repo2",
+                gitURL: "git@github.com:acme/repo1.git",
+                localPath: "",
+                repositories: existing,
+                editingRepositoryID: nil
+            )
+        )
+        #expect(duplicateGit == "This Git repository has already been added.")
+
+        let imported = service.importedDraft(from: "https://github.com/acme/repo2/tree/main/skills")
+        #expect(imported.template == .git)
+        #expect(imported.name == "repo2")
+        #expect(imported.normalizedGitURL == "https://github.com/acme/repo2.git")
+        #expect(imported.skillsPaths == ["tree/main/skills"])
+    }
+
+    @Test("RemoteCatalogPagingStore keeps page limits and cache-buster behavior")
+    func remoteCatalogPagingStoreTracksPagingState() {
+        let store = RemoteCatalogPagingStore(pageSize: 20, maxLimit: 60)
+        let key = store.key(repositoryID: "repo", kind: .skill, query: "git")
+        #expect(store.currentLimit(for: key) == 20)
+        #expect(store.nextLimit(for: key) == 40)
+
+        store.saveSuccess(
+            for: key,
+            items: [
+                .init(kind: .skill, slug: "gitlab-cli-skills", displayName: "GitLab CLI Skills", summary: nil, latestVersion: "1.0.0", updatedAt: nil, downloads: nil, stars: nil, installs: nil),
+            ],
+            cacheBuster: "v1",
+            limit: 40,
+            canLoadMore: true
+        )
+
+        #expect(store.currentLimit(for: key) == 40)
+        #expect(store.nextLimit(for: key) == 60)
+        #expect(store.shouldUseCachedResult(for: key, cacheBuster: "v1"))
+        #expect(!store.shouldUseCachedResult(for: key, cacheBuster: "v2"))
+    }
+
+    @Test("ProviderUsageSnapshotService aggregates status and latest update")
+    func providerUsageSnapshotServiceAggregates() {
+        let service = ProviderUsageSnapshotService()
+        let old = Date(timeIntervalSince1970: 1_700_000_000)
+        let new = Date(timeIntervalSince1970: 1_700_100_000)
+        let aggregate = service.aggregate(
+            items: [
+                .init(id: "a", status: .success, updatedAt: old, hasCredits: true),
+                .init(id: "b", status: .failure, updatedAt: nil, hasCredits: false),
+                .init(id: "c", status: .success, updatedAt: new, hasCredits: false),
+            ]
+        )
+        #expect(aggregate.totalCount == 3)
+        #expect(aggregate.successCount == 2)
+        #expect(aggregate.failureCount == 1)
+        #expect(aggregate.creditsReadyCount == 1)
+        #expect(aggregate.latestUpdatedAt == new)
+    }
+
+    @Test("RemoteSearchTextPresenter renders empty and non-empty search results")
+    func remoteSearchTextPresenterRenders() {
+        let presenter = RemoteSearchTextPresenter()
+        let empty = presenter.render(
+            .init(kind: .workflow, baseURL: "https://clawdhub.com", query: "abc", items: [])
+        )
+        #expect(empty.contains("未找到匹配 workflow"))
+
+        let nonEmpty = presenter.render(
+            .init(
+                kind: .mcp,
+                baseURL: "https://clawdhub.com",
+                query: "playwright",
+                items: [
+                    .init(slug: "playwright-mcp", summary: "browser automation", latestVersion: "1.0.0", updatedAt: Date(timeIntervalSince1970: 1_700_000_000)),
+                ]
+            )
+        )
+        #expect(nonEmpty.contains("匹配结果: 1 (query: playwright)"))
+        #expect(nonEmpty.contains("nolon mcp add <slug> --provider codex --dry-run"))
+    }
 }
