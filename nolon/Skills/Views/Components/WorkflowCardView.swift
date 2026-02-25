@@ -47,19 +47,6 @@ struct WorkflowInfo: Identifiable, Hashable {
     let description: String
     let path: String
     let source: WorkflowSource
-    
-    static func parse(from url: URL) -> WorkflowInfo? {
-        let service = ProviderResourceService()
-        guard let item = service.parseWorkflow(atPath: url.path) else { return nil }
-        let source = WorkflowSource(kind: item.source ?? .unknown)
-        return WorkflowInfo(
-            id: item.id,
-            name: item.name,
-            description: item.preview,
-            path: item.path,
-            source: source
-        )
-    }
 }
 
 /// Workflow 卡片视图

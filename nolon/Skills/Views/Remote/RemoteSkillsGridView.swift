@@ -24,6 +24,7 @@ final class RemoteSkillsGridViewModel {
     private var currentLoadID: UUID?
     private let queryService = RemoteCatalogQueryService()
     private let pagingStore = RemoteCatalogPagingStore(pageSize: 20, maxLimit: 200)
+    private let itemMapper = RemoteCatalogItemMapper()
 
     private func mapKind(_ tab: RemoteContentTabType) -> SkillsRepositoryFacade.RemoteCatalogKind {
         switch tab {
@@ -36,43 +37,6 @@ final class RemoteSkillsGridViewModel {
         }
     }
 
-    private func mapSkill(_ item: SkillsRepositoryFacade.RemoteCatalogItem) -> RemoteSkill {
-        RemoteSkill(
-            slug: item.slug,
-            displayName: item.displayName,
-            summary: item.summary,
-            latestVersion: item.latestVersion,
-            updatedAt: item.updatedAt,
-            downloads: item.downloads,
-            stars: item.stars
-        )
-    }
-
-    private func mapWorkflow(_ item: SkillsRepositoryFacade.RemoteCatalogItem) -> RemoteWorkflow {
-        RemoteWorkflow(
-            slug: item.slug,
-            displayName: item.displayName,
-            summary: item.summary,
-            latestVersion: item.latestVersion,
-            updatedAt: item.updatedAt,
-            downloads: item.downloads,
-            stars: item.stars
-        )
-    }
-
-    private func mapMCP(_ item: SkillsRepositoryFacade.RemoteCatalogItem) -> RemoteMCP {
-        RemoteMCP(
-            slug: item.slug,
-            displayName: item.displayName,
-            summary: item.summary,
-            latestVersion: item.latestVersion,
-            updatedAt: item.updatedAt,
-            downloads: item.downloads,
-            stars: item.stars,
-            installs: item.installs
-        )
-    }
-    
     // 过滤逻辑现在在这里
     func filteredSkills(searchText: String) -> [RemoteSkill] {
         if searchText.isEmpty {
@@ -162,7 +126,7 @@ final class RemoteSkillsGridViewModel {
 
             switch tab {
             case .skills:
-                let result = queryResult.items.map(mapSkill)
+                let result = queryResult.items.map { itemMapper.toRemoteSkill($0) }
                 guard currentLoadID == loadID else { return }
                 skills = result
                 canLoadMore = loadMoreEnabled
@@ -174,7 +138,7 @@ final class RemoteSkillsGridViewModel {
                     canLoadMore: loadMoreEnabled
                 )
             case .workflows:
-                let result = queryResult.items.map(mapWorkflow)
+                let result = queryResult.items.map { itemMapper.toRemoteWorkflow($0) }
                 guard currentLoadID == loadID else { return }
                 workflows = result
                 canLoadMore = loadMoreEnabled
@@ -186,7 +150,7 @@ final class RemoteSkillsGridViewModel {
                     canLoadMore: loadMoreEnabled
                 )
             case .mcps:
-                let result = queryResult.items.map(mapMCP)
+                let result = queryResult.items.map { itemMapper.toRemoteMCP($0) }
                 guard currentLoadID == loadID else { return }
                 mcps = result
                 canLoadMore = loadMoreEnabled
@@ -248,7 +212,7 @@ final class RemoteSkillsGridViewModel {
             )
             switch tab {
             case .skills:
-                let result = queryResult.items.map(mapSkill)
+                let result = queryResult.items.map { itemMapper.toRemoteSkill($0) }
                 guard currentLoadID == loadID else { return }
                 skills = result
                 let canLoad = queryResult.canLoadMore && nextLimit < pagingStore.maxLimit
@@ -261,7 +225,7 @@ final class RemoteSkillsGridViewModel {
                     canLoadMore: canLoad
                 )
             case .workflows:
-                let result = queryResult.items.map(mapWorkflow)
+                let result = queryResult.items.map { itemMapper.toRemoteWorkflow($0) }
                 guard currentLoadID == loadID else { return }
                 workflows = result
                 let canLoad = queryResult.canLoadMore && nextLimit < pagingStore.maxLimit
@@ -274,7 +238,7 @@ final class RemoteSkillsGridViewModel {
                     canLoadMore: canLoad
                 )
             case .mcps:
-                let result = queryResult.items.map(mapMCP)
+                let result = queryResult.items.map { itemMapper.toRemoteMCP($0) }
                 guard currentLoadID == loadID else { return }
                 mcps = result
                 let canLoad = queryResult.canLoadMore && nextLimit < pagingStore.maxLimit
@@ -294,47 +258,11 @@ final class RemoteSkillsGridViewModel {
             let cachedItems: [SkillsRepositoryFacade.RemoteCatalogItem]
             switch tab {
             case .skills:
-                cachedItems = skills.map {
-                    SkillsRepositoryFacade.RemoteCatalogItem(
-                        kind: .skill,
-                        slug: $0.slug,
-                        displayName: $0.displayName,
-                        summary: $0.summary,
-                        latestVersion: $0.latestVersion,
-                        updatedAt: $0.updatedAt,
-                        downloads: $0.downloads,
-                        stars: $0.stars,
-                        installs: nil
-                    )
-                }
+                cachedItems = skills.map { itemMapper.toCatalogItem($0) }
             case .workflows:
-                cachedItems = workflows.map {
-                    SkillsRepositoryFacade.RemoteCatalogItem(
-                        kind: .workflow,
-                        slug: $0.slug,
-                        displayName: $0.displayName,
-                        summary: $0.summary,
-                        latestVersion: $0.latestVersion,
-                        updatedAt: $0.updatedAt,
-                        downloads: $0.downloads,
-                        stars: $0.stars,
-                        installs: nil
-                    )
-                }
+                cachedItems = workflows.map { itemMapper.toCatalogItem($0) }
             case .mcps:
-                cachedItems = mcps.map {
-                    SkillsRepositoryFacade.RemoteCatalogItem(
-                        kind: .mcp,
-                        slug: $0.slug,
-                        displayName: $0.displayName,
-                        summary: $0.summary,
-                        latestVersion: $0.latestVersion,
-                        updatedAt: $0.updatedAt,
-                        downloads: $0.downloads,
-                        stars: $0.stars,
-                        installs: $0.installs
-                    )
-                }
+                cachedItems = mcps.map { itemMapper.toCatalogItem($0) }
             }
             pagingStore.saveError(
                 for: cacheKey,
@@ -349,17 +277,17 @@ final class RemoteSkillsGridViewModel {
     private func applyCached(_ cached: RemoteCatalogPageEntry, for tab: RemoteContentTabType) {
         switch tab {
         case .skills:
-            skills = cached.items.map(mapSkill)
+            skills = cached.items.map { itemMapper.toRemoteSkill($0) }
             workflows = []
             mcps = []
         case .workflows:
             skills = []
-            workflows = cached.items.map(mapWorkflow)
+            workflows = cached.items.map { itemMapper.toRemoteWorkflow($0) }
             mcps = []
         case .mcps:
             skills = []
             workflows = []
-            mcps = cached.items.map(mapMCP)
+            mcps = cached.items.map { itemMapper.toRemoteMCP($0) }
         }
 
         errorMessage = cached.errorMessage

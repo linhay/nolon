@@ -1,6 +1,4 @@
 import SwiftUI
-import NolonResourceKit
-import ProviderCatalog
 
 enum AgentDocKind: String, Sendable {
     case override
@@ -13,28 +11,6 @@ struct AgentDocInfo: Identifiable, Hashable, Sendable {
     let path: String
     let preview: String
     let kind: AgentDocKind
-
-    static func parse(url: URL, kind: AgentDocKind) -> AgentDocInfo? {
-        let service = ProviderResourceService()
-        let codexHome = url.deletingLastPathComponent()
-        let provider = Provider(
-            kind: .vendor,
-            name: "Codex",
-            defaultSkillsPath: codexHome.appendingPathComponent("skills").path,
-            workflowPath: codexHome.appendingPathComponent("prompts").path
-        )
-        let expectedKind: ProviderAgentKind = kind == .override ? .override : .base
-        guard let parsed = service.scanAgentDocs(provider: provider).first(where: { $0.path == url.path && $0.agentKind == expectedKind }) else {
-            return nil
-        }
-        return AgentDocInfo(
-            id: url.path,
-            fileName: parsed.name,
-            path: parsed.path,
-            preview: parsed.preview,
-            kind: kind
-        )
-    }
 }
 
 struct AgentDocCardView: View {
