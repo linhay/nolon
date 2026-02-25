@@ -2,55 +2,7 @@ import SwiftUI
 import ProviderCatalog
 import NolonResourceKit
 import Observation
-import STFilePath
-import STJSON
-import TOML
 import OSLog
-
-enum RemoteMCPInstallStatusResolver {
-    static func slugsFromGlobalCache(at mcpsURL: URL) -> Set<String> {
-        let folder = STFolder(mcpsURL)
-        guard folder.isExists, let files = try? folder.files() else { return [] }
-
-        return Set(
-            files.compactMap { file in
-                let name = file.url.lastPathComponent
-                guard !name.hasPrefix(".") else { return nil }
-                if file.url.pathExtension.lowercased() == "json" {
-                    return file.url.deletingPathExtension().lastPathComponent
-                }
-                return name
-            }
-        )
-    }
-
-    static func slugsFromProviderConfig(at configURL: URL, templateId: String) -> Set<String> {
-        guard STFile(configURL).isExists, let data = try? Data(contentsOf: configURL), !data.isEmpty else {
-            return []
-        }
-
-        if configURL.pathExtension.lowercased() == "toml" {
-            guard let config = try? TOMLDecoder().decode(CodexMCPConfig.self, from: data) else {
-                return []
-            }
-            return Set((config.mcpServers ?? [:]).keys)
-        }
-
-        guard let root = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
-            return []
-        }
-
-        if templateId == "opencode" {
-            return Set((root["mcp"] as? [String: Any] ?? [:]).keys)
-        }
-
-        if let servers = root["mcpServers"] as? [String: Any] {
-            return Set(servers.keys)
-        }
-
-        return Set((root["mcp_servers"] as? [String: Any] ?? [:]).keys)
-    }
-}
 
 @Observable
 final class RemoteSkillsBrowserViewModel {
@@ -64,6 +16,7 @@ final class RemoteSkillsBrowserViewModel {
     var installedWorkflowSlugs: Set<String> = []
     var installedMcpSlugs: Set<String> = []
     var refreshTrigger: Int = 0
+    private let statusService = InstalledResourceStatusService()
     
     /// 刷新已安装技能列表
     /// - Parameters:
@@ -75,74 +28,28 @@ final class RemoteSkillsBrowserViewModel {
     ///   - 无 targetProvider → 检查全局仓库
     @MainActor
     func refreshInstalledSkills(repository: SkillRepository, targetProvider: Provider?, settings: ProviderSettings) {
-        if let provider = targetProvider {
-            // 有目标 Provider → 检查该 Provider 中的安装状态
-            let installer = SkillInstaller(repository: repository, settings: settings)
-            do {
-                let states = try installer.scanProvider(provider: provider)
-                installedSlugs = Set(states.filter { $0.state == .installed }.map { $0.skillName })
-            } catch {
-                Self.logger.error("Failed to scan provider: \(error.localizedDescription, privacy: .public)")
-                installedSlugs = []
-            }
-        } else {
-            // 无目标 Provider → 检查全局仓库
-            do {
-                let skills = try repository.listSkills()
-                installedSlugs = Set(skills.map { $0.id })
-            } catch {
-                Self.logger.error("Failed to load installed skills: \(error.localizedDescription, privacy: .public)")
-                installedSlugs = []
-            }
+        do {
+            installedSlugs = try statusService.installedSkillIDs(
+                provider: targetProvider,
+                repository: repository,
+                settings: settings
+            )
+        } catch {
+            Self.logger.error("Failed to scan provider: \(error.localizedDescription, privacy: .public)")
+            installedSlugs = []
         }
     }
 
     /// 刷新已安装 workflow 列表（仅针对目标 Provider）
     @MainActor
     func refreshInstalledWorkflows(targetProvider: Provider?) {
-        guard let provider = targetProvider else {
-            installedWorkflowSlugs = []
-            return
-        }
-
-        let path = provider.workflowPath
-        let folder = STFolder(path)
-        
-        guard folder.isExists else {
-            installedWorkflowSlugs = []
-            return
-        }
-
-        do {
-            let contents = try folder.files()
-            installedWorkflowSlugs = Set(
-                contents
-                    .filter { $0.url.pathExtension == "md" }
-                    .map { $0.url.deletingPathExtension().lastPathComponent }
-            )
-        } catch {
-            installedWorkflowSlugs = []
-        }
+        installedWorkflowSlugs = statusService.installedWorkflowIDs(provider: targetProvider)
     }
 
     /// 刷新已安装 MCP 列表
     @MainActor
     func refreshInstalledMCPs(targetProvider: Provider?) {
-        guard let provider = targetProvider else {
-            installedMcpSlugs = RemoteMCPInstallStatusResolver.slugsFromGlobalCache(at: NolonManager.shared.mcpsURL)
-            return
-        }
-
-        guard let templateId = provider.templateId,
-              let template = ProviderTemplate(rawValue: templateId) else {
-            installedMcpSlugs = []
-            return
-        }
-
-        installedMcpSlugs = RemoteMCPInstallStatusResolver.slugsFromProviderConfig(
-            at: template.defaultMcpConfigPath,
-            templateId: templateId
-        )
+        installedMcpSlugs = statusService.installedMcpIDs(provider: targetProvider)
     }
 
     /// 根据搜索文本过滤技能

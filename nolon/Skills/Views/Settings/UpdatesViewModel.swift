@@ -1,15 +1,11 @@
 import Foundation
 import Observation
 import SwiftUI
-import os.log
-import STFilePath
-import ProviderCatalog
 import NolonResourceKit
 
 @MainActor
 @Observable
 final class UpdatesViewModel {
-    private let logger = Logger(subsystem: "com.nolon", category: "UpdatesViewModel")
     var availableUpdates: [SkillUpdateInfo] = []
     var isChecking = false
     var isUpdating = false
@@ -17,9 +13,12 @@ final class UpdatesViewModel {
     var lastCheckDate: Date?
     var updateProgress: String?
     
-    private let updateChecker = SkillUpdateChecker()
-    private let settings = ProviderSettings()
+    private let updateOrchestrator: SkillUpdateOrchestrator
     
+    init(updateOrchestrator: SkillUpdateOrchestrator = .init()) {
+        self.updateOrchestrator = updateOrchestrator
+    }
+
     var updatableCount: Int {
         availableUpdates.filter { $0.hasUpdate }.count
     }
@@ -32,7 +31,7 @@ final class UpdatesViewModel {
         isChecking = true
         defer { isChecking = false }
         
-        availableUpdates = await updateChecker.checkForUpdates()
+        availableUpdates = await updateOrchestrator.checkForUpdates()
         lastCheckDate = Date()
     }
     
@@ -49,15 +48,10 @@ final class UpdatesViewModel {
         }
         
         do {
-            switch update.updateSource {
-            case .clawdhub:
-                try await updateClawdhubSkill(update)
-            case .github:
-                try await updateGitSkill(update)
-            default:
-                errorMessage = "Update not supported for this source"
+            let result = try await updateOrchestrator.update(update)
+            if let warning = result.warnings.first {
+                errorMessage = warning
             }
-            
             await refresh()
         } catch {
             errorMessage = "Update failed: \(error.localizedDescription)"
@@ -71,33 +65,5 @@ final class UpdatesViewModel {
         for update in updatesToApply {
             await performUpdate(update)
         }
-    }
-    
-    private func updateClawdhubSkill(_ update: SkillUpdateInfo) async throws {
-        let zipURL = try await SkillsRepositoryFacade.downloadRemoteResource(
-            kind: .skill,
-            slug: update.id,
-            version: nil,
-            baseURL: RepositoryTemplate.clawdhub.createRepository().baseURL
-        )
-        defer {
-            try? STPath(zipURL).deleteIncludingBrokenSymlink()
-        }
-        
-        let repo = SkillRepository()
-        let installer = SkillInstaller(repository: repo, settings: settings)
-        
-        let updatedSkill = try installer.updateSkillGlobal(slug: update.id, zipURL: zipURL)
-        
-        for provider in settings.providers {
-            do {
-                try installer.install(skill: updatedSkill, to: provider)
-            } catch {
-                logger.error("Failed to install updated skill \(update.id, privacy: .public) to provider \(provider.name, privacy: .public): \(error.localizedDescription, privacy: .public)")
-            }
-        }
-    }
-    
-    private func updateGitSkill(_ update: SkillUpdateInfo) async throws {
     }
 }

@@ -2,27 +2,12 @@ import SwiftUI
 import AppKit
 import ProviderCatalog
 import CodexProvider
-import STJSON
-import TOML
 import STFilePath
 import OSLog
 import NolonResourceKit
 import SKProcessRunner
 
 private let terminalLogger = Logger(subsystem: "com.nolon", category: "TerminalDetection")
-
-// Minimal TOML model for Codex-style config.toml
-private struct CodexMCPConfigLite: Codable {
-    var mcpServers: [String: CodexMCPServerLite]?
-    
-    enum CodingKeys: String, CodingKey {
-        case mcpServers = "mcp_servers"
-    }
-}
-
-private struct CodexMCPServerLite: Codable {
-    var enabled: Bool?
-}
 
 private enum CodexTerminalLauncher {
     static func launchCLI(command: String, in app: CodexTerminalApp) throws {
@@ -238,11 +223,11 @@ final class ProviderContentTabViewModel {
     var terminalErrorMessage: String?
     
     private let repository = SkillRepository()
-    private let installer: SkillInstaller
+    private let summaryService: ProviderResourceSummaryService
     private let binaryManager: CodexBinaryManager
     
     init(settings: ProviderSettings, binaryManager: CodexBinaryManager = .shared) {
-        self.installer = SkillInstaller(repository: repository, settings: settings)
+        self.summaryService = ProviderResourceSummaryService(repository: repository, settings: settings)
         self.binaryManager = binaryManager
     }
     
@@ -269,107 +254,16 @@ final class ProviderContentTabViewModel {
             mcpCount = 0
             return
         }
-        
-        // Skills count
-        do {
-            let states = try installer.scanProvider(provider: provider)
-            skillsCount = states.filter { $0.state == .installed }.count
-        } catch {
-            Self.logger.error("Failed to count skills: \(String(describing: error), privacy: .public)")
-            skillsCount = 0
-        }
-        
-        // Workflows count
-        let workflowPath = provider.workflowPath
-        let workflowFolder = STFolder(workflowPath)
-        if let contents = try? workflowFolder.files() {
-            workflowsCount = contents.filter { $0.url.pathExtension == "md" }.count
-        } else {
-            workflowsCount = 0
-        }
-
-        // Rules count (Codex only)
-        if isCodexProvider(provider) {
-            rulesCount = Self.countRulesFiles(in: provider.codexRulesURL)
-            agentsCount = Self.countAgentsFiles(
-                baseURL: provider.codexAgentsFileURL,
-                overrideURL: provider.codexAgentsOverrideFileURL
-            )
-        } else {
-            rulesCount = 0
-            agentsCount = 0
-        }
-        
-        // MCP count
-        if let templateId = provider.templateId,
-           let template = ProviderTemplate(rawValue: templateId) {
-           let configPath = template.defaultMcpConfigPath
-            guard STFile(configPath).isExists else {
-                mcpCount = 0
-                return
-            }
-            
-            if configPath.pathExtension.lowercased() == "toml" {
-                guard let data = try? Data(contentsOf: configPath),
-                      !data.isEmpty,
-                      let decoded = try? TOMLDecoder().decode(CodexMCPConfigLite.self, from: data),
-                      let servers = decoded.mcpServers
-                else {
-                    mcpCount = 0
-                    return
-                }
-                mcpCount = servers.count
-            } else {
-                guard let data = try? Data(contentsOf: configPath),
-                      let json = try? JSON(data: data)
-                else {
-                    mcpCount = 0
-                    return
-                }
-
-                if template.rawValue == "opencode" {
-                    mcpCount = json["mcp"].dictionary?.count ?? 0
-                } else {
-                    mcpCount = (json["mcpServers"].dictionary ?? json["mcp_servers"].dictionary)?.count ?? 0
-                }
-            }
-        } else {
-            mcpCount = 0
-        }
+        let summary = summaryService.summarize(provider: provider)
+        skillsCount = summary.skillsCount
+        workflowsCount = summary.workflowsCount
+        rulesCount = summary.rulesCount
+        agentsCount = summary.agentsCount
+        mcpCount = summary.mcpCount
     }
 
     func isCodexProvider(_ provider: Provider) -> Bool {
         provider.templateId == "codex" || provider.templateId == "codexXcode"
-    }
-
-    private static func countRulesFiles(in directoryURL: URL) -> Int {
-        let fileManager = FileManager.default
-        guard fileManager.fileExists(atPath: directoryURL.path) else { return 0 }
-
-        let enumerator = fileManager.enumerator(
-            at: directoryURL,
-            includingPropertiesForKeys: [.isRegularFileKey],
-            options: [.skipsHiddenFiles]
-        )
-
-        var count = 0
-        while let next = enumerator?.nextObject() as? URL {
-            guard next.pathExtension.lowercased() == "rules" else { continue }
-            guard let values = try? next.resourceValues(forKeys: [.isRegularFileKey]),
-                  values.isRegularFile == true else {
-                continue
-            }
-            count += 1
-        }
-        return count
-    }
-
-    private static func countAgentsFiles(baseURL: URL, overrideURL: URL) -> Int {
-        let fileManager = FileManager.default
-        var count = 0
-        if fileManager.fileExists(atPath: overrideURL.path) { count += 1 }
-        if fileManager.fileExists(atPath: baseURL.path) { count += 1 }
-        return count
     }
 
     func refreshTerminalApps(for provider: Provider?) {

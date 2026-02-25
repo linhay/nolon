@@ -16,7 +16,7 @@ final class ProviderSkillsViewModel {
     
     private var repository: SkillRepository
     private var installer: SkillInstaller
-    private var updateChecker: SkillUpdateChecker
+    private var updateOrchestrator: SkillUpdateOrchestrator
     var settings: ProviderSettings
 
     init() {
@@ -25,7 +25,7 @@ final class ProviderSkillsViewModel {
         self.repository = repo
         self.settings = sett
         self.installer = SkillInstaller(repository: repo, settings: sett)
-        self.updateChecker = SkillUpdateChecker()
+        self.updateOrchestrator = SkillUpdateOrchestrator(repository: repo, settings: sett)
     }
     
     var selectedProvider: Provider? {
@@ -115,7 +115,7 @@ final class ProviderSkillsViewModel {
         isCheckingUpdates = true
         defer { isCheckingUpdates = false }
         
-        availableUpdates = await updateChecker.checkForUpdates()
+        availableUpdates = await updateOrchestrator.checkForUpdates()
     }
     
     func skillHasUpdate(_ skillName: String) -> Bool {
@@ -126,22 +126,11 @@ final class ProviderSkillsViewModel {
         guard let provider = selectedProvider else { return }
         
         do {
-            switch update.updateSource {
-            case .clawdhub:
-                let zipURL = try await SkillsRepositoryFacade.downloadRemoteResource(
-                    kind: .skill,
-                    slug: update.id,
-                    version: nil,
-                    baseURL: RepositoryTemplate.clawdhub.createRepository().baseURL
-                )
-                defer {
-                    try? STPath(zipURL).deleteIncludingBrokenSymlink()
-                }
-                try installer.updateSkill(slug: update.id, to: provider, zipURL: zipURL)
-            default:
-                break
+            let result = try await updateOrchestrator.update(update)
+            if !result.appliedProviderIDs.contains(provider.id),
+               let warning = result.warnings.first {
+                errorMessage = warning
             }
-            
             await loadProviderStates()
             await checkForUpdates()
         } catch {
