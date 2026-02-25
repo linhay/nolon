@@ -3307,6 +3307,17 @@ struct NolonCoreCLIKitTests {
         #expect(help.contains("场景: 修复异常"))
     }
 
+    @Test("remote help text renders one-parameter-per-line with comments")
+    func remoteHelpTextRendersOneParameterPerLineWithComments() {
+        let help = NolonCoreCLIHelpResolver.resolvedHelpText(arguments: ["remote"]) ?? ""
+        #expect(help.contains("  list\n"))
+        #expect(help.contains("--kind skill|workflow|mcp                    # 资源类型（必填）"))
+        #expect(help.contains("--slug <slug>                                # 资源标识（必填）"))
+        #expect(help.contains("skill 目标:"))
+        #expect(help.contains("workflow/mcp 目标:"))
+        #expect(help.contains("  list      --kind skill|workflow|mcp") == false)
+    }
+
     @Test("skills help text contains safe install scenario")
     func skillsHelpTextContainsSafeInstallScenario() {
         let help = NolonCoreCLIHelpResolver.resolvedHelpText(arguments: ["skills"]) ?? ""

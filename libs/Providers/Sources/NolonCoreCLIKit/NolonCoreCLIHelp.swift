@@ -180,15 +180,51 @@ enum NolonCoreCLIHelpResolver {
         Usage: nolon remote <action> [options]
 
         Actions:
-          list      --kind skill|workflow|mcp [--query <text>] [--limit <n>] [--base-url <url>]
-          download  --kind skill|workflow|mcp --slug <slug> [--version <ver>] [--base-url <url>]
-          sync      --source <git/ref> --repositories-root <path> [--access-token <token>] [--pull-strategy ff-only|rebase|merge] [--credential-strategy automatic|prefer-ssh|token-only|ssh-only] [--max-depth <n>]
-          sync-install --kind skill|workflow|mcp --source <git/ref> --repositories-root <path> (--path <repo-relative-or-absolute-path> | --slug <resource-slug>) [--strict-selector true|false]
-                    skill:   (--provider-path <path> | --provider-id <id>) [--skill-id <id>] [--install-method symlink|copy]
-                    workflow/mcp: (--target-path <path> | --provider-id <id>) [--resource-name <name>] [--install-method symlink|copy]
-          install   --kind skill|workflow|mcp --slug <slug> [--version <ver>] [--base-url <url>]
-                    skill:   (--provider-path <path> | --provider-id <id>) [--skill-id <id>] [--install-method symlink|copy]
-                    workflow/mcp: (--target-path <path> | --provider-id <id>) [--resource-name <name>] [--install-method symlink|copy]
+          list
+            --kind skill|workflow|mcp                    # 资源类型（必填）
+            --query <text>                               # 搜索关键词（可选）
+            --limit <n>                                  # 返回条数上限（可选）
+            --base-url <url>                             # 远端 API 地址（可选）
+          download
+            --kind skill|workflow|mcp                    # 资源类型（必填）
+            --slug <slug>                                # 资源标识（必填）
+            --version <ver>                              # 指定版本（可选）
+            --base-url <url>                             # 远端 API 地址（可选）
+          sync
+            --source <git/ref>                           # 远程仓库来源（必填）
+            --repositories-root <path>                   # 本地仓库根目录（必填）
+            --access-token <token>                       # 私仓访问令牌（可选）
+            --pull-strategy ff-only|rebase|merge         # 拉取策略（可选）
+            --credential-strategy automatic|prefer-ssh|token-only|ssh-only  # 凭据策略（可选）
+            --max-depth <n>                              # 扫描深度（可选）
+          sync-install
+            --kind skill|workflow|mcp                    # 资源类型（必填）
+            --source <git/ref>                           # 远程仓库来源（必填）
+            --repositories-root <path>                   # 本地仓库根目录（必填）
+            --path <repo-relative-or-absolute-path>      # 本地文件路径（二选一）
+            --slug <resource-slug>                       # 资源 slug（二选一）
+            --strict-selector true|false                 # 是否启用严格匹配（可选）
+            skill 目标:
+              --provider-path <path> | --provider-id <id>  # 安装目标（二选一）
+              --skill-id <id>                              # 覆盖安装名（可选）
+              --install-method symlink|copy                # 安装方式（可选）
+            workflow/mcp 目标:
+              --target-path <path> | --provider-id <id>    # 安装目标（二选一）
+              --resource-name <name>                       # 覆盖资源名（可选）
+              --install-method symlink|copy                # 安装方式（可选）
+          install
+            --kind skill|workflow|mcp                    # 资源类型（必填）
+            --slug <slug>                                # 资源标识（必填）
+            --version <ver>                              # 指定版本（可选）
+            --base-url <url>                             # 远端 API 地址（可选）
+            skill 目标:
+              --provider-path <path> | --provider-id <id>  # 安装目标（二选一）
+              --skill-id <id>                              # 覆盖安装名（可选）
+              --install-method symlink|copy                # 安装方式（可选）
+            workflow/mcp 目标:
+              --target-path <path> | --provider-id <id>    # 安装目标（二选一）
+              --resource-name <name>                       # 覆盖资源名（可选）
+              --install-method symlink|copy                # 安装方式（可选）
         """
     }
 }
