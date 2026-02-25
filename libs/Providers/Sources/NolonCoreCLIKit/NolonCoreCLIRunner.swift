@@ -2696,6 +2696,10 @@ public struct NolonCoreCLIRunner: Sendable {
             } else {
                 lines.append("未发现异常技能（\(orphanedLabel)/损坏）。")
             }
+            if result.stateFilter == nil {
+                let installedCommand = Self.copyableCommand("nolon skills list\(Self.listFilterSuffix(provider: result.providerFilter, state: .installed))")
+                lines.append("如需查看已安装技能，请执行: `\(installedCommand)`")
+            }
             if showFixes {
                 lines.append("")
                 lines.append("[下一步（可复制执行）]")
@@ -3072,6 +3076,10 @@ public struct NolonCoreCLIRunner: Sendable {
                 lines.append("在 state=\(localizedState ?? Self.localizedStateLabel(stateFilter)) 下，未发现匹配\(resourceDisplayLabel)。")
             } else {
                 lines.append("未发现异常\(resourceDisplayLabel)（\(orphanedLabel)/损坏）。")
+            }
+            if result.stateFilter == nil {
+                let installedCommand = Self.copyableCommand("nolon \(kind.rawValue) list\(Self.listFilterSuffix(provider: result.providerFilter, state: .installed))")
+                lines.append("如需查看已安装\(resourceDisplayLabel)，请执行: `\(installedCommand)`")
             }
             if showFixes {
                 lines.append("")

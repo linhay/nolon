@@ -3302,6 +3302,7 @@ struct NolonCoreCLIKitTests {
         #expect(result.stdout.contains("[结论]"))
         if result.stdout.contains("需处理异常: 0") {
             #expect(result.stdout.contains("在 provider=codex 下，未发现异常工作流资源（失效链接/损坏）。"))
+            #expect(result.stdout.contains("如需查看已安装工作流资源，请执行: `nolon workflow list --provider codex --state installed`"))
             #expect(result.stdout.contains("[下一步（可复制执行）]") == false)
             #expect(result.stdout.contains("摘要:") == false)
         } else {
@@ -3336,6 +3337,9 @@ struct NolonCoreCLIKitTests {
         #expect(result.exitCode == 0)
         #expect(result.stdout.contains("筛选-提供方: codex"))
         #expect(result.stdout.contains("mcp_total: "))
+        if result.stdout.contains("需处理异常: 0") {
+            #expect(result.stdout.contains("如需查看已安装 MCP 资源，请执行: `nolon mcp list --provider codex --state installed`"))
+        }
     }
 
     @Test("runner mcp show-fixes prints explicit no-op hint when no issues")
@@ -3757,6 +3761,7 @@ struct NolonCoreCLIKitTests {
         if result.stdout.contains("需处理异常: 0") {
             #expect(result.stdout.contains("修复建议（可复制）:") == false)
             #expect(result.stdout.contains("未发现异常工作流资源（失效链接/损坏）。"))
+            #expect(result.stdout.contains("如需查看已安装工作流资源，请执行: `nolon workflow list --state installed`"))
         } else {
             #expect(result.stdout.contains("修复建议（可复制）:"))
             #expect(result.stdout.contains("1) 生成分条修复命令: `nolon workflow list --show-fixes`"))
