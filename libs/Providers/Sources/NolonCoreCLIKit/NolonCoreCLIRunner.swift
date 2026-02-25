@@ -3274,25 +3274,27 @@ public struct NolonCoreCLIRunner: Sendable {
     }
 
     static func originDescriptionForDisplay(_ origin: NolonResourceOrigin) -> String {
-        let sourceLabel: String = {
-            switch origin.sourceType {
-            case .local:
-                return "本地"
-            case .remote:
-                return "远端"
-            case .fromSkill:
-                return "技能"
-            case .fromWorkflow:
-                return "工作流"
-            case .fromMcp:
-                return "MCP"
-            case .unknown:
-                return "未知"
-            }
-        }()
+        let sourceLabel = localizedSourceTypeLabel(origin.sourceType)
         let compactRef = compactSourceReference(origin.sourceRef)
         let inferredSuffix = origin.metadata["inferred"] == "true" ? " [推断]" : ""
         return "\(sourceLabel)(\(compactRef))\(inferredSuffix)"
+    }
+
+    private static func localizedSourceTypeLabel(_ type: NolonResourceSourceType) -> String {
+        switch type {
+        case .local:
+            return "本地"
+        case .remote:
+            return "远端"
+        case .fromSkill:
+            return "技能"
+        case .fromWorkflow:
+            return "工作流"
+        case .fromMcp:
+            return "MCP"
+        case .unknown:
+            return "未知"
+        }
     }
 
     private static func compactSourceReference(_ raw: String, maxLength: Int = 72) -> String {
