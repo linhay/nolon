@@ -2,6 +2,7 @@ import SwiftUI
 import STFilePath
 import STJSON
 import TOML
+import NolonResourceKit
 
 struct McpConfigEditorView: View {
     let configURL: URL
