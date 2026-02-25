@@ -1562,6 +1562,9 @@ public enum NolonCLIEntrypoint {
         if let coreHelp = NolonCoreCLIHelpResolver.resolvedHelpText(arguments: cleaned) {
             return coreHelp
         }
+        if let codexHelp = NolonCodexCLIHelpResolver.resolvedHelpText(arguments: cleaned + ["--help"]) {
+            return codexHelp
+        }
         guard let target = helpTargetType(for: cleaned) else {
             return nil
         }
