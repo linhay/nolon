@@ -210,8 +210,7 @@ enum NolonCodexCLIHelpResolver {
         """
         Usage: nolon codex auth list [options]
 
-        Options:
-          --provider <id>   Provider id, default is codex.
+          --provider <id>                             # 指定 provider（可选，默认 codex）
         """
     }
 
@@ -219,12 +218,11 @@ enum NolonCodexCLIHelpResolver {
         """
         Usage: nolon codex auth usage [options]
 
-        Options:
-          --provider <id>   Provider id, default is codex.
-          --summary         Show aggregated summary only.
-          --refresh         Refresh usage cache before rendering output.
-          --account-id <id> Account id UUID for usage refresh target (requires --refresh).
-          --email <value>   Account email for usage refresh target (requires --refresh, case-insensitive).
+          --provider <id>                             # 指定 provider（可选，默认 codex）
+          --summary                                   # 仅输出汇总（可选）
+          --refresh                                   # 输出前刷新用量缓存（可选）
+          --account-id <id>                           # 刷新指定账号（需与 --refresh 一起使用）
+          --email <value>                             # 按邮箱刷新指定账号（需与 --refresh 一起使用）
         """
     }
 
@@ -232,8 +230,7 @@ enum NolonCodexCLIHelpResolver {
         """
         Usage: nolon codex auth status [options]
 
-        Options:
-          --provider <id>   Provider id, default is codex.
+          --provider <id>                             # 指定 provider（可选，默认 codex）
         """
     }
 
@@ -241,11 +238,10 @@ enum NolonCodexCLIHelpResolver {
         """
         Usage: nolon codex auth refresh [--provider <id>] [--account-id <uuid>|--email <email>]
 
-        Options:
-          --provider <id>     Provider id, default is codex.
-          --account-id <id>   Refresh only the target account id UUID and switch active account to it.
-          --email <value>     Refresh only the target account email (case-insensitive) and switch active account to it.
-          (no target)         Refresh all accounts and keep current active account unchanged.
+          --provider <id>                             # 指定 provider（可选，默认 codex）
+          --account-id <id>                           # 刷新指定账号并切换为活跃账号（可选）
+          --email <value>                             # 按邮箱刷新并切换为活跃账号（可选）
+          (未指定账号)                                 # 刷新全部账号，保持当前活跃账号不变
         """
     }
 
@@ -253,11 +249,10 @@ enum NolonCodexCLIHelpResolver {
         """
         Usage: nolon codex auth activate [--account-id <uuid>|--email <email>] [--provider <id>]
 
-        Options:
-          --provider <id>     Provider id, default is codex.
-          --account-id <id>   Account id UUID. Omit to use default interactive picker.
-          --email <value>     Activate by account email (case-insensitive).
-          --tui               Alias flag; interactive picker is already default when account id is omitted.
+          --provider <id>                             # 指定 provider（可选，默认 codex）
+          --account-id <id>                           # 按账号 ID 激活（可选）
+          --email <value>                             # 按邮箱激活（可选）
+          --tui                                       # 显式使用交互选择（可选；不传账号时默认即为交互）
         """
     }
 
@@ -265,9 +260,8 @@ enum NolonCodexCLIHelpResolver {
         """
         Usage: nolon codex auth login [--provider <id>] [--preferred-account-id <uuid>]
 
-        Options:
-          --provider <id>               Provider id, default is codex.
-          --preferred-account-id <id>   Preferred account id UUID for snapshot update.
+          --provider <id>                             # 指定 provider（可选，默认 codex）
+          --preferred-account-id <id>                 # 指定优先账号 ID（可选）
         """
     }
 
@@ -275,9 +269,8 @@ enum NolonCodexCLIHelpResolver {
         """
         Usage: nolon codex auth delete --account-id <uuid> [--provider <id>]
 
-        Options:
-          --provider <id>     Provider id, default is codex.
-          --account-id <id>   Account id UUID.
+          --provider <id>                             # 指定 provider（可选，默认 codex）
+          --account-id <id>                           # 账号 ID（必填）
         """
     }
 
@@ -285,8 +278,8 @@ enum NolonCodexCLIHelpResolver {
         """
         Usage: nolon codex binary install <version-or-tag> [--set-default]
 
-        Options:
-          --set-default       Activate this version after install.
+          <version-or-tag>                            # 版本号或标签（必填）
+          --set-default                               # 安装后立即切换为当前版本（可选）
         """
     }
 
@@ -324,8 +317,7 @@ enum NolonCodexCLIHelpResolver {
         """
         Usage: nolon codex binary use --version <version-or-id>
 
-        Options:
-          --version <value>   Version id or semantic version.
+          --version <value>                           # 版本 ID 或语义化版本号（必填）
         """
     }
 
@@ -333,8 +325,7 @@ enum NolonCodexCLIHelpResolver {
         """
         Usage: nolon codex status probe [--provider <id>]
 
-        Options:
-          --provider <id>   Provider id for reporting context.
+          --provider <id>                             # 指定 provider（可选）
         """
     }
 
@@ -354,10 +345,9 @@ enum NolonCodexCLIHelpResolver {
         """
         Usage: nolon codex runtime stop --pid <pid> [--force] [--timeout-seconds <n>]
 
-        Options:
-          --pid <value>             Target runtime pid.
-          --force                   Send SIGKILL immediately.
-          --timeout-seconds <n>     Timeout seconds before escalating TERM to KILL.
+          --pid <pid>                                 # 进程 PID（必填）
+          --force                                     # 立即强制结束（可选）
+          --timeout-seconds <n>                       # 温和结束超时阈值（可选）
         """
     }
 

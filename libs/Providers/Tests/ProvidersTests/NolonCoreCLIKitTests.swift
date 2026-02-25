@@ -3327,6 +3327,26 @@ struct NolonCoreCLIKitTests {
         #expect(help.contains("  list      [--provider codex|codex-xcode]") == false)
     }
 
+    @Test("codex auth usage action help renders one-parameter-per-line with comments")
+    func codexAuthUsageActionHelpRendersOneParameterPerLineWithComments() {
+        let help = NolonCodexCLIHelpResolver.resolvedHelpText(arguments: ["codex", "auth", "usage", "--help"]) ?? ""
+        #expect(help.contains("Usage: nolon codex auth usage [options]"))
+        #expect(help.contains("--provider <id>                             # 指定 provider（可选"))
+        #expect(help.contains("--summary                                   # 仅输出汇总（可选）"))
+        #expect(help.contains("--refresh                                   # 输出前刷新用量缓存（可选）"))
+        #expect(help.contains("Options:") == false)
+    }
+
+    @Test("codex runtime stop action help renders one-parameter-per-line with comments")
+    func codexRuntimeStopActionHelpRendersOneParameterPerLineWithComments() {
+        let help = NolonCodexCLIHelpResolver.resolvedHelpText(arguments: ["codex", "runtime", "stop", "--help"]) ?? ""
+        #expect(help.contains("Usage: nolon codex runtime stop --pid <pid> [--force] [--timeout-seconds <n>]"))
+        #expect(help.contains("--pid <pid>                                 # 进程 PID（必填）"))
+        #expect(help.contains("--force                                     # 立即强制结束（可选）"))
+        #expect(help.contains("--timeout-seconds <n>                       # 温和结束超时阈值（可选）"))
+        #expect(help.contains("Options:") == false)
+    }
+
     @Test("skills help text contains safe install scenario")
     func skillsHelpTextContainsSafeInstallScenario() {
         let help = NolonCoreCLIHelpResolver.resolvedHelpText(arguments: ["skills"]) ?? ""
