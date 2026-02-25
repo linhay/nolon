@@ -122,6 +122,22 @@ public enum NolonCoreCLICommand: Sendable, Equatable {
         resourceName: String,
         targetPath: String
     )
+    case workflowBindSkill(
+        skillID: String,
+        targetPath: String
+    )
+    case workflowBindMcp(
+        mcpName: String,
+        targetPath: String
+    )
+    case workflowUnbindSkill(
+        skillID: String,
+        targetPath: String
+    )
+    case workflowUnbindMcp(
+        mcpName: String,
+        targetPath: String
+    )
     case workflowSync(
         source: String,
         repositoriesRoot: String,
@@ -170,6 +186,35 @@ public enum NolonCoreCLICommand: Sendable, Equatable {
     case mcpRemove(
         resourceName: String,
         targetPath: String
+    )
+    case mcpServerList(
+        provider: String
+    )
+    case mcpServerSetEnabled(
+        provider: String,
+        name: String,
+        enabled: Bool
+    )
+    case mcpServerUpsert(
+        provider: String,
+        name: String,
+        url: String?,
+        command: String?,
+        args: [String],
+        env: [String: String],
+        enabled: Bool?
+    )
+    case mcpServerRemove(
+        provider: String,
+        name: String
+    )
+    case mcpCacheMigrate(
+        provider: String,
+        overwrite: Bool
+    )
+    case mcpCacheStatus(
+        provider: String,
+        name: String?
     )
     case mcpSync(
         source: String,
@@ -279,6 +324,10 @@ public enum NolonCoreCLICommand: Sendable, Equatable {
         case .workflowSearch: "workflow.search"
         case .workflowAdd: "workflow.add"
         case .workflowRemove: "workflow.remove"
+        case .workflowBindSkill: "workflow.bind-skill"
+        case .workflowBindMcp: "workflow.bind-mcp"
+        case .workflowUnbindSkill: "workflow.unbind-skill"
+        case .workflowUnbindMcp: "workflow.unbind-mcp"
         case .workflowSync: "workflow.sync"
         case .workflowInstall: "workflow.install"
         case .workflowUninstall: "workflow.uninstall"
@@ -287,6 +336,12 @@ public enum NolonCoreCLICommand: Sendable, Equatable {
         case .mcpSearch: "mcp.search"
         case .mcpAdd: "mcp.add"
         case .mcpRemove: "mcp.remove"
+        case .mcpServerList: "mcp.server.list"
+        case .mcpServerSetEnabled: "mcp.server.set-enabled"
+        case .mcpServerUpsert: "mcp.server.upsert"
+        case .mcpServerRemove: "mcp.server.remove"
+        case .mcpCacheMigrate: "mcp.cache.migrate"
+        case .mcpCacheStatus: "mcp.cache.status"
         case .mcpSync: "mcp.sync"
         case .mcpInstall: "mcp.install"
         case .mcpUninstall: "mcp.uninstall"
@@ -681,7 +736,7 @@ public enum NolonCoreCLICommandParser {
 
     private static func parseWorkflow(_ arguments: [String]) throws -> NolonCoreCLICommand {
         guard let action = arguments.first else {
-            throw NolonCoreCLIError.invalidArguments("Missing workflow action: list|search|add|remove|sync")
+            throw NolonCoreCLIError.invalidArguments("Missing workflow action: list|search|add|remove|bind-skill|bind-mcp|unbind-skill|unbind-mcp|sync")
         }
         let options = Array(arguments.dropFirst())
         if action == "list" {
@@ -747,6 +802,34 @@ public enum NolonCoreCLICommandParser {
             }
             throw NolonCoreCLIError.invalidArguments("Missing required option: --target-path")
         }
+        if action == "bind-skill" {
+            let skillID = try readRequiredOption("--skill-id", in: options)
+            if let explicit = readOption("--target-path", in: options), !explicit.isEmpty {
+                return .workflowBindSkill(skillID: skillID, targetPath: explicit)
+            }
+            throw NolonCoreCLIError.invalidArguments("Missing required option: --target-path")
+        }
+        if action == "bind-mcp" {
+            let mcpName = try readRequiredOption("--mcp-name", in: options)
+            if let explicit = readOption("--target-path", in: options), !explicit.isEmpty {
+                return .workflowBindMcp(mcpName: mcpName, targetPath: explicit)
+            }
+            throw NolonCoreCLIError.invalidArguments("Missing required option: --target-path")
+        }
+        if action == "unbind-skill" {
+            let skillID = try readRequiredOption("--skill-id", in: options)
+            if let explicit = readOption("--target-path", in: options), !explicit.isEmpty {
+                return .workflowUnbindSkill(skillID: skillID, targetPath: explicit)
+            }
+            throw NolonCoreCLIError.invalidArguments("Missing required option: --target-path")
+        }
+        if action == "unbind-mcp" {
+            let mcpName = try readRequiredOption("--mcp-name", in: options)
+            if let explicit = readOption("--target-path", in: options), !explicit.isEmpty {
+                return .workflowUnbindMcp(mcpName: mcpName, targetPath: explicit)
+            }
+            throw NolonCoreCLIError.invalidArguments("Missing required option: --target-path")
+        }
         if action == "sync" {
             let source = try readRequiredOption("--source", in: options)
             let repositoriesRoot = readOption("--repositories-root", in: options) ?? NolonCoreCLIPathDefaults.repositoriesRootPath()
@@ -761,14 +844,82 @@ public enum NolonCoreCLICommandParser {
                 credentialStrategy: credentialStrategy
             )
         }
-        throw NolonCoreCLIError.invalidArguments("Unsupported workflow action: \(action). Expected: list|search|add|remove|sync")
+        throw NolonCoreCLIError.invalidArguments("Unsupported workflow action: \(action). Expected: list|search|add|remove|bind-skill|bind-mcp|unbind-skill|unbind-mcp|sync")
     }
 
     private static func parseMcp(_ arguments: [String]) throws -> NolonCoreCLICommand {
         guard let action = arguments.first else {
-            throw NolonCoreCLIError.invalidArguments("Missing mcp action: list|search|add|remove|sync")
+            throw NolonCoreCLIError.invalidArguments("Missing mcp action: list|search|add|remove|server|cache|sync")
         }
         let options = Array(arguments.dropFirst())
+        if action == "server" {
+            guard let sub = options.first else {
+                throw NolonCoreCLIError.invalidArguments("Missing mcp server action: list|set-enabled|upsert|remove")
+            }
+            let subOptions = Array(options.dropFirst())
+            let provider = try readRequiredOption("--provider", in: subOptions)
+            if sub == "list" {
+                return .mcpServerList(provider: provider)
+            }
+            if sub == "set-enabled" {
+                let name = try readRequiredOption("--name", in: subOptions)
+                let enabledFlag = readFlag("--enabled", in: subOptions)
+                let disabledFlag = readFlag("--disabled", in: subOptions)
+                if enabledFlag == disabledFlag {
+                    throw NolonCoreCLIError.invalidArguments("Use exactly one flag: --enabled or --disabled")
+                }
+                return .mcpServerSetEnabled(provider: provider, name: name, enabled: enabledFlag)
+            }
+            if sub == "upsert" {
+                let name = try readRequiredOption("--name", in: subOptions)
+                let url = readOption("--url", in: subOptions)
+                let command = readOption("--command", in: subOptions)
+                let args = readMultiOption("--arg", in: subOptions)
+                let env = try parseEnvAssignments(readMultiOption("--env", in: subOptions))
+                let enabledFlag = readFlag("--enabled", in: subOptions)
+                let disabledFlag = readFlag("--disabled", in: subOptions)
+                let enabled: Bool?
+                if enabledFlag && disabledFlag {
+                    throw NolonCoreCLIError.invalidArguments("Use only one flag: --enabled or --disabled")
+                } else if enabledFlag {
+                    enabled = true
+                } else if disabledFlag {
+                    enabled = false
+                } else {
+                    enabled = nil
+                }
+                return .mcpServerUpsert(
+                    provider: provider,
+                    name: name,
+                    url: url,
+                    command: command,
+                    args: args,
+                    env: env,
+                    enabled: enabled
+                )
+            }
+            if sub == "remove" {
+                let name = try readRequiredOption("--name", in: subOptions)
+                return .mcpServerRemove(provider: provider, name: name)
+            }
+            throw NolonCoreCLIError.invalidArguments("Unsupported mcp server action: \(sub). Expected: list|set-enabled|upsert|remove")
+        }
+        if action == "cache" {
+            guard let sub = options.first else {
+                throw NolonCoreCLIError.invalidArguments("Missing mcp cache action: migrate|status")
+            }
+            let subOptions = Array(options.dropFirst())
+            let provider = try readRequiredOption("--provider", in: subOptions)
+            if sub == "migrate" {
+                let overwrite = readFlag("--overwrite", in: subOptions)
+                return .mcpCacheMigrate(provider: provider, overwrite: overwrite)
+            }
+            if sub == "status" {
+                let name = readOption("--name", in: subOptions)
+                return .mcpCacheStatus(provider: provider, name: name)
+            }
+            throw NolonCoreCLIError.invalidArguments("Unsupported mcp cache action: \(sub). Expected: migrate|status")
+        }
         if action == "list" {
             let provider = readOption("--provider", in: options) ?? readOption("--provider-id", in: options)
             let includeEmpty = readFlag("--include-empty", in: options)
@@ -846,7 +997,7 @@ public enum NolonCoreCLICommandParser {
                 credentialStrategy: credentialStrategy
             )
         }
-        throw NolonCoreCLIError.invalidArguments("Unsupported mcp action: \(action). Expected: list|search|add|remove|sync")
+        throw NolonCoreCLIError.invalidArguments("Unsupported mcp action: \(action). Expected: list|search|add|remove|server|cache|sync")
     }
 
     private static func parseRemote(_ arguments: [String]) throws -> NolonCoreCLICommand {
@@ -1014,6 +1165,38 @@ public enum NolonCoreCLICommandParser {
 
     private static func readFlag(_ key: String, in arguments: [String]) -> Bool {
         arguments.contains(key)
+    }
+
+    private static func readMultiOption(_ key: String, in arguments: [String]) -> [String] {
+        var values: [String] = []
+        var index = 0
+        while index < arguments.count {
+            defer { index += 1 }
+            guard arguments[index] == key else { continue }
+            let valueIndex = index + 1
+            guard arguments.indices.contains(valueIndex) else { continue }
+            let value = arguments[valueIndex]
+            guard !value.hasPrefix("--") else { continue }
+            values.append(value)
+            index = valueIndex
+        }
+        return values
+    }
+
+    private static func parseEnvAssignments(_ values: [String]) throws -> [String: String] {
+        var env: [String: String] = [:]
+        for value in values {
+            let parts = value.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false)
+            guard parts.count == 2 else {
+                throw NolonCoreCLIError.invalidArguments("Invalid --env assignment: \(value). Expected KEY=VALUE")
+            }
+            let key = String(parts[0]).trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !key.isEmpty else {
+                throw NolonCoreCLIError.invalidArguments("Invalid --env assignment: \(value). Key cannot be empty")
+            }
+            env[key] = String(parts[1])
+        }
+        return env
     }
 
     private static func parseStateKind(_ raw: String?) throws -> NolonProviderSkillStateKind? {

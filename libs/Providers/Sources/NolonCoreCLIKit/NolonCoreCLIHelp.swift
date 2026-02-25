@@ -24,7 +24,8 @@ enum NolonCoreCLIHelpResolver {
 
         Subcommands:
           list
-            --provider <id>|--provider-id <id>           # 按 provider 过滤
+            --provider <id>                              # 按 provider 过滤
+            --provider-id <id>                           # provider 别名参数
             --state installed|orphaned|broken            # 按状态过滤
             --include-empty                              # 包含空 provider
             --verbose                                    # 显示完整路径与来源
@@ -127,6 +128,26 @@ enum NolonCoreCLIHelpResolver {
             --target-path <path>                         # 直接指定目录（三选一）
             --provider <id>                              # 指定 provider（三选一）
             --provider-id <id>                           # provider 别名参数（三选一）
+          bind-skill
+            --skill-id <id>                              # 技能 ID（必填）
+            --target-path <path>                         # 直接指定目录（二选一）
+            --provider <id>                              # 指定 provider（二选一）
+            --provider-id <id>                           # provider 别名参数（二选一）
+          bind-mcp
+            --mcp-name <name>                            # MCP 名称（必填）
+            --target-path <path>                         # 直接指定目录（二选一）
+            --provider <id>                              # 指定 provider（二选一）
+            --provider-id <id>                           # provider 别名参数（二选一）
+          unbind-skill
+            --skill-id <id>                              # 技能 ID（必填）
+            --target-path <path>                         # 直接指定目录（二选一）
+            --provider <id>                              # 指定 provider（二选一）
+            --provider-id <id>                           # provider 别名参数（二选一）
+          unbind-mcp
+            --mcp-name <name>                            # MCP 名称（必填）
+            --target-path <path>                         # 直接指定目录（二选一）
+            --provider <id>                              # 指定 provider（二选一）
+            --provider-id <id>                           # provider 别名参数（二选一）
 
         场景: 搜索工作流
           nolon workflow search xcode
@@ -159,13 +180,15 @@ enum NolonCoreCLIHelpResolver {
             --limit <n>                                  # 返回条数上限
             --base-url <url>                             # 远端 API 地址
             --install                                    # 直接安装匹配项
-            --provider <id>|--provider-id <id>           # 与 --install 一起使用，指定 provider
+            --provider <id>                              # 与 --install 一起使用，指定 provider
+            --provider-id <id>                           # provider 别名参数
             --install-method symlink|copy                # 与 --install 一起使用，指定安装方式
             --pick <index>                               # 与 --install 一起使用，选中候选序号
             --dry-run|--yes                              # 与 --install 一起使用，预览或确认执行
           add
             <slug>                                       # 资源标识（必填）
-            --provider <id>|--provider-id <id>           # 目标 provider（可选）
+            --provider <id>                              # 目标 provider（可选）
+            --provider-id <id>                           # provider 别名参数
             --version <ver>                              # 指定版本（可选）
             --install-method symlink|copy                # 安装方式（可选）
             --dry-run                                    # 仅预览，不落盘
@@ -174,6 +197,37 @@ enum NolonCoreCLIHelpResolver {
             --target-path <path>                         # 直接指定目录（三选一）
             --provider <id>                              # 指定 provider（三选一）
             --provider-id <id>                           # provider 别名参数（三选一）
+          server list
+            --provider <id>                              # provider（必填）
+            --provider-id <id>                           # provider 别名参数（必填）
+          server set-enabled
+            --provider <id>                              # provider（必填）
+            --provider-id <id>                           # provider 别名参数（必填）
+            --name <name>                                # 服务器名称（必填）
+            --enabled                                    # 启用（与 --disabled 二选一）
+            --disabled                                   # 禁用（与 --enabled 二选一）
+          server upsert
+            --provider <id>                              # provider（必填）
+            --provider-id <id>                           # provider 别名参数（必填）
+            --name <name>                                # 服务器名称（必填）
+            --url <url>                                  # 远程地址（可选）
+            --command <command>                          # 本地命令（可选）
+            --arg <value>                                # 命令参数（可重复）
+            --env KEY=VALUE                              # 环境变量（可重复）
+            --enabled                                    # 显式启用（可选）
+            --disabled                                   # 显式禁用（可选）
+          server remove
+            --provider <id>                              # provider（必填）
+            --provider-id <id>                           # provider 别名参数（必填）
+            --name <name>                                # 服务器名称（必填）
+          cache migrate
+            --provider <id>                              # provider（必填）
+            --provider-id <id>                           # provider 别名参数（必填）
+            --overwrite                                  # 覆盖已存在缓存（可选）
+          cache status
+            --provider <id>                              # provider（必填）
+            --provider-id <id>                           # provider 别名参数（必填）
+            --name <name>                                # 仅查询指定服务器（可选）
 
         场景: 搜索 MCP
           nolon mcp search xcode

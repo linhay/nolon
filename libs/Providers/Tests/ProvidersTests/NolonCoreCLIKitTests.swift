@@ -576,6 +576,99 @@ struct NolonCoreCLIKitTests {
         }
     }
 
+    @Test("parse mcp server list command")
+    func parseMcpServerList() throws {
+        let command = try NolonCoreCLIArgumentParser.parse(
+            ["mcp", "server", "list", "--provider", "codex"]
+        )
+        guard case let .mcpServerList(provider) = command else {
+            Issue.record("Expected .mcpServerList")
+            return
+        }
+        #expect(provider == "codex")
+    }
+
+    @Test("parse mcp server set-enabled command")
+    func parseMcpServerSetEnabled() throws {
+        let command = try NolonCoreCLIArgumentParser.parse(
+            ["mcp", "server", "set-enabled", "--provider", "codex", "--name", "playwright", "--disabled"]
+        )
+        guard case let .mcpServerSetEnabled(provider, name, enabled) = command else {
+            Issue.record("Expected .mcpServerSetEnabled")
+            return
+        }
+        #expect(provider == "codex")
+        #expect(name == "playwright")
+        #expect(enabled == false)
+    }
+
+    @Test("parse mcp cache status command")
+    func parseMcpCacheStatus() throws {
+        let command = try NolonCoreCLIArgumentParser.parse(
+            ["mcp", "cache", "status", "--provider", "codex", "--name", "playwright"]
+        )
+        guard case let .mcpCacheStatus(provider, name) = command else {
+            Issue.record("Expected .mcpCacheStatus")
+            return
+        }
+        #expect(provider == "codex")
+        #expect(name == "playwright")
+    }
+
+    @Test("parse workflow bind-skill command")
+    func parseWorkflowBindSkill() throws {
+        let command = try NolonCoreCLIArgumentParser.parse(
+            [
+                "workflow", "bind-skill",
+                "--skill-id", "find-skills",
+                "--target-path", "/tmp/workflows",
+            ]
+        )
+
+        guard case let .workflowBindSkill(skillID, targetPath) = command else {
+            Issue.record("Expected .workflowBindSkill")
+            return
+        }
+        #expect(skillID == "find-skills")
+        #expect(targetPath == "/tmp/workflows")
+    }
+
+    @Test("parse workflow bind-mcp command")
+    func parseWorkflowBindMcp() throws {
+        let command = try NolonCoreCLIArgumentParser.parse(
+            [
+                "workflow", "bind-mcp",
+                "--mcp-name", "playwright",
+                "--target-path", "/tmp/workflows",
+            ]
+        )
+
+        guard case let .workflowBindMcp(mcpName, targetPath) = command else {
+            Issue.record("Expected .workflowBindMcp")
+            return
+        }
+        #expect(mcpName == "playwright")
+        #expect(targetPath == "/tmp/workflows")
+    }
+
+    @Test("parse workflow unbind-skill command")
+    func parseWorkflowUnbindSkill() throws {
+        let command = try NolonCoreCLIArgumentParser.parse(
+            [
+                "workflow", "unbind-skill",
+                "--skill-id", "find-skills",
+                "--target-path", "/tmp/workflows",
+            ]
+        )
+
+        guard case let .workflowUnbindSkill(skillID, targetPath) = command else {
+            Issue.record("Expected .workflowUnbindSkill")
+            return
+        }
+        #expect(skillID == "find-skills")
+        #expect(targetPath == "/tmp/workflows")
+    }
+
     @Test("parse skills add command")
     func parseSkillsAdd() throws {
         let command = try NolonCoreCLIArgumentParser.parse(
@@ -3018,6 +3111,41 @@ struct NolonCoreCLIKitTests {
         #expect(result.stdout.contains("\"result\""))
     }
 
+    @Test("runner renders mcp server list text")
+    func runnerRendersMcpServerListText() async {
+        let runner = NolonCoreCLIRunner(
+            service: MockSkillsRepositoryService(),
+            fileReader: { _ in "" }
+        )
+
+        let result = await runner.execute(
+            arguments: ["mcp", "server", "list", "--provider", "codex"],
+            outputMode: .text
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stdout.contains("mcp server list"))
+        #expect(result.stdout.contains("provider: codex"))
+        #expect(result.stdout.contains("[servers]"))
+        #expect(result.stdout.contains("- name: playwright"))
+    }
+
+    @Test("runner renders mcp cache status json")
+    func runnerRendersMcpCacheStatusJSON() async {
+        let runner = NolonCoreCLIRunner(
+            service: MockSkillsRepositoryService(),
+            fileReader: { _ in "" }
+        )
+
+        let result = await runner.execute(
+            arguments: ["mcp", "cache", "status", "--provider", "codex"]
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stdout.contains("\"command\":\"mcp.cache.status\""))
+        #expect(result.stdout.contains("\"state\":\"migrated_up_to_date\""))
+    }
+
     @Test("mcp parser reads server names from toml sections")
     func parseMcpServerNamesFromToml() throws {
         let names = try NolonCoreCLIRunner.parseMCPServerNames(
@@ -3307,6 +3435,16 @@ struct NolonCoreCLIKitTests {
         #expect(help.contains("场景: 修复异常"))
     }
 
+    @Test("mcp help text includes server and cache subcommands")
+    func mcpHelpTextIncludesServerAndCacheSubcommands() {
+        let help = NolonCoreCLIHelpResolver.resolvedHelpText(arguments: ["mcp"]) ?? ""
+        #expect(help.contains("server list"))
+        #expect(help.contains("--name <name>                                # 服务器名称（必填）"))
+        #expect(help.contains("cache status"))
+        #expect(help.contains("--overwrite                                  # 覆盖已存在缓存（可选）"))
+        #expect(help.contains("  list      [--provider <id>|--provider-id <id>]") == false)
+    }
+
     @Test("remote help text renders one-parameter-per-line with comments")
     func remoteHelpTextRendersOneParameterPerLineWithComments() {
         let help = NolonCoreCLIHelpResolver.resolvedHelpText(arguments: ["remote"]) ?? ""
@@ -3361,7 +3499,8 @@ struct NolonCoreCLIKitTests {
     func skillsHelpTextRendersOneParameterPerLineWithComments() {
         let help = NolonCoreCLIHelpResolver.resolvedHelpText(arguments: ["skills"]) ?? ""
         #expect(help.contains("  list\n"))
-        #expect(help.contains("--provider <id>|--provider-id <id>           # 按 provider 过滤"))
+        #expect(help.contains("--provider <id>                              # 按 provider 过滤"))
+        #expect(help.contains("--provider-id <id>                           # provider 别名参数"))
         #expect(help.contains("--state installed|orphaned|broken            # 按状态过滤"))
         #expect(help.contains("--dry-run                                    # 仅预览，不落盘"))
         #expect(help.contains("  list      [--provider <id>|--provider-id <id>]") == false)
@@ -4072,6 +4211,95 @@ private struct SyncErrorMockSkillsRepositoryService: NolonSkillsRepositoryServin
         )
     }
 
+    func listMcpServers(provider: String) throws -> NolonMcpServerListResult {
+        NolonMcpServerListResult(
+            providerID: provider,
+            configPath: "/tmp/\(provider)/mcp_settings.json",
+            items: [
+                NolonMcpServerItem(
+                    name: "playwright",
+                    url: nil,
+                    command: "npx",
+                    args: ["@playwright/mcp@latest"],
+                    env: ["PLAYWRIGHT_HEADLESS": "1"],
+                    enabled: true
+                ),
+            ]
+        )
+    }
+
+    func setMcpServerEnabled(provider: String, name: String, enabled: Bool) throws -> NolonMcpServerMutationResult {
+        NolonMcpServerMutationResult(
+            providerID: provider,
+            configPath: "/tmp/\(provider)/mcp_settings.json",
+            name: name,
+            action: enabled ? "enabled" : "disabled"
+        )
+    }
+
+    func upsertMcpServer(
+        provider: String,
+        name: String,
+        url: String?,
+        command: String?,
+        args: [String],
+        env: [String: String],
+        enabled: Bool?
+    ) throws -> NolonMcpServerMutationResult {
+        _ = url
+        _ = command
+        _ = args
+        _ = env
+        _ = enabled
+        return NolonMcpServerMutationResult(
+            providerID: provider,
+            configPath: "/tmp/\(provider)/mcp_settings.json",
+            name: name,
+            action: "upserted"
+        )
+    }
+
+    func removeMcpServer(provider: String, name: String) throws -> NolonMcpServerMutationResult {
+        NolonMcpServerMutationResult(
+            providerID: provider,
+            configPath: "/tmp/\(provider)/mcp_settings.json",
+            name: name,
+            action: "removed"
+        )
+    }
+
+    func migrateMcpServersToCache(provider: String, overwrite: Bool) throws -> NolonMcpCacheMigrateResult {
+        _ = overwrite
+        return NolonMcpCacheMigrateResult(
+            providerID: provider,
+            configPath: "/tmp/\(provider)/mcp_settings.json",
+            migrated: 1,
+            skipped: 0,
+            updated: 0
+        )
+    }
+
+    func mcpCacheStatus(provider: String, name: String?) throws -> NolonMcpCacheStatusResult {
+        let allItems = [
+            NolonMcpCacheStatusItem(
+                name: "playwright",
+                state: .migratedUpToDate,
+                cachePath: "/tmp/.nolon/mcps/playwright.json"
+            ),
+        ]
+        let items: [NolonMcpCacheStatusItem]
+        if let name {
+            items = allItems.filter { $0.name == name }
+        } else {
+            items = allItems
+        }
+        return NolonMcpCacheStatusResult(
+            providerID: provider,
+            configPath: "/tmp/\(provider)/mcp_settings.json",
+            items: items
+        )
+    }
+
     func listRemoteResources(
         kind: NolonRemoteCatalogKind,
         query: String?,
@@ -4582,6 +4810,95 @@ private struct MockSkillsRepositoryService: NolonSkillsRepositoryServing {
             resourceName: resourceName,
             targetPath: targetPath.subpath(resourceName).url.path,
             removed: true
+        )
+    }
+
+    func listMcpServers(provider: String) throws -> NolonMcpServerListResult {
+        NolonMcpServerListResult(
+            providerID: provider,
+            configPath: "/tmp/\(provider)/mcp_settings.json",
+            items: [
+                NolonMcpServerItem(
+                    name: "playwright",
+                    url: nil,
+                    command: "npx",
+                    args: ["@playwright/mcp@latest"],
+                    env: ["PLAYWRIGHT_HEADLESS": "1"],
+                    enabled: true
+                ),
+            ]
+        )
+    }
+
+    func setMcpServerEnabled(provider: String, name: String, enabled: Bool) throws -> NolonMcpServerMutationResult {
+        NolonMcpServerMutationResult(
+            providerID: provider,
+            configPath: "/tmp/\(provider)/mcp_settings.json",
+            name: name,
+            action: enabled ? "enabled" : "disabled"
+        )
+    }
+
+    func upsertMcpServer(
+        provider: String,
+        name: String,
+        url: String?,
+        command: String?,
+        args: [String],
+        env: [String: String],
+        enabled: Bool?
+    ) throws -> NolonMcpServerMutationResult {
+        _ = url
+        _ = command
+        _ = args
+        _ = env
+        _ = enabled
+        return NolonMcpServerMutationResult(
+            providerID: provider,
+            configPath: "/tmp/\(provider)/mcp_settings.json",
+            name: name,
+            action: "upserted"
+        )
+    }
+
+    func removeMcpServer(provider: String, name: String) throws -> NolonMcpServerMutationResult {
+        NolonMcpServerMutationResult(
+            providerID: provider,
+            configPath: "/tmp/\(provider)/mcp_settings.json",
+            name: name,
+            action: "removed"
+        )
+    }
+
+    func migrateMcpServersToCache(provider: String, overwrite: Bool) throws -> NolonMcpCacheMigrateResult {
+        _ = overwrite
+        return NolonMcpCacheMigrateResult(
+            providerID: provider,
+            configPath: "/tmp/\(provider)/mcp_settings.json",
+            migrated: 1,
+            skipped: 0,
+            updated: 0
+        )
+    }
+
+    func mcpCacheStatus(provider: String, name: String?) throws -> NolonMcpCacheStatusResult {
+        let allItems = [
+            NolonMcpCacheStatusItem(
+                name: "playwright",
+                state: .migratedUpToDate,
+                cachePath: "/tmp/.nolon/mcps/playwright.json"
+            ),
+        ]
+        let items: [NolonMcpCacheStatusItem]
+        if let name {
+            items = allItems.filter { $0.name == name }
+        } else {
+            items = allItems
+        }
+        return NolonMcpCacheStatusResult(
+            providerID: provider,
+            configPath: "/tmp/\(provider)/mcp_settings.json",
+            items: items
         )
     }
 

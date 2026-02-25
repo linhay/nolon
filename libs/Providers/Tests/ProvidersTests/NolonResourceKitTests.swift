@@ -4,7 +4,7 @@ import Testing
 @testable import NolonResourceKit
 import ProviderCatalog
 
-@Suite("NolonResourceKit")
+@Suite("NolonResourceKit", .serialized)
 struct NolonResourceKitTests {
     @Test("NolonManager respects NOLON_HOME environment")
     func nolonManagerUsesEnvironment() throws {
@@ -71,5 +71,92 @@ struct NolonResourceKitTests {
 
         #expect(repo.localClonePath.standardizedFileURL.path == "/tmp/nolon-local-repo")
         #expect(repo.localCloneFolder.url.standardizedFileURL.path == repo.localClonePath.standardizedFileURL.path)
+    }
+
+    @Test("MCPConfigManager codex upsert/list/set-enabled/remove")
+    func mcpConfigManagerCodexCRUD() throws {
+        let root = try STFolder(sanbox: .temporary)
+            .folder("nolon-mcp-codex-\(UUID().uuidString)")
+            .create()
+        defer { try? root.deleteIncludingBrokenSymlink() }
+
+        let previousHome = getenv("HOME").map { String(cString: $0) }
+        setenv("HOME", root.url.path, 1)
+        defer {
+            if let previousHome {
+                setenv("HOME", previousHome, 1)
+            }
+        }
+
+        let serverName = "playwright-\(UUID().uuidString.prefix(8))"
+        defer { try? MCPConfigManager.removeServer(for: .codex, name: serverName) }
+
+        try MCPConfigManager.upsertServer(
+            for: .codex,
+            name: serverName,
+            serverConfig: [
+                "command": "npx",
+                "args": ["@playwright/mcp@latest"],
+                "enabled": true,
+            ]
+        )
+
+        var servers = try MCPConfigManager.listServers(for: .codex).filter { $0.name == serverName }
+        #expect(servers.count == 1)
+        #expect(servers.first?.name == serverName)
+        #expect(servers.first?.isEnabled == true)
+
+        try MCPConfigManager.setEnabled(for: .codex, name: serverName, enabled: false)
+        servers = try MCPConfigManager.listServers(for: .codex).filter { $0.name == serverName }
+        #expect(servers.first?.isEnabled == false)
+
+        try MCPConfigManager.removeServer(for: .codex, name: serverName)
+        servers = try MCPConfigManager.listServers(for: .codex).filter { $0.name == serverName }
+        #expect(servers.isEmpty)
+    }
+
+    @Test("MCPConfigManager cache migrate and status")
+    func mcpConfigManagerCacheMigrateAndStatus() throws {
+        let root = try STFolder(sanbox: .temporary)
+            .folder("nolon-mcp-cache-\(UUID().uuidString)")
+            .create()
+        defer { try? root.deleteIncludingBrokenSymlink() }
+
+        let previousHome = getenv("HOME").map { String(cString: $0) }
+        let previousNolonHome = getenv("NOLON_HOME").map { String(cString: $0) }
+        setenv("HOME", root.url.path, 1)
+        setenv("NOLON_HOME", root.folder(".nolon").url.path, 1)
+        defer {
+            if let previousHome {
+                setenv("HOME", previousHome, 1)
+            }
+            if let previousNolonHome {
+                setenv("NOLON_HOME", previousNolonHome, 1)
+            } else {
+                unsetenv("NOLON_HOME")
+            }
+        }
+
+        let serverName = "xcode-\(UUID().uuidString.prefix(8))"
+        defer { try? MCPConfigManager.removeServer(for: .codex, name: serverName) }
+
+        try MCPConfigManager.upsertServer(
+            for: .codex,
+            name: serverName,
+            serverConfig: [
+                "command": "xcode-mcp-proxy",
+                "enabled": true,
+            ]
+        )
+
+        let migrate = try MCPConfigManager.migrateServersToGlobalCache(for: .codex, overwrite: true)
+        #expect(migrate.migrated + migrate.updated >= 1)
+
+        let status = try MCPConfigManager.cacheStatus(for: .codex, name: serverName)
+        #expect(status.count == 1)
+        #expect(status.first?.name == serverName)
+        #expect(status.first?.state == .migratedUpToDate)
+        let cachePath = status.first?.cachePath ?? ""
+        #expect(STFile(cachePath).isExists == true)
     }
 }

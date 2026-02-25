@@ -637,6 +637,109 @@ public struct NolonRepositoryResources: Sendable, Equatable, Codable {
     }
 }
 
+public struct NolonMcpServerItem: Sendable, Equatable, Codable {
+    public let name: String
+    public let url: String?
+    public let command: String?
+    public let args: [String]?
+    public let env: [String: String]?
+    public let enabled: Bool
+
+    public init(
+        name: String,
+        url: String?,
+        command: String?,
+        args: [String]?,
+        env: [String: String]?,
+        enabled: Bool
+    ) {
+        self.name = name
+        self.url = url
+        self.command = command
+        self.args = args
+        self.env = env
+        self.enabled = enabled
+    }
+}
+
+public struct NolonMcpServerListResult: Sendable, Equatable, Codable {
+    public let providerID: String
+    public let configPath: String
+    public let items: [NolonMcpServerItem]
+
+    enum CodingKeys: String, CodingKey {
+        case providerID = "provider_id"
+        case configPath = "config_path"
+        case items
+    }
+
+    public init(providerID: String, configPath: String, items: [NolonMcpServerItem]) {
+        self.providerID = providerID
+        self.configPath = configPath
+        self.items = items
+    }
+}
+
+public struct NolonMcpServerMutationResult: Sendable, Equatable, Codable {
+    public let providerID: String
+    public let configPath: String
+    public let name: String
+    public let action: String
+
+    enum CodingKeys: String, CodingKey {
+        case providerID = "provider_id"
+        case configPath = "config_path"
+        case name
+        case action
+    }
+}
+
+public enum NolonMcpCacheState: String, Sendable, Equatable, Codable {
+    case notMigrated = "not_migrated"
+    case migratedUpToDate = "migrated_up_to_date"
+    case migratedNeedsUpdate = "migrated_needs_update"
+}
+
+public struct NolonMcpCacheStatusItem: Sendable, Equatable, Codable {
+    public let name: String
+    public let state: NolonMcpCacheState
+    public let cachePath: String
+
+    enum CodingKeys: String, CodingKey {
+        case name
+        case state
+        case cachePath = "cache_path"
+    }
+}
+
+public struct NolonMcpCacheStatusResult: Sendable, Equatable, Codable {
+    public let providerID: String
+    public let configPath: String
+    public let items: [NolonMcpCacheStatusItem]
+
+    enum CodingKeys: String, CodingKey {
+        case providerID = "provider_id"
+        case configPath = "config_path"
+        case items
+    }
+}
+
+public struct NolonMcpCacheMigrateResult: Sendable, Equatable, Codable {
+    public let providerID: String
+    public let configPath: String
+    public let migrated: Int
+    public let skipped: Int
+    public let updated: Int
+
+    enum CodingKeys: String, CodingKey {
+        case providerID = "provider_id"
+        case configPath = "config_path"
+        case migrated
+        case skipped
+        case updated
+    }
+}
+
 public struct NolonLocalRepositorySummary: Sendable, Equatable, Codable {
     public let name: String
     public let path: String

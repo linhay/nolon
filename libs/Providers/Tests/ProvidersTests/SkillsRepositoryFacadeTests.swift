@@ -404,4 +404,98 @@ struct SkillsRepositoryFacadeTests {
         #expect(staged.lastPathComponent == "folder-skill")
         #expect(STFile(staged.appendingPathComponent("SKILL.md")).isExists)
     }
+
+    @Test("bind workflow from skill creates global workflow and provider symlink")
+    func bindWorkflowFromSkillCreatesSymlink() throws {
+        let root = try makeTempRoot("workflow-bind-skill")
+        defer { try? root.delete() }
+
+        let nolonHome = root.folder("nolon-home")
+        _ = nolonHome.createIfNotExists()
+        let skillRoot = nolonHome.folder("skills").folder("xcode")
+        _ = skillRoot.createIfNotExists()
+        try Data(
+            """
+            ---
+            name: xcode
+            description: Xcode helper skill.
+            ---
+            """.utf8
+        ).write(to: skillRoot.file("SKILL.md").url)
+
+        let providerWorkflow = root.folder("provider-workflows")
+        _ = providerWorkflow.createIfNotExists()
+
+        let result = try SkillsRepositoryFacade.bindWorkflowFromSkill(
+            skillID: "xcode",
+            providerWorkflowPath: providerWorkflow.url,
+            nolonHome: nolonHome.url
+        )
+
+        #expect(result.source == .skill)
+        #expect(result.workflowFileName == "xcode.md")
+        #expect(STPath(result.globalWorkflowPath).isExists)
+        #expect(STPath(result.providerWorkflowPath).isSymbolicLink)
+        let linkedTo = try STPath(result.providerWorkflowPath).destinationOfSymbolicLink().url.path
+        #expect(linkedTo == result.globalWorkflowPath)
+    }
+
+    @Test("bind workflow from mcp creates global workflow and provider symlink")
+    func bindWorkflowFromMcpCreatesSymlink() throws {
+        let root = try makeTempRoot("workflow-bind-mcp")
+        defer { try? root.delete() }
+
+        let nolonHome = root.folder("nolon-home")
+        _ = nolonHome.createIfNotExists()
+        let providerWorkflow = root.folder("provider-workflows")
+        _ = providerWorkflow.createIfNotExists()
+
+        let result = try SkillsRepositoryFacade.bindWorkflowFromMCP(
+            mcpName: "playwright",
+            providerWorkflowPath: providerWorkflow.url,
+            nolonHome: nolonHome.url
+        )
+
+        #expect(result.source == .mcp)
+        #expect(result.workflowFileName == "playwright.md")
+        #expect(STPath(result.globalWorkflowPath).isExists)
+        #expect(STPath(result.providerWorkflowPath).isSymbolicLink)
+    }
+
+    @Test("unbind workflow from skill removes provider link")
+    func unbindWorkflowFromSkillRemovesProviderLink() throws {
+        let root = try makeTempRoot("workflow-unbind-skill")
+        defer { try? root.delete() }
+
+        let nolonHome = root.folder("nolon-home")
+        _ = nolonHome.createIfNotExists()
+        let skillRoot = nolonHome.folder("skills").folder("find-skills")
+        _ = skillRoot.createIfNotExists()
+        try Data(
+            """
+            ---
+            name: find-skills
+            description: Find skills.
+            ---
+            """.utf8
+        ).write(to: skillRoot.file("SKILL.md").url)
+
+        let providerWorkflow = root.folder("provider-workflows")
+        _ = providerWorkflow.createIfNotExists()
+        _ = try SkillsRepositoryFacade.bindWorkflowFromSkill(
+            skillID: "find-skills",
+            providerWorkflowPath: providerWorkflow.url,
+            nolonHome: nolonHome.url
+        )
+
+        let result = try SkillsRepositoryFacade.unbindWorkflowFromSkill(
+            skillID: "find-skills",
+            providerWorkflowPath: providerWorkflow.url
+        )
+
+        #expect(result.source == .skill)
+        #expect(result.workflowFileName == "find-skills.md")
+        #expect(result.removed == true)
+        #expect(STPath(result.providerWorkflowPath).isExists == false)
+    }
 }

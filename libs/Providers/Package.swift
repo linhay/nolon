@@ -168,6 +168,7 @@ let package = Package(
             dependencies: [
                 "ProviderCatalog",
                 "ProviderUsage",
+                "NolonResourceKit",
                 "CodexProvider",
                 "CodexCLIKit",
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),

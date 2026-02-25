@@ -405,69 +405,36 @@ public final class SkillInstaller {
     
     /// Install a workflow for a skill (symlink to global workflow)
     public func installWorkflow(skill: Skill, to provider: Provider) throws {
-        let providerWorkflowPath = provider.workflowPath
-        let targetPath = "\(providerWorkflowPath)/\(skill.id).md"
-        
-        // Ensure provider workflow directory exists
-        _ = STFolder(providerWorkflowPath).createIfNotExists()        
-        // Ensure global workflow exists
-        let globalWorkflowPath = try repository.createGlobalWorkflow(for: skill)
-        
-        // Remove existing link/file if present
-        try STPath(targetPath).deleteIncludingBrokenSymlink()
-        
-        // Create symlink
-        try STPath(targetPath).createSymbolicLink(to: STPath(globalWorkflowPath))
+        _ = try SkillsRepositoryFacade.bindWorkflowFromSkill(
+            skillID: skill.id,
+            providerWorkflowPath: URL(fileURLWithPath: provider.workflowPath, isDirectory: true),
+            nolonHome: nolonManager.rootFolder.url
+        )
     }
     
     /// Uninstall a workflow for a skill
     public func uninstallWorkflow(skill: Skill, from provider: Provider) throws {
-        let providerWorkflowPath = provider.workflowPath
-        let targetPath = "\(providerWorkflowPath)/\(skill.id).md"
-        
-        try STPath(targetPath).deleteIncludingBrokenSymlink()
+        _ = try SkillsRepositoryFacade.unbindWorkflowFromSkill(
+            skillID: skill.id,
+            providerWorkflowPath: URL(fileURLWithPath: provider.workflowPath, isDirectory: true)
+        )
     }
     
     /// Install a workflow for an MCP (symlink to mcps-workflows)
     public func installMcpWorkflow(mcp: MCP, to provider: Provider) throws {
-        let providerWorkflowPath = provider.workflowPath
-        let globalMcpWorkflowPath = "\(nolonManager.mcpsWorkflowsPath)/\(mcp.name).md"
-        let targetPath = "\(providerWorkflowPath)/\(mcp.name).md"
-        
-        // 1. Ensure provider workflow directory exists
-        _ = STFolder(providerWorkflowPath).createIfNotExists()
-        // 2. Ensure global MCP workflow exists in ~/.nolon/mcps-workflows
-        _ = STFolder(nolonManager.mcpsWorkflowsPath).createIfNotExists()
-        if STPath(globalMcpWorkflowPath).isExists {
-            // Repair legacy/invalid workflow format (missing required YAML frontmatter).
-            if let content = try? STFile(globalMcpWorkflowPath).read() {
-                let metadata = FrontmatterParser.parseMetadata(from: content)
-                let isDescriptionMissing = (metadata["description"] ?? "").isEmpty
-                let isAgentMissingForOpenCode = provider.templateId == "opencode"
-                    && (metadata["agent"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                if isDescriptionMissing || isAgentMissingForOpenCode {
-                    try STFile(globalMcpWorkflowPath).overlay(with: mcp.workflowContent)
-                }
-            } else {
-                try STFile(globalMcpWorkflowPath).overlay(with: mcp.workflowContent)
-            }
-        } else {
-            try STFile(globalMcpWorkflowPath).overlay(with: mcp.workflowContent)
-        }
-        
-        // 3. Remove existing link/file if present in provider directory
-        try STPath(targetPath).deleteIncludingBrokenSymlink()
-        
-        // 4. Create symlink from provider to global
-        try STPath(targetPath).createSymbolicLink(to: STPath(globalMcpWorkflowPath))
+        _ = try SkillsRepositoryFacade.bindWorkflowFromMCP(
+            mcpName: mcp.name,
+            providerWorkflowPath: URL(fileURLWithPath: provider.workflowPath, isDirectory: true),
+            nolonHome: nolonManager.rootFolder.url
+        )
     }
     
     /// Uninstall a workflow for an MCP
     public func uninstallMcpWorkflow(mcp: MCP, from provider: Provider) throws {
-        let providerWorkflowPath = provider.workflowPath
-        let targetPath = "\(providerWorkflowPath)/\(mcp.name).md"
-        
-        try STPath(targetPath).deleteIncludingBrokenSymlink()
+        _ = try SkillsRepositoryFacade.unbindWorkflowFromMCP(
+            mcpName: mcp.name,
+            providerWorkflowPath: URL(fileURLWithPath: provider.workflowPath, isDirectory: true)
+        )
     }
 
     // MARK: - Provider Scanning

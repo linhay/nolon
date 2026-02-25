@@ -468,6 +468,10 @@ struct NolonWorkflowRootCommand: ParsableCommand {
             NolonWorkflowSearchCommand.self,
             NolonWorkflowAddCommand.self,
             NolonWorkflowRemoveCommand.self,
+            NolonWorkflowBindSkillCommand.self,
+            NolonWorkflowBindMcpCommand.self,
+            NolonWorkflowUnbindSkillCommand.self,
+            NolonWorkflowUnbindMcpCommand.self,
         ]
     )
 }
@@ -653,6 +657,113 @@ struct NolonWorkflowRemoveCommand: ParsableCommand {
     }
 }
 
+private protocol NolonWorkflowProviderSelectorValidating {
+    var targetPath: String? { get }
+    var provider: String? { get }
+    var providerID: String? { get }
+}
+
+private extension NolonWorkflowProviderSelectorValidating {
+    func validateProviderSelector() throws {
+        if let provider, let providerID, provider.lowercased() != providerID.lowercased() {
+            throw ValidationError("Use either --provider or --provider-id, not both with different values.")
+        }
+        let selectorCount = [targetPath, provider ?? providerID]
+            .compactMap { raw -> String? in
+                guard let raw else { return nil }
+                let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+                return trimmed.isEmpty ? nil : trimmed
+            }
+            .count
+        if selectorCount == 0 {
+            throw ValidationError("Missing required option: --target-path or --provider/--provider-id")
+        }
+        if selectorCount > 1 {
+            throw ValidationError("Use only one target selector: --target-path or --provider/--provider-id")
+        }
+    }
+}
+
+struct NolonWorkflowBindSkillCommand: ParsableCommand, NolonWorkflowProviderSelectorValidating {
+    static let configuration = CommandConfiguration(commandName: "bind-skill")
+
+    @Option(name: .long)
+    var skillID: String
+
+    @Option(name: .long)
+    var targetPath: String?
+
+    @Option(name: .long)
+    var provider: String?
+
+    @Option(name: .long)
+    var providerID: String?
+
+    func validate() throws {
+        try validateProviderSelector()
+    }
+}
+
+struct NolonWorkflowBindMcpCommand: ParsableCommand, NolonWorkflowProviderSelectorValidating {
+    static let configuration = CommandConfiguration(commandName: "bind-mcp")
+
+    @Option(name: .long)
+    var mcpName: String
+
+    @Option(name: .long)
+    var targetPath: String?
+
+    @Option(name: .long)
+    var provider: String?
+
+    @Option(name: .long)
+    var providerID: String?
+
+    func validate() throws {
+        try validateProviderSelector()
+    }
+}
+
+struct NolonWorkflowUnbindSkillCommand: ParsableCommand, NolonWorkflowProviderSelectorValidating {
+    static let configuration = CommandConfiguration(commandName: "unbind-skill")
+
+    @Option(name: .long)
+    var skillID: String
+
+    @Option(name: .long)
+    var targetPath: String?
+
+    @Option(name: .long)
+    var provider: String?
+
+    @Option(name: .long)
+    var providerID: String?
+
+    func validate() throws {
+        try validateProviderSelector()
+    }
+}
+
+struct NolonWorkflowUnbindMcpCommand: ParsableCommand, NolonWorkflowProviderSelectorValidating {
+    static let configuration = CommandConfiguration(commandName: "unbind-mcp")
+
+    @Option(name: .long)
+    var mcpName: String
+
+    @Option(name: .long)
+    var targetPath: String?
+
+    @Option(name: .long)
+    var provider: String?
+
+    @Option(name: .long)
+    var providerID: String?
+
+    func validate() throws {
+        try validateProviderSelector()
+    }
+}
+
 struct NolonMcpRootCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "mcp",
@@ -662,6 +773,8 @@ struct NolonMcpRootCommand: ParsableCommand {
             NolonMcpSearchCommand.self,
             NolonMcpAddCommand.self,
             NolonMcpRemoveCommand.self,
+            NolonMcpServerRootCommand.self,
+            NolonMcpCacheRootCommand.self,
         ]
     )
 }
@@ -844,6 +957,181 @@ struct NolonMcpRemoveCommand: ParsableCommand {
         if selectorCount > 1 {
             throw ValidationError("Use only one target selector: --target-path or --provider/--provider-id")
         }
+    }
+}
+
+private protocol NolonMcpProviderRequiredValidating {
+    var provider: String? { get }
+    var providerID: String? { get }
+}
+
+private extension NolonMcpProviderRequiredValidating {
+    func validateProviderRequired() throws -> String {
+        if let provider, let providerID, provider.lowercased() != providerID.lowercased() {
+            throw ValidationError("Use either --provider or --provider-id, not both with different values.")
+        }
+        let resolved = (provider ?? providerID)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !resolved.isEmpty else {
+            throw ValidationError("Missing required option: --provider or --provider-id")
+        }
+        return resolved
+    }
+}
+
+struct NolonMcpServerRootCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "server",
+        subcommands: [
+            NolonMcpServerListCommand.self,
+            NolonMcpServerSetEnabledCommand.self,
+            NolonMcpServerUpsertCommand.self,
+            NolonMcpServerRemoveCommand.self,
+        ]
+    )
+}
+
+struct NolonMcpServerListCommand: ParsableCommand, NolonMcpProviderRequiredValidating {
+    static let configuration = CommandConfiguration(commandName: "list")
+
+    @Option(name: .long)
+    var provider: String?
+
+    @Option(name: .long)
+    var providerID: String?
+
+    func validate() throws {
+        _ = try validateProviderRequired()
+    }
+}
+
+struct NolonMcpServerSetEnabledCommand: ParsableCommand, NolonMcpProviderRequiredValidating {
+    static let configuration = CommandConfiguration(commandName: "set-enabled")
+
+    @Option(name: .long)
+    var provider: String?
+
+    @Option(name: .long)
+    var providerID: String?
+
+    @Option(name: .long)
+    var name: String
+
+    @Flag(name: .long)
+    var enabled: Bool = false
+
+    @Flag(name: .long)
+    var disabled: Bool = false
+
+    func validate() throws {
+        _ = try validateProviderRequired()
+        if enabled == disabled {
+            throw ValidationError("Use exactly one flag: --enabled or --disabled")
+        }
+    }
+}
+
+struct NolonMcpServerUpsertCommand: ParsableCommand, NolonMcpProviderRequiredValidating {
+    static let configuration = CommandConfiguration(commandName: "upsert")
+
+    @Option(name: .long)
+    var provider: String?
+
+    @Option(name: .long)
+    var providerID: String?
+
+    @Option(name: .long)
+    var name: String
+
+    @Option(name: .long)
+    var url: String?
+
+    @Option(name: .long)
+    var command: String?
+
+    @Option(name: .customLong("arg"), parsing: .upToNextOption)
+    var args: [String] = []
+
+    @Option(name: .customLong("env"), parsing: .upToNextOption)
+    var env: [String] = []
+
+    @Flag(name: .long)
+    var enabled: Bool = false
+
+    @Flag(name: .long)
+    var disabled: Bool = false
+
+    func validate() throws {
+        _ = try validateProviderRequired()
+        if enabled && disabled {
+            throw ValidationError("Use only one flag: --enabled or --disabled")
+        }
+        for pair in env {
+            let parts = pair.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false)
+            guard parts.count == 2, !parts[0].isEmpty else {
+                throw ValidationError("Invalid --env assignment: \(pair). Expected KEY=VALUE")
+            }
+        }
+    }
+}
+
+struct NolonMcpServerRemoveCommand: ParsableCommand, NolonMcpProviderRequiredValidating {
+    static let configuration = CommandConfiguration(commandName: "remove")
+
+    @Option(name: .long)
+    var provider: String?
+
+    @Option(name: .long)
+    var providerID: String?
+
+    @Option(name: .long)
+    var name: String
+
+    func validate() throws {
+        _ = try validateProviderRequired()
+    }
+}
+
+struct NolonMcpCacheRootCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "cache",
+        subcommands: [
+            NolonMcpCacheMigrateCommand.self,
+            NolonMcpCacheStatusCommand.self,
+        ]
+    )
+}
+
+struct NolonMcpCacheMigrateCommand: ParsableCommand, NolonMcpProviderRequiredValidating {
+    static let configuration = CommandConfiguration(commandName: "migrate")
+
+    @Option(name: .long)
+    var provider: String?
+
+    @Option(name: .long)
+    var providerID: String?
+
+    @Flag(name: .long)
+    var overwrite: Bool = false
+
+    func validate() throws {
+        _ = try validateProviderRequired()
+    }
+}
+
+struct NolonMcpCacheStatusCommand: ParsableCommand, NolonMcpProviderRequiredValidating {
+    static let configuration = CommandConfiguration(commandName: "status")
+
+    @Option(name: .long)
+    var provider: String?
+
+    @Option(name: .long)
+    var providerID: String?
+
+    @Option(name: .long)
+    var name: String?
+
+    func validate() throws {
+        _ = try validateProviderRequired()
     }
 }
 
@@ -1198,6 +1486,34 @@ enum NolonCoreCLIArgumentParser {
                 providerID: command.provider ?? command.providerID
             )
             return .workflowRemove(resourceName: command.resourceName, targetPath: targetPath)
+        case let command as NolonWorkflowBindSkillCommand:
+            let targetPath = try resolveResourceTargetPath(
+                kind: .workflow,
+                explicitTargetPath: command.targetPath,
+                providerID: command.provider ?? command.providerID
+            )
+            return .workflowBindSkill(skillID: command.skillID, targetPath: targetPath)
+        case let command as NolonWorkflowBindMcpCommand:
+            let targetPath = try resolveResourceTargetPath(
+                kind: .workflow,
+                explicitTargetPath: command.targetPath,
+                providerID: command.provider ?? command.providerID
+            )
+            return .workflowBindMcp(mcpName: command.mcpName, targetPath: targetPath)
+        case let command as NolonWorkflowUnbindSkillCommand:
+            let targetPath = try resolveResourceTargetPath(
+                kind: .workflow,
+                explicitTargetPath: command.targetPath,
+                providerID: command.provider ?? command.providerID
+            )
+            return .workflowUnbindSkill(skillID: command.skillID, targetPath: targetPath)
+        case let command as NolonWorkflowUnbindMcpCommand:
+            let targetPath = try resolveResourceTargetPath(
+                kind: .workflow,
+                explicitTargetPath: command.targetPath,
+                providerID: command.provider ?? command.providerID
+            )
+            return .workflowUnbindMcp(mcpName: command.mcpName, targetPath: targetPath)
         case let command as NolonMcpListCommand:
             return .mcpList(
                 provider: command.provider ?? command.providerID,
@@ -1243,6 +1559,48 @@ enum NolonCoreCLIArgumentParser {
                 providerID: command.provider ?? command.providerID
             )
             return .mcpRemove(resourceName: command.resourceName, targetPath: targetPath)
+        case let command as NolonMcpServerListCommand:
+            return .mcpServerList(provider: command.provider ?? command.providerID ?? "")
+        case let command as NolonMcpServerSetEnabledCommand:
+            return .mcpServerSetEnabled(
+                provider: command.provider ?? command.providerID ?? "",
+                name: command.name,
+                enabled: command.enabled
+            )
+        case let command as NolonMcpServerUpsertCommand:
+            let env = try parseEnvAssignments(command.env)
+            let enabled: Bool?
+            if command.enabled {
+                enabled = true
+            } else if command.disabled {
+                enabled = false
+            } else {
+                enabled = nil
+            }
+            return .mcpServerUpsert(
+                provider: command.provider ?? command.providerID ?? "",
+                name: command.name,
+                url: command.url,
+                command: command.command,
+                args: command.args,
+                env: env,
+                enabled: enabled
+            )
+        case let command as NolonMcpServerRemoveCommand:
+            return .mcpServerRemove(
+                provider: command.provider ?? command.providerID ?? "",
+                name: command.name
+            )
+        case let command as NolonMcpCacheMigrateCommand:
+            return .mcpCacheMigrate(
+                provider: command.provider ?? command.providerID ?? "",
+                overwrite: command.overwrite
+            )
+        case let command as NolonMcpCacheStatusCommand:
+            return .mcpCacheStatus(
+                provider: command.provider ?? command.providerID ?? "",
+                name: command.name
+            )
         case let command as NolonRemoteListCommand:
             return .remoteList(
                 kind: command.kind,
@@ -1387,6 +1745,23 @@ private func resolveProviderTemplate(providerID: String) -> ProviderTemplate? {
         return normalized == raw || normalized == stable
     }
 }
+
+private func parseEnvAssignments(_ values: [String]) throws -> [String: String] {
+    var env: [String: String] = [:]
+    for value in values {
+        let parts = value.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false)
+        guard parts.count == 2 else {
+            throw NolonCoreCLIError.invalidArguments("Invalid --env assignment: \(value). Expected KEY=VALUE")
+        }
+        let key = String(parts[0]).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !key.isEmpty else {
+            throw NolonCoreCLIError.invalidArguments("Invalid --env assignment: \(value). Key cannot be empty")
+        }
+        env[key] = String(parts[1])
+    }
+    return env
+}
+
 struct NolonSkillsRemoveCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "remove",

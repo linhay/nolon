@@ -441,6 +441,46 @@ public struct NolonCoreCLIRunner: Sendable {
             )
             return try encodeSuccess(command: command.commandID, data: ResourceUninstallPayload(result: result))
 
+        case let .workflowBindSkill(skillID, targetPath):
+            let result = try service.bindWorkflowFromSkill(
+                skillID: skillID,
+                targetPath: STFolder(targetPath)
+            )
+            try Self.writeResourceOrigin(
+                kind: .workflow,
+                identifier: result.resourceName,
+                origin: buildWorkflowBindOrigin(sourceType: .fromSkill, sourceKind: .skill, sourceRef: skillID)
+            )
+            return try encodeSuccess(command: command.commandID, data: ResourceInstallPayload(result: result))
+
+        case let .workflowBindMcp(mcpName, targetPath):
+            let result = try service.bindWorkflowFromMcp(
+                mcpName: mcpName,
+                targetPath: STFolder(targetPath)
+            )
+            try Self.writeResourceOrigin(
+                kind: .workflow,
+                identifier: result.resourceName,
+                origin: buildWorkflowBindOrigin(sourceType: .fromMcp, sourceKind: .mcp, sourceRef: mcpName)
+            )
+            return try encodeSuccess(command: command.commandID, data: ResourceInstallPayload(result: result))
+
+        case let .workflowUnbindSkill(skillID, targetPath):
+            let result = try service.unbindWorkflowFromSkill(
+                skillID: skillID,
+                targetPath: STFolder(targetPath)
+            )
+            try Self.removeResourceOrigin(kind: .workflow, identifier: result.resourceName)
+            return try encodeSuccess(command: command.commandID, data: ResourceUninstallPayload(result: result))
+
+        case let .workflowUnbindMcp(mcpName, targetPath):
+            let result = try service.unbindWorkflowFromMcp(
+                mcpName: mcpName,
+                targetPath: STFolder(targetPath)
+            )
+            try Self.removeResourceOrigin(kind: .workflow, identifier: result.resourceName)
+            return try encodeSuccess(command: command.commandID, data: ResourceUninstallPayload(result: result))
+
         case let .workflowDiscover(path, maxDepth):
             let resources = service.discoverRepositoryResources(
                 at: STFolder(path),
@@ -571,6 +611,38 @@ public struct NolonCoreCLIRunner: Sendable {
                 targetPath: STFolder(targetPath)
             )
             return try encodeSuccess(command: command.commandID, data: ResourceUninstallPayload(result: result))
+
+        case let .mcpServerList(provider):
+            let result = try service.listMcpServers(provider: provider)
+            return try encodeSuccess(command: command.commandID, data: MCPServersPayload(result: result))
+
+        case let .mcpServerSetEnabled(provider, name, enabled):
+            let result = try service.setMcpServerEnabled(provider: provider, name: name, enabled: enabled)
+            return try encodeSuccess(command: command.commandID, data: MCPServerMutationPayload(result: result))
+
+        case let .mcpServerUpsert(provider, name, url, commandValue, args, env, enabled):
+            let result = try service.upsertMcpServer(
+                provider: provider,
+                name: name,
+                url: url,
+                command: commandValue,
+                args: args,
+                env: env,
+                enabled: enabled
+            )
+            return try encodeSuccess(command: command.commandID, data: MCPServerMutationPayload(result: result))
+
+        case let .mcpServerRemove(provider, name):
+            let result = try service.removeMcpServer(provider: provider, name: name)
+            return try encodeSuccess(command: command.commandID, data: MCPServerMutationPayload(result: result))
+
+        case let .mcpCacheMigrate(provider, overwrite):
+            let result = try service.migrateMcpServersToCache(provider: provider, overwrite: overwrite)
+            return try encodeSuccess(command: command.commandID, data: MCPCacheMigratePayload(result: result))
+
+        case let .mcpCacheStatus(provider, name):
+            let result = try service.mcpCacheStatus(provider: provider, name: name)
+            return try encodeSuccess(command: command.commandID, data: MCPCacheStatusPayload(result: result))
 
         case let .mcpUninstall(resourceName, targetPath):
             let result = try service.uninstallResource(
@@ -900,6 +972,42 @@ public struct NolonCoreCLIRunner: Sendable {
                 outputMode: .text
             )
             return add.output
+        case let .workflowBindSkill(skillID, targetPath):
+            let result = try service.bindWorkflowFromSkill(
+                skillID: skillID,
+                targetPath: STFolder(targetPath)
+            )
+            try Self.writeResourceOrigin(
+                kind: .workflow,
+                identifier: result.resourceName,
+                origin: buildWorkflowBindOrigin(sourceType: .fromSkill, sourceKind: .skill, sourceRef: skillID)
+            )
+            return formatWorkflowBindText(result: result, sourceLabel: "skill", sourceID: skillID)
+        case let .workflowBindMcp(mcpName, targetPath):
+            let result = try service.bindWorkflowFromMcp(
+                mcpName: mcpName,
+                targetPath: STFolder(targetPath)
+            )
+            try Self.writeResourceOrigin(
+                kind: .workflow,
+                identifier: result.resourceName,
+                origin: buildWorkflowBindOrigin(sourceType: .fromMcp, sourceKind: .mcp, sourceRef: mcpName)
+            )
+            return formatWorkflowBindText(result: result, sourceLabel: "mcp", sourceID: mcpName)
+        case let .workflowUnbindSkill(skillID, targetPath):
+            let result = try service.unbindWorkflowFromSkill(
+                skillID: skillID,
+                targetPath: STFolder(targetPath)
+            )
+            try Self.removeResourceOrigin(kind: .workflow, identifier: result.resourceName)
+            return formatWorkflowUnbindText(result: result, sourceLabel: "skill", sourceID: skillID)
+        case let .workflowUnbindMcp(mcpName, targetPath):
+            let result = try service.unbindWorkflowFromMcp(
+                mcpName: mcpName,
+                targetPath: STFolder(targetPath)
+            )
+            try Self.removeResourceOrigin(kind: .workflow, identifier: result.resourceName)
+            return formatWorkflowUnbindText(result: result, sourceLabel: "mcp", sourceID: mcpName)
         case let .workflowSync(source, repositoriesRoot, accessToken, pullStrategy, credentialStrategy):
             let plan = try service.planGitImport(
                 source: source,
@@ -960,6 +1068,32 @@ public struct NolonCoreCLIRunner: Sendable {
                 outputMode: .text
             )
             return add.output
+        case let .mcpServerList(provider):
+            let result = try service.listMcpServers(provider: provider)
+            return formatMcpServerListText(result: result)
+        case let .mcpServerSetEnabled(provider, name, enabled):
+            let result = try service.setMcpServerEnabled(provider: provider, name: name, enabled: enabled)
+            return formatMcpServerMutationText(result: result)
+        case let .mcpServerUpsert(provider, name, url, commandValue, args, env, enabled):
+            let result = try service.upsertMcpServer(
+                provider: provider,
+                name: name,
+                url: url,
+                command: commandValue,
+                args: args,
+                env: env,
+                enabled: enabled
+            )
+            return formatMcpServerMutationText(result: result)
+        case let .mcpServerRemove(provider, name):
+            let result = try service.removeMcpServer(provider: provider, name: name)
+            return formatMcpServerMutationText(result: result)
+        case let .mcpCacheMigrate(provider, overwrite):
+            let result = try service.migrateMcpServersToCache(provider: provider, overwrite: overwrite)
+            return formatMcpCacheMigrateText(result: result, overwrite: overwrite)
+        case let .mcpCacheStatus(provider, name):
+            let result = try service.mcpCacheStatus(provider: provider, name: name)
+            return formatMcpCacheStatusText(result: result, filterName: name)
         case let .mcpSync(source, repositoriesRoot, accessToken, pullStrategy, credentialStrategy):
             let plan = try service.planGitImport(
                 source: source,
@@ -2201,6 +2335,35 @@ public struct NolonCoreCLIRunner: Sendable {
         try STFile(file.url.path).overlay(with: data)
     }
 
+    private static func removeResourceOrigin(
+        kind: NolonRemoteCatalogKind,
+        identifier: String
+    ) throws {
+        guard kind != .skill else { return }
+        let root = try resolveNolonResourceCacheRootFolder(kind: kind == .workflow ? .workflow : .mcp)
+        let file = root.folder(".nolon").subpath("\(identifier).origin.json")
+        if file.isExists || file.isSymbolicLink {
+            try file.delete()
+        }
+    }
+
+    private func buildWorkflowBindOrigin(
+        sourceType: NolonResourceSourceType,
+        sourceKind: NolonResourceSourceKind,
+        sourceRef: String
+    ) -> NolonResourceOrigin {
+        let now = Date()
+        return NolonResourceOrigin(
+            resourceKind: .workflow,
+            sourceType: sourceType,
+            sourceKind: sourceKind,
+            sourceRef: sourceRef,
+            sourceDisplay: sourceRef,
+            createdAt: now,
+            updatedAt: now
+        )
+    }
+
     private func readResourceOrigin(kind: NolonRemoteCatalogKind, identifier: String) -> NolonResourceOrigin? {
         if kind == .skill {
             guard let root = try? Self.resolveNolonSkillsRootFolder() else { return nil }
@@ -2288,6 +2451,106 @@ public struct NolonCoreCLIRunner: Sendable {
             }
             return "\(prefix) \(target.providerID) -> - (\(target.errorMessage ?? "install failed"))"
         })
+        return lines.joined(separator: "\n")
+    }
+
+    private func formatWorkflowBindText(
+        result: NolonResourceInstallResult,
+        sourceLabel: String,
+        sourceID: String
+    ) -> String {
+        [
+            "workflow bind: success",
+            "source: \(sourceLabel):\(sourceID)",
+            "name: \(result.resourceName)",
+            "global: \(result.sourcePath)",
+            "target: \(result.targetPath)",
+            "install_method: \(result.installMethod.rawValue)",
+        ].joined(separator: "\n")
+    }
+
+    private func formatWorkflowUnbindText(
+        result: NolonResourceUninstallResult,
+        sourceLabel: String,
+        sourceID: String
+    ) -> String {
+        [
+            "workflow unbind: \(result.removed ? "success" : "noop")",
+            "source: \(sourceLabel):\(sourceID)",
+            "name: \(result.resourceName)",
+            "target: \(result.targetPath)",
+            "removed: \(result.removed)",
+        ].joined(separator: "\n")
+    }
+
+    private func formatMcpServerListText(result: NolonMcpServerListResult) -> String {
+        var lines: [String] = []
+        lines.append("mcp server list")
+        lines.append("provider: \(result.providerID)")
+        lines.append("config: \(result.configPath)")
+        lines.append("servers_total: \(result.items.count)")
+        if result.items.isEmpty {
+            lines.append("servers: (empty)")
+            return lines.joined(separator: "\n")
+        }
+        lines.append("")
+        lines.append("[servers]")
+        for item in result.items {
+            lines.append("- name: \(item.name)")
+            lines.append("  enabled: \(item.enabled)")
+            if let url = item.url, !url.isEmpty { lines.append("  url: \(url)") }
+            if let command = item.command, !command.isEmpty { lines.append("  command: \(command)") }
+            if let args = item.args, !args.isEmpty { lines.append("  args: \(args.joined(separator: " "))") }
+            if let env = item.env, !env.isEmpty {
+                let values = env.keys.sorted().map { "\($0)=\(env[$0] ?? "")" }.joined(separator: ", ")
+                lines.append("  env: \(values)")
+            }
+        }
+        return lines.joined(separator: "\n")
+    }
+
+    private func formatMcpServerMutationText(result: NolonMcpServerMutationResult) -> String {
+        [
+            "mcp server mutation: success",
+            "provider: \(result.providerID)",
+            "config: \(result.configPath)",
+            "name: \(result.name)",
+            "action: \(result.action)",
+        ].joined(separator: "\n")
+    }
+
+    private func formatMcpCacheMigrateText(result: NolonMcpCacheMigrateResult, overwrite: Bool) -> String {
+        [
+            "mcp cache migrate: success",
+            "provider: \(result.providerID)",
+            "config: \(result.configPath)",
+            "overwrite: \(overwrite)",
+            "migrated: \(result.migrated)",
+            "updated: \(result.updated)",
+            "skipped: \(result.skipped)",
+        ].joined(separator: "\n")
+    }
+
+    private func formatMcpCacheStatusText(result: NolonMcpCacheStatusResult, filterName: String?) -> String {
+        var lines: [String] = []
+        lines.append("mcp cache status")
+        lines.append("provider: \(result.providerID)")
+        lines.append("config: \(result.configPath)")
+        if let filterName, !filterName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            lines.append("filter: \(filterName)")
+        }
+        lines.append("servers_total: \(result.items.count)")
+        if result.items.isEmpty {
+            lines.append("servers: (empty)")
+            return lines.joined(separator: "\n")
+        }
+        lines.append("")
+        lines.append("[servers]")
+        for item in result.items {
+            lines.append("- name: \(item.name)")
+            lines.append("  state: \(item.state.rawValue)")
+            lines.append("  cache: \(item.cachePath)")
+        }
         return lines.joined(separator: "\n")
     }
 
@@ -3286,6 +3549,22 @@ private struct ResourceInstallPayload: Encodable, Sendable {
 
 private struct ResourceUninstallPayload: Encodable, Sendable {
     let result: NolonResourceUninstallResult
+}
+
+private struct MCPServersPayload: Encodable, Sendable {
+    let result: NolonMcpServerListResult
+}
+
+private struct MCPServerMutationPayload: Encodable, Sendable {
+    let result: NolonMcpServerMutationResult
+}
+
+private struct MCPCacheStatusPayload: Encodable, Sendable {
+    let result: NolonMcpCacheStatusResult
+}
+
+private struct MCPCacheMigratePayload: Encodable, Sendable {
+    let result: NolonMcpCacheMigrateResult
 }
 
 private struct RemoteListPayload: Encodable, Sendable {

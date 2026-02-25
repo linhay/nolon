@@ -1,6 +1,7 @@
 import Foundation
 import ProviderCatalog
 import STFilePath
+import NolonResourceKit
 
 public protocol NolonSkillsRepositoryServing: Sendable {
     func planGitImport(source: String, repositoriesRoot: STFolder) throws -> NolonGitImportPlan
@@ -46,6 +47,36 @@ public protocol NolonSkillsRepositoryServing: Sendable {
         resourceName: String,
         targetPath: STFolder
     ) throws -> NolonResourceUninstallResult
+    func bindWorkflowFromSkill(
+        skillID: String,
+        targetPath: STFolder
+    ) throws -> NolonResourceInstallResult
+    func bindWorkflowFromMcp(
+        mcpName: String,
+        targetPath: STFolder
+    ) throws -> NolonResourceInstallResult
+    func unbindWorkflowFromSkill(
+        skillID: String,
+        targetPath: STFolder
+    ) throws -> NolonResourceUninstallResult
+    func unbindWorkflowFromMcp(
+        mcpName: String,
+        targetPath: STFolder
+    ) throws -> NolonResourceUninstallResult
+    func listMcpServers(provider: String) throws -> NolonMcpServerListResult
+    func setMcpServerEnabled(provider: String, name: String, enabled: Bool) throws -> NolonMcpServerMutationResult
+    func upsertMcpServer(
+        provider: String,
+        name: String,
+        url: String?,
+        command: String?,
+        args: [String],
+        env: [String: String],
+        enabled: Bool?
+    ) throws -> NolonMcpServerMutationResult
+    func removeMcpServer(provider: String, name: String) throws -> NolonMcpServerMutationResult
+    func migrateMcpServersToCache(provider: String, overwrite: Bool) throws -> NolonMcpCacheMigrateResult
+    func mcpCacheStatus(provider: String, name: String?) throws -> NolonMcpCacheStatusResult
     func listRemoteResources(
         kind: NolonRemoteCatalogKind,
         query: String?,
@@ -139,6 +170,66 @@ public extension NolonSkillsRepositoryServing {
             skillID: nil,
             resourceName: install.resourceName
         )
+    }
+
+    func bindWorkflowFromSkill(
+        skillID _: String,
+        targetPath _: STFolder
+    ) throws -> NolonResourceInstallResult {
+        throw NolonCoreCLIError.executionFailed("bindWorkflowFromSkill is not implemented")
+    }
+
+    func bindWorkflowFromMcp(
+        mcpName _: String,
+        targetPath _: STFolder
+    ) throws -> NolonResourceInstallResult {
+        throw NolonCoreCLIError.executionFailed("bindWorkflowFromMcp is not implemented")
+    }
+
+    func unbindWorkflowFromSkill(
+        skillID _: String,
+        targetPath _: STFolder
+    ) throws -> NolonResourceUninstallResult {
+        throw NolonCoreCLIError.executionFailed("unbindWorkflowFromSkill is not implemented")
+    }
+
+    func unbindWorkflowFromMcp(
+        mcpName _: String,
+        targetPath _: STFolder
+    ) throws -> NolonResourceUninstallResult {
+        throw NolonCoreCLIError.executionFailed("unbindWorkflowFromMcp is not implemented")
+    }
+
+    func listMcpServers(provider _: String) throws -> NolonMcpServerListResult {
+        throw NolonCoreCLIError.executionFailed("listMcpServers is not implemented")
+    }
+
+    func setMcpServerEnabled(provider _: String, name _: String, enabled _: Bool) throws -> NolonMcpServerMutationResult {
+        throw NolonCoreCLIError.executionFailed("setMcpServerEnabled is not implemented")
+    }
+
+    func upsertMcpServer(
+        provider _: String,
+        name _: String,
+        url _: String?,
+        command _: String?,
+        args _: [String],
+        env _: [String: String],
+        enabled _: Bool?
+    ) throws -> NolonMcpServerMutationResult {
+        throw NolonCoreCLIError.executionFailed("upsertMcpServer is not implemented")
+    }
+
+    func removeMcpServer(provider _: String, name _: String) throws -> NolonMcpServerMutationResult {
+        throw NolonCoreCLIError.executionFailed("removeMcpServer is not implemented")
+    }
+
+    func migrateMcpServersToCache(provider _: String, overwrite _: Bool) throws -> NolonMcpCacheMigrateResult {
+        throw NolonCoreCLIError.executionFailed("migrateMcpServersToCache is not implemented")
+    }
+
+    func mcpCacheStatus(provider _: String, name _: String?) throws -> NolonMcpCacheStatusResult {
+        throw NolonCoreCLIError.executionFailed("mcpCacheStatus is not implemented")
     }
 }
 
@@ -523,6 +614,218 @@ public struct NolonLiveSkillsRepositoryService: NolonSkillsRepositoryServing {
         )
     }
 
+    public func bindWorkflowFromSkill(
+        skillID: String,
+        targetPath: STFolder
+    ) throws -> NolonResourceInstallResult {
+        do {
+            let result = try SkillsRepositoryFacade.bindWorkflowFromSkill(
+                skillID: skillID,
+                providerWorkflowPath: targetPath.url
+            )
+            return NolonResourceInstallResult(
+                kind: .workflow,
+                resourceName: result.workflowFileName,
+                sourcePath: result.globalWorkflowPath,
+                targetPath: result.providerWorkflowPath,
+                installMethod: .symlink
+            )
+        } catch {
+            throw NolonCoreCLIError.executionFailed(error.localizedDescription)
+        }
+    }
+
+    public func bindWorkflowFromMcp(
+        mcpName: String,
+        targetPath: STFolder
+    ) throws -> NolonResourceInstallResult {
+        do {
+            let result = try SkillsRepositoryFacade.bindWorkflowFromMCP(
+                mcpName: mcpName,
+                providerWorkflowPath: targetPath.url
+            )
+            return NolonResourceInstallResult(
+                kind: .workflow,
+                resourceName: result.workflowFileName,
+                sourcePath: result.globalWorkflowPath,
+                targetPath: result.providerWorkflowPath,
+                installMethod: .symlink
+            )
+        } catch {
+            throw NolonCoreCLIError.executionFailed(error.localizedDescription)
+        }
+    }
+
+    public func unbindWorkflowFromSkill(
+        skillID: String,
+        targetPath: STFolder
+    ) throws -> NolonResourceUninstallResult {
+        do {
+            let result = try SkillsRepositoryFacade.unbindWorkflowFromSkill(
+                skillID: skillID,
+                providerWorkflowPath: targetPath.url
+            )
+            return NolonResourceUninstallResult(
+                kind: .workflow,
+                resourceName: result.workflowFileName,
+                targetPath: result.providerWorkflowPath,
+                removed: result.removed
+            )
+        } catch {
+            throw NolonCoreCLIError.executionFailed(error.localizedDescription)
+        }
+    }
+
+    public func unbindWorkflowFromMcp(
+        mcpName: String,
+        targetPath: STFolder
+    ) throws -> NolonResourceUninstallResult {
+        do {
+            let result = try SkillsRepositoryFacade.unbindWorkflowFromMCP(
+                mcpName: mcpName,
+                providerWorkflowPath: targetPath.url
+            )
+            return NolonResourceUninstallResult(
+                kind: .workflow,
+                resourceName: result.workflowFileName,
+                targetPath: result.providerWorkflowPath,
+                removed: result.removed
+            )
+        } catch {
+            throw NolonCoreCLIError.executionFailed(error.localizedDescription)
+        }
+    }
+
+    public func listMcpServers(provider: String) throws -> NolonMcpServerListResult {
+        do {
+            let template = try resolveProviderTemplateOrThrow(provider)
+            let servers = try MCPConfigManager.listServers(for: template)
+            return NolonMcpServerListResult(
+                providerID: template.providerID,
+                configPath: template.defaultMcpConfigPath.path,
+                items: servers.map {
+                    NolonMcpServerItem(
+                        name: $0.name,
+                        url: $0.url,
+                        command: $0.command,
+                        args: $0.args,
+                        env: $0.env,
+                        enabled: $0.isEnabled
+                    )
+                }
+            )
+        } catch let error as NolonCoreCLIError {
+            throw error
+        } catch {
+            throw NolonCoreCLIError.executionFailed(error.localizedDescription)
+        }
+    }
+
+    public func setMcpServerEnabled(provider: String, name: String, enabled: Bool) throws -> NolonMcpServerMutationResult {
+        do {
+            let template = try resolveProviderTemplateOrThrow(provider)
+            try MCPConfigManager.setEnabled(for: template, name: name, enabled: enabled)
+            return NolonMcpServerMutationResult(
+                providerID: template.providerID,
+                configPath: template.defaultMcpConfigPath.path,
+                name: name,
+                action: enabled ? "enabled" : "disabled"
+            )
+        } catch let error as NolonCoreCLIError {
+            throw error
+        } catch {
+            throw NolonCoreCLIError.executionFailed(error.localizedDescription)
+        }
+    }
+
+    public func upsertMcpServer(
+        provider: String,
+        name: String,
+        url: String?,
+        command: String?,
+        args: [String],
+        env: [String: String],
+        enabled: Bool?
+    ) throws -> NolonMcpServerMutationResult {
+        do {
+            let template = try resolveProviderTemplateOrThrow(provider)
+            var config: [String: Any] = [:]
+            if let url, !url.isEmpty { config["url"] = url }
+            if let command, !command.isEmpty { config["command"] = command }
+            if !args.isEmpty { config["args"] = args }
+            if !env.isEmpty { config["env"] = env }
+            if let enabled { config["enabled"] = enabled }
+            try MCPConfigManager.upsertServer(for: template, name: name, serverConfig: config)
+            return NolonMcpServerMutationResult(
+                providerID: template.providerID,
+                configPath: template.defaultMcpConfigPath.path,
+                name: name,
+                action: "upserted"
+            )
+        } catch let error as NolonCoreCLIError {
+            throw error
+        } catch {
+            throw NolonCoreCLIError.executionFailed(error.localizedDescription)
+        }
+    }
+
+    public func removeMcpServer(provider: String, name: String) throws -> NolonMcpServerMutationResult {
+        do {
+            let template = try resolveProviderTemplateOrThrow(provider)
+            try MCPConfigManager.removeServer(for: template, name: name)
+            return NolonMcpServerMutationResult(
+                providerID: template.providerID,
+                configPath: template.defaultMcpConfigPath.path,
+                name: name,
+                action: "removed"
+            )
+        } catch let error as NolonCoreCLIError {
+            throw error
+        } catch {
+            throw NolonCoreCLIError.executionFailed(error.localizedDescription)
+        }
+    }
+
+    public func migrateMcpServersToCache(provider: String, overwrite: Bool) throws -> NolonMcpCacheMigrateResult {
+        do {
+            let template = try resolveProviderTemplateOrThrow(provider)
+            let result = try MCPConfigManager.migrateServersToGlobalCache(for: template, overwrite: overwrite)
+            return NolonMcpCacheMigrateResult(
+                providerID: template.providerID,
+                configPath: template.defaultMcpConfigPath.path,
+                migrated: result.migrated,
+                skipped: result.skipped,
+                updated: result.updated
+            )
+        } catch let error as NolonCoreCLIError {
+            throw error
+        } catch {
+            throw NolonCoreCLIError.executionFailed(error.localizedDescription)
+        }
+    }
+
+    public func mcpCacheStatus(provider: String, name: String?) throws -> NolonMcpCacheStatusResult {
+        do {
+            let template = try resolveProviderTemplateOrThrow(provider)
+            let result = try MCPConfigManager.cacheStatus(for: template, name: name)
+            return NolonMcpCacheStatusResult(
+                providerID: template.providerID,
+                configPath: template.defaultMcpConfigPath.path,
+                items: result.map {
+                    NolonMcpCacheStatusItem(
+                        name: $0.name,
+                        state: NolonMcpCacheState(rawValue: $0.state.rawValue) ?? .notMigrated,
+                        cachePath: $0.cachePath
+                    )
+                }
+            )
+        } catch let error as NolonCoreCLIError {
+            throw error
+        } catch {
+            throw NolonCoreCLIError.executionFailed(error.localizedDescription)
+        }
+    }
+
     public func listRemoteResources(
         kind: NolonRemoteCatalogKind,
         query: String?,
@@ -595,6 +898,19 @@ public struct NolonLiveSkillsRepositoryService: NolonSkillsRepositoryServing {
             filePath: fileURL.path
         )
     }
+}
+
+private func resolveProviderTemplateOrThrow(_ provider: String) throws -> ProviderTemplate {
+    let normalized = provider.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    if normalized == "codex-xcode" || normalized == "codexxcode" {
+        return .codexXcode
+    }
+    if let template = ProviderTemplate.allCases.first(where: {
+        normalized == $0.rawValue.lowercased() || normalized == $0.providerID.lowercased()
+    }) {
+        return template
+    }
+    throw NolonCoreCLIError.invalidArguments("Unsupported --provider: \(provider)")
 }
 
 private extension NolonLiveSkillsRepositoryService {

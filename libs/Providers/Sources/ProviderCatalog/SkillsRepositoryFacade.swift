@@ -192,6 +192,55 @@ public enum SkillsRepositoryFacade {
         }
     }
 
+    public enum WorkflowBindingSource: String, Sendable, Equatable {
+        case skill
+        case mcp
+    }
+
+    public struct WorkflowBindingResult: Sendable, Equatable {
+        public let source: WorkflowBindingSource
+        public let sourceID: String
+        public let workflowFileName: String
+        public let globalWorkflowPath: String
+        public let providerWorkflowPath: String
+
+        public init(
+            source: WorkflowBindingSource,
+            sourceID: String,
+            workflowFileName: String,
+            globalWorkflowPath: String,
+            providerWorkflowPath: String
+        ) {
+            self.source = source
+            self.sourceID = sourceID
+            self.workflowFileName = workflowFileName
+            self.globalWorkflowPath = globalWorkflowPath
+            self.providerWorkflowPath = providerWorkflowPath
+        }
+    }
+
+    public struct WorkflowUnbindResult: Sendable, Equatable {
+        public let source: WorkflowBindingSource
+        public let sourceID: String
+        public let workflowFileName: String
+        public let providerWorkflowPath: String
+        public let removed: Bool
+
+        public init(
+            source: WorkflowBindingSource,
+            sourceID: String,
+            workflowFileName: String,
+            providerWorkflowPath: String,
+            removed: Bool
+        ) {
+            self.source = source
+            self.sourceID = sourceID
+            self.workflowFileName = workflowFileName
+            self.providerWorkflowPath = providerWorkflowPath
+            self.removed = removed
+        }
+    }
+
     public enum RemoteCatalogKind: String, Sendable, Equatable {
         case skill
         case workflow
@@ -610,6 +659,75 @@ public enum SkillsRepositoryFacade {
         return stagedPath.url
     }
 
+    public static func bindWorkflowFromSkill(
+        skillID: String,
+        providerWorkflowPath: URL,
+        nolonHome: URL? = nil
+    ) throws -> WorkflowBindingResult {
+        let resolvedID = try validatePathComponent(skillID, field: "skill-id")
+        let home = resolveNolonHomeURL(explicitNolonHome: nolonHome)
+        let skillsRoot = STFolder(home.appendingPathComponent("skills", isDirectory: true))
+        let skillRoot = skillsRoot.subpath(resolvedID)
+        let skillFile = STFolder(skillRoot.url.path).subpath("SKILL.md")
+        guard skillFile.isExists else {
+            throw SyncError.commandFailed("Skill not found: \(skillFile.url.path)")
+        }
+
+        let content = try STFile(skillFile.url.path).read()
+        let metadata = parseSkillMetadata(content: content, directoryName: resolvedID)
+        let displayName = metadata?.name ?? resolvedID
+        let description = metadata?.description ?? "Workflow for skill \(resolvedID)."
+        let workflowContent = buildSkillWorkflowContent(skillID: resolvedID, skillName: displayName, description: description)
+        return try bindWorkflow(
+            source: .skill,
+            sourceID: resolvedID,
+            workflowContent: workflowContent,
+            globalRoot: STFolder(home.appendingPathComponent("skills-workflows", isDirectory: true)),
+            providerWorkflowPath: STFolder(providerWorkflowPath)
+        )
+    }
+
+    public static func bindWorkflowFromMCP(
+        mcpName: String,
+        providerWorkflowPath: URL,
+        nolonHome: URL? = nil
+    ) throws -> WorkflowBindingResult {
+        let resolvedName = try validatePathComponent(mcpName, field: "mcp-name")
+        let home = resolveNolonHomeURL(explicitNolonHome: nolonHome)
+        let workflowContent = buildMCPWorkflowContent(mcpName: resolvedName)
+        return try bindWorkflow(
+            source: .mcp,
+            sourceID: resolvedName,
+            workflowContent: workflowContent,
+            globalRoot: STFolder(home.appendingPathComponent("mcps-workflows", isDirectory: true)),
+            providerWorkflowPath: STFolder(providerWorkflowPath)
+        )
+    }
+
+    public static func unbindWorkflowFromSkill(
+        skillID: String,
+        providerWorkflowPath: URL
+    ) throws -> WorkflowUnbindResult {
+        let resolvedID = try validatePathComponent(skillID, field: "skill-id")
+        return try unbindWorkflow(
+            source: .skill,
+            sourceID: resolvedID,
+            providerWorkflowPath: STFolder(providerWorkflowPath)
+        )
+    }
+
+    public static func unbindWorkflowFromMCP(
+        mcpName: String,
+        providerWorkflowPath: URL
+    ) throws -> WorkflowUnbindResult {
+        let resolvedName = try validatePathComponent(mcpName, field: "mcp-name")
+        return try unbindWorkflow(
+            source: .mcp,
+            sourceID: resolvedName,
+            providerWorkflowPath: STFolder(providerWorkflowPath)
+        )
+    }
+
     public static func normalizeGitURL(_ input: String) -> String {
         RemoteGitRepositorySupport.normalizeGitURL(input)
     }
@@ -828,6 +946,116 @@ public enum SkillsRepositoryFacade {
             throw SyncError.commandFailed("Invalid HTTP response")
         }
         return (downloadedURL, http)
+    }
+}
+
+private extension SkillsRepositoryFacade {
+    static func bindWorkflow(
+        source: WorkflowBindingSource,
+        sourceID: String,
+        workflowContent: String,
+        globalRoot: STFolder,
+        providerWorkflowPath: STFolder
+    ) throws -> WorkflowBindingResult {
+        _ = globalRoot.createIfNotExists()
+        _ = providerWorkflowPath.createIfNotExists()
+
+        let workflowFileName = "\(sourceID).md"
+        let globalWorkflow = globalRoot.subpath(workflowFileName)
+        let providerWorkflow = providerWorkflowPath.subpath(workflowFileName)
+
+        try STFile(globalWorkflow.url.path).overlay(with: workflowContent)
+        if providerWorkflow.isExists || providerWorkflow.isSymbolicLink {
+            try providerWorkflow.delete()
+        }
+        try providerWorkflow.createSymbolicLink(to: globalWorkflow)
+
+        return WorkflowBindingResult(
+            source: source,
+            sourceID: sourceID,
+            workflowFileName: workflowFileName,
+            globalWorkflowPath: globalWorkflow.url.path,
+            providerWorkflowPath: providerWorkflow.url.path
+        )
+    }
+
+    static func unbindWorkflow(
+        source: WorkflowBindingSource,
+        sourceID: String,
+        providerWorkflowPath: STFolder
+    ) throws -> WorkflowUnbindResult {
+        let workflowFileName = "\(sourceID).md"
+        let providerWorkflow = providerWorkflowPath.subpath(workflowFileName)
+        let existed = providerWorkflow.isExists || providerWorkflow.isSymbolicLink
+        if existed {
+            try providerWorkflow.delete()
+        }
+        return WorkflowUnbindResult(
+            source: source,
+            sourceID: sourceID,
+            workflowFileName: workflowFileName,
+            providerWorkflowPath: providerWorkflow.url.path,
+            removed: existed
+        )
+    }
+
+    static func validatePathComponent(_ value: String, field: String) throws -> String {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            throw SyncError.commandFailed("\(field) cannot be empty")
+        }
+        let candidateURL = URL(fileURLWithPath: trimmed)
+        let basename = candidateURL.lastPathComponent
+        guard basename == trimmed, trimmed != ".", trimmed != ".." else {
+            throw SyncError.commandFailed("\(field) must be a single path component: \(value)")
+        }
+        return trimmed
+    }
+
+    static func resolveNolonHomeURL(
+        explicitNolonHome: URL?,
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> URL {
+        if let explicitNolonHome {
+            return explicitNolonHome.standardizedFileURL
+        }
+        if let raw = environment["NOLON_HOME"]?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty {
+            return URL(fileURLWithPath: NSString(string: raw).expandingTildeInPath, isDirectory: true).standardizedFileURL
+        }
+        return URL(fileURLWithPath: NSString(string: "~/.nolon").expandingTildeInPath, isDirectory: true).standardizedFileURL
+    }
+
+    static func buildSkillWorkflowContent(skillID: String, skillName: String, description: String) -> String {
+        """
+        ---
+        name: \(yamlQuoted(skillID))
+        description: \(yamlQuoted(description))
+        agent: \(yamlQuoted("default"))
+        ---
+
+        Use the `\(skillName)` skill to \(description).
+        """
+    }
+
+    static func buildMCPWorkflowContent(mcpName: String) -> String {
+        let description = "Workflow for MCP server \(mcpName)."
+        return """
+        ---
+        name: \(yamlQuoted(mcpName))
+        description: \(yamlQuoted(description))
+        agent: \(yamlQuoted("default"))
+        ---
+
+        Use the `\(mcpName)` MCP server in your agent workflows.
+        """
+    }
+
+    static func yamlQuoted(_ value: String) -> String {
+        var v = value
+        v = v.replacingOccurrences(of: "\\", with: "\\\\")
+        v = v.replacingOccurrences(of: "\"", with: "\\\"")
+        v = v.replacingOccurrences(of: "\n", with: "\\n")
+        return "\"\(v)\""
     }
 }
 
