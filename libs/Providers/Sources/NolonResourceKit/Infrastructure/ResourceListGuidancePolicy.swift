@@ -52,4 +52,19 @@ public enum ResourceListGuidancePolicy {
         actions.append("生成修复命令: `\(listCommandPrefix) --show-fixes`")
         return actions
     }
+
+    public static func resourceQuickActionItems(
+        singleFixCommand: String?,
+        showFixesCommand: String,
+        verboseShowFixesCommand: String
+    ) -> [String] {
+        var actions: [String] = []
+        if let singleFixCommand, !singleFixCommand.isEmpty {
+            actions.append("`\(singleFixCommand)`")
+        } else {
+            actions.append("生成分条修复命令: `\(showFixesCommand)`")
+        }
+        actions.append("查看路径与来源: `\(verboseShowFixesCommand)`")
+        return actions
+    }
 }

@@ -683,6 +683,30 @@ struct NolonResourceKitTests {
         )
     }
 
+    @Test("ResourceListGuidancePolicy renders resource quick action items")
+    func resourceListGuidancePolicyRendersResourceQuickActionItems() {
+        #expect(
+            ResourceListGuidancePolicy.resourceQuickActionItems(
+                singleFixCommand: "nolon workflow remove --resource-name a.md --provider codex",
+                showFixesCommand: "nolon workflow list --show-fixes",
+                verboseShowFixesCommand: "nolon workflow list --verbose --show-fixes"
+            ) == [
+                "`nolon workflow remove --resource-name a.md --provider codex`",
+                "查看路径与来源: `nolon workflow list --verbose --show-fixes`",
+            ]
+        )
+        #expect(
+            ResourceListGuidancePolicy.resourceQuickActionItems(
+                singleFixCommand: nil,
+                showFixesCommand: "nolon mcp list --show-fixes",
+                verboseShowFixesCommand: "nolon mcp list --verbose --show-fixes"
+            ) == [
+                "生成分条修复命令: `nolon mcp list --show-fixes`",
+                "查看路径与来源: `nolon mcp list --verbose --show-fixes`",
+            ]
+        )
+    }
+
     @Test("SearchPresentationPolicy prioritizes exact slug")
     func searchPresentationPolicyPrioritizesExactSlug() {
         struct Item { let slug: String }

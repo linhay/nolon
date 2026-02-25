@@ -3147,12 +3147,14 @@ public struct NolonCoreCLIRunner: Sendable {
             lines.append("")
             lines.append("[下一步（可复制执行）]")
             lines.append("修复建议（可复制）:")
-            if fixCommands.detailed.count == 1 {
-                lines.append("1) `\(Self.copyableCommand(fixCommands.simple))`")
-            } else {
-                lines.append("1) 生成分条修复命令: `\(Self.copyableCommand("nolon \(kind.rawValue) list\(filterSuffix) --show-fixes"))`")
-            }
-            lines.append("2) 查看路径与来源: `\(Self.copyableCommand("nolon \(kind.rawValue) list\(filterSuffix) --verbose --show-fixes"))`")
+            let quickActions = ResourceListGuidancePolicy.resourceQuickActionItems(
+                singleFixCommand: fixCommands.detailed.count == 1 ? Self.copyableCommand(fixCommands.simple) : nil,
+                showFixesCommand: Self.copyableCommand("nolon \(kind.rawValue) list\(filterSuffix) --show-fixes"),
+                verboseShowFixesCommand: Self.copyableCommand("nolon \(kind.rawValue) list\(filterSuffix) --verbose --show-fixes")
+            )
+            lines.append(contentsOf: quickActions.enumerated().map { index, action in
+                "\(index + 1)) \(action)"
+            })
         }
         if showFixes, !fixCommands.detailed.isEmpty {
             lines.append("")
