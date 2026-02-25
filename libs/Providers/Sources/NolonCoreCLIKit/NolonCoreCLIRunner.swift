@@ -2144,19 +2144,10 @@ public struct NolonCoreCLIRunner: Sendable {
             }
             return [SkillsAddTarget(providerID: template.providerID, providerPath: template.defaultSkillsPath.path)]
         }
-
-        var targets: [SkillsAddTarget] = []
-        var seen: Set<String> = []
-        for template in ProviderTemplate.allCases {
-            let executable = template.cliName.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !executable.isEmpty else { continue }
-            guard Self.resolveCLIInOfficialPaths(named: executable) != nil else { continue }
-            let key = template.providerID.lowercased()
-            if seen.contains(key) { continue }
-            seen.insert(key)
-            targets.append(SkillsAddTarget(providerID: template.providerID, providerPath: template.defaultSkillsPath.path))
+        let templates = ProviderDiscoveryService().templatesWithInstalledCLI()
+        return templates.map {
+            SkillsAddTarget(providerID: $0.providerID, providerPath: $0.defaultSkillsPath.path)
         }
-        return targets.sorted { $0.providerID.localizedCaseInsensitiveCompare($1.providerID) == .orderedAscending }
     }
 
     private static func normalizedSlug(_ value: String) -> String {
@@ -2185,16 +2176,8 @@ public struct NolonCoreCLIRunner: Sendable {
             }
             return [SkillsAddTarget(providerID: template.providerID, providerPath: providerPath)]
         }
-
-        var targets: [SkillsAddTarget] = []
-        var seen: Set<String> = []
-        for template in ProviderTemplate.allCases {
-            let executable = template.cliName.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !executable.isEmpty else { continue }
-            guard Self.resolveCLIInOfficialPaths(named: executable) != nil else { continue }
-            let key = template.providerID.lowercased()
-            if seen.contains(key) { continue }
-            seen.insert(key)
+        let templates = ProviderDiscoveryService().templatesWithInstalledCLI()
+        return templates.map { template in
             let providerPath: String
             switch kind {
             case .workflow:
@@ -2202,9 +2185,8 @@ public struct NolonCoreCLIRunner: Sendable {
             case .mcp:
                 providerPath = template.defaultMcpConfigPath.deletingLastPathComponent().path
             }
-            targets.append(SkillsAddTarget(providerID: template.providerID, providerPath: providerPath))
+            return SkillsAddTarget(providerID: template.providerID, providerPath: providerPath)
         }
-        return targets.sorted { $0.providerID.localizedCaseInsensitiveCompare($1.providerID) == .orderedAscending }
     }
 
     private static func resolveMCPConfigTargets(provider: String?) throws -> [SkillsAddTarget] {
@@ -2214,33 +2196,10 @@ public struct NolonCoreCLIRunner: Sendable {
             }
             return [SkillsAddTarget(providerID: template.providerID, providerPath: template.defaultMcpConfigPath.path)]
         }
-
-        var targets: [SkillsAddTarget] = []
-        var seen: Set<String> = []
-        for template in ProviderTemplate.allCases {
-            let executable = template.cliName.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !executable.isEmpty else { continue }
-            guard Self.resolveCLIInOfficialPaths(named: executable) != nil else { continue }
-            let key = template.providerID.lowercased()
-            if seen.contains(key) { continue }
-            seen.insert(key)
-            targets.append(SkillsAddTarget(providerID: template.providerID, providerPath: template.defaultMcpConfigPath.path))
+        let templates = ProviderDiscoveryService().templatesWithInstalledCLI()
+        return templates.map {
+            SkillsAddTarget(providerID: $0.providerID, providerPath: $0.defaultMcpConfigPath.path)
         }
-        return targets.sorted { $0.providerID.localizedCaseInsensitiveCompare($1.providerID) == .orderedAscending }
-    }
-
-    private static func resolveCLIInOfficialPaths(named executable: String) -> String? {
-        let candidates = [
-            "/opt/homebrew/bin/\(executable)",
-            "/usr/local/bin/\(executable)",
-            "/usr/bin/\(executable)",
-        ]
-        for path in candidates {
-            let candidate = STPath(path)
-            guard candidate.isExists, candidate.permission.contains(.executable) else { continue }
-            return candidate.url.standardizedFileURL.path
-        }
-        return nil
     }
 
     private static func writeSkillOrigin(skillRoot: STPath, payload: [String: String]) throws {

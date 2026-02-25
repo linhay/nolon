@@ -362,6 +362,69 @@ struct NolonResourceKitTests {
         #expect(summary.agentsCount == 1)
     }
 
+    @Test("ProviderDiscoveryService detects installed providers from paths")
+    func providerDiscoveryServiceDetectsInstalledProvidersFromPaths() {
+        let knownPaths = Set([
+            ProviderTemplate.codex.defaultSkillsPath.path,
+            ProviderTemplate.opencode.defaultWorkflowPath.path,
+        ])
+        let service = ProviderDiscoveryService(
+            pathExists: { knownPaths.contains($0) },
+            cliResolver: { _ in nil }
+        )
+        let detected = service.detectInstalledProviders(templates: [.codex, .opencode, .claudeCode])
+        #expect(detected.contains(.codex))
+        #expect(detected.contains(.opencode))
+        #expect(detected.contains(.claudeCode) == false)
+    }
+
+    @Test("ProviderDiscoveryService resolves templates with installed CLI")
+    func providerDiscoveryServiceResolvesTemplatesWithInstalledCLI() {
+        let service = ProviderDiscoveryService(
+            pathExists: { _ in false },
+            cliResolver: { executable in
+                executable == ProviderTemplate.codex.cliName ? "/opt/homebrew/bin/\(executable)" : nil
+            }
+        )
+        let detected = service.templatesWithInstalledCLI(templates: [.codex, .opencode, .claudeCode])
+        #expect(detected == [.codex])
+    }
+
+    @Test("ProviderSkillMaintenanceService scans and migrates skills")
+    func providerSkillMaintenanceServiceScansAndMigratesSkills() throws {
+        let root = try STFolder(sanbox: .temporary)
+            .folder("nolon-skill-maintenance-\(UUID().uuidString)")
+            .create()
+        defer { try? root.deleteIncludingBrokenSymlink() }
+
+        let providerFolder = root.folder("provider-skills")
+        let globalFolder = root.folder("global-skills")
+        _ = providerFolder.createIfNotExists()
+        _ = globalFolder.createIfNotExists()
+
+        let globalSkill = globalFolder.folder("find-skills")
+        _ = globalSkill.createIfNotExists()
+        try "x".write(to: globalSkill.file("SKILL.md").url, atomically: true, encoding: .utf8)
+
+        let localSkill = providerFolder.folder("find-skills")
+        _ = localSkill.createIfNotExists()
+        try "y".write(to: localSkill.file("SKILL.md").url, atomically: true, encoding: .utf8)
+
+        let service = ProviderSkillMaintenanceService()
+        let scan = try service.scanProviderSkills(providerPath: providerFolder, globalSkillsPath: globalFolder)
+        #expect(scan.states.count == 1)
+        #expect(scan.states.first?.state == .orphaned)
+
+        let migrated = try service.migrateSkill(
+            skillID: "find-skills",
+            providerPath: providerFolder,
+            globalSkillsPath: globalFolder,
+            installMethod: .copy
+        )
+        #expect(migrated.skillID == "find-skills")
+        #expect(STPath(migrated.targetPath).isExists)
+    }
+
     @Test("ResourceRepairPlanner builds deterministic steps")
     func resourceRepairPlannerBuildsSteps() {
         let plan = ResourceRepairPlanner.plan(

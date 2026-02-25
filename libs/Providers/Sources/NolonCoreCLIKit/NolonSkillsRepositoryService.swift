@@ -268,6 +268,8 @@ private func resolveNolonHomeFolder(environment: [String: String] = ProcessInfo.
 }
 
 public struct NolonLiveSkillsRepositoryService: NolonSkillsRepositoryServing {
+    private let maintenanceService = ProviderSkillMaintenanceService()
+
     public init() {}
 
     public func planGitImport(source: String, repositoriesRoot: STFolder) throws -> NolonGitImportPlan {
@@ -502,37 +504,31 @@ public struct NolonLiveSkillsRepositoryService: NolonSkillsRepositoryServing {
     }
 
     public func scanProviderSkills(providerPath: STFolder, globalSkillsPath: STFolder) throws -> NolonSkillMigrateScanResult {
-        guard providerPath.isExists else {
-            throw NolonCoreCLIError.invalidArguments("Provider path does not exist: \(providerPath.url.path)")
-        }
-        let entries = try providerPath.subFilePaths([.skipsHiddenFiles])
-        let globalRoot = globalSkillsPath.url.path.hasSuffix("/")
-            ? globalSkillsPath.url.path
-            : "\(globalSkillsPath.url.path)/"
-        let states = entries.map { path -> NolonProviderSkillState in
-            let skillID = path.url.lastPathComponent
-            let globalCandidate = globalSkillsPath.subpath(skillID).url.path
-            let globalExists = STPath(globalCandidate).isExists
-            if path.isSymbolicLink {
-                let dest = ((try? path.destinationOfSymbolicLink()) ?? path).url.path
-                if STPath(dest).isExists {
-                    if dest.hasPrefix(globalRoot) {
-                        return NolonProviderSkillState(skillID: skillID, path: path.url.path, state: .installed)
-                    }
-                    return NolonProviderSkillState(skillID: skillID, path: path.url.path, state: .orphaned)
+        do {
+            let scan = try maintenanceService.scanProviderSkills(
+                providerPath: providerPath,
+                globalSkillsPath: globalSkillsPath
+            )
+            return NolonSkillMigrateScanResult(
+                providerPath: scan.providerPath,
+                globalSkillsPath: scan.globalSkillsPath,
+                states: scan.states.map { state in
+                    NolonProviderSkillState(
+                        skillID: state.skillID,
+                        path: state.path,
+                        state: {
+                            switch state.state {
+                            case .installed: return .installed
+                            case .orphaned: return .orphaned
+                            case .broken: return .broken
+                            }
+                        }()
+                    )
                 }
-                return NolonProviderSkillState(skillID: skillID, path: path.url.path, state: .broken)
-            }
-            if globalExists {
-                return NolonProviderSkillState(skillID: skillID, path: path.url.path, state: .orphaned)
-            }
-            return NolonProviderSkillState(skillID: skillID, path: path.url.path, state: .orphaned)
-        }.sorted { $0.skillID.localizedCaseInsensitiveCompare($1.skillID) == .orderedAscending }
-        return NolonSkillMigrateScanResult(
-            providerPath: providerPath.url.path,
-            globalSkillsPath: globalSkillsPath.url.path,
-            states: states
-        )
+            )
+        } catch {
+            throw NolonCoreCLIError.invalidArguments(error.localizedDescription)
+        }
     }
 
     public func migrateSkill(
@@ -541,17 +537,22 @@ public struct NolonLiveSkillsRepositoryService: NolonSkillsRepositoryServing {
         globalSkillsPath: STFolder,
         installMethod: NolonSkillInstallMethod
     ) throws -> NolonSkillInstallResult {
-        let resolvedSkillID = try validateSinglePathComponent(skillID, field: "skill-id")
-        let source = globalSkillsPath.subpath(resolvedSkillID)
-        guard source.isExists else {
-            throw NolonCoreCLIError.invalidArguments("Global skill not found: \(source.url.path)")
+        do {
+            let result = try maintenanceService.migrateSkill(
+                skillID: skillID,
+                providerPath: providerPath,
+                globalSkillsPath: globalSkillsPath,
+                installMethod: installMethod == .copy ? .copy : .symlink
+            )
+            return NolonSkillInstallResult(
+                skillID: result.skillID,
+                sourcePath: result.sourcePath,
+                targetPath: result.targetPath,
+                installMethod: result.installMethod == .copy ? .copy : .symlink
+            )
+        } catch {
+            throw NolonCoreCLIError.invalidArguments(error.localizedDescription)
         }
-        return try installSkill(
-            skillPath: source,
-            skillID: resolvedSkillID,
-            providerPath: providerPath,
-            installMethod: installMethod
-        )
     }
 
     public func installResource(
