@@ -2573,16 +2573,22 @@ public struct NolonCoreCLIRunner: Sendable {
     }
 
     private func formatSkillsListText(_ result: NolonSkillsListResult, verbose: Bool, showFixes: Bool) -> String {
-        func percent(_ value: Int, total: Int) -> String {
-            guard total > 0 else { return "0.0%" }
-            let ratio = (Double(value) / Double(total)) * 100
-            return String(format: "%.1f%%", ratio)
-        }
-
         var lines: [String] = []
         let orphanedLabel = "失效链接"
-        let issueCount = result.summary.orphanedCount + result.summary.brokenCount
-        let compactHealthySummary = showFixes && issueCount == 0 && !verbose && result.providerFilter == nil && result.stateFilter == nil
+        let metrics = ResourceListOverviewMetrics(
+            installedCount: result.summary.installedCount,
+            orphanedCount: result.summary.orphanedCount,
+            brokenCount: result.summary.brokenCount,
+            itemCount: result.summary.itemCount
+        )
+        let issueCount = ResourceListOverviewFormatter.issueCount(metrics)
+        let compactHealthySummary = ResourceListOverviewFormatter.compactHealthySummary(
+            showFixes: showFixes,
+            verbose: verbose,
+            hasProviderFilter: result.providerFilter != nil,
+            hasStateFilter: result.stateFilter != nil,
+            metrics: metrics
+        )
         var filtersAppended = false
         func appendFiltersIfNeeded() {
             if filtersAppended { return }
@@ -2595,9 +2601,8 @@ public struct NolonCoreCLIRunner: Sendable {
             filtersAppended = true
         }
         lines.append("[结论]")
-        if showFixes {
-            let actionLabel = issueCount > 0 ? "需修复" : "无"
-            lines.append("摘要: 异常=\(issueCount) | 已安装=\(result.summary.installedCount)/\(result.summary.itemCount) | 修复动作=\(actionLabel)")
+        if let summaryLine = ResourceListOverviewFormatter.summaryLine(showFixes: showFixes, metrics: metrics) {
+            lines.append(summaryLine)
             lines.append("[详情]")
             appendFiltersIfNeeded()
         }
@@ -2608,22 +2613,20 @@ public struct NolonCoreCLIRunner: Sendable {
             lines.append("skills_total: \(result.summary.itemCount)")
         }
         if !showFixes || issueCount > 0 {
-            lines.append("状态(已安装/\(orphanedLabel)/损坏): \(result.summary.installedCount)/\(result.summary.orphanedCount)/\(result.summary.brokenCount) (\(percent(result.summary.installedCount, total: result.summary.itemCount))/\(percent(result.summary.orphanedCount, total: result.summary.itemCount))/\(percent(result.summary.brokenCount, total: result.summary.itemCount)))")
+            lines.append(
+                ResourceListOverviewFormatter.statusLine(
+                    metrics: metrics,
+                    orphanedLabel: orphanedLabel
+                )
+            )
         }
-        if showFixes {
-            if issueCount > 0 {
-                lines.append("结论：发现 \(issueCount) 项异常（\(orphanedLabel) \(result.summary.orphanedCount)、损坏 \(result.summary.brokenCount)），请按下方修复计划依序处理。")
-            } else {
-                lines.append("健康：\(result.summary.installedCount)/\(result.summary.itemCount)（\(percent(result.summary.installedCount, total: result.summary.itemCount))），异常 0，修复动作：无。")
-            }
-        } else {
-            lines.append("需处理异常: \(issueCount)（\(orphanedLabel) \(result.summary.orphanedCount)，损坏 \(result.summary.brokenCount)）")
-            if issueCount > 0 {
-                lines.append("行动建议: 需处理 \(issueCount) 项异常（高优先级）")
-            } else {
-                lines.append("行动建议: 无需处理（系统健康）")
-            }
-        }
+        lines.append(
+            contentsOf: ResourceListOverviewFormatter.conclusionLines(
+                showFixes: showFixes,
+                metrics: metrics,
+                orphanedLabel: orphanedLabel
+            )
+        )
         appendFiltersIfNeeded()
         if showFixes, issueCount == 0, !verbose, result.providerFilter == nil, result.stateFilter == nil {
             lines.append("如需查看已安装技能，请执行: `\(Self.copyableCommand("nolon skills list --state installed"))`")
@@ -2969,14 +2972,22 @@ public struct NolonCoreCLIRunner: Sendable {
         verbose: Bool,
         showFixes: Bool
     ) -> String {
-        func percent(_ value: Int, total: Int) -> String {
-            guard total > 0 else { return "0.0%" }
-            return String(format: "%.1f%%", (Double(value) / Double(total)) * 100)
-        }
         var lines: [String] = []
         let orphanedLabel = "失效链接"
-        let issueCount = result.summary.orphanedCount + result.summary.brokenCount
-        let compactHealthySummary = showFixes && issueCount == 0 && !verbose && result.providerFilter == nil && result.stateFilter == nil
+        let metrics = ResourceListOverviewMetrics(
+            installedCount: result.summary.installedCount,
+            orphanedCount: result.summary.orphanedCount,
+            brokenCount: result.summary.brokenCount,
+            itemCount: result.summary.itemCount
+        )
+        let issueCount = ResourceListOverviewFormatter.issueCount(metrics)
+        let compactHealthySummary = ResourceListOverviewFormatter.compactHealthySummary(
+            showFixes: showFixes,
+            verbose: verbose,
+            hasProviderFilter: result.providerFilter != nil,
+            hasStateFilter: result.stateFilter != nil,
+            metrics: metrics
+        )
         var filtersAppended = false
         func appendFiltersIfNeeded() {
             if filtersAppended { return }
@@ -2989,15 +3000,11 @@ public struct NolonCoreCLIRunner: Sendable {
             filtersAppended = true
         }
         lines.append("[结论]")
-        if showFixes {
-            let actionLabel = issueCount > 0 ? "需修复" : "无"
-            lines.append("摘要: 异常=\(issueCount) | 已安装=\(result.summary.installedCount)/\(result.summary.itemCount) | 修复动作=\(actionLabel)")
+        if let summaryLine = ResourceListOverviewFormatter.summaryLine(showFixes: showFixes, metrics: metrics) {
+            lines.append(summaryLine)
             lines.append("[详情]")
             appendFiltersIfNeeded()
         }
-        let installedPct = percent(result.summary.installedCount, total: result.summary.itemCount)
-        let orphanedPct = percent(result.summary.orphanedCount, total: result.summary.itemCount)
-        let brokenPct = percent(result.summary.brokenCount, total: result.summary.itemCount)
         if !compactHealthySummary {
             let totalKey: String = {
                 switch kind {
@@ -3009,22 +3016,21 @@ public struct NolonCoreCLIRunner: Sendable {
             lines.append("providers_matched: \(matchedProvidersCount(for: result))")
             lines.append("\(totalKey): \(result.summary.itemCount)")
         }
-        if showFixes {
-            if issueCount > 0 {
-                lines.append("状态(已安装/\(orphanedLabel)/损坏): \(result.summary.installedCount)/\(result.summary.orphanedCount)/\(result.summary.brokenCount) (\(installedPct)/\(orphanedPct)/\(brokenPct))")
-                lines.append("结论：发现 \(issueCount) 项异常（\(orphanedLabel) \(result.summary.orphanedCount)、损坏 \(result.summary.brokenCount)），请按下方修复计划依序处理。")
-            } else {
-                lines.append("健康：\(result.summary.installedCount)/\(result.summary.itemCount)（\(installedPct)），异常 0，修复动作：无。")
-            }
-        } else {
-            lines.append("状态(已安装/\(orphanedLabel)/损坏): \(result.summary.installedCount)/\(result.summary.orphanedCount)/\(result.summary.brokenCount) (\(percent(result.summary.installedCount, total: result.summary.itemCount))/\(percent(result.summary.orphanedCount, total: result.summary.itemCount))/\(percent(result.summary.brokenCount, total: result.summary.itemCount)))")
-            lines.append("需处理异常: \(issueCount)（\(orphanedLabel) \(result.summary.orphanedCount)，损坏 \(result.summary.brokenCount)）")
-            if issueCount > 0 {
-                lines.append("行动建议: 需处理 \(issueCount) 项异常（高优先级）")
-            } else {
-                lines.append("行动建议: 无需处理（系统健康）")
-            }
+        if !showFixes || issueCount > 0 {
+            lines.append(
+                ResourceListOverviewFormatter.statusLine(
+                    metrics: metrics,
+                    orphanedLabel: orphanedLabel
+                )
+            )
         }
+        lines.append(
+            contentsOf: ResourceListOverviewFormatter.conclusionLines(
+                showFixes: showFixes,
+                metrics: metrics,
+                orphanedLabel: orphanedLabel
+            )
+        )
         appendFiltersIfNeeded()
         if showFixes, issueCount == 0, !verbose, result.providerFilter == nil, result.stateFilter == nil {
             let resourceLabel = Self.localizedResourceKindLabel(kind)

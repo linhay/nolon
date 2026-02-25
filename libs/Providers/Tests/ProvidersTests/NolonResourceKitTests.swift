@@ -572,6 +572,59 @@ struct NolonResourceKitTests {
         )
     }
 
+    @Test("ResourceListOverviewFormatter renders status and summary deterministically")
+    func resourceListOverviewFormatterRendersStatusAndSummary() {
+        let metrics = ResourceListOverviewMetrics(
+            installedCount: 2,
+            orphanedCount: 1,
+            brokenCount: 1,
+            itemCount: 4
+        )
+
+        #expect(ResourceListOverviewFormatter.issueCount(metrics) == 2)
+        #expect(
+            ResourceListOverviewFormatter.summaryLine(showFixes: true, metrics: metrics)
+                == "摘要: 异常=2 | 已安装=2/4 | 修复动作=需修复"
+        )
+        #expect(
+            ResourceListOverviewFormatter.statusLine(metrics: metrics)
+                == "状态(已安装/失效链接/损坏): 2/1/1 (50.0%/25.0%/25.0%)"
+        )
+        #expect(
+            ResourceListOverviewFormatter.conclusionLines(showFixes: false, metrics: metrics)
+                == ["需处理异常: 2（失效链接 1，损坏 1）", "行动建议: 需处理 2 项异常（高优先级）"]
+        )
+    }
+
+    @Test("ResourceListOverviewFormatter compact healthy summary rule")
+    func resourceListOverviewFormatterCompactHealthySummaryRule() {
+        let healthy = ResourceListOverviewMetrics(
+            installedCount: 4,
+            orphanedCount: 0,
+            brokenCount: 0,
+            itemCount: 4
+        )
+
+        #expect(
+            ResourceListOverviewFormatter.compactHealthySummary(
+                showFixes: true,
+                verbose: false,
+                hasProviderFilter: false,
+                hasStateFilter: false,
+                metrics: healthy
+            )
+        )
+        #expect(
+            ResourceListOverviewFormatter.compactHealthySummary(
+                showFixes: true,
+                verbose: false,
+                hasProviderFilter: true,
+                hasStateFilter: false,
+                metrics: healthy
+            ) == false
+        )
+    }
+
     @Test("SearchPresentationPolicy prioritizes exact slug")
     func searchPresentationPolicyPrioritizesExactSlug() {
         struct Item { let slug: String }
