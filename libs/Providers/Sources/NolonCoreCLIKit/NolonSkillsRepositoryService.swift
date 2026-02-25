@@ -270,6 +270,7 @@ private func resolveNolonHomeFolder(environment: [String: String] = ProcessInfo.
 public struct NolonLiveSkillsRepositoryService: NolonSkillsRepositoryServing {
     private let maintenanceService = ProviderSkillMaintenanceService()
     private let mcpMaintenanceService = ProviderMCPMaintenanceService()
+    private let workflowBindingService = WorkflowBindingService()
 
     public init() {}
 
@@ -608,9 +609,9 @@ public struct NolonLiveSkillsRepositoryService: NolonSkillsRepositoryServing {
         targetPath: STFolder
     ) throws -> NolonResourceInstallResult {
         do {
-            let result = try SkillsRepositoryFacade.bindWorkflowFromSkill(
+            let result = try workflowBindingService.bindWorkflowFromSkill(
                 skillID: skillID,
-                providerWorkflowPath: targetPath.url
+                providerWorkflowPath: targetPath
             )
             return NolonResourceInstallResult(
                 kind: .workflow,
@@ -629,9 +630,9 @@ public struct NolonLiveSkillsRepositoryService: NolonSkillsRepositoryServing {
         targetPath: STFolder
     ) throws -> NolonResourceInstallResult {
         do {
-            let result = try SkillsRepositoryFacade.bindWorkflowFromMCP(
+            let result = try workflowBindingService.bindWorkflowFromMCP(
                 mcpName: mcpName,
-                providerWorkflowPath: targetPath.url
+                providerWorkflowPath: targetPath
             )
             return NolonResourceInstallResult(
                 kind: .workflow,
@@ -650,9 +651,9 @@ public struct NolonLiveSkillsRepositoryService: NolonSkillsRepositoryServing {
         targetPath: STFolder
     ) throws -> NolonResourceUninstallResult {
         do {
-            let result = try SkillsRepositoryFacade.unbindWorkflowFromSkill(
+            let result = try workflowBindingService.unbindWorkflowFromSkill(
                 skillID: skillID,
-                providerWorkflowPath: targetPath.url
+                providerWorkflowPath: targetPath
             )
             return NolonResourceUninstallResult(
                 kind: .workflow,
@@ -670,9 +671,9 @@ public struct NolonLiveSkillsRepositoryService: NolonSkillsRepositoryServing {
         targetPath: STFolder
     ) throws -> NolonResourceUninstallResult {
         do {
-            let result = try SkillsRepositoryFacade.unbindWorkflowFromMCP(
+            let result = try workflowBindingService.unbindWorkflowFromMCP(
                 mcpName: mcpName,
-                providerWorkflowPath: targetPath.url
+                providerWorkflowPath: targetPath
             )
             return NolonResourceUninstallResult(
                 kind: .workflow,

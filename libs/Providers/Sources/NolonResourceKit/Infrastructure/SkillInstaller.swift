@@ -29,17 +29,20 @@ public final class SkillInstaller {
     private let settings: ProviderSettings
     private let nolonManager: NolonManager
     private let lockFileManager: SkillLockFileManager
+    private let workflowBindingService: WorkflowBindingService
 
     public init(
         repository: SkillRepository,
         settings: ProviderSettings,
         nolonManager: NolonManager = .shared,
-        lockFileManager: SkillLockFileManager = SkillLockFileManager()
+        lockFileManager: SkillLockFileManager = SkillLockFileManager(),
+        workflowBindingService: WorkflowBindingService? = nil
     ) {
         self.repository = repository
         self.settings = settings
         self.nolonManager = nolonManager
         self.lockFileManager = lockFileManager
+        self.workflowBindingService = workflowBindingService ?? WorkflowBindingService(manager: nolonManager)
     }
 
     // MARK: - Installation
@@ -405,35 +408,33 @@ public final class SkillInstaller {
     
     /// Install a workflow for a skill (symlink to global workflow)
     public func installWorkflow(skill: Skill, to provider: Provider) throws {
-        _ = try SkillsRepositoryFacade.bindWorkflowFromSkill(
+        _ = try workflowBindingService.bindWorkflowFromSkill(
             skillID: skill.id,
-            providerWorkflowPath: URL(fileURLWithPath: provider.workflowPath, isDirectory: true),
-            nolonHome: nolonManager.rootFolder.url
+            providerWorkflowPath: STFolder(provider.workflowPath)
         )
     }
     
     /// Uninstall a workflow for a skill
     public func uninstallWorkflow(skill: Skill, from provider: Provider) throws {
-        _ = try SkillsRepositoryFacade.unbindWorkflowFromSkill(
+        _ = try workflowBindingService.unbindWorkflowFromSkill(
             skillID: skill.id,
-            providerWorkflowPath: URL(fileURLWithPath: provider.workflowPath, isDirectory: true)
+            providerWorkflowPath: STFolder(provider.workflowPath)
         )
     }
     
     /// Install a workflow for an MCP (symlink to mcps-workflows)
     public func installMcpWorkflow(mcp: MCP, to provider: Provider) throws {
-        _ = try SkillsRepositoryFacade.bindWorkflowFromMCP(
+        _ = try workflowBindingService.bindWorkflowFromMCP(
             mcpName: mcp.name,
-            providerWorkflowPath: URL(fileURLWithPath: provider.workflowPath, isDirectory: true),
-            nolonHome: nolonManager.rootFolder.url
+            providerWorkflowPath: STFolder(provider.workflowPath)
         )
     }
     
     /// Uninstall a workflow for an MCP
     public func uninstallMcpWorkflow(mcp: MCP, from provider: Provider) throws {
-        _ = try SkillsRepositoryFacade.unbindWorkflowFromMCP(
+        _ = try workflowBindingService.unbindWorkflowFromMCP(
             mcpName: mcp.name,
-            providerWorkflowPath: URL(fileURLWithPath: provider.workflowPath, isDirectory: true)
+            providerWorkflowPath: STFolder(provider.workflowPath)
         )
     }
 

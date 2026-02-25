@@ -479,6 +479,65 @@ struct NolonResourceKitTests {
         #expect(STPath(migrated.targetPath).isExists)
     }
 
+    @Test("WorkflowBindingService binds and unbinds workflows for skill and MCP")
+    func workflowBindingServiceBindsAndUnbindsWorkflows() throws {
+        let root = try STFolder(sanbox: .temporary)
+            .folder("nolon-workflow-binding-\(UUID().uuidString)")
+            .create()
+        defer { try? root.deleteIncludingBrokenSymlink() }
+
+        let nolonHome = root.folder("nolon-home")
+        _ = nolonHome.createIfNotExists()
+        let providerWorkflow = root.folder("provider-workflows")
+        _ = providerWorkflow.createIfNotExists()
+
+        let skillRoot = nolonHome.folder("skills").folder("find-skills")
+        _ = skillRoot.createIfNotExists()
+        try Data(
+            """
+            ---
+            name: find-skills
+            description: Find skills.
+            ---
+            """.utf8
+        ).write(to: skillRoot.file("SKILL.md").url)
+
+        let manager = NolonManager(rootURL: nolonHome.url)
+        let service = WorkflowBindingService(manager: manager)
+
+        let skillInstall = try service.bindWorkflowFromSkill(
+            skillID: "find-skills",
+            providerWorkflowPath: providerWorkflow
+        )
+        #expect(skillInstall.workflowFileName == "find-skills.md")
+        #expect(STPath(skillInstall.globalWorkflowPath).isExists)
+        #expect(STPath(skillInstall.providerWorkflowPath).isSymbolicLink)
+
+        let mcpInstall = try service.bindWorkflowFromMCP(
+            mcpName: "playwright",
+            providerWorkflowPath: providerWorkflow
+        )
+        #expect(mcpInstall.workflowFileName == "playwright.md")
+        #expect(STPath(mcpInstall.globalWorkflowPath).isExists)
+        #expect(STPath(mcpInstall.providerWorkflowPath).isSymbolicLink)
+
+        let skillUninstall = try service.unbindWorkflowFromSkill(
+            skillID: "find-skills",
+            providerWorkflowPath: providerWorkflow
+        )
+        #expect(skillUninstall.workflowFileName == "find-skills.md")
+        #expect(skillUninstall.removed)
+        #expect(STPath(skillUninstall.providerWorkflowPath).isExists == false)
+
+        let mcpUninstall = try service.unbindWorkflowFromMCP(
+            mcpName: "playwright",
+            providerWorkflowPath: providerWorkflow
+        )
+        #expect(mcpUninstall.workflowFileName == "playwright.md")
+        #expect(mcpUninstall.removed)
+        #expect(STPath(mcpUninstall.providerWorkflowPath).isExists == false)
+    }
+
     @Test("ResourceRepairPlanner builds deterministic steps")
     func resourceRepairPlannerBuildsSteps() {
         let plan = ResourceRepairPlanner.plan(
