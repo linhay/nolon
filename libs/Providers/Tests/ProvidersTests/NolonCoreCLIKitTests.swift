@@ -3146,62 +3146,24 @@ struct NolonCoreCLIKitTests {
         #expect(result.stdout.contains("\"state\":\"migrated_up_to_date\""))
     }
 
-    @Test("mcp parser reads server names from toml sections")
-    func parseMcpServerNamesFromToml() throws {
-        let names = try NolonCoreCLIRunner.parseMCPServerNames(
-            content: """
-            [mcp_servers.filesystem]
-            command = "npx"
-
-            [mcp.servers.git]
-            command = "uvx"
-            """,
-            fileExtension: "toml"
-        )
-
-        #expect(names == ["filesystem", "git"])
+    @Test("mcp list sources server names from service layer")
+    func mcpListSourcesServerNamesFromServiceLayer() throws {
+        let service = MockSkillsRepositoryService()
+        let result = try service.listMcpServers(provider: "codex")
+        #expect(result.providerID == "codex")
+        #expect(result.items.map(\.name) == ["playwright"])
     }
 
-    @Test("mcp parser ignores nested env subsection in toml")
-    func parseMcpServerNamesIgnoresNestedEnvSubsectionInToml() throws {
-        let names = try NolonCoreCLIRunner.parseMCPServerNames(
-            content: """
-            [mcp_servers.xcode-tools]
-            command = "npx"
-
-            [mcp_servers.xcode-tools.env]
-            FOO = "bar"
-            """,
-            fileExtension: "toml"
+    @Test("mcp list output reflects service-provided server names")
+    func mcpListOutputReflectsServiceProvidedServerNames() async {
+        let runner = NolonCoreCLIRunner(
+            service: MockSkillsRepositoryService(),
+            fileReader: { _ in "" }
         )
-
-        #expect(names == ["xcode-tools"])
-    }
-
-    @Test("mcp list uses config file entries instead of scanning sibling files")
-    func mcpListUsesConfigEntriesInsteadOfDirectoryScan() throws {
-        let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("nolon-mcp-config-\(UUID().uuidString)", isDirectory: true)
-        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: root) }
-
-        let config = root.appendingPathComponent("config.toml")
-        try """
-        [mcp_servers.filesystem]
-        command = "npx"
-        """.write(to: config, atomically: true, encoding: .utf8)
-
-        let sibling = root.appendingPathComponent("AGENTS.md")
-        try "noise".write(to: sibling, atomically: true, encoding: .utf8)
-
-        let items = NolonCoreCLIRunner.buildMCPListItemsForConfig(
-            providerID: "codex",
-            configPath: config.path
-        )
-
-        #expect(items.count == 1)
-        #expect(items.first?.skillID == "filesystem")
-        #expect(items.first?.state == .installed)
+        let result = await runner.execute(arguments: ["mcp", "list", "--provider", "codex"])
+        #expect(result.exitCode == 0)
+        #expect(result.stdout.contains("\"skill_id\":\"playwright\""))
+        #expect(result.stdout.contains("\"skill_id\":\"AGENTS.md\"") == false)
     }
 
     @Test("resource fix command builder renders compact and detailed commands")
@@ -3390,7 +3352,7 @@ struct NolonCoreCLIKitTests {
             outputMode: .text
         )
         #expect(result.exitCode == 0)
-        #expect(result.stdout.contains("健康：11/11（100.0%），异常 0，修复动作：无。"))
+        #expect(result.stdout.contains("健康：5/5（100.0%），异常 0，修复动作：无。"))
         #expect(result.stdout.contains("未发现异常 MCP 资源（失效链接/损坏）。") == false)
         #expect(result.stdout.contains("[下一步（可复制执行）]") == false)
         #expect(result.stdout.contains("可选复检:") == false)
@@ -3413,9 +3375,9 @@ struct NolonCoreCLIKitTests {
         )
         #expect(result.exitCode == 0)
         #expect(result.stdout.contains("[详情]"))
-        #expect(result.stdout.contains("摘要: 异常=0 | 已安装=11/11 | 修复动作=无"))
+        #expect(result.stdout.contains("摘要: 异常=0 | 已安装=5/5 | 修复动作=无"))
         #expect(result.stdout.contains("summary: issues=") == false)
-        #expect(result.stdout.contains("健康：11/11（100.0%），异常 0，修复动作：无。"))
+        #expect(result.stdout.contains("健康：5/5（100.0%），异常 0，修复动作：无。"))
         #expect(result.stdout.contains("结论：全部健康") == false)
     }
 
@@ -3578,7 +3540,7 @@ struct NolonCoreCLIKitTests {
             outputMode: .text
         )
         #expect(result.exitCode == 0)
-        #expect(result.stdout.contains("- codex/xcode\n  path:"))
+        #expect(result.stdout.contains("- codex/playwright\n  path:"))
         #expect(result.stdout.contains("[配置路径]") == false)
         #expect(result.stdout.contains("config_path:") == false)
     }

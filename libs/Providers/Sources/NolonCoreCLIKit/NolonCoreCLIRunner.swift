@@ -1308,7 +1308,30 @@ public struct NolonCoreCLIRunner: Sendable {
 
         for target in targets {
             providersScanned += 1
-            items.append(contentsOf: Self.buildMCPListItemsForConfig(providerID: target.providerID, configPath: target.providerPath))
+            do {
+                let result = try service.listMcpServers(provider: target.providerID)
+                items.append(contentsOf: result.items.map { server in
+                    NolonSkillsListItem(
+                        providerID: target.providerID,
+                        providerPath: result.configPath,
+                        skillID: server.name,
+                        state: .installed,
+                        path: result.configPath,
+                        origin: readResourceOrigin(kind: .mcp, identifier: server.name)
+                    )
+                })
+            } catch {
+                items.append(
+                    NolonSkillsListItem(
+                        providerID: target.providerID,
+                        providerPath: target.providerPath,
+                        skillID: URL(fileURLWithPath: target.providerPath).lastPathComponent,
+                        state: .broken,
+                        path: target.providerPath,
+                        origin: nil
+                    )
+                )
+            }
         }
 
         items.sort {
@@ -2175,119 +2198,6 @@ public struct NolonCoreCLIRunner: Sendable {
             targets.append(SkillsAddTarget(providerID: template.providerID, providerPath: template.defaultMcpConfigPath.path))
         }
         return targets.sorted { $0.providerID.localizedCaseInsensitiveCompare($1.providerID) == .orderedAscending }
-    }
-
-    static func buildMCPListItemsForConfig(providerID: String, configPath: String) -> [NolonSkillsListItem] {
-        let config = STPath(configPath)
-        guard config.isExists else { return [] }
-
-        let ext = config.url.pathExtension.lowercased()
-        do {
-            let content = try STFile(configPath).read()
-            let names = try parseMCPServerNames(content: content, fileExtension: ext)
-            return names.map { name in
-                NolonSkillsListItem(
-                    providerID: providerID,
-                    providerPath: configPath,
-                    skillID: name,
-                    state: .installed,
-                    path: configPath,
-                    origin: nil
-                )
-            }
-        } catch {
-            return [
-                NolonSkillsListItem(
-                    providerID: providerID,
-                    providerPath: configPath,
-                    skillID: config.url.lastPathComponent,
-                    state: .broken,
-                    path: configPath,
-                    origin: nil
-                ),
-            ]
-        }
-    }
-
-    static func parseMCPServerNames(content: String, fileExtension: String) throws -> [String] {
-        switch fileExtension {
-        case "json":
-            return try parseMCPServerNamesFromJSON(content: content)
-        case "toml":
-            return parseMCPServerNamesFromTOML(content: content)
-        default:
-            return []
-        }
-    }
-
-    private static func parseMCPServerNamesFromJSON(content: String) throws -> [String] {
-        guard let data = content.data(using: .utf8) else { return [] }
-        let object = try JSONSerialization.jsonObject(with: data, options: [])
-        var names: Set<String> = []
-        collectMCPServerNames(in: object, names: &names)
-        return names.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
-    }
-
-    private static func collectMCPServerNames(in object: Any, names: inout Set<String>) {
-        if let dictionary = object as? [String: Any] {
-            for (key, value) in dictionary {
-                let lower = key.lowercased()
-                if lower == "mcpservers" || lower == "mcp_servers" {
-                    if let serverMap = value as? [String: Any] {
-                        names.formUnion(serverMap.keys.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty })
-                    }
-                }
-                if lower == "mcp", let mcp = value as? [String: Any], let servers = mcp["servers"] as? [String: Any] {
-                    names.formUnion(servers.keys.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty })
-                }
-                collectMCPServerNames(in: value, names: &names)
-            }
-        } else if let array = object as? [Any] {
-            array.forEach { collectMCPServerNames(in: $0, names: &names) }
-        }
-    }
-
-    private static func parseMCPServerNamesFromTOML(content: String) -> [String] {
-        let patterns = [
-            #"^\s*\[(?:mcp_servers|mcp\.servers|mcpServers)\.([^\]]+)\]\s*$"#,
-        ]
-        var names: Set<String> = []
-        content.split(separator: "\n").forEach { rawLine in
-            let line = String(rawLine)
-            for pattern in patterns {
-                guard let regex = try? NSRegularExpression(pattern: pattern) else { continue }
-                let range = NSRange(line.startIndex..<line.endIndex, in: line)
-                guard let match = regex.firstMatch(in: line, options: [], range: range), match.numberOfRanges > 1 else { continue }
-                guard let captureRange = Range(match.range(at: 1), in: line) else { continue }
-                let rawName = String(line[captureRange]).trimmingCharacters(in: .whitespacesAndNewlines)
-                guard let name = normalizedMCPServerNameFromToml(rawName) else { continue }
-                if !name.isEmpty {
-                    names.insert(name)
-                }
-            }
-        }
-        return names.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
-    }
-
-    private static func normalizedMCPServerNameFromToml(_ rawName: String) -> String? {
-        var token = rawName.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !token.isEmpty else { return nil }
-
-        if token.hasPrefix("\""), token.hasSuffix("\""), token.count >= 2 {
-            token = String(token.dropFirst().dropLast()).trimmingCharacters(in: .whitespacesAndNewlines)
-            return token.isEmpty ? nil : token
-        }
-
-        if let dot = token.firstIndex(of: ".") {
-            token = String(token[..<dot])
-        }
-        token = token.trimmingCharacters(in: .whitespacesAndNewlines)
-
-        if token.hasPrefix("\""), token.hasSuffix("\""), token.count >= 2 {
-            token = String(token.dropFirst().dropLast()).trimmingCharacters(in: .whitespacesAndNewlines)
-        }
-
-        return token.isEmpty ? nil : token
     }
 
     private static func resolveCLIInOfficialPaths(named executable: String) -> String? {
