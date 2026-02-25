@@ -1395,7 +1395,7 @@ public struct NolonCoreCLIRunner: Sendable {
         guard let providerID, !providerID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw NolonCoreCLIError.invalidArguments("Missing required option: --provider-path or --provider-id")
         }
-        guard let template = resolveProviderTemplate(providerID: providerID) else {
+        guard let template = ProviderTemplate.resolve(providerID: providerID) else {
             throw NolonCoreCLIError.invalidArguments(unsupportedProviderHint(flag: "--provider-id", value: providerID))
         }
         return template.defaultSkillsPath.path
@@ -1412,7 +1412,7 @@ public struct NolonCoreCLIRunner: Sendable {
         guard let providerID, !providerID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw NolonCoreCLIError.invalidArguments("Missing required option: --target-path or --provider-id")
         }
-        guard let template = resolveProviderTemplate(providerID: providerID) else {
+        guard let template = ProviderTemplate.resolve(providerID: providerID) else {
             throw NolonCoreCLIError.invalidArguments(unsupportedProviderHint(flag: "--provider-id", value: providerID))
         }
         switch kind {
@@ -1420,18 +1420,6 @@ public struct NolonCoreCLIRunner: Sendable {
             return template.defaultCommandPath?.path ?? template.defaultWorkflowPath.path
         case .mcp:
             return template.defaultMcpConfigPath.deletingLastPathComponent().path
-        }
-    }
-
-    private static func resolveProviderTemplate(providerID: String) -> ProviderTemplate? {
-        let normalized = providerID.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        if normalized == "codex-xcode" || normalized == "codexxcode" {
-            return .codexXcode
-        }
-        return ProviderTemplate.allCases.first { template in
-            let raw = template.rawValue.lowercased()
-            let stable = template.providerID.lowercased()
-            return normalized == raw || normalized == stable
         }
     }
 
@@ -2110,7 +2098,7 @@ public struct NolonCoreCLIRunner: Sendable {
 
     private static func resolveSkillsAddTargets(provider: String?) throws -> [SkillsAddTarget] {
         if let provider, !provider.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            guard let template = resolveProviderTemplate(providerID: provider) else {
+            guard let template = ProviderTemplate.resolve(providerID: provider) else {
                 throw NolonCoreCLIError.invalidArguments(unsupportedProviderHint(flag: "--provider", value: provider))
             }
             return [SkillsAddTarget(providerID: template.providerID, providerPath: template.defaultSkillsPath.path)]
@@ -2144,7 +2132,7 @@ public struct NolonCoreCLIRunner: Sendable {
 
     private static func resolveResourceTargets(kind: NolonResourceKind, provider: String?) throws -> [SkillsAddTarget] {
         if let provider, !provider.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            guard let template = resolveProviderTemplate(providerID: provider) else {
+            guard let template = ProviderTemplate.resolve(providerID: provider) else {
                 throw NolonCoreCLIError.invalidArguments(unsupportedProviderHint(flag: "--provider", value: provider))
             }
             let providerPath: String
@@ -2180,7 +2168,7 @@ public struct NolonCoreCLIRunner: Sendable {
 
     private static func resolveMCPConfigTargets(provider: String?) throws -> [SkillsAddTarget] {
         if let provider, !provider.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            guard let template = resolveProviderTemplate(providerID: provider) else {
+            guard let template = ProviderTemplate.resolve(providerID: provider) else {
                 throw NolonCoreCLIError.invalidArguments(unsupportedProviderHint(flag: "--provider", value: provider))
             }
             return [SkillsAddTarget(providerID: template.providerID, providerPath: template.defaultMcpConfigPath.path)]

@@ -30,6 +30,15 @@ struct ProviderCatalogTemplateTests {
         #expect(ProviderTemplate.claudeCode.providerID == "claude")
     }
 
+    @Test("resolve providerID supports stable ids and codex-xcode aliases")
+    func resolveProviderID() {
+        #expect(ProviderTemplate.resolve(providerID: "codex") == .codex)
+        #expect(ProviderTemplate.resolve(providerID: "claude") == .claudeCode)
+        #expect(ProviderTemplate.resolve(providerID: "codex-xcode") == .codexXcode)
+        #expect(ProviderTemplate.resolve(providerID: "codexxcode") == .codexXcode)
+        #expect(ProviderTemplate.resolve(providerID: "unknown-provider") == nil)
+    }
+
     @Test("loader bootstraps template config into NOLON_HOME cli directory")
     func loaderBootstrapsConfigFileToCLIHome() {
         let isolatedRoot = STFolder("/tmp")

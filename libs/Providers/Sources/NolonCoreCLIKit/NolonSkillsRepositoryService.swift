@@ -901,13 +901,7 @@ public struct NolonLiveSkillsRepositoryService: NolonSkillsRepositoryServing {
 }
 
 private func resolveProviderTemplateOrThrow(_ provider: String) throws -> ProviderTemplate {
-    let normalized = provider.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-    if normalized == "codex-xcode" || normalized == "codexxcode" {
-        return .codexXcode
-    }
-    if let template = ProviderTemplate.allCases.first(where: {
-        normalized == $0.rawValue.lowercased() || normalized == $0.providerID.lowercased()
-    }) {
+    if let template = ProviderTemplate.resolve(providerID: provider) {
         return template
     }
     throw NolonCoreCLIError.invalidArguments("Unsupported --provider: \(provider)")

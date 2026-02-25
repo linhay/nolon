@@ -607,7 +607,7 @@ public enum NolonCoreCLICommandParser {
                     guard let provider, !provider.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
                         throw NolonCoreCLIError.invalidArguments("Missing required option: --provider-path or --provider/--provider-id")
                     }
-                    guard let template = resolveProviderTemplate(providerID: provider) else {
+                    guard let template = ProviderTemplate.resolve(providerID: provider) else {
                         throw NolonCoreCLIError.invalidArguments("Unsupported --provider: \(provider)")
                     }
                     providerPath = template.defaultSkillsPath.path
@@ -695,18 +695,6 @@ public enum NolonCoreCLICommandParser {
         }
 
         throw NolonCoreCLIError.invalidArguments("Unsupported skills repo action: \(action)")
-    }
-
-    private static func resolveProviderTemplate(providerID: String) -> ProviderTemplate? {
-        let normalized = providerID.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        if normalized == "codex-xcode" || normalized == "codexxcode" {
-            return .codexXcode
-        }
-        return ProviderTemplate.allCases.first { template in
-            let raw = template.rawValue.lowercased()
-            let stable = template.providerID.lowercased()
-            return normalized == raw || normalized == stable
-        }
     }
 
     private static func parseSkillsMigrate(_ arguments: [String]) throws -> NolonCoreCLICommand {

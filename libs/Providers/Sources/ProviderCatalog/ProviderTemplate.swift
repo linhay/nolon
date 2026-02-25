@@ -167,4 +167,16 @@ public enum ProviderTemplate: String, CaseIterable, Sendable, Identifiable {
         }
         return url
     }
+
+    /// Resolves a user-facing provider identifier to a template.
+    /// Accepts both `rawValue` and stable `providerID`, and keeps aliases for compatibility.
+    public static func resolve(providerID: String) -> ProviderTemplate? {
+        let normalized = providerID.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if normalized == "codex-xcode" || normalized == "codexxcode" {
+            return .codexXcode
+        }
+        return allCases.first { template in
+            normalized == template.rawValue.lowercased() || normalized == template.providerID.lowercased()
+        }
+    }
 }

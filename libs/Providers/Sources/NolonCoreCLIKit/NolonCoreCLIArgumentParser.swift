@@ -1706,7 +1706,7 @@ private func resolveSkillProviderPath(
     guard let providerID, !providerID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
         throw NolonCoreCLIError.invalidArguments("Missing required option: --provider-path or --provider/--provider-id")
     }
-    guard let template = resolveProviderTemplate(providerID: providerID) else {
+    guard let template = ProviderTemplate.resolve(providerID: providerID) else {
         throw NolonCoreCLIError.invalidArguments("Unsupported --provider: \(providerID)")
     }
     return template.defaultSkillsPath.path
@@ -1723,7 +1723,7 @@ private func resolveResourceTargetPath(
     guard let providerID, !providerID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
         throw NolonCoreCLIError.invalidArguments("Missing required option: --target-path or --provider/--provider-id")
     }
-    guard let template = resolveProviderTemplate(providerID: providerID) else {
+    guard let template = ProviderTemplate.resolve(providerID: providerID) else {
         throw NolonCoreCLIError.invalidArguments("Unsupported --provider: \(providerID)")
     }
     switch kind {
@@ -1731,18 +1731,6 @@ private func resolveResourceTargetPath(
         return template.defaultCommandPath?.path ?? template.defaultWorkflowPath.path
     case .mcp:
         return template.defaultMcpConfigPath.deletingLastPathComponent().path
-    }
-}
-
-private func resolveProviderTemplate(providerID: String) -> ProviderTemplate? {
-    let normalized = providerID.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-    if normalized == "codex-xcode" || normalized == "codexxcode" {
-        return .codexXcode
-    }
-    return ProviderTemplate.allCases.first { template in
-        let raw = template.rawValue.lowercased()
-        let stable = template.providerID.lowercased()
-        return normalized == raw || normalized == stable
     }
 }
 
