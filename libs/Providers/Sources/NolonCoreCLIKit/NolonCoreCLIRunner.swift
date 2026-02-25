@@ -13,6 +13,7 @@ public struct NolonCoreCLIRunner: Sendable {
 
     private let service: any NolonSkillsRepositoryServing
     private let fileReader: FileReader
+    private let installedStatusService = InstalledResourceStatusService()
 
     public init(
         service: any NolonSkillsRepositoryServing = NolonLiveSkillsRepositoryService(),
@@ -1322,6 +1323,27 @@ public struct NolonCoreCLIRunner: Sendable {
 
         for target in targets {
             providersScanned += 1
+            if service is NolonLiveSkillsRepositoryService,
+               let template = ProviderTemplate.resolve(providerID: target.providerID),
+               let names = try? installedStatusService.installedMcpIDsStrict(provider: template.createProvider()),
+               !names.isEmpty {
+                items.append(contentsOf: names.sorted().map { serverName in
+                    let persistedOrigin = readResourceOrigin(kind: .mcp, identifier: serverName)
+                    let inferredOrigin = persistedOrigin ?? inferMcpOrigin(
+                        serverName: serverName,
+                        configPath: template.defaultMcpConfigPath.path
+                    )
+                    return NolonSkillsListItem(
+                        providerID: target.providerID,
+                        providerPath: template.defaultMcpConfigPath.path,
+                        skillID: serverName,
+                        state: .installed,
+                        path: template.defaultMcpConfigPath.path,
+                        origin: inferredOrigin
+                    )
+                })
+                continue
+            }
             do {
                 let result = try service.listMcpServers(provider: target.providerID)
                 items.append(contentsOf: result.items.map { server in
