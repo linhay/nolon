@@ -1,11 +1,11 @@
 import SwiftUI
 import ProviderCatalog
-import STFilePath
 import NolonResourceKit
 
 /// 引导页主容器视图
 struct OnboardingView: View {
     let onComplete: () -> Void
+    private let discoveryService = ProviderDiscoveryService()
     
     @State private var step: Step = .welcome
     @State private var selectedProviders: Set<ProviderTemplate> = []
@@ -25,21 +25,7 @@ struct OnboardingView: View {
     /// 检测已安装的 Provider 目录
     @MainActor
     private func detectInstalledProviders() {
-        var detected: Set<ProviderTemplate> = []
-        
-        for template in ProviderTemplate.allCases {
-            let skillsPath = template.defaultSkillsPath
-            let workflowPath = template.defaultWorkflowPath
-            let commandPath = template.defaultCommandPath
-            
-            // 检查是否存在 skills 或 workflow 目录
-            if STPath(skillsPath).isExists ||
-               STPath(workflowPath).isExists ||
-               (commandPath.map { STPath($0).isExists } ?? false) {
-                detected.insert(template)
-            }
-        }
-        
+        let detected = discoveryService.detectInstalledProviders()
         detectedProviders = detected
         selectedProviders = detected
     }
