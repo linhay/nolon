@@ -3318,6 +3318,15 @@ struct NolonCoreCLIKitTests {
         #expect(help.contains("  list      --kind skill|workflow|mcp") == false)
     }
 
+    @Test("codex auth help text renders one-parameter-per-line with comments")
+    func codexAuthHelpTextRendersOneParameterPerLineWithComments() {
+        let help = NolonCodexCLIHelpResolver.resolvedHelpText(arguments: ["codex", "auth"]) ?? ""
+        #expect(help.contains("Actions:"))
+        #expect(help.contains("  list\n"))
+        #expect(help.contains("--provider codex|codex-xcode                # 指定 provider（可选）"))
+        #expect(help.contains("  list      [--provider codex|codex-xcode]") == false)
+    }
+
     @Test("skills help text contains safe install scenario")
     func skillsHelpTextContainsSafeInstallScenario() {
         let help = NolonCoreCLIHelpResolver.resolvedHelpText(arguments: ["skills"]) ?? ""
@@ -3336,6 +3345,15 @@ struct NolonCoreCLIKitTests {
         #expect(help.contains("--state installed|orphaned|broken            # 按状态过滤"))
         #expect(help.contains("--dry-run                                    # 仅预览，不落盘"))
         #expect(help.contains("  list      [--provider <id>|--provider-id <id>]") == false)
+    }
+
+    @Test("skills repo help text renders one-parameter-per-line with comments")
+    func skillsRepoHelpTextRendersOneParameterPerLineWithComments() {
+        let help = NolonCoreCLIHelpResolver.resolvedHelpText(arguments: ["skills", "repo"]) ?? ""
+        #expect(help.contains("  list\n"))
+        #expect(help.contains("--repositories-root <path>                   # 本地仓库根目录（可选）"))
+        #expect(help.contains("--credential-strategy automatic|prefer-ssh|token-only|ssh-only  # 凭据策略（可选）"))
+        #expect(help.contains("  list       [--repositories-root <path>] [--max-depth <n>] [--verbose]") == false)
     }
 
     @Test("skills list help summary reflects default abnormal-focus behavior")

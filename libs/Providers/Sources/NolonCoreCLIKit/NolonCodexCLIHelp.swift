@@ -126,13 +126,25 @@ enum NolonCodexCLIHelpResolver {
         Usage: nolon codex auth <action> [options]
 
         Actions:
-          list      [--provider codex|codex-xcode]                    # 输出账号/用量/状态总览
-          usage     [--provider codex|codex-xcode] [--summary]        # 默认输出总览，--summary 仅汇总
-          status    [--provider codex|codex-xcode]                    # 输出账号/用量/状态总览
-          refresh   [--account-id <uuid>|--email <email>] [--provider ...]
-          activate  [--account-id <uuid>|--email <email>] [--provider ...]
-          login     [--preferred-account-id <uuid>] [--provider ...]
-          delete    --account-id <uuid> [--provider ...]
+          list
+            --provider codex|codex-xcode                # 指定 provider（可选）
+          usage
+            --provider codex|codex-xcode                # 指定 provider（可选）
+            --summary                                   # 仅输出汇总（可选）
+          status
+            --provider codex|codex-xcode                # 指定 provider（可选）
+          refresh
+            --account-id <uuid> | --email <email>       # 指定账号（二选一，可选）
+            --provider <id>                             # 指定 provider（可选）
+          activate
+            --account-id <uuid> | --email <email>       # 指定账号（二选一，可选）
+            --provider <id>                             # 指定 provider（可选）
+          login
+            --preferred-account-id <uuid>               # 指定优先账号（可选）
+            --provider <id>                             # 指定 provider（可选）
+          delete
+            --account-id <uuid>                         # 指定待删账号（必填）
+            --provider <id>                             # 指定 provider（可选）
         """
     }
 
@@ -142,12 +154,20 @@ enum NolonCodexCLIHelpResolver {
 
         Actions:
           list
+            (无参数)
           current
-          install  <version-or-tag> [--set-default]
-          use      --version <version-or-id>
+            (无参数)
+          install
+            <version-or-tag>                            # 版本号或标签（必填）
+            --set-default                               # 安装后设为默认（可选）
+          use
+            --version <version-or-id>                   # 指定要切换的版本（必填）
           available
+            (无参数)
           switch
+            (无参数)
           doctor
+            (无参数)
         """
     }
 
@@ -156,8 +176,10 @@ enum NolonCodexCLIHelpResolver {
         Usage: nolon codex status <action> [options]
 
         Actions:
-          probe    [--provider codex|codex-xcode]
+          probe
+            --provider codex|codex-xcode                # 指定 provider（可选）
           doctor
+            (无参数)
         """
     }
 
@@ -167,7 +189,11 @@ enum NolonCodexCLIHelpResolver {
 
         Actions:
           list
-          stop     --pid <pid> [--force] [--timeout-seconds <n>]
+            (无参数)
+          stop
+            --pid <pid>                                 # 进程 PID（必填）
+            --force                                     # 立即强制结束（可选）
+            --timeout-seconds <n>                       # 温和结束超时阈值（可选）
         """
     }
 

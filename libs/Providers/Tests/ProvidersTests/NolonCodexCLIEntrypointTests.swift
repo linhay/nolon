@@ -59,11 +59,11 @@ struct NolonCodexCLIEntrypointTests {
 
         #expect(result.exitCode == 0)
         #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("场景: 发现技能"))
+        #expect(result.stdout.contains("场景: 搜索技能"))
         #expect(result.stdout.contains("场景: 安装技能"))
         #expect(result.stdout.contains("场景: 修复异常"))
         #expect(result.stdout.contains("nolon skills search xcode"))
-        #expect(result.stdout.contains("search    [<keyword> | --query <query>]"))
+        #expect(result.stdout.contains("<keyword> | --query <query>"))
         #expect(result.stdout.contains("--query <query>"))
         #expect(result.stdout.contains("--pick <index>"))
         #expect(result.stdout.contains("nolon skills add xcode --provider codex"))
@@ -544,7 +544,7 @@ struct NolonCodexCLIEntrypointTests {
 
         #expect(result.exitCode == 0)
         #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("state_filter: orphaned"))
+        #expect(result.stdout.contains("筛选-状态: 失效链接"))
         #expect(await mock.lastCall() == nil)
     }
 

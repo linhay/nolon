@@ -74,10 +74,21 @@ enum NolonCoreCLIHelpResolver {
         Usage: nolon skills repo <action> [options]
 
         Actions:
-          list       [--repositories-root <path>] [--max-depth <n>] [--verbose]
-          plan       --source <git/ref> --repositories-root <path>
-          preflight  --source <git/ref> [--pull-strategy ff-only|rebase|merge] [--credential-strategy automatic|prefer-ssh|token-only|ssh-only]
-          sync       --source <git/ref> [--repositories-root <path>] [--access-token <token>]
+          list
+            --repositories-root <path>                   # 本地仓库根目录（可选）
+            --max-depth <n>                              # 扫描深度（可选）
+            --verbose                                    # 展示完整路径与统计明细
+          plan
+            --source <git/ref>                           # 远程仓库来源（必填）
+            --repositories-root <path>                   # 本地仓库根目录（必填）
+          preflight
+            --source <git/ref>                           # 远程仓库来源（必填）
+            --pull-strategy ff-only|rebase|merge         # 拉取策略（可选）
+            --credential-strategy automatic|prefer-ssh|token-only|ssh-only  # 凭据策略（可选）
+          sync
+            --source <git/ref>                           # 远程仓库来源（必填）
+            --repositories-root <path>                   # 本地仓库根目录（可选）
+            --access-token <token>                       # 私仓访问令牌（可选）
         """
     }
 
