@@ -46,6 +46,22 @@ public struct RepairPlan: Sendable, Equatable {
 }
 
 public enum ResourceRepairPlanner {
+    public static func command(
+        kind: RepairResourceKind,
+        item: RepairItem
+    ) -> String {
+        switch kind {
+        case .skill:
+            let remove = "nolon skills remove --skill-id \(item.resourceID) --provider \(item.providerID)"
+            if item.state == .broken {
+                return "\(remove) && nolon skills add \(item.resourceID) --provider \(item.providerID)"
+            }
+            return remove
+        case .workflow, .mcp:
+            return "nolon \(kind.rawValue) remove --resource-name \(item.resourceID) --provider \(item.providerID)"
+        }
+    }
+
     public static func plan(
         kind: RepairResourceKind,
         items: [RepairItem]
@@ -55,24 +71,12 @@ public enum ResourceRepairPlanner {
         var steps: [RepairStep] = []
 
         if !groupedOrphaned.isEmpty {
-            let commands = groupedOrphaned.map { item in
-                if kind == .skill {
-                    return "nolon skills remove --skill-id \(item.resourceID) --provider \(item.providerID)"
-                }
-                return "nolon \(kind.rawValue) remove --resource-name \(item.resourceID) --provider \(item.providerID)"
-            }
+            let commands = groupedOrphaned.map { command(kind: kind, item: $0) }
             steps.append(.init(title: "清理失效链接", commands: commands))
         }
 
         if !groupedBroken.isEmpty {
-            let commands = groupedBroken.map { item in
-                if kind == .skill {
-                    let remove = "nolon skills remove --skill-id \(item.resourceID) --provider \(item.providerID)"
-                    let add = "nolon skills add \(item.resourceID) --provider \(item.providerID)"
-                    return "\(remove) && \(add)"
-                }
-                return "nolon \(kind.rawValue) remove --resource-name \(item.resourceID) --provider \(item.providerID)"
-            }
+            let commands = groupedBroken.map { command(kind: kind, item: $0) }
             steps.append(.init(title: kind == .skill ? "修复损坏（先 remove 再 add）" : "清理损坏项", commands: commands))
         }
 

@@ -554,6 +554,24 @@ struct NolonResourceKitTests {
         #expect(plan.recheckCommand == "nolon workflow list --show-fixes")
     }
 
+    @Test("ResourceRepairPlanner builds skill repair command by state")
+    func resourceRepairPlannerBuildsSkillRepairCommandByState() {
+        let orphaned = ResourceRepairPlanner.command(
+            kind: .skill,
+            item: .init(providerID: "codex", resourceID: "find-skills", state: .orphaned)
+        )
+        #expect(orphaned == "nolon skills remove --skill-id find-skills --provider codex")
+
+        let broken = ResourceRepairPlanner.command(
+            kind: .skill,
+            item: .init(providerID: "codex", resourceID: "find-skills", state: .broken)
+        )
+        #expect(
+            broken ==
+            "nolon skills remove --skill-id find-skills --provider codex && nolon skills add find-skills --provider codex"
+        )
+    }
+
     @Test("SearchPresentationPolicy prioritizes exact slug")
     func searchPresentationPolicyPrioritizesExactSlug() {
         struct Item { let slug: String }

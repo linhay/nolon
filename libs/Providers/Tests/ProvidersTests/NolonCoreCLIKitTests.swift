@@ -3192,6 +3192,23 @@ struct NolonCoreCLIKitTests {
         #expect(commands.detailed.isEmpty)
     }
 
+    @Test("skill fix command builder renders skills commands")
+    func skillFixCommandBuilderRendersSkillsCommands() {
+        let items: [NolonSkillsListItem] = [
+            .init(providerID: "codex", providerPath: "/tmp/a", skillID: "find-skills", state: .orphaned, path: "/tmp/a/find-skills", origin: nil),
+            .init(providerID: "opencode", providerPath: "/tmp/b", skillID: "agent-browser", state: .broken, path: "/tmp/b/agent-browser", origin: nil),
+        ]
+
+        let commands = NolonCoreCLIRunner.buildSkillFixCommands(items: items)
+        #expect(commands.simple == "nolon skills remove --skill-id find-skills --provider codex")
+        #expect(commands.detailed.count == 2)
+        #expect(commands.detailed[0] == "nolon skills remove --skill-id find-skills --provider codex")
+        #expect(
+            commands.detailed[1] ==
+            "nolon skills remove --skill-id agent-browser --provider opencode && nolon skills add agent-browser --provider opencode"
+        )
+    }
+
     @Test("runner renders mcp remove result")
     func runnerRendersMcpRemoveResult() async {
         let runner = NolonCoreCLIRunner(

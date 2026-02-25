@@ -2749,23 +2749,7 @@ public struct NolonCoreCLIRunner: Sendable {
         if showFixes && (!orphanedItems.isEmpty || !brokenItems.isEmpty) {
             lines.append("")
             lines.append("[下一步（按顺序执行）]")
-            var orphanedCommands: [String] = []
-            var brokenCommands: [String] = []
             if !orphanedItems.isEmpty {
-                orphanedItems.forEach { item in
-                    let remove = "nolon skills remove --skill-id \(item.skillID) --provider \(item.providerID)"
-                    orphanedCommands.append(remove)
-                }
-            }
-            if !brokenItems.isEmpty {
-                brokenItems.forEach { item in
-                    let remove = "nolon skills remove --skill-id \(item.skillID) --provider \(item.providerID)"
-                    let add = "nolon skills add \(item.skillID) --provider \(item.providerID)"
-                    let repair = "\(remove) && \(add)"
-                    brokenCommands.append(repair)
-                }
-            }
-            if !orphanedCommands.isEmpty {
                 lines.append("")
                 lines.append("1. 清理\(orphanedLabel)（\(orphanedItems.count)项）")
                 let groupedOrphaned = Dictionary(grouping: orphanedItems, by: \.providerID)
@@ -2773,12 +2757,12 @@ public struct NolonCoreCLIRunner: Sendable {
                     guard let items = groupedOrphaned[providerID] else { continue }
                     lines.append("provider: \(providerID) (\(items.count))")
                     for item in items.sorted(by: { $0.skillID.localizedCaseInsensitiveCompare($1.skillID) == .orderedAscending }) {
-                        let command = "nolon skills remove --skill-id \(item.skillID) --provider \(item.providerID)"
+                        let command = ResourceRepairPlanner.command(kind: .skill, item: Self.toRepairItem(item))
                         lines.append("- `\(Self.copyableCommand(command))`")
                     }
                 }
             }
-            if !brokenCommands.isEmpty {
+            if !brokenItems.isEmpty {
                 lines.append("")
                 lines.append("2. 修复损坏（\(brokenItems.count)项：先 remove 再 add）")
                 let groupedBroken = Dictionary(grouping: brokenItems, by: \.providerID)
@@ -2786,9 +2770,8 @@ public struct NolonCoreCLIRunner: Sendable {
                     guard let items = groupedBroken[providerID] else { continue }
                     lines.append("provider: \(providerID) (\(items.count))")
                     for item in items.sorted(by: { $0.skillID.localizedCaseInsensitiveCompare($1.skillID) == .orderedAscending }) {
-                        let remove = "nolon skills remove --skill-id \(item.skillID) --provider \(item.providerID)"
-                        let add = "nolon skills add \(item.skillID) --provider \(item.providerID)"
-                        lines.append("- `\(Self.copyableCommand("\(remove) && \(add)"))`")
+                        let command = ResourceRepairPlanner.command(kind: .skill, item: Self.toRepairItem(item))
+                        lines.append("- `\(Self.copyableCommand(command))`")
                     }
                 }
             }
@@ -3147,7 +3130,10 @@ public struct NolonCoreCLIRunner: Sendable {
                 guard let items = groupedByProvider[providerID] else { continue }
                 lines.append("provider: \(providerID) (\(items.count))")
                 for item in items.sorted(by: { $0.skillID.localizedCaseInsensitiveCompare($1.skillID) == .orderedAscending }) {
-                    let command = "nolon \(kind.rawValue) remove --resource-name \(item.skillID) --provider \(item.providerID)"
+                    let command = ResourceRepairPlanner.command(
+                        kind: Self.toRepairResourceKind(kind),
+                        item: Self.toRepairItem(item)
+                    )
                     lines.append("- `\(Self.copyableCommand(command))`")
                 }
             }
@@ -3167,22 +3153,45 @@ public struct NolonCoreCLIRunner: Sendable {
         kind: NolonResourceKind,
         items: [NolonSkillsListItem]
     ) -> (simple: String, detailed: [String]) {
-        let planItems = items.compactMap { item -> RepairItem? in
-            switch item.state {
-            case .orphaned:
-                return RepairItem(providerID: item.providerID, resourceID: item.skillID, state: .orphaned)
-            case .broken:
-                return RepairItem(providerID: item.providerID, resourceID: item.skillID, state: .broken)
-            case .installed:
-                return nil
-            }
-        }
+        let planItems = items.compactMap { toRepairItemIfNeeded($0) }
         let plan = ResourceRepairPlanner.plan(
-            kind: kind == .workflow ? .workflow : .mcp,
+            kind: toRepairResourceKind(kind),
             items: planItems
         )
         let detailed = plan.steps.flatMap(\.commands)
         return (simple: detailed.first ?? "", detailed: detailed)
+    }
+
+    static func buildSkillFixCommands(
+        items: [NolonSkillsListItem]
+    ) -> (simple: String, detailed: [String]) {
+        let planItems = items.compactMap { toRepairItemIfNeeded($0) }
+        let plan = ResourceRepairPlanner.plan(kind: .skill, items: planItems)
+        let detailed = plan.steps.flatMap(\.commands)
+        return (simple: detailed.first ?? "", detailed: detailed)
+    }
+
+    private static func toRepairResourceKind(_ kind: NolonResourceKind) -> RepairResourceKind {
+        switch kind {
+        case .workflow:
+            return .workflow
+        case .mcp:
+            return .mcp
+        }
+    }
+
+    private static func toRepairItemIfNeeded(_ item: NolonSkillsListItem) -> RepairItem? {
+        switch item.state {
+        case .orphaned, .broken:
+            return toRepairItem(item)
+        case .installed:
+            return nil
+        }
+    }
+
+    private static func toRepairItem(_ item: NolonSkillsListItem) -> RepairItem {
+        let state: RepairStateKind = item.state == .broken ? .broken : .orphaned
+        return RepairItem(providerID: item.providerID, resourceID: item.skillID, state: state)
     }
 
     private func matchedProvidersCount(for result: NolonSkillsListResult) -> Int {
