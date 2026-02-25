@@ -1172,4 +1172,57 @@ struct NolonResourceKitTests {
         #expect(nonEmpty.contains("匹配结果: 1 (query: playwright)"))
         #expect(nonEmpty.contains("nolon mcp add <slug> --provider codex --dry-run"))
     }
+
+    @Test("RemoteCatalogItemMapper converts between catalog items and remote models")
+    func remoteCatalogItemMapperConvertsItems() {
+        let mapper = RemoteCatalogItemMapper()
+        let catalog = SkillsRepositoryFacade.RemoteCatalogItem(
+            kind: .mcp,
+            slug: "playwright-mcp",
+            displayName: "Playwright MCP",
+            summary: "browser automation",
+            latestVersion: "1.0.0",
+            updatedAt: Date(timeIntervalSince1970: 1_700_000_000),
+            downloads: 10,
+            stars: 5,
+            installs: 3
+        )
+
+        let mcp = mapper.toRemoteMCP(catalog)
+        #expect(mcp.slug == "playwright-mcp")
+        #expect(mcp.stats?.installs == 3)
+
+        let roundTrip = mapper.toCatalogItem(mcp)
+        #expect(roundTrip.slug == "playwright-mcp")
+        #expect(roundTrip.latestVersion == "1.0.0")
+    }
+
+    @Test("ResourceListTextPresenter renders skills show-fixes skeleton")
+    func resourceListTextPresenterRendersSkillsFixes() {
+        let presenter = ResourceListTextPresenter()
+        let text = presenter.render(
+            .init(
+                kind: .skill,
+                providerFilter: nil,
+                stateFilter: nil,
+                items: [
+                    .init(providerID: "codex", resourceID: "find-skills", state: .broken, path: "/tmp/find-skills", originDescription: "远端(repo)"),
+                ],
+                summary: .init(
+                    providersScanned: 5,
+                    providersMatched: 1,
+                    totalCount: 1,
+                    installedCount: 0,
+                    orphanedCount: 0,
+                    brokenCount: 1
+                ),
+                verbose: true,
+                showFixes: true
+            )
+        )
+
+        #expect(text.contains("[下一步（按顺序执行）]"))
+        #expect(text.contains("修复损坏"))
+        #expect(text.contains("nolon skills remove --skill-id find-skills --provider codex"))
+    }
 }
