@@ -160,6 +160,60 @@ struct NolonResourceKitTests {
         #expect(STFile(cachePath).isExists == true)
     }
 
+    @Test("ProviderMCPMaintenanceService provides snapshot and single-cache update")
+    func providerMcpMaintenanceServiceSnapshotAndSingleCacheUpdate() throws {
+        let root = try STFolder(sanbox: .temporary)
+            .folder("nolon-provider-mcp-maint-\(UUID().uuidString)")
+            .create()
+        defer { try? root.deleteIncludingBrokenSymlink() }
+
+        let previousHome = getenv("HOME").map { String(cString: $0) }
+        let previousNolonHome = getenv("NOLON_HOME").map { String(cString: $0) }
+        setenv("HOME", root.url.path, 1)
+        setenv("NOLON_HOME", root.folder(".nolon").url.path, 1)
+        defer {
+            if let previousHome {
+                setenv("HOME", previousHome, 1)
+            }
+            if let previousNolonHome {
+                setenv("NOLON_HOME", previousNolonHome, 1)
+            } else {
+                unsetenv("NOLON_HOME")
+            }
+        }
+
+        let service = ProviderMCPMaintenanceService()
+        let serverName = "uiagent-\(UUID().uuidString.prefix(8))"
+        defer { try? service.removeServer(template: .codex, name: serverName) }
+
+        try service.upsertServer(
+            template: .codex,
+            name: serverName,
+            serverConfig: [
+                "command": "npx",
+                "args": ["@uiagent/mcp@latest"],
+                "enabled": true,
+            ]
+        )
+
+        var snapshot = try service.listSnapshot(template: .codex)
+        let mcp = try #require(snapshot.mcps.first(where: { $0.name == serverName }))
+        #expect(snapshot.cacheStates[serverName] == .notMigrated)
+
+        try service.migrateMcpToGlobalCache(mcp)
+        snapshot = try service.listSnapshot(template: .codex)
+        #expect(snapshot.cacheStates[serverName] == .migratedUpToDate)
+
+        try service.setEnabled(template: .codex, name: serverName, enabled: false)
+        snapshot = try service.listSnapshot(template: .codex)
+        #expect(snapshot.cacheStates[serverName] == .migratedNeedsUpdate)
+        let toggled = try #require(snapshot.mcps.first(where: { $0.name == serverName }))
+
+        try service.updateCachedMcpIfNeeded(toggled)
+        snapshot = try service.listSnapshot(template: .codex)
+        #expect(snapshot.cacheStates[serverName] == .migratedUpToDate)
+    }
+
     @Test("WorkflowSourceResolver resolves relative symlink destination against link directory")
     func workflowSourceResolverResolvesRelativeSymlinkDestination() {
         let linkPath = "/tmp/providers/codex/prompts/find-skills.md"

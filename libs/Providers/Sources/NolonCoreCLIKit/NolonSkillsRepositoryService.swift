@@ -269,6 +269,7 @@ private func resolveNolonHomeFolder(environment: [String: String] = ProcessInfo.
 
 public struct NolonLiveSkillsRepositoryService: NolonSkillsRepositoryServing {
     private let maintenanceService = ProviderSkillMaintenanceService()
+    private let mcpMaintenanceService = ProviderMCPMaintenanceService()
 
     public init() {}
 
@@ -687,7 +688,7 @@ public struct NolonLiveSkillsRepositoryService: NolonSkillsRepositoryServing {
     public func listMcpServers(provider: String) throws -> NolonMcpServerListResult {
         do {
             let template = try resolveProviderTemplateOrThrow(provider)
-            let servers = try MCPConfigManager.listServers(for: template)
+            let servers = try mcpMaintenanceService.listServers(template: template)
             return NolonMcpServerListResult(
                 providerID: template.providerID,
                 configPath: template.defaultMcpConfigPath.path,
@@ -712,7 +713,7 @@ public struct NolonLiveSkillsRepositoryService: NolonSkillsRepositoryServing {
     public func setMcpServerEnabled(provider: String, name: String, enabled: Bool) throws -> NolonMcpServerMutationResult {
         do {
             let template = try resolveProviderTemplateOrThrow(provider)
-            try MCPConfigManager.setEnabled(for: template, name: name, enabled: enabled)
+            try mcpMaintenanceService.setEnabled(template: template, name: name, enabled: enabled)
             return NolonMcpServerMutationResult(
                 providerID: template.providerID,
                 configPath: template.defaultMcpConfigPath.path,
@@ -743,7 +744,7 @@ public struct NolonLiveSkillsRepositoryService: NolonSkillsRepositoryServing {
             if !args.isEmpty { config["args"] = args }
             if !env.isEmpty { config["env"] = env }
             if let enabled { config["enabled"] = enabled }
-            try MCPConfigManager.upsertServer(for: template, name: name, serverConfig: config)
+            try mcpMaintenanceService.upsertServer(template: template, name: name, serverConfig: config)
             return NolonMcpServerMutationResult(
                 providerID: template.providerID,
                 configPath: template.defaultMcpConfigPath.path,
@@ -760,7 +761,7 @@ public struct NolonLiveSkillsRepositoryService: NolonSkillsRepositoryServing {
     public func removeMcpServer(provider: String, name: String) throws -> NolonMcpServerMutationResult {
         do {
             let template = try resolveProviderTemplateOrThrow(provider)
-            try MCPConfigManager.removeServer(for: template, name: name)
+            try mcpMaintenanceService.removeServer(template: template, name: name)
             return NolonMcpServerMutationResult(
                 providerID: template.providerID,
                 configPath: template.defaultMcpConfigPath.path,
@@ -777,7 +778,7 @@ public struct NolonLiveSkillsRepositoryService: NolonSkillsRepositoryServing {
     public func migrateMcpServersToCache(provider: String, overwrite: Bool) throws -> NolonMcpCacheMigrateResult {
         do {
             let template = try resolveProviderTemplateOrThrow(provider)
-            let result = try MCPConfigManager.migrateServersToGlobalCache(for: template, overwrite: overwrite)
+            let result = try mcpMaintenanceService.migrateServersToGlobalCache(template: template, overwrite: overwrite)
             return NolonMcpCacheMigrateResult(
                 providerID: template.providerID,
                 configPath: template.defaultMcpConfigPath.path,
@@ -795,7 +796,7 @@ public struct NolonLiveSkillsRepositoryService: NolonSkillsRepositoryServing {
     public func mcpCacheStatus(provider: String, name: String?) throws -> NolonMcpCacheStatusResult {
         do {
             let template = try resolveProviderTemplateOrThrow(provider)
-            let result = try MCPConfigManager.cacheStatus(for: template, name: name)
+            let result = try mcpMaintenanceService.cacheStatus(template: template, name: name)
             return NolonMcpCacheStatusResult(
                 providerID: template.providerID,
                 configPath: template.defaultMcpConfigPath.path,
