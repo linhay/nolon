@@ -2629,7 +2629,12 @@ public struct NolonCoreCLIRunner: Sendable {
         )
         appendFiltersIfNeeded()
         if showFixes, issueCount == 0, !verbose, result.providerFilter == nil, result.stateFilter == nil {
-            lines.append("如需查看已安装技能，请执行: `\(Self.copyableCommand("nolon skills list --state installed"))`")
+            lines.append(
+                ResourceListGuidancePolicy.installedHintLine(
+                    resourceDisplayLabel: "技能",
+                    command: Self.copyableCommand("nolon skills list --state installed")
+                )
+            )
             return lines.joined(separator: "\n")
         }
 
@@ -2672,24 +2677,31 @@ public struct NolonCoreCLIRunner: Sendable {
 
         if effectiveItems.isEmpty {
             let localizedState = result.stateFilter.map(Self.localizedStateLabel)
-            if let filter = result.providerFilter, !filter.isEmpty, let stateFilter = result.stateFilter {
-                lines.append("在 provider=\(filter) 且 state=\(localizedState ?? Self.localizedStateLabel(stateFilter)) 下，未发现匹配技能。")
-            } else if let filter = result.providerFilter, !filter.isEmpty {
-                lines.append("在 provider=\(filter) 下，未发现异常技能（\(orphanedLabel)/损坏）。")
-            } else if let stateFilter = result.stateFilter {
-                lines.append("在 state=\(localizedState ?? Self.localizedStateLabel(stateFilter)) 下，未发现匹配技能。")
-            } else {
-                lines.append("未发现异常技能（\(orphanedLabel)/损坏）。")
-            }
+            lines.append(
+                ResourceListGuidancePolicy.emptyResultLine(
+                    resourceDisplayLabel: "技能",
+                    providerFilter: result.providerFilter,
+                    stateFilterLabel: localizedState,
+                    orphanedLabel: orphanedLabel
+                )
+            )
             if result.stateFilter == nil {
                 let installedCommand = Self.copyableCommand("nolon skills list\(Self.listFilterSuffix(provider: result.providerFilter, state: .installed))")
-                lines.append("如需查看已安装技能，请执行: `\(installedCommand)`")
+                lines.append(
+                    ResourceListGuidancePolicy.installedHintLine(
+                        resourceDisplayLabel: "技能",
+                        command: installedCommand
+                    )
+                )
             }
             if showFixes {
                 lines.append("")
                 lines.append("[下一步（可复制执行）]")
-                lines.append("当前筛选条件下无可修复项；请移除筛选后重试 --show-fixes。")
-                lines.append("复检命令: `\(Self.copyableCommand("nolon skills list --show-fixes"))`")
+                lines.append(
+                    contentsOf: ResourceListGuidancePolicy.noFixesRetryLines(
+                        command: Self.copyableCommand("nolon skills list --show-fixes")
+                    )
+                )
             }
             return lines.joined(separator: "\n")
         }
@@ -2728,7 +2740,11 @@ public struct NolonCoreCLIRunner: Sendable {
         }
         if !verbose && !showFixes {
             lines.append("")
-            lines.append("提示: 使用 `nolon skills list --verbose` 查看安装路径与来源。")
+            lines.append(
+                ResourceListGuidancePolicy.verboseHintLine(
+                    command: "nolon skills list --verbose"
+                )
+            )
         }
         if !issueProviders.isEmpty && !showFixes {
             lines.append("")
@@ -2784,8 +2800,11 @@ public struct NolonCoreCLIRunner: Sendable {
         } else if showFixes, result.providerFilter != nil || result.stateFilter != nil || issueCount > 0 {
             lines.append("")
             lines.append("[下一步（可复制执行）]")
-            lines.append("当前筛选条件下无可修复项；请移除筛选后重试 --show-fixes。")
-            lines.append("复检命令: `\(Self.copyableCommand("nolon skills list --show-fixes"))`")
+            lines.append(
+                contentsOf: ResourceListGuidancePolicy.noFixesRetryLines(
+                    command: Self.copyableCommand("nolon skills list --show-fixes")
+                )
+            )
         }
         return lines.joined(separator: "\n")
     }
@@ -3035,7 +3054,12 @@ public struct NolonCoreCLIRunner: Sendable {
         if showFixes, issueCount == 0, !verbose, result.providerFilter == nil, result.stateFilter == nil {
             let resourceLabel = Self.localizedResourceKindLabel(kind)
             let resourceDisplayLabel = Self.displayResourceLabel(resourceLabel)
-            lines.append("如需查看已安装\(resourceDisplayLabel)，请执行: `\(Self.copyableCommand("nolon \(kind.rawValue) list --state installed"))`")
+            lines.append(
+                ResourceListGuidancePolicy.installedHintLine(
+                    resourceDisplayLabel: resourceDisplayLabel,
+                    command: Self.copyableCommand("nolon \(kind.rawValue) list --state installed")
+                )
+            )
             return lines.joined(separator: "\n")
         }
 
@@ -3049,18 +3073,22 @@ public struct NolonCoreCLIRunner: Sendable {
             let resourceLabel = Self.localizedResourceKindLabel(kind)
             let resourceDisplayLabel = Self.displayResourceLabel(resourceLabel)
             let localizedState = result.stateFilter.map(Self.localizedStateLabel)
-            if let filter = result.providerFilter, !filter.isEmpty, let stateFilter = result.stateFilter {
-                lines.append("在 provider=\(filter) 且 state=\(localizedState ?? Self.localizedStateLabel(stateFilter)) 下，未发现匹配\(resourceDisplayLabel)。")
-            } else if let filter = result.providerFilter, !filter.isEmpty {
-                lines.append("在 provider=\(filter) 下，未发现异常\(resourceDisplayLabel)（\(orphanedLabel)/损坏）。")
-            } else if let stateFilter = result.stateFilter {
-                lines.append("在 state=\(localizedState ?? Self.localizedStateLabel(stateFilter)) 下，未发现匹配\(resourceDisplayLabel)。")
-            } else {
-                lines.append("未发现异常\(resourceDisplayLabel)（\(orphanedLabel)/损坏）。")
-            }
+            lines.append(
+                ResourceListGuidancePolicy.emptyResultLine(
+                    resourceDisplayLabel: resourceDisplayLabel,
+                    providerFilter: result.providerFilter,
+                    stateFilterLabel: localizedState,
+                    orphanedLabel: orphanedLabel
+                )
+            )
             if result.stateFilter == nil {
                 let installedCommand = Self.copyableCommand("nolon \(kind.rawValue) list\(Self.listFilterSuffix(provider: result.providerFilter, state: .installed))")
-                lines.append("如需查看已安装\(resourceDisplayLabel)，请执行: `\(installedCommand)`")
+                lines.append(
+                    ResourceListGuidancePolicy.installedHintLine(
+                        resourceDisplayLabel: resourceDisplayLabel,
+                        command: installedCommand
+                    )
+                )
             }
             if showFixes {
                 lines.append("")
@@ -3111,7 +3139,11 @@ public struct NolonCoreCLIRunner: Sendable {
         }
         if !verbose, !showFixes {
             lines.append("")
-            lines.append("提示: 使用 `nolon \(kind.rawValue) list --verbose` 查看安装路径与来源。")
+            lines.append(
+                ResourceListGuidancePolicy.verboseHintLine(
+                    command: "nolon \(kind.rawValue) list --verbose"
+                )
+            )
         }
         let fixCommands = Self.buildResourceFixCommands(kind: kind, items: problematicItems)
         if !fixCommands.simple.isEmpty && !showFixes {
@@ -3149,8 +3181,11 @@ public struct NolonCoreCLIRunner: Sendable {
         } else if showFixes, result.providerFilter != nil || result.stateFilter != nil || issueCount > 0 {
             lines.append("")
             lines.append("[下一步（可复制执行）]")
-            lines.append("当前筛选条件下无可修复项；请移除筛选后重试 --show-fixes。")
-            lines.append("复检命令: `\(Self.copyableCommand("nolon \(kind.rawValue) list --show-fixes"))`")
+            lines.append(
+                contentsOf: ResourceListGuidancePolicy.noFixesRetryLines(
+                    command: Self.copyableCommand("nolon \(kind.rawValue) list --show-fixes")
+                )
+            )
         }
         return lines.joined(separator: "\n")
     }

@@ -625,6 +625,45 @@ struct NolonResourceKitTests {
         )
     }
 
+    @Test("ResourceListGuidancePolicy renders empty-state variants")
+    func resourceListGuidancePolicyRendersEmptyStateVariants() {
+        #expect(
+            ResourceListGuidancePolicy.emptyResultLine(
+                resourceDisplayLabel: "技能",
+                providerFilter: "codex",
+                stateFilterLabel: "损坏"
+            ) == "在 provider=codex 且 state=损坏 下，未发现匹配技能。"
+        )
+        #expect(
+            ResourceListGuidancePolicy.emptyResultLine(
+                resourceDisplayLabel: "工作流资源",
+                providerFilter: "codex",
+                stateFilterLabel: nil
+            ) == "在 provider=codex 下，未发现异常工作流资源（失效链接/损坏）。"
+        )
+    }
+
+    @Test("ResourceListGuidancePolicy renders guidance lines")
+    func resourceListGuidancePolicyRendersGuidanceLines() {
+        #expect(
+            ResourceListGuidancePolicy.installedHintLine(
+                resourceDisplayLabel: "技能",
+                command: "nolon skills list --state installed"
+            ) == "如需查看已安装技能，请执行: `nolon skills list --state installed`"
+        )
+        #expect(
+            ResourceListGuidancePolicy.noFixesRetryLines(command: "nolon skills list --show-fixes")
+                == [
+                    "当前筛选条件下无可修复项；请移除筛选后重试 --show-fixes。",
+                    "复检命令: `nolon skills list --show-fixes`",
+                ]
+        )
+        #expect(
+            ResourceListGuidancePolicy.verboseHintLine(command: "nolon skills list --verbose")
+                == "提示: 使用 `nolon skills list --verbose` 查看安装路径与来源。"
+        )
+    }
+
     @Test("SearchPresentationPolicy prioritizes exact slug")
     func searchPresentationPolicyPrioritizesExactSlug() {
         struct Item { let slug: String }
