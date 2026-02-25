@@ -40,6 +40,7 @@ final class AddRepositoryViewModel {
     
     var onDirectoryCandidatesFound: ((RemoteRepository, [GitRepository.SkillsDirectoryCandidate]) -> Void)?
     var onDismiss: (() -> Void)?
+    private let syncOrchestrator = RepositorySyncOrchestrator()
     
     init(settings: ProviderSettings, repositoryToEdit: RemoteRepository? = nil) {
         self.settings = settings
@@ -285,34 +286,24 @@ final class AddRepositoryViewModel {
             
             if needsSync {
                 do {
-                    let result = try await GitRepository.syncRepository(repo)
+                    let (result, plan) = try await syncOrchestrator.sync(repository: repo)
 
                     if !result.success {
                         validationError = "Failed to sync repository: \(result.message)"
                         return
                     }
 
-                    repo.lastSyncDate = result.updatedAt
-
-                    if !newSkillsPaths.isEmpty {
+                    repo = plan.repository
+                    if !newSkillsPaths.isEmpty || !plan.shouldPromptDirectorySelection {
                         if isEditing {
                             settings.updateRemoteRepository(repo)
                         } else {
                             settings.addRemoteRepository(repo)
                         }
-                        onDismiss?()
-                    } else if result.detectedDirectories.isEmpty {
-                        if isEditing {
-                            settings.updateRemoteRepository(repo)
-                        } else {
-                            settings.addRemoteRepository(repo)
-                        }
-                        onDismiss?()
                     } else {
-                        repo.detectedDirectories = result.detectedDirectories.map { $0.path }
-                        onDirectoryCandidatesFound?(repo, result.detectedDirectories)
-                        onDismiss?()
+                        onDirectoryCandidatesFound?(repo, plan.detectedDirectories)
                     }
+                    onDismiss?()
                 } catch {
                     validationError = "Failed to sync repository: \(error.localizedDescription)"
                     return

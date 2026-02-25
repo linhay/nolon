@@ -39,6 +39,8 @@ final class RemoteRepositorySidebarViewModel {
 
     @ObservationIgnored
     private let syncFailureDisplayDuration: TimeInterval = 2.6
+    @ObservationIgnored
+    private let syncOrchestrator = RepositorySyncOrchestrator()
 
     enum SyncCompletionStyle {
         case success
@@ -72,32 +74,15 @@ final class RemoteRepositorySidebarViewModel {
         }
         
         do {
-            let result = try await GitRepository.syncRepository(repo)
+            let (result, plan) = try await syncOrchestrator.sync(repository: repo)
             
             if result.success {
-                var updatedRepo = repo
-                updatedRepo.lastSyncDate = result.updatedAt
-                
-                // If no skills paths configured and directories detected, trigger selection
-                if repo.skillsPaths.isEmpty && !result.detectedDirectories.isEmpty {
+                let updatedRepo = plan.repository
+                if plan.shouldPromptDirectorySelection {
                     pendingRepository = updatedRepo
-                    detectedCandidates = result.detectedDirectories
-                    selectedDirectoryIndices = Set(0..<result.detectedDirectories.count)
+                    detectedCandidates = plan.detectedDirectories
+                    selectedDirectoryIndices = Set(0..<plan.detectedDirectories.count)
                     showingDirectoryPicker = true
-                } else if repo.skillsPaths.isEmpty && result.detectedDirectories.isEmpty {
-                    // No paths specified and no directories detected - use repository root
-                    // Rescan repository resources via shared facade entrypoint
-                    let clonePath = repo.localClonePath
-                    if STPath(clonePath).isExists {
-                        let resources = GitRepository.detectRepositoryResources(at: clonePath)
-                        if !resources.skillsDirectories.isEmpty {
-                            updatedRepo.detectedDirectories = resources.skillsDirectories.map { $0.path }
-                            pendingRepository = updatedRepo
-                            detectedCandidates = resources.skillsDirectories
-                            selectedDirectoryIndices = Set(0..<resources.skillsDirectories.count)
-                            showingDirectoryPicker = true
-                        }
-                    }
                 }
                 
                 settings.updateRemoteRepository(updatedRepo)

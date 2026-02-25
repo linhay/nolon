@@ -1,6 +1,4 @@
 import SwiftUI
-import STJSON
-import OSLog
 import ProviderCatalog
 import NolonResourceKit
 
@@ -33,11 +31,10 @@ enum RemoteContentTabType: String, CaseIterable, Identifiable {
 @MainActor
 @Observable
 final class RemoteContentTabViewModel {
-    private static let logger = Logger(subsystem: "nolon", category: "RemoteContentTab")
-
     var skillsCount: Int = 0
     var workflowsCount: Int = 0
     var mcpsCount: Int = 0
+    private let countService = RemoteRepositoryCountService()
     
     func count(for tab: RemoteContentTabType) -> Int {
         switch tab {
@@ -48,95 +45,10 @@ final class RemoteContentTabViewModel {
     }
     
     func loadCounts(for repository: RemoteRepository?) async {
-        guard let repository = repository else {
-            skillsCount = 0
-            workflowsCount = 0
-            mcpsCount = 0
-            return
-        }
-        
-        // 加载技能数量
-        do {
-            switch repository.templateType {
-            case .clawdhub:
-                let skillList = try await SkillsRepositoryFacade.listRemoteResources(
-                    kind: .skill,
-                    query: nil,
-                    limit: 100,
-                    baseURL: repository.baseURL
-                )
-                skillsCount = skillList.items.count
-
-                let workflowList = try await SkillsRepositoryFacade.listRemoteResources(
-                    kind: .workflow,
-                    query: nil,
-                    limit: 100,
-                    baseURL: repository.baseURL
-                )
-                workflowsCount = workflowList.items.count
-
-                let mcpList = try await SkillsRepositoryFacade.listRemoteResources(
-                    kind: .mcp,
-                    query: nil,
-                    limit: 100,
-                    baseURL: repository.baseURL
-                )
-                mcpsCount = mcpList.items.count
-                
-            case .globalSkills:
-                let cacheRepo = GlobalCacheRepository()
-                let skills = try await cacheRepo.fetchSkills(query: nil, limit: 100)
-                skillsCount = skills.count
-                
-                let workflows = try await cacheRepo.fetchWorkflows(query: nil, limit: 100)
-                workflowsCount = workflows.count
-                
-                let mcps = try await cacheRepo.fetchMCPs(query: nil, limit: 100)
-                mcpsCount = mcps.count
-                
-            case .localFolder, .git:
-                let paths = repository.effectiveSkillsPaths
-                guard !paths.isEmpty else {
-                    skillsCount = 0
-                    workflowsCount = 0
-                    mcpsCount = 0
-                    return
-                }
-                
-                if repository.templateType == .git {
-                    let gitRepo = try GitRepository(repository: repository)
-                    
-                    let skills = try await gitRepo.fetchSkills(query: nil, limit: 100)
-                    skillsCount = skills.count
-                    
-                    let workflows = try await gitRepo.fetchWorkflows(query: nil, limit: 100)
-                    workflowsCount = workflows.count
-                    
-                    let mcps = try await gitRepo.fetchMCPs(query: nil, limit: 100)
-                    mcpsCount = mcps.count
-                } else {
-                    let localRepo = LocalFolderRepository(
-                        id: repository.id,
-                        name: repository.name,
-                        basePaths: paths
-                    )
-                    
-                    let skills = try await localRepo.fetchSkills(query: nil, limit: 100)
-                    skillsCount = skills.count
-                    
-                    let workflows = try await localRepo.fetchWorkflows(query: nil, limit: 100)
-                    workflowsCount = workflows.count
-                    
-                    let mcps = try await localRepo.fetchMCPs(query: nil, limit: 100)
-                    mcpsCount = mcps.count
-                }
-            }
-        } catch {
-            Self.logger.error("Failed to count remote items: \(error.localizedDescription, privacy: .public)")
-            skillsCount = 0
-            workflowsCount = 0
-            mcpsCount = 0
-        }
+        let counts = await countService.countAll(repository: repository, limit: 100)
+        skillsCount = counts.skills
+        workflowsCount = counts.workflows
+        mcpsCount = counts.mcps
     }
 }
 

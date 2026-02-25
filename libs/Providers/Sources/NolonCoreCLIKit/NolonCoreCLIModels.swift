@@ -1,4 +1,5 @@
 import Foundation
+import NolonResourceKit
 
 public enum NolonGitPullStrategy: String, Sendable, Equatable, Codable, CaseIterable {
     case ffOnly = "ff-only"
@@ -316,6 +317,24 @@ public enum NolonProviderSkillStateKind: String, Sendable, Equatable, Codable, C
     case installed
     case orphaned
     case broken
+}
+
+public extension NolonProviderSkillStateKind {
+    var healthState: ResourceHealthState {
+        switch self {
+        case .installed: return .installed
+        case .orphaned: return .orphaned
+        case .broken: return .broken
+        }
+    }
+
+    init(healthState: ResourceHealthState) {
+        switch healthState {
+        case .installed: self = .installed
+        case .orphaned: self = .orphaned
+        case .broken: self = .broken
+        }
+    }
 }
 
 public enum NolonResourceSourceType: String, Sendable, Equatable, Codable, CaseIterable {

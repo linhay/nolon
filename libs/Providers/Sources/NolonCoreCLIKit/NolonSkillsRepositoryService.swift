@@ -271,6 +271,7 @@ public struct NolonLiveSkillsRepositoryService: NolonSkillsRepositoryServing {
     private let maintenanceService = ProviderSkillMaintenanceService()
     private let mcpMaintenanceService = ProviderMCPMaintenanceService()
     private let workflowBindingService = WorkflowBindingService()
+    private let remoteQueryService = RemoteCatalogQueryService()
 
     public init() {}
 
@@ -505,13 +506,7 @@ public struct NolonLiveSkillsRepositoryService: NolonSkillsRepositoryServing {
                     NolonProviderSkillState(
                         skillID: state.skillID,
                         path: state.path,
-                        state: {
-                            switch state.state {
-                            case .installed: return .installed
-                            case .orphaned: return .orphaned
-                            case .broken: return .broken
-                            }
-                        }()
+                        state: .init(healthState: state.state.healthState)
                     )
                 }
             )
@@ -829,17 +824,23 @@ public struct NolonLiveSkillsRepositoryService: NolonSkillsRepositoryServing {
             case .mcp: return .mcp
             }
         }()
-        let result = try await SkillsRepositoryFacade.listRemoteResources(
+        let repository = RemoteRepository(
+            name: "remote",
+            baseURL: baseURL,
+            templateType: .clawdhub,
+            isBuiltIn: false
+        )
+        let result = try await remoteQueryService.query(
+            repository: repository,
             kind: facadeKind,
             query: query,
-            limit: limit,
-            baseURL: baseURL
+            limit: limit
         )
         return NolonRemoteListResult(
             kind: kind,
-            baseURL: result.baseURL,
-            query: result.query,
-            limit: result.limit,
+            baseURL: baseURL,
+            query: query,
+            limit: limit,
             items: result.items.map { item in
                 NolonRemoteCatalogItem(
                     kind: kind,

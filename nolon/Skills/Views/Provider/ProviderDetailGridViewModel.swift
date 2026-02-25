@@ -55,6 +55,7 @@ final class ProviderDetailGridViewModel {
     private let mcpMaintenanceService = ProviderMCPMaintenanceService()
     private let remoteInstallOrchestrator = RemoteInstallOrchestrator()
     private let codexModelPreferenceService = CodexModelPreferenceService()
+    private let snapshotService = ProviderResourceSnapshotService()
     
     init(provider: Provider?, settings: ProviderSettings) {
         self.provider = provider
@@ -128,20 +129,56 @@ final class ProviderDetailGridViewModel {
             errorMessage = error.localizedDescription
         }
         
-        // Load workflows
-        loadWorkflows(for: provider)
-        
-        // Load rules
-        loadRules(for: provider)
-        
-        // Load AGENTS docs
-        loadAgentsFiles(for: provider)
-        
-        // Load MCPs
-        loadMCPs(for: provider)
+        applyResourceSnapshot(for: provider)
         loadCodexBinaryModels(for: provider)
         
         isLoading = false
+    }
+
+    private func applyResourceSnapshot(for provider: Provider) {
+        let snapshot = snapshotService.load(provider: provider)
+        workflows = snapshot.workflows.map {
+            WorkflowInfo(
+                id: $0.id,
+                name: $0.name,
+                description: $0.preview,
+                path: $0.path,
+                source: WorkflowSource(kind: $0.source ?? .unknown)
+            )
+        }.sorted { $0.name < $1.name }
+        workflowIds = Set(workflows.filter { $0.source == .skill }.map(\.id))
+        mcpWorkflowIds = Set(workflows.filter { $0.source == .mcp }.map(\.id))
+
+        rules = snapshot.rules.map {
+            RuleInfo(
+                id: $0.id,
+                name: $0.name,
+                preview: $0.preview,
+                relativePath: $0.relativePath ?? "\($0.name).rules",
+                path: $0.path
+            )
+        }.sorted { $0.relativePath.localizedStandardCompare($1.relativePath) == .orderedAscending }
+
+        agentsFiles = snapshot.agents.compactMap { item in
+            let kind: AgentDocKind
+            switch item.agentKind {
+            case .override: kind = .override
+            case .base: kind = .base
+            case .none: return nil
+            }
+            return AgentDocInfo(
+                id: item.path,
+                fileName: item.name,
+                path: item.path,
+                preview: item.preview,
+                kind: kind
+            )
+        }
+
+        mcps = snapshot.mcps
+        mcpCacheStates = snapshot.mcpCacheStates.reduce(into: [:]) { partialResult, item in
+            partialResult[item.key] = McpCacheState(rawValue: item.value.rawValue) ?? .notMigrated
+        }
     }
 
     var hasCodexBinarySupport: Bool {

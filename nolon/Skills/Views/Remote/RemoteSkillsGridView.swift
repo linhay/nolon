@@ -41,6 +41,7 @@ final class RemoteSkillsGridViewModel {
     private var currentLoadID: UUID?
     private let pageSize: Int = 20
     private let maxLimit: Int = 200
+    private let queryService = RemoteCatalogQueryService()
 
     private func mapKind(_ tab: RemoteContentTabType) -> SkillsRepositoryFacade.RemoteCatalogKind {
         switch tab {
@@ -166,122 +167,36 @@ final class RemoteSkillsGridViewModel {
         
         do {
             let cachedLimit = cache[cacheKey]?.limit ?? pageSize
-            switch repository.templateType {
-            case .clawdhub:
-                let kind = mapKind(tab)
-                let listResult = try await SkillsRepositoryFacade.listRemoteResources(
-                    kind: kind,
-                    query: hasQuery ? trimmedQuery : nil,
-                    limit: cachedLimit,
-                    baseURL: repository.baseURL
-                )
-                switch tab {
-                case .skills:
-                    let result = listResult.items.map(mapSkill)
-                    guard currentLoadID == loadID else { return }
-                    skills = result
-                    let canLoad = result.count >= cachedLimit && cachedLimit < maxLimit
-                    canLoadMore = canLoad
-                    cache[cacheKey] = CacheEntry(skills: result, workflows: [], mcps: [], errorMessage: nil, cacheBuster: cacheBuster, limit: cachedLimit, canLoadMore: canLoad)
-                case .workflows:
-                    let result = listResult.items.map(mapWorkflow)
-                    guard currentLoadID == loadID else { return }
-                    workflows = result
-                    let canLoad = result.count >= cachedLimit && cachedLimit < maxLimit
-                    canLoadMore = canLoad
-                    cache[cacheKey] = CacheEntry(skills: [], workflows: result, mcps: [], errorMessage: nil, cacheBuster: cacheBuster, limit: cachedLimit, canLoadMore: canLoad)
-                case .mcps:
-                    let result = listResult.items.map(mapMCP)
-                    guard currentLoadID == loadID else { return }
-                    mcps = result
-                    let canLoad = result.count >= cachedLimit && cachedLimit < maxLimit
-                    canLoadMore = canLoad
-                    cache[cacheKey] = CacheEntry(skills: [], workflows: [], mcps: result, errorMessage: nil, cacheBuster: cacheBuster, limit: cachedLimit, canLoadMore: canLoad)
-                }
-                
-            case .globalSkills:
-                // Use GlobalCacheRepository for global cache
-                let cacheRepo = GlobalCacheRepository()
-                
-                switch tab {
-                case .skills:
-                    let result = try await cacheRepo.fetchSkills(query: nil, limit: 100)
-                    guard currentLoadID == loadID else { return }
-                    skills = result
-                    canLoadMore = false
-                    cache[cacheKey] = CacheEntry(skills: result, workflows: [], mcps: [], errorMessage: nil, cacheBuster: cacheBuster, limit: 100, canLoadMore: false)
-                case .workflows:
-                    let result = try await cacheRepo.fetchWorkflows(query: nil, limit: 100)
-                    guard currentLoadID == loadID else { return }
-                    workflows = result
-                    canLoadMore = false
-                    cache[cacheKey] = CacheEntry(skills: [], workflows: result, mcps: [], errorMessage: nil, cacheBuster: cacheBuster, limit: 100, canLoadMore: false)
-                case .mcps:
-                    let result = try await cacheRepo.fetchMCPs(query: nil, limit: 100)
-                    guard currentLoadID == loadID else { return }
-                    mcps = result
-                    canLoadMore = false
-                    cache[cacheKey] = CacheEntry(skills: [], workflows: [], mcps: result, errorMessage: nil, cacheBuster: cacheBuster, limit: 100, canLoadMore: false)
-                }
-                
-            case .localFolder, .git:
-                let paths = repository.effectiveSkillsPaths
-                guard !paths.isEmpty else {
-                    throw RepositoryError.invalidConfiguration
-                }
-                
-                if repository.templateType == .git {
-                    let gitRepo = try GitRepository(repository: repository)
-                    
-                    switch tab {
-                    case .skills:
-                        let result = try await gitRepo.fetchSkills(query: nil, limit: 100)
-                        guard currentLoadID == loadID else { return }
-                        skills = result
-                        canLoadMore = false
-                        cache[cacheKey] = CacheEntry(skills: result, workflows: [], mcps: [], errorMessage: nil, cacheBuster: cacheBuster, limit: 100, canLoadMore: false)
-                    case .workflows:
-                        let result = try await gitRepo.fetchWorkflows(query: nil, limit: 100)
-                        guard currentLoadID == loadID else { return }
-                        workflows = result
-                        canLoadMore = false
-                        cache[cacheKey] = CacheEntry(skills: [], workflows: result, mcps: [], errorMessage: nil, cacheBuster: cacheBuster, limit: 100, canLoadMore: false)
-                    case .mcps:
-                        let result = try await gitRepo.fetchMCPs(query: nil, limit: 100)
-                        guard currentLoadID == loadID else { return }
-                        mcps = result
-                        canLoadMore = false
-                        cache[cacheKey] = CacheEntry(skills: [], workflows: [], mcps: result, errorMessage: nil, cacheBuster: cacheBuster, limit: 100, canLoadMore: false)
-                    }
-                } else {
-                    // Local folder repository
-                    let localRepo = LocalFolderRepository(
-                        id: repository.id,
-                        name: repository.name,
-                        basePaths: paths
-                    )
-                    
-                    switch tab {
-                    case .skills:
-                        let result = try await localRepo.fetchSkills(query: nil, limit: 100)
-                        guard currentLoadID == loadID else { return }
-                        skills = result
-                        canLoadMore = false
-                        cache[cacheKey] = CacheEntry(skills: result, workflows: [], mcps: [], errorMessage: nil, cacheBuster: cacheBuster, limit: 100, canLoadMore: false)
-                    case .workflows:
-                        let result = try await localRepo.fetchWorkflows(query: nil, limit: 100)
-                        guard currentLoadID == loadID else { return }
-                        workflows = result
-                        canLoadMore = false
-                        cache[cacheKey] = CacheEntry(skills: [], workflows: result, mcps: [], errorMessage: nil, cacheBuster: cacheBuster, limit: 100, canLoadMore: false)
-                    case .mcps:
-                        let result = try await localRepo.fetchMCPs(query: nil, limit: 100)
-                        guard currentLoadID == loadID else { return }
-                        mcps = result
-                        canLoadMore = false
-                        cache[cacheKey] = CacheEntry(skills: [], workflows: [], mcps: result, errorMessage: nil, cacheBuster: cacheBuster, limit: 100, canLoadMore: false)
-                    }
-                }
+            let queryResult = try await queryService.query(
+                repository: repository,
+                kind: mapKind(tab),
+                query: hasQuery ? trimmedQuery : nil,
+                limit: cachedLimit
+            )
+
+            let loadMoreEnabled = repository.templateType == .clawdhub
+                && queryResult.canLoadMore
+                && cachedLimit < maxLimit
+
+            switch tab {
+            case .skills:
+                let result = queryResult.items.map(mapSkill)
+                guard currentLoadID == loadID else { return }
+                skills = result
+                canLoadMore = loadMoreEnabled
+                cache[cacheKey] = CacheEntry(skills: result, workflows: [], mcps: [], errorMessage: nil, cacheBuster: cacheBuster, limit: cachedLimit, canLoadMore: loadMoreEnabled)
+            case .workflows:
+                let result = queryResult.items.map(mapWorkflow)
+                guard currentLoadID == loadID else { return }
+                workflows = result
+                canLoadMore = loadMoreEnabled
+                cache[cacheKey] = CacheEntry(skills: [], workflows: result, mcps: [], errorMessage: nil, cacheBuster: cacheBuster, limit: cachedLimit, canLoadMore: loadMoreEnabled)
+            case .mcps:
+                let result = queryResult.items.map(mapMCP)
+                guard currentLoadID == loadID else { return }
+                mcps = result
+                canLoadMore = loadMoreEnabled
+                cache[cacheKey] = CacheEntry(skills: [], workflows: [], mcps: result, errorMessage: nil, cacheBuster: cacheBuster, limit: cachedLimit, canLoadMore: loadMoreEnabled)
             }
         } catch is CancellationError {
             // 任务被取消（如用户快速切换仓库），静默忽略，不显示错误
@@ -319,33 +234,32 @@ final class RemoteSkillsGridViewModel {
         }
 
         do {
-            let kind = mapKind(tab)
-            let listResult = try await SkillsRepositoryFacade.listRemoteResources(
-                kind: kind,
+            let queryResult = try await queryService.query(
+                repository: repository,
+                kind: mapKind(tab),
                 query: trimmedQuery.isEmpty ? nil : trimmedQuery,
-                limit: nextLimit,
-                baseURL: repository.baseURL
+                limit: nextLimit
             )
             switch tab {
             case .skills:
-                let result = listResult.items.map(mapSkill)
+                let result = queryResult.items.map(mapSkill)
                 guard currentLoadID == loadID else { return }
                 skills = result
-                let canLoad = result.count >= nextLimit && nextLimit < maxLimit
+                let canLoad = queryResult.canLoadMore && nextLimit < maxLimit
                 canLoadMore = canLoad
                 cache[cacheKey] = CacheEntry(skills: result, workflows: [], mcps: [], errorMessage: nil, cacheBuster: cache[cacheKey]?.cacheBuster ?? "", limit: nextLimit, canLoadMore: canLoad)
             case .workflows:
-                let result = listResult.items.map(mapWorkflow)
+                let result = queryResult.items.map(mapWorkflow)
                 guard currentLoadID == loadID else { return }
                 workflows = result
-                let canLoad = result.count >= nextLimit && nextLimit < maxLimit
+                let canLoad = queryResult.canLoadMore && nextLimit < maxLimit
                 canLoadMore = canLoad
                 cache[cacheKey] = CacheEntry(skills: [], workflows: result, mcps: [], errorMessage: nil, cacheBuster: cache[cacheKey]?.cacheBuster ?? "", limit: nextLimit, canLoadMore: canLoad)
             case .mcps:
-                let result = listResult.items.map(mapMCP)
+                let result = queryResult.items.map(mapMCP)
                 guard currentLoadID == loadID else { return }
                 mcps = result
-                let canLoad = result.count >= nextLimit && nextLimit < maxLimit
+                let canLoad = queryResult.canLoadMore && nextLimit < maxLimit
                 canLoadMore = canLoad
                 cache[cacheKey] = CacheEntry(skills: [], workflows: [], mcps: result, errorMessage: nil, cacheBuster: cache[cacheKey]?.cacheBuster ?? "", limit: nextLimit, canLoadMore: canLoad)
             }
