@@ -21,27 +21,9 @@ final class RemoteSkillsGridViewModel {
     var selectedWorkflowForDetail: RemoteWorkflow?
     var selectedMCPForDetail: RemoteMCP?
 
-    private struct CacheKey: Hashable {
-        let repositoryID: String
-        let tab: RemoteContentTabType
-        let query: String
-    }
-
-    private struct CacheEntry {
-        var skills: [RemoteSkill] = []
-        var workflows: [RemoteWorkflow] = []
-        var mcps: [RemoteMCP] = []
-        var errorMessage: String?
-        var cacheBuster: String
-        var limit: Int
-        var canLoadMore: Bool
-    }
-
-    private var cache: [CacheKey: CacheEntry] = [:]
     private var currentLoadID: UUID?
-    private let pageSize: Int = 20
-    private let maxLimit: Int = 200
     private let queryService = RemoteCatalogQueryService()
+    private let pagingStore = RemoteCatalogPagingStore(pageSize: 20, maxLimit: 200)
 
     private func mapKind(_ tab: RemoteContentTabType) -> SkillsRepositoryFacade.RemoteCatalogKind {
         switch tab {
@@ -139,14 +121,14 @@ final class RemoteSkillsGridViewModel {
 
         let trimmedQuery = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
         let hasQuery = !trimmedQuery.isEmpty
-        let cacheKey = CacheKey(repositoryID: repository.id, tab: tab, query: trimmedQuery)
+        let kind = mapKind(tab)
+        let cacheKey = pagingStore.key(repositoryID: repository.id, kind: kind, query: trimmedQuery)
         let loadID = UUID()
         currentLoadID = loadID
 
-        if let cached = cache[cacheKey] {
+        if let cached = pagingStore.entry(for: cacheKey) {
             applyCached(cached, for: tab)
-            // cacheBuster 相同 → 直接使用缓存，不再重复加载
-            if cached.cacheBuster == cacheBuster {
+            if pagingStore.shouldUseCachedResult(for: cacheKey, cacheBuster: cacheBuster) {
                 return
             }
         } else {
@@ -166,17 +148,17 @@ final class RemoteSkillsGridViewModel {
         }
         
         do {
-            let cachedLimit = cache[cacheKey]?.limit ?? pageSize
+            let cachedLimit = pagingStore.currentLimit(for: cacheKey)
             let queryResult = try await queryService.query(
                 repository: repository,
-                kind: mapKind(tab),
+                kind: kind,
                 query: hasQuery ? trimmedQuery : nil,
                 limit: cachedLimit
             )
 
             let loadMoreEnabled = repository.templateType == .clawdhub
                 && queryResult.canLoadMore
-                && cachedLimit < maxLimit
+                && cachedLimit < pagingStore.maxLimit
 
             switch tab {
             case .skills:
@@ -184,19 +166,37 @@ final class RemoteSkillsGridViewModel {
                 guard currentLoadID == loadID else { return }
                 skills = result
                 canLoadMore = loadMoreEnabled
-                cache[cacheKey] = CacheEntry(skills: result, workflows: [], mcps: [], errorMessage: nil, cacheBuster: cacheBuster, limit: cachedLimit, canLoadMore: loadMoreEnabled)
+                pagingStore.saveSuccess(
+                    for: cacheKey,
+                    items: queryResult.items,
+                    cacheBuster: cacheBuster,
+                    limit: cachedLimit,
+                    canLoadMore: loadMoreEnabled
+                )
             case .workflows:
                 let result = queryResult.items.map(mapWorkflow)
                 guard currentLoadID == loadID else { return }
                 workflows = result
                 canLoadMore = loadMoreEnabled
-                cache[cacheKey] = CacheEntry(skills: [], workflows: result, mcps: [], errorMessage: nil, cacheBuster: cacheBuster, limit: cachedLimit, canLoadMore: loadMoreEnabled)
+                pagingStore.saveSuccess(
+                    for: cacheKey,
+                    items: queryResult.items,
+                    cacheBuster: cacheBuster,
+                    limit: cachedLimit,
+                    canLoadMore: loadMoreEnabled
+                )
             case .mcps:
                 let result = queryResult.items.map(mapMCP)
                 guard currentLoadID == loadID else { return }
                 mcps = result
                 canLoadMore = loadMoreEnabled
-                cache[cacheKey] = CacheEntry(skills: [], workflows: [], mcps: result, errorMessage: nil, cacheBuster: cacheBuster, limit: cachedLimit, canLoadMore: loadMoreEnabled)
+                pagingStore.saveSuccess(
+                    for: cacheKey,
+                    items: queryResult.items,
+                    cacheBuster: cacheBuster,
+                    limit: cachedLimit,
+                    canLoadMore: loadMoreEnabled
+                )
             }
         } catch is CancellationError {
             // 任务被取消（如用户快速切换仓库），静默忽略，不显示错误
@@ -209,7 +209,13 @@ final class RemoteSkillsGridViewModel {
             clearAllContent()
             errorMessage = error.localizedDescription
             canLoadMore = false
-            cache[cacheKey] = CacheEntry(skills: [], workflows: [], mcps: [], errorMessage: error.localizedDescription, cacheBuster: cacheBuster, limit: pageSize, canLoadMore: false)
+            pagingStore.saveError(
+                for: cacheKey,
+                items: [],
+                cacheBuster: cacheBuster,
+                limit: pagingStore.pageSize,
+                errorMessage: error.localizedDescription
+            )
         }
     }
 
@@ -218,10 +224,10 @@ final class RemoteSkillsGridViewModel {
         guard repository.templateType == .clawdhub else { return }
 
         let trimmedQuery = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
-        let cacheKey = CacheKey(repositoryID: repository.id, tab: tab, query: trimmedQuery)
-        let currentLimit = cache[cacheKey]?.limit ?? pageSize
-        let nextLimit = min(maxLimit, currentLimit + pageSize)
-        guard nextLimit > currentLimit else { return }
+        let kind = mapKind(tab)
+        let cacheKey = pagingStore.key(repositoryID: repository.id, kind: kind, query: trimmedQuery)
+        let currentLimit = pagingStore.currentLimit(for: cacheKey)
+        guard let nextLimit = pagingStore.nextLimit(for: cacheKey) else { return }
 
         let loadID = UUID()
         currentLoadID = loadID
@@ -236,7 +242,7 @@ final class RemoteSkillsGridViewModel {
         do {
             let queryResult = try await queryService.query(
                 repository: repository,
-                kind: mapKind(tab),
+                kind: kind,
                 query: trimmedQuery.isEmpty ? nil : trimmedQuery,
                 limit: nextLimit
             )
@@ -245,46 +251,115 @@ final class RemoteSkillsGridViewModel {
                 let result = queryResult.items.map(mapSkill)
                 guard currentLoadID == loadID else { return }
                 skills = result
-                let canLoad = queryResult.canLoadMore && nextLimit < maxLimit
+                let canLoad = queryResult.canLoadMore && nextLimit < pagingStore.maxLimit
                 canLoadMore = canLoad
-                cache[cacheKey] = CacheEntry(skills: result, workflows: [], mcps: [], errorMessage: nil, cacheBuster: cache[cacheKey]?.cacheBuster ?? "", limit: nextLimit, canLoadMore: canLoad)
+                pagingStore.saveSuccess(
+                    for: cacheKey,
+                    items: queryResult.items,
+                    cacheBuster: pagingStore.entry(for: cacheKey)?.cacheBuster ?? "",
+                    limit: nextLimit,
+                    canLoadMore: canLoad
+                )
             case .workflows:
                 let result = queryResult.items.map(mapWorkflow)
                 guard currentLoadID == loadID else { return }
                 workflows = result
-                let canLoad = queryResult.canLoadMore && nextLimit < maxLimit
+                let canLoad = queryResult.canLoadMore && nextLimit < pagingStore.maxLimit
                 canLoadMore = canLoad
-                cache[cacheKey] = CacheEntry(skills: [], workflows: result, mcps: [], errorMessage: nil, cacheBuster: cache[cacheKey]?.cacheBuster ?? "", limit: nextLimit, canLoadMore: canLoad)
+                pagingStore.saveSuccess(
+                    for: cacheKey,
+                    items: queryResult.items,
+                    cacheBuster: pagingStore.entry(for: cacheKey)?.cacheBuster ?? "",
+                    limit: nextLimit,
+                    canLoadMore: canLoad
+                )
             case .mcps:
                 let result = queryResult.items.map(mapMCP)
                 guard currentLoadID == loadID else { return }
                 mcps = result
-                let canLoad = queryResult.canLoadMore && nextLimit < maxLimit
+                let canLoad = queryResult.canLoadMore && nextLimit < pagingStore.maxLimit
                 canLoadMore = canLoad
-                cache[cacheKey] = CacheEntry(skills: [], workflows: [], mcps: result, errorMessage: nil, cacheBuster: cache[cacheKey]?.cacheBuster ?? "", limit: nextLimit, canLoadMore: canLoad)
+                pagingStore.saveSuccess(
+                    for: cacheKey,
+                    items: queryResult.items,
+                    cacheBuster: pagingStore.entry(for: cacheKey)?.cacheBuster ?? "",
+                    limit: nextLimit,
+                    canLoadMore: canLoad
+                )
             }
         } catch {
             guard currentLoadID == loadID else { return }
             errorMessage = error.localizedDescription
             canLoadMore = false
-            cache[cacheKey] = CacheEntry(skills: skills, workflows: workflows, mcps: mcps, errorMessage: error.localizedDescription, cacheBuster: cache[cacheKey]?.cacheBuster ?? "", limit: currentLimit, canLoadMore: false)
+            let cachedItems: [SkillsRepositoryFacade.RemoteCatalogItem]
+            switch tab {
+            case .skills:
+                cachedItems = skills.map {
+                    SkillsRepositoryFacade.RemoteCatalogItem(
+                        kind: .skill,
+                        slug: $0.slug,
+                        displayName: $0.displayName,
+                        summary: $0.summary,
+                        latestVersion: $0.latestVersion,
+                        updatedAt: $0.updatedAt,
+                        downloads: $0.downloads,
+                        stars: $0.stars,
+                        installs: nil
+                    )
+                }
+            case .workflows:
+                cachedItems = workflows.map {
+                    SkillsRepositoryFacade.RemoteCatalogItem(
+                        kind: .workflow,
+                        slug: $0.slug,
+                        displayName: $0.displayName,
+                        summary: $0.summary,
+                        latestVersion: $0.latestVersion,
+                        updatedAt: $0.updatedAt,
+                        downloads: $0.downloads,
+                        stars: $0.stars,
+                        installs: nil
+                    )
+                }
+            case .mcps:
+                cachedItems = mcps.map {
+                    SkillsRepositoryFacade.RemoteCatalogItem(
+                        kind: .mcp,
+                        slug: $0.slug,
+                        displayName: $0.displayName,
+                        summary: $0.summary,
+                        latestVersion: $0.latestVersion,
+                        updatedAt: $0.updatedAt,
+                        downloads: $0.downloads,
+                        stars: $0.stars,
+                        installs: $0.installs
+                    )
+                }
+            }
+            pagingStore.saveError(
+                for: cacheKey,
+                items: cachedItems,
+                cacheBuster: pagingStore.entry(for: cacheKey)?.cacheBuster ?? "",
+                limit: currentLimit,
+                errorMessage: error.localizedDescription
+            )
         }
     }
 
-    private func applyCached(_ cached: CacheEntry, for tab: RemoteContentTabType) {
+    private func applyCached(_ cached: RemoteCatalogPageEntry, for tab: RemoteContentTabType) {
         switch tab {
         case .skills:
-            skills = cached.skills
+            skills = cached.items.map(mapSkill)
             workflows = []
             mcps = []
         case .workflows:
             skills = []
-            workflows = cached.workflows
+            workflows = cached.items.map(mapWorkflow)
             mcps = []
         case .mcps:
             skills = []
             workflows = []
-            mcps = cached.mcps
+            mcps = cached.items.map(mapMCP)
         }
 
         errorMessage = cached.errorMessage

@@ -23,6 +23,7 @@ final class ProviderUsageViewModel {
     private let codexAuthManager = CodexAuthManager()
     private let codexActivateAction: CodexActivateAction
     private let postActivationLoadAction: AsyncVoidAction?
+    private let usageSnapshotService = ProviderUsageSnapshotService()
     @ObservationIgnored private var usageWatcher: UsageMonitorFileWatcher? = nil
 
     let provider: Provider
@@ -71,6 +72,10 @@ final class ProviderUsageViewModel {
     private var didStartInitialLoad = false
     private var lastUsageRefreshAt: Date?
     private let cliLoginTimeoutSeconds: TimeInterval = 10 * 60
+
+    var usageAggregate: ProviderUsageAggregate {
+        usageSnapshotService.aggregate(items: currentSnapshotItems())
+    }
 
     init(
         provider: Provider,
@@ -510,6 +515,52 @@ final class ProviderUsageViewModel {
             return mapped
         }
         return nil
+    }
+
+    private func currentSnapshotItems() -> [ProviderUsageSnapshotItem] {
+        let effectiveOutcomes: [ProviderAccountUsageOutcome]
+        if usageProvider == .codex, isMultiAccountEnabled {
+            effectiveOutcomes = codexAccountOutcomes
+        } else {
+            effectiveOutcomes = outcomes
+        }
+
+        return effectiveOutcomes.map { outcome in
+            let id: String = {
+                switch outcome.account {
+                case .default:
+                    return "default"
+                case let .tokenAccount(account):
+                    return account.id.uuidString
+                }
+            }()
+
+            let status: ProviderUsageOutcomeStatus = {
+                switch outcome.outcome.result {
+                case .success:
+                    return .success
+                case .failure:
+                    return .failure
+                }
+            }()
+
+            let updatedAt: Date? = {
+                guard case let .success(result) = outcome.outcome.result else { return nil }
+                return result.usage.updatedAt
+            }()
+
+            let hasCredits: Bool = {
+                guard case let .success(result) = outcome.outcome.result else { return false }
+                return result.credits != nil
+            }()
+
+            return ProviderUsageSnapshotItem(
+                id: id,
+                status: status,
+                updatedAt: updatedAt,
+                hasCredits: hasCredits
+            )
+        }
     }
 
     var dashboardURL: URL? {

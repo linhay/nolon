@@ -41,6 +41,7 @@ final class AddRepositoryViewModel {
     var onDirectoryCandidatesFound: ((RemoteRepository, [GitRepository.SkillsDirectoryCandidate]) -> Void)?
     var onDismiss: (() -> Void)?
     private let syncOrchestrator = RepositorySyncOrchestrator()
+    private let draftService = RepositoryDraftService()
     
     init(settings: ProviderSettings, repositoryToEdit: RemoteRepository? = nil) {
         self.settings = settings
@@ -59,24 +60,14 @@ final class AddRepositoryViewModel {
             // Handle pending URL import
             if let importURL = settings.pendingImportURL {
                 Self.logger.info("Handling pending import URL: \(importURL, privacy: .public)")
-                selectedTemplate = .git
-                
-                // Extract subpath if present before normalization might strip it
-                if let subpath = RemoteRepository.extractSubpath(from: importURL) {
-                    newSkillsPaths = [subpath]
-                    Self.logger.info("Extracted subpath: \(subpath, privacy: .public)")
+                let draft = draftService.importedDraft(from: importURL)
+                selectedTemplate = draft.template
+                newSkillsPaths = draft.skillsPaths
+                newGitURL = draft.normalizedGitURL
+                if !draft.name.isEmpty {
+                    newRepoName = draft.name
                 }
-                
-                let normalized = RemoteRepository.normalizeGitURL(importURL)
-                newGitURL = normalized
-                
-                // Manually trigger update logic since didSet not called in init
-                let extractedName = RemoteRepository.extractRepoName(from: normalized)
-                if !extractedName.isEmpty {
-                    newRepoName = extractedName
-                }
-                
-                Self.logger.info("Normalized URL: \(normalized, privacy: .public), name: \(self.newRepoName, privacy: .public)")
+                Self.logger.info("Normalized URL: \(draft.normalizedGitURL, privacy: .public), name: \(self.newRepoName, privacy: .public)")
                 
                 validateInput()
                 
@@ -120,7 +111,7 @@ final class AddRepositoryViewModel {
 
     func handleGitURLChange(_ newURL: String) {
         if selectedTemplate == .git && !newURL.isEmpty {
-            let extractedName = RemoteRepository.extractRepoName(from: newURL)
+            let extractedName = draftService.inferredRepositoryName(from: newURL)
             if !extractedName.isEmpty {
                 newRepoName = extractedName
             }
@@ -143,41 +134,16 @@ final class AddRepositoryViewModel {
     }
 
     func validateInput() {
-        validationError = nil
-        
-        // Skip duplicate checks when editing the same repository
-        let editingId = repositoryToEdit?.id
-
-        if !newRepoName.isEmpty {
-            if settings.remoteRepositories.contains(where: { $0.name == newRepoName && $0.id != editingId }) {
-                validationError = "A repository with this name already exists."
-                return
-            }
-        }
-
-        if selectedTemplate == .git && !newGitURL.isEmpty {
-            let detectedProvider = RemoteRepository.detectProvider(from: newGitURL) ?? .github
-            let normalizedURL = detectedProvider.normalizeURL(newGitURL)
-            if settings.remoteRepositories.contains(where: { repo in
-                guard repo.id != editingId, repo.templateType == .git, let existingURL = repo.gitURL else {
-                    return false
-                }
-                let existingProvider = RemoteRepository.detectProvider(from: existingURL) ?? .github
-                return existingProvider.normalizeURL(existingURL) == normalizedURL
-            }) {
-                validationError = "This Git repository has already been added."
-                return
-            }
-        }
-
-        if selectedTemplate == .localFolder && !newLocalPath.isEmpty {
-            if settings.remoteRepositories.contains(where: {
-                $0.id != editingId && $0.templateType == .localFolder && $0.localPath == newLocalPath
-            }) {
-                validationError = "This folder has already been added."
-                return
-            }
-        }
+        validationError = draftService.validate(
+            RepositoryDraftInput(
+                selectedTemplate: selectedTemplate,
+                repositoryName: newRepoName,
+                gitURL: newGitURL,
+                localPath: newLocalPath,
+                repositories: settings.remoteRepositories,
+                editingRepositoryID: repositoryToEdit?.id
+            )
+        )
     }
     
     /// Check and load pending import URL (called on appear to handle @State caching)
@@ -186,23 +152,14 @@ final class AddRepositoryViewModel {
         guard let importURL = settings.pendingImportURL else { return }
         
         Self.logger.info("checkPendingImportURL: \(importURL, privacy: .public)")
-        selectedTemplate = .git
-        
-        // Extract subpath if present
-        if let subpath = RemoteRepository.extractSubpath(from: importURL) {
-            newSkillsPaths = [subpath]
-            Self.logger.info("Extracted subpath: \(subpath, privacy: .public)")
+        let draft = draftService.importedDraft(from: importURL)
+        selectedTemplate = draft.template
+        newSkillsPaths = draft.skillsPaths
+        newGitURL = draft.normalizedGitURL
+        if !draft.name.isEmpty {
+            newRepoName = draft.name
         }
-        
-        let normalized = RemoteRepository.normalizeGitURL(importURL)
-        newGitURL = normalized
-        
-        let extractedName = RemoteRepository.extractRepoName(from: normalized)
-        if !extractedName.isEmpty {
-            newRepoName = extractedName
-        }
-        
-        Self.logger.info("Loaded URL: \(normalized, privacy: .public), name: \(self.newRepoName, privacy: .public)")
+        Self.logger.info("Loaded URL: \(draft.normalizedGitURL, privacy: .public), name: \(self.newRepoName, privacy: .public)")
         
         validateInput()
         
@@ -213,11 +170,9 @@ final class AddRepositoryViewModel {
     }
     
     func resetAddForm() {
-        if settings.remoteRepositories.contains(where: { $0.templateType == .clawdhub }) {
-            selectedTemplate = .git
-        } else {
-            selectedTemplate = .clawdhub
-        }
+        selectedTemplate = draftService.defaultTemplate(
+            hasClawdhubRepository: settings.remoteRepositories.contains(where: { $0.templateType == .clawdhub })
+        )
         // Force update fields based on new template
         handleTemplateChange(selectedTemplate)
     }

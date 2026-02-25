@@ -56,6 +56,7 @@ final class ProviderDetailGridViewModel {
     private let remoteInstallOrchestrator = RemoteInstallOrchestrator()
     private let codexModelPreferenceService = CodexModelPreferenceService()
     private let snapshotService = ProviderResourceSnapshotService()
+    private let resourceViewMapper = ProviderResourceViewMapper()
     
     init(provider: Provider?, settings: ProviderSettings) {
         self.provider = provider
@@ -137,38 +138,38 @@ final class ProviderDetailGridViewModel {
 
     private func applyResourceSnapshot(for provider: Provider) {
         let snapshot = snapshotService.load(provider: provider)
-        workflows = snapshot.workflows.map {
+        let mapped = resourceViewMapper.map(snapshot: snapshot)
+        workflows = mapped.workflows.map {
             WorkflowInfo(
                 id: $0.id,
                 name: $0.name,
-                description: $0.preview,
+                description: $0.description,
                 path: $0.path,
-                source: WorkflowSource(kind: $0.source ?? .unknown)
+                source: WorkflowSource(kind: $0.source)
             )
-        }.sorted { $0.name < $1.name }
+        }
         workflowIds = Set(workflows.filter { $0.source == .skill }.map(\.id))
         mcpWorkflowIds = Set(workflows.filter { $0.source == .mcp }.map(\.id))
 
-        rules = snapshot.rules.map {
+        rules = mapped.rules.map {
             RuleInfo(
                 id: $0.id,
                 name: $0.name,
                 preview: $0.preview,
-                relativePath: $0.relativePath ?? "\($0.name).rules",
+                relativePath: $0.relativePath,
                 path: $0.path
             )
-        }.sorted { $0.relativePath.localizedStandardCompare($1.relativePath) == .orderedAscending }
+        }
 
-        agentsFiles = snapshot.agents.compactMap { item in
+        agentsFiles = mapped.agents.map { item in
             let kind: AgentDocKind
-            switch item.agentKind {
+            switch item.kind {
             case .override: kind = .override
             case .base: kind = .base
-            case .none: return nil
             }
             return AgentDocInfo(
                 id: item.path,
-                fileName: item.name,
+                fileName: item.fileName,
                 path: item.path,
                 preview: item.preview,
                 kind: kind
@@ -535,93 +536,6 @@ final class ProviderDetailGridViewModel {
          loadMCPs(for: provider)
     }
     
-    private func loadWorkflows(for provider: Provider) {
-        let workflowPath = provider.workflowPath
-        let folder = STFolder(workflowPath)
-        guard folder.isExists else {
-            workflows = []
-            mcpWorkflowIds = []
-            workflowIds = []
-            return
-        }
-        
-        do {
-            let contents = try folder.files()
-            workflows = contents
-                .filter { $0.url.pathExtension == "md" }
-                .compactMap { WorkflowInfo.parse(from: $0.url) }
-                .sorted { $0.name < $1.name }
-            
-            workflowIds = Set(workflows.filter { $0.source == .skill }.map(\.id))
-            mcpWorkflowIds = Set(workflows.filter { $0.source == .mcp }.map(\.id))
-        } catch {
-            workflows = []
-            mcpWorkflowIds = []
-            workflowIds = []
-        }
-    }
-    
-    private func loadRules(for provider: Provider) {
-        guard provider.templateId == "codex" || provider.templateId == "codexXcode" else {
-            rules = []
-            return
-        }
-
-        let baseFolder = STFolder(provider.codexRulesURL)
-        guard baseFolder.isExists else {
-            rules = []
-            return
-        }
-
-        func collectRuleFiles(in folder: STFolder) -> [URL] {
-            var result: [URL] = []
-            let files = (try? folder.files()) ?? []
-            for file in files where !file.url.lastPathComponent.hasPrefix(".") {
-                if file.url.pathExtension.lowercased() == "rules" {
-                    result.append(file.url)
-                }
-            }
-
-            let childFolders = (try? folder.folders()) ?? []
-            for child in childFolders where !child.url.lastPathComponent.hasPrefix(".") {
-                result.append(contentsOf: collectRuleFiles(in: child))
-            }
-            return result
-        }
-
-        var parsedRules: [RuleInfo] = []
-        for fileURL in collectRuleFiles(in: baseFolder) {
-            if let rule = RuleInfo.parse(from: fileURL, baseDirectory: baseFolder.url) {
-                parsedRules.append(rule)
-            }
-        }
-
-        rules = parsedRules.sorted { $0.relativePath.localizedStandardCompare($1.relativePath) == .orderedAscending }
-    }
-
-    private func loadAgentsFiles(for provider: Provider) {
-        guard provider.templateId == "codex" || provider.templateId == "codexXcode" else {
-            agentsFiles = []
-            return
-        }
-
-        let overridePath = STFile(provider.codexAgentsOverrideFileURL)
-        let basePath = STFile(provider.codexAgentsFileURL)
-        var docs: [AgentDocInfo] = []
-
-        if overridePath.isExists,
-           let doc = AgentDocInfo.parse(url: overridePath.url, kind: .override) {
-            docs.append(doc)
-        }
-
-        if basePath.isExists,
-           let doc = AgentDocInfo.parse(url: basePath.url, kind: .base) {
-            docs.append(doc)
-        }
-
-        agentsFiles = docs
-    }
-    
     // MARK: - Actions
     
     func revealSkillInFinder(_ skill: Skill) {
@@ -642,7 +556,7 @@ final class ProviderDetailGridViewModel {
         
         do {
             try installer.installWorkflow(skill: skill, to: provider)
-            loadWorkflows(for: provider)
+            applyResourceSnapshot(for: provider)
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -653,7 +567,7 @@ final class ProviderDetailGridViewModel {
         
         do {
             try installer.uninstallWorkflow(skill: skill, from: provider)
-            loadWorkflows(for: provider)
+            applyResourceSnapshot(for: provider)
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -664,7 +578,7 @@ final class ProviderDetailGridViewModel {
         
         do {
             try installer.installMcpWorkflow(mcp: mcp, to: provider)
-            loadWorkflows(for: provider)
+            applyResourceSnapshot(for: provider)
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -675,7 +589,7 @@ final class ProviderDetailGridViewModel {
         
         do {
             try installer.uninstallMcpWorkflow(mcp: mcp, from: provider)
-            loadWorkflows(for: provider)
+            applyResourceSnapshot(for: provider)
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -703,7 +617,7 @@ final class ProviderDetailGridViewModel {
         } catch {
             errorMessage = error.localizedDescription
         }
-        loadWorkflows(for: provider)
+        applyResourceSnapshot(for: provider)
     }
     
     func deleteRule(_ rule: RuleInfo) async {
@@ -713,7 +627,7 @@ final class ProviderDetailGridViewModel {
         } catch {
             errorMessage = error.localizedDescription
         }
-        loadRules(for: provider)
+        applyResourceSnapshot(for: provider)
     }
 
     func revealAgentDocInFinder(_ doc: AgentDocInfo) {
@@ -727,7 +641,7 @@ final class ProviderDetailGridViewModel {
         } catch {
             errorMessage = error.localizedDescription
         }
-        loadAgentsFiles(for: provider)
+        applyResourceSnapshot(for: provider)
     }
 
     func createAgentDocDraft() -> URL? {
@@ -737,7 +651,7 @@ final class ProviderDetailGridViewModel {
             let basePath = STPath(provider.codexAgentsFileURL)
             let draftKind: ProviderResourceDraftKind = basePath.isExists ? .agentOverride : .agentBase
             let targetURL = try resourceService.createDraft(provider: provider, kind: draftKind)
-            loadAgentsFiles(for: provider)
+            applyResourceSnapshot(for: provider)
             return targetURL
         } catch {
             errorMessage = error.localizedDescription
@@ -751,7 +665,7 @@ final class ProviderDetailGridViewModel {
 
         do {
             let draftURL = try resourceService.createDraft(provider: provider, kind: .rule)
-            loadRules(for: provider)
+            applyResourceSnapshot(for: provider)
             return draftURL
         } catch {
             errorMessage = error.localizedDescription

@@ -2889,52 +2889,22 @@ public struct NolonCoreCLIRunner: Sendable {
     }
 
     private func formatResourceSearchText(kind: NolonResourceKind, result: NolonRemoteListResult) -> String {
-        if result.items.isEmpty {
-            return """
-            未找到匹配 \(kind.rawValue)
-            提示: 使用 `nolon \(kind.rawValue) sync --source <owner/repo>` 同步本地仓库后重试，或更换关键词。
-            """
-        }
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.dateFormat = "yyyy-MM-dd"
-        let query = result.query?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        let selection = SearchPresentationPolicy.select(
-            query: query,
-            items: result.items,
-            maxDisplayCount: 10,
-            slug: \.slug
-        )
-        let showSummary = selection.displayed.count <= 8
-        let queryPart = query.isEmpty ? "" : " (query: \(query))"
-        let maxDisplay = 10
-        let displayedItems = Array(selection.displayed.prefix(maxDisplay))
-        let lines = displayedItems.enumerated().map { index, item in
-            var itemLines = [
-                "[\(index + 1)] \(item.slug)",
-                "  version: \(item.latestVersion ?? "-")",
-                "  updated: \(item.updatedAt.map { formatUpdatedDate($0, formatter: formatter) } ?? "-")",
-            ]
-            if showSummary, let summary = compactSummary(item.summary, maxLength: 140) {
-                itemLines.append("  summary: \(summary)")
+        let presenter = RemoteSearchTextPresenter()
+        let mappedKind: RemoteSearchPresentationKind = (kind == .workflow) ? .workflow : .mcp
+        let input = RemoteSearchPresentationInput(
+            kind: mappedKind,
+            baseURL: result.baseURL,
+            query: result.query,
+            items: result.items.map {
+                RemoteSearchPresentationItem(
+                    slug: $0.slug,
+                    summary: $0.summary,
+                    latestVersion: $0.latestVersion,
+                    updatedAt: $0.updatedAt
+                )
             }
-            return itemLines.joined(separator: "\n")
-        }.joined(separator: "\n\n")
-        let queryExample = query.isEmpty ? "<keyword>" : query
-        let truncatedHint = result.items.count > displayedItems.count
-            ? "提示: 仅展示前 \(displayedItems.count) 条；可增大 `--limit` 查看更多。"
-            : ""
-        return """
-        匹配结果: \(result.items.count)\(queryPart)
-        source: remote-api (\(result.baseURL))
-        安装:
-        - 指定 provider: nolon \(kind.rawValue) add <slug> --provider codex --dry-run
-        - 全部 providers: nolon \(kind.rawValue) add <slug> --dry-run [可能批量写入]
-        - 搜索并挑选: nolon \(kind.rawValue) search \(queryExample) --install --pick 1 --provider codex --dry-run
-        \(truncatedHint)
-        \(lines)
-        提示: 用 `--install --pick <序号>` 或直接 slug 安装。
-        """
+        )
+        return presenter.render(input)
     }
 
     private func formatResourceAddText(kind: NolonResourceKind, result: NolonSkillsAddResult) -> String {
