@@ -870,4 +870,178 @@ struct NolonResourceKitTests {
         #expect(RemoteRefreshPolicy.installPropagationDelay == 0.35)
         #expect(RemoteRefreshPolicy.repositorySelectionDelay == 0.35)
     }
+
+    @Test("RemoteCatalogQueryService queries local folder repositories for all kinds")
+    func remoteCatalogQueryServiceQueriesLocalFolder() async throws {
+        let root = try STFolder(sanbox: .temporary)
+            .folder("nolon-remote-query-\(UUID().uuidString)")
+            .create()
+        defer { try? root.deleteIncludingBrokenSymlink() }
+
+        let skillsDir = root.folder("skills")
+        _ = skillsDir.createIfNotExists()
+        let findSkillsDir = skillsDir.folder("find-skills")
+        _ = findSkillsDir.createIfNotExists()
+        try """
+        ---
+        name: Find Skills
+        description: Find installable skills quickly
+        ---
+        """.write(to: findSkillsDir.file("SKILL.md").url, atomically: true, encoding: .utf8)
+        try """
+        ---
+        name: Update Workflow
+        description: Update docs and tests
+        ---
+        """.write(to: skillsDir.file("update-agent-skills-workflows.md").url, atomically: true, encoding: .utf8)
+        try """
+        {
+          "name": "playwright",
+          "description": "browser automation",
+          "mcpServers": {
+            "playwright": { "command": "npx", "args": ["@playwright/mcp@latest"] }
+          }
+        }
+        """.write(to: skillsDir.file("playwright.json").url, atomically: true, encoding: .utf8)
+
+        let repository = RemoteRepository(
+            name: "local",
+            templateType: .localFolder,
+            localPath: skillsDir.url.path
+        )
+        let service = RemoteCatalogQueryService()
+
+        let skills = try await service.query(repository: repository, kind: .skill, query: nil, limit: 20)
+        let workflows = try await service.query(repository: repository, kind: .workflow, query: nil, limit: 20)
+        let mcps = try await service.query(repository: repository, kind: .mcp, query: nil, limit: 20)
+
+        #expect(skills.items.count == 1)
+        #expect(skills.items.first?.slug == "find-skills")
+        #expect(workflows.items.count == 1)
+        #expect(workflows.items.first?.slug == "update-agent-skills-workflows")
+        #expect(mcps.items.count == 1)
+        #expect(mcps.items.first?.slug == "playwright")
+    }
+
+    @Test("RemoteRepositoryCountService aggregates counts from shared query service")
+    func remoteRepositoryCountServiceAggregates() async throws {
+        let root = try STFolder(sanbox: .temporary)
+            .folder("nolon-remote-count-\(UUID().uuidString)")
+            .create()
+        defer { try? root.deleteIncludingBrokenSymlink() }
+
+        let base = root.folder("repo")
+        _ = base.createIfNotExists()
+        let skillDir = base.folder("sample")
+        _ = skillDir.createIfNotExists()
+        try """
+        ---
+        name: Sample
+        description: sample skill
+        ---
+        """.write(to: skillDir.file("SKILL.md").url, atomically: true, encoding: .utf8)
+        try """
+        ---
+        name: wf
+        description: wf
+        ---
+        """.write(to: base.file("wf.md").url, atomically: true, encoding: .utf8)
+        try """
+        {
+          "name": "xcode",
+          "description": "xcode mcp",
+          "mcpServers": { "xcode": { "command": "xcode-mcp-proxy" } }
+        }
+        """.write(to: base.file("xcode.json").url, atomically: true, encoding: .utf8)
+
+        let repository = RemoteRepository(name: "local", templateType: .localFolder, localPath: base.url.path)
+        let counts = await RemoteRepositoryCountService().countAll(repository: repository, limit: 100)
+
+        #expect(counts.skills == 1)
+        #expect(counts.workflows == 1)
+        #expect(counts.mcps == 1)
+    }
+
+    @Test("RepositorySyncOrchestrator marks directory prompt when repo has no configured paths")
+    func repositorySyncOrchestratorBuildsPromptPlan() async throws {
+        let repository = RemoteRepository(
+            name: "git",
+            templateType: .git,
+            gitURL: "https://github.com/acme/repo",
+            skillsPaths: []
+        )
+
+        let orchestrator = RepositorySyncOrchestrator(
+            sync: { _ in
+                .success(
+                    isNewClone: false,
+                    detectedDirectories: [
+                        .init(path: "/tmp/repo/skills", skillCount: 2, skillNames: ["a", "b"])
+                    ],
+                    workflowPaths: [],
+                    mcpPaths: []
+                )
+            },
+            detectRepositoryResources: { _ in
+                .init(
+                    skillsDirectories: [],
+                    workflowPaths: [],
+                    mcpPaths: []
+                )
+            }
+        )
+
+        let (_, plan) = try await orchestrator.sync(repository: repository)
+        #expect(plan.shouldPromptDirectorySelection)
+        #expect(plan.detectedDirectories.count == 1)
+        #expect(plan.repository.detectedDirectories?.count == 1)
+    }
+
+    @Test("ProviderResourceSnapshotService returns workflows/rules/agents and mcps")
+    func providerResourceSnapshotServiceLoadsAll() throws {
+        let root = try STFolder(sanbox: .temporary)
+            .folder("nolon-provider-snapshot-\(UUID().uuidString)")
+            .create()
+        defer { try? root.deleteIncludingBrokenSymlink() }
+
+        let previousHome = getenv("HOME").map { String(cString: $0) }
+        setenv("HOME", root.url.path, 1)
+        defer {
+            if let previousHome { setenv("HOME", previousHome, 1) }
+        }
+
+        let providerRoot = root.folder("codex-home")
+        let provider = Provider(
+            kind: .vendor,
+            name: "Codex",
+            defaultSkillsPath: providerRoot.folder("skills").url.path,
+            workflowPath: providerRoot.folder("prompts").url.path,
+            templateId: "codex"
+        )
+        _ = providerRoot.folder("prompts").createIfNotExists()
+        _ = providerRoot.folder("rules").createIfNotExists()
+        try """
+        ---
+        name: WF
+        description: workflow desc
+        ---
+        """.write(to: providerRoot.folder("prompts").file("wf.md").url, atomically: true, encoding: .utf8)
+        try "rule".write(to: providerRoot.folder("rules").file("default.rules").url, atomically: true, encoding: .utf8)
+        try "# AGENTS".write(to: provider.codexAgentsFileURL, atomically: true, encoding: .utf8)
+
+        let mcpService = ProviderMCPMaintenanceService()
+        let mcpName = "playwright-\(UUID().uuidString.prefix(6))"
+        defer { try? mcpService.removeServer(template: .codex, name: mcpName) }
+        try mcpService.upsertServer(
+            template: .codex,
+            name: mcpName,
+            serverConfig: ["command": "npx", "enabled": true]
+        )
+
+        let snapshot = ProviderResourceSnapshotService().load(provider: provider)
+        #expect(snapshot.workflows.count == 1)
+        #expect(snapshot.rules.count == 1)
+        #expect(snapshot.agents.count == 1)
+        #expect(snapshot.mcps.contains(where: { $0.name == mcpName }))
+    }
 }

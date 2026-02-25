@@ -8,6 +8,24 @@ public enum ProviderSkillStateKind: String, Sendable, Equatable {
     case broken
 }
 
+public extension ProviderSkillStateKind {
+    var healthState: ResourceHealthState {
+        switch self {
+        case .installed: return .installed
+        case .orphaned: return .orphaned
+        case .broken: return .broken
+        }
+    }
+
+    init(_ healthState: ResourceHealthState) {
+        switch healthState {
+        case .installed: self = .installed
+        case .orphaned: self = .orphaned
+        case .broken: self = .broken
+        }
+    }
+}
+
 public struct ProviderSkillStateItem: Sendable, Equatable {
     public let skillID: String
     public let path: String

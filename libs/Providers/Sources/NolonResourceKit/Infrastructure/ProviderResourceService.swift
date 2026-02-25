@@ -14,6 +14,24 @@ public enum ProviderResourceState: String, Sendable, Equatable {
     case broken
 }
 
+public extension ProviderResourceState {
+    var healthState: ResourceHealthState {
+        switch self {
+        case .installed: return .installed
+        case .orphaned: return .orphaned
+        case .broken: return .broken
+        }
+    }
+
+    init(_ healthState: ResourceHealthState) {
+        switch healthState {
+        case .installed: self = .installed
+        case .orphaned: self = .orphaned
+        case .broken: self = .broken
+        }
+    }
+}
+
 public enum ProviderAgentKind: String, Sendable, Equatable {
     case base
     case override
