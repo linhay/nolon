@@ -51,6 +51,18 @@ public struct ProviderSkillInstallResult: Sendable, Equatable {
     }
 }
 
+public struct ProviderSkillUninstallResult: Sendable, Equatable {
+    public let skillID: String
+    public let targetPath: String
+    public let removed: Bool
+
+    public init(skillID: String, targetPath: String, removed: Bool) {
+        self.skillID = skillID
+        self.targetPath = targetPath
+        self.removed = removed
+    }
+}
+
 public final class ProviderSkillMaintenanceService: @unchecked Sendable {
     public init() {}
 
@@ -109,6 +121,20 @@ public final class ProviderSkillMaintenanceService: @unchecked Sendable {
         )
     }
 
+    public func installSkill(
+        skillPath: STPath,
+        skillID: String?,
+        providerPath: STFolder,
+        installMethod: SkillInstallationMethod
+    ) throws -> ProviderSkillInstallResult {
+        try installSkillInternal(
+            skillPath: skillPath,
+            skillID: skillID,
+            providerPath: providerPath,
+            installMethod: installMethod
+        )
+    }
+
     public func repairSkill(
         skillID: String,
         providerPath: STFolder,
@@ -132,17 +158,21 @@ public final class ProviderSkillMaintenanceService: @unchecked Sendable {
         )
     }
 
-    public func uninstallSkill(skillID: String, providerPath: STFolder) throws -> Bool {
+    public func uninstallSkill(skillID: String, providerPath: STFolder) throws -> ProviderSkillUninstallResult {
         let resolvedSkillID = try validateSinglePathComponent(skillID, field: "skill-id")
         let target = providerPath.subpath(resolvedSkillID)
         let existed = target.isExists || target.isSymbolicLink
         if existed {
             try target.deleteIncludingBrokenSymlink()
         }
-        return existed
+        return ProviderSkillUninstallResult(
+            skillID: resolvedSkillID,
+            targetPath: target.url.path,
+            removed: existed
+        )
     }
 
-    private func installSkill(
+    private func installSkillInternal(
         skillPath: STPath,
         skillID: String?,
         providerPath: STFolder,

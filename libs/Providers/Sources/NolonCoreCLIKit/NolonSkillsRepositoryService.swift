@@ -459,48 +459,35 @@ public struct NolonLiveSkillsRepositoryService: NolonSkillsRepositoryServing {
         providerPath: STFolder,
         installMethod: NolonSkillInstallMethod
     ) throws -> NolonSkillInstallResult {
-        let source = skillPath
-        guard source.isExists else {
-            throw NolonCoreCLIError.invalidArguments("Skill path does not exist: \(skillPath.url.path)")
+        do {
+            let result = try maintenanceService.installSkill(
+                skillPath: skillPath,
+                skillID: skillID,
+                providerPath: providerPath,
+                installMethod: installMethod == .copy ? .copy : .symlink
+            )
+            return NolonSkillInstallResult(
+                skillID: result.skillID,
+                sourcePath: result.sourcePath,
+                targetPath: result.targetPath,
+                installMethod: result.installMethod == .copy ? .copy : .symlink
+            )
+        } catch {
+            throw NolonCoreCLIError.invalidArguments(error.localizedDescription)
         }
-
-        let resolvedSkillID: String
-        if let skillID, !skillID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            resolvedSkillID = try validateSinglePathComponent(skillID, field: "skill-id")
-        } else {
-            resolvedSkillID = try validateSinglePathComponent(source.url.lastPathComponent, field: "skill-id")
-        }
-
-        _ = providerPath.createIfNotExists()
-        let targetPath = providerPath.subpath(resolvedSkillID)
-        let target = targetPath
-        if target.isExists {
-            try target.delete()
-        }
-
-        switch installMethod {
-        case .symlink:
-            try target.createSymbolicLink(to: source)
-        case .copy:
-            try source.copy(to: target, isOverlay: true)
-        }
-
-        return NolonSkillInstallResult(
-            skillID: resolvedSkillID,
-            sourcePath: source.url.path,
-            targetPath: target.url.path,
-            installMethod: installMethod
-        )
     }
 
     public func uninstallSkill(skillID: String, providerPath: STFolder) throws -> NolonSkillUninstallResult {
-        let resolvedSkillID = try validateSinglePathComponent(skillID, field: "skill-id")
-        let target = providerPath.subpath(resolvedSkillID)
-        let existed = target.isExists
-        if existed {
-            try target.delete()
+        do {
+            let result = try maintenanceService.uninstallSkill(skillID: skillID, providerPath: providerPath)
+            return NolonSkillUninstallResult(
+                skillID: result.skillID,
+                targetPath: result.targetPath,
+                removed: result.removed
+            )
+        } catch {
+            throw NolonCoreCLIError.invalidArguments(error.localizedDescription)
         }
-        return NolonSkillUninstallResult(skillID: resolvedSkillID, targetPath: target.url.path, removed: existed)
     }
 
     public func scanProviderSkills(providerPath: STFolder, globalSkillsPath: STFolder) throws -> NolonSkillMigrateScanResult {
