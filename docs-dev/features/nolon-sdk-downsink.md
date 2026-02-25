@@ -47,3 +47,20 @@
    - `swift test --package-path libs/Providers --filter NolonResourceKitTests` 通过。
    - `swift test --package-path libs/Providers --filter NolonCoreCLIKitTests` 通过。
    - `swift test --package-path libs/Providers --filter CodexAuthManagerTests` 通过。
+
+## 迁移收口进展（2026-02-25）
+1. 新增 `CodexModelPreferenceService`（SDK）：
+   - 统一 `config.toml` 读取：`model`、`model_reasoning_effort`。
+   - 统一 `models_cache.json` 读取与可见模型合并（provider cache + `~/.codex` fallback）。
+   - 统一模型保存/清空入口（封装 `CodexBinaryManager.applyModelToConfig/clearPreferredModel`）。
+2. App 去重并切换到 SDK：
+   - `ProviderDetailGridViewModel` 删除本地重复 `CodexMCPConfig/CodexProject/CodexNotice/CodexMCPServer` 定义，改用 SDK 模型。
+   - `ProviderDetailGridViewModel` 的模型读取/保存逻辑改走 `CodexModelPreferenceService`。
+   - `CodexAdvancedConfigViewModel` 改用 `CodexModelPreferenceService` 加载缓存与配置，不再本地手写解析 `config.toml`。
+3. 远端刷新策略下沉：
+   - 新增 `RemoteRefreshPolicy`（SDK），抽离安装后刷新与目录选择展示延迟常量。
+   - App 中 `RemoteSkillsBrowserView` / `RemoteRepositorySidebarView` 替换硬编码 `0.5s`。
+4. 验证结果：
+   - `swift test --package-path libs/Providers --filter NolonResourceKitTests` 通过（新增服务测试）。
+   - `swift test --package-path libs/Providers --filter NolonCoreCLIKitTests` 通过。
+   - `./build.sh` 通过。
