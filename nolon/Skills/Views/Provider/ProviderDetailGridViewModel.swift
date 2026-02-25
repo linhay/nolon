@@ -55,6 +55,7 @@ final class ProviderDetailGridViewModel {
     private let mcpMaintenanceService = ProviderMCPMaintenanceService()
     private let remoteInstallOrchestrator = RemoteInstallOrchestrator()
     private let codexModelPreferenceService = CodexModelPreferenceService()
+    private let skillSnapshotService = ProviderSkillSnapshotService()
     private let snapshotService = ProviderResourceSnapshotService()
     private let resourceViewMapper = ProviderResourceViewMapper()
     
@@ -87,45 +88,8 @@ final class ProviderDetailGridViewModel {
         
         isLoading = true
         
-        // Load skills - scan all skills in provider directories (not just installed from global)
         do {
-            let states = try installer.scanProvider(provider: provider)
-            
-            // Parse all skills from provider directories (both installed and orphaned)
-            // This ensures we show all skills managed by the provider, not just those linked from global
-            var parsedSkills: [Skill] = []
-            
-            for state in states {
-                // Skip broken symlinks
-                guard state.state != .broken else { continue }
-                
-                // Try to parse skill from provider directory
-                let skillMdPath = "\(state.path)/SKILL.md"
-                guard let content = try? String(contentsOfFile: skillMdPath, encoding: .utf8),
-                      let skill = try? SkillParser.parse(
-                          content: content,
-                          id: state.skillName,
-                          globalPath: state.path
-                      ) else {
-                    continue
-                }
-                
-                var parsedSkill = Skill(
-                    id: skill.id,
-                    name: skill.name,
-                    description: skill.description,
-                    version: skill.version,
-                    globalPath: skill.globalPath,
-                    content: skill.content,
-                    referenceCount: 0,
-                    scriptCount: 0
-                )
-                parsedSkill.sourcePath = state.basePath
-                parsedSkill.installationState = state.state
-                parsedSkills.append(parsedSkill)
-            }
-            
-            installedSkills = parsedSkills
+            installedSkills = try skillSnapshotService.load(provider: provider)
         } catch {
             errorMessage = error.localizedDescription
         }

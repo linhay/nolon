@@ -1225,4 +1225,67 @@ struct NolonResourceKitTests {
         #expect(text.contains("修复损坏"))
         #expect(text.contains("nolon skills remove --skill-id find-skills --provider codex"))
     }
+
+    @Test("ProviderSkillSnapshotService loads installed and orphaned skills across provider paths")
+    func providerSkillSnapshotServiceLoadsSkills() throws {
+        let root = try STFolder(sanbox: .temporary)
+            .folder("nolon-skill-snapshot-\(UUID().uuidString)")
+            .create()
+        defer { try? root.deleteIncludingBrokenSymlink() }
+
+        let nolonHome = root.folder(".nolon")
+        _ = nolonHome.createIfNotExists()
+        let manager = NolonManager(rootURL: nolonHome.url)
+
+        let providerRoot = root.folder("provider")
+        let defaultSkills = providerRoot.folder("skills")
+        let additionalSkills = providerRoot.folder("extra-skills")
+        _ = defaultSkills.createIfNotExists()
+        _ = additionalSkills.createIfNotExists()
+
+        let globalLinkedSkill = manager.skillsFolder.folder("linked-skill")
+        _ = globalLinkedSkill.createIfNotExists()
+        try """
+        ---
+        name: Linked Skill
+        description: linked
+        version: 1.0.0
+        ---
+        """.write(to: globalLinkedSkill.file("SKILL.md").url, atomically: true, encoding: .utf8)
+
+        try defaultSkills.subpath("linked-skill").createSymbolicLink(to: globalLinkedSkill)
+        try defaultSkills.subpath("broken-skill").createSymbolicLink(to: STPath("/tmp/does-not-exist-\(UUID().uuidString)"))
+
+        let orphanedSkill = additionalSkills.folder("orphaned-skill")
+        _ = orphanedSkill.createIfNotExists()
+        try """
+        ---
+        name: Orphaned Skill
+        description: orphaned
+        version: 1.0.0
+        ---
+        """.write(to: orphanedSkill.file("SKILL.md").url, atomically: true, encoding: .utf8)
+
+        let provider = Provider(
+            kind: .vendor,
+            name: "Codex",
+            defaultSkillsPath: defaultSkills.url.path,
+            workflowPath: providerRoot.folder("prompts").url.path,
+            additionalSkillsPaths: [additionalSkills.url.path]
+        )
+
+        let service = ProviderSkillSnapshotService(nolonManager: manager)
+        let skills = try service.load(provider: provider)
+
+        #expect(skills.count == 2)
+        #expect(Set(skills.map(\.id)) == Set(["linked-skill", "orphaned-skill"]))
+
+        let linked = skills.first(where: { $0.id == "linked-skill" })
+        #expect(linked?.installationState == .installed)
+        #expect(linked?.sourcePath == defaultSkills.url.path)
+
+        let orphaned = skills.first(where: { $0.id == "orphaned-skill" })
+        #expect(orphaned?.installationState == .orphaned)
+        #expect(orphaned?.sourcePath == additionalSkills.url.path)
+    }
 }
