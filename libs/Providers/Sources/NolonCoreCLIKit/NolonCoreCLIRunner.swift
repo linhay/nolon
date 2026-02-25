@@ -3281,9 +3281,9 @@ public struct NolonCoreCLIRunner: Sendable {
             case .remote:
                 return "远端"
             case .fromSkill:
-                return "Skill"
+                return "技能"
             case .fromWorkflow:
-                return "Workflow"
+                return "工作流"
             case .fromMcp:
                 return "MCP"
             case .unknown:

@@ -3577,6 +3577,32 @@ struct NolonCoreCLIKitTests {
         #expect(rendered.contains("[推断]"))
     }
 
+    @Test("origin description localizes source type labels")
+    func originDescriptionLocalizesSourceTypeLabels() {
+        let now = Date()
+        let fromSkill = NolonResourceOrigin(
+            resourceKind: .workflow,
+            sourceType: .fromSkill,
+            sourceKind: .skill,
+            sourceRef: "find-skills",
+            sourceDisplay: "find-skills",
+            createdAt: now,
+            updatedAt: now
+        )
+        let fromWorkflow = NolonResourceOrigin(
+            resourceKind: .workflow,
+            sourceType: .fromWorkflow,
+            sourceKind: .workflow,
+            sourceRef: "my-workflow",
+            sourceDisplay: "my-workflow",
+            createdAt: now,
+            updatedAt: now
+        )
+
+        #expect(NolonCoreCLIRunner.originDescriptionForDisplay(fromSkill).contains("技能("))
+        #expect(NolonCoreCLIRunner.originDescriptionForDisplay(fromWorkflow).contains("工作流("))
+    }
+
     @Test("runner renders workflow list contextual empty message with state filter")
     func runnerRendersWorkflowListContextualEmptyMessageWithStateFilter() async {
         let runner = NolonCoreCLIRunner(
