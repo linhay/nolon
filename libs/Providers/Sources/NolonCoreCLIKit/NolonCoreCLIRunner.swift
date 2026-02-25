@@ -2835,14 +2835,15 @@ public struct NolonCoreCLIRunner: Sendable {
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "yyyy-MM-dd"
         let queryValue = result.query?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        let normalizedQueryValue = Self.normalizedSlug(queryValue)
-        let exactMatch = queryValue.isEmpty
-            ? nil
-            : result.items.first(where: { Self.normalizedSlug($0.slug) == normalizedQueryValue })
-        let displayPool = exactMatch.map { [$0] } ?? result.items
-        let alternativeCandidates = exactMatch.map { match in
-            result.items.filter { Self.normalizedSlug($0.slug) != Self.normalizedSlug(match.slug) }
-        } ?? []
+        let selection = SearchPresentationPolicy.select(
+            query: queryValue,
+            items: result.items,
+            maxDisplayCount: 10,
+            slug: \.slug
+        )
+        let exactMatch = selection.exactMatch
+        let displayPool = selection.displayed
+        let alternativeCandidates = selection.alternatives
         let showSummary = displayPool.count <= 8
         let queryPart = queryValue.isEmpty ? "" : " (query: \(queryValue))"
         let headline: String
@@ -2871,7 +2872,7 @@ public struct NolonCoreCLIRunner: Sendable {
         if !showSummary {
             hintParts.append("已省略 summary（将 `--limit` 设为 8 或更小可查看摘要）")
         }
-        if exactMatch == nil, displayPool.count > displayedItems.count {
+        if exactMatch == nil, result.items.count > displayedItems.count {
             hintParts.append("仅展示前 \(displayedItems.count) 条（可增大 `--limit` 查看更多）")
         }
         let hintBlock = hintParts.isEmpty ? "" : "提示: " + hintParts.joined(separator: "；") + "。\n"
@@ -2915,11 +2916,17 @@ public struct NolonCoreCLIRunner: Sendable {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "yyyy-MM-dd"
-        let showSummary = result.items.count <= 8
         let query = result.query?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let selection = SearchPresentationPolicy.select(
+            query: query,
+            items: result.items,
+            maxDisplayCount: 10,
+            slug: \.slug
+        )
+        let showSummary = selection.displayed.count <= 8
         let queryPart = query.isEmpty ? "" : " (query: \(query))"
         let maxDisplay = 10
-        let displayedItems = Array(result.items.prefix(maxDisplay))
+        let displayedItems = Array(selection.displayed.prefix(maxDisplay))
         let lines = displayedItems.enumerated().map { index, item in
             var itemLines = [
                 "[\(index + 1)] \(item.slug)",
@@ -3179,10 +3186,21 @@ public struct NolonCoreCLIRunner: Sendable {
         kind: NolonResourceKind,
         items: [NolonSkillsListItem]
     ) -> (simple: String, detailed: [String]) {
-        let problematic = items.filter { $0.state != .installed }
-        let detailed = problematic.map { item in
-            "nolon \(kind.rawValue) remove --resource-name \(item.skillID) --provider \(item.providerID)"
+        let planItems = items.compactMap { item -> RepairItem? in
+            switch item.state {
+            case .orphaned:
+                return RepairItem(providerID: item.providerID, resourceID: item.skillID, state: .orphaned)
+            case .broken:
+                return RepairItem(providerID: item.providerID, resourceID: item.skillID, state: .broken)
+            case .installed:
+                return nil
+            }
         }
+        let plan = ResourceRepairPlanner.plan(
+            kind: kind == .workflow ? .workflow : .mcp,
+            items: planItems
+        )
+        let detailed = plan.steps.flatMap(\.commands)
         return (simple: detailed.first ?? "", detailed: detailed)
     }
 

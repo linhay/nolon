@@ -214,4 +214,141 @@ struct NolonResourceKitTests {
             ) == .unknown
         )
     }
+
+    @Test("ProviderResourceService parses workflow with source/state from symlink target")
+    func providerResourceServiceParsesWorkflowSourceAndState() throws {
+        let root = try STFolder(sanbox: .temporary)
+            .folder("nolon-resource-service-\(UUID().uuidString)")
+            .create()
+        defer { try? root.deleteIncludingBrokenSymlink() }
+
+        let manager = NolonManager(rootURL: root.url)
+        let service = ProviderResourceService(nolonManager: manager)
+        let providerRoot = root.folder("provider-codex")
+        _ = providerRoot.createIfNotExists()
+        let workflowDir = providerRoot.folder("prompts")
+        _ = workflowDir.createIfNotExists()
+        let cacheWorkflow = manager.generatedWorkflowsFolder.file("find-skills.md")
+        try """
+        ---
+        name: Find Skills
+        description: lookup skill by keyword
+        ---
+        """.write(to: cacheWorkflow.url, atomically: true, encoding: .utf8)
+
+        let linked = workflowDir.file("find-skills.md")
+        try linked.createSymbolicLink(to: STPath(cacheWorkflow.url))
+
+        let provider = Provider(
+            kind: .vendor,
+            name: "Codex",
+            defaultSkillsPath: providerRoot.folder("skills").url.path,
+            workflowPath: workflowDir.url.path
+        )
+
+        let items = service.scanWorkflows(provider: provider)
+        #expect(items.count == 1)
+        #expect(items[0].id == "find-skills")
+        #expect(items[0].source == .skill)
+        #expect(items[0].state == .installed)
+    }
+
+    @Test("ProviderResourceService creates and deletes provider drafts")
+    func providerResourceServiceCreatesAndDeletesDrafts() throws {
+        let root = try STFolder(sanbox: .temporary)
+            .folder("nolon-resource-draft-\(UUID().uuidString)")
+            .create()
+        defer { try? root.deleteIncludingBrokenSymlink() }
+
+        let service = ProviderResourceService(nolonManager: NolonManager(rootURL: root.url))
+        let providerRoot = root.folder("provider-codex")
+        _ = providerRoot.createIfNotExists()
+        let provider = Provider(
+            kind: .vendor,
+            name: "Codex",
+            defaultSkillsPath: providerRoot.folder("skills").url.path,
+            workflowPath: providerRoot.folder("prompts").url.path
+        )
+
+        let ruleURL = try service.createDraft(provider: provider, kind: .rule)
+        #expect(STFile(ruleURL).isExists)
+
+        try service.deleteResource(atPath: ruleURL.path)
+        #expect(STFile(ruleURL).isExists == false)
+    }
+
+    @Test("ResourceRepairPlanner builds deterministic steps")
+    func resourceRepairPlannerBuildsSteps() {
+        let plan = ResourceRepairPlanner.plan(
+            kind: .workflow,
+            items: [
+                .init(providerID: "codex", resourceID: "a.md", state: .orphaned),
+                .init(providerID: "opencode", resourceID: "b.md", state: .broken),
+            ]
+        )
+        #expect(plan.steps.count == 2)
+        #expect(plan.steps[0].title == "清理失效链接")
+        #expect(plan.steps[0].commands[0] == "nolon workflow remove --resource-name a.md --provider codex")
+        #expect(plan.steps[1].title == "清理损坏项")
+        #expect(plan.recheckCommand == "nolon workflow list --show-fixes")
+    }
+
+    @Test("SearchPresentationPolicy prioritizes exact slug")
+    func searchPresentationPolicyPrioritizesExactSlug() {
+        struct Item { let slug: String }
+        let selection = SearchPresentationPolicy.select(
+            query: "find-skills",
+            items: [Item(slug: "find"), Item(slug: "find-skills"), Item(slug: "find-skills-2")],
+            maxDisplayCount: 10,
+            slug: \.slug
+        )
+        #expect(selection.exactMatch?.slug == "find-skills")
+        #expect(selection.displayed.count == 1)
+        #expect(selection.alternatives.count == 2)
+    }
+
+    @Test("SearchPresentationPolicy keeps large result sets uncollapsed")
+    func searchPresentationPolicyKeepsLargeResultSetsUncollapsed() {
+        struct Item { let slug: String }
+        let selection = SearchPresentationPolicy.select(
+            query: "find-skills",
+            items: (1...20).map { idx in
+                idx == 1 ? Item(slug: "find-skills") : Item(slug: "find-skills-\(idx)")
+            },
+            maxDisplayCount: 10,
+            slug: \.slug
+        )
+        #expect(selection.exactMatch == nil)
+        #expect(selection.displayed.count == 10)
+        #expect(selection.alternatives.isEmpty)
+    }
+
+    @Test("UsageRefreshPolicy keeps first-load and interval semantics")
+    func usageRefreshPolicyKeepsSemantics() {
+        let now = Date(timeIntervalSince1970: 100)
+        #expect(
+            UsageRefreshPolicy.shouldRefresh(
+                hasTriggeredAppearRefresh: false,
+                intervalMinutes: 10,
+                lastRefreshAt: now,
+                now: now
+            )
+        )
+        #expect(
+            UsageRefreshPolicy.shouldRefresh(
+                hasTriggeredAppearRefresh: true,
+                intervalMinutes: 0,
+                lastRefreshAt: now,
+                now: now
+            )
+        )
+        #expect(
+            UsageRefreshPolicy.shouldRefresh(
+                hasTriggeredAppearRefresh: true,
+                intervalMinutes: 10,
+                lastRefreshAt: Date(timeIntervalSince1970: 0),
+                now: now
+            ) == false
+        )
+    }
 }
