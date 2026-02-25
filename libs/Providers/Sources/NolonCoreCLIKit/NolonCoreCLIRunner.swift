@@ -2573,236 +2573,15 @@ public struct NolonCoreCLIRunner: Sendable {
     }
 
     private func formatSkillsListText(_ result: NolonSkillsListResult, verbose: Bool, showFixes: Bool) -> String {
-        var lines: [String] = []
-        let orphanedLabel = "失效链接"
-        let metrics = ResourceListOverviewMetrics(
-            installedCount: result.summary.installedCount,
-            orphanedCount: result.summary.orphanedCount,
-            brokenCount: result.summary.brokenCount,
-            itemCount: result.summary.itemCount
-        )
-        let issueCount = ResourceListOverviewFormatter.issueCount(metrics)
-        let compactHealthySummary = ResourceListOverviewFormatter.compactHealthySummary(
-            showFixes: showFixes,
-            verbose: verbose,
-            hasProviderFilter: result.providerFilter != nil,
-            hasStateFilter: result.stateFilter != nil,
-            metrics: metrics
-        )
-        var filtersAppended = false
-        func appendFiltersIfNeeded() {
-            if filtersAppended { return }
-            if let filter = result.providerFilter, !filter.isEmpty {
-                lines.append("筛选-提供方: \(filter)")
-            }
-            if let stateFilter = result.stateFilter {
-                lines.append("筛选-状态: \(Self.localizedStateLabel(stateFilter))")
-            }
-            filtersAppended = true
-        }
-        lines.append("[结论]")
-        if let summaryLine = ResourceListOverviewFormatter.summaryLine(showFixes: showFixes, metrics: metrics) {
-            lines.append(summaryLine)
-            lines.append("[详情]")
-            appendFiltersIfNeeded()
-        }
-        if !compactHealthySummary {
-            lines.append("providers_scanned: \(result.summary.providerCount)")
-            let matchedProviders = matchedProvidersCount(for: result)
-            lines.append("providers_matched: \(matchedProviders)")
-            lines.append("skills_total: \(result.summary.itemCount)")
-        }
-        if !showFixes || issueCount > 0 {
-            lines.append(
-                ResourceListOverviewFormatter.statusLine(
-                    metrics: metrics,
-                    orphanedLabel: orphanedLabel
-                )
-            )
-        }
-        lines.append(
-            contentsOf: ResourceListOverviewFormatter.conclusionLines(
-                showFixes: showFixes,
-                metrics: metrics,
-                orphanedLabel: orphanedLabel
+        let presenter = ResourceListTextPresenter()
+        return presenter.render(
+            makePresentationInput(
+                kind: .skill,
+                result: result,
+                verbose: verbose,
+                showFixes: showFixes
             )
         )
-        appendFiltersIfNeeded()
-        if showFixes, issueCount == 0, !verbose, result.providerFilter == nil, result.stateFilter == nil {
-            lines.append(
-                ResourceListGuidancePolicy.installedHintLine(
-                    resourceDisplayLabel: "技能",
-                    command: Self.copyableCommand("nolon skills list --state installed")
-                )
-            )
-            return lines.joined(separator: "\n")
-        }
-
-        let effectiveItems: [NolonSkillsListItem]
-        if verbose || result.stateFilter != nil {
-            effectiveItems = result.items
-        } else {
-            effectiveItems = result.items.filter { $0.state != .installed }
-        }
-        let issueProviders = Array(
-            Set(
-                effectiveItems
-                    .filter { $0.state == .orphaned || $0.state == .broken }
-                    .map(\.providerID)
-            )
-        ).sorted {
-            $0.localizedCaseInsensitiveCompare($1) == .orderedAscending
-        }
-        if !issueProviders.isEmpty {
-            lines.append("异常提供方(\(issueProviders.count)): \(issueProviders.joined(separator: ", "))")
-        }
-        let brokenIssueProviders = Array(
-            Set(
-                effectiveItems
-                    .filter { $0.state == .broken }
-                    .map(\.providerID)
-            )
-        ).sorted {
-            $0.localizedCaseInsensitiveCompare($1) == .orderedAscending
-        }
-        let orphanedIssueProviders = Array(
-            Set(
-                effectiveItems
-                    .filter { $0.state == .orphaned }
-                    .map(\.providerID)
-            )
-        ).sorted {
-            $0.localizedCaseInsensitiveCompare($1) == .orderedAscending
-        }
-
-        if effectiveItems.isEmpty {
-            let localizedState = result.stateFilter.map(Self.localizedStateLabel)
-            lines.append(
-                ResourceListGuidancePolicy.emptyResultLine(
-                    resourceDisplayLabel: "技能",
-                    providerFilter: result.providerFilter,
-                    stateFilterLabel: localizedState,
-                    orphanedLabel: orphanedLabel
-                )
-            )
-            if result.stateFilter == nil {
-                let installedCommand = Self.copyableCommand("nolon skills list\(Self.listFilterSuffix(provider: result.providerFilter, state: .installed))")
-                lines.append(
-                    ResourceListGuidancePolicy.installedHintLine(
-                        resourceDisplayLabel: "技能",
-                        command: installedCommand
-                    )
-                )
-            }
-            if showFixes {
-                lines.append("")
-                lines.append("[下一步（可复制执行）]")
-                lines.append(
-                    contentsOf: ResourceListGuidancePolicy.noFixesRetryLines(
-                        command: Self.copyableCommand("nolon skills list --show-fixes")
-                    )
-                )
-            }
-            return lines.joined(separator: "\n")
-        }
-
-        let problematicItems = effectiveItems.filter { $0.state != .installed }
-        let installedItems = effectiveItems.filter { $0.state == .installed }
-
-        let itemLine: (NolonSkillsListItem) -> String = { item in
-            let stateLabel = Self.localizedStateLabel(item.state)
-            if verbose {
-                var line = "- \(item.providerID)/\(item.skillID)"
-                if item.state != .installed {
-                    line += " [\(stateLabel)]"
-                }
-                line += "\n  path: \(item.path)"
-                if let origin = item.origin, origin.sourceType != .unknown {
-                    line += "\n  来源: \(Self.originDescriptionForDisplay(origin))"
-                }
-                return line
-            }
-            if item.state == .installed {
-                return "- \(item.providerID)/\(item.skillID)"
-            }
-            return "- \(item.providerID)/\(item.skillID) [\(stateLabel)]"
-        }
-
-        if !problematicItems.isEmpty {
-            lines.append("")
-            lines.append("[异常]")
-            lines.append(contentsOf: problematicItems.map(itemLine))
-        }
-        if !installedItems.isEmpty {
-            lines.append("")
-            lines.append("[已安装]")
-            lines.append(contentsOf: installedItems.map(itemLine))
-        }
-        if !verbose && !showFixes {
-            lines.append("")
-            lines.append(
-                ResourceListGuidancePolicy.verboseHintLine(
-                    command: "nolon skills list --verbose"
-                )
-            )
-        }
-        if !issueProviders.isEmpty && !showFixes {
-            lines.append("")
-            lines.append("[下一步（可复制执行）]")
-            lines.append("修复建议（可复制）:")
-            let quickActions = ResourceListGuidancePolicy.skillsQuickActionItems(
-                hasBroken: !brokenIssueProviders.isEmpty,
-                hasOrphaned: !orphanedIssueProviders.isEmpty
-            )
-            lines.append(contentsOf: quickActions.enumerated().map { index, action in
-                "\(index + 1)) \(action)"
-            })
-        }
-
-        let orphanedItems = effectiveItems.filter { $0.state == .orphaned }
-        let brokenItems = effectiveItems.filter { $0.state == .broken }
-        if showFixes && (!orphanedItems.isEmpty || !brokenItems.isEmpty) {
-            lines.append("")
-            lines.append("[下一步（按顺序执行）]")
-            if !orphanedItems.isEmpty {
-                lines.append("")
-                lines.append("1. 清理\(orphanedLabel)（\(orphanedItems.count)项）")
-                let groupedOrphaned = Dictionary(grouping: orphanedItems, by: \.providerID)
-                for providerID in groupedOrphaned.keys.sorted(by: { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }) {
-                    guard let items = groupedOrphaned[providerID] else { continue }
-                    lines.append("provider: \(providerID) (\(items.count))")
-                    for item in items.sorted(by: { $0.skillID.localizedCaseInsensitiveCompare($1.skillID) == .orderedAscending }) {
-                        let command = ResourceRepairPlanner.command(kind: .skill, item: Self.toRepairItem(item))
-                        lines.append("- `\(Self.copyableCommand(command))`")
-                    }
-                }
-            }
-            if !brokenItems.isEmpty {
-                lines.append("")
-                lines.append("2. 修复损坏（\(brokenItems.count)项：先 remove 再 add）")
-                let groupedBroken = Dictionary(grouping: brokenItems, by: \.providerID)
-                for providerID in groupedBroken.keys.sorted(by: { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }) {
-                    guard let items = groupedBroken[providerID] else { continue }
-                    lines.append("provider: \(providerID) (\(items.count))")
-                    for item in items.sorted(by: { $0.skillID.localizedCaseInsensitiveCompare($1.skillID) == .orderedAscending }) {
-                        let command = ResourceRepairPlanner.command(kind: .skill, item: Self.toRepairItem(item))
-                        lines.append("- `\(Self.copyableCommand(command))`")
-                    }
-                }
-            }
-            lines.append("")
-            lines.append("3. 复检")
-            lines.append("`\(Self.copyableCommand("nolon skills list --show-fixes"))`")
-        } else if showFixes, result.providerFilter != nil || result.stateFilter != nil || issueCount > 0 {
-            lines.append("")
-            lines.append("[下一步（可复制执行）]")
-            lines.append(
-                contentsOf: ResourceListGuidancePolicy.noFixesRetryLines(
-                    command: Self.copyableCommand("nolon skills list --show-fixes")
-                )
-            )
-        }
-        return lines.joined(separator: "\n")
     }
 
     private func formatSkillsSearchText(_ result: NolonRemoteListResult) -> String {
@@ -2957,205 +2736,64 @@ public struct NolonCoreCLIRunner: Sendable {
         verbose: Bool,
         showFixes: Bool
     ) -> String {
-        var lines: [String] = []
-        let orphanedLabel = "失效链接"
-        let metrics = ResourceListOverviewMetrics(
-            installedCount: result.summary.installedCount,
-            orphanedCount: result.summary.orphanedCount,
-            brokenCount: result.summary.brokenCount,
-            itemCount: result.summary.itemCount
+        let presenter = ResourceListTextPresenter()
+        let mappedKind: ResourceListPresentationKind = {
+            switch kind {
+            case .workflow: return .workflow
+            case .mcp: return .mcp
+            }
+        }()
+        return presenter.render(
+            makePresentationInput(
+                kind: mappedKind,
+                result: result,
+                verbose: verbose,
+                showFixes: showFixes
+            )
         )
-        let issueCount = ResourceListOverviewFormatter.issueCount(metrics)
-        let compactHealthySummary = ResourceListOverviewFormatter.compactHealthySummary(
-            showFixes: showFixes,
+    }
+
+    private func makePresentationInput(
+        kind: ResourceListPresentationKind,
+        result: NolonSkillsListResult,
+        verbose: Bool,
+        showFixes: Bool
+    ) -> ResourceListPresentationInput {
+        ResourceListPresentationInput(
+            kind: kind,
+            providerFilter: result.providerFilter,
+            stateFilter: result.stateFilter.map(toPresentationState),
+            items: result.items.map { item in
+                ResourceListPresentationItem(
+                    providerID: item.providerID,
+                    resourceID: item.skillID,
+                    state: toPresentationState(item.state),
+                    path: item.path,
+                    originDescription: item.origin.flatMap { origin in
+                        guard origin.sourceType != .unknown else { return nil }
+                        return Self.originDescriptionForDisplay(origin)
+                    }
+                )
+            },
+            summary: ResourceListPresentationSummary(
+                providersScanned: result.summary.providerCount,
+                providersMatched: matchedProvidersCount(for: result),
+                totalCount: result.summary.itemCount,
+                installedCount: result.summary.installedCount,
+                orphanedCount: result.summary.orphanedCount,
+                brokenCount: result.summary.brokenCount
+            ),
             verbose: verbose,
-            hasProviderFilter: result.providerFilter != nil,
-            hasStateFilter: result.stateFilter != nil,
-            metrics: metrics
+            showFixes: showFixes
         )
-        var filtersAppended = false
-        func appendFiltersIfNeeded() {
-            if filtersAppended { return }
-            if let filter = result.providerFilter, !filter.isEmpty {
-                lines.append("筛选-提供方: \(filter)")
-            }
-            if let stateFilter = result.stateFilter {
-                lines.append("筛选-状态: \(Self.localizedStateLabel(stateFilter))")
-            }
-            filtersAppended = true
-        }
-        lines.append("[结论]")
-        if let summaryLine = ResourceListOverviewFormatter.summaryLine(showFixes: showFixes, metrics: metrics) {
-            lines.append(summaryLine)
-            lines.append("[详情]")
-            appendFiltersIfNeeded()
-        }
-        if !compactHealthySummary {
-            let totalKey: String = {
-                switch kind {
-                case .workflow: return "workflow_total"
-                case .mcp: return "mcp_total"
-                }
-            }()
-            lines.append("providers_scanned: \(result.summary.providerCount)")
-            lines.append("providers_matched: \(matchedProvidersCount(for: result))")
-            lines.append("\(totalKey): \(result.summary.itemCount)")
-        }
-        if !showFixes || issueCount > 0 {
-            lines.append(
-                ResourceListOverviewFormatter.statusLine(
-                    metrics: metrics,
-                    orphanedLabel: orphanedLabel
-                )
-            )
-        }
-        lines.append(
-            contentsOf: ResourceListOverviewFormatter.conclusionLines(
-                showFixes: showFixes,
-                metrics: metrics,
-                orphanedLabel: orphanedLabel
-            )
-        )
-        appendFiltersIfNeeded()
-        if showFixes, issueCount == 0, !verbose, result.providerFilter == nil, result.stateFilter == nil {
-            let resourceLabel = Self.localizedResourceKindLabel(kind)
-            let resourceDisplayLabel = Self.displayResourceLabel(resourceLabel)
-            lines.append(
-                ResourceListGuidancePolicy.installedHintLine(
-                    resourceDisplayLabel: resourceDisplayLabel,
-                    command: Self.copyableCommand("nolon \(kind.rawValue) list --state installed")
-                )
-            )
-            return lines.joined(separator: "\n")
-        }
+    }
 
-        let items: [NolonSkillsListItem]
-        if verbose || result.stateFilter != nil {
-            items = result.items
-        } else {
-            items = result.items.filter { $0.state != .installed }
+    private func toPresentationState(_ state: NolonProviderSkillStateKind) -> ResourceListPresentationState {
+        switch state {
+        case .installed: return .installed
+        case .orphaned: return .orphaned
+        case .broken: return .broken
         }
-        if items.isEmpty {
-            let resourceLabel = Self.localizedResourceKindLabel(kind)
-            let resourceDisplayLabel = Self.displayResourceLabel(resourceLabel)
-            let localizedState = result.stateFilter.map(Self.localizedStateLabel)
-            lines.append(
-                ResourceListGuidancePolicy.emptyResultLine(
-                    resourceDisplayLabel: resourceDisplayLabel,
-                    providerFilter: result.providerFilter,
-                    stateFilterLabel: localizedState,
-                    orphanedLabel: orphanedLabel
-                )
-            )
-            if result.stateFilter == nil {
-                let installedCommand = Self.copyableCommand("nolon \(kind.rawValue) list\(Self.listFilterSuffix(provider: result.providerFilter, state: .installed))")
-                lines.append(
-                    ResourceListGuidancePolicy.installedHintLine(
-                        resourceDisplayLabel: resourceDisplayLabel,
-                        command: installedCommand
-                    )
-                )
-            }
-            if showFixes {
-                lines.append("")
-                Self.appendOptionalRecheck(lines: &lines, command: "nolon \(kind.rawValue) list --show-fixes")
-            }
-            return lines.joined(separator: "\n")
-        }
-        let problematicItems = items.filter { $0.state != .installed }
-        let installedItems = items.filter { $0.state == .installed }
-        let providers = Array(Set(problematicItems.map(\.providerID))).sorted()
-        if !providers.isEmpty {
-            lines.append("异常提供方(\(providers.count)): \(providers.joined(separator: ", "))")
-        }
-
-        if !problematicItems.isEmpty {
-            lines.append("")
-            lines.append("[异常]")
-            lines.append(contentsOf: problematicItems.map { item in
-                let stateLabel: String = {
-                    if item.state == .orphaned { return orphanedLabel }
-                    return Self.localizedStateLabel(item.state)
-                }()
-                if verbose {
-                    var line = "- \(item.providerID)/\(item.skillID) [\(stateLabel)]\n  path: \(item.path)"
-                    if let origin = item.origin, origin.sourceType != .unknown {
-                        line += "\n  来源: \(Self.originDescriptionForDisplay(origin))"
-                    }
-                    return line
-                }
-                return "- \(item.providerID)/\(item.skillID) [\(stateLabel)]"
-            })
-        }
-        if !installedItems.isEmpty {
-            lines.append("")
-            lines.append("[已安装]")
-            let installedLines = installedItems.map { item in
-                if verbose {
-                    var line = "- \(item.providerID)/\(item.skillID)"
-                    line += "\n  path: \(item.path)"
-                    if let origin = item.origin, origin.sourceType != .unknown {
-                        line += "\n  来源: \(Self.originDescriptionForDisplay(origin))"
-                    }
-                    return line
-                }
-                return "- \(item.providerID)/\(item.skillID)"
-            }
-            lines.append(contentsOf: installedLines)
-        }
-        if !verbose, !showFixes {
-            lines.append("")
-            lines.append(
-                ResourceListGuidancePolicy.verboseHintLine(
-                    command: "nolon \(kind.rawValue) list --verbose"
-                )
-            )
-        }
-        let fixCommands = Self.buildResourceFixCommands(kind: kind, items: problematicItems)
-        if !fixCommands.simple.isEmpty && !showFixes {
-            let filterSuffix = Self.listFilterSuffix(provider: result.providerFilter, state: result.stateFilter)
-            lines.append("")
-            lines.append("[下一步（可复制执行）]")
-            lines.append("修复建议（可复制）:")
-            let quickActions = ResourceListGuidancePolicy.resourceQuickActionItems(
-                singleFixCommand: fixCommands.detailed.count == 1 ? Self.copyableCommand(fixCommands.simple) : nil,
-                showFixesCommand: Self.copyableCommand("nolon \(kind.rawValue) list\(filterSuffix) --show-fixes"),
-                verboseShowFixesCommand: Self.copyableCommand("nolon \(kind.rawValue) list\(filterSuffix) --verbose --show-fixes")
-            )
-            lines.append(contentsOf: quickActions.enumerated().map { index, action in
-                "\(index + 1)) \(action)"
-            })
-        }
-        if showFixes, !fixCommands.detailed.isEmpty {
-            lines.append("")
-            lines.append("[下一步（按顺序执行）]")
-            lines.append("修复计划:")
-            lines.append("1. 清理异常项（\(fixCommands.detailed.count)项）")
-            let groupedByProvider = Dictionary(grouping: problematicItems, by: \.providerID)
-            for providerID in groupedByProvider.keys.sorted(by: { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }) {
-                guard let items = groupedByProvider[providerID] else { continue }
-                lines.append("provider: \(providerID) (\(items.count))")
-                for item in items.sorted(by: { $0.skillID.localizedCaseInsensitiveCompare($1.skillID) == .orderedAscending }) {
-                    let command = ResourceRepairPlanner.command(
-                        kind: Self.toRepairResourceKind(kind),
-                        item: Self.toRepairItem(item)
-                    )
-                    lines.append("- `\(Self.copyableCommand(command))`")
-                }
-            }
-            lines.append("")
-            lines.append("2. 复检")
-            lines.append("`\(Self.copyableCommand("nolon \(kind.rawValue) list --show-fixes"))`")
-        } else if showFixes, result.providerFilter != nil || result.stateFilter != nil || issueCount > 0 {
-            lines.append("")
-            lines.append("[下一步（可复制执行）]")
-            lines.append(
-                contentsOf: ResourceListGuidancePolicy.noFixesRetryLines(
-                    command: Self.copyableCommand("nolon \(kind.rawValue) list --show-fixes")
-                )
-            )
-        }
-        return lines.joined(separator: "\n")
     }
 
     static func buildResourceFixCommands(
@@ -3210,51 +2848,6 @@ public struct NolonCoreCLIRunner: Sendable {
         return Set(result.items.map(\.providerID)).count
     }
 
-    private static func listFilterSuffix(provider: String?, state: NolonProviderSkillStateKind?) -> String {
-        var parts: [String] = []
-        if let provider, !provider.isEmpty {
-            parts.append("--provider \(provider)")
-        }
-        if let state {
-            parts.append("--state \(state.rawValue)")
-        }
-        guard !parts.isEmpty else { return "" }
-        return " " + parts.joined(separator: " ")
-    }
-
-    private static func combinedFixCommand(_ commands: [String]) -> String? {
-        guard !commands.isEmpty else { return nil }
-        guard commands.count <= 3 else { return nil }
-        let combined = commands.joined(separator: " && ")
-        return combined.count <= 280 ? combined : nil
-    }
-
-    private static func runtimeCommandPrefix() -> String {
-        let executable = CommandLine.arguments.first ?? ""
-        if executable.contains("/.build/") {
-            return "swift run --package-path libs/Providers nolon"
-        }
-        return "nolon"
-    }
-
-    private static func runtimeCommandEnvAssignment() -> String {
-        "NOLON_CMD='\(runtimeCommandPrefix())'"
-    }
-
-    private static func copyableCommand(_ command: String) -> String {
-        command
-    }
-
-    private static func sourceModeCommand(_ command: String) -> String {
-        command.replacingOccurrences(of: "nolon ", with: "swift run --package-path libs/Providers nolon ")
-    }
-
-    private static func appendOptionalRecheck(lines: inout [String], command: String) {
-        lines.append("可选复检:")
-        lines.append("- 直接运行: `\(command)`")
-        lines.append("- 源码模式: `\(sourceModeCommand(command))`")
-    }
-
     private func formatUpdatedDate(_ date: Date, formatter: DateFormatter) -> String {
         let rendered = formatter.string(from: date)
         let calendar = Calendar(identifier: .gregorian)
@@ -3275,31 +2868,6 @@ public struct NolonCoreCLIRunner: Sendable {
         guard compact.count > maxLength else { return compact }
         let prefix = compact.prefix(max(0, maxLength - 3))
         return "\(prefix)..."
-    }
-
-    private static func localizedStateLabel(_ state: NolonProviderSkillStateKind) -> String {
-        switch state {
-        case .installed:
-            return "已安装"
-        case .orphaned:
-            return "失效链接"
-        case .broken:
-            return "损坏"
-        }
-    }
-
-    private static func localizedResourceKindLabel(_ kind: NolonResourceKind) -> String {
-        switch kind {
-        case .workflow:
-            return "工作流资源"
-        case .mcp:
-            return "MCP 资源"
-        }
-    }
-
-    private static func displayResourceLabel(_ label: String) -> String {
-        guard let first = label.unicodeScalars.first else { return label }
-        return first.isASCII ? " \(label)" : label
     }
 
     static func originDescriptionForDisplay(_ origin: NolonResourceOrigin) -> String {
