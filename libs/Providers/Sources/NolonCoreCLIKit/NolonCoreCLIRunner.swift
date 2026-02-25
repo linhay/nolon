@@ -2717,7 +2717,7 @@ public struct NolonCoreCLIRunner: Sendable {
                 }
                 line += "\n  path: \(item.path)"
                 if let origin = item.origin, origin.sourceType != .unknown {
-                    line += "\n  origin: \(origin.sourceType.rawValue):\(origin.sourceRef)"
+                    line += "\n  来源: \(Self.localizedOriginDescription(origin))"
                 }
                 return line
             }
@@ -3097,7 +3097,7 @@ public struct NolonCoreCLIRunner: Sendable {
                 if verbose {
                     var line = "- \(item.providerID)/\(item.skillID) [\(stateLabel)]\n  path: \(item.path)"
                     if let origin = item.origin, origin.sourceType != .unknown {
-                        line += "\n  origin: \(origin.sourceType.rawValue):\(origin.sourceRef)"
+                        line += "\n  来源: \(Self.localizedOriginDescription(origin))"
                     }
                     return line
                 }
@@ -3112,7 +3112,7 @@ public struct NolonCoreCLIRunner: Sendable {
                     var line = "- \(item.providerID)/\(item.skillID)"
                     line += "\n  path: \(item.path)"
                     if let origin = item.origin, origin.sourceType != .unknown {
-                        line += "\n  origin: \(origin.sourceType.rawValue):\(origin.sourceRef)"
+                        line += "\n  来源: \(Self.localizedOriginDescription(origin))"
                     }
                     return line
                 }
@@ -3271,6 +3271,27 @@ public struct NolonCoreCLIRunner: Sendable {
     private static func displayResourceLabel(_ label: String) -> String {
         guard let first = label.unicodeScalars.first else { return label }
         return first.isASCII ? " \(label)" : label
+    }
+
+    private static func localizedOriginDescription(_ origin: NolonResourceOrigin) -> String {
+        let sourceLabel: String = {
+            switch origin.sourceType {
+            case .local:
+                return "本地"
+            case .remote:
+                return "远端"
+            case .fromSkill:
+                return "Skill"
+            case .fromWorkflow:
+                return "Workflow"
+            case .fromMcp:
+                return "MCP"
+            case .unknown:
+                return "未知"
+            }
+        }()
+        let inferredSuffix = origin.metadata["inferred"] == "true" ? " [推断]" : ""
+        return "\(sourceLabel)(\(origin.sourceRef))\(inferredSuffix)"
     }
 
     private func renderTable(headers: [String], rows: [[String]]) -> [String] {
