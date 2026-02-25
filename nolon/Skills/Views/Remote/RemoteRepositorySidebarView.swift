@@ -50,7 +50,7 @@ final class RemoteRepositorySidebarViewModel {
         pendingRepository = repo
         detectedCandidates = candidates
         selectedDirectoryIndices = Set(0..<candidates.count)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + RemoteRefreshPolicy.repositorySelectionDelay) {
             self.showingDirectoryPicker = true
         }
     }

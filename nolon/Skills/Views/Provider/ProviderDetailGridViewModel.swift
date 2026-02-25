@@ -1,163 +1,9 @@
 import SwiftUI
 import ProviderCatalog
-import CodexProvider
 import Observation
 import STJSON
-import TOML
 import STFilePath
 import NolonResourceKit
-
-// MARK: - Codex MCP Config Models (shared)
-struct CodexMCPConfig: Codable, Sendable {
-    var model: String?
-    var modelReasoningEffort: String?
-    var projects: [String: CodexProject]?
-    var notice: CodexNotice?
-    var mcpServers: [String: CodexMCPServer]?
-    
-    enum CodingKeys: String, CodingKey {
-        case model
-        case modelReasoningEffort = "model_reasoning_effort"
-        case projects
-        case notice
-        case mcpServers = "mcp_servers"
-    }
-
-    nonisolated init(
-        model: String? = nil,
-        modelReasoningEffort: String? = nil,
-        projects: [String: CodexProject]? = nil,
-        notice: CodexNotice? = nil,
-        mcpServers: [String: CodexMCPServer]? = nil
-    ) {
-        self.model = model
-        self.modelReasoningEffort = modelReasoningEffort
-        self.projects = projects
-        self.notice = notice
-        self.mcpServers = mcpServers
-    }
-
-    nonisolated init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        self.model = try container.decodeIfPresent(String.self, forKey: .model)
-        self.modelReasoningEffort = try container.decodeIfPresent(String.self, forKey: .modelReasoningEffort)
-        self.projects = try container.decodeIfPresent([String: CodexProject].self, forKey: .projects)
-        self.notice = try container.decodeIfPresent(CodexNotice.self, forKey: .notice)
-        self.mcpServers = try container.decodeIfPresent([String: CodexMCPServer].self, forKey: .mcpServers)
-    }
-
-    nonisolated func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encodeIfPresent(model, forKey: .model)
-        try container.encodeIfPresent(modelReasoningEffort, forKey: .modelReasoningEffort)
-        try container.encodeIfPresent(projects, forKey: .projects)
-        try container.encodeIfPresent(notice, forKey: .notice)
-        try container.encodeIfPresent(mcpServers, forKey: .mcpServers)
-    }
-}
-
-struct CodexProject: Codable, Sendable {
-    var trustLevel: String?
-    
-    enum CodingKeys: String, CodingKey {
-        case trustLevel = "trust_level"
-    }
-
-    nonisolated init(trustLevel: String? = nil) {
-        self.trustLevel = trustLevel
-    }
-
-    nonisolated init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        self.trustLevel = try container.decodeIfPresent(String.self, forKey: .trustLevel)
-    }
-
-    nonisolated func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encodeIfPresent(trustLevel, forKey: .trustLevel)
-    }
-}
-
-struct CodexNotice: Codable, Sendable {
-    var modelMigrations: [String: String]?
-    
-    enum CodingKeys: String, CodingKey {
-        case modelMigrations = "model_migrations"
-    }
-
-    nonisolated init(modelMigrations: [String: String]? = nil) {
-        self.modelMigrations = modelMigrations
-    }
-
-    nonisolated init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        self.modelMigrations = try container.decodeIfPresent([String: String].self, forKey: .modelMigrations)
-    }
-
-    nonisolated func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encodeIfPresent(modelMigrations, forKey: .modelMigrations)
-    }
-}
-
-struct CodexMCPServer: Codable, Sendable {
-    var url: String?
-    var command: String?
-    var args: [String]?
-    var env: [String: String]?
-    var enabled: Bool?
-
-    enum CodingKeys: String, CodingKey {
-        case url
-        case command
-        case args
-        case env
-        case enabled
-    }
-
-    nonisolated init(
-        url: String? = nil,
-        command: String? = nil,
-        args: [String]? = nil,
-        env: [String: String]? = nil,
-        enabled: Bool? = nil
-    ) {
-        self.url = url
-        self.command = command
-        self.args = args
-        self.env = env
-        self.enabled = enabled
-    }
-
-    nonisolated init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        self.url = try container.decodeIfPresent(String.self, forKey: .url)
-        self.command = try container.decodeIfPresent(String.self, forKey: .command)
-        self.args = try container.decodeIfPresent([String].self, forKey: .args)
-        self.env = try container.decodeIfPresent([String: String].self, forKey: .env)
-        self.enabled = try container.decodeIfPresent(Bool.self, forKey: .enabled)
-    }
-
-    nonisolated func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encodeIfPresent(url, forKey: .url)
-        try container.encodeIfPresent(command, forKey: .command)
-        try container.encodeIfPresent(args, forKey: .args)
-        try container.encodeIfPresent(env, forKey: .env)
-        try container.encodeIfPresent(enabled, forKey: .enabled)
-    }
-}
-
-extension CodexMCPServer {
-    init(from mcp: MCP) {
-        let dict = mcp.json.value as? [String: Any] ?? [:]
-        url = dict["url"] as? String
-        command = dict["command"] as? String
-        args = dict["args"] as? [String]
-        env = dict["env"] as? [String: String]
-        enabled = dict["enabled"] as? Bool
-    }
-}
 
 /// Detail 区域 Grid 视图的 ViewModel
 @MainActor
@@ -208,6 +54,7 @@ final class ProviderDetailGridViewModel {
     private let resourceService: ProviderResourceService
     private let mcpMaintenanceService = ProviderMCPMaintenanceService()
     private let remoteInstallOrchestrator = RemoteInstallOrchestrator()
+    private let codexModelPreferenceService = CodexModelPreferenceService()
     
     init(provider: Provider?, settings: ProviderSettings) {
         self.provider = provider
@@ -305,20 +152,13 @@ final class ProviderDetailGridViewModel {
     func saveSelectedCodexModel(_ model: String?) async {
         guard let provider else { return }
         guard hasCodexBinarySupport else { return }
-        guard let templateId = provider.templateId, let template = ProviderTemplate(rawValue: templateId) else { return }
+        guard codexModelPreferenceService.supports(provider: provider) else { return }
 
         isSavingCodexModel = true
         defer { isSavingCodexModel = false }
 
         do {
-            let configFile = STFile(template.defaultMcpConfigPath)
-            let trimmed = model?.trimmingCharacters(in: .whitespacesAndNewlines)
-            let normalized = (trimmed?.isEmpty == false) ? trimmed : nil
-            if let normalized {
-                try await CodexBinaryManager.shared.applyModelToConfig(normalized, configFile: configFile)
-            } else {
-                try await CodexBinaryManager.shared.clearPreferredModel(configFile: configFile)
-            }
+            let normalized = try await codexModelPreferenceService.saveSelectedModel(model, for: provider)
             selectedCodexModel = normalized
             codexModelStatusMessage = NSLocalizedString(
                 "provider.binary.codex.model.saved",
@@ -331,24 +171,20 @@ final class ProviderDetailGridViewModel {
     }
 
     private func loadCodexBinaryModels(for provider: Provider) {
-        guard hasCodexBinarySupport else {
+        guard hasCodexBinarySupport,
+              codexModelPreferenceService.supports(provider: provider)
+        else {
             codexModelOptions = []
             selectedCodexModel = nil
             codexModelStatusMessage = nil
             return
         }
 
-        let configuredModel = loadCurrentConfiguredModel(for: provider)
+        let configuredModel = codexModelPreferenceService.loadConfiguredModel(for: provider)
         selectedCodexModel = configuredModel
 
-        var options: [String] = []
-        var seen = Set<String>()
-        for url in modelsCacheURLs(for: provider) {
-            for slug in loadVisibleModelSlugs(url) where seen.insert(slug).inserted {
-                options.append(slug)
-            }
-        }
-
+        var options = codexModelPreferenceService.loadVisibleModelSlugs(for: provider)
+        var seen = Set(options)
         if let configuredModel, !configuredModel.isEmpty, seen.insert(configuredModel).inserted {
             options.insert(configuredModel, at: 0)
         }
@@ -923,71 +759,4 @@ final class ProviderDetailGridViewModel {
             ?? RepositoryTemplate.clawdhub.createRepository().baseURL
     }
 
-    private func modelsCacheURLs(for provider: Provider) -> [URL] {
-        var urls: [URL] = []
-        let providerSkillsFolder = STFolder(provider.defaultSkillsPath)
-        let providerHome = STFolder(providerSkillsFolder.url.deletingLastPathComponent())
-        let providerCache = STFile(providerHome.url.appendingPathComponent("models_cache.json"))
-        urls.append(providerCache.url)
-
-        let userCodexHome = STFolder("\(NSHomeDirectory())/.codex")
-        let userCache = STFile(userCodexHome.url.appendingPathComponent("models_cache.json"))
-        if userCache.url.path != providerCache.url.path {
-            urls.append(userCache.url)
-        }
-        return urls
-    }
-
-    private func loadVisibleModelSlugs(_ cacheURL: URL) -> [String] {
-        let cacheFile = STFile(cacheURL)
-        guard cacheFile.isExists,
-              let data = try? Data(contentsOf: cacheFile.url),
-              let cache = try? JSONDecoder().decode(CodexModelsCacheLite.self, from: data)
-        else {
-            return []
-        }
-
-        var seen = Set<String>()
-        var models: [String] = []
-        for item in cache.models {
-            guard !item.slug.isEmpty else { continue }
-            if item.visibility?.lowercased() == "hide" { continue }
-            if seen.insert(item.slug).inserted {
-                models.append(item.slug)
-            }
-        }
-        return models
-    }
-
-    private func loadCurrentConfiguredModel(for provider: Provider) -> String? {
-        guard let templateId = provider.templateId,
-              let template = ProviderTemplate(rawValue: templateId)
-        else {
-            return nil
-        }
-
-        let configPath = template.defaultMcpConfigPath
-        let configFile = STFile(configPath)
-        guard configPath.pathExtension.lowercased() == "toml",
-              configFile.isExists,
-              let data = try? Data(contentsOf: configFile.url),
-              !data.isEmpty,
-              let config = try? TOMLDecoder().decode(CodexMCPConfig.self, from: data)
-        else {
-            return nil
-        }
-
-        let trimmed = config.model?.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
-        guard let trimmed, !trimmed.isEmpty else { return nil }
-        return trimmed
-    }
-}
-
-private struct CodexModelsCacheLite: Decodable {
-    let models: [Model]
-
-    struct Model: Decodable {
-        let slug: String
-        let visibility: String?
-    }
 }

@@ -159,7 +159,7 @@ struct RemoteSkillsBrowserView: View {
                         onInstall: { skill, provider in
                             onInstall(skill, provider)
                             // Refresh after install attempt
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                            DispatchQueue.main.asyncAfter(deadline: .now() + RemoteRefreshPolicy.installPropagationDelay) {
                                 viewModel.refreshInstalledSkills(repository: repository, targetProvider: targetProvider, settings: settings)
                                 viewModel.refreshTrigger += 1
                             }
@@ -167,7 +167,7 @@ struct RemoteSkillsBrowserView: View {
                         onInstallWorkflow: { workflow, provider in
                             onInstallWorkflow?(workflow, provider)
                             // Refresh after install attempt
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                            DispatchQueue.main.asyncAfter(deadline: .now() + RemoteRefreshPolicy.installPropagationDelay) {
                                 viewModel.refreshInstalledWorkflows(targetProvider: targetProvider)
                                 viewModel.refreshTrigger += 1
                             }
@@ -175,7 +175,7 @@ struct RemoteSkillsBrowserView: View {
                         onInstallMCP: { mcp, provider in
                             onInstallMCP?(mcp, provider)
                             // Refresh after install attempt
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                            DispatchQueue.main.asyncAfter(deadline: .now() + RemoteRefreshPolicy.installPropagationDelay) {
                                 viewModel.refreshInstalledMCPs(targetProvider: targetProvider)
                                 viewModel.refreshTrigger += 1
                             }
@@ -213,7 +213,7 @@ struct RemoteSkillsBrowserView: View {
                         onInstall: { skill, provider in
                             onInstall(skill, provider)
                             // Refresh after install attempt
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                            DispatchQueue.main.asyncAfter(deadline: .now() + RemoteRefreshPolicy.installPropagationDelay) {
                                 viewModel.refreshInstalledSkills(repository: repository, targetProvider: targetProvider, settings: settings)
                                 viewModel.refreshTrigger += 1
                             }
@@ -221,7 +221,7 @@ struct RemoteSkillsBrowserView: View {
                         onInstallWorkflow: { workflow, provider in
                             onInstallWorkflow?(workflow, provider)
                             // Refresh after install attempt
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                            DispatchQueue.main.asyncAfter(deadline: .now() + RemoteRefreshPolicy.installPropagationDelay) {
                                 viewModel.refreshInstalledWorkflows(targetProvider: targetProvider)
                                 viewModel.refreshTrigger += 1
                             }
@@ -229,7 +229,7 @@ struct RemoteSkillsBrowserView: View {
                         onInstallMCP: { mcp, provider in
                             onInstallMCP?(mcp, provider)
                             // Refresh after install attempt
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                            DispatchQueue.main.asyncAfter(deadline: .now() + RemoteRefreshPolicy.installPropagationDelay) {
                                 viewModel.refreshInstalledMCPs(targetProvider: targetProvider)
                                 viewModel.refreshTrigger += 1
                             }

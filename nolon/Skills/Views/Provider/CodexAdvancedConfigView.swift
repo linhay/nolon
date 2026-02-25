@@ -53,15 +53,18 @@ final class CodexAdvancedConfigViewModel {
     private var provider: Provider
     private let manager: CodexBinaryManager
     private let linkService: CodexLinkService
+    private let modelPreferenceService: CodexModelPreferenceService
 
     init(
         provider: Provider,
         manager: CodexBinaryManager = .shared,
-        linkService: CodexLinkService = CodexLinkService()
+        linkService: CodexLinkService = CodexLinkService(),
+        modelPreferenceService: CodexModelPreferenceService = CodexModelPreferenceService()
     ) {
         self.provider = provider
         self.manager = manager
         self.linkService = linkService
+        self.modelPreferenceService = modelPreferenceService
     }
 
     func updateProvider(_ provider: Provider) {
@@ -284,88 +287,33 @@ final class CodexAdvancedConfigViewModel {
     }
 
     private func loadModelsCache() {
-        models = []
-        modelsCacheSourcePath = nil
-        modelsCacheFetchedAt = nil
-        modelsCacheClientVersion = nil
-        modelsCacheETag = nil
-
-        for url in modelsCacheURLs() {
-            guard let cache = try? CodexModelsCache.load(from: url) else { continue }
-            models = cache.models
-            modelsCacheSourcePath = url.path
-            modelsCacheFetchedAt = cache.fetchedAt
-            modelsCacheClientVersion = cache.clientVersion
-            modelsCacheETag = cache.etag
-            break
-        }
+        let snapshot = modelPreferenceService.loadModelsCache(for: provider)
+        models = snapshot.models
+        modelsCacheSourcePath = snapshot.sourcePath
+        modelsCacheFetchedAt = snapshot.fetchedAt
+        modelsCacheClientVersion = snapshot.clientVersion
+        modelsCacheETag = snapshot.etag
 
         if let activeModelSlug, !models.contains(where: { $0.slug == activeModelSlug }) {
             self.activeModelSlug = nil
         }
     }
 
-    private func modelsCacheURLs() -> [URL] {
-        var urls: [URL] = []
-        let providerSkillsFolder = STFolder(provider.defaultSkillsPath)
-        let providerHome = STFolder(providerSkillsFolder.url.deletingLastPathComponent())
-        let providerCache = STFile(providerHome.url.appendingPathComponent("models_cache.json"))
-        urls.append(providerCache.url)
-
-        let userCodexHome = STFolder("\(NSHomeDirectory())/.codex")
-        let userCache = STFile(userCodexHome.url.appendingPathComponent("models_cache.json"))
-        if userCache.url.path != providerCache.url.path {
-            urls.append(userCache.url)
-        }
-        return urls
-    }
-
     private func resolvedConfigFile() -> STFile? {
-        let rawSkillsPath = (provider.defaultSkillsPath as NSString).expandingTildeInPath
-        if !rawSkillsPath.isEmpty {
-            let skillsFolder = STFolder(rawSkillsPath)
-            let codexHome = STFolder(skillsFolder.url.deletingLastPathComponent())
-            return STFile(codexHome.url.appendingPathComponent("config.toml"))
-        }
-
-        return STFile("\(NSHomeDirectory())/.codex/config.toml")
+        modelPreferenceService.resolvedConfigFile(for: provider)
     }
 
     private func loadSelectionsFromConfig() {
-        guard let content = loadConfigContent() else {
+        guard let config = modelPreferenceService.loadConfig(for: provider) else {
             preferredModelDraft = ""
             activeModelSlug = nil
             selectedReasoningEffort = nil
             return
         }
-        let model = parseConfigValue(key: "model", from: content)
+        let model = config.model?.trimmingCharacters(in: .whitespacesAndNewlines)
         preferredModelDraft = model ?? ""
         activeModelSlug = model
-        selectedReasoningEffort = parseConfigValue(key: "model_reasoning_effort", from: content)
-    }
-
-    private func loadConfigContent() -> String? {
-        guard let configFile = resolvedConfigFile(),
-              configFile.isExists,
-              let content = try? configFile.read() else {
-            return nil
-        }
-        return content
-    }
-
-    private func parseConfigValue(key: String, from content: String) -> String? {
-        for line in content.split(separator: "\n", omittingEmptySubsequences: false) {
-            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard let equalIndex = trimmed.firstIndex(of: "=") else { continue }
-            let lhs = trimmed[..<equalIndex].trimmingCharacters(in: .whitespacesAndNewlines)
-            guard lhs == key else { continue }
-            let rhs = trimmed[trimmed.index(after: equalIndex)...].trimmingCharacters(in: .whitespacesAndNewlines)
-            if rhs.hasPrefix("\""), rhs.hasSuffix("\""), rhs.count >= 2 {
-                return String(rhs.dropFirst().dropLast())
-            }
-            return rhs.nonEmpty
-        }
-        return nil
+        selectedReasoningEffort = config.modelReasoningEffort?.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private func normalizeReasoningEffortForActiveModel(persist: Bool) async {
