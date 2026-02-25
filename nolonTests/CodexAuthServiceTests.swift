@@ -397,6 +397,67 @@ final class ProviderUsageViewModelActivationTests: XCTestCase {
     }
 }
 
+@MainActor
+final class ProviderUsageViewModelOutcomeOrderingTests: XCTestCase {
+    func testBDD_GivenOutcomeOrderMismatch_WhenReplacingByAccountId_ThenUsageDoesNotDriftAcrossAccounts() {
+        let provider = Provider(
+            name: "Codex",
+            defaultSkillsPath: "/tmp/codex-skills",
+            workflowPath: "/tmp/codex-prompts",
+            installMethod: .symlink,
+            templateId: "codex"
+        )
+
+        let first = CodexAuthAccount(name: "first", relativeAuthPath: "auth/first.json")
+        let second = CodexAuthAccount(name: "second", relativeAuthPath: "auth/second.json")
+        let viewModel = ProviderUsageViewModel(provider: provider)
+
+        viewModel.codexAccounts = [first, second]
+        viewModel.codexAccountOutcomes = [makeOutcome(account: second, label: "old-second"), makeOutcome(account: first, label: "old-first")]
+        viewModel.reorderCodexAccountOutcomesForDisplay()
+
+        viewModel.replaceCodexOutcome(makeOutcome(account: second, label: "new-second"), for: second.id)
+
+        XCTAssertEqual(viewModel.codexAccountOutcomes.count, 2)
+        let firstLabel = viewModel.codexAccountOutcomes[0].displayName
+        let secondLabel = viewModel.codexAccountOutcomes[1].displayName
+        XCTAssertEqual(firstLabel, "old-first")
+        XCTAssertEqual(secondLabel, "new-second")
+    }
+
+    private func makeOutcome(account: CodexAuthAccount, label: String) -> ProviderAccountUsageOutcome {
+        let usage = UsageSnapshot(
+            identity: UsageIdentity(accountEmail: "\(label)@example.com", accountOrganization: nil, loginMethod: "oauth", plan: "plus"),
+            primary: nil,
+            secondary: nil,
+            tertiary: nil,
+            updatedAt: Date()
+        )
+        let result = ProviderFetchResult(
+            usage: usage,
+            credits: nil,
+            cost: nil,
+            sourceLabel: "CLI",
+            fetchKind: .cli,
+            strategyKind: .direct
+        )
+        let outcome = ProviderFetchOutcome(fetchKind: .cli, result: .success(result))
+        return ProviderAccountUsageOutcome(
+            provider: .codex,
+            account: .tokenAccount(
+                .init(
+                    id: account.id,
+                    label: label,
+                    token: "",
+                    addedAt: Date().timeIntervalSince1970,
+                    lastUsed: nil
+                )
+            ),
+            outcome: outcome
+        )
+    }
+}
+
 final class CodexAuthEventPolicyTests: XCTestCase {
     func testBDD_GivenKnownAccountFileRenamedToTrash_WhenEvaluatingPolicy_ThenRenameIsIgnored() {
         // Given

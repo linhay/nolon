@@ -236,6 +236,7 @@ final class ProviderUsageViewModel {
             codexAccountSummaries = loadCodexAccountSummaries(accounts: codexAccounts)
             activeCodexAccountId = await codexAuthManager.activeAccountId(for: provider)
             codexAccountOutcomes = await loadCachedCodexAccountOutcomes(accounts: codexAccounts)
+            reorderCodexAccountOutcomesForDisplay()
 
             Task { [weak self] in
                 guard let self else { return }
@@ -246,9 +247,7 @@ final class ProviderUsageViewModel {
             }
         } catch {
             resetCodexMultiAccountState()
-            guard isMultiAccountEnabled else { return }
-            alertTitle = NSLocalizedString("codex.accounts.title", value: "Accounts", comment: "Codex accounts title")
-            alertMessage = NSLocalizedString("codex.accounts.error.add", value: "Failed to add this account.", comment: "Error message")
+            Self.logger.error("Failed to load codex accounts: \(String(describing: error), privacy: .public)")
         }
 
         await updateUsageFileWatcher()
@@ -381,6 +380,7 @@ final class ProviderUsageViewModel {
             codexAccountSummaries = loadCodexAccountSummaries(accounts: codexAccounts)
             activeCodexAccountId = await codexAuthManager.activeAccountId(for: provider)
             codexAccountOutcomes = await loadCachedCodexAccountOutcomes(accounts: codexAccounts)
+            reorderCodexAccountOutcomesForDisplay()
 
             Self.logger.debug(
                 "Codex disk reload complete. accounts=\(self.codexAccounts.count, privacy: .public) refreshUsage=\(refreshUsage, privacy: .public)"
@@ -618,7 +618,9 @@ final class ProviderUsageViewModel {
             await load()
         } catch {
             alertTitle = NSLocalizedString("codex.accounts.add.title", value: "Add Account", comment: "Add account title")
-            alertMessage = NSLocalizedString("codex.accounts.error.add", value: "Failed to add this account.", comment: "Error message")
+            let fallback = NSLocalizedString("codex.accounts.error.add", value: "Failed to add this account.", comment: "Error message")
+            let message = error.localizedDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+            alertMessage = message.isEmpty ? fallback : message
         }
     }
 
@@ -1065,12 +1067,46 @@ final class ProviderUsageViewModel {
     }
 
     private func updateCodexOutcome(_ outcome: ProviderAccountUsageOutcome, for account: CodexAuthAccount) {
-        guard let index = codexAccounts.firstIndex(where: { $0.id == account.id }) else { return }
-        if codexAccountOutcomes.indices.contains(index) {
+        replaceCodexOutcome(outcome, for: account.id)
+    }
+
+    func replaceCodexOutcome(_ outcome: ProviderAccountUsageOutcome, for accountID: UUID) {
+        if let index = codexAccountOutcomes.firstIndex(where: { outcome in
+            switch outcome.account {
+            case let .tokenAccount(account):
+                return account.id == accountID
+            case .default:
+                return false
+            }
+        }) {
             codexAccountOutcomes[index] = outcome
         } else {
             codexAccountOutcomes.append(outcome)
         }
+        reorderCodexAccountOutcomesForDisplay()
+    }
+
+    func reorderCodexAccountOutcomesForDisplay() {
+        let byAccountID = Dictionary(uniqueKeysWithValues: codexAccountOutcomes.compactMap { outcome -> (UUID, ProviderAccountUsageOutcome)? in
+            switch outcome.account {
+            case let .tokenAccount(account):
+                return (account.id, outcome)
+            case .default:
+                return nil
+            }
+        })
+
+        let ordered = codexAccounts.compactMap { byAccountID[$0.id] }
+        let unknowns = codexAccountOutcomes.filter { outcome in
+            switch outcome.account {
+            case let .tokenAccount(account):
+                return !codexAccounts.contains(where: { $0.id == account.id })
+            case .default:
+                return true
+            }
+        }
+
+        codexAccountOutcomes = ordered + unknowns
     }
 
     private func isAccountInfoMissing(accountId: UUID, summaries: [UUID: CodexAuthSummary]) -> Bool {
