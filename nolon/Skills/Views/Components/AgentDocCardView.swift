@@ -1,5 +1,6 @@
 import SwiftUI
 import NolonResourceKit
+import ProviderCatalog
 
 enum AgentDocKind: String, Sendable {
     case override

@@ -1,5 +1,6 @@
 import SwiftUI
 import NolonResourceKit
+import ProviderCatalog
 
 struct RuleInfo: Identifiable, Hashable {
     let id: String

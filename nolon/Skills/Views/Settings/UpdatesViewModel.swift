@@ -15,8 +15,8 @@ final class UpdatesViewModel {
     
     private let updateOrchestrator: SkillUpdateOrchestrator
     
-    init(updateOrchestrator: SkillUpdateOrchestrator = .init()) {
-        self.updateOrchestrator = updateOrchestrator
+    init(updateOrchestrator: SkillUpdateOrchestrator? = nil) {
+        self.updateOrchestrator = updateOrchestrator ?? SkillUpdateOrchestrator()
     }
 
     var updatableCount: Int {
