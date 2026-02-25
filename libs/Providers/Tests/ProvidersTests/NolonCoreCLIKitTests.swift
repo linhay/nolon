@@ -3505,6 +3505,18 @@ struct NolonCoreCLIKitTests {
         #expect(help.contains("Show repair commands for orphaned/broken items."))
     }
 
+    @Test("workflow help text renders expanded one-parameter-per-line add/search notes")
+    func workflowHelpTextRendersExpandedOneParameterPerLineAddSearchNotes() {
+        let help = NolonCoreCLIHelpResolver.resolvedHelpText(arguments: ["workflow"]) ?? ""
+        #expect(help.contains("--provider <id>                              # 按 provider 过滤"))
+        #expect(help.contains("--provider-id <id>                           # provider 别名参数"))
+        #expect(help.contains("--dry-run                                    # 与 --install 一起使用，预览执行"))
+        #expect(help.contains("--yes                                        # 与 --install 一起使用，确认执行"))
+        #expect(help.contains("默认先从本地 repositories-root 查找；未命中则回退远程 base-url。"))
+        #expect(help.contains("所有来源统一先缓存到 NOLON_HOME/workflows/<slug>，再分发到目标 provider。"))
+        #expect(help.contains("  list      [--provider <id>|--provider-id <id>]") == false)
+    }
+
     @Test("mcp list help includes option descriptions")
     func mcpListHelpIncludesOptionDescriptions() {
         let help = NolonRootCommand.message(for: CleanExit.helpRequest(NolonMcpListCommand.self))
@@ -3513,6 +3525,18 @@ struct NolonCoreCLIKitTests {
         #expect(help.contains("Alias of --provider. Omit only if you intend"))
         #expect(help.contains("Show full install path for each MCP item."))
         #expect(help.contains("Show repair commands for orphaned/broken items."))
+    }
+
+    @Test("mcp help text renders expanded one-parameter-per-line add/search notes")
+    func mcpHelpTextRendersExpandedOneParameterPerLineAddSearchNotes() {
+        let help = NolonCoreCLIHelpResolver.resolvedHelpText(arguments: ["mcp"]) ?? ""
+        #expect(help.contains("--provider <id>                              # 按 provider 过滤"))
+        #expect(help.contains("--provider-id <id>                           # provider 别名参数"))
+        #expect(help.contains("--dry-run                                    # 与 --install 一起使用，预览执行"))
+        #expect(help.contains("--yes                                        # 与 --install 一起使用，确认执行"))
+        #expect(help.contains("默认先从本地 repositories-root 查找；未命中则回退远程 base-url。"))
+        #expect(help.contains("所有来源统一先缓存到 NOLON_HOME/mcps/<slug>，再分发到目标 provider。"))
+        #expect(help.contains("  list      [--provider <id>|--provider-id <id>]") == false)
     }
 
     @Test("runner renders mcp list with state filter keeps matched provider count")

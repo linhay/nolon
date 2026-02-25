@@ -39,13 +39,16 @@ enum NolonCoreCLIHelpResolver {
             --limit <n>                                  # 返回条数上限
             --base-url <url>                             # 远端 API 地址
             --install                                    # 直接安装匹配项
-            --provider <id>|--provider-id <id>           # 与 --install 一起使用，指定 provider
+            --provider <id>                              # 与 --install 一起使用，指定 provider
+            --provider-id <id>                           # provider 别名参数
             --install-method symlink|copy                # 与 --install 一起使用，指定安装方式
             --pick <index>                               # 与 --install 一起使用，选中候选序号
-            --dry-run|--yes                              # 与 --install 一起使用，预览或确认执行
+            --dry-run                                    # 与 --install 一起使用，预览执行
+            --yes                                        # 与 --install 一起使用，确认执行
           add
             <slug>                                       # 资源标识（必填）
-            --provider <id>|--provider-id <id>           # 目标 provider（可选）
+            --provider <id>                              # 目标 provider（可选）
+            --provider-id <id>                           # provider 别名参数
             --version <ver>                              # 指定版本（可选）
             --install-method symlink|copy                # 安装方式（可选）
             --dry-run                                    # 仅预览，不落盘
@@ -99,7 +102,8 @@ enum NolonCoreCLIHelpResolver {
 
         Subcommands:
           list
-            --provider <id>|--provider-id <id>           # 按 provider 过滤
+            --provider <id>                              # 按 provider 过滤
+            --provider-id <id>                           # provider 别名参数
             --state installed|orphaned|broken            # 按状态过滤
             --include-empty                              # 包含空 provider
             --verbose                                    # 显示完整路径与来源
@@ -113,16 +117,23 @@ enum NolonCoreCLIHelpResolver {
             --limit <n>                                  # 返回条数上限
             --base-url <url>                             # 远端 API 地址
             --install                                    # 直接安装匹配项
-            --provider <id>|--provider-id <id>           # 与 --install 一起使用，指定 provider
+            --provider <id>                              # 与 --install 一起使用，指定 provider
+            --provider-id <id>                           # provider 别名参数
             --install-method symlink|copy                # 与 --install 一起使用，指定安装方式
             --pick <index>                               # 与 --install 一起使用，选中候选序号
-            --dry-run|--yes                              # 与 --install 一起使用，预览或确认执行
+            --dry-run                                    # 与 --install 一起使用，预览执行
+            --yes                                        # 与 --install 一起使用，确认执行
           add
             <slug>                                       # 资源标识（必填）
-            --provider <id>|--provider-id <id>           # 目标 provider（可选）
+            --provider <id>                              # 目标 provider（可选）
+            --provider-id <id>                           # provider 别名参数
             --version <ver>                              # 指定版本（可选）
             --install-method symlink|copy                # 安装方式（可选）
             --dry-run                                    # 仅预览，不落盘
+            默认先从本地 repositories-root 查找；未命中则回退远程 base-url。
+            所有来源统一先缓存到 NOLON_HOME/workflows/<slug>，再分发到目标 provider。
+            省略 --provider 时，默认分发到已安装 CLI 的全部 provider。
+            注意：省略 --provider 可能触发多 provider 批量写入/覆盖；建议先使用 --dry-run 预览范围。
           remove
             --resource-name <name>                       # 资源名（必填）
             --target-path <path>                         # 直接指定目录（三选一）
@@ -172,7 +183,8 @@ enum NolonCoreCLIHelpResolver {
 
         Subcommands:
           list
-            --provider <id>|--provider-id <id>           # 按 provider 过滤
+            --provider <id>                              # 按 provider 过滤
+            --provider-id <id>                           # provider 别名参数
             --state installed|orphaned|broken            # 按状态过滤
             --include-empty                              # 包含空 provider
             --verbose                                    # 显示完整路径与来源
@@ -190,7 +202,8 @@ enum NolonCoreCLIHelpResolver {
             --provider-id <id>                           # provider 别名参数
             --install-method symlink|copy                # 与 --install 一起使用，指定安装方式
             --pick <index>                               # 与 --install 一起使用，选中候选序号
-            --dry-run|--yes                              # 与 --install 一起使用，预览或确认执行
+            --dry-run                                    # 与 --install 一起使用，预览执行
+            --yes                                        # 与 --install 一起使用，确认执行
           add
             <slug>                                       # 资源标识（必填）
             --provider <id>                              # 目标 provider（可选）
@@ -198,6 +211,10 @@ enum NolonCoreCLIHelpResolver {
             --version <ver>                              # 指定版本（可选）
             --install-method symlink|copy                # 安装方式（可选）
             --dry-run                                    # 仅预览，不落盘
+            默认先从本地 repositories-root 查找；未命中则回退远程 base-url。
+            所有来源统一先缓存到 NOLON_HOME/mcps/<slug>，再分发到目标 provider。
+            省略 --provider 时，默认分发到已安装 CLI 的全部 provider。
+            注意：省略 --provider 可能触发多 provider 批量写入/覆盖；建议先使用 --dry-run 预览范围。
           remove
             --resource-name <name>                       # 资源名（必填）
             --target-path <path>                         # 直接指定目录（三选一）
