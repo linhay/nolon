@@ -155,6 +155,12 @@ enum NolonCoreCLIHelpResolver {
         场景: 安装工作流
           nolon workflow add xcode --provider codex --dry-run
 
+        场景: 从 skill 绑定 workflow
+          nolon workflow bind-skill --skill-id find-skills --provider codex
+
+        场景: 从 mcp 解绑 workflow
+          nolon workflow unbind-mcp --mcp-name playwright --provider codex
+
         场景: 修复异常
           nolon workflow list --provider codex --state broken
         """
@@ -234,6 +240,14 @@ enum NolonCoreCLIHelpResolver {
 
         场景: 安装 MCP
           nolon mcp add playwright --provider codex --dry-run
+
+        场景: 管理 MCP servers
+          nolon mcp server list --provider codex
+          nolon mcp server set-enabled --provider codex --name playwright --disabled
+
+        场景: 迁移 MCP cache
+          nolon mcp cache migrate --provider codex --overwrite
+          nolon mcp cache status --provider codex --name playwright
 
         场景: 修复异常
           nolon mcp list --provider codex --state broken

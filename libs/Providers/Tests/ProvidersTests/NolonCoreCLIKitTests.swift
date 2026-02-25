@@ -3387,6 +3387,10 @@ struct NolonCoreCLIKitTests {
         #expect(help.contains("场景: 搜索工作流"))
         #expect(help.contains("nolon workflow search xcode"))
         #expect(help.contains("场景: 安装工作流"))
+        #expect(help.contains("场景: 从 skill 绑定 workflow"))
+        #expect(help.contains("nolon workflow bind-skill --skill-id find-skills --provider codex"))
+        #expect(help.contains("场景: 从 mcp 解绑 workflow"))
+        #expect(help.contains("nolon workflow unbind-mcp --mcp-name playwright --provider codex"))
     }
 
     @Test("mcp help text contains scenarios")
@@ -3394,6 +3398,12 @@ struct NolonCoreCLIKitTests {
         let help = NolonCoreCLIHelpResolver.resolvedHelpText(arguments: ["mcp"]) ?? ""
         #expect(help.contains("场景: 搜索 MCP"))
         #expect(help.contains("nolon mcp search xcode"))
+        #expect(help.contains("场景: 管理 MCP servers"))
+        #expect(help.contains("nolon mcp server list --provider codex"))
+        #expect(help.contains("nolon mcp server set-enabled --provider codex --name playwright --disabled"))
+        #expect(help.contains("场景: 迁移 MCP cache"))
+        #expect(help.contains("nolon mcp cache migrate --provider codex --overwrite"))
+        #expect(help.contains("nolon mcp cache status --provider codex --name playwright"))
         #expect(help.contains("场景: 修复异常"))
     }
 
