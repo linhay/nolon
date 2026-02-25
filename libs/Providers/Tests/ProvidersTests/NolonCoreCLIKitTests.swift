@@ -3357,6 +3357,7 @@ struct NolonCoreCLIKitTests {
         )
         #expect(result.exitCode == 0)
         #expect(result.stdout.contains("健康：5/5（100.0%），异常 0，修复动作：无。"))
+        #expect(result.stdout.contains("如需查看已安装 MCP 资源，请执行: `nolon mcp list --state installed`"))
         #expect(result.stdout.contains("未发现异常 MCP 资源（失效链接/损坏）。") == false)
         #expect(result.stdout.contains("[下一步（可复制执行）]") == false)
         #expect(result.stdout.contains("可选复检:") == false)
@@ -3726,6 +3727,7 @@ struct NolonCoreCLIKitTests {
 
         if result.stdout.contains("异常 0") {
             #expect(result.stdout.contains("健康："))
+            #expect(result.stdout.contains("如需查看已安装工作流资源，请执行: `nolon workflow list --state installed`"))
             #expect(result.stdout.contains("修复计划:") == false)
             #expect(result.stdout.contains("[下一步（按顺序执行）]") == false)
             #expect(result.stdout.contains("[一键执行（可复制）]") == false)

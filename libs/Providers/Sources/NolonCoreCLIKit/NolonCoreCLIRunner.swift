@@ -2645,6 +2645,7 @@ public struct NolonCoreCLIRunner: Sendable {
         }
         appendFiltersIfNeeded()
         if showFixes, issueCount == 0, !verbose, result.providerFilter == nil, result.stateFilter == nil {
+            lines.append("如需查看已安装技能，请执行: `\(Self.copyableCommand("nolon skills list --state installed"))`")
             return lines.joined(separator: "\n")
         }
 
@@ -3055,6 +3056,9 @@ public struct NolonCoreCLIRunner: Sendable {
         }
         appendFiltersIfNeeded()
         if showFixes, issueCount == 0, !verbose, result.providerFilter == nil, result.stateFilter == nil {
+            let resourceLabel = Self.localizedResourceKindLabel(kind)
+            let resourceDisplayLabel = Self.displayResourceLabel(resourceLabel)
+            lines.append("如需查看已安装\(resourceDisplayLabel)，请执行: `\(Self.copyableCommand("nolon \(kind.rawValue) list --state installed"))`")
             return lines.joined(separator: "\n")
         }
 
