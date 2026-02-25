@@ -64,3 +64,22 @@
    - `swift test --package-path libs/Providers --filter NolonResourceKitTests` 通过（新增服务测试）。
    - `swift test --package-path libs/Providers --filter NolonCoreCLIKitTests` 通过。
    - `./build.sh` 通过。
+
+## 迁移收口进展（2026-02-25 / 一次性收口）
+1. Remote 查询能力下沉（SDK）：
+   - 新增 `RemoteCatalogQueryService`，统一 Clawdhub / GlobalCache / LocalFolder / Git 四类仓库的 skills/workflows/mcps 查询入口。
+   - 新增 `RemoteRepositoryCountService`，统一 Tab 计数口径。
+2. 仓库同步编排下沉（SDK）：
+   - 新增 `RepositorySyncOrchestrator`，统一 Git 同步结果、目录候选、是否弹目录选择的判定逻辑。
+3. Provider 资源快照下沉（SDK）：
+   - 新增 `ProviderResourceSnapshotService`，聚合 workflows/rules/agents/mcps 与 MCP cache state。
+4. 状态模型统一桥接（SDK + CLI）：
+   - 新增 `ResourceHealthState`。
+   - `ProviderSkillStateKind`、`ProviderResourceState`、`NolonProviderSkillStateKind` 增加与 `ResourceHealthState` 的互转。
+5. App 同步：
+   - `RemoteContentTabViewModel` 使用 `RemoteRepositoryCountService`。
+   - `RemoteSkillsGridViewModel` 使用 `RemoteCatalogQueryService`（含分页与 canLoadMore 逻辑）。
+   - `AddRepositoryViewModel`、`RemoteRepositorySidebarViewModel` 使用 `RepositorySyncOrchestrator`。
+   - `ProviderDetailGridViewModel` 使用 `ProviderResourceSnapshotService`。
+6. CLI 同步：
+   - `NolonLiveSkillsRepositoryService.listRemoteResources` 改走 `RemoteCatalogQueryService`，与 app 共用同一查询策略与数据源路由。
