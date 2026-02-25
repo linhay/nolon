@@ -2717,7 +2717,7 @@ public struct NolonCoreCLIRunner: Sendable {
                 }
                 line += "\n  path: \(item.path)"
                 if let origin = item.origin, origin.sourceType != .unknown {
-                    line += "\n  来源: \(Self.localizedOriginDescription(origin))"
+                    line += "\n  来源: \(Self.originDescriptionForDisplay(origin))"
                 }
                 return line
             }
@@ -3097,7 +3097,7 @@ public struct NolonCoreCLIRunner: Sendable {
                 if verbose {
                     var line = "- \(item.providerID)/\(item.skillID) [\(stateLabel)]\n  path: \(item.path)"
                     if let origin = item.origin, origin.sourceType != .unknown {
-                        line += "\n  来源: \(Self.localizedOriginDescription(origin))"
+                        line += "\n  来源: \(Self.originDescriptionForDisplay(origin))"
                     }
                     return line
                 }
@@ -3112,7 +3112,7 @@ public struct NolonCoreCLIRunner: Sendable {
                     var line = "- \(item.providerID)/\(item.skillID)"
                     line += "\n  path: \(item.path)"
                     if let origin = item.origin, origin.sourceType != .unknown {
-                        line += "\n  来源: \(Self.localizedOriginDescription(origin))"
+                        line += "\n  来源: \(Self.originDescriptionForDisplay(origin))"
                     }
                     return line
                 }
@@ -3273,7 +3273,7 @@ public struct NolonCoreCLIRunner: Sendable {
         return first.isASCII ? " \(label)" : label
     }
 
-    private static func localizedOriginDescription(_ origin: NolonResourceOrigin) -> String {
+    static func originDescriptionForDisplay(_ origin: NolonResourceOrigin) -> String {
         let sourceLabel: String = {
             switch origin.sourceType {
             case .local:
@@ -3290,8 +3290,35 @@ public struct NolonCoreCLIRunner: Sendable {
                 return "未知"
             }
         }()
+        let compactRef = compactSourceReference(origin.sourceRef)
         let inferredSuffix = origin.metadata["inferred"] == "true" ? " [推断]" : ""
-        return "\(sourceLabel)(\(origin.sourceRef))\(inferredSuffix)"
+        return "\(sourceLabel)(\(compactRef))\(inferredSuffix)"
+    }
+
+    private static func compactSourceReference(_ raw: String, maxLength: Int = 72) -> String {
+        guard raw.count > maxLength else { return raw }
+        let home = NSString(string: NSHomeDirectory()).expandingTildeInPath
+        var normalized = raw
+        if normalized.hasPrefix(home) {
+            normalized = "~" + normalized.dropFirst(home.count)
+        }
+        guard normalized.count > maxLength else { return normalized }
+
+        if let anchorIndex = normalized.lastIndex(of: "#") {
+            let pathPart = String(normalized[..<anchorIndex])
+            let anchor = String(normalized[anchorIndex...])
+            return compactPath(pathPart, maxLength: max(24, maxLength - anchor.count)) + anchor
+        }
+        return compactPath(normalized, maxLength: maxLength)
+    }
+
+    private static func compactPath(_ path: String, maxLength: Int) -> String {
+        guard path.count > maxLength else { return path }
+        let headCount = max(12, (maxLength - 3) / 2)
+        let tailCount = max(12, maxLength - 3 - headCount)
+        let head = path.prefix(headCount)
+        let tail = path.suffix(tailCount)
+        return "\(head)...\(tail)"
     }
 
     private func renderTable(headers: [String], rows: [[String]]) -> [String] {

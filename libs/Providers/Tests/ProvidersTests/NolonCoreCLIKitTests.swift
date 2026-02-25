@@ -3558,6 +3558,25 @@ struct NolonCoreCLIKitTests {
         #expect(result.stdout.contains("config_path:") == false)
     }
 
+    @Test("origin description compacts long source ref and keeps anchor")
+    func originDescriptionCompactsLongSourceRefAndKeepsAnchor() {
+        let origin = NolonResourceOrigin(
+            resourceKind: .mcp,
+            sourceType: .fromMcp,
+            sourceKind: .mcp,
+            sourceRef: "/Users/linhey/Library/Developer/Xcode/CodingAssistant/codex/sessions/2026/02/very/long/path/for/mcp/config.toml#playwright",
+            sourceDisplay: "unused",
+            createdAt: Date(),
+            updatedAt: Date(),
+            metadata: ["inferred": "true"]
+        )
+        let rendered = NolonCoreCLIRunner.originDescriptionForDisplay(origin)
+        #expect(rendered.contains("MCP("))
+        #expect(rendered.contains("..."))
+        #expect(rendered.contains("#playwright"))
+        #expect(rendered.contains("[推断]"))
+    }
+
     @Test("runner renders workflow list contextual empty message with state filter")
     func runnerRendersWorkflowListContextualEmptyMessageWithStateFilter() async {
         let runner = NolonCoreCLIRunner(
