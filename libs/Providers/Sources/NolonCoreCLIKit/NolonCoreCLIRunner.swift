@@ -2750,14 +2750,10 @@ public struct NolonCoreCLIRunner: Sendable {
             lines.append("")
             lines.append("[下一步（可复制执行）]")
             lines.append("修复建议（可复制）:")
-            var quickActions: [String] = []
-            if !brokenIssueProviders.isEmpty {
-                quickActions.append("查看损坏详情: `\(Self.copyableCommand("nolon skills list --state broken --verbose"))`")
-            }
-            if !orphanedIssueProviders.isEmpty {
-                quickActions.append("查看失效链接详情: `\(Self.copyableCommand("nolon skills list --state orphaned --verbose"))`")
-            }
-            quickActions.append("生成修复命令: `\(Self.copyableCommand("nolon skills list --show-fixes"))`")
+            let quickActions = ResourceListGuidancePolicy.skillsQuickActionItems(
+                hasBroken: !brokenIssueProviders.isEmpty,
+                hasOrphaned: !orphanedIssueProviders.isEmpty
+            )
             lines.append(contentsOf: quickActions.enumerated().map { index, action in
                 "\(index + 1)) \(action)"
             })

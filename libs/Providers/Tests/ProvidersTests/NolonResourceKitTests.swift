@@ -664,6 +664,25 @@ struct NolonResourceKitTests {
         )
     }
 
+    @Test("ResourceListGuidancePolicy renders skills quick action items")
+    func resourceListGuidancePolicyRendersSkillsQuickActionItems() {
+        #expect(
+            ResourceListGuidancePolicy.skillsQuickActionItems(hasBroken: true, hasOrphaned: true)
+                == [
+                    "查看损坏详情: `nolon skills list --state broken --verbose`",
+                    "查看失效链接详情: `nolon skills list --state orphaned --verbose`",
+                    "生成修复命令: `nolon skills list --show-fixes`",
+                ]
+        )
+        #expect(
+            ResourceListGuidancePolicy.skillsQuickActionItems(hasBroken: false, hasOrphaned: true)
+                == [
+                    "查看失效链接详情: `nolon skills list --state orphaned --verbose`",
+                    "生成修复命令: `nolon skills list --show-fixes`",
+                ]
+        )
+    }
+
     @Test("SearchPresentationPolicy prioritizes exact slug")
     func searchPresentationPolicyPrioritizesExactSlug() {
         struct Item { let slug: String }

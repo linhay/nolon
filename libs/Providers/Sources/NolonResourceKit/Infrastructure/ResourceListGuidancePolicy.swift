@@ -36,4 +36,20 @@ public enum ResourceListGuidancePolicy {
     public static func verboseHintLine(command: String) -> String {
         "提示: 使用 `\(command)` 查看安装路径与来源。"
     }
+
+    public static func skillsQuickActionItems(
+        hasBroken: Bool,
+        hasOrphaned: Bool,
+        listCommandPrefix: String = "nolon skills list"
+    ) -> [String] {
+        var actions: [String] = []
+        if hasBroken {
+            actions.append("查看损坏详情: `\(listCommandPrefix) --state broken --verbose`")
+        }
+        if hasOrphaned {
+            actions.append("查看失效链接详情: `\(listCommandPrefix) --state orphaned --verbose`")
+        }
+        actions.append("生成修复命令: `\(listCommandPrefix) --show-fixes`")
+        return actions
+    }
 }
