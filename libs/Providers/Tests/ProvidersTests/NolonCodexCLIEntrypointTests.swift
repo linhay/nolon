@@ -300,6 +300,21 @@ struct NolonCodexCLIEntrypointTests {
         #expect(result.stderr.isEmpty)
         #expect(result.stdout.contains("Usage: nolon provider"))
         #expect(result.stdout.contains("Actions:"))
+        #expect(result.stdout.contains("list"))
+        #expect(result.stdout.contains("discover"))
+    }
+
+    @Test("provider discover --help prints action help")
+    func providerDiscoverHelpPrintsHelp() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["provider", "discover", "--help"],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("Usage: nolon provider discover"))
     }
 
     @Test("skills --help prints skills help")
@@ -398,6 +413,21 @@ struct NolonCodexCLIEntrypointTests {
         let mock = MockCodexCLIService()
         let result = await NolonCLIEntrypoint.execute(
             arguments: ["provider", "list"],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("provider"))
+        #expect(result.stdout.contains("installed"))
+        #expect(await mock.lastCall() == "providerList")
+    }
+
+    @Test("provider discover routes successfully")
+    func providerDiscoverRoutesSuccessfully() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["provider", "discover"],
             codexService: mock
         )
 

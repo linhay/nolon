@@ -89,6 +89,8 @@ enum NolonCodexCLIExecutor {
             return try await executeProviderDiscover(context: context, outputMode: outputMode)
         case _ as NolonProviderListCommand:
             return try await executeProviderList(context: context, outputMode: outputMode)
+        case _ as NolonProviderDiscoverCommand:
+            return try await executeProviderList(context: context, outputMode: outputMode)
         default:
             throw NolonCoreCLIError.invalidArguments("Unsupported parsed command type: \(type(of: parsed))")
         }
@@ -514,13 +516,13 @@ enum NolonCodexCLIExecutor {
         guard arguments.count >= 2 else { return }
         let root = arguments[0].trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         if root == "provider" {
-            let actions: Set<String> = ["list"]
+            let actions: Set<String> = ["list", "discover"]
             guard arguments.count >= 2 else { return }
             let action = arguments[1].trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
             if !actions.contains(action) {
                 throw NolonCoreCLIError.domainFailed(
                     code: "unsupported_command",
-                    message: "Unsupported command: provider.\(action). Available actions for provider: list."
+                    message: "Unsupported command: provider.\(action). Available actions for provider: discover, list."
                 )
             }
             return

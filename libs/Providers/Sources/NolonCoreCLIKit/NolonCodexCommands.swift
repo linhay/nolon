@@ -238,10 +238,14 @@ struct NolonCodexProviderDiscoverCommand: ParsableCommand {
 struct NolonProviderRootCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "provider",
-        subcommands: [NolonProviderListCommand.self]
+        subcommands: [NolonProviderListCommand.self, NolonProviderDiscoverCommand.self]
     )
 }
 
 struct NolonProviderListCommand: ParsableCommand {
     static let configuration = CommandConfiguration(commandName: "list")
+}
+
+struct NolonProviderDiscoverCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(commandName: "discover")
 }

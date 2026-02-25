@@ -1600,7 +1600,15 @@ public enum NolonCLIEntrypoint {
             }
         case "provider":
             guard arguments.count >= 2 else { return NolonProviderRootCommand.self }
-            return NolonProviderListCommand.self
+            let action = arguments[1].lowercased()
+            switch action {
+            case "list":
+                return NolonProviderListCommand.self
+            case "discover":
+                return NolonProviderDiscoverCommand.self
+            default:
+                return NolonProviderRootCommand.self
+            }
         case "skills":
             guard arguments.count >= 2 else { return NolonSkillsRootCommand.self }
             let action = arguments[1].lowercased()

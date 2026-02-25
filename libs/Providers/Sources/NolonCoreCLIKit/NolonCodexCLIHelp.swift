@@ -64,6 +64,8 @@ enum NolonCodexCLIHelpResolver {
             return codexProviderDiscoverHelpText()
         case .providerList:
             return providerListHelpText()
+        case .providerDiscover:
+            return providerDiscoverHelpText()
         default:
             return nil
         }
@@ -118,6 +120,7 @@ enum NolonCodexCLIHelpResolver {
 
         Actions:
           list
+          discover
         """
     }
 
@@ -362,6 +365,12 @@ enum NolonCodexCLIHelpResolver {
         Usage: nolon provider list
         """
     }
+
+    private static func providerDiscoverHelpText() -> String {
+        """
+        Usage: nolon provider discover
+        """
+    }
 }
 
 private struct NolonCLIHelpPath: RawRepresentable, ExpressibleByStringLiteral, Equatable, Sendable {
@@ -393,6 +402,7 @@ private struct NolonCLIHelpPath: RawRepresentable, ExpressibleByStringLiteral, E
     static let codexRuntimeStop: Self = "help.codex.runtime.stop"
     static let codexProviderDiscover: Self = "help.codex.provider.discover"
     static let providerList: Self = "help.provider.list"
+    static let providerDiscover: Self = "help.provider.discover"
 
     let rawValue: String
 
@@ -499,6 +509,8 @@ private struct NolonCLIHelpPath: RawRepresentable, ExpressibleByStringLiteral, E
             self = .codexProviderDiscover
         case ["provider", "list", "help"], ["provider", "list", "-h"], ["provider", "list", "--help"]:
             self = .providerList
+        case ["provider", "discover", "help"], ["provider", "discover", "-h"], ["provider", "discover", "--help"]:
+            self = .providerDiscover
         default:
             return nil
         }
