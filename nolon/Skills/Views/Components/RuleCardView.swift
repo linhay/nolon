@@ -1,4 +1,5 @@
 import SwiftUI
+import NolonResourceKit
 
 struct RuleInfo: Identifiable, Hashable {
     let id: String
@@ -9,20 +10,19 @@ struct RuleInfo: Identifiable, Hashable {
 
     static func parse(from url: URL, baseDirectory: URL) -> RuleInfo? {
         guard url.pathExtension.lowercased() == "rules" else { return nil }
-        guard let content = try? String(contentsOf: url, encoding: .utf8) else { return nil }
-
+        let service = ProviderResourceService()
+        let provider = Provider(
+            kind: .vendor,
+            name: "Codex",
+            defaultSkillsPath: baseDirectory.deletingLastPathComponent().appendingPathComponent("skills").path,
+            workflowPath: baseDirectory.deletingLastPathComponent().appendingPathComponent("prompts").path
+        )
+        let parsed = service.scanRules(provider: provider).first { $0.path == url.path }
         let fileName = url.deletingPathExtension().lastPathComponent
-        let rulePath = url.standardizedFileURL.path
-        let basePath = baseDirectory.standardizedFileURL.path
-        let relativePath: String
-        if rulePath.hasPrefix(basePath + "/") {
-            relativePath = String(rulePath.dropFirst(basePath.count + 1))
-        } else {
-            relativePath = fileName + ".rules"
-        }
-        let id = relativePath.replacingOccurrences(of: ".rules", with: "")
-        let parsedName = fileName
-        let parsedPreview = parsePreview(from: content)
+        let relativePath = parsed?.relativePath ?? "\(fileName).rules"
+        let id = parsed?.id ?? relativePath.replacingOccurrences(of: ".rules", with: "")
+        let parsedName = parsed?.name ?? fileName
+        let parsedPreview = parsed?.preview ?? ""
 
         return RuleInfo(
             id: id,
@@ -31,18 +31,6 @@ struct RuleInfo: Identifiable, Hashable {
             relativePath: relativePath,
             path: url.path
         )
-    }
-
-    private static func parsePreview(from content: String) -> String {
-        let lines = content
-            .split(separator: "\n", omittingEmptySubsequences: false)
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-
-        for line in lines {
-            if line.isEmpty { continue }
-            return line
-        }
-        return ""
     }
 }
 

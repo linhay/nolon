@@ -8,6 +8,7 @@ import CodexBarProviderCatalog
 import CodexProvider
 import UniformTypeIdentifiers
 import OSLog
+import NolonResourceKit
 @preconcurrency import STFilePath
 
 @MainActor
@@ -147,18 +148,13 @@ final class ProviderUsageViewModel {
         guard let usageProvider else { return }
         let now = Date()
         let intervalMinutes = settings.autoRefreshIntervalMinutes
-        let intervalSeconds = TimeInterval(max(0, intervalMinutes)) * 60
-        let shouldRefresh: Bool
-        if !hasTriggeredAppearRefresh {
-            hasTriggeredAppearRefresh = true
-            shouldRefresh = true
-        } else if intervalSeconds == 0 {
-            shouldRefresh = true
-        } else if let lastUsageRefreshAt {
-            shouldRefresh = now.timeIntervalSince(lastUsageRefreshAt) >= intervalSeconds
-        } else {
-            shouldRefresh = true
-        }
+        let shouldRefresh = UsageRefreshPolicy.shouldRefresh(
+            hasTriggeredAppearRefresh: hasTriggeredAppearRefresh,
+            intervalMinutes: intervalMinutes,
+            lastRefreshAt: lastUsageRefreshAt,
+            now: now
+        )
+        hasTriggeredAppearRefresh = true
 
         guard shouldRefresh else { return }
 

@@ -52,10 +52,16 @@ final class CodexAdvancedConfigViewModel {
 
     private var provider: Provider
     private let manager: CodexBinaryManager
+    private let linkService: CodexLinkService
 
-    init(provider: Provider, manager: CodexBinaryManager = .shared) {
+    init(
+        provider: Provider,
+        manager: CodexBinaryManager = .shared,
+        linkService: CodexLinkService = CodexLinkService()
+    ) {
         self.provider = provider
         self.manager = manager
+        self.linkService = linkService
     }
 
     func updateProvider(_ provider: Provider) {
@@ -238,15 +244,13 @@ final class CodexAdvancedConfigViewModel {
 
         var result: [CodexLinkFolder: CodexLinkState] = [:]
         for folder in CodexLinkFolder.allCases {
-            let pair = linkURLPair(for: folder)
-            let isLinked = isTargetLinked(to: pair.sourceURL, targetURL: pair.targetURL)
-            let hasVisibleEntries = !isLinked && hasVisibleContents(at: pair.targetURL)
+            let status = linkService.status(folder: map(folder), provider: provider)
             result[folder] = CodexLinkState(
                 folder: folder,
-                sourceURL: pair.sourceURL,
-                targetURL: pair.targetURL,
-                isLinked: isLinked,
-                hasVisibleEntries: hasVisibleEntries
+                sourceURL: status.sourceURL,
+                targetURL: status.targetURL,
+                isLinked: status.isLinked,
+                hasVisibleEntries: status.hasVisibleEntries
             )
         }
         linkStates = result
@@ -256,7 +260,7 @@ final class CodexAdvancedConfigViewModel {
         if let cached = linkStates[folder] {
             return cached
         }
-        let pair = linkURLPair(for: folder)
+        let pair = linkService.linkPair(folder: map(folder), provider: provider)
         return CodexLinkState(
             folder: folder,
             sourceURL: pair.sourceURL,
@@ -271,20 +275,8 @@ final class CodexAdvancedConfigViewModel {
         applyingLinkFolders.insert(folder)
         defer { applyingLinkFolders.remove(folder) }
 
-        let pair = linkURLPair(for: folder)
         do {
-            if enabled {
-                _ = STFolder(pair.sourceURL).createIfNotExists()
-                try STPath(pair.targetURL).deleteIncludingBrokenSymlink()
-                try STPath(pair.targetURL).createSymbolicLink(to: STPath(pair.sourceURL))
-            } else {
-                if isSymbolicLink(pair.targetURL) {
-                    try STPath(pair.targetURL).deleteIncludingBrokenSymlink()
-                } else if STPath(pair.targetURL).isExists && !STFolder(pair.targetURL).isExists {
-                    try STPath(pair.targetURL).deleteIncludingBrokenSymlink()
-                }
-                _ = STFolder(pair.targetURL).createIfNotExists()
-            }
+            try linkService.apply(enabled: enabled, folder: map(folder), provider: provider)
             refreshLinkStates()
         } catch {
             errorMessage = error.localizedDescription
@@ -400,36 +392,12 @@ final class CodexAdvancedConfigViewModel {
         }
     }
 
-    private func linkURLPair(for folder: CodexLinkFolder) -> (sourceURL: URL, targetURL: URL) {
-        let sourceRoot = STFolder("\(NSHomeDirectory())/.codex")
-        let targetRoot = STFolder(STFolder(provider.defaultSkillsPath).url.deletingLastPathComponent())
-        return (
-            sourceRoot.url.appendingPathComponent(folder.rawValue, isDirectory: true),
-            targetRoot.url.appendingPathComponent(folder.rawValue, isDirectory: true)
-        )
-    }
-
-    private func isTargetLinked(to sourceURL: URL, targetURL: URL) -> Bool {
-        let targetPath = STPath(targetURL)
-        guard targetPath.isSymbolicLink else { return false }
-        do {
-            let resolved = try targetPath.destinationOfSymbolicLink().url.standardizedFileURL
-            return resolved.path == sourceURL.standardizedFileURL.path
-        } catch {
-            return false
+    private func map(_ folder: CodexLinkFolder) -> CodexLinkFolderKind {
+        switch folder {
+        case .prompts: return .prompts
+        case .rules: return .rules
+        case .skills: return .skills
         }
-    }
-
-    private func isSymbolicLink(_ url: URL) -> Bool {
-        STPath(url).isSymbolicLink
-    }
-
-    private func hasVisibleContents(at targetURL: URL) -> Bool {
-        let targetPath = STPath(targetURL)
-        guard targetPath.isExists else { return false }
-        guard STFolder(targetURL).isExists else { return true }
-        let contents = (try? STFolder(targetURL).subFilePaths()) ?? []
-        return contents.contains { !$0.url.lastPathComponent.hasPrefix(".") }
     }
 }
 

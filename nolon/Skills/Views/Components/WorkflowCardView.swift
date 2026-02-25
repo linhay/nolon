@@ -49,34 +49,14 @@ struct WorkflowInfo: Identifiable, Hashable {
     let source: WorkflowSource
     
     static func parse(from url: URL) -> WorkflowInfo? {
-        guard let content = try? String(contentsOf: url, encoding: .utf8) else {
-            return nil
-        }
-        
-        let path = url.path
-        let resolvedPath = url.resolvingSymlinksInPath().path
-        let fileName = url.deletingPathExtension().lastPathComponent
-        var description = ""
-        
-        let sourceKind = WorkflowSourceResolver.resolve(
-            workflowPath: path,
-            resolvedPath: resolvedPath
-        )
-        let source = WorkflowSource(kind: sourceKind)
-        
-        // Parse YAML frontmatter for required workflow metadata (name/description).
-        let metadata = FrontmatterParser.parseMetadata(from: content)
-        guard let parsedDescription = metadata["description"], !parsedDescription.isEmpty else {
-            return nil
-        }
-        let displayName = (metadata["name"]?.isEmpty == false) ? (metadata["name"] ?? fileName) : fileName
-        description = parsedDescription
-        
+        let service = ProviderResourceService()
+        guard let item = service.parseWorkflow(atPath: url.path) else { return nil }
+        let source = WorkflowSource(kind: item.source ?? .unknown)
         return WorkflowInfo(
-            id: fileName,
-            name: displayName,
-            description: description,
-            path: path,
+            id: item.id,
+            name: item.name,
+            description: item.preview,
+            path: item.path,
             source: source
         )
     }

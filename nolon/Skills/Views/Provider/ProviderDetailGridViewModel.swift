@@ -205,6 +205,7 @@ final class ProviderDetailGridViewModel {
     // Internals
     var repository: SkillRepository
     var installer: SkillInstaller
+    private let resourceService: ProviderResourceService
     private let remoteInstallOrchestrator = RemoteInstallOrchestrator()
     
     init(provider: Provider?, settings: ProviderSettings) {
@@ -213,6 +214,7 @@ final class ProviderDetailGridViewModel {
         let repo = SkillRepository()
         self.repository = repo
         self.installer = SkillInstaller(repository: repo, settings: settings)
+        self.resourceService = ProviderResourceService()
     }
     
     func updateProvider(_ provider: Provider?) async {
@@ -1198,41 +1200,21 @@ final class ProviderDetailGridViewModel {
     
     func deleteWorkflow(_ workflow: WorkflowInfo) async {
         guard let provider = provider else { return }
-        
-        // Find skill ID from workflow ID or path
-        // Currently WorkflowInfo.id is the filename without extension, which usually matches skill.id
-        // However, we need a Skill object to call uninstallWorkflow.
-        // But uninstallWorkflow mainly needs the ID.
-        // We can create a dummy Skill or overload uninstallWorkflow.
-        // Let's modify SkillInstaller to accept ID or make a temporary fix here.
-        // Better: Fetch the skill from repository if possible, or construct one.
-        // Since we only need ID for the path in `uninstallWorkflow`, let's construct a minimal Skill or extend Installer.
-        // Extended Installer is better but requires changing infrastructure again.
-        // For now, let's look at `uninstallWorkflow`:
-        // public func uninstallWorkflow(skill: Skill, from provider: Provider)
-        // It uses skill.id.
-        
-        // Let's check `WorkflowInfo` in `loadWorkflows`. It uses filename as ID.
-        // Assuming workflow ID == skill ID.
-        
-        // To construct a Skill, we need a lot of params.
-        // Let's just manually delete the symlink here using the logic from `SkillInstaller`, 
-        // OR better: Update SkillInstaller to create an overload that takes ID.
-        // But avoiding context switch, I will try to find the skill from `installedSkills` or `allSkills`.
-        
-        if let skill = try? repository.listSkills().first(where: { $0.id == workflow.id }) {
-            try? installer.uninstallWorkflow(skill: skill, from: provider)
-        } else {
-             // Fallback: Manually remove file if skill not found (orphan workflow)
-            try? STPath(workflow.path).deleteIncludingBrokenSymlink()
+        do {
+            try resourceService.deleteWorkflow(workflowID: workflow.id, provider: provider)
+        } catch {
+            errorMessage = error.localizedDescription
         }
-        
         loadWorkflows(for: provider)
     }
     
     func deleteRule(_ rule: RuleInfo) async {
         guard let provider else { return }
-        try? STPath(rule.path).deleteIncludingBrokenSymlink()
+        do {
+            try resourceService.deleteResource(atPath: rule.path)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
         loadRules(for: provider)
     }
 
@@ -1242,33 +1224,23 @@ final class ProviderDetailGridViewModel {
 
     func deleteAgentDoc(_ doc: AgentDocInfo) async {
         guard let provider else { return }
-        try? STPath(doc.path).deleteIncludingBrokenSymlink()
+        do {
+            try resourceService.deleteResource(atPath: doc.path)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
         loadAgentsFiles(for: provider)
     }
 
     func createAgentDocDraft() -> URL? {
         guard let provider else { return nil }
         guard provider.templateId == "codex" || provider.templateId == "codexXcode" else { return nil }
-
-        let basePath = STPath(provider.codexAgentsFileURL)
-        let overridePath = STPath(provider.codexAgentsOverrideFileURL)
-
-        let targetPath: STPath
-        if !basePath.isExists {
-            targetPath = basePath
-        } else if !overridePath.isExists {
-            targetPath = overridePath
-        } else {
-            targetPath = overridePath
-        }
-
         do {
-            _ = STFolder(targetPath.url.deletingLastPathComponent()).createIfNotExists()
-            if !targetPath.isExists {
-                try "".write(to: targetPath.url, atomically: true, encoding: .utf8)
-            }
+            let basePath = STPath(provider.codexAgentsFileURL)
+            let draftKind: ProviderResourceDraftKind = basePath.isExists ? .agentOverride : .agentBase
+            let targetURL = try resourceService.createDraft(provider: provider, kind: draftKind)
             loadAgentsFiles(for: provider)
-            return targetPath.url
+            return targetURL
         } catch {
             errorMessage = error.localizedDescription
             return nil
@@ -1279,19 +1251,10 @@ final class ProviderDetailGridViewModel {
         guard let provider else { return nil }
         guard provider.templateId == "codex" || provider.templateId == "codexXcode" else { return nil }
 
-        let rulesFolder = STFolder(provider.codexRulesURL)
         do {
-            _ = rulesFolder.createIfNotExists()
-            var index = 1
-            var candidateFile = rulesFolder.file("new-rule-\(index).rules")
-            while candidateFile.isExists {
-                index += 1
-                candidateFile = rulesFolder.file("new-rule-\(index).rules")
-            }
-
-            try "".write(to: candidateFile.url, atomically: true, encoding: .utf8)
+            let draftURL = try resourceService.createDraft(provider: provider, kind: .rule)
             loadRules(for: provider)
-            return candidateFile.url
+            return draftURL
         } catch {
             errorMessage = error.localizedDescription
             return nil

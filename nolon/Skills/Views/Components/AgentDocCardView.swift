@@ -1,4 +1,5 @@
 import SwiftUI
+import NolonResourceKit
 
 enum AgentDocKind: String, Sendable {
     case override
@@ -13,24 +14,25 @@ struct AgentDocInfo: Identifiable, Hashable, Sendable {
     let kind: AgentDocKind
 
     static func parse(url: URL, kind: AgentDocKind) -> AgentDocInfo? {
-        guard let content = try? String(contentsOf: url, encoding: .utf8) else { return nil }
+        let service = ProviderResourceService()
+        let codexHome = url.deletingLastPathComponent()
+        let provider = Provider(
+            kind: .vendor,
+            name: "Codex",
+            defaultSkillsPath: codexHome.appendingPathComponent("skills").path,
+            workflowPath: codexHome.appendingPathComponent("prompts").path
+        )
+        let expectedKind: ProviderAgentKind = kind == .override ? .override : .base
+        guard let parsed = service.scanAgentDocs(provider: provider).first(where: { $0.path == url.path && $0.agentKind == expectedKind }) else {
+            return nil
+        }
         return AgentDocInfo(
             id: url.path,
-            fileName: url.lastPathComponent,
-            path: url.path,
-            preview: firstNonEmptyLine(from: content),
+            fileName: parsed.name,
+            path: parsed.path,
+            preview: parsed.preview,
             kind: kind
         )
-    }
-
-    private static func firstNonEmptyLine(from content: String) -> String {
-        for line in content.split(separator: "\n", omittingEmptySubsequences: false) {
-            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !trimmed.isEmpty {
-                return trimmed
-            }
-        }
-        return ""
     }
 }
 
