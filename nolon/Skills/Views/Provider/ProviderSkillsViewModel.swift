@@ -14,8 +14,6 @@ final class ProviderSkillsViewModel {
     var availableUpdates: [SkillUpdateInfo] = []
     var isCheckingUpdates = false
     
-    private var repository: SkillRepository
-    private var installer: SkillInstaller
     private var updateOrchestrator: SkillUpdateOrchestrator
     private var maintenanceService = ProviderSkillMaintenanceService()
     var settings: ProviderSettings
@@ -23,9 +21,7 @@ final class ProviderSkillsViewModel {
     init() {
         let repo = SkillRepository()
         let sett = ProviderSettings()
-        self.repository = repo
         self.settings = sett
-        self.installer = SkillInstaller(repository: repo, settings: sett)
         self.updateOrchestrator = SkillUpdateOrchestrator(repository: repo, settings: sett)
     }
     
