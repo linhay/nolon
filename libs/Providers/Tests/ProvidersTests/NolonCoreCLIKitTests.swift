@@ -3551,6 +3551,7 @@ struct NolonCoreCLIKitTests {
         )
         #expect(result.exitCode == 0)
         #expect(result.stdout.contains("- codex/playwright\n  path:"))
+        #expect(result.stdout.contains("origin: from_mcp:"))
         #expect(result.stdout.contains("[配置路径]") == false)
         #expect(result.stdout.contains("config_path:") == false)
     }

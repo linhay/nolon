@@ -1325,13 +1325,18 @@ public struct NolonCoreCLIRunner: Sendable {
             do {
                 let result = try service.listMcpServers(provider: target.providerID)
                 items.append(contentsOf: result.items.map { server in
-                    NolonSkillsListItem(
+                    let persistedOrigin = readResourceOrigin(kind: .mcp, identifier: server.name)
+                    let inferredOrigin = persistedOrigin ?? inferMcpOrigin(
+                        serverName: server.name,
+                        configPath: result.configPath
+                    )
+                    return NolonSkillsListItem(
                         providerID: target.providerID,
                         providerPath: result.configPath,
                         skillID: server.name,
                         state: .installed,
                         path: result.configPath,
-                        origin: readResourceOrigin(kind: .mcp, identifier: server.name)
+                        origin: inferredOrigin
                     )
                 })
             } catch {
@@ -2361,6 +2366,21 @@ public struct NolonCoreCLIRunner: Sendable {
         case .unknown:
             return nil
         }
+    }
+
+    private func inferMcpOrigin(serverName: String, configPath: String) -> NolonResourceOrigin {
+        let now = Date()
+        let sourceRef = "\(configPath)#\(serverName)"
+        return NolonResourceOrigin(
+            resourceKind: .mcp,
+            sourceType: .fromMcp,
+            sourceKind: .mcp,
+            sourceRef: sourceRef,
+            sourceDisplay: sourceRef,
+            createdAt: now,
+            updatedAt: now,
+            metadata: ["inferred": "true"]
+        )
     }
 
     private static func encodePrettyJSON<T: Encodable>(_ value: T) throws -> Data {
