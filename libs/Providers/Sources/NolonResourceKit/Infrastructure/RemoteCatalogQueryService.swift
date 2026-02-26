@@ -112,47 +112,14 @@ private extension RemoteCatalogQueryService {
     }
 
     func toCatalogItem(_ skill: RemoteSkill) -> SkillsRepositoryFacade.RemoteCatalogItem {
-        mapper.toCatalogItem(
-            RemoteSkill(
-                slug: skill.slug,
-                displayName: skill.displayName,
-                summary: skill.summary,
-                latestVersion: skill.latestVersion?.version,
-                updatedAt: Date(timeIntervalSince1970: skill.updatedAt),
-                downloads: skill.stats?.downloads,
-                stars: skill.stats?.stars
-            ),
-            installs: skill.stats?.installsAllTime
-        )
+        mapper.toCatalogItem(skill, installs: skill.stats?.installsAllTime)
     }
 
     func toCatalogItem(_ workflow: RemoteWorkflow) -> SkillsRepositoryFacade.RemoteCatalogItem {
-        mapper.toCatalogItem(
-            RemoteWorkflow(
-                slug: workflow.slug,
-                displayName: workflow.displayName,
-                summary: workflow.summary,
-                latestVersion: workflow.latestVersion?.version,
-                updatedAt: Date(timeIntervalSince1970: workflow.updatedAt),
-                downloads: workflow.stats?.downloads,
-                stars: workflow.stats?.stars
-            ),
-            installs: workflow.stats?.usages
-        )
+        mapper.toCatalogItem(workflow, installs: workflow.stats?.usages)
     }
 
     func toCatalogItem(_ mcp: RemoteMCP) -> SkillsRepositoryFacade.RemoteCatalogItem {
-        mapper.toCatalogItem(
-            RemoteMCP(
-                slug: mcp.slug,
-                displayName: mcp.displayName,
-                summary: mcp.summary,
-                latestVersion: mcp.latestVersion?.version,
-                updatedAt: Date(timeIntervalSince1970: mcp.updatedAt),
-                downloads: mcp.stats?.downloads,
-                stars: mcp.stats?.stars,
-                installs: mcp.stats?.installs
-            )
-        )
+        mapper.toCatalogItem(mcp)
     }
 }

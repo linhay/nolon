@@ -257,6 +257,7 @@ public enum SkillsRepositoryFacade {
         public let downloads: Int?
         public let stars: Int?
         public let installs: Int?
+        public let localPath: String?
 
         public init(
             kind: RemoteCatalogKind,
@@ -267,7 +268,8 @@ public enum SkillsRepositoryFacade {
             updatedAt: Date?,
             downloads: Int?,
             stars: Int?,
-            installs: Int?
+            installs: Int?,
+            localPath: String? = nil
         ) {
             self.kind = kind
             self.slug = slug
@@ -278,6 +280,7 @@ public enum SkillsRepositoryFacade {
             self.downloads = downloads
             self.stars = stars
             self.installs = installs
+            self.localPath = localPath
         }
     }
 

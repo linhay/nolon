@@ -917,10 +917,13 @@ struct NolonResourceKitTests {
 
         #expect(skills.items.count == 1)
         #expect(skills.items.first?.slug == "find-skills")
+        #expect(skills.items.first?.localPath?.hasSuffix("/find-skills") == true)
         #expect(workflows.items.count == 1)
         #expect(workflows.items.first?.slug == "update-agent-skills-workflows")
+        #expect(workflows.items.first?.localPath?.hasSuffix("/update-agent-skills-workflows.md") == true)
         #expect(mcps.items.count == 1)
         #expect(mcps.items.first?.slug == "playwright")
+        #expect(mcps.items.first?.localPath?.hasSuffix("/playwright.json") == true)
     }
 
     @Test("RemoteRepositoryCountService aggregates counts from shared query service")
@@ -1185,16 +1188,19 @@ struct NolonResourceKitTests {
             updatedAt: Date(timeIntervalSince1970: 1_700_000_000),
             downloads: 10,
             stars: 5,
-            installs: 3
+            installs: 3,
+            localPath: "/tmp/playwright.json"
         )
 
         let mcp = mapper.toRemoteMCP(catalog)
         #expect(mcp.slug == "playwright-mcp")
         #expect(mcp.stats?.installs == 3)
+        #expect(mcp.localPath == "/tmp/playwright.json")
 
         let roundTrip = mapper.toCatalogItem(mcp)
         #expect(roundTrip.slug == "playwright-mcp")
         #expect(roundTrip.latestVersion == "1.0.0")
+        #expect(roundTrip.localPath == "/tmp/playwright.json")
     }
 
     @Test("ResourceListTextPresenter renders skills show-fixes skeleton")

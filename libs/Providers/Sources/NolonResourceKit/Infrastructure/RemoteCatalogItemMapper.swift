@@ -12,7 +12,8 @@ public struct RemoteCatalogItemMapper: Sendable {
             latestVersion: item.latestVersion,
             updatedAt: item.updatedAt,
             downloads: item.downloads,
-            stars: item.stars
+            stars: item.stars,
+            localPath: item.localPath
         )
     }
 
@@ -24,7 +25,8 @@ public struct RemoteCatalogItemMapper: Sendable {
             latestVersion: item.latestVersion,
             updatedAt: item.updatedAt,
             downloads: item.downloads,
-            stars: item.stars
+            stars: item.stars,
+            localPath: item.localPath
         )
     }
 
@@ -37,7 +39,8 @@ public struct RemoteCatalogItemMapper: Sendable {
             updatedAt: item.updatedAt,
             downloads: item.downloads,
             stars: item.stars,
-            installs: item.installs
+            installs: item.installs,
+            localPath: item.localPath
         )
     }
 
@@ -51,7 +54,8 @@ public struct RemoteCatalogItemMapper: Sendable {
             updatedAt: Date(timeIntervalSince1970: skill.updatedAt),
             downloads: skill.stats?.downloads,
             stars: skill.stats?.stars,
-            installs: installs ?? skill.stats?.installsAllTime
+            installs: installs ?? skill.stats?.installsAllTime,
+            localPath: skill.localPath
         )
     }
 
@@ -65,7 +69,8 @@ public struct RemoteCatalogItemMapper: Sendable {
             updatedAt: Date(timeIntervalSince1970: workflow.updatedAt),
             downloads: workflow.stats?.downloads,
             stars: workflow.stats?.stars,
-            installs: installs ?? workflow.stats?.usages
+            installs: installs ?? workflow.stats?.usages,
+            localPath: workflow.localPath
         )
     }
 
@@ -79,7 +84,8 @@ public struct RemoteCatalogItemMapper: Sendable {
             updatedAt: Date(timeIntervalSince1970: mcp.updatedAt),
             downloads: mcp.stats?.downloads,
             stars: mcp.stats?.stars,
-            installs: mcp.stats?.installs
+            installs: mcp.stats?.installs,
+            localPath: mcp.localPath
         )
     }
 }

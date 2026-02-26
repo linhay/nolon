@@ -1863,26 +1863,124 @@ public struct NolonCoreCLIRunner: Sendable {
             repositoriesRoot: STFolder(repositoriesRoot),
             maxDepth: 6
         )
-        var candidates: [String] = []
-        var seen: Set<String> = []
+        var directCandidates: [String] = []
+        var directSeen: Set<String> = []
+        var aliasCandidates: [String] = []
+        var aliasSeen: Set<String> = []
+        let normalizedSlug = Self.normalizedSkillLookupKey(slug)
 
         for repository in repositories {
             let resources = service.discoverRepositoryResources(at: STFolder(repository.path), maxDepth: 6)
-            for directory in resources.skillsDirectories where directory.skillNames.contains(slug) {
-                let path = URL(fileURLWithPath: repository.path, isDirectory: true)
+            var repositorySkillPaths: [String] = []
+            var repositoryMatchedPaths: [String] = []
+            for directory in resources.skillsDirectories {
+                let directoryPath = URL(fileURLWithPath: repository.path, isDirectory: true)
                     .appendingPathComponent(directory.path, isDirectory: true)
-                    .appendingPathComponent(slug, isDirectory: true)
                     .standardizedFileURL
                     .path
-                let candidate = STPath(path)
-                guard candidate.isExists else { continue }
-                if !seen.contains(path) {
-                    seen.insert(path)
-                    candidates.append(path)
+                let folderPath = STPath(directoryPath)
+                guard folderPath.isFolderExists else { continue }
+                let folder = STFolder(directoryPath)
+
+                if let rootMatchPath = localSkillMatchPath(
+                    in: folder,
+                    fallbackDirectoryName: folder.url.lastPathComponent,
+                    normalizedSlug: normalizedSlug
+                ) {
+                    let path = rootMatchPath.url.path
+                    repositorySkillPaths.append(path)
+                    repositoryMatchedPaths.append(path)
+                } else if folder.file("SKILL.md").isExists {
+                    repositorySkillPaths.append(folder.url.path)
+                }
+
+                guard let children = try? folder.folders() else { continue }
+                for child in children {
+                    if let matched = localSkillMatchPath(
+                        in: child,
+                        fallbackDirectoryName: child.url.lastPathComponent,
+                        normalizedSlug: normalizedSlug
+                    ) {
+                        let path = matched.url.path
+                        repositorySkillPaths.append(path)
+                        repositoryMatchedPaths.append(path)
+                    } else if child.file("SKILL.md").isExists {
+                        repositorySkillPaths.append(child.url.path)
+                    }
+                }
+            }
+
+            for path in repositoryMatchedPaths {
+                if !directSeen.contains(path) {
+                    directSeen.insert(path)
+                    directCandidates.append(path)
+                }
+            }
+
+            if repositoryMatchedPaths.isEmpty,
+               repositorySkillPaths.count == 1,
+               let alias = Self.repositoryAlias(for: repository),
+               Self.normalizedSkillLookupKey(alias) == normalizedSlug {
+                let path = repositorySkillPaths[0]
+                if !aliasSeen.contains(path) {
+                    aliasSeen.insert(path)
+                    aliasCandidates.append(path)
                 }
             }
         }
-        return candidates.sorted()
+        if !directCandidates.isEmpty {
+            return directCandidates.sorted()
+        }
+        return aliasCandidates.sorted()
+    }
+
+    private func localSkillMatchPath(
+        in folder: STFolder,
+        fallbackDirectoryName: String,
+        normalizedSlug: String
+    ) -> STPath? {
+        let skillFile = folder.file("SKILL.md")
+        guard skillFile.isExists else { return nil }
+
+        if Self.normalizedSkillLookupKey(fallbackDirectoryName) == normalizedSlug {
+            return STPath(folder.url.path)
+        }
+
+        guard let content = try? skillFile.read() else { return nil }
+        guard let metadata = service.parseSkillMetadata(content: content, directoryName: fallbackDirectoryName) else {
+            return nil
+        }
+        if Self.normalizedSkillLookupKey(metadata.name) == normalizedSlug {
+            return STPath(folder.url.path)
+        }
+        return nil
+    }
+
+    private static func normalizedSkillLookupKey(_ raw: String) -> String {
+        let lowered = raw
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        let scalarView = lowered.unicodeScalars.filter { CharacterSet.alphanumerics.contains($0) }
+        return String(String.UnicodeScalarView(scalarView))
+    }
+
+    private static func repositoryAlias(for repository: NolonLocalRepositorySummary) -> String? {
+        let rawName = repository.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let atIndex = rawName.lastIndex(of: "@"), atIndex < rawName.endIndex {
+            let afterAt = rawName[rawName.index(after: atIndex)...]
+            if !afterAt.isEmpty {
+                return String(afterAt)
+            }
+        }
+
+        let lastPath = URL(fileURLWithPath: repository.path).lastPathComponent
+        if let atIndex = lastPath.lastIndex(of: "@"), atIndex < lastPath.endIndex {
+            let afterAt = lastPath[lastPath.index(after: atIndex)...]
+            if !afterAt.isEmpty {
+                return String(afterAt)
+            }
+        }
+        return lastPath.isEmpty ? nil : lastPath
     }
 
     private func resolveRemoteSkillExact(slug: String, baseURL: String) async throws -> NolonRemoteCatalogItem? {

@@ -2020,6 +2020,130 @@ struct NolonCoreCLIKitTests {
         #expect(result.stdout.contains("\"success_count\":1"))
     }
 
+    @Test("runner skills add matches local skill by normalized display name")
+    func runnerSkillsAddMatchesLocalSkillByNormalizedDisplayName() async throws {
+        let tempRoot = try STFolder(sanbox: .temporary).folder("nolon-cli-add-display-name-\(UUID().uuidString)").create()
+        defer { try? tempRoot.delete() }
+
+        let repoPath = tempRoot.folder("repos/repo-a")
+        _ = repoPath.createIfNotExists()
+        _ = repoPath.folder(".git").createIfNotExists()
+        let localSkillPath = repoPath.folder(".agent/skills/sectionui")
+        _ = localSkillPath.createIfNotExists()
+        try """
+        ---
+        name: SectionUI
+        description: section ui
+        ---
+        """.write(to: localSkillPath.file("SKILL.md").url, atomically: true, encoding: .utf8)
+
+        let nolonHome = tempRoot.folder("nolon-home")
+        _ = nolonHome.createIfNotExists()
+        setenv("NOLON_HOME", nolonHome.url.path, 1)
+        defer { unsetenv("NOLON_HOME") }
+
+        let service = MockSkillsRepositoryService(
+            repositoryResources: NolonRepositoryResources(
+                skillsDirectories: [
+                    NolonSkillsDirectoryCandidate(
+                        path: ".agent/skills",
+                        skillCount: 1,
+                        skillNames: ["SectionUI"]
+                    ),
+                ],
+                workflows: [],
+                mcps: []
+            ),
+            localRepositories: [
+                NolonLocalRepositorySummary(
+                    name: "repo-a",
+                    path: repoPath.url.path,
+                    skillsDirectoryCount: 1,
+                    workflowCount: 0,
+                    mcpCount: 0
+                ),
+            ]
+        )
+        let runner = NolonCoreCLIRunner(service: service, fileReader: { _ in "" })
+        let result = await runner.execute(
+            arguments: [
+                "skills", "add", "sectionui",
+                "--provider", "codex",
+                "--repositories-root", tempRoot.folder("repos").url.path,
+                "--dry-run",
+            ],
+            outputMode: .json
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("\"source\":\"local\""))
+        #expect(result.stdout.contains("\"success_count\":1"))
+        #expect(result.stdout.contains("\"slug\":\"sectionui\""))
+    }
+
+    @Test("runner skills add resolves single-skill repository alias")
+    func runnerSkillsAddResolvesSingleSkillRepositoryAlias() async throws {
+        let tempRoot = try STFolder(sanbox: .temporary).folder("nolon-cli-add-repo-alias-\(UUID().uuidString)").create()
+        defer { try? tempRoot.delete() }
+
+        let repoPath = tempRoot.folder("repos/repo-a")
+        _ = repoPath.createIfNotExists()
+        _ = repoPath.folder(".git").createIfNotExists()
+        let localSkillPath = repoPath.folder(".agent/skills/sectionui")
+        _ = localSkillPath.createIfNotExists()
+        try """
+        ---
+        name: SectionUI
+        description: section ui
+        ---
+        """.write(to: localSkillPath.file("SKILL.md").url, atomically: true, encoding: .utf8)
+
+        let nolonHome = tempRoot.folder("nolon-home")
+        _ = nolonHome.createIfNotExists()
+        setenv("NOLON_HOME", nolonHome.url.path, 1)
+        defer { unsetenv("NOLON_HOME") }
+
+        let service = MockSkillsRepositoryService(
+            repositoryResources: NolonRepositoryResources(
+                skillsDirectories: [
+                    NolonSkillsDirectoryCandidate(
+                        path: ".agent/skills",
+                        skillCount: 1,
+                        skillNames: ["SectionUI"]
+                    ),
+                ],
+                workflows: [],
+                mcps: []
+            ),
+            localRepositories: [
+                NolonLocalRepositorySummary(
+                    name: "linhay@SectionKit",
+                    path: repoPath.url.path,
+                    skillsDirectoryCount: 1,
+                    workflowCount: 0,
+                    mcpCount: 0
+                ),
+            ]
+        )
+        let runner = NolonCoreCLIRunner(service: service, fileReader: { _ in "" })
+        let result = await runner.execute(
+            arguments: [
+                "skills", "add", "sectionkit",
+                "--provider", "codex",
+                "--repositories-root", tempRoot.folder("repos").url.path,
+                "--dry-run",
+            ],
+            outputMode: .json
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("\"source\":\"local\""))
+        #expect(result.stdout.contains("\"success_count\":1"))
+        #expect(result.stdout.contains("\"slug\":\"sectionkit\""))
+    }
+
     @Test("runner renders skills add concise text output")
     func runnerRendersSkillsAddConciseTextOutput() async throws {
         let tempRoot = try STFolder(sanbox: .temporary).folder("nolon-cli-add-text-\(UUID().uuidString)").create()
