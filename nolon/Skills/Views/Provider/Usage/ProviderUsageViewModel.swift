@@ -300,9 +300,6 @@ final class ProviderUsageViewModel {
     func setCodexTrendRange(_ range: CodexTrendRange) {
         guard codexTrendRange != range else { return }
         codexTrendRange = range
-        Task { [weak self] in
-            await self?.refreshCodexTokenTrend()
-        }
     }
 
     func refreshCodexTokenTrendNow() {
@@ -318,7 +315,7 @@ final class ProviderUsageViewModel {
         defer { isLoadingCodexTrend = false }
         do {
             let snapshot = try await codexTokenTrendService.fetchGlobalSnapshot(
-                trailingDays: codexTrendRange.trailingDays,
+                trailingDays: nil,
                 environment: ProcessInfo.processInfo.environment
             )
             codexTrendSnapshot = snapshot
