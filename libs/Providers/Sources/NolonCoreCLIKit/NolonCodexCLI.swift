@@ -16,6 +16,7 @@ import Glibc
 public protocol NolonCodexCLIServing: Sendable {
     func authList(providerID: String) async throws -> NolonCodexAuthListPayload
     func authUsage(providerID: String) async throws -> NolonCodexAuthUsagePayload
+    func authUsageTrend(providerID: String, range: NolonCodexUsageTrendRange) async throws -> NolonCodexAuthUsageTrendPayload
     func authUsageRefresh(providerID: String, accountID: UUID?) async throws -> NolonCodexAuthUsagePayload
     func authStatus(providerID: String) async throws -> NolonCodexAuthStatusPayload
     func authRefresh(providerID: String, accountID: UUID?) async throws -> NolonCodexAuthRefreshPayload
@@ -94,6 +95,41 @@ public extension NolonCodexCLIServing {
             )
         )
     }
+
+    func authUsageTrend(providerID: String, range: NolonCodexUsageTrendRange) async throws -> NolonCodexAuthUsageTrendPayload {
+        let trailingDays: Int? = switch range {
+        case .days7: 7
+        case .days30: 30
+        case .all: nil
+        }
+        let snapshot = try await CodexTokenTrendService().fetchGlobalSnapshot(trailingDays: trailingDays)
+        return NolonCodexAuthUsageTrendPayload(
+            providerID: providerID,
+            range: range,
+            sourceLabel: snapshot.sourceLabel,
+            updatedAt: snapshot.updatedAt,
+            points: snapshot.points.map { point in
+                NolonCodexAuthUsageTrendPointView(
+                    date: point.date,
+                    totalTokens: point.totalTokens,
+                    inputTokens: point.inputTokens,
+                    outputTokens: point.outputTokens,
+                    cacheReadTokens: point.cacheReadTokens
+                )
+            },
+            summary: NolonCodexAuthUsageTrendSummaryView(
+                todayTokens: snapshot.todayTokens,
+                last7DaysTokens: snapshot.last7DaysTokens,
+                last30DaysTokens: snapshot.last30DaysTokens
+            )
+        )
+    }
+}
+
+public enum NolonCodexUsageTrendRange: String, Codable, Sendable, Equatable {
+    case days7 = "7d"
+    case days30 = "30d"
+    case all = "all"
 }
 
 public struct NolonCodexAuthAccountView: Codable, Sendable, Equatable {
@@ -206,6 +242,29 @@ public struct NolonCodexAuthUsagePayload: Codable, Sendable, Equatable {
     public let providerID: String
     public let accounts: [NolonCodexAuthUsageAccountView]
     public let summary: NolonCodexAuthUsageSummaryView
+}
+
+public struct NolonCodexAuthUsageTrendPointView: Codable, Sendable, Equatable {
+    public let date: String
+    public let totalTokens: Int
+    public let inputTokens: Int
+    public let outputTokens: Int
+    public let cacheReadTokens: Int
+}
+
+public struct NolonCodexAuthUsageTrendSummaryView: Codable, Sendable, Equatable {
+    public let todayTokens: Int?
+    public let last7DaysTokens: Int?
+    public let last30DaysTokens: Int?
+}
+
+public struct NolonCodexAuthUsageTrendPayload: Codable, Sendable, Equatable {
+    public let providerID: String
+    public let range: NolonCodexUsageTrendRange
+    public let sourceLabel: String
+    public let updatedAt: Date
+    public let points: [NolonCodexAuthUsageTrendPointView]
+    public let summary: NolonCodexAuthUsageTrendSummaryView
 }
 
 public struct NolonCodexAuthStatusPayload: Codable, Sendable, Equatable {
@@ -528,6 +587,39 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
 
     public func authUsage(providerID: String) async throws -> NolonCodexAuthUsagePayload {
         try await buildAuthUsagePayload(providerID: providerID, refreshTargetAccountID: nil, refreshBeforeRead: false)
+    }
+
+    public func authUsageTrend(providerID: String, range: NolonCodexUsageTrendRange) async throws -> NolonCodexAuthUsageTrendPayload {
+        let canonicalProviderID = try Self.canonicalProviderID(providerID)
+        let trailingDays: Int? = switch range {
+        case .days7: 7
+        case .days30: 30
+        case .all: nil
+        }
+        let snapshot = try await CodexTokenTrendService().fetchGlobalSnapshot(
+            trailingDays: trailingDays,
+            environment: environment
+        )
+        return NolonCodexAuthUsageTrendPayload(
+            providerID: canonicalProviderID,
+            range: range,
+            sourceLabel: snapshot.sourceLabel,
+            updatedAt: snapshot.updatedAt,
+            points: snapshot.points.map { point in
+                NolonCodexAuthUsageTrendPointView(
+                    date: point.date,
+                    totalTokens: point.totalTokens,
+                    inputTokens: point.inputTokens,
+                    outputTokens: point.outputTokens,
+                    cacheReadTokens: point.cacheReadTokens
+                )
+            },
+            summary: NolonCodexAuthUsageTrendSummaryView(
+                todayTokens: snapshot.todayTokens,
+                last7DaysTokens: snapshot.last7DaysTokens,
+                last30DaysTokens: snapshot.last30DaysTokens
+            )
+        )
     }
 
     public func authUsageRefresh(providerID: String, accountID: UUID?) async throws -> NolonCodexAuthUsagePayload {
@@ -1623,6 +1715,8 @@ public enum NolonCLIEntrypoint {
             return NolonCodexAuthListCommand.self
         case "usage":
             return NolonCodexAuthUsageCommand.self
+        case "usage-trend":
+            return NolonCodexAuthUsageTrendCommand.self
         case "status":
             return NolonCodexAuthStatusCommand.self
         case "refresh":

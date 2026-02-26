@@ -19,6 +19,7 @@ final class ProviderUsageViewModel {
     typealias AsyncVoidAction = @MainActor @Sendable () async -> Void
 
     private let usageMonitor: ProviderUsageMonitorService
+    private let codexTokenTrendService = CodexTokenTrendService()
     private let settingsStore = UsageMonitorSettingsStore.shared
     private let codexAuthManager = CodexAuthManager()
     private let codexActivateAction: CodexActivateAction
@@ -46,6 +47,10 @@ final class ProviderUsageViewModel {
     var currentCodexAuthHashHex: String?
     var codexAuthFilePath: String?
     var activeCodexAccountId: UUID?
+    var codexTrendRange: CodexTrendRange = .days30
+    var codexTrendSnapshot: CodexTokenTrendSnapshot?
+    var codexTrendErrorMessage: String?
+    var isLoadingCodexTrend = false
 
     var addAccountSource: CodexAddSource = .current
     var importedAuthFileURL: URL?
@@ -122,6 +127,33 @@ final class ProviderUsageViewModel {
                 return NSLocalizedString("codex.accounts.add.source.file", value: "Import auth.json file", comment: "Import auth.json file")
             case .cliLogin:
                 return NSLocalizedString("codex.accounts.add.source.cli", value: "CLI Login", comment: "CLI login")
+            }
+        }
+    }
+
+    enum CodexTrendRange: String, CaseIterable, Identifiable {
+        case days7
+        case days30
+        case all
+
+        var id: String { rawValue }
+
+        var title: String {
+            switch self {
+            case .days7:
+                return NSLocalizedString("codex.usage.range.7d", value: "7D", comment: "Codex usage trend range 7 days")
+            case .days30:
+                return NSLocalizedString("codex.usage.range.30d", value: "30D", comment: "Codex usage trend range 30 days")
+            case .all:
+                return NSLocalizedString("codex.usage.range.all", value: "ALL", comment: "Codex usage trend range all")
+            }
+        }
+
+        var trailingDays: Int? {
+            switch self {
+            case .days7: 7
+            case .days30: 30
+            case .all: nil
             }
         }
     }
@@ -219,6 +251,7 @@ final class ProviderUsageViewModel {
                     await persistCurrentCodexOutcomeIfPossible(outcome: merged, accounts: loadedAccounts)
                 }
                 resetCodexMultiAccountState()
+                await refreshCodexTokenTrend()
                 return
             }
 
@@ -240,6 +273,7 @@ final class ProviderUsageViewModel {
             Self.logger.error("Failed to load codex accounts: \(String(describing: error), privacy: .public)")
         }
 
+        await refreshCodexTokenTrend()
         await updateUsageFileWatcher()
     }
 
@@ -261,6 +295,37 @@ final class ProviderUsageViewModel {
         }
 
         await load()
+    }
+
+    func setCodexTrendRange(_ range: CodexTrendRange) {
+        guard codexTrendRange != range else { return }
+        codexTrendRange = range
+        Task { [weak self] in
+            await self?.refreshCodexTokenTrend()
+        }
+    }
+
+    func refreshCodexTokenTrendNow() {
+        Task { [weak self] in
+            await self?.refreshCodexTokenTrend()
+        }
+    }
+
+    private func refreshCodexTokenTrend() async {
+        guard usageProvider == .codex else { return }
+        isLoadingCodexTrend = true
+        codexTrendErrorMessage = nil
+        defer { isLoadingCodexTrend = false }
+        do {
+            let snapshot = try await codexTokenTrendService.fetchGlobalSnapshot(
+                trailingDays: codexTrendRange.trailingDays,
+                environment: ProcessInfo.processInfo.environment
+            )
+            codexTrendSnapshot = snapshot
+        } catch {
+            codexTrendSnapshot = nil
+            codexTrendErrorMessage = error.localizedDescription
+        }
     }
 
     private func updateUsageFileWatcher() async {

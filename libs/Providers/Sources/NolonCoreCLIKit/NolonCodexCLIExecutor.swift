@@ -53,6 +53,8 @@ enum NolonCodexCLIExecutor {
             return try await executeAuthList(command: command, context: context, outputMode: outputMode)
         case let command as NolonCodexAuthUsageCommand:
             return try await executeAuthUsage(command: command, context: context, outputMode: outputMode)
+        case let command as NolonCodexAuthUsageTrendCommand:
+            return try await executeAuthUsageTrend(command: command, context: context, outputMode: outputMode)
         case let command as NolonCodexAuthStatusCommand:
             return try await executeAuthStatus(command: command, context: context, outputMode: outputMode)
         case let command as NolonCodexAuthRefreshCommand:
@@ -175,6 +177,16 @@ enum NolonCodexCLIExecutor {
         }
         let payload = try await context.codexService().authStatus(providerID: providerID)
         return try renderOutput(command: .authStatus, payload: payload, outputMode: outputMode, textFormatter: formatAuthStatus)
+    }
+
+    private static func executeAuthUsageTrend(command: NolonCodexAuthUsageTrendCommand, context: NolonCLIExecutionContext, outputMode: OutputMode) async throws -> String {
+        let providerID = try parseCodexProviderID(command.provider)
+        let rangeRaw = command.range.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard let range = NolonCodexUsageTrendRange(rawValue: rangeRaw) else {
+            throw NolonCoreCLIError.invalidArguments("Invalid --range: \(command.range). Supported values: 7d, 30d, all")
+        }
+        let payload = try await context.codexService().authUsageTrend(providerID: providerID, range: range)
+        return try renderOutput(command: .authUsageTrend, payload: payload, outputMode: outputMode, textFormatter: formatAuthUsageTrend)
     }
 
     private static func executeAuthRefresh(command: NolonCodexAuthRefreshCommand, context: NolonCLIExecutionContext, outputMode: OutputMode) async throws -> String {
@@ -531,7 +543,7 @@ enum NolonCodexCLIExecutor {
         guard root == "codex" else { return }
         let group = arguments[1].trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         let supportedByGroup: [String: Set<String>] = [
-            "auth": ["list", "usage", "status", "refresh", "activate", "login", "delete"],
+            "auth": ["list", "usage", "usage-trend", "status", "refresh", "activate", "login", "delete"],
             "binary": ["list", "current", "install", "use", "available", "switch", "doctor"],
             "status": ["probe", "doctor"],
             "runtime": ["list", "stop"],
@@ -832,6 +844,28 @@ enum NolonCodexCLIExecutor {
                 "\(padRight(key, to: keyWidth)) | \(value)"
             }
         lines.append(contentsOf: formatTokenSummaryTable(prefix: "Tokens", summary: payload.summary))
+        return lines.joined(separator: "\n")
+    }
+
+    private static func formatAuthUsageTrend(_ payload: NolonCodexAuthUsageTrendPayload) -> String {
+        var lines: [String] = [
+            "provider | \(payload.providerID)",
+            "range | \(payload.range.rawValue)",
+            "source | \(payload.sourceLabel)",
+            "updated_at | \(payload.updatedAt.formatted(date: .abbreviated, time: .shortened))",
+            "summary.today | \(formatTokensInMillions(payload.summary.todayTokens))",
+            "summary.7d | \(formatTokensInMillions(payload.summary.last7DaysTokens))",
+            "summary.30d | \(formatTokensInMillions(payload.summary.last30DaysTokens))",
+            "",
+        ]
+        let header = "date | total | input | output | cache"
+        let rows = payload.points
+            .sorted { $0.date > $1.date }
+            .map { point in
+                "\(point.date) | \(point.totalTokens) | \(point.inputTokens) | \(point.outputTokens) | \(point.cacheReadTokens)"
+            }
+        lines.append(header)
+        lines.append(contentsOf: rows)
         return lines.joined(separator: "\n")
     }
 
@@ -1223,6 +1257,7 @@ enum NolonCodexCLIExecutor {
 private struct NolonCodexCommandPath: RawRepresentable, ExpressibleByStringLiteral, Equatable, Sendable {
     static let authList: Self = "codex.auth.list"
     static let authUsage: Self = "codex.auth.usage"
+    static let authUsageTrend: Self = "codex.auth.usage-trend"
     static let authStatus: Self = "codex.auth.status"
     static let authRefresh: Self = "codex.auth.refresh"
     static let authActivate: Self = "codex.auth.activate"

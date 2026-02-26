@@ -33,6 +33,7 @@ struct NolonCodexAuthGroupCommand: ParsableCommand {
         subcommands: [
             NolonCodexAuthListCommand.self,
             NolonCodexAuthUsageCommand.self,
+            NolonCodexAuthUsageTrendCommand.self,
             NolonCodexAuthStatusCommand.self,
             NolonCodexAuthRefreshCommand.self,
             NolonCodexAuthActivateCommand.self,
@@ -105,6 +106,16 @@ struct NolonCodexAuthUsageCommand: ParsableCommand {
 
     @Option(name: .long, help: "Account email for usage refresh target (requires --refresh).")
     var email: String?
+}
+
+struct NolonCodexAuthUsageTrendCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(commandName: "usage-trend")
+
+    @Option(name: .long, help: "Provider id, default is codex.")
+    var provider: String = "codex"
+
+    @Option(name: .long, help: "Trend range: 7d, 30d, all.")
+    var range: String = "30d"
 }
 
 struct NolonCodexAuthStatusCommand: ParsableCommand {

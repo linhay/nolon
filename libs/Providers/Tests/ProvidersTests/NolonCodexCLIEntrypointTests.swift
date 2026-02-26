@@ -641,6 +641,20 @@ struct NolonCodexCLIEntrypointTests {
         #expect(result.stdout.contains("Options:") == false)
     }
 
+    @Test("codex auth usage-trend --help prints action help")
+    func codexAuthUsageTrendHelpPrintsHelp() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["codex", "auth", "usage-trend", "--help"],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("Usage: nolon codex auth usage-trend [options]"))
+        #expect(result.stdout.contains("--range 7d|30d|all"))
+    }
+
     @Test("codex auth refresh --help prints action help")
     func codexAuthRefreshHelpPrintsHelp() async {
         let mock = MockCodexCLIService()
@@ -880,6 +894,45 @@ struct NolonCodexCLIEntrypointTests {
         #expect(result.exitCode == 0)
         #expect(result.stdout.contains("账号总数"))
         #expect(await mock.lastCall() == "authUsageRefresh")
+    }
+
+    @Test("routes auth usage-trend table")
+    func routesAuthUsageTrendTable() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: [
+                "codex", "auth", "usage-trend",
+                "--provider", "codex",
+                "--range", "7d",
+            ],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("provider | codex"))
+        #expect(result.stdout.contains("range | 7d"))
+        #expect(result.stdout.contains("summary.today"))
+        #expect(result.stdout.contains("date | total | input | output | cache"))
+        #expect(result.stdout.contains("2026-02-26 |"))
+        #expect(await mock.lastCall() == "authUsageTrend")
+    }
+
+    @Test("auth usage-trend rejects invalid range")
+    func authUsageTrendRejectsInvalidRange() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: [
+                "codex", "auth", "usage-trend",
+                "--provider", "codex",
+                "--range", "2d",
+            ],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 2)
+        #expect(result.stderr.contains("\"code\":\"invalid_arguments\""))
+        #expect(result.stderr.contains("Supported values: 7d, 30d, all"))
     }
 
     @Test("auth usage target requires refresh flag")
@@ -1801,6 +1854,34 @@ struct NolonCodexCLIEntrypointTests {
         #expect(try canonicalJSON(result.stdout) == expected)
     }
 
+    @Test("json contract snapshot for codex auth usage-trend success")
+    func jsonContractSnapshotAuthUsageTrendSuccess() async throws {
+        let service = JSONContractCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["codex", "auth", "usage-trend", "--provider", "codex", "--range", "7d", "--json"],
+            codexService: service
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        let data = try #require(result.stdout.data(using: .utf8))
+        let object = try JSONSerialization.jsonObject(with: data)
+        let root = try #require(object as? [String: Any])
+        #expect((root["ok"] as? Bool) == true)
+        #expect((root["command"] as? String) == "codex.auth.usage-trend")
+        let payload = try #require(root["data"] as? [String: Any])
+        #expect((payload["providerID"] as? String) == "codex")
+        #expect((payload["range"] as? String) == "7d")
+        #expect((payload["sourceLabel"] as? String) == "global")
+        let points = try #require(payload["points"] as? [[String: Any]])
+        #expect(points.count == 2)
+        #expect((points.first?["date"] as? String) == "2026-02-26")
+        let summary = try #require(payload["summary"] as? [String: Any])
+        #expect((summary["todayTokens"] as? Int) == 2_500_000)
+        #expect((summary["last7DaysTokens"] as? Int) == 4_450_000)
+        #expect((summary["last30DaysTokens"] as? Int) == 4_450_000)
+    }
+
     @Test("json contract snapshot for codex auth status success")
     func jsonContractSnapshotAuthStatusSuccess() async throws {
         let service = JSONContractCodexCLIService()
@@ -2003,6 +2084,37 @@ private actor MockCodexCLIService: NolonCodexCLIServing {
                 totalTokenAllCount: 50_000_000,
                 earliestExpiresAt: Date(timeIntervalSince1970: 1_798_704_000),
                 latestRefreshedAt: Date(timeIntervalSince1970: 1_734_000_000)
+            )
+        )
+    }
+
+    func authUsageTrend(providerID: String, range: NolonCodexUsageTrendRange) async throws -> NolonCodexAuthUsageTrendPayload {
+        call = "authUsageTrend"
+        return NolonCodexAuthUsageTrendPayload(
+            providerID: providerID,
+            range: range,
+            sourceLabel: "global",
+            updatedAt: Date(timeIntervalSince1970: 0),
+            points: [
+                NolonCodexAuthUsageTrendPointView(
+                    date: "2026-02-26",
+                    totalTokens: 2_500_000,
+                    inputTokens: 1_200_000,
+                    outputTokens: 800_000,
+                    cacheReadTokens: 500_000
+                ),
+                NolonCodexAuthUsageTrendPointView(
+                    date: "2026-02-25",
+                    totalTokens: 1_950_000,
+                    inputTokens: 1_000_000,
+                    outputTokens: 600_000,
+                    cacheReadTokens: 350_000
+                ),
+            ],
+            summary: NolonCodexAuthUsageTrendSummaryView(
+                todayTokens: 2_500_000,
+                last7DaysTokens: 4_450_000,
+                last30DaysTokens: 4_450_000
             )
         )
     }
@@ -2576,6 +2688,36 @@ private actor JSONContractCodexCLIService: NolonCodexCLIServing {
                 totalTokenAllCount: 50_000_000,
                 earliestExpiresAt: Date(timeIntervalSince1970: 1_798_704_000),
                 latestRefreshedAt: Date(timeIntervalSince1970: 0)
+            )
+        )
+    }
+
+    func authUsageTrend(providerID: String, range: NolonCodexUsageTrendRange) async throws -> NolonCodexAuthUsageTrendPayload {
+        NolonCodexAuthUsageTrendPayload(
+            providerID: providerID,
+            range: range,
+            sourceLabel: "global",
+            updatedAt: Date(timeIntervalSince1970: 0),
+            points: [
+                NolonCodexAuthUsageTrendPointView(
+                    date: "2026-02-26",
+                    totalTokens: 2_500_000,
+                    inputTokens: 1_200_000,
+                    outputTokens: 800_000,
+                    cacheReadTokens: 500_000
+                ),
+                NolonCodexAuthUsageTrendPointView(
+                    date: "2026-02-25",
+                    totalTokens: 1_950_000,
+                    inputTokens: 1_000_000,
+                    outputTokens: 600_000,
+                    cacheReadTokens: 350_000
+                ),
+            ],
+            summary: NolonCodexAuthUsageTrendSummaryView(
+                todayTokens: 2_500_000,
+                last7DaysTokens: 4_450_000,
+                last30DaysTokens: 4_450_000
             )
         )
     }
