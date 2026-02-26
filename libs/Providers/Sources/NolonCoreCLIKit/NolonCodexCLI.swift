@@ -404,7 +404,7 @@ public struct NolonCodexRuntimeStopPayload: Codable, Sendable, Equatable {
 public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
     typealias AuthActivator = @Sendable (CodexAuthAccount, Provider) async throws -> CodexAuthActivationResult
     typealias AuthRefreshRunner = @Sendable (_ providerID: String, _ accountID: UUID, _ environment: [String: String]) async throws -> Void
-    typealias UsageOutcomeFetcher = @Sendable (_ environment: [String: String], _ costWindowDays: Int?) async -> ProviderFetchOutcome
+    typealias UsageOutcomeFetcher = @Sendable (_ environment: [String: String]) async -> ProviderFetchOutcome
 
     private let authManager: CodexAuthManager
     private let binaryManager: CodexBinaryManager
@@ -565,11 +565,11 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
                     usageSource: usageCache?.sourceLabel,
                     fiveHourRemainingPercent: Self.remainingPercent(usageCache?.usage.primary),
                     weeklyRemainingPercent: Self.remainingPercent(usageCache?.usage.secondary),
-                    token1dCount: Self.resolve1dTokenCount(from: usageCache),
-                    token7dCount: Self.resolve7dTokenCount(from: usageCache),
-                    token14dCount: Self.resolve14dTokenCount(from: usageCache),
-                    token30dCount: Self.resolve30dTokenCount(from: usageCache),
-                    tokenAllCount: Self.resolveAllTokenCount(from: usageCache),
+                    token1dCount: nil,
+                    token7dCount: nil,
+                    token14dCount: nil,
+                    token30dCount: nil,
+                    tokenAllCount: nil,
                     expiresAt: authInfo.expiresAt,
                     hasRefreshToken: authInfo.hasRefreshToken,
                     refreshedAt: Self.resolveRefreshTime(from: usageCache)
@@ -644,7 +644,7 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
             var accountEnvironment = mergedEnvironment
             accountEnvironment["CODEX_HOME"] = runtimeHome.url.standardizedFileURL.path
 
-            let outcome = await usageOutcomeFetcher(accountEnvironment, 30)
+            let outcome = await usageOutcomeFetcher(accountEnvironment)
             switch outcome.result {
             case let .success(result):
                 let now = Date()
@@ -660,7 +660,7 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
                     sourceLabel: result.sourceLabel,
                     usage: result.usage,
                     credits: result.credits,
-                    cost: result.cost
+                    cost: nil
                 )
                 try await authManager.storeUsageCache(cache, for: account)
                 try await authManager.updateSyncSuccess(for: account, date: now)
@@ -1155,13 +1155,13 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
         _ = try await service.readAccount(refreshToken: true)
     }
 
-    private static func liveUsageOutcomeFetcher(environment: [String: String], costWindowDays: Int?) async -> ProviderFetchOutcome {
+    private static func liveUsageOutcomeFetcher(environment: [String: String]) async -> ProviderFetchOutcome {
         let context = ProviderFetchContext(
             provider: .codex,
             sourceMode: .auto,
             includeCredits: true,
             timeout: 20,
-            costWindowDays: costWindowDays,
+            costWindowDays: nil,
             environment: environment,
             token: nil
         )
@@ -1264,43 +1264,6 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
     private static func resolveRefreshTime(from cache: CodexAuthUsageCache?) -> Date? {
         guard let cache else { return nil }
         return cache.creditsRefreshedAt ?? cache.usage.updatedAt
-    }
-
-    private static func resolve1dTokenCount(from cache: CodexAuthUsageCache?) -> Int? {
-        cache?.cost?.todayTokens
-    }
-
-    private static func resolve30dTokenCount(from cache: CodexAuthUsageCache?) -> Int? {
-        cache?.cost?.last30DaysTokens
-    }
-
-    private static func resolve7dTokenCount(from cache: CodexAuthUsageCache?) -> Int? {
-        resolveWindowTokenCount(days: 7, from: cache)
-    }
-
-    private static func resolve14dTokenCount(from cache: CodexAuthUsageCache?) -> Int? {
-        resolveWindowTokenCount(days: 14, from: cache)
-    }
-
-    private static func resolveAllTokenCount(from cache: CodexAuthUsageCache?) -> Int? {
-        guard let cost = cache?.cost else { return nil }
-        let fromDaily = cost.dailyCosts?.compactMap(\.tokens).reduce(0, +)
-        if let fromDaily, fromDaily > 0 {
-            return fromDaily
-        }
-        return cost.last30DaysTokens
-    }
-
-    private static func resolveWindowTokenCount(days: Int, from cache: CodexAuthUsageCache?) -> Int? {
-        guard days > 0,
-              let daily = cache?.cost?.dailyCosts,
-              !daily.isEmpty
-        else { return nil }
-        let sorted = daily.sorted { $0.date > $1.date }
-        let slice = sorted.prefix(days)
-        let values = slice.compactMap(\.tokens)
-        guard values.count == slice.count, !values.isEmpty else { return nil }
-        return values.reduce(0, +)
     }
 
     private static func resolveAuthTokenInfo(for account: CodexAuthAccount, authManager: CodexAuthManager) -> (expiresAt: Date?, hasRefreshToken: Bool?) {

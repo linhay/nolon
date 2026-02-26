@@ -198,18 +198,7 @@ struct NolonCodexCLIServiceTests {
                 updatedAt: Date(timeIntervalSince1970: 1_733_200_000)
             ),
             credits: nil,
-            cost: CostSnapshot(
-                todayCostUSD: nil,
-                todayTokens: 1200,
-                last30DaysCostUSD: nil,
-                last30DaysTokens: 30000,
-                windowDays: 30,
-                dailyCosts: [
-                    CostSnapshot.DailyCost(date: "2026-02-10", costUSD: nil, tokens: 10_000),
-                    CostSnapshot.DailyCost(date: "2026-02-11", costUSD: nil, tokens: 25_000),
-                ],
-                updatedAt: Date(timeIntervalSince1970: 1_733_300_000)
-            )
+            cost: nil
         )
         try await authManager.storeUsageCache(cacheA, for: accountA)
 
@@ -227,18 +216,7 @@ struct NolonCodexCLIServiceTests {
                 updatedAt: Date(timeIntervalSince1970: 1_733_220_000)
             ),
             credits: nil,
-            cost: CostSnapshot(
-                todayCostUSD: nil,
-                todayTokens: 800,
-                last30DaysCostUSD: nil,
-                last30DaysTokens: 22000,
-                windowDays: 30,
-                dailyCosts: [
-                    CostSnapshot.DailyCost(date: "2026-02-10", costUSD: nil, tokens: 12_000),
-                    CostSnapshot.DailyCost(date: "2026-02-11", costUSD: nil, tokens: 15_000),
-                ],
-                updatedAt: Date(timeIntervalSince1970: 1_733_350_000)
-            )
+            cost: nil
         )
         try await authManager.storeUsageCache(cacheB, for: accountB)
 
@@ -257,12 +235,12 @@ struct NolonCodexCLIServiceTests {
         #expect(payload.summary.cachedCount == 2)
         #expect(payload.summary.avgFiveHourRemainingPercent == 65)
         #expect(payload.summary.avgWeeklyRemainingPercent == 55)
-        #expect(payload.summary.totalToken1dCount == 2000)
-        #expect(payload.summary.totalToken30dCount == 52_000)
-        #expect(payload.summary.totalTokenAllCount == 62_000)
-        #expect(payload.accounts.compactMap(\.token1dCount).reduce(0, +) == 2000)
-        #expect(payload.accounts.compactMap(\.token30dCount).reduce(0, +) == 52_000)
-        #expect(payload.accounts.compactMap(\.tokenAllCount).reduce(0, +) == 62_000)
+        #expect(payload.summary.totalToken1dCount == nil)
+        #expect(payload.summary.totalToken30dCount == nil)
+        #expect(payload.summary.totalTokenAllCount == nil)
+        #expect(payload.accounts.allSatisfy { $0.token1dCount == nil })
+        #expect(payload.accounts.allSatisfy { $0.token30dCount == nil })
+        #expect(payload.accounts.allSatisfy { $0.tokenAllCount == nil })
         #expect(payload.summary.latestRefreshedAt == Date(timeIntervalSince1970: 1_733_350_000))
         #expect(payload.accounts.first(where: { $0.email == "a@example.com" })?.expiresAt == Date(timeIntervalSince1970: 1_798_704_000))
         #expect(payload.accounts.first(where: { $0.email == "a@example.com" })?.hasRefreshToken == true)
@@ -288,7 +266,7 @@ struct NolonCodexCLIServiceTests {
             binaryManager: CodexBinaryManager(homeURL: root.url),
             loginRunner: .init(),
             environment: [:],
-            usageOutcomeFetcher: { _, _ in
+            usageOutcomeFetcher: { _ in
                 let result = ProviderFetchResult(
                     usage: UsageSnapshot(
                         identity: UsageIdentity(
@@ -303,15 +281,7 @@ struct NolonCodexCLIServiceTests {
                         updatedAt: Date(timeIntervalSince1970: 1_734_200_000)
                     ),
                     credits: nil,
-                    cost: CostSnapshot(
-                        todayCostUSD: nil,
-                        todayTokens: 5_000_000,
-                        last30DaysCostUSD: nil,
-                        last30DaysTokens: 12_000_000,
-                        windowDays: 30,
-                        dailyCosts: [CostSnapshot.DailyCost(date: "2026-02-17", costUSD: nil, tokens: 6_000_000)],
-                        updatedAt: Date(timeIntervalSince1970: 1_734_200_000)
-                    ),
+                    cost: nil,
                     sourceLabel: "CLI",
                     fetchKind: .cli,
                     strategyKind: .direct
@@ -327,8 +297,7 @@ struct NolonCodexCLIServiceTests {
         _ = try await service.authUsageRefresh(providerID: "codex", accountID: accountA.id)
 
         let cacheA = try await authManager.loadUsageCache(for: accountA)
-        #expect(cacheA?.cost?.todayTokens == 5_000_000)
-        #expect(cacheA?.cost?.last30DaysTokens == 12_000_000)
+        #expect(cacheA?.cost == nil)
     }
 
     @Test("auth status includes usage summary fields")

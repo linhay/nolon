@@ -15,16 +15,9 @@ public struct CodexUsageDescriptor: ProviderUsageDescribing {
             let helper = CodexHelper(codexBinary: nil, environment: context.environment)
             async let rateLimitsTask = helper.fetchRateLimits()
             async let accountInfoTask: CodexHelper.AccountInfo? = try? helper.fetchAccountInfo()
-            async let costTask: CodexCostSnapshot? = context.includeCredits
-                ? (try? CodexCostFetcher().fetchCostSnapshot(
-                    windowDays: context.costWindowDays,
-                    environment: context.environment
-                ))
-                : nil
 
             let rateLimits = try await rateLimitsTask
             let accountInfo = await accountInfoTask
-            let costInfo = await costTask
             let statusSnapshot: CodexStatusSnapshot?
             if rateLimits.primary?.resetsAt == nil || rateLimits.secondary?.resetsAt == nil {
                 statusSnapshot = try? await CodexStatusProbe().fetch()
@@ -85,35 +78,12 @@ public struct CodexUsageDescriptor: ProviderUsageDescribing {
                 fallbackCredits: nil
             )
 
-            let cost: CostSnapshot? = costInfo.map { snapshot in
-                CostSnapshot(
-                    todayCostUSD: snapshot.todayCostUSD,
-                    todayTokens: snapshot.todayTokens,
-                    last30DaysCostUSD: snapshot.last30DaysCostUSD,
-                    last30DaysTokens: snapshot.last30DaysTokens,
-                    windowDays: snapshot.windowDays,
-                    dailyCosts: snapshot.dailyCosts.map { daily in
-                        CostSnapshot.DailyCost(date: daily.date, costUSD: daily.costUSD, tokens: daily.tokens)
-                    },
-                    updatedAt: snapshot.updatedAt
-                )
-            }
-
-            let sourceLabel: String = {
-                let base = NSLocalizedString("usage.source.cli", value: "CLI", comment: "CLI")
-                guard let source = costInfo?.tokenSource else { return base }
-                switch source {
-                case .scopedSessions:
-                    return "\(base)(account)"
-                case .globalFallback:
-                    return "\(base)(global)"
-                }
-            }()
+            let sourceLabel = NSLocalizedString("usage.source.cli", value: "CLI", comment: "CLI")
 
             let result = ProviderFetchResult(
                 usage: usage,
                 credits: credits,
-                cost: cost,
+                cost: nil,
                 sourceLabel: sourceLabel,
                 fetchKind: fetchKind,
                 strategyKind: .direct
