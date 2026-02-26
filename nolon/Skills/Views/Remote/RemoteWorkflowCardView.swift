@@ -7,6 +7,7 @@ import NolonResourceKit
 struct RemoteWorkflowCardView: View {
     let workflow: RemoteWorkflow
     let isInstalled: Bool
+    let isInstalling: Bool
     let targetProvider: Provider?
     let providers: [Provider]
     let onInstall: (Provider) -> Void
@@ -106,12 +107,23 @@ struct RemoteWorkflowCardView: View {
         if isInstalled {
             HStack(spacing: 4) {
                 Image(systemName: "checkmark.circle.fill")
-                Text("Installed")
+                Text(NSLocalizedString("remote.status.installed", value: "Installed", comment: "Remote installed status"))
             }
             .fontWeight(.semibold)
             .dsBadge(
                 foreground: DesignSystem.Colors.Status.success,
                 background: DesignSystem.Colors.Status.success.opacity(0.10)
+            )
+        } else if isInstalling {
+            HStack(spacing: 4) {
+                ProgressView()
+                    .controlSize(.small)
+                Text(NSLocalizedString("remote.status.installing", value: "Installing", comment: "Remote installing status"))
+            }
+            .fontWeight(.semibold)
+            .dsBadge(
+                foreground: DesignSystem.Colors.secondary,
+                background: DesignSystem.Colors.secondary.opacity(0.10)
             )
         } else {
             Button {
@@ -119,7 +131,7 @@ struct RemoteWorkflowCardView: View {
             } label: {
                 HStack(spacing: 4) {
                     Image(systemName: "arrow.down.circle")
-                    Text("Install")
+                    Text(NSLocalizedString("action.install", value: "Install", comment: "Install action"))
                 }
                 .fontWeight(.bold)
                 .dsBadge(
@@ -151,12 +163,12 @@ struct RemoteWorkflowCardView: View {
             }
         }
 
-        if !isInstalled {
+        if !isInstalled && !isInstalling {
             Divider()
             Button {
                 handleInstall()
             } label: {
-                Label("Install", systemImage: "arrow.down.circle")
+                Label(NSLocalizedString("action.install", value: "Install", comment: "Install action"), systemImage: "arrow.down.circle")
                     .dsIconLabelButton()
             }
         }

@@ -19,8 +19,7 @@ public struct ProviderSkillSnapshotService: Sendable {
         var skills: [Skill] = []
 
         for path in scanPaths {
-            let providerFolder = STFolder(path)
-            guard providerFolder.isExists else { continue }
+            guard let providerFolder = resolveScannableFolder(path: path) else { continue }
 
             let scan = try maintenanceService.scanProviderSkills(
                 providerPath: providerFolder,
@@ -63,6 +62,21 @@ private extension ProviderSkillSnapshotService {
         skill.sourcePath = sourcePath
         skill.installationState = Self.installationState(state.state)
         return skill
+    }
+
+    func resolveScannableFolder(path: String) -> STFolder? {
+        let rawPath = STPath(path)
+        if rawPath.isFolderExists {
+            return STFolder(path)
+        }
+
+        guard rawPath.isSymbolicLink,
+              let destination = try? rawPath.destinationOfSymbolicLink(),
+              destination.isFolderExists
+        else {
+            return nil
+        }
+        return STFolder(destination.url.path)
     }
 
     static func installationState(_ state: ProviderSkillStateKind) -> SkillInstallationState {

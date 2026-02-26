@@ -65,19 +65,6 @@ struct ProviderDetailGridView: View {
                 if viewModel.isLoading {
                     ProgressView()
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else if let error = viewModel.errorMessage {
-                    ContentUnavailableView {
-                        Label {
-                            Text("Error Loading Data")
-                                .dsEmptyStateErrorTitle()
-                        } icon: {
-                            Image(systemName: "exclamationmark.triangle")
-                                .dsEmptyStateIcon(color: DesignSystem.Colors.Status.error)
-                        }
-                    } description: {
-                        Text(error)
-                            .dsSecondaryText(font: .body)
-                    }
                 } else {
                     gridContent
                 }
@@ -156,6 +143,7 @@ struct ProviderDetailGridView: View {
                             codexXcodeNotice
                         }
                         codexLinkedHint
+                        resourceHealthSummary
                         tabContent
                     }
                     .frame(maxWidth: .infinity, alignment: .topLeading)
@@ -193,25 +181,177 @@ struct ProviderDetailGridView: View {
         }
     }
 
+    private var orphanedSkillCount: Int {
+        viewModel.installedSkills.filter { $0.installationState == .orphaned }.count
+    }
+
+    private var brokenSkillCount: Int {
+        viewModel.installedSkills.filter { $0.installationState == .broken }.count
+    }
+
+    private var unknownWorkflowCount: Int {
+        viewModel.workflows.filter { $0.source == .unknown }.count
+    }
+
+    private var mcpNeedUpdateCount: Int {
+        viewModel.mcpCacheStates.values.filter { $0 == .migratedNeedsUpdate }.count
+    }
+
+    @ViewBuilder
+    private var resourceHealthSummary: some View {
+        let issues = orphanedSkillCount + brokenSkillCount + unknownWorkflowCount + mcpNeedUpdateCount
+        if issues == 0 {
+            HStack(spacing: 8) {
+                Image(systemName: "checkmark.seal.fill")
+                    .foregroundStyle(DesignSystem.Colors.Status.success)
+                Text(
+                    NSLocalizedString(
+                        "provider.resources.health.ok",
+                        value: "All resources are healthy.",
+                        comment: "Provider resources healthy summary"
+                    )
+                )
+                .font(.callout)
+                .dsSecondaryText(font: .callout)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .dsCard(
+                background: DesignSystem.Colors.Status.success.opacity(0.08),
+                cornerRadius: DesignSystem.Metrics.cornerRadiusM,
+                borderColor: DesignSystem.Colors.Status.success.opacity(0.25),
+                borderWidth: 1
+            )
+        } else {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 8) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(DesignSystem.Colors.Status.warning)
+                    Text(
+                        NSLocalizedString(
+                            "provider.resources.health.warn",
+                            value: "Some resources need attention.",
+                            comment: "Provider resources warning summary"
+                        )
+                    )
+                    .font(.callout.weight(.semibold))
+                }
+                HStack(spacing: 12) {
+                    if orphanedSkillCount > 0 {
+                        Text(
+                            String(
+                                format: NSLocalizedString(
+                                    "provider.resources.health.orphaned_skills_count",
+                                    value: "orphaned skills %d",
+                                    comment: "Provider orphaned skills count"
+                                ),
+                                orphanedSkillCount
+                            )
+                        )
+                            .font(.caption)
+                            .dsBadge(
+                                foreground: DesignSystem.Colors.Status.warning,
+                                background: DesignSystem.Colors.Status.warning.opacity(0.14)
+                            )
+                    }
+                    if brokenSkillCount > 0 {
+                        Text(
+                            String(
+                                format: NSLocalizedString(
+                                    "provider.resources.health.broken_skills_count",
+                                    value: "broken skills %d",
+                                    comment: "Provider broken skills count"
+                                ),
+                                brokenSkillCount
+                            )
+                        )
+                            .font(.caption)
+                            .dsBadge(
+                                foreground: DesignSystem.Colors.Status.error,
+                                background: DesignSystem.Colors.Status.error.opacity(0.14)
+                            )
+                    }
+                    if unknownWorkflowCount > 0 {
+                        Text(
+                            String(
+                                format: NSLocalizedString(
+                                    "provider.resources.health.unknown_workflows_count",
+                                    value: "unknown workflows %d",
+                                    comment: "Provider unknown workflows count"
+                                ),
+                                unknownWorkflowCount
+                            )
+                        )
+                            .font(.caption)
+                            .dsBadge(
+                                foreground: DesignSystem.Colors.Text.secondary,
+                                background: DesignSystem.Colors.Component.controlFillSubtle
+                            )
+                    }
+                    if mcpNeedUpdateCount > 0 {
+                        Text(
+                            String(
+                                format: NSLocalizedString(
+                                    "provider.resources.health.mcp_update_count",
+                                    value: "MCP cache update %d",
+                                    comment: "Provider MCP cache update count"
+                                ),
+                                mcpNeedUpdateCount
+                            )
+                        )
+                            .font(.caption)
+                            .dsBadge(
+                                foreground: DesignSystem.Colors.secondary,
+                                background: DesignSystem.Colors.secondary.opacity(0.14)
+                            )
+                    }
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .dsCard(
+                background: DesignSystem.Colors.Status.warning.opacity(0.08),
+                cornerRadius: DesignSystem.Metrics.cornerRadiusM,
+                borderColor: DesignSystem.Colors.Status.warning.opacity(0.25),
+                borderWidth: 1
+            )
+        }
+    }
+
     @ViewBuilder
     private var tabContent: some View {
         switch selectedTab {
         case .skills:
             if let provider = provider {
-                ProviderSkillsGridView(viewModel: viewModel, columns: columns, provider: provider)
+                VStack(alignment: .leading, spacing: 12) {
+                    warningCard(viewModel.skillsErrorMessage)
+                    ProviderSkillsGridView(viewModel: viewModel, columns: columns, provider: provider)
+                }
             }
         case .workflows:
-            ProviderWorkflowsGridView(viewModel: viewModel, columns: columns)
+            VStack(alignment: .leading, spacing: 12) {
+                warningCard(viewModel.workflowsErrorMessage)
+                ProviderWorkflowsGridView(viewModel: viewModel, columns: columns)
+            }
         case .rules:
-            ProviderRulesGridView(viewModel: viewModel, columns: columns) { rule in
-                editingMarkdownDocument = EditingMarkdownDocument(url: URL(fileURLWithPath: rule.path))
+            VStack(alignment: .leading, spacing: 12) {
+                warningCard(viewModel.rulesErrorMessage)
+                ProviderRulesGridView(viewModel: viewModel, columns: columns) { rule in
+                    editingMarkdownDocument = EditingMarkdownDocument(url: URL(fileURLWithPath: rule.path))
+                }
             }
         case .agents:
-            ProviderAgentsGridView(viewModel: viewModel, columns: columns) { doc in
-                editingMarkdownDocument = EditingMarkdownDocument(url: URL(fileURLWithPath: doc.path))
+            VStack(alignment: .leading, spacing: 12) {
+                warningCard(viewModel.agentsErrorMessage)
+                ProviderAgentsGridView(viewModel: viewModel, columns: columns) { doc in
+                    editingMarkdownDocument = EditingMarkdownDocument(url: URL(fileURLWithPath: doc.path))
+                }
             }
         case .mcp:
-            mcpGrid
+            VStack(alignment: .leading, spacing: 12) {
+                warningCard(viewModel.mcpErrorMessage)
+                mcpGrid
+            }
         case .binary:
             if let provider = provider {
                 CodexBinaryConfigView(provider: provider)
@@ -235,6 +375,27 @@ struct ProviderDetailGridView: View {
             }
         case .none:
             EmptyView()
+        }
+    }
+
+    @ViewBuilder
+    private func warningCard(_ message: String?) -> some View {
+        if let message, !message.isEmpty {
+            HStack(alignment: .center, spacing: 8) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(DesignSystem.Colors.Status.warning)
+                Text(message)
+                    .font(.callout)
+                    .dsSecondaryText(font: .callout)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .dsCard(
+                background: DesignSystem.Colors.Status.warning.opacity(0.08),
+                cornerRadius: DesignSystem.Metrics.cornerRadiusM,
+                borderColor: DesignSystem.Colors.Status.warning.opacity(0.25),
+                borderWidth: 1
+            )
         }
     }
 

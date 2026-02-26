@@ -73,7 +73,13 @@ struct AgentDocCardView: View {
             }
             Button(NSLocalizedString("action.cancel", value: "Cancel", comment: "Cancel action"), role: .cancel) {}
         } message: {
-            Text(NSLocalizedString("action.delete_confirm_message", value: "Are you sure you want to delete this workflow? This action cannot be undone.", comment: "Delete confirmation message"))
+            Text(
+                NSLocalizedString(
+                    "agents.delete_confirm_message",
+                    value: "Are you sure you want to delete this AGENTS document? This action cannot be undone.",
+                    comment: "AGENTS document delete confirmation message"
+                )
+            )
         }
     }
 

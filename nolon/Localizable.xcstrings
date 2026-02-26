@@ -344,6 +344,18 @@
         }
       }
     },
+    "action.install" : {
+      "comment" : "Install action",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Install"
+          }
+        }
+      }
+    },
     "action.link_workflow" : {
       "comment" : "Link to Workflow",
       "localizations" : {
@@ -949,6 +961,18 @@
         }
       }
     },
+    "agents.delete_confirm_message" : {
+      "comment" : "AGENTS document delete confirmation message",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Are you sure you want to delete this AGENTS document? This action cannot be undone."
+          }
+        }
+      }
+    },
     "agents.empty" : {
       "comment" : "No AGENTS files",
       "extractionState" : "extracted_with_value",
@@ -1150,9 +1174,6 @@
           }
         }
       }
-    },
-    "Cached" : {
-
     },
     "Cancel" : {
       "comment" : "Cancel",
@@ -1746,7 +1767,7 @@
     },
     "codex.accounts.error.activate" : {
       "comment" : "Error message",
-      "extractionState" : "stale",
+      "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -3758,6 +3779,7 @@
     },
     "codex.usage.group.title" : {
       "comment" : "Global usage/cost group title",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -3846,55 +3868,55 @@
       }
     },
     "codex.usage.range.7d" : {
-      "comment" : "Usage range",
-      "extractionState" : "stale",
+      "comment" : "7D\nCodex usage trend range 7 days",
+      "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "Last 7 days"
+            "value" : "7D"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "近 7 天"
           }
         }
       }
     },
     "codex.usage.range.30d" : {
-      "comment" : "Usage range",
-      "extractionState" : "stale",
+      "comment" : "30D\nCodex usage trend range 30 days",
+      "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "Last 30 days"
+            "value" : "30D"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "近 30 天"
           }
         }
       }
     },
     "codex.usage.range.all" : {
-      "comment" : "Usage range",
+      "comment" : "ALL\nCodex usage trend range all",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "All time"
+            "value" : "ALL"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
-            "state" : "translated",
-            "value" : "全部"
+            "state" : "needs_review",
+            "value" : "全量"
           }
         }
       }
@@ -3918,7 +3940,7 @@
       }
     },
     "codex.usage.range.today" : {
-      "comment" : "Usage range",
+      "comment" : "Today",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
@@ -3972,7 +3994,7 @@
       }
     },
     "codex.usage.total.tokens" : {
-      "comment" : "Total tokens label",
+      "comment" : "Total tokens",
       "extractionState" : "stale",
       "localizations" : {
         "en" : {
@@ -3985,6 +4007,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "总 Tokens"
+          }
+        }
+      }
+    },
+    "codex.usage.trend.title" : {
+      "comment" : "Codex usage trend title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Token Trend"
           }
         }
       }
@@ -4343,6 +4377,7 @@
       }
     },
     "Error Loading Data" : {
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -4354,6 +4389,7 @@
     },
     "error.git.clone_failed" : {
       "comment" : "Failed to clone repository: %@",
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -4365,6 +4401,7 @@
     },
     "error.git.invalid_url" : {
       "comment" : "Invalid Git repository URL",
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -4376,6 +4413,7 @@
     },
     "error.git.not_cloned" : {
       "comment" : "Repository is not cloned yet",
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -4387,6 +4425,7 @@
     },
     "error.git.pull_failed" : {
       "comment" : "Failed to update repository: %@",
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -4398,6 +4437,7 @@
     },
     "error.git.ssh_not_available" : {
       "comment" : "SSH authentication not configured for %@. Please configure SSH key or provide a Personal Access Token.",
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -4409,6 +4449,7 @@
     },
     "error.repository.access_denied" : {
       "comment" : "Access denied",
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -4420,6 +4461,7 @@
     },
     "error.repository.download_failed" : {
       "comment" : "Download failed: %@",
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -4431,6 +4473,7 @@
     },
     "error.repository.extraction_failed" : {
       "comment" : "Failed to extract package",
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -4442,6 +4485,7 @@
     },
     "error.repository.file_failed" : {
       "comment" : "File operation failed: %@",
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -4453,6 +4497,7 @@
     },
     "error.repository.git_failed" : {
       "comment" : "Git operation failed: %@",
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -4464,6 +4509,7 @@
     },
     "error.repository.invalid_configuration" : {
       "comment" : "Invalid configuration",
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -4475,6 +4521,7 @@
     },
     "error.repository.invalid_package" : {
       "comment" : "Invalid package structure",
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -4486,6 +4533,7 @@
     },
     "error.repository.invalid_url" : {
       "comment" : "Invalid URL",
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -4497,6 +4545,7 @@
     },
     "error.repository.network" : {
       "comment" : "Network error: %@",
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -4508,6 +4557,7 @@
     },
     "error.repository.not_implemented" : {
       "comment" : "Not implemented",
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -4519,6 +4569,7 @@
     },
     "error.repository.parsing_failed" : {
       "comment" : "Parsing failed: %@",
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -4530,6 +4581,7 @@
     },
     "error.repository.resource_not_found" : {
       "comment" : "Resource not found: %@",
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -4541,6 +4593,7 @@
     },
     "error.repository.unsupported_type" : {
       "comment" : "Resource type not supported: (value)",
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -4692,6 +4745,7 @@
     },
     "git.clone_success" : {
       "comment" : "Repository cloned successfully",
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -4703,6 +4757,7 @@
     },
     "git.pull_success" : {
       "comment" : "Repository updated successfully",
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -4721,9 +4776,6 @@
           }
         }
       }
-    },
-    "Input" : {
-
     },
     "Install" : {
       "comment" : "Install",
@@ -4940,9 +4992,6 @@
           }
         }
       }
-    },
-    "Last %d days" : {
-      "comment" : "Rolling usage days"
     },
     "Latest Changes" : {
       "comment" : "Latest changes",
@@ -5911,6 +5960,18 @@
         }
       }
     },
+    "onboarding.provider.select_at_least_one" : {
+      "comment" : "Onboarding provider minimum selection hint",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Select at least one provider."
+          }
+        }
+      }
+    },
     "onboarding.provider.selected_count %lld" : {
       "localizations" : {
         "en" : {
@@ -6006,9 +6067,6 @@
           }
         }
       }
-    },
-    "Output" : {
-
     },
     "Path (e.g., skills, .agent)" : {
       "localizations" : {
@@ -6292,6 +6350,78 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "在此 Provider 中未找到 Skills"
+          }
+        }
+      }
+    },
+    "provider.resources.health.broken_skills_count" : {
+      "comment" : "Provider broken skills count",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "broken skills %d"
+          }
+        }
+      }
+    },
+    "provider.resources.health.mcp_update_count" : {
+      "comment" : "Provider MCP cache update count",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "MCP cache update %d"
+          }
+        }
+      }
+    },
+    "provider.resources.health.ok" : {
+      "comment" : "Provider resources healthy summary",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "All resources are healthy."
+          }
+        }
+      }
+    },
+    "provider.resources.health.orphaned_skills_count" : {
+      "comment" : "Provider orphaned skills count",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "orphaned skills %d"
+          }
+        }
+      }
+    },
+    "provider.resources.health.unknown_workflows_count" : {
+      "comment" : "Provider unknown workflows count",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "unknown workflows %d"
+          }
+        }
+      }
+    },
+    "provider.resources.health.warn" : {
+      "comment" : "Provider resources warning summary",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Some resources need attention."
           }
         }
       }
@@ -6671,6 +6801,66 @@
         }
       }
     },
+    "remote.section.available" : {
+      "comment" : "Available section",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Available"
+          }
+        }
+      }
+    },
+    "remote.section.installed" : {
+      "comment" : "Installed section",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Installed"
+          }
+        }
+      }
+    },
+    "remote.section.installing" : {
+      "comment" : "Installing section",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Installing"
+          }
+        }
+      }
+    },
+    "remote.status.installed" : {
+      "comment" : "Remote installed status",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Installed"
+          }
+        }
+      }
+    },
+    "remote.status.installing" : {
+      "comment" : "Remote installing status",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Installing"
+          }
+        }
+      }
+    },
     "remote.workflows.empty" : {
       "comment" : "No workflows",
       "extractionState" : "extracted_with_value",
@@ -6719,6 +6909,7 @@
     },
     "repo_type.global_skills" : {
       "comment" : "Global Skills",
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -6730,6 +6921,7 @@
     },
     "repo_type.local_folder" : {
       "comment" : "Local Folder",
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -6783,6 +6975,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "在 Finder 中显示"
+          }
+        }
+      }
+    },
+    "rules.delete_confirm_message" : {
+      "comment" : "Rule delete confirmation message",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Are you sure you want to delete this rule? This action cannot be undone."
           }
         }
       }
@@ -7386,6 +7590,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "重新开始引导"
+          }
+        }
+      }
+    },
+    "settings.onboarding.reset.confirm_action" : {
+      "comment" : "Onboarding reset confirmation action",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Run"
+          }
+        }
+      }
+    },
+    "settings.onboarding.reset.confirm_message" : {
+      "comment" : "Onboarding reset confirmation message",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "This will show onboarding again the next time the main window appears."
+          }
+        }
+      }
+    },
+    "settings.onboarding.reset.confirm_title" : {
+      "comment" : "Onboarding reset confirmation title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Run onboarding again?"
           }
         }
       }
@@ -8108,9 +8348,6 @@
         }
       }
     },
-    "Tokens" : {
-
-    },
     "toolbar.clawdhub" : {
       "comment" : "Clawdhub",
       "localizations" : {
@@ -8121,9 +8358,6 @@
           }
         }
       }
-    },
-    "Total" : {
-
     },
     "Unable to read file" : {
       "comment" : "Unable to read file",
@@ -8219,198 +8453,6 @@
         }
       }
     },
-    "usage.account.default" : {
-      "comment" : "Default account label",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Default session"
-          }
-        }
-      }
-    },
-    "usage.cost.chart.day" : {
-      "comment" : "Day granularity",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "日"
-          }
-        }
-      }
-    },
-    "usage.cost.chart.display" : {
-      "comment" : "Display label",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "显示"
-          }
-        }
-      }
-    },
-    "usage.cost.chart.month" : {
-      "comment" : "Month granularity",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "月"
-          }
-        }
-      }
-    },
-    "usage.cost.chart.period" : {
-      "comment" : "Period label",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "周期"
-          }
-        }
-      }
-    },
-    "usage.cost.chart.range" : {
-      "comment" : "Range label",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "范围"
-          }
-        }
-      }
-    },
-    "usage.cost.chart.range.30d" : {
-      "comment" : "Range 30 days",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "30D"
-          }
-        }
-      }
-    },
-    "usage.cost.chart.range.90d" : {
-      "comment" : "Range 90 days",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "90D"
-          }
-        }
-      }
-    },
-    "usage.cost.chart.range.180d" : {
-      "comment" : "Range 180 days",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "180D"
-          }
-        }
-      }
-    },
-    "usage.cost.chart.range.365d" : {
-      "comment" : "Range 365 days",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "365D"
-          }
-        }
-      }
-    },
-    "usage.cost.chart.range.all" : {
-      "comment" : "Range all",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "All"
-          }
-        }
-      }
-    },
-    "usage.cost.chart.value_mode.cost" : {
-      "comment" : "Cost only",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "费用"
-          }
-        }
-      }
-    },
-    "usage.cost.chart.value_mode.tokens" : {
-      "comment" : "Tokens only",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Tokens"
-          }
-        }
-      }
-    },
-    "usage.cost.table.cost" : {
-      "comment" : "Cost table cost",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "费用"
-          }
-        }
-      }
-    },
-    "usage.cost.table.date" : {
-      "comment" : "Cost table date",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "日期"
-          }
-        }
-      }
-    },
-    "usage.cost.table.tokens" : {
-      "comment" : "Cost table tokens",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Tokens"
-          }
-        }
-      }
-    },
     "usage.metric.account" : {
       "comment" : "Account label",
       "extractionState" : "extracted_with_value",
@@ -8431,7 +8473,7 @@
     },
     "usage.metric.cost" : {
       "comment" : "Cost label",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -8467,7 +8509,7 @@
     },
     "usage.metric.cost.today_format" : {
       "comment" : "Today cost format",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -8623,7 +8665,7 @@
     },
     "usage.metric.tokens" : {
       "comment" : "Token count",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -8641,7 +8683,7 @@
     },
     "usage.metric.tokens_k" : {
       "comment" : "Token count in thousands",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -8659,7 +8701,7 @@
     },
     "usage.metric.tokens_m" : {
       "comment" : "Token count in millions",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {

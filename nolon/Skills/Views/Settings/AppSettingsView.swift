@@ -103,6 +103,7 @@ struct AppSettingsView: View {
 private struct GeneralSettingsView: View {
     let settings: AppSettingsStore
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = true
+    @State private var showingOnboardingResetConfirm = false
     
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
@@ -129,9 +130,7 @@ private struct GeneralSettingsView: View {
             
             settingsSection(title: NSLocalizedString("settings.importing.title", value: "Importing", comment: "Section title")) {
                 Button(action: {
-                    withAnimation(.spring()) {
-                        hasCompletedOnboarding = false
-                    }
+                    showingOnboardingResetConfirm = true
                 }) {
                     HStack {
                         Image(systemName: "arrow.counterclockwise")
@@ -145,6 +144,35 @@ private struct GeneralSettingsView: View {
                     .dsCard()
                 }
                 .dsLinkButton()
+                .confirmationDialog(
+                    NSLocalizedString(
+                        "settings.onboarding.reset.confirm_title",
+                        value: "Run onboarding again?",
+                        comment: "Onboarding reset confirmation title"
+                    ),
+                    isPresented: $showingOnboardingResetConfirm
+                ) {
+                    Button(
+                        NSLocalizedString(
+                            "settings.onboarding.reset.confirm_action",
+                            value: "Run",
+                            comment: "Onboarding reset confirmation action"
+                        )
+                    ) {
+                        withAnimation(.spring()) {
+                            hasCompletedOnboarding = false
+                        }
+                    }
+                    Button(NSLocalizedString("action.cancel", value: "Cancel", comment: "Cancel"), role: .cancel) {}
+                } message: {
+                    Text(
+                        NSLocalizedString(
+                            "settings.onboarding.reset.confirm_message",
+                            value: "This will show onboarding again the next time the main window appears.",
+                            comment: "Onboarding reset confirmation message"
+                        )
+                    )
+                }
             }
         }
     }

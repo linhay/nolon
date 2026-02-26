@@ -10,6 +10,7 @@ struct OnboardingView: View {
     @State private var step: Step = .welcome
     @State private var selectedProviders: Set<ProviderTemplate> = []
     @State private var detectedProviders: Set<ProviderTemplate> = []
+    private let recommendedDefaults: Set<ProviderTemplate> = [.codex, .claudeCode]
     
     var body: some View {
         ZStack {
@@ -27,7 +28,7 @@ struct OnboardingView: View {
     private func detectInstalledProviders() {
         let detected = discoveryService.detectInstalledProviders()
         detectedProviders = detected
-        selectedProviders = detected
+        selectedProviders = detected.isEmpty ? recommendedDefaults : detected
     }
     
     /// 完成引导流程
@@ -144,10 +145,22 @@ private extension OnboardingView {
                 .buttonStyle(OnboardingSecondaryButtonStyle())
                 
                 Spacer()
-                
-                Text("onboarding.provider.selected_count \(selectedProviders.count)")
+
+                if selectedProviders.isEmpty {
+                    Text(
+                        NSLocalizedString(
+                            "onboarding.provider.select_at_least_one",
+                            value: "Select at least one provider.",
+                            comment: "Onboarding provider minimum selection hint"
+                        )
+                    )
                     .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(selectedProviders.isEmpty ? DesignSystem.Colors.Text.secondary : DesignSystem.Colors.primary)
+                    .foregroundStyle(DesignSystem.Colors.Status.warning)
+                } else {
+                    Text("onboarding.provider.selected_count \(selectedProviders.count)")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(DesignSystem.Colors.primary)
+                }
                 
                 Spacer()
                 

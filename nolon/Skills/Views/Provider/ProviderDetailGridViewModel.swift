@@ -34,7 +34,11 @@ final class ProviderDetailGridViewModel {
     
     // State
     var isLoading = false
-    var errorMessage: String?
+    var skillsErrorMessage: String?
+    var workflowsErrorMessage: String?
+    var rulesErrorMessage: String?
+    var agentsErrorMessage: String?
+    var mcpErrorMessage: String?
     var searchText: String = ""
     var showingRemoteBrowser: RemoteBrowserType? = nil
     var codexModelOptions: [String] = []
@@ -46,6 +50,14 @@ final class ProviderDetailGridViewModel {
         case skill, workflow, mcp
         
         var id: Self { self }
+    }
+
+    enum ResourceErrorScope: Sendable {
+        case skills
+        case workflows
+        case rules
+        case agents
+        case mcp
     }
     
     // Internals
@@ -74,6 +86,7 @@ final class ProviderDetailGridViewModel {
     }
     
     func loadData() async {
+        clearScopedErrors()
         guard let provider = provider else {
             installedSkills = []
             workflows = []
@@ -91,7 +104,8 @@ final class ProviderDetailGridViewModel {
         do {
             installedSkills = try skillSnapshotService.load(provider: provider)
         } catch {
-            errorMessage = error.localizedDescription
+            installedSkills = []
+            setError(error.localizedDescription, scope: .skills)
         }
         
         applyResourceSnapshot(for: provider)
@@ -274,12 +288,13 @@ final class ProviderDetailGridViewModel {
     // MARK: - Async Error Handling Helper
     
     /// Generic async operation wrapper with automatic error handling and data reload
-    private func performAsync(_ operation: () async throws -> Void) async {
+    private func performAsync(scope: ResourceErrorScope, _ operation: () async throws -> Void) async {
         do {
             try await operation()
+            clearError(scope: scope)
             await loadData()
         } catch {
-            errorMessage = error.localizedDescription
+            setError(error.localizedDescription, scope: scope)
         }
     }
     
@@ -303,7 +318,7 @@ final class ProviderDetailGridViewModel {
     }
 
     func setMCPEnabled(_ mcp: MCP, enabled: Bool, for provider: Provider) async {
-        await performAsync {
+        await performAsync(scope: .mcp) {
             try await updateMCPEnabled(mcp, enabled: enabled, for: provider)
         }
     }
@@ -510,7 +525,7 @@ final class ProviderDetailGridViewModel {
     
     func uninstallSkill(_ skill: Skill) async {
         guard let provider = provider else { return }
-        await performAsync {
+        await performAsync(scope: .skills) {
             try installer.uninstall(skill: skill, from: provider)
         }
     }
@@ -520,9 +535,10 @@ final class ProviderDetailGridViewModel {
         
         do {
             try installer.installWorkflow(skill: skill, to: provider)
+            clearError(scope: .workflows)
             applyResourceSnapshot(for: provider)
         } catch {
-            errorMessage = error.localizedDescription
+            setError(error.localizedDescription, scope: .workflows)
         }
     }
     
@@ -531,9 +547,10 @@ final class ProviderDetailGridViewModel {
         
         do {
             try installer.uninstallWorkflow(skill: skill, from: provider)
+            clearError(scope: .workflows)
             applyResourceSnapshot(for: provider)
         } catch {
-            errorMessage = error.localizedDescription
+            setError(error.localizedDescription, scope: .workflows)
         }
     }
     
@@ -542,9 +559,10 @@ final class ProviderDetailGridViewModel {
         
         do {
             try installer.installMcpWorkflow(mcp: mcp, to: provider)
+            clearError(scope: .mcp)
             applyResourceSnapshot(for: provider)
         } catch {
-            errorMessage = error.localizedDescription
+            setError(error.localizedDescription, scope: .mcp)
         }
     }
     
@@ -553,15 +571,16 @@ final class ProviderDetailGridViewModel {
         
         do {
             try installer.uninstallMcpWorkflow(mcp: mcp, from: provider)
+            clearError(scope: .mcp)
             applyResourceSnapshot(for: provider)
         } catch {
-            errorMessage = error.localizedDescription
+            setError(error.localizedDescription, scope: .mcp)
         }
     }
     
     func migrateSkill(_ skill: Skill) async {
         guard let provider = provider else { return }
-        await performAsync {
+        await performAsync(scope: .skills) {
             _ = try installer.migrate(skillName: skill.id, from: provider, overwriteExisting: false)
         }
     }
@@ -578,8 +597,9 @@ final class ProviderDetailGridViewModel {
         guard let provider = provider else { return }
         do {
             try resourceService.deleteWorkflow(workflowID: workflow.id, provider: provider)
+            clearError(scope: .workflows)
         } catch {
-            errorMessage = error.localizedDescription
+            setError(error.localizedDescription, scope: .workflows)
         }
         applyResourceSnapshot(for: provider)
     }
@@ -588,8 +608,9 @@ final class ProviderDetailGridViewModel {
         guard let provider else { return }
         do {
             try resourceService.deleteResource(atPath: rule.path)
+            clearError(scope: .rules)
         } catch {
-            errorMessage = error.localizedDescription
+            setError(error.localizedDescription, scope: .rules)
         }
         applyResourceSnapshot(for: provider)
     }
@@ -602,8 +623,9 @@ final class ProviderDetailGridViewModel {
         guard let provider else { return }
         do {
             try resourceService.deleteResource(atPath: doc.path)
+            clearError(scope: .agents)
         } catch {
-            errorMessage = error.localizedDescription
+            setError(error.localizedDescription, scope: .agents)
         }
         applyResourceSnapshot(for: provider)
     }
@@ -615,10 +637,11 @@ final class ProviderDetailGridViewModel {
             let basePath = STPath(provider.codexAgentsFileURL)
             let draftKind: ProviderResourceDraftKind = basePath.isExists ? .agentOverride : .agentBase
             let targetURL = try resourceService.createDraft(provider: provider, kind: draftKind)
+            clearError(scope: .agents)
             applyResourceSnapshot(for: provider)
             return targetURL
         } catch {
-            errorMessage = error.localizedDescription
+            setError(error.localizedDescription, scope: .agents)
             return nil
         }
     }
@@ -629,16 +652,17 @@ final class ProviderDetailGridViewModel {
 
         do {
             let draftURL = try resourceService.createDraft(provider: provider, kind: .rule)
+            clearError(scope: .rules)
             applyResourceSnapshot(for: provider)
             return draftURL
         } catch {
-            errorMessage = error.localizedDescription
+            setError(error.localizedDescription, scope: .rules)
             return nil
         }
     }
     
     func installRemoteSkill(_ skill: RemoteSkill, to provider: Provider) async {
-        await performAsync {
+        await performAsync(scope: .skills) {
             try await remoteInstallOrchestrator.installSkill(
                 skill,
                 to: provider,
@@ -649,7 +673,7 @@ final class ProviderDetailGridViewModel {
     }
     
     func installRemoteWorkflow(_ workflow: RemoteWorkflow, to provider: Provider) async {
-        await performAsync {
+        await performAsync(scope: .workflows) {
             try await remoteInstallOrchestrator.installWorkflow(
                 workflow,
                 to: provider,
@@ -660,12 +684,50 @@ final class ProviderDetailGridViewModel {
     }
     
     func installRemoteMCP(_ mcp: RemoteMCP, to provider: Provider) async {
-        await performAsync {
+        await performAsync(scope: .mcp) {
             try await remoteInstallOrchestrator.installMCP(
                 mcp,
                 to: provider,
                 remoteBaseURL: currentRemoteBaseURL()
             )
+        }
+    }
+
+    private func clearScopedErrors() {
+        skillsErrorMessage = nil
+        workflowsErrorMessage = nil
+        rulesErrorMessage = nil
+        agentsErrorMessage = nil
+        mcpErrorMessage = nil
+    }
+
+    private func clearError(scope: ResourceErrorScope) {
+        switch scope {
+        case .skills:
+            skillsErrorMessage = nil
+        case .workflows:
+            workflowsErrorMessage = nil
+        case .rules:
+            rulesErrorMessage = nil
+        case .agents:
+            agentsErrorMessage = nil
+        case .mcp:
+            mcpErrorMessage = nil
+        }
+    }
+
+    private func setError(_ message: String, scope: ResourceErrorScope) {
+        switch scope {
+        case .skills:
+            skillsErrorMessage = message
+        case .workflows:
+            workflowsErrorMessage = message
+        case .rules:
+            rulesErrorMessage = message
+        case .agents:
+            agentsErrorMessage = message
+        case .mcp:
+            mcpErrorMessage = message
         }
     }
 
