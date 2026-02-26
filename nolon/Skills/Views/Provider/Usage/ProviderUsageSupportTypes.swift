@@ -1,35 +1,6 @@
 import SwiftUI
 import ProviderUsage
 
-struct CostTableRow: Identifiable {
-    let id: String
-    let date: Date
-    let dateLabel: String
-    let costUSD: Double
-    let tokens: Int
-    let costText: String
-    let tokensText: String
-}
-
-struct ParsedCostRow {
-    let date: Date
-    let costUSD: Double
-    let tokens: Int?
-}
-
-struct CostMonthKey: Hashable {
-    let year: Int
-    let month: Int
-    let date: Date
-
-    init(date: Date) {
-        let calendar = Calendar.current
-        year = calendar.component(.year, from: date)
-        month = calendar.component(.month, from: date)
-        self.date = calendar.date(from: DateComponents(year: year, month: month, day: 1)) ?? date
-    }
-}
-
 extension View {
     @ViewBuilder
     func `if`<Content: View>(_ condition: Bool, transform: (Self) -> Content) -> some View {
@@ -79,54 +50,6 @@ enum UsageAutoRefreshInterval: Int, CaseIterable, Identifiable {
             return NSLocalizedString("usage.monitor.auto_refresh.2h", value: "2h", comment: "Auto refresh 2 hours")
         case .fiveHours:
             return NSLocalizedString("usage.monitor.auto_refresh.5h", value: "5h", comment: "Auto refresh 5 hours")
-        }
-    }
-}
-
-enum CostHistoryWindow: CaseIterable, Identifiable {
-    case days30
-    case days90
-    case days180
-    case days365
-    case all
-
-    var id: String {
-        switch self {
-        case .days30: return "30"
-        case .days90: return "90"
-        case .days180: return "180"
-        case .days365: return "365"
-        case .all: return "all"
-        }
-    }
-
-    var days: Int? {
-        switch self {
-        case .days30: return 30
-        case .days90: return 90
-        case .days180: return 180
-        case .days365: return 365
-        case .all: return nil
-        }
-    }
-
-    static func from(days: Int?) -> CostHistoryWindow {
-        switch days {
-        case 30: return .days30
-        case 90: return .days90
-        case 180: return .days180
-        case 365: return .days365
-        default: return .all
-        }
-    }
-
-    var title: String {
-        switch self {
-        case .days30: return NSLocalizedString("usage.cost.chart.range.30d", value: "30D", comment: "Range 30 days")
-        case .days90: return NSLocalizedString("usage.cost.chart.range.90d", value: "90D", comment: "Range 90 days")
-        case .days180: return NSLocalizedString("usage.cost.chart.range.180d", value: "180D", comment: "Range 180 days")
-        case .days365: return NSLocalizedString("usage.cost.chart.range.365d", value: "365D", comment: "Range 365 days")
-        case .all: return NSLocalizedString("usage.cost.chart.range.all", value: "All", comment: "Range all")
         }
     }
 }

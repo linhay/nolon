@@ -32,7 +32,6 @@ final class ProviderUsageViewModel {
     var settings: UsageMonitorProviderSettings
     var supportedSourceModes: [ProviderSourceMode] = []
     var isMultiAccountEnabled: Bool
-    var codexCostWindowDays: Int? = 30
 
     var isLoading = false
     var outcomes: [ProviderAccountUsageOutcome] = []
@@ -89,7 +88,6 @@ final class ProviderUsageViewModel {
         self.usageProvider = ProviderUsageViewModel.mapToUsageProvider(provider)
         let initialSettings = settingsStore.settings(for: provider)
         self.settings = initialSettings
-        self.codexCostWindowDays = initialSettings.costWindowDays
         self.isMultiAccountEnabled = settingsStore.isMultiAccountEnabled(for: provider)
         self.codexActivateAction = codexActivateAction ?? { account, provider in
             try await CodexAuthActivationCoordinator.shared.activate(account: account, provider: provider)
@@ -130,15 +128,7 @@ final class ProviderUsageViewModel {
 
     func updateSettings(_ newSettings: UsageMonitorProviderSettings) {
         settings = newSettings
-        codexCostWindowDays = newSettings.costWindowDays
         settingsStore.update(settings: newSettings, for: provider)
-    }
-
-    func setCodexCostWindowDays(_ days: Int?) {
-        guard codexCostWindowDays != days else { return }
-        var newSettings = settings
-        newSettings.costWindowDays = days
-        updateSettings(newSettings)
     }
 
     @discardableResult
@@ -202,7 +192,7 @@ final class ProviderUsageViewModel {
             outcomes = await usageMonitor.fetchOutcomes(
                 provider: usageProvider,
                 settings: settings,
-                costWindowDays: codexCostWindowDays
+                costWindowDays: nil
             )
             lastUsageRefreshAt = Date()
         }
@@ -850,7 +840,7 @@ final class ProviderUsageViewModel {
         let mergedResult = ProviderFetchResult(
             usage: mergedUsage,
             credits: result.credits,
-            cost: result.cost,
+            cost: nil,
             sourceLabel: result.sourceLabel,
             fetchKind: result.fetchKind,
             strategyKind: result.strategyKind
@@ -950,7 +940,7 @@ final class ProviderUsageViewModel {
                     sourceLabel: result.sourceLabel,
                     usage: result.usage,
                     credits: result.credits,
-                    cost: result.cost
+                    cost: nil
                 )
                 let targetFile = codexAuthManager.accountAuthFile(relativeAuthPath: account.relativeAuthPath)
                 markAuthCacheWrite(at: targetFile.url)
@@ -1020,7 +1010,7 @@ final class ProviderUsageViewModel {
                 sourceLabel: result.sourceLabel,
                 usage: result.usage,
                 credits: result.credits,
-                cost: result.cost
+                cost: nil
             )
             let targetFile = codexAuthManager.accountAuthFile(relativeAuthPath: activeAccount.relativeAuthPath)
             markAuthCacheWrite(at: targetFile.url)
@@ -1172,7 +1162,7 @@ final class ProviderUsageViewModel {
                 sourceMode: settings.sourceMode,
                 includeCredits: settings.includeCredits,
                 timeout: TimeInterval(settings.webTimeoutSeconds),
-                costWindowDays: codexCostWindowDays,
+                costWindowDays: nil,
                 environment: environment,
                 token: nil
             )

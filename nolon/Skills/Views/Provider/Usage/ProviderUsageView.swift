@@ -11,11 +11,6 @@ struct ProviderUsageView: View {
     let provider: Provider
     let isEmbedded: Bool
     @State private var viewModel: ProviderUsageViewModel
-    @State private var costChartGranularity: CostChartGranularity = .day
-    @State private var costChartValueDisplayMode: CostChartValueDisplayMode = .cost
-    @State private var costChartSelection: CostChartSelection?
-    @State private var costChartSelectedID: String?
-    @State private var costTableSelection: Set<String> = []
 
     private let codexAccountColumns: [GridItem] = [
         GridItem(.adaptive(minimum: 240, maximum: 340), spacing: 12, alignment: .topLeading)
@@ -290,25 +285,6 @@ struct ProviderUsageView: View {
         }
     }
 
-    private var codexGlobalOutcome: ProviderAccountUsageOutcome? {
-        if let activeId = viewModel.activeCodexAccountId,
-           let active = viewModel.codexAccountOutcomes.first(where: { outcome in
-               if case let .tokenAccount(account) = outcome.account {
-                   return account.id == activeId
-               }
-               return false
-           }) {
-            return active
-        }
-        if let success = viewModel.codexAccountOutcomes.first(where: { outcome in
-            if case .success = outcome.outcome.result { return true }
-            return false
-        }) {
-            return success
-        }
-        return viewModel.codexAccountOutcomes.first
-    }
-
     private var codexContent: some View {
         ScrollView {
             if viewModel.isMultiAccountEnabled {
@@ -333,7 +309,6 @@ struct ProviderUsageView: View {
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
 
-                    codexGlobalUsageGroup
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             } else {
@@ -608,70 +583,6 @@ struct ProviderUsageView: View {
         .dsCard(background: .clear, borderColor: nil, borderWidth: 0)
     }
 
-    @ViewBuilder
-    private var codexGlobalUsageGroup: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(NSLocalizedString("codex.usage.group.title", value: "Usage & Cost", comment: "Global usage/cost group title"))
-                .font(.headline)
-
-            if let outcome = codexGlobalOutcome {
-                codexGlobalUsageContent(outcome: outcome)
-            } else {
-                ContentUnavailableView(
-                    NSLocalizedString("usage.monitor.empty.title", value: "No usage data", comment: "Empty title"),
-                    systemImage: "chart.bar",
-                    description: Text(NSLocalizedString("usage.monitor.empty.desc", value: "No provider data available yet.", comment: "Empty description"))
-                        .dsSecondaryText(font: .body)
-                )
-            }
-        }
-        .padding()
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .dsCard()
-    }
-
-    @ViewBuilder
-    private func codexGlobalUsageContent(outcome: ProviderAccountUsageOutcome) -> some View {
-        switch outcome.outcome.result {
-        case let .success(result):
-            VStack(alignment: .leading, spacing: 10) {
-                if let cost = result.cost {
-                    let todayLine = codexCostLineToday(cost)
-                    let last30Line = codexCostLineLast30(cost)
-                    let dailyCosts = cost.dailyCosts ?? []
-                    CodexCostChartSectionView(
-                        todayLine: todayLine,
-                        last30Line: last30Line,
-                        dailyCosts: dailyCosts,
-                        granularity: $costChartGranularity,
-                        valueDisplayMode: $costChartValueDisplayMode,
-                        selection: $costChartSelection,
-                        selectedID: $costChartSelectedID,
-                        tableSelection: $costTableSelection,
-                        windowDays: Binding(
-                            get: { viewModel.codexCostWindowDays },
-                            set: { newValue in
-                                viewModel.setCodexCostWindowDays(newValue)
-                            }
-                        )
-                    )
-                } else {
-                    Text(NSLocalizedString("usage.monitor.empty.desc", value: "No provider data available yet.", comment: "Empty description"))
-                        .font(.caption)
-                        .foregroundStyle(DesignSystem.Colors.Text.tertiary)
-                }
-            }
-        case let .failure(error):
-            Text(NSLocalizedString("usage.monitor.error.title", value: "Failed to load usage", comment: "Error title"))
-                .dsErrorText(font: .caption)
-
-            Text(error.localizedDescription)
-                .font(.caption)
-                .dsTertiaryText(font: .caption)
-                .lineLimit(2)
-        }
-    }
-
     private func codexSubtitleText(title: String, email: String?, plan: String?) -> String? {
         let trimmedEmail = email?.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedPlan = plan?.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -800,50 +711,6 @@ struct ProviderUsageView: View {
             return NSLocalizedString("usage.metric.unknown", value: "Unknown", comment: "Unknown")
         }
         return String(format: "%.0f", value)
-    }
-
-    private func codexCostLineToday(_ cost: CostSnapshot) -> String? {
-        guard let dollars = cost.todayCostUSD else { return nil }
-        let tokens = cost.todayTokens
-        let tokenText = tokens.map { " • \(codexTokenCountText($0))" } ?? ""
-        return String(
-            format: NSLocalizedString(
-                "usage.metric.cost.today_format",
-                value: "Today: $%.2f%@",
-                comment: "Today cost format"
-            ),
-            dollars,
-            tokenText
-        )
-    }
-
-    private func codexCostLineLast30(_ cost: CostSnapshot) -> String? {
-        guard let dollars = cost.last30DaysCostUSD else { return nil }
-        let tokens = cost.last30DaysTokens
-        let tokenText = tokens.map { " • \(codexTokenCountText($0))" } ?? ""
-        let amountText = String(format: "$%.2f%@", dollars, tokenText)
-        if let days = cost.windowDays {
-            if isChineseLocale {
-                return "近\(days)天: \(amountText)"
-            }
-            return "Last \(days) days: \(amountText)"
-        }
-        if isChineseLocale {
-            return "全部时间: \(amountText)"
-        }
-        return "All time: \(amountText)"
-    }
-
-    private func codexTokenCountText(_ value: Int) -> String {
-        if value >= 1_000_000 {
-            let millions = Double(value) / 1_000_000.0
-            return String(format: NSLocalizedString("usage.metric.tokens_m", value: "%.0fM tokens", comment: "Token count in millions"), millions)
-        }
-        if value >= 1_000 {
-            let thousands = Double(value) / 1_000.0
-            return String(format: NSLocalizedString("usage.metric.tokens_k", value: "%.0fK tokens", comment: "Token count in thousands"), thousands)
-        }
-        return String(format: NSLocalizedString("usage.metric.tokens", value: "%d tokens", comment: "Token count"), value)
     }
 
 }
