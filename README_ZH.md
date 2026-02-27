@@ -30,6 +30,9 @@ Nolon 是一款 macOS 上的 AI 编程工作区管理器。
 
 ## 最近更新（当前分支）
 
+与 `main` 相差 280 提交的详细合并说明：
+- [`docs-dev/ops/main-merge-notes-2026-02-27.md`](docs-dev/ops/main-merge-notes-2026-02-27.md)
+
 * **添加仓库流程收口**
   * 新增更大更清晰的添加弹窗，支持本地文件夹拖拽导入
   * Git URL 输入新增一键粘贴操作

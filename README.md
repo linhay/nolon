@@ -30,6 +30,9 @@ Use one workspace across **Codex**, **Claude Code**, **Cursor**, and 20+ other p
 
 ## Recent Updates (This Branch)
 
+Detailed merge notes for the 280-commit delta to `main`:
+- [`docs-dev/ops/main-merge-notes-2026-02-27.md`](docs-dev/ops/main-merge-notes-2026-02-27.md)
+
 * **Add Repository flow refinement**
   * Larger, clearer add dialog with drag-and-drop local folder support
   * Git URL quick-paste action
