@@ -965,5 +965,339 @@
                        xml:lang="en" />
         </item>
 
+    
+        <item>
+            <title>2.0.0</title>
+            <pubDate>Sat, 28 Feb 2026 00:44:01 +0800</pubDate>
+            <sparkle:version>202602280031</sparkle:version>
+            <sparkle:shortVersionString>2.0.0</sparkle:shortVersionString>
+            <link>https://github.com/linhay/nolon/releases/download/v2.0.0/nolon-arm64.dmg</link>
+            <description><![CDATA[<div style="white-space: pre-wrap; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;">## nolon 2.0.0
+
+### Changes
+- fix(release): fallback to hdiutil when create-dmg fails
+- fix(release): use nolon-app scheme for DMG build
+- chore(deps): switch STJSON to remote package
+- chore: move reference libs out of libs and remove submodule setup
+- Merge branch 'codex-version-manager'
+- docs(merge): add 280-commit main merge notes and readme links
+- docs(readme): add branch update summary before merging to main
+- feat(codex-usage): unify auth management flow and provider usage UX
+- refactor(resource-center): replace remote browser with unified resource center
+- feat(add-repository): improve drop zone and auto repository setup
+- fix(skill-install): restore local git skill install path in app and cli
+- feat(app): isolate provider tab errors and polish remote list UX
+- feat(codex-usage): refine trend table typography and chart-row scroll linkage
+- feat(codex-usage): add token trend service, cli command, and app chart/table
+- refactor(app): remove codex cost UI and keep usage metrics only
+- refactor(providers): remove codex cost fetching from usage pipeline
+- fix(app): stabilize codex usage/account state mapping and error handling
+- fix(app): restore build by importing sdk config model and sync workspace changes
+- feat(sdk,app): downsink provider skill snapshot parsing into sdk
+- refactor(app): consume sdk mapper and remove legacy parse helpers
+- refactor(cli): use sdk resource list text presenter
+- feat(sdk): add resource list presenter and remote catalog mapper
+- docs: record final sdk downsink batch and memory updates
+- refactor(app,cli): consume sdk mapper, draft service, paging store, usage aggregate, and remote search presenter
+- feat(sdk): downsync resource mapper, draft validation, paging store, usage aggregate, and remote search presenter
+- docs: capture one-shot sdk downsink for remote query and sync orchestration
+- refactor(app,cli): consume sdk remote orchestration and shared health state
+- feat(sdk): add remote query/count, sync orchestrator, and resource snapshot services
+- docs: record sdk downsink progress for codex model preference
+- refactor(app): route codex model and remote refresh through sdk
+- feat(sdk): add codex model preference service and refresh policy
+- refactor(list): move workflow/mcp quick-fix action generation to sdk policy
+- refactor(list): move skills quick-fix action generation to sdk policy
+- refactor(list): move empty-state and guidance copy rules to sdk
+- refactor(list): move overview summary rules from cli to sdk
+- refactor(repair): unify fix command generation in sdk and cli
+- fix(app): resolve ProviderCatalog imports and main-actor init
+- refactor(sdk): unify workflow binding via WorkflowBindingService
+- refactor(app): route provider mcp operations through sdk service
+- refactor(sdk): add provider mcp maintenance service and reuse in cli
+- feat(cli): add top-level provider discover command
+- refactor(app): remove legacy installer deps in provider skills vm
+- refactor(sdk): unify skill install/uninstall via maintenance service
+- refactor(app): use sdk discovery and skill maintenance services
+- refactor(sdk): add provider discovery and skill maintenance services
+- refactor(app): consume sdk status/summary/update services
+- refactor(sdk): add status/summary/update orchestrators and reuse in cli
+- refactor(app): consume NolonResourceKit services in provider views
+- refactor(providers): sink resource policies into sdk and reuse in cli
+- feat(show-fixes): 健康态增加已安装资源查看入口
+- feat(list-ux): 健康态补充已安装列表查看引导
+- refactor(help-format): 统一 skills/workflow/mcp 参数逐行展示
+- refactor(origin-map): 提取来源标签映射为单点函数
+- refactor(origin-label): 统一来源类型中文标签
+- feat(list-origin): 折叠超长来源路径并保留锚点信息
+- refactor(list-output): 统一 verbose 来源文案并标记推断来源
+- feat(mcp-list): verbose 模式补充推断 origin 来源
+- refactor(workflow-origin): 下沉来源解析到 SDK 并修复相对软链判定
+- feat(cli-help): 补全 workflow/mcp 场景示例与测试覆盖
+- refactor(provider): centralize provider id resolution in ProviderTemplate
+- refactor(mcp-list): source server entries via service and remove local parsers
+- feat(core-cli): add workflow bind/unbind and mcp server/cache management
+- feat(cli-help): 接通 codex 自定义 help 路由并同步入口测试
+- refactor(cli-help): 统一 codex action 帮助为逐行注释样式
+- feat(cli-help): 展开 skills repo 与 codex 帮助参数展示
+- refactor(core-cli-help): apply one-line-per-option format to remote help
+- refactor(core-cli-help): expand subcommand options to one-per-line annotated format
+- refactor(core-cli): localize state values in empty-state messages
+- refactor(core-cli): remove extra blank line before installed skills section
+- refactor(core-cli): unify no-op show-fixes hints for skills with resources
+- refactor(core-cli): localize show-fixes summary line to chinese
+- refactor(core-cli): add explicit recheck command for filtered no-op show-fixes
+- refactor(core-cli): simplify fix commands by removing NOLON_CMD prefix step
+- refactor(core-cli): unify filter labels to fully localized chinese
+- refactor(core-cli): localize state filter values in text output
+- refactor(core-cli): remove redundant summary line from default list output
+- refactor(core-cli): localize text-mode filter labels
+- refactor(core-cli): add recovery hint for unsupported provider filters
+- refactor(core-cli): align skills list help summary with default behavior
+- refactor(core-cli): enrich workflow and mcp list help descriptions
+- refactor(core-cli): refine show-fixes no-op hint and unify broken wording
+- refactor(core-cli): group mixed skills verbose output by state sections
+- refactor(core-cli): align show-fixes issue status line across lists
+- refactor(core-cli): normalize resource total keys for list output
+- refactor(core-cli): align skills default state line with resource lists
+- refactor(core-cli): align verbose hints and item state layout
+- refactor(core-cli): unify healthy summary in show-fixes details
+- refactor(core-cli): shorten optional recheck commands
+- refactor(core-cli): show filters before stats in fixes details
+- refactor(core-cli): render verbose items in block layout
+- refactor(core-cli): add summary/details blocks for show-fixes
+- refactor(core-cli): reduce show-fixes summary duplication
+- refactor(core-cli): normalize show-fixes step numbering
+- refactor(core-cli): group show-fixes commands by provider
+- refactor(core-cli): drop one-shot fix chains from show-fixes
+- refactor(core-cli): deduplicate mcp verbose path output
+- refactor(core-cli): show mcp verbose paths inline
+- refactor(core-cli): align skills verbose path/origin formatting
+- docs(memory): record skills verbose noise reduction
+- refactor(core-cli): simplify skills verbose installed entries
+- docs(memory): record resource list spacing cleanup
+- refactor(core-cli): tighten spacing before installed resource sections
+- refactor(core-cli): drop redundant installed tags in skills list
+- refactor(core-cli): dedupe skills show-fixes healthy summary
+- docs(memory): record remove selector exclusivity update
+- fix(core-cli): enforce remove target selector exclusivity
+- docs(memory): log remove selector conflict hardening
+- fix(core-cli): validate remove provider selector conflicts
+- docs(memory): log duplicate-query error hint enhancement
+- fix(core-cli): improve workflow/mcp duplicate-query errors
+- docs(memory): record skills help safety wording update
+- docs(core-cli): align skills help examples with dry-run guidance
+- docs(memory): note skills show-fixes no-op alignment
+- refactor(core-cli): align skills no-op fix output with resources
+- docs(memory): log search install confirmation hardening
+- fix(core-cli): enforce search install confirmation per namespace
+- docs(memory): record core-cli ux iteration loop
+- feat(core-cli): improve list readability and fix guidance
+- test(core-cli): stabilize workflow fix-hint assertions
+- feat(core-cli): show default fix commands for workflow/mcp list
+- fix(core-cli): parse mcp list from config and localize state labels
+- refactor(core-cli): drop legacy workflow/mcp compatibility paths
+- docs(dev): add cli output mode notes and memory sync
+- feat(core-cli): align skills/workflow/mcp command surface
+- feat(core-cli): add workflow/mcp legacy migration hints
+- fix(cli-security): harden github skill install path and selector validation
+- feat(codex-cli): refine auth overview tables and token summary output
+- docs(dev): record auth usage refresh and cli install behavior updates
+- chore(cli-install): default overwrite and add --no-force safeguard
+- feat(codex-auth): support usage refresh with per-account cache writeback
+- feat(codex-auth): default refresh all accounts with isolated runtime homes
+- fix(codex-auth): pass chatgptAccountId during runtime switch
+- feat(codex-cli): make auth refresh silent token renewal
+- feat(codex-cli): add auth refresh command for refreshable accounts
+- feat(codex-cli): merge auth list/usage/status into overview
+- feat(codex-cli): show 1d/30d/all tokens in millions
+- feat(codex-cli): show token counts in auth usage
+- test(codex-cli): snapshot auth action json contracts
+- test(codex-cli): snapshot auth list json contract
+- test(codex-cli): snapshot auth status json contract
+- feat(codex-cli): enrich auth status with usage summary
+- feat(codex-cli): add auth usage command with account and summary views
+- docs(memory): record jsonrpc server-request coverage
+- test(jsonrpc): cover server-request callback round trip
+- docs(memory): record process convergence guard milestone
+- test(providers): guard direct Process usage outside JsonRPCKit
+- docs(memory): record app shell runner convergence
+- refactor(app): route terminal launch shell calls through SKProcessRunner
+- docs(memory): record response_item drift-guard milestone
+- test(codex): add response_item schema drift guard against codex source
+- docs(memory): sync 2026-02-16 and 2026-02-17 logs
+- chore(deps): bump SKProcessRunner and refresh resolved pins
+- feat(codex-provider): align auth runtime env and event compatibility
+- feat(cli): migrate command surface to argument parser entrypoint
+- feat(resource-sdk): downsink skill resource models into providers
+- chore(providers): pin SKProcessRunner to 48c7918
+- refactor(providers): unify shell execution with SKProcessRunner and document JsonRPC gap
+- 完善 codex CLI 二进制管理与测试
+- chore(cli): checkpoint all pending changes
+- docs(history): update cli dx logs and memory
+- docs(dev): record provider template bootstrap and cli source migration
+- test(provider-catalog): add bootstrap and cliName coverage
+- feat(nolon-cli): provider list read cliName from ProviderTemplate
+- refactor(provider-catalog): embed provider templates and bootstrap to NOLON_HOME/cli
+- feat(codex-cli): add provider discover command
+- feat(codex-cli): polish auth/runtime flows and output UX
+- feat(codex-auth): reconcile detached provider auth by email
+- feat(codex-cli): show usage in auth activate interactive picker
+- feat(codex-cli): default auth activate to interactive picker and support email selection
+- feat(codex-cli): add runtime list/stop and interactive auth activation
+- fix(cli): keep auth list usage slash aligned with dual-window format
+- feat(cli): render codex auth list as email status usage refresh table
+- feat(cli): align status probe output as key-value table
+- feat(cli): align auth list rows with table formatting
+- feat(cli): align codex binary list columns by width
+- feat(cli): show codex binary list in concise one-line format
+- feat(cli): render detailed plain text for codex command outputs
+- feat(cli): show detailed fields in codex binary list
+- feat(cli): print plain text list for codex binary list
+- feat(cli): show codex group help on bare commands
+- chore(memory): sync codex cli gap progress update
+- docs(dev): update codex cli gap with drift-guard and login-downsink status
+- chore(memory): record codex login wait downsink
+- feat(codex): downsink login auth wait flow into CodexLoginRunner
+- chore(memory): record install script binary path fix
+- fix(cli): resolve installed nolon binary via swift show-bin-path
+- chore(memory): record codex event schema drift guard
+- test(codex): add EventMsg schema drift guard against protocol
+- chore(memory): record cli capability gap doc
+- docs(dev): add codex cli capability gap and next milestones
+- chore(memory): record event_msg type constants migration
+- refactor(codex): model event_msg types with extensible constants
+- chore(memory): record codex cli executor split
+- refactor(cli): extract codex entrypoint executor and context
+- chore(memory): record codex help file split
+- refactor(cli): extract codex help resolver into dedicated file
+- chore(memory): record codex command file split
+- refactor(cli): split codex command tree into dedicated file
+- chore(memory): record typed help path refactor
+- refactor(cli): centralize help route matching with typed path map
+- chore(memory): record binary action help completion
+- feat(cli): add binary list/current/doctor action help
+- chore(memory): record command-tree entrypoint migration
+- refactor(cli): switch codex entrypoint to command-tree parsing
+- chore(memory): record binary/status command migration
+- refactor(cli): migrate codex binary and status probe to ParsableCommand
+- chore(memory): record auth action command migration
+- refactor(cli): migrate remaining codex auth actions to ParsableCommand
+- chore(memory): record auth command parser migration
+- refactor(cli): migrate codex auth list/status to ParsableCommand
+- chore(memory): record action-level codex help behavior
+- feat(cli): support action-level codex help outputs
+- chore(memory): record codex binary/status help coverage
+- test(cli): cover codex binary/status help outputs
+- chore(memory): record codex layered help behavior
+- feat(cli): add layered codex help outputs
+- chore(memory): record codex cli routing complexity refactor
+- refactor(cli): extract codex handlers and centralize command paths
+- chore(memory): record nolon no-args help output behavior
+- feat(cli): print help text when nolon is run without args
+- chore(memory): record nolon cli installer script and constraints
+- feat(cli): add nolon installer script for ~/.nolon/bin
+- feat(codex-parser): type mcp startup lifecycle events
+- feat(codex-parser): type undo lifecycle events
+- feat(codex-parser): type thread_name_updated event
+- feat(codex-parser): type turn_aborted and shutdown_complete events
+- feat(codex-parser): type plan_update and plan_delta events
+- feat(codex-parser): type context_compacted and thread_rolled_back events
+- chore(memory): record codex schema event compatibility rollout
+- feat(codex-parser): add full event_msg compatibility mapping from codex schema
+- chore(memory): record NOLON_HOME downsink and STFolder assertions
+- feat(codex): support NOLON_HOME for isolated storage root
+- chore(memory): record codex cli rounds 67-69
+- feat(codex-cli): add auth delete route and tighten binary version validation
+- chore(memory): record codex cli rounds 64-66
+- refactor(codex-cli): return unsupported_command for unknown routes
+- test(codex-cli): align provider canonicalization across cli and service
+- refactor(codex-cli): canonicalize codex-xcode provider alias
+- chore(memory): record codex cli rounds 61-63
+- test(codex-cli): enforce provider validation across auth routes
+- test(codex-cli): validate provider option in status probe route
+- refactor(codex-cli): preserve domain error codes in json envelope
+- test(codex-cli): expand nolon codex command routing coverage
+- feat(codex-cli): switch nolon codex commands to argument-parser
+- refactor(provider-usage): centralize fetch window fallback in monitor
+- refactor(provider-usage): downsink cost window fallback rule
+- refactor(codex-app): remove unused usage monitor wrapper
+- refactor(codex-app): use provider usage monitor directly in view model
+- docs(dev): record token path bridge removal
+- refactor(codex-app): remove usage monitor token path bridge
+- docs(dev): record token account path downsink
+- refactor(provider-usage): centralize token account default path
+- docs(dev): record usage monitor downsink phase
+- refactor(provider-usage): downsink codex usage environment resolution
+- docs(dev): record jsonl eof scan fix progress
+- fix(codex-provider): handle jsonl eof line without trailing newline
+- docs(memory): sync 2026-02-12 migration progress
+- feat(codex-provider): unify codex session usage parsing
+- feat(codex-provider): downsink codex auth manager and activation flow
+- refactor(codex-app): remove legacy binary manager and manifest
+- refactor(codex): remove unused legacy auth account store
+- chore(codex): prepare app layer for provider binary module migration
+- feat(codex-provider): downsink binary manager/domain models to libs
+- refactor(stfilepath): normalize home path usage in monitor and repository models
+- test(codex): add stfilepath path coverage and chart fallback
+- feat(cli): downsink skills repo facade and standard spec parser
+- test(codex): stabilize login runner marker wait
+- refactor(provider): use STFilePath for codex home/config path resolution
+- merge: bring latest main into codex-version-manager
+- refactor(codex): unify generated file loading and tighten rollout coverage
+- refactor(i18n): remove whitespace localization placeholder keys
+- test(codex): expand rollout parser coverage matrix assertions
+- docs(codex): add rpc contract and rollout coverage matrix
+- docs(codex): add feature spec and runtime runbook with qmd sync
+- refactor(codex): preserve structured rollout payloads and clean app logging
+- refactor(logging): replace UI-layer prints with OSLog in remote flows
+- refactor(remote): replace browser debug prints with OSLog
+- feat(remote): track installed MCP status in browser grid
+- refactor(codex): tighten concurrency isolation and simplify folder-create calls
+- docs: scaffold docs-dev api/features/ops and log build verification
+- test(codex): make runtime switcher cache behavior verifiable
+- test(codex): cover login runner env override and unify resolver
+- refactor(codex): dedupe runtime rpc and path resolution
+- feat(codex): parse history config and full rollout files
+- feat(codex): add parser for codex-generated auth and rollout files
+- feat(codex): extract full CLI and app-server runtime modules into Providers
+
+### Downloads
+
+| Platform | Architecture | Download |
+|----------|--------------|----------|
+| macOS | Apple Silicon (M1/M2/M3) | `nolon-arm64.dmg` |
+| macOS | Intel | `nolon-x86_64.dmg` |
+
+### Installation
+1. Download the appropriate DMG for your Mac
+   - **Apple Silicon** (M1, M2, M3 chips): `nolon-arm64.dmg`
+   - **Intel** (older Macs): `nolon-x86_64.dmg`
+2. Open the DMG and drag nolon to Applications
+3. Launch nolon from Applications
+
+### System Requirements
+- macOS 14.0 or later
+
+---
+*Built on 2026-02-28*</div>]]></description>
+            <enclosure url="https://github.com/linhay/nolon/releases/download/v2.0.0/nolon-arm64.dmg"
+                       sparkle:version="202602280031"
+                       sparkle:shortVersionString="2.0.0"
+                       sparkle:edSignature="vXYscwH9q94+z0MxcLEvlONFFhRIabF830XPIJO6SB/XKkMKii0VDSx9HYdV23Wtr6pUbs+sRyt0ZID2f01TCg=="
+                       length="13179560"
+                       type="application/x-apple-diskimage"
+                       sparkle:os="macos"
+                       xml:lang="en" />
+            <enclosure url="https://github.com/linhay/nolon/releases/download/v2.0.0/nolon-x86_64.dmg"
+                       sparkle:version="202602280031"
+                       sparkle:shortVersionString="2.0.0"
+                       sparkle:edSignature="VUsvzVvYHl0cm36kvk7mtD7fmlW6AGG5wwcaFkBlj5GYpz80dqtu5Yx+a+WTHQ45UFAEUojI18jlR9hFhNDxCA=="
+                       length="13578987"
+                       type="application/x-apple-diskimage"
+                       sparkle:os="macos"
+                       xml:lang="en" />
+        </item>
+
     </channel>
 </rss>
