@@ -2,8 +2,8 @@ import SwiftUI
 import ProviderCatalog
 import NolonResourceKit
 
-/// Remote 内容 Tab 类型 - 可扩展设计
-enum RemoteContentTabType: String, CaseIterable, Identifiable {
+/// 资源中心内容 Tab 类型 - 可扩展设计
+enum ResourceContentTabType: String, CaseIterable, Identifiable {
     case skills = "Skills"
     case workflows = "Workflows"
     case mcps = "MCPs"
@@ -27,16 +27,16 @@ enum RemoteContentTabType: String, CaseIterable, Identifiable {
     }
 }
 
-/// Remote 内容 Tab 视图 ViewModel
+/// 资源中心内容 Tab 视图 ViewModel
 @MainActor
 @Observable
-final class RemoteContentTabViewModel {
+final class ResourceCenterTabViewModel {
     var skillsCount: Int = 0
     var workflowsCount: Int = 0
     var mcpsCount: Int = 0
     private let countService = RemoteRepositoryCountService()
     
-    func count(for tab: RemoteContentTabType) -> Int {
+    func count(for tab: ResourceContentTabType) -> Int {
         switch tab {
         case .skills: return skillsCount
         case .workflows: return workflowsCount
@@ -52,13 +52,13 @@ final class RemoteContentTabViewModel {
     }
 }
 
-/// 中间栏 - Remote 内容导航列表 (类似 ProviderContentTabView)
-struct RemoteContentTabView: View {
+/// 中间栏 - 资源中心内容导航列表 (类似 ProviderContentTabView)
+struct ResourceCenterTabView: View {
     let repository: RemoteRepository?
-    @Binding var selectedTab: RemoteContentTabType?
+    @Binding var selectedTab: ResourceContentTabType?
     var refreshTrigger: Int
     
-    @State private var viewModel = RemoteContentTabViewModel()
+    @State private var viewModel = ResourceCenterTabViewModel()
     @ObservedObject private var watchCenter = RemoteRepositoryWatchCenter.shared
     
     var body: some View {
@@ -67,7 +67,7 @@ struct RemoteContentTabView: View {
         Group {
             if let repository = repository {
                 List(selection: $selectedTab) {
-                    ForEach(RemoteContentTabType.allCases) { tab in
+                    ForEach(ResourceContentTabType.allCases) { tab in
                         HStack {
                             Label(tab.localizedName, systemImage: tab.icon)
                             Spacer()

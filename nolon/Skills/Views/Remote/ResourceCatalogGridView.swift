@@ -6,10 +6,21 @@ import Observation
 import AppKit
 #endif
 
-/// Remote Skills Grid ViewModel
+protocol RemoteCatalogQueryServing {
+    func query(
+        repository: RemoteRepository,
+        kind: SkillsRepositoryFacade.RemoteCatalogKind,
+        query: String?,
+        limit: Int
+    ) async throws -> RemoteCatalogQueryResult
+}
+
+extension RemoteCatalogQueryService: RemoteCatalogQueryServing {}
+
+/// Resource Catalog Grid ViewModel
 @MainActor
 @Observable
-final class RemoteSkillsGridViewModel {
+final class ResourceCatalogGridViewModel {
     var skills: [RemoteSkill] = []
     var workflows: [RemoteWorkflow] = []
     var mcps: [RemoteMCP] = []
@@ -17,16 +28,27 @@ final class RemoteSkillsGridViewModel {
     var errorMessage: String?
     var canLoadMore = false
     var isLoadingMore = false
+    var loadMoreErrorMessage: String?
     var selectedSkillForDetail: RemoteSkill?
     var selectedWorkflowForDetail: RemoteWorkflow?
     var selectedMCPForDetail: RemoteMCP?
 
     private var currentLoadID: UUID?
-    private let queryService = RemoteCatalogQueryService()
-    private let pagingStore = RemoteCatalogPagingStore(pageSize: 20, maxLimit: 200)
-    private let itemMapper = RemoteCatalogItemMapper()
+    private let queryService: any RemoteCatalogQueryServing
+    private let pagingStore: RemoteCatalogPagingStore
+    private let itemMapper: RemoteCatalogItemMapper
 
-    private func mapKind(_ tab: RemoteContentTabType) -> SkillsRepositoryFacade.RemoteCatalogKind {
+    init(
+        queryService: any RemoteCatalogQueryServing = RemoteCatalogQueryService(),
+        pagingStore: RemoteCatalogPagingStore = RemoteCatalogPagingStore(pageSize: 20, maxLimit: 200),
+        itemMapper: RemoteCatalogItemMapper = RemoteCatalogItemMapper()
+    ) {
+        self.queryService = queryService
+        self.pagingStore = pagingStore
+        self.itemMapper = itemMapper
+    }
+
+    private func mapKind(_ tab: ResourceContentTabType) -> SkillsRepositoryFacade.RemoteCatalogKind {
         switch tab {
         case .skills:
             return .skill
@@ -71,7 +93,7 @@ final class RemoteSkillsGridViewModel {
         }
     }
     
-    func loadContent(for repository: RemoteRepository?, tab: RemoteContentTabType?, searchQuery: String, cacheBuster: String) async {
+    func loadContent(for repository: RemoteRepository?, tab: ResourceContentTabType?, searchQuery: String, cacheBuster: String) async {
         guard let repository = repository, let tab = tab else {
             skills = []
             workflows = []
@@ -87,10 +109,11 @@ final class RemoteSkillsGridViewModel {
         let hasQuery = !trimmedQuery.isEmpty
         let kind = mapKind(tab)
         let cacheKey = pagingStore.key(repositoryID: repository.id, kind: kind, query: trimmedQuery)
+        let previousCacheEntry = pagingStore.entry(for: cacheKey)
         let loadID = UUID()
         currentLoadID = loadID
 
-        if let cached = pagingStore.entry(for: cacheKey) {
+        if let cached = previousCacheEntry {
             applyCached(cached, for: tab)
             if pagingStore.shouldUseCachedResult(for: cacheKey, cacheBuster: cacheBuster) {
                 return
@@ -101,8 +124,10 @@ final class RemoteSkillsGridViewModel {
 
         // 切换仓库/Tab 或手动刷新时：清空旧错误，避免展示上一个仓库的错误
         errorMessage = nil
+        loadMoreErrorMessage = nil
         isLoading = true
         isLoadingMore = false
+        let hadVisibleContentBeforeFetch = !(skills.isEmpty && workflows.isEmpty && mcps.isEmpty)
 
         defer {
             // 仅当本次任务仍然是最新请求时才落地 isLoading，避免竞态覆盖
@@ -170,20 +195,35 @@ final class RemoteSkillsGridViewModel {
             return
         } catch {
             guard currentLoadID == loadID else { return }
-            clearAllContent()
+            if !hadVisibleContentBeforeFetch {
+                clearAllContent()
+                canLoadMore = false
+            }
             errorMessage = error.localizedDescription
-            canLoadMore = false
+            let cachedItems: [SkillsRepositoryFacade.RemoteCatalogItem]
+            if hadVisibleContentBeforeFetch {
+                switch tab {
+                case .skills:
+                    cachedItems = skills.map { itemMapper.toCatalogItem($0) }
+                case .workflows:
+                    cachedItems = workflows.map { itemMapper.toCatalogItem($0) }
+                case .mcps:
+                    cachedItems = mcps.map { itemMapper.toCatalogItem($0) }
+                }
+            } else {
+                cachedItems = []
+            }
             pagingStore.saveError(
                 for: cacheKey,
-                items: [],
+                items: cachedItems,
                 cacheBuster: cacheBuster,
-                limit: pagingStore.pageSize,
+                limit: pagingStore.currentLimit(for: cacheKey),
                 errorMessage: error.localizedDescription
             )
         }
     }
 
-    func loadMore(repository: RemoteRepository?, tab: RemoteContentTabType?, searchQuery: String) async {
+    func loadMore(repository: RemoteRepository?, tab: ResourceContentTabType?, searchQuery: String) async {
         guard let repository = repository, let tab = tab else { return }
         guard repository.templateType == .clawdhub else { return }
 
@@ -196,6 +236,7 @@ final class RemoteSkillsGridViewModel {
         let loadID = UUID()
         currentLoadID = loadID
         isLoadingMore = true
+        loadMoreErrorMessage = nil
 
         defer {
             if currentLoadID == loadID {
@@ -253,8 +294,7 @@ final class RemoteSkillsGridViewModel {
             }
         } catch {
             guard currentLoadID == loadID else { return }
-            errorMessage = error.localizedDescription
-            canLoadMore = false
+            loadMoreErrorMessage = error.localizedDescription
             let cachedItems: [SkillsRepositoryFacade.RemoteCatalogItem]
             switch tab {
             case .skills:
@@ -274,7 +314,7 @@ final class RemoteSkillsGridViewModel {
         }
     }
 
-    private func applyCached(_ cached: RemoteCatalogPageEntry, for tab: RemoteContentTabType) {
+    private func applyCached(_ cached: RemoteCatalogPageEntry, for tab: ResourceContentTabType) {
         switch tab {
         case .skills:
             skills = cached.items.map { itemMapper.toRemoteSkill($0) }
@@ -303,10 +343,10 @@ final class RemoteSkillsGridViewModel {
     }
 }
 
-/// Detail 区域 - Grid 布局显示远程技能
-struct RemoteSkillsGridView: View {
+/// Detail 区域 - Grid 布局显示资源中心内容
+struct ResourceCatalogGridView: View {
     let repository: RemoteRepository?
-    let selectedTab: RemoteContentTabType?
+    let selectedTab: ResourceContentTabType?
     @Binding var searchText: String
     let installedSlugs: Set<String>
     let installedWorkflowSlugs: Set<String>
@@ -317,8 +357,10 @@ struct RemoteSkillsGridView: View {
     let onInstall: (RemoteSkill, Provider) -> Void
     let onInstallWorkflow: ((RemoteWorkflow, Provider) -> Void)?
     let onInstallMCP: ((RemoteMCP, Provider) -> Void)?
+    let onRefresh: (() -> Void)?
+    let onClose: (() -> Void)?
     
-    @State private var viewModel = RemoteSkillsGridViewModel()
+    @State private var viewModel = ResourceCatalogGridViewModel()
     @ObservedObject private var watchCenter = RemoteRepositoryWatchCenter.shared
     @State private var debouncedSearchText: String = ""
     @State private var searchDebounceTask: Task<Void, Never>?
@@ -327,10 +369,13 @@ struct RemoteSkillsGridView: View {
     @State private var pendingSkillInstalls: Set<String> = []
     @State private var pendingWorkflowInstalls: Set<String> = []
     @State private var pendingMcpInstalls: Set<String> = []
+    @State private var skillInstallErrors: [String: String] = [:]
+    @State private var workflowInstallErrors: [String: String] = [:]
+    @State private var mcpInstallErrors: [String: String] = [:]
     
     init(
         repository: RemoteRepository?,
-        selectedTab: RemoteContentTabType?,
+        selectedTab: ResourceContentTabType?,
         searchText: Binding<String>,
         installedSlugs: Set<String>,
         installedWorkflowSlugs: Set<String>,
@@ -340,7 +385,9 @@ struct RemoteSkillsGridView: View {
         targetProvider: Provider?,
         onInstall: @escaping (RemoteSkill, Provider) -> Void,
         onInstallWorkflow: ((RemoteWorkflow, Provider) -> Void)? = nil,
-        onInstallMCP: ((RemoteMCP, Provider) -> Void)? = nil
+        onInstallMCP: ((RemoteMCP, Provider) -> Void)? = nil,
+        onRefresh: (() -> Void)? = nil,
+        onClose: (() -> Void)? = nil
     ) {
         self.repository = repository
         self.selectedTab = selectedTab
@@ -354,6 +401,8 @@ struct RemoteSkillsGridView: View {
         self.onInstall = onInstall
         self.onInstallWorkflow = onInstallWorkflow
         self.onInstallMCP = onInstallMCP
+        self.onRefresh = onRefresh
+        self.onClose = onClose
     }
     
     private let columns = [
@@ -445,12 +494,21 @@ struct RemoteSkillsGridView: View {
         contentWithSearchDebounce
             .onChange(of: installedSlugs) { _, newValue in
                 pendingSkillInstalls.subtract(newValue)
+                for slug in newValue {
+                    skillInstallErrors.removeValue(forKey: slug)
+                }
             }
             .onChange(of: installedWorkflowSlugs) { _, newValue in
                 pendingWorkflowInstalls.subtract(newValue)
+                for slug in newValue {
+                    workflowInstallErrors.removeValue(forKey: slug)
+                }
             }
             .onChange(of: installedMcpSlugs) { _, newValue in
                 pendingMcpInstalls.subtract(newValue)
+                for slug in newValue {
+                    mcpInstallErrors.removeValue(forKey: slug)
+                }
             }
     }
 
@@ -509,10 +567,11 @@ struct RemoteSkillsGridView: View {
 
     @ViewBuilder
     private var contentBody: some View {
-        if viewModel.isLoading && viewModel.skills.isEmpty && viewModel.workflows.isEmpty && viewModel.mcps.isEmpty {
+        let hasAnyContent = !(viewModel.skills.isEmpty && viewModel.workflows.isEmpty && viewModel.mcps.isEmpty)
+        if viewModel.isLoading && !hasAnyContent {
             ProgressView()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-        } else if let error = viewModel.errorMessage {
+        } else if let error = viewModel.errorMessage, !hasAnyContent {
             ContentUnavailableView {
                 Label {
                     Text(NSLocalizedString("remote.error.title", value: "Error Loading Data", comment: "Remote load error title"))
@@ -548,27 +607,95 @@ struct RemoteSkillsGridView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
-            gridContent
+            VStack(spacing: 10) {
+                if let error = viewModel.errorMessage, !error.isEmpty {
+                    inlineErrorBanner(error)
+                }
+                gridContent
+            }
         }
     }
 
+    private func inlineErrorBanner(_ message: String) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(DesignSystem.Colors.Status.warning)
+            Text(message)
+                .font(.callout)
+                .dsSecondaryText(font: .callout)
+                .lineLimit(2)
+            Spacer()
+            Button(NSLocalizedString("remote.retry", value: "Retry", comment: "Retry")) {
+                retryTrigger += 1
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .dsCard(
+            background: DesignSystem.Colors.Status.warning.opacity(0.10),
+            cornerRadius: DesignSystem.Metrics.cornerRadiusM,
+            borderColor: DesignSystem.Colors.Status.warning.opacity(0.28),
+            borderWidth: 1
+        )
+        .padding(.horizontal)
+    }
+
     private var searchBar: some View {
-        HStack {
+        HStack(spacing: 12) {
             SearchField(
                 placeholder: NSLocalizedString("remote.search.placeholder", value: "Search", comment: "Search placeholder"),
                 text: $searchText,
                 showSearching: isSearching
             )
             Spacer()
+            if let onRefresh {
+                topActionButton(
+                    systemImage: "arrow.clockwise",
+                    help: NSLocalizedString("Refresh", comment: "Refresh"),
+                    action: onRefresh
+                )
+            }
+            if let onClose {
+                topActionButton(
+                    systemImage: "xmark",
+                    help: NSLocalizedString("Close", comment: "Close"),
+                    isCancelAction: true,
+                    action: onClose
+                )
+            }
         }
         .padding(.horizontal)
         .padding(.top, 8)
     }
 
+    @ViewBuilder
+    private func topActionButton(
+        systemImage: String,
+        help: String,
+        isCancelAction: Bool = false,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .font(.system(size: 14, weight: .semibold))
+                .dsIconButton(
+                    size: 30,
+                    foreground: DesignSystem.Colors.Text.secondary,
+                    background: DesignSystem.Colors.Component.controlFillSubtle
+                )
+        }
+        .dsLinkButton()
+        .help(help)
+        .accessibilityLabel(help)
+        .modifier(ResourceCatalogCancelShortcutModifier(isEnabled: isCancelAction))
+    }
+
     private func sectionHeader(_ title: String, count: Int) -> some View {
         HStack(spacing: 8) {
             Text(title)
-                .font(.headline)
+                .font(.headline.weight(.semibold))
             Text("\(count)")
                 .font(.caption.weight(.semibold))
                 .dsBadge(
@@ -578,6 +705,18 @@ struct RemoteSkillsGridView: View {
             Spacer()
         }
         .padding(.top, 2)
+    }
+
+    private func sectionBlock<Content: View>(
+        _ title: String,
+        count: Int,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            sectionHeader(title, count: count)
+            content()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
     
     @ViewBuilder
@@ -626,67 +765,71 @@ struct RemoteSkillsGridView: View {
                 let installed = filtered.filter { installedSlugs.contains($0.slug) }
                 let pending = filtered.filter { pendingSkillInstalls.contains($0.slug) && !installedSlugs.contains($0.slug) }
                 let available = filtered.filter { !installedSlugs.contains($0.slug) && !pendingSkillInstalls.contains($0.slug) }
-                VStack(spacing: 16) {
+                VStack(alignment: .leading, spacing: 20) {
                     if !installed.isEmpty {
-                        sectionHeader(NSLocalizedString("remote.section.installed", value: "Installed", comment: "Installed section"), count: installed.count)
-                        LazyVGrid(columns: columns, spacing: 16) {
-                            ForEach(installed) { skill in
-                                RemoteSkillCardView(
-                                    skill: skill,
-                                    isInstalled: true,
-                                    isInstalling: false,
-                                    targetProvider: targetProvider,
-                                    providers: providers,
-                                    onInstall: { provider in
-                                        onInstall(skill, provider)
-                                    },
-                                    onTap: {
-                                        viewModel.selectedSkillForDetail = skill
-                                    }
-                                )
+                        sectionBlock(NSLocalizedString("remote.section.installed", value: "Installed", comment: "Installed section"), count: installed.count) {
+                            LazyVGrid(columns: columns, spacing: 16) {
+                                ForEach(installed) { skill in
+                                    RemoteSkillCardView(
+                                        skill: skill,
+                                        isInstalled: true,
+                                        isInstalling: false,
+                                        installErrorMessage: nil,
+                                        isSelected: viewModel.selectedSkillForDetail?.slug == skill.slug,
+                                        targetProvider: targetProvider,
+                                        providers: providers,
+                                        onInstall: { provider in
+                                            onInstall(skill, provider)
+                                        },
+                                        onTap: {
+                                            viewModel.selectedSkillForDetail = skill
+                                        }
+                                    )
+                                }
                             }
                         }
                     }
                     if !pending.isEmpty {
-                        sectionHeader(NSLocalizedString("remote.section.installing", value: "Installing", comment: "Installing section"), count: pending.count)
-                        LazyVGrid(columns: columns, spacing: 16) {
-                            ForEach(pending) { skill in
-                                RemoteSkillCardView(
-                                    skill: skill,
-                                    isInstalled: false,
-                                    isInstalling: true,
-                                    targetProvider: targetProvider,
-                                    providers: providers,
-                                    onInstall: { _ in },
-                                    onTap: {
-                                        viewModel.selectedSkillForDetail = skill
-                                    }
-                                )
+                        sectionBlock(NSLocalizedString("remote.section.installing", value: "Installing", comment: "Installing section"), count: pending.count) {
+                            LazyVGrid(columns: columns, spacing: 16) {
+                                ForEach(pending) { skill in
+                                    RemoteSkillCardView(
+                                        skill: skill,
+                                        isInstalled: false,
+                                        isInstalling: true,
+                                        installErrorMessage: nil,
+                                        isSelected: viewModel.selectedSkillForDetail?.slug == skill.slug,
+                                        targetProvider: targetProvider,
+                                        providers: providers,
+                                        onInstall: { _ in },
+                                        onTap: {
+                                            viewModel.selectedSkillForDetail = skill
+                                        }
+                                    )
+                                }
                             }
                         }
                     }
                     if !available.isEmpty {
-                        sectionHeader(NSLocalizedString("remote.section.available", value: "Available", comment: "Available section"), count: available.count)
-                        LazyVGrid(columns: columns, spacing: 16) {
-                            ForEach(available) { skill in
-                                RemoteSkillCardView(
-                                    skill: skill,
-                                    isInstalled: false,
-                                    isInstalling: false,
-                                    targetProvider: targetProvider,
-                                    providers: providers,
-                                    onInstall: { provider in
-                                        pendingSkillInstalls.insert(skill.slug)
-                                        Task { @MainActor in
-                                            try? await Task.sleep(nanoseconds: 15_000_000_000)
-                                            pendingSkillInstalls.remove(skill.slug)
+                        sectionBlock(NSLocalizedString("remote.section.available", value: "Available", comment: "Available section"), count: available.count) {
+                            LazyVGrid(columns: columns, spacing: 16) {
+                                ForEach(available) { skill in
+                                    RemoteSkillCardView(
+                                        skill: skill,
+                                        isInstalled: false,
+                                        isInstalling: false,
+                                        installErrorMessage: skillInstallErrors[skill.slug],
+                                        isSelected: viewModel.selectedSkillForDetail?.slug == skill.slug,
+                                        targetProvider: targetProvider,
+                                        providers: providers,
+                                        onInstall: { provider in
+                                            beginSkillInstall(skill, provider: provider)
+                                        },
+                                        onTap: {
+                                            viewModel.selectedSkillForDetail = skill
                                         }
-                                        onInstall(skill, provider)
-                                    },
-                                    onTap: {
-                                        viewModel.selectedSkillForDetail = skill
-                                    }
-                                )
+                                    )
+                                }
                             }
                         }
                     }
@@ -714,67 +857,71 @@ struct RemoteSkillsGridView: View {
                 let installed = filtered.filter { installedWorkflowSlugs.contains($0.slug) }
                 let pending = filtered.filter { pendingWorkflowInstalls.contains($0.slug) && !installedWorkflowSlugs.contains($0.slug) }
                 let available = filtered.filter { !installedWorkflowSlugs.contains($0.slug) && !pendingWorkflowInstalls.contains($0.slug) }
-                VStack(spacing: 16) {
+                VStack(alignment: .leading, spacing: 20) {
                     if !installed.isEmpty {
-                        sectionHeader(NSLocalizedString("remote.section.installed", value: "Installed", comment: "Installed section"), count: installed.count)
-                        LazyVGrid(columns: columns, spacing: 16) {
-                            ForEach(installed) { workflow in
-                                RemoteWorkflowCardView(
-                                    workflow: workflow,
-                                    isInstalled: true,
-                                    isInstalling: false,
-                                    targetProvider: targetProvider,
-                                    providers: providers,
-                                    onInstall: { provider in
-                                        onInstallWorkflow?(workflow, provider)
-                                    },
-                                    onTap: {
-                                        viewModel.selectedWorkflowForDetail = workflow
-                                    }
-                                )
+                        sectionBlock(NSLocalizedString("remote.section.installed", value: "Installed", comment: "Installed section"), count: installed.count) {
+                            LazyVGrid(columns: columns, spacing: 16) {
+                                ForEach(installed) { workflow in
+                                    RemoteWorkflowCardView(
+                                        workflow: workflow,
+                                        isInstalled: true,
+                                        isInstalling: false,
+                                        installErrorMessage: nil,
+                                        isSelected: viewModel.selectedWorkflowForDetail?.slug == workflow.slug,
+                                        targetProvider: targetProvider,
+                                        providers: providers,
+                                        onInstall: { provider in
+                                            onInstallWorkflow?(workflow, provider)
+                                        },
+                                        onTap: {
+                                            viewModel.selectedWorkflowForDetail = workflow
+                                        }
+                                    )
+                                }
                             }
                         }
                     }
                     if !pending.isEmpty {
-                        sectionHeader(NSLocalizedString("remote.section.installing", value: "Installing", comment: "Installing section"), count: pending.count)
-                        LazyVGrid(columns: columns, spacing: 16) {
-                            ForEach(pending) { workflow in
-                                RemoteWorkflowCardView(
-                                    workflow: workflow,
-                                    isInstalled: false,
-                                    isInstalling: true,
-                                    targetProvider: targetProvider,
-                                    providers: providers,
-                                    onInstall: { _ in },
-                                    onTap: {
-                                        viewModel.selectedWorkflowForDetail = workflow
-                                    }
-                                )
+                        sectionBlock(NSLocalizedString("remote.section.installing", value: "Installing", comment: "Installing section"), count: pending.count) {
+                            LazyVGrid(columns: columns, spacing: 16) {
+                                ForEach(pending) { workflow in
+                                    RemoteWorkflowCardView(
+                                        workflow: workflow,
+                                        isInstalled: false,
+                                        isInstalling: true,
+                                        installErrorMessage: nil,
+                                        isSelected: viewModel.selectedWorkflowForDetail?.slug == workflow.slug,
+                                        targetProvider: targetProvider,
+                                        providers: providers,
+                                        onInstall: { _ in },
+                                        onTap: {
+                                            viewModel.selectedWorkflowForDetail = workflow
+                                        }
+                                    )
+                                }
                             }
                         }
                     }
                     if !available.isEmpty {
-                        sectionHeader(NSLocalizedString("remote.section.available", value: "Available", comment: "Available section"), count: available.count)
-                        LazyVGrid(columns: columns, spacing: 16) {
-                            ForEach(available) { workflow in
-                                RemoteWorkflowCardView(
-                                    workflow: workflow,
-                                    isInstalled: false,
-                                    isInstalling: false,
-                                    targetProvider: targetProvider,
-                                    providers: providers,
-                                    onInstall: { provider in
-                                        pendingWorkflowInstalls.insert(workflow.slug)
-                                        Task { @MainActor in
-                                            try? await Task.sleep(nanoseconds: 15_000_000_000)
-                                            pendingWorkflowInstalls.remove(workflow.slug)
+                        sectionBlock(NSLocalizedString("remote.section.available", value: "Available", comment: "Available section"), count: available.count) {
+                            LazyVGrid(columns: columns, spacing: 16) {
+                                ForEach(available) { workflow in
+                                    RemoteWorkflowCardView(
+                                        workflow: workflow,
+                                        isInstalled: false,
+                                        isInstalling: false,
+                                        installErrorMessage: workflowInstallErrors[workflow.slug],
+                                        isSelected: viewModel.selectedWorkflowForDetail?.slug == workflow.slug,
+                                        targetProvider: targetProvider,
+                                        providers: providers,
+                                        onInstall: { provider in
+                                            beginWorkflowInstall(workflow, provider: provider)
+                                        },
+                                        onTap: {
+                                            viewModel.selectedWorkflowForDetail = workflow
                                         }
-                                        onInstallWorkflow?(workflow, provider)
-                                    },
-                                    onTap: {
-                                        viewModel.selectedWorkflowForDetail = workflow
-                                    }
-                                )
+                                    )
+                                }
                             }
                         }
                     }
@@ -802,67 +949,71 @@ struct RemoteSkillsGridView: View {
                 let installed = filtered.filter { installedMcpSlugs.contains($0.slug) }
                 let pending = filtered.filter { pendingMcpInstalls.contains($0.slug) && !installedMcpSlugs.contains($0.slug) }
                 let available = filtered.filter { !installedMcpSlugs.contains($0.slug) && !pendingMcpInstalls.contains($0.slug) }
-                VStack(spacing: 16) {
+                VStack(alignment: .leading, spacing: 20) {
                     if !installed.isEmpty {
-                        sectionHeader(NSLocalizedString("remote.section.installed", value: "Installed", comment: "Installed section"), count: installed.count)
-                        LazyVGrid(columns: columns, spacing: 16) {
-                            ForEach(installed) { mcp in
-                                RemoteMCPCardView(
-                                    mcp: mcp,
-                                    isInstalled: true,
-                                    isInstalling: false,
-                                    targetProvider: targetProvider,
-                                    providers: providers,
-                                    onInstall: { provider in
-                                        onInstallMCP?(mcp, provider)
-                                    },
-                                    onTap: {
-                                        viewModel.selectedMCPForDetail = mcp
-                                    }
-                                )
+                        sectionBlock(NSLocalizedString("remote.section.installed", value: "Installed", comment: "Installed section"), count: installed.count) {
+                            LazyVGrid(columns: columns, spacing: 16) {
+                                ForEach(installed) { mcp in
+                                    RemoteMCPCardView(
+                                        mcp: mcp,
+                                        isInstalled: true,
+                                        isInstalling: false,
+                                        installErrorMessage: nil,
+                                        isSelected: viewModel.selectedMCPForDetail?.slug == mcp.slug,
+                                        targetProvider: targetProvider,
+                                        providers: providers,
+                                        onInstall: { provider in
+                                            onInstallMCP?(mcp, provider)
+                                        },
+                                        onTap: {
+                                            viewModel.selectedMCPForDetail = mcp
+                                        }
+                                    )
+                                }
                             }
                         }
                     }
                     if !pending.isEmpty {
-                        sectionHeader(NSLocalizedString("remote.section.installing", value: "Installing", comment: "Installing section"), count: pending.count)
-                        LazyVGrid(columns: columns, spacing: 16) {
-                            ForEach(pending) { mcp in
-                                RemoteMCPCardView(
-                                    mcp: mcp,
-                                    isInstalled: false,
-                                    isInstalling: true,
-                                    targetProvider: targetProvider,
-                                    providers: providers,
-                                    onInstall: { _ in },
-                                    onTap: {
-                                        viewModel.selectedMCPForDetail = mcp
-                                    }
-                                )
+                        sectionBlock(NSLocalizedString("remote.section.installing", value: "Installing", comment: "Installing section"), count: pending.count) {
+                            LazyVGrid(columns: columns, spacing: 16) {
+                                ForEach(pending) { mcp in
+                                    RemoteMCPCardView(
+                                        mcp: mcp,
+                                        isInstalled: false,
+                                        isInstalling: true,
+                                        installErrorMessage: nil,
+                                        isSelected: viewModel.selectedMCPForDetail?.slug == mcp.slug,
+                                        targetProvider: targetProvider,
+                                        providers: providers,
+                                        onInstall: { _ in },
+                                        onTap: {
+                                            viewModel.selectedMCPForDetail = mcp
+                                        }
+                                    )
+                                }
                             }
                         }
                     }
                     if !available.isEmpty {
-                        sectionHeader(NSLocalizedString("remote.section.available", value: "Available", comment: "Available section"), count: available.count)
-                        LazyVGrid(columns: columns, spacing: 16) {
-                            ForEach(available) { mcp in
-                                RemoteMCPCardView(
-                                    mcp: mcp,
-                                    isInstalled: false,
-                                    isInstalling: false,
-                                    targetProvider: targetProvider,
-                                    providers: providers,
-                                    onInstall: { provider in
-                                        pendingMcpInstalls.insert(mcp.slug)
-                                        Task { @MainActor in
-                                            try? await Task.sleep(nanoseconds: 15_000_000_000)
-                                            pendingMcpInstalls.remove(mcp.slug)
+                        sectionBlock(NSLocalizedString("remote.section.available", value: "Available", comment: "Available section"), count: available.count) {
+                            LazyVGrid(columns: columns, spacing: 16) {
+                                ForEach(available) { mcp in
+                                    RemoteMCPCardView(
+                                        mcp: mcp,
+                                        isInstalled: false,
+                                        isInstalling: false,
+                                        installErrorMessage: mcpInstallErrors[mcp.slug],
+                                        isSelected: viewModel.selectedMCPForDetail?.slug == mcp.slug,
+                                        targetProvider: targetProvider,
+                                        providers: providers,
+                                        onInstall: { provider in
+                                            beginMCPInstall(mcp, provider: provider)
+                                        },
+                                        onTap: {
+                                            viewModel.selectedMCPForDetail = mcp
                                         }
-                                        onInstallMCP?(mcp, provider)
-                                    },
-                                    onTap: {
-                                        viewModel.selectedMCPForDetail = mcp
-                                    }
-                                )
+                                    )
+                                }
                             }
                         }
                     }
@@ -879,47 +1030,154 @@ struct RemoteSkillsGridView: View {
     private var loadMoreRowIfNeeded: some View {
         if repository?.templateType != .clawdhub {
             EmptyView()
-        } else if viewModel.canLoadMore {
-            Button {
-                Task {
-                    await viewModel.loadMore(
-                        repository: repository,
-                        tab: selectedTab,
-                        searchQuery: normalizedSearchQuery
-                    )
-                }
-            } label: {
-                HStack(spacing: 8) {
-                    if viewModel.isLoadingMore {
-                        ProgressView()
-                            .controlSize(.small)
+        } else if let message = viewModel.loadMoreErrorMessage, !message.isEmpty {
+            loadMoreFooter {
+                VStack(spacing: 8) {
+                    Text(message)
+                        .font(.caption)
+                        .foregroundStyle(DesignSystem.Colors.Status.error)
+                        .multilineTextAlignment(.center)
+                    Button {
+                        Task {
+                            await viewModel.loadMore(
+                                repository: repository,
+                                tab: selectedTab,
+                                searchQuery: normalizedSearchQuery
+                            )
+                        }
+                    } label: {
+                        Text(NSLocalizedString("remote.retry", value: "Retry", comment: "Retry"))
+                            .frame(maxWidth: .infinity)
                     }
-                    Text(
-                        viewModel.isLoadingMore
-                        ? NSLocalizedString("remote.load_more.loading", value: "Loading...", comment: "Loading more indicator")
-                        : NSLocalizedString("remote.load_more", value: "Load More", comment: "Load more")
-                    )
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                    .frame(maxWidth: 220)
                 }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 10)
             }
-            .buttonStyle(.bordered)
-            .disabled(viewModel.isLoadingMore)
-            .onAppear {
-                guard !viewModel.isLoadingMore else { return }
-                Task {
-                    await viewModel.loadMore(
-                        repository: repository,
-                        tab: selectedTab,
-                        searchQuery: normalizedSearchQuery
-                    )
+        } else if viewModel.canLoadMore {
+            loadMoreFooter {
+                Button {
+                    Task {
+                        await viewModel.loadMore(
+                            repository: repository,
+                            tab: selectedTab,
+                            searchQuery: normalizedSearchQuery
+                        )
+                    }
+                } label: {
+                    HStack(spacing: 8) {
+                        if viewModel.isLoadingMore {
+                            ProgressView()
+                                .controlSize(.small)
+                        }
+                        Text(
+                            viewModel.isLoadingMore
+                            ? NSLocalizedString("remote.load_more.loading", value: "Loading...", comment: "Loading more indicator")
+                            : NSLocalizedString("remote.load_more", value: "Load More", comment: "Load more")
+                        )
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 10)
+                }
+                .buttonStyle(.bordered)
+                .disabled(viewModel.isLoadingMore)
+                .frame(maxWidth: 240)
+                .onAppear {
+                    guard !viewModel.isLoadingMore else { return }
+                    Task {
+                        await viewModel.loadMore(
+                            repository: repository,
+                            tab: selectedTab,
+                            searchQuery: normalizedSearchQuery
+                        )
+                    }
                 }
             }
         } else if !viewModel.isLoading && !(viewModel.skills.isEmpty && viewModel.workflows.isEmpty && viewModel.mcps.isEmpty) {
-            Text(NSLocalizedString("remote.load_more.end", value: "You have reached the end.", comment: "End of list"))
-                .dsSecondaryText(font: .callout)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 8)
+            loadMoreFooter {
+                Text(NSLocalizedString("remote.load_more.end", value: "You have reached the end.", comment: "End of list"))
+                    .dsSecondaryText(font: .callout)
+            }
+        }
+    }
+
+    private func loadMoreFooter<Content: View>(
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        HStack {
+            Spacer(minLength: 0)
+            content()
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, 4)
+        .padding(.bottom, 8)
+    }
+
+    private func beginSkillInstall(_ skill: RemoteSkill, provider: Provider) {
+        skillInstallErrors.removeValue(forKey: skill.slug)
+        pendingSkillInstalls.insert(skill.slug)
+        onInstall(skill, provider)
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 15_000_000_000)
+            guard pendingSkillInstalls.contains(skill.slug) else { return }
+            pendingSkillInstalls.remove(skill.slug)
+            if !installedSlugs.contains(skill.slug) {
+                skillInstallErrors[skill.slug] = NSLocalizedString(
+                    "remote.install.failed.hint",
+                    value: "Install timed out. Click Retry.",
+                    comment: "Remote install failed hint"
+                )
+            }
+        }
+    }
+
+    private func beginWorkflowInstall(_ workflow: RemoteWorkflow, provider: Provider) {
+        workflowInstallErrors.removeValue(forKey: workflow.slug)
+        pendingWorkflowInstalls.insert(workflow.slug)
+        onInstallWorkflow?(workflow, provider)
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 15_000_000_000)
+            guard pendingWorkflowInstalls.contains(workflow.slug) else { return }
+            pendingWorkflowInstalls.remove(workflow.slug)
+            if !installedWorkflowSlugs.contains(workflow.slug) {
+                workflowInstallErrors[workflow.slug] = NSLocalizedString(
+                    "remote.install.failed.hint",
+                    value: "Install timed out. Click Retry.",
+                    comment: "Remote install failed hint"
+                )
+            }
+        }
+    }
+
+    private func beginMCPInstall(_ mcp: RemoteMCP, provider: Provider) {
+        mcpInstallErrors.removeValue(forKey: mcp.slug)
+        pendingMcpInstalls.insert(mcp.slug)
+        onInstallMCP?(mcp, provider)
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 15_000_000_000)
+            guard pendingMcpInstalls.contains(mcp.slug) else { return }
+            pendingMcpInstalls.remove(mcp.slug)
+            if !installedMcpSlugs.contains(mcp.slug) {
+                mcpInstallErrors[mcp.slug] = NSLocalizedString(
+                    "remote.install.failed.hint",
+                    value: "Install timed out. Click Retry.",
+                    comment: "Remote install failed hint"
+                )
+            }
+        }
+    }
+}
+
+private struct ResourceCatalogCancelShortcutModifier: ViewModifier {
+    let isEnabled: Bool
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if isEnabled {
+            content.keyboardShortcut(.cancelAction)
+        } else {
+            content
         }
     }
 }

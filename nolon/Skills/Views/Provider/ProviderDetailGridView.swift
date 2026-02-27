@@ -88,8 +88,8 @@ struct ProviderDetailGridView: View {
         }
         .sheet(item: $viewModel.showingRemoteBrowser) { browserType in
             if let provider = provider {
-                let tabType: RemoteContentTabType = browserType == .skill ? .skills : (browserType == .workflow ? .workflows : .mcps)
-                RemoteSkillsBrowserView(
+                let tabType: ResourceContentTabType = browserType == .skill ? .skills : (browserType == .workflow ? .workflows : .mcps)
+                ResourceCenterView(
                     settings: settings,
                     repository: viewModel.repository,
                     targetProvider: provider,
@@ -197,32 +197,54 @@ struct ProviderDetailGridView: View {
         viewModel.mcpCacheStates.values.filter { $0 == .migratedNeedsUpdate }.count
     }
 
+    private struct TabIssueSummary {
+        let orphanedSkillCount: Int
+        let brokenSkillCount: Int
+        let unknownWorkflowCount: Int
+        let mcpNeedUpdateCount: Int
+
+        var total: Int {
+            orphanedSkillCount + brokenSkillCount + unknownWorkflowCount + mcpNeedUpdateCount
+        }
+    }
+
+    private var currentTabIssueSummary: TabIssueSummary {
+        switch selectedTab {
+        case .skills:
+            return TabIssueSummary(
+                orphanedSkillCount: orphanedSkillCount,
+                brokenSkillCount: brokenSkillCount,
+                unknownWorkflowCount: 0,
+                mcpNeedUpdateCount: 0
+            )
+        case .workflows:
+            return TabIssueSummary(
+                orphanedSkillCount: 0,
+                brokenSkillCount: 0,
+                unknownWorkflowCount: unknownWorkflowCount,
+                mcpNeedUpdateCount: 0
+            )
+        case .mcp:
+            return TabIssueSummary(
+                orphanedSkillCount: 0,
+                brokenSkillCount: 0,
+                unknownWorkflowCount: 0,
+                mcpNeedUpdateCount: mcpNeedUpdateCount
+            )
+        default:
+            return TabIssueSummary(
+                orphanedSkillCount: 0,
+                brokenSkillCount: 0,
+                unknownWorkflowCount: 0,
+                mcpNeedUpdateCount: 0
+            )
+        }
+    }
+
     @ViewBuilder
     private var resourceHealthSummary: some View {
-        let issues = orphanedSkillCount + brokenSkillCount + unknownWorkflowCount + mcpNeedUpdateCount
-        if issues == 0 {
-            HStack(spacing: 8) {
-                Image(systemName: "checkmark.seal.fill")
-                    .foregroundStyle(DesignSystem.Colors.Status.success)
-                Text(
-                    NSLocalizedString(
-                        "provider.resources.health.ok",
-                        value: "All resources are healthy.",
-                        comment: "Provider resources healthy summary"
-                    )
-                )
-                .font(.callout)
-                .dsSecondaryText(font: .callout)
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .dsCard(
-                background: DesignSystem.Colors.Status.success.opacity(0.08),
-                cornerRadius: DesignSystem.Metrics.cornerRadiusM,
-                borderColor: DesignSystem.Colors.Status.success.opacity(0.25),
-                borderWidth: 1
-            )
-        } else {
+        let summary = currentTabIssueSummary
+        if summary.total > 0 {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 8) {
                     Image(systemName: "exclamationmark.triangle.fill")
@@ -237,7 +259,7 @@ struct ProviderDetailGridView: View {
                     .font(.callout.weight(.semibold))
                 }
                 HStack(spacing: 12) {
-                    if orphanedSkillCount > 0 {
+                    if summary.orphanedSkillCount > 0 {
                         Text(
                             String(
                                 format: NSLocalizedString(
@@ -245,16 +267,16 @@ struct ProviderDetailGridView: View {
                                     value: "orphaned skills %d",
                                     comment: "Provider orphaned skills count"
                                 ),
-                                orphanedSkillCount
+                                summary.orphanedSkillCount
                             )
                         )
-                            .font(.caption)
-                            .dsBadge(
-                                foreground: DesignSystem.Colors.Status.warning,
-                                background: DesignSystem.Colors.Status.warning.opacity(0.14)
-                            )
+                        .font(.caption)
+                        .dsBadge(
+                            foreground: DesignSystem.Colors.Status.warning,
+                            background: DesignSystem.Colors.Status.warning.opacity(0.14)
+                        )
                     }
-                    if brokenSkillCount > 0 {
+                    if summary.brokenSkillCount > 0 {
                         Text(
                             String(
                                 format: NSLocalizedString(
@@ -262,16 +284,16 @@ struct ProviderDetailGridView: View {
                                     value: "broken skills %d",
                                     comment: "Provider broken skills count"
                                 ),
-                                brokenSkillCount
+                                summary.brokenSkillCount
                             )
                         )
-                            .font(.caption)
-                            .dsBadge(
-                                foreground: DesignSystem.Colors.Status.error,
-                                background: DesignSystem.Colors.Status.error.opacity(0.14)
-                            )
+                        .font(.caption)
+                        .dsBadge(
+                            foreground: DesignSystem.Colors.Status.error,
+                            background: DesignSystem.Colors.Status.error.opacity(0.14)
+                        )
                     }
-                    if unknownWorkflowCount > 0 {
+                    if summary.unknownWorkflowCount > 0 {
                         Text(
                             String(
                                 format: NSLocalizedString(
@@ -279,16 +301,16 @@ struct ProviderDetailGridView: View {
                                     value: "unknown workflows %d",
                                     comment: "Provider unknown workflows count"
                                 ),
-                                unknownWorkflowCount
+                                summary.unknownWorkflowCount
                             )
                         )
-                            .font(.caption)
-                            .dsBadge(
-                                foreground: DesignSystem.Colors.Text.secondary,
-                                background: DesignSystem.Colors.Component.controlFillSubtle
-                            )
+                        .font(.caption)
+                        .dsBadge(
+                            foreground: DesignSystem.Colors.Text.secondary,
+                            background: DesignSystem.Colors.Component.controlFillSubtle
+                        )
                     }
-                    if mcpNeedUpdateCount > 0 {
+                    if summary.mcpNeedUpdateCount > 0 {
                         Text(
                             String(
                                 format: NSLocalizedString(
@@ -296,14 +318,14 @@ struct ProviderDetailGridView: View {
                                     value: "MCP cache update %d",
                                     comment: "Provider MCP cache update count"
                                 ),
-                                mcpNeedUpdateCount
+                                summary.mcpNeedUpdateCount
                             )
                         )
-                            .font(.caption)
-                            .dsBadge(
-                                foreground: DesignSystem.Colors.secondary,
-                                background: DesignSystem.Colors.secondary.opacity(0.14)
-                            )
+                        .font(.caption)
+                        .dsBadge(
+                            foreground: DesignSystem.Colors.secondary,
+                            background: DesignSystem.Colors.secondary.opacity(0.14)
+                        )
                     }
                 }
             }

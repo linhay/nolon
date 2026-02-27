@@ -5,11 +5,11 @@ import Observation
 import OSLog
 
 @Observable
-final class RemoteSkillsBrowserViewModel {
-    private static let logger = Logger(subsystem: "nolon", category: "RemoteSkillsBrowser")
+final class ResourceCenterViewModel {
+    private static let logger = Logger(subsystem: "nolon", category: "ResourceCenter")
 
     var selectedRepository: RemoteRepository?
-    var selectedTab: RemoteContentTabType? = .skills
+    var selectedTab: ResourceContentTabType? = .skills
     var searchText = ""
     var columnVisibility: NavigationSplitViewVisibility = .all
     var installedSlugs: Set<String> = []
@@ -65,12 +65,12 @@ final class RemoteSkillsBrowserViewModel {
     }
 }
 
-/// Main three-column split view for browsing remote skill repositories
+/// Main three-column split view for browsing resource catalogs
 /// 与 MainSplitView 设计模式一致：
 /// - 左1: RemoteRepositorySidebarView (仓库列表)
-/// - 左2: RemoteContentTabView (Tab 导航)
-/// - 左3: RemoteSkillsGridView (网格视图)
-struct RemoteSkillsBrowserView: View {
+/// - 左2: ResourceCenterTabView (Tab 导航)
+/// - 左3: ResourceCatalogGridView (网格视图)
+struct ResourceCenterView: View {
     @ObservedObject var settings: ProviderSettings
     let repository: SkillRepository
     let targetProvider: Provider?
@@ -78,14 +78,14 @@ struct RemoteSkillsBrowserView: View {
     let onInstallWorkflow: ((RemoteWorkflow, Provider) -> Void)?
     let onInstallMCP: ((RemoteMCP, Provider) -> Void)?
     
-    @State private var viewModel = RemoteSkillsBrowserViewModel()
+    @State private var viewModel = ResourceCenterViewModel()
     @Environment(\.dismiss) private var dismiss
     
     init(
         settings: ProviderSettings,
         repository: SkillRepository,
         targetProvider: Provider? = nil,
-        selectedTab: RemoteContentTabType? = .skills,
+        selectedTab: ResourceContentTabType? = .skills,
         onInstall: @escaping (RemoteSkill, Provider) -> Void,
         onInstallWorkflow: ((RemoteWorkflow, Provider) -> Void)? = nil,
         onInstallMCP: ((RemoteMCP, Provider) -> Void)? = nil
@@ -97,7 +97,7 @@ struct RemoteSkillsBrowserView: View {
         self.onInstallWorkflow = onInstallWorkflow
         self.onInstallMCP = onInstallMCP
         self._viewModel = State(initialValue: {
-            let vm = RemoteSkillsBrowserViewModel()
+            let vm = ResourceCenterViewModel()
             vm.selectedTab = selectedTab
             return vm
         }())
@@ -112,41 +112,20 @@ struct RemoteSkillsBrowserView: View {
     
     var body: some View {
         let isClawdhub = viewModel.selectedRepository?.templateType == .clawdhub
-        VStack(spacing: 0) {
-            SheetHeaderView(title: NSLocalizedString("remote.browser.title", value: "Remote Skills", comment: "Remote skills browser")) {
-                HStack(spacing: 12) {
-                    Button {
-                        refreshData()
-                    } label: {
-                        Image(systemName: "arrow.clockwise")
-                            .dsIconButton()
-                    }
-                    .help(NSLocalizedString("Refresh", comment: "Refresh"))
-                    
-                    Button {
-                        dismiss()
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .dsIconButton(size: 22, foreground: DesignSystem.Colors.Text.tertiary)
-                    }
-                    .dsLinkButton()
-                    .accessibilityLabel(NSLocalizedString("Close", comment: "Close"))
-                }
-            }
-
-            SheetDivider()
-
+        Group {
             if isClawdhub {
                 NavigationSplitView {
                     // Column 1: Repository sidebar
                     RemoteRepositorySidebarView(
                         selectedRepository: $viewModel.selectedRepository,
-                        settings: settings
+                        settings: settings,
+                        showsHeader: false,
+                        title: NSLocalizedString("resource.center.title", value: "Resource Center", comment: "Resource center title")
                     )
-                    .navigationSplitViewColumnWidth(min: 160, ideal: 180, max: 220)
+                    .navigationSplitViewColumnWidth(min: 200, ideal: 220, max: 240)
                 } detail: {
                     // Column 2: Grid view (Clawdhub only)
-                    RemoteSkillsGridView(
+                    ResourceCatalogGridView(
                         repository: viewModel.selectedRepository,
                         selectedTab: .skills,
                         searchText: $viewModel.searchText,
@@ -179,6 +158,12 @@ struct RemoteSkillsBrowserView: View {
                                 viewModel.refreshInstalledMCPs(targetProvider: targetProvider)
                                 viewModel.refreshTrigger += 1
                             }
+                        },
+                        onRefresh: {
+                            refreshData()
+                        },
+                        onClose: {
+                            dismiss()
                         }
                     )
                 }
@@ -188,19 +173,21 @@ struct RemoteSkillsBrowserView: View {
                     // Column 1: Repository sidebar
                     RemoteRepositorySidebarView(
                         selectedRepository: $viewModel.selectedRepository,
-                        settings: settings
+                        settings: settings,
+                        showsHeader: false,
+                        title: NSLocalizedString("resource.center.title", value: "Resource Center", comment: "Resource center title")
                     )
-                    .navigationSplitViewColumnWidth(min: 160, ideal: 180, max: 220)
+                    .navigationSplitViewColumnWidth(min: 200, ideal: 220, max: 240)
                 } content: {
                     // Column 2: Tab navigation (类似 ProviderContentTabView)
-                    RemoteContentTabView(
+                    ResourceCenterTabView(
                         repository: viewModel.selectedRepository,
                         selectedTab: $viewModel.selectedTab,
                         refreshTrigger: viewModel.refreshTrigger
                     )
                 } detail: {
                     // Column 3: Grid view
-                    RemoteSkillsGridView(
+                    ResourceCatalogGridView(
                         repository: viewModel.selectedRepository,
                         selectedTab: viewModel.selectedTab,
                         searchText: $viewModel.searchText,
@@ -233,6 +220,12 @@ struct RemoteSkillsBrowserView: View {
                                 viewModel.refreshInstalledMCPs(targetProvider: targetProvider)
                                 viewModel.refreshTrigger += 1
                             }
+                        },
+                        onRefresh: {
+                            refreshData()
+                        },
+                        onClose: {
+                            dismiss()
                         }
                     )
                 }
@@ -254,12 +247,11 @@ struct RemoteSkillsBrowserView: View {
                 }
             }
         }
-        .frame(minWidth: 980, idealWidth: 1100, maxWidth: .infinity,
-               minHeight: 700, idealHeight: 760, maxHeight: .infinity)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
     
     #Preview {
-        RemoteSkillsBrowserView(
+        ResourceCenterView(
             settings: ProviderSettings(),
             repository: SkillRepository(),
             selectedTab: .skills,

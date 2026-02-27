@@ -3,92 +3,31 @@ import ProviderCatalog
 import AppKit
 import NolonResourceKit
 
-/// 远程技能卡片视图 - Grid 布局中的卡片
+/// 资源中心技能卡片视图 - Grid 布局中的卡片
 struct RemoteSkillCardView: View {
     let skill: RemoteSkill
     let isInstalled: Bool
     let isInstalling: Bool
+    let installErrorMessage: String?
+    let isSelected: Bool
     let targetProvider: Provider?
     let providers: [Provider]
     let onInstall: (Provider) -> Void
     let onTap: () -> Void
     
     @State private var showingInstallSheet = false
-    @State private var isHovered = false
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // 1. Header: Name + Version Badge | More Menu
-            HStack(alignment: .center) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(skill.displayName)
-                        .font(.headline)
-                        .lineLimit(1)
-                    
-                    if let version = skill.latestVersion {
-                        Text(version.version)
-                            .font(.system(size: 10, weight: .bold))
-                            .dsBadge(
-                                foreground: DesignSystem.Colors.primary,
-                                background: DesignSystem.Colors.primary.opacity(0.15),
-                                horizontalPadding: 6,
-                                verticalPadding: 2
-                            )
-                    }
-                }
-                
-                Spacer()
-                
-                moreMenu
-            }
-            
-            // 2. Description 区
-            if let summary = skill.summary {
-                Text(summary)
-                    .font(.caption)
-                    .dsSecondaryText(font: .caption)
-                    .lineLimit(3)
-                    .frame(maxHeight: .infinity, alignment: .topLeading)
-            } else {
-                Spacer()
-            }
-            
-            // 3. Footer: Stats & Actions
-            HStack(alignment: .center) {
-                // Left: Stats
-                HStack(spacing: 8) {
-                    if let stars = skill.stats?.stars {
-                        Label("\(stars)", systemImage: "star.fill")
-                            .dsIconLabelText(foreground: DesignSystem.Colors.Status.warning, font: .caption2)
-                    }
-                    if let downloads = skill.stats?.downloads {
-                        Label("\(downloads)", systemImage: "arrow.down.circle")
-                            .dsIconLabelText()
-                    }
-                }
-                
-                Spacer()
-                
-                // Right: Install Action
-                installActionView
-            }
-        }
-        .padding(16)
-        .frame(minHeight: 140)
-        .dsCard()
-        .contentShape(Rectangle())
-        .shadow(color: DesignSystem.Colors.Shadow.floating.opacity(isHovered ? 0.75 : 0.25), radius: isHovered ? 8 : 4, y: isHovered ? 4 : 2)
-        .scaleEffect(isHovered ? 1.02 : 1.0)
-        .animation(.easeInOut(duration: 0.2), value: isHovered)
-        .onHover { hovering in
-            isHovered = hovering
-        }
-        .onTapGesture {
-            onTap()
-        }
-        .contextMenu {
-            contextMenuItems
-        }
+        ResourceCardShell(
+            minHeight: 140,
+            isSelected: isSelected,
+            onTap: onTap,
+            headerContent: { headerView },
+            summaryContent: { summaryView },
+            metaContent: { metaView },
+            actionContent: { installActionView },
+            menuContent: { contextMenuItems }
+        )
         .sheet(isPresented: $showingInstallSheet) {
             SkillInstallSheet(providers: providers, skillName: skill.displayName) { provider in
                 onInstall(provider)
@@ -99,46 +38,60 @@ struct RemoteSkillCardView: View {
     // MARK: - Subviews
     
     @ViewBuilder
-    private var installActionView: some View {
-        if isInstalled {
-            HStack(spacing: 4) {
-                Image(systemName: "checkmark.circle.fill")
-                Text(NSLocalizedString("remote.status.installed", value: "Installed", comment: "Remote installed status"))
+    private var headerView: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(skill.displayName)
+                .font(.headline.weight(.semibold))
+                .lineLimit(1)
+
+            if let version = skill.latestVersion {
+                Text(version.version)
+                    .font(.system(size: 10, weight: .bold))
+                    .dsBadge(
+                        foreground: DesignSystem.Colors.primary,
+                        background: DesignSystem.Colors.primary.opacity(0.15),
+                        horizontalPadding: 6,
+                        verticalPadding: 2
+                    )
             }
-            .fontWeight(.semibold)
-            .dsBadge(
-                foreground: DesignSystem.Colors.Status.success,
-                background: DesignSystem.Colors.Status.success.opacity(0.10)
-            )
-        } else if isInstalling {
-            HStack(spacing: 4) {
-                ProgressView()
-                    .controlSize(.small)
-                Text(NSLocalizedString("remote.status.installing", value: "Installing", comment: "Remote installing status"))
-            }
-            .fontWeight(.semibold)
-            .dsBadge(
-                foreground: DesignSystem.Colors.secondary,
-                background: DesignSystem.Colors.secondary.opacity(0.10)
-            )
-        } else {
-            Button {
-                handleInstall()
-            } label: {
-                HStack(spacing: 4) {
-                    Image(systemName: "arrow.down.circle")
-                    Text(NSLocalizedString("action.install", value: "Install", comment: "Install action"))
-                }
-                .fontWeight(.bold)
-                .dsBadge(
-                    foreground: DesignSystem.Colors.primary,
-                    background: DesignSystem.Colors.primary.opacity(0.10),
-                    horizontalPadding: 10,
-                    verticalPadding: 6
-                )
-            }
-            .dsLinkButton()
         }
+    }
+
+    @ViewBuilder
+    private var summaryView: some View {
+        if let summary = skill.summary {
+            Text(summary)
+                .dsSecondaryText(font: .subheadline)
+                .lineSpacing(2)
+                .lineLimit(3)
+                .frame(maxHeight: .infinity, alignment: .topLeading)
+        } else {
+            Spacer()
+        }
+    }
+
+    @ViewBuilder
+    private var metaView: some View {
+        let items = ResourceCardMetaBuilder.skillItems(skill)
+        if items.isEmpty {
+            EmptyView()
+        } else {
+            HStack(spacing: 8) {
+                ForEach(Array(items.enumerated()), id: \.offset) { _, item in
+                    metaLabel(for: item)
+                }
+            }
+        }
+    }
+
+    private var installActionView: some View {
+        ResourceInstallStateView(
+            isInstalled: isInstalled,
+            isInstalling: isInstalling,
+            errorMessage: installErrorMessage,
+            onInstall: handleInstall,
+            onRetry: handleInstall
+        )
     }
     
     @ViewBuilder
@@ -146,7 +99,7 @@ struct RemoteSkillCardView: View {
         Button {
             onTap()
         } label: {
-            Label("View Details", systemImage: "info.circle")
+            Label(NSLocalizedString("View Details", comment: "View resource details"), systemImage: "info.circle")
                 .dsIconLabelButton()
         }
 
@@ -170,23 +123,46 @@ struct RemoteSkillCardView: View {
         }
     }
     
-    private var moreMenu: some View {
-        Menu {
-            contextMenuItems
-        } label: {
-            Image(systemName: "ellipsis")
-                .dsIconButton()
-        }
-        .dsBorderlessMenu()
-        .menuIndicator(.hidden)
-        .fixedSize()
-    }
-    
     private func handleInstall() {
         if let target = targetProvider {
             onInstall(target)
         } else {
             showingInstallSheet = true
+        }
+    }
+
+    @ViewBuilder
+    private func metaLabel(for item: ResourceCardMetaItem) -> some View {
+        switch item {
+        case let .stars(value):
+            Label("\(value)", systemImage: "star.fill")
+                .dsIconLabelText(foreground: DesignSystem.Colors.Status.warning, font: .caption2)
+        case let .downloads(value):
+            Label("\(value)", systemImage: "arrow.down.circle")
+                .dsIconLabelText()
+        case let .usages(value):
+            Label("\(value)", systemImage: "arrow.triangle.branch")
+                .dsIconLabelText()
+        case let .installs(value):
+            Label("\(value)", systemImage: "server.rack")
+                .dsIconLabelText()
+        case let .command(value):
+            HStack(spacing: 4) {
+                Image(systemName: "terminal")
+                    .font(.caption2)
+                Text(value)
+                    .font(.system(size: 10, design: .monospaced))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+            .dsBadge(
+                foreground: DesignSystem.Colors.Text.secondary,
+                background: DesignSystem.Colors.Component.controlFillSubtle,
+                horizontalPadding: 6,
+                verticalPadding: 3,
+                cornerRadius: DesignSystem.Metrics.cornerRadiusXS
+            )
+            .frame(maxWidth: 160, alignment: .leading)
         }
     }
 
