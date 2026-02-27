@@ -144,6 +144,39 @@ create_dmg_for_app() {
     local app_path="$1"
     local dmg_name="$2"
     local arch="$3"
+
+    create_dmg_with_hdiutil() {
+        local app_path="$1"
+        local dmg_name="$2"
+        local arch="$3"
+
+        echo -e "${YELLOW}📦 Creating DMG with hdiutil for ${arch}...${NC}"
+
+        # Create staging directory
+        STAGING_DIR="${BUILD_DIR}/dmg-staging-${arch}"
+        rm -rf "$STAGING_DIR"
+        mkdir -p "$STAGING_DIR"
+
+        # Copy app to staging
+        cp -R "$app_path" "$STAGING_DIR/"
+
+        # Create Applications symlink
+        ln -s /Applications "$STAGING_DIR/Applications"
+
+        # Remove existing DMG
+        rm -f "$dmg_name"
+
+        # Create DMG
+        hdiutil create \
+            -volname "$APP_NAME" \
+            -srcfolder "$STAGING_DIR" \
+            -ov \
+            -format UDZO \
+            "$dmg_name"
+
+        # Cleanup
+        rm -rf "$STAGING_DIR"
+    }
     
     # Check if create-dmg is installed
     if command -v create-dmg &> /dev/null; then
@@ -166,37 +199,15 @@ create_dmg_for_app() {
             --hide-extension "${APP_NAME}.app" \
             --no-internet-enable \
             "$dmg_name" \
-            "$app_path" || {
-                echo -e "${YELLOW}⚠️  create-dmg had issues, trying fallback...${NC}"
-                rm -f "${RELEASE_DIR}/rw.*.dmg" 2>/dev/null || true
-            }
+            "$app_path" || true
+
+        if [ ! -f "$dmg_name" ]; then
+            echo -e "${YELLOW}⚠️  create-dmg had issues, trying fallback...${NC}"
+            rm -f "${RELEASE_DIR}/rw.*.dmg" 2>/dev/null || true
+            create_dmg_with_hdiutil "$app_path" "$dmg_name" "$arch"
+        fi
     else
-        echo -e "${YELLOW}📦 Creating DMG with hdiutil for ${arch}...${NC}"
-        
-        # Create staging directory
-        STAGING_DIR="${BUILD_DIR}/dmg-staging-${arch}"
-        rm -rf "$STAGING_DIR"
-        mkdir -p "$STAGING_DIR"
-        
-        # Copy app to staging
-        cp -R "$app_path" "$STAGING_DIR/"
-        
-        # Create Applications symlink
-        ln -s /Applications "$STAGING_DIR/Applications"
-        
-        # Remove existing DMG
-        rm -f "$dmg_name"
-        
-        # Create DMG
-        hdiutil create \
-            -volname "$APP_NAME" \
-            -srcfolder "$STAGING_DIR" \
-            -ov \
-            -format UDZO \
-            "$dmg_name"
-        
-        # Cleanup
-        rm -rf "$STAGING_DIR"
+        create_dmg_with_hdiutil "$app_path" "$dmg_name" "$arch"
     fi
     
     echo -e "${GREEN}✅ DMG created: ${dmg_name}${NC}"
