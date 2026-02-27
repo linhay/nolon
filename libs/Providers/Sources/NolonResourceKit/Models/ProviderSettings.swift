@@ -99,6 +99,14 @@ public class ProviderSettings: ObservableObject {
         }
     }
 
+    public func upsertRemoteRepository(_ repository: RemoteRepository) {
+        if remoteRepositories.contains(where: { $0.id == repository.id }) {
+            updateRemoteRepository(repository)
+        } else {
+            addRemoteRepository(repository)
+        }
+    }
+
     public func removeRemoteRepository(_ repository: RemoteRepository) {
         // Don't allow removing built-in repositories
         guard !repository.isBuiltIn else { return }

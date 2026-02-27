@@ -51,7 +51,16 @@ final class RemoteRepositorySidebarViewModel {
     func handleDirectoryCandidatesFound(repo: RemoteRepository, candidates: [GitRepository.SkillsDirectoryCandidate]) {
         pendingRepository = repo
         detectedCandidates = candidates
-        selectedDirectoryIndices = Set(0..<candidates.count)
+        let preferredPaths = Set(repo.skillsPaths)
+        if preferredPaths.isEmpty {
+            selectedDirectoryIndices = Set(0..<candidates.count)
+        } else {
+            selectedDirectoryIndices = Set(
+                candidates.enumerated().compactMap { index, candidate in
+                    preferredPaths.contains(candidate.path) ? index : nil
+                }
+            )
+        }
         DispatchQueue.main.asyncAfter(deadline: .now() + RemoteRefreshPolicy.repositorySelectionDelay) {
             self.showingDirectoryPicker = true
         }
@@ -167,8 +176,10 @@ final class RemoteRepositorySidebarViewModel {
         
         repo.skillsPaths = selectedPaths
         
-        settings.addRemoteRepository(repo)
+        settings.upsertRemoteRepository(repo)
         pendingRepository = nil
+        detectedCandidates = []
+        selectedDirectoryIndices = []
     }
     
     @MainActor
@@ -192,6 +203,8 @@ final class RemoteRepositorySidebarViewModel {
 struct RemoteRepositorySidebarView: View {
     @Binding var selectedRepository: RemoteRepository?
     @ObservedObject var settings: ProviderSettings
+    var showsHeader: Bool = true
+    var title: String? = nil
     
     @State private var viewModel = RemoteRepositorySidebarViewModel()
     @State private var collapsedSectionIDs: Set<String> = []
@@ -201,19 +214,20 @@ struct RemoteRepositorySidebarView: View {
         let sections = repositorySections(settings.remoteRepositories)
         let orderedRepositories = sections.flatMap { $0.repositories }
         VStack(spacing: 0) {
-            SheetHeaderView(title: NSLocalizedString("Sources", comment: "Sources")) {
-                Button {
-                    viewModel.showingAddRepository = true
-                } label: {
-                    Image(systemName: "plus.circle.fill")
-                        .dsIconButton(size: 20, foreground: DesignSystem.Colors.Text.secondary)
+            if showsHeader {
+                SheetHeaderView(title: NSLocalizedString("Sources", comment: "Sources")) { EmptyView() }
+                SheetDivider()
+            } else if let title, !title.isEmpty {
+                HStack {
+                    Text(title)
+                        .font(.headline.weight(.semibold))
+                        .foregroundStyle(DesignSystem.Colors.Text.primary)
+                    Spacer()
                 }
-                .dsLinkButton()
-                .help(NSLocalizedString("Add Repository", comment: "Add Repository"))
-                .accessibilityLabel(NSLocalizedString("Add Repository", comment: "Add Repository"))
+                .padding(.horizontal, 12)
+                .padding(.top, 12)
+                .padding(.bottom, 8)
             }
-
-            SheetDivider()
 
             List(selection: $selectedRepository) {
                 ForEach(sections) { section in
@@ -233,6 +247,12 @@ struct RemoteRepositorySidebarView: View {
             }
             .listStyle(.sidebar)
             .animation(.snappy(duration: 0.2), value: collapsedSectionIDs)
+            .padding(.bottom, 52)
+        }
+        .overlay(alignment: .bottomTrailing) {
+            floatingAddRepositoryButton
+                .padding(.trailing, 12)
+                .padding(.bottom, 12)
         }
         .overlay(alignment: .top) {
             syncHUDOverlay
@@ -307,7 +327,7 @@ struct RemoteRepositorySidebarView: View {
                     .font(.caption2)
                     .dsSecondaryText(font: .caption2)
             } else {
-                Text("Not synced")
+                Text(NSLocalizedString("Not synced", comment: "Repository not synced"))
                     .font(.caption2)
                     .foregroundStyle(DesignSystem.Colors.Status.warning)
             }
@@ -436,18 +456,20 @@ struct RemoteRepositorySidebarView: View {
         }
     }
     
-    private var addRepositoryButton: some View {
+    private var floatingAddRepositoryButton: some View {
         Button {
             viewModel.showingAddRepository = true
         } label: {
-            Label("Add Repository", systemImage: "plus")
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .dsIconLabelButton()
+            Image(systemName: "plus")
+                .font(.system(size: 16, weight: .bold))
+                .foregroundStyle(DesignSystem.Colors.Text.onAccent)
+                .frame(width: 34, height: 34)
+                .background(DesignSystem.Colors.primary, in: Circle())
+                .shadow(color: DesignSystem.Colors.primary.opacity(0.35), radius: 6, x: 0, y: 3)
         }
-        .dsBorderlessButton()
-        .padding(.horizontal)
-        .padding(.vertical, 12)
-        .background(DesignSystem.Colors.Component.controlFillSubtle)
+        .dsLinkButton()
+        .help(NSLocalizedString("Add Repository", comment: "Add Repository"))
+        .accessibilityLabel(NSLocalizedString("Add Repository", comment: "Add Repository"))
     }
 
     private enum SyncHUDStyle {
