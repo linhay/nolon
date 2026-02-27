@@ -11,7 +11,7 @@ set -e
 
 # Configuration
 APP_NAME="nolon"
-SCHEME="nolon"
+SCHEME="nolon-app"
 PROJECT="nolon.xcodeproj"
 RELEASE_DIR="release"
 BUILD_DIR="${RELEASE_DIR}/build"
