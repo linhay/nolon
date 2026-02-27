@@ -28,6 +28,21 @@ Use one workspace across **Codex**, **Claude Code**, **Cursor**, and 20+ other p
 * Health checks and repair for broken links/install drift
 * Skills update checks and in-app app updates
 
+## Recent Updates (This Branch)
+
+* **Add Repository flow refinement**
+  * Larger, clearer add dialog with drag-and-drop local folder support
+  * Git URL quick-paste action
+  * Auto repository naming (manual name input removed)
+  * Safer repository write path with upsert behavior
+* **Resource Center refactor**
+  * Replaced old remote browser with a unified Resource Center experience
+  * New reusable resource card shell/meta/state components
+  * Better tab and catalog readability for skills/workflows/MCP
+* **Codex usage & auth management polish**
+  * Unified account/auth management flow for provider usage
+  * Improved provider usage UX and related CLI/provider service alignment
+
 ## Typical Workflow
 
 1. Import or sync skills into Nolon.
