@@ -5,22 +5,39 @@ import CodexProvider
 public struct CodexUsageDescriptor: ProviderUsageDescribing {
     public let provider: UsageProvider = .codex
     public let fetchPlan = ProviderFetchPlan(sourceModes: [.auto, .cli])
+    private let fetchRateLimitsAndAccountInfo: @Sendable (_ context: ProviderFetchContext) async throws -> (CodexHelper.RateLimitsSnapshot, CodexHelper.AccountInfo?)
+    private let fetchStatusSnapshot: @Sendable (_ environment: [String: String]) async throws -> CodexStatusSnapshot
 
-    public init() {}
+    public init() {
+        self.fetchRateLimitsAndAccountInfo = { context in
+            let helper = CodexHelper(codexBinary: nil, environment: context.environment)
+            async let rateLimitsTask = helper.fetchRateLimits()
+            async let accountInfoTask: CodexHelper.AccountInfo? = try? helper.fetchAccountInfo()
+            let rateLimits = try await rateLimitsTask
+            let accountInfo = await accountInfoTask
+            return (rateLimits, accountInfo)
+        }
+        self.fetchStatusSnapshot = { environment in
+            try await CodexStatusProbe(environment: environment).fetch()
+        }
+    }
+
+    init(
+        fetchRateLimitsAndAccountInfo: @escaping @Sendable (_ context: ProviderFetchContext) async throws -> (CodexHelper.RateLimitsSnapshot, CodexHelper.AccountInfo?),
+        fetchStatusSnapshot: @escaping @Sendable (_ environment: [String: String]) async throws -> CodexStatusSnapshot
+    ) {
+        self.fetchRateLimitsAndAccountInfo = fetchRateLimitsAndAccountInfo
+        self.fetchStatusSnapshot = fetchStatusSnapshot
+    }
 
     public func fetchOutcome(context: ProviderFetchContext) async -> ProviderFetchOutcome {
         let fetchKind: ProviderFetchKind = .cli
 
         do {
-            let helper = CodexHelper(codexBinary: nil, environment: context.environment)
-            async let rateLimitsTask = helper.fetchRateLimits()
-            async let accountInfoTask: CodexHelper.AccountInfo? = try? helper.fetchAccountInfo()
-
-            let rateLimits = try await rateLimitsTask
-            let accountInfo = await accountInfoTask
+            let (rateLimits, accountInfo) = try await fetchRateLimitsAndAccountInfo(context)
             let statusSnapshot: CodexStatusSnapshot?
             if rateLimits.primary?.resetsAt == nil || rateLimits.secondary?.resetsAt == nil {
-                statusSnapshot = try? await CodexStatusProbe().fetch()
+                statusSnapshot = try? await fetchStatusSnapshot(context.environment)
             } else {
                 statusSnapshot = nil
             }
@@ -90,8 +107,56 @@ public struct CodexUsageDescriptor: ProviderUsageDescribing {
             )
             return ProviderFetchOutcome(fetchKind: fetchKind, result: .success(result))
         } catch {
+            if let fallbackUsage = await self.makeFallbackUsage(context: context) {
+                let result = ProviderFetchResult(
+                    usage: fallbackUsage,
+                    credits: nil,
+                    cost: nil,
+                    sourceLabel: NSLocalizedString("usage.source.cli", value: "CLI", comment: "CLI"),
+                    fetchKind: fetchKind,
+                    strategyKind: .fallback
+                )
+                return ProviderFetchOutcome(fetchKind: fetchKind, result: .success(result))
+            }
             return ProviderFetchOutcome(fetchKind: fetchKind, result: .failure(error))
         }
+    }
+
+    private func makeFallbackUsage(context: ProviderFetchContext) async -> UsageSnapshot? {
+        guard let status = try? await fetchStatusSnapshot(context.environment) else {
+            return nil
+        }
+        let primary = status.fiveHourPercentLeft.map { left in
+            RateWindow(
+                usedPercent: Self.usedPercent(fromPercentLeft: left),
+                resetDescription: status.fiveHourResetDescription.map(Self.formatStatusResetDescription),
+                resetsAt: nil,
+                windowMinutes: nil
+            )
+        }
+        let secondary = status.weeklyPercentLeft.map { left in
+            RateWindow(
+                usedPercent: Self.usedPercent(fromPercentLeft: left),
+                resetDescription: status.weeklyResetDescription.map(Self.formatStatusResetDescription),
+                resetsAt: nil,
+                windowMinutes: nil
+            )
+        }
+        if primary == nil, secondary == nil {
+            return nil
+        }
+        return UsageSnapshot(
+            identity: nil,
+            primary: primary,
+            secondary: secondary,
+            tertiary: nil,
+            updatedAt: Date()
+        )
+    }
+
+    private static func usedPercent(fromPercentLeft percentLeft: Int) -> Double {
+        let clamped = max(0, min(100, percentLeft))
+        return Double(100 - clamped)
     }
 
     private func fetchCreditsIfNeeded(
