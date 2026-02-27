@@ -1,5 +1,5 @@
 {
-  "originHash" : "7d02e86c96dc9ae5c460eaf2af9efc1d6c38b3653cf902c327f5a87dec85863a",
+  "originHash" : "e4dae83057567fe8f590b32ee25bb4b84e9df9f08663b7b9c5b216b7b8eb9afb",
   "pins" : [
     {
       "identity" : "skprocessrunner",
@@ -17,6 +17,15 @@
       "state" : {
         "revision" : "3bbcb9ec909e787b473310f17257d1378e1f5b17",
         "version" : "1.3.4"
+      }
+    },
+    {
+      "identity" : "stjson",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/linhay/STJSON.git",
+      "state" : {
+        "revision" : "e1f8082a0f9ec26f6d4f51a83f47c527575f8bd3",
+        "version" : "1.4.8"
       }
     },
     {
