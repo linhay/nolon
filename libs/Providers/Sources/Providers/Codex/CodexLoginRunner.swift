@@ -47,19 +47,22 @@ public final class CodexLoginHandle: @unchecked Sendable {
     private let processExitState: ProcessExitState
     private let outputTask: Task<Void, Never>
     private let waitTask: Task<Void, Never>
+    private let capture: LoginOutputCapture?
 
     fileprivate init(
         session: SKProcessPTYSession,
         processIdentifier: Int32,
         processExitState: ProcessExitState,
         outputTask: Task<Void, Never>,
-        waitTask: Task<Void, Never>
+        waitTask: Task<Void, Never>,
+        capture: LoginOutputCapture?
     ) {
         self.session = session
         self.processIdentifier = processIdentifier
         self.processExitState = processExitState
         self.outputTask = outputTask
         self.waitTask = waitTask
+        self.capture = capture
     }
 
     public var isRunning: Bool {
@@ -80,6 +83,10 @@ public final class CodexLoginHandle: @unchecked Sendable {
         processExitState.markExited()
         outputTask.cancel()
         waitTask.cancel()
+    }
+
+    public var loginURL: String? {
+        capture?.detectedURL
     }
 
     private static func terminateProcess(processIdentifier: Int32, graceSeconds: TimeInterval) {
@@ -142,14 +149,15 @@ public struct CodexLoginRunner: Sendable {
             codexHome: codexHome,
             timeoutSeconds: 30 * 60,
             mirrorOutput: true,
-            capture: nil
+            capture: LoginOutputCapture()
         )
         return CodexLoginHandle(
             session: context.session,
             processIdentifier: context.processIdentifier,
             processExitState: context.processExitState,
             outputTask: context.outputTask,
-            waitTask: context.waitTask
+            waitTask: context.waitTask,
+            capture: context.capture
         )
     }
 
@@ -230,7 +238,8 @@ public struct CodexLoginRunner: Sendable {
             processIdentifier: context.processIdentifier,
             processExitState: context.processExitState,
             outputTask: context.outputTask,
-            waitTask: context.waitTask
+            waitTask: context.waitTask,
+            capture: context.capture
         )
 
         defer {
@@ -283,6 +292,7 @@ public struct CodexLoginRunner: Sendable {
         let processExitState: ProcessExitState
         let outputTask: Task<Void, Never>
         let waitTask: Task<Void, Never>
+        let capture: LoginOutputCapture?
     }
 
     private func startLoginSession(
@@ -335,7 +345,8 @@ public struct CodexLoginRunner: Sendable {
             processIdentifier: session.pid,
             processExitState: processExitState,
             outputTask: outputTask,
-            waitTask: waitTask
+            waitTask: waitTask,
+            capture: capture
         )
     }
 

@@ -6,6 +6,69 @@ import STJSON
 import ProvidersShared
 
 public actor CodexAuthManager {
+    public struct CodexManagementStatus: Sendable, Equatable {
+        public let hasProviderAuthFile: Bool
+        public let providerAuthIsSymlink: Bool
+        public let snapshotCount: Int
+        public let needsEnable: Bool
+        public let needsMigration: Bool
+
+        public init(
+            hasProviderAuthFile: Bool,
+            providerAuthIsSymlink: Bool,
+            snapshotCount: Int,
+            needsEnable: Bool,
+            needsMigration: Bool
+        ) {
+            self.hasProviderAuthFile = hasProviderAuthFile
+            self.providerAuthIsSymlink = providerAuthIsSymlink
+            self.snapshotCount = snapshotCount
+            self.needsEnable = needsEnable
+            self.needsMigration = needsMigration
+        }
+    }
+
+    public struct CodexManagementReport: Sendable, Equatable {
+        public let enabled: Bool
+        public let migrated: Bool
+        public let affectedAccountID: UUID?
+        public let snapshotCount: Int
+
+        public init(enabled: Bool, migrated: Bool, affectedAccountID: UUID?, snapshotCount: Int) {
+            self.enabled = enabled
+            self.migrated = migrated
+            self.affectedAccountID = affectedAccountID
+            self.snapshotCount = snapshotCount
+        }
+    }
+
+    public struct CodexImportValidationResult: Sendable, Equatable, Identifiable {
+        public let id: UUID
+        public let fileURL: URL
+        public let isValid: Bool
+        public let reason: String?
+        public let suggestedName: String?
+        public let email: String?
+        public let authJSONString: String?
+
+        public init(
+            id: UUID = UUID(),
+            fileURL: URL,
+            isValid: Bool,
+            reason: String?,
+            suggestedName: String?,
+            email: String?,
+            authJSONString: String?
+        ) {
+            self.id = id
+            self.fileURL = fileURL
+            self.isValid = isValid
+            self.reason = reason
+            self.suggestedName = suggestedName
+            self.email = email
+            self.authJSONString = authJSONString
+        }
+    }
     private struct PathName: RawRepresentable, ExpressibleByStringLiteral {
         static let codexRoot: PathName = "codex"
         static let authFolder: PathName = "auth"
@@ -405,43 +468,120 @@ public actor CodexAuthManager {
         return activeAccountIdFromRegistry(for: provider, accounts: accounts)
     }
 
+    public func managementStatus(for provider: Provider) async -> CodexManagementStatus {
+        let snapshots = (try? await loadAccounts()) ?? []
+        let providerAuth = authFile(for: provider)
+        let hasProviderAuthFile = providerAuth?.isExists ?? false
+        let providerAuthIsSymlink = providerAuth?.isSymbolicLink ?? false
+        let needsEnable = hasProviderAuthFile && !providerAuthIsSymlink
+        let needsMigration = needsEnable || snapshots.isEmpty
+        return CodexManagementStatus(
+            hasProviderAuthFile: hasProviderAuthFile,
+            providerAuthIsSymlink: providerAuthIsSymlink,
+            snapshotCount: snapshots.count,
+            needsEnable: needsEnable,
+            needsMigration: needsMigration
+        )
+    }
+
+    public func enableManagedAuth(for provider: Provider) async throws -> CodexManagementReport {
+        try await migrateLegacyIfNeeded()
+        let affected = try reconcileDetachedProviderAuthIfNeeded(for: provider)
+        let snapshots = try await loadAccounts()
+        return CodexManagementReport(
+            enabled: true,
+            migrated: affected != nil,
+            affectedAccountID: affected?.id,
+            snapshotCount: snapshots.count
+        )
+    }
+
+    public func migrateManagedAuthData(for provider: Provider) async throws -> CodexManagementReport {
+        try await migrateLegacyIfNeeded()
+        let affected = try reconcileDetachedProviderAuthIfNeeded(for: provider)
+        let snapshots = try await loadAccounts()
+        return CodexManagementReport(
+            enabled: true,
+            migrated: affected != nil,
+            affectedAccountID: affected?.id,
+            snapshotCount: snapshots.count
+        )
+    }
+
+    public func validateImportAuthFiles(urls: [URL]) async -> [CodexImportValidationResult] {
+        var results: [CodexImportValidationResult] = []
+        results.reserveCapacity(urls.count)
+        for url in urls {
+            do {
+                let data = try Data(contentsOf: url)
+                guard let raw = String(data: data, encoding: .utf8) else {
+                    results.append(
+                        CodexImportValidationResult(
+                            fileURL: url,
+                            isValid: false,
+                            reason: "Invalid UTF-8",
+                            suggestedName: nil,
+                            email: nil,
+                            authJSONString: nil
+                        )
+                    )
+                    continue
+                }
+                guard hasImportableCredentials(authJSONString: raw) else {
+                    results.append(
+                        CodexImportValidationResult(
+                            fileURL: url,
+                            isValid: false,
+                            reason: "Missing required credentials",
+                            suggestedName: nil,
+                            email: nil,
+                            authJSONString: nil
+                        )
+                    )
+                    continue
+                }
+                results.append(
+                    CodexImportValidationResult(
+                        fileURL: url,
+                        isValid: true,
+                        reason: nil,
+                        suggestedName: deriveAccountName(fromAuthJSONString: raw),
+                        email: deriveEmail(fromAuthJSONString: raw),
+                        authJSONString: raw
+                    )
+                )
+            } catch {
+                results.append(
+                    CodexImportValidationResult(
+                        fileURL: url,
+                        isValid: false,
+                        reason: error.localizedDescription,
+                        suggestedName: nil,
+                        email: nil,
+                        authJSONString: nil
+                    )
+                )
+            }
+        }
+        return results
+    }
+
+    @discardableResult
+    public func importValidatedAuthFiles(results: [CodexImportValidationResult]) async throws -> [CodexAuthAccount] {
+        var imported: [CodexAuthAccount] = []
+        for result in results where result.isValid {
+            guard let raw = result.authJSONString else { continue }
+            let finalName = result.suggestedName ?? deriveAccountName(fromAuthJSONString: raw)
+            let account = try await addAccount(name: finalName, authJSONString: raw)
+            imported.append(account)
+        }
+        return imported
+    }
+
     public func setActiveAccount(_ account: CodexAuthAccount, for provider: Provider) throws {
         var map = loadActiveAccountMap()
         map[provider.id] = account.id.uuidString
         try saveActiveAccountMap(map)
-    }
-
-    /// Sync token fields from the active `~/.codex/auth.json` into the matching snapshot under `~/.nolon/codex/auth/`.
-    /// Returns the updated snapshot file when a change is applied.
-    public func syncActiveAuthTokensIfNeeded(for provider: Provider) async -> STFile? {
-        guard let authFile = authFile(for: provider) else { return nil }
-        guard authFile.isExists else { return nil }
-
-        let authData: Data
-        do {
-            authData = try authFile.data()
-        } catch {
-            return nil
-        }
-        guard !authData.isEmpty,
-              let authJSON = try? JSON(data: authData)
-        else { return nil }
-
-        let accounts = (try? await loadAccounts()) ?? []
-        guard !accounts.isEmpty else { return nil }
-
-        // If the active auth is a symlink to a snapshot, it is already in sync.
-        if let destination = resolveSymlinkTarget(for: authFile) {
-            let resolvedStandard = standardizedPathString(destination)
-            if accounts.contains(where: { standardizedPathString(accountAuthFile($0)) == resolvedStandard }) {
-                return nil
-            }
-        }
-
-        guard let target = matchAccount(authData: authData, accounts: accounts) else { return nil }
-        let targetFile = accountAuthFile(target)
-        guard (try? syncAuthTokens(from: authJSON, to: targetFile)) == true else { return nil }
-        return targetFile
     }
 
     public func activateAccount(_ account: CodexAuthAccount, for provider: Provider) throws {
@@ -467,8 +607,8 @@ public actor CodexAuthManager {
     }
 
     /// Safety check after activation/login:
-    /// if provider auth becomes a regular file (instead of symlink), treat provider auth as source of truth
-    /// and overwrite the matching snapshot by email.
+    /// if provider auth becomes a regular file (instead of symlink), migrate/reconcile into snapshot storage,
+    /// then restore provider auth as a symlink to the resolved snapshot.
     @discardableResult
     public func reconcileDetachedProviderAuthIfNeeded(for provider: Provider) throws -> CodexAuthAccount? {
         guard let providerAuthFile = authFile(for: provider),
@@ -477,19 +617,32 @@ public actor CodexAuthManager {
         else { return nil }
 
         let raw = try providerAuthFile.read()
-        guard let email = deriveEmail(fromAuthJSONString: raw) else { return nil }
-        guard let matched = try findSnapshotAccountByEmail(email) else { return nil }
+        let authData = Data(raw.utf8)
+        let snapshots = try loadAccountsFromAuthFolder()
 
-        try writeAccountFile(
-            file: accountAuthFile(matched),
-            relativeAuthPath: matched.relativeAuthPath,
-            authJSONString: raw,
-            preferredId: matched.id,
-            preferredName: matched.name,
-            preferredCreatedAt: matched.createdAt
-        )
-        try setActiveAccount(matched, for: provider)
-        return matched
+        let resolved: CodexAuthAccount
+        if let matched = matchAccount(authData: authData, accounts: snapshots) {
+            try writeAccountFile(
+                file: accountAuthFile(matched),
+                relativeAuthPath: matched.relativeAuthPath,
+                authJSONString: raw,
+                preferredId: matched.id,
+                preferredName: matched.name,
+                preferredCreatedAt: matched.createdAt
+            )
+            resolved = try loadAccount(
+                file: accountAuthFile(matched),
+                relativeAuthPath: matched.relativeAuthPath
+            )
+        } else {
+            resolved = try createSnapshotAccount(authJSONString: raw)
+        }
+
+        // Unify provider auth shape: always point auth.json back to canonical snapshot.
+        try providerAuthFile.delete()
+        try providerAuthFile.createSymbolicLink(to: accountAuthFile(resolved))
+        try setActiveAccount(resolved, for: provider)
+        return resolved
     }
 
     // MARK: - CLI Login Flow
@@ -672,6 +825,35 @@ public actor CodexAuthManager {
         else { return nil }
         return deriveEmail(from: json)
     }
+
+    public nonisolated func hasImportableCredentials(authJSONString: String) -> Bool {
+        guard let data = authJSONString.data(using: .utf8),
+              let json = try? JSON(data: data)
+        else { return false }
+
+        let trimmed: (String?) -> String? = { value in
+            guard let value = value?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else { return nil }
+            return value
+        }
+
+        let idToken = trimmed(json["tokens"]["id_token"].string)
+            ?? trimmed(json["tokens"]["idToken"].string)
+            ?? trimmed(json["id_token"].string)
+            ?? trimmed(json["idToken"].string)
+        let accessToken = trimmed(json["tokens"]["access_token"].string)
+            ?? trimmed(json["tokens"]["accessToken"].string)
+            ?? trimmed(json["access_token"].string)
+            ?? trimmed(json["accessToken"].string)
+        if idToken != nil, accessToken != nil {
+            return true
+        }
+
+        let apiKey = trimmed(json["OPENAI_API_KEY"].string)
+            ?? trimmed(json["openai_api_key"].string)
+            ?? trimmed(json["api_key"].string)
+            ?? trimmed(json["apiKey"].string)
+        return apiKey != nil
+    }
 }
 
 private extension CodexAuthManager {
@@ -724,10 +906,6 @@ private extension CodexAuthManager {
 
     private func standardizedPathString(_ path: any STPathProtocol) -> String {
         STPath.standardizedPath(path.url.path).path
-    }
-
-    private func jsonObjectsEqual(_ lhs: Any?, _ rhs: Any?) -> Bool {
-        AnyCodable(lhs) == AnyCodable(rhs)
     }
 
     private func getString(_ dict: JSONObject, path: [String]) -> String? {
@@ -853,36 +1031,6 @@ private extension CodexAuthManager {
         return pickLatestAccount(from: suffixMatches)
     }
 
-    func syncAuthTokens(from authJSON: JSON, to file: STFile) throws -> Bool {
-        let data = try file.data()
-        guard let rootJSON = try? JSON(data: data) else { return false }
-
-        var rootObject = rootJSON.dictionaryObject ?? [:]
-        var changed = false
-
-        if authJSON["tokens"].dictionary != nil {
-            let tokensObject = authJSON["tokens"].dictionaryObject ?? [:]
-            if !jsonObjectsEqual(rootObject["tokens"], tokensObject) {
-                rootObject["tokens"] = tokensObject
-                changed = true
-            }
-        }
-
-        for key in Self.authTokenKeys {
-            let value = authJSON[key]
-            guard value != JSON.null else { continue }
-            let object = value.object
-            if !jsonObjectsEqual(rootObject[key], object) {
-                rootObject[key] = object
-                changed = true
-            }
-        }
-
-        guard changed else { return false }
-        try file.overlay(with: Self.encodeJSONObject(rootObject))
-        return true
-    }
-
     func updateSyncMetadata(
         file: STFile,
         loginAt: Date?,
@@ -929,22 +1077,23 @@ private extension CodexAuthManager {
         return accounts.sorted(by: { $0.createdAt > $1.createdAt }).first
     }
 
-    static let authTokenKeys: [String] = [
-        "access_token",
-        "refresh_token",
-        "id_token",
-        "token",
-        "token_type",
-        "expires_at",
-        "expires_in",
-        "api_key",
-        "apiKey",
-        "openai_api_key",
-        "OPENAI_API_KEY",
-        "tokenType",
-        "expiresAt",
-        "expiresIn",
-    ]
+    func createSnapshotAccount(authJSONString: String) throws -> CodexAuthAccount {
+        _ = nolonCodexAuthFolder().createIfNotExists()
+
+        let name = deriveAccountName(fromAuthJSONString: authJSONString)
+        let fileName = uniqueAuthFileName(for: name, existing: existingAuthRelativePaths())
+        let relativePath = "auth/\(fileName)"
+        let file = nolonCodexRootFolder().file(relativePath)
+        try writeAccountFile(
+            file: file,
+            relativeAuthPath: relativePath,
+            authJSONString: authJSONString,
+            preferredId: UUID(),
+            preferredName: name,
+            preferredCreatedAt: Date()
+        )
+        return try loadAccount(file: file, relativeAuthPath: relativePath)
+    }
 
     func loadAccount(file: STFile, relativeAuthPath: String) throws -> CodexAuthAccount {
         let data = try file.data()

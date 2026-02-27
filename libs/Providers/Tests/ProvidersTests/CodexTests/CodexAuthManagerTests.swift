@@ -206,7 +206,7 @@ struct CodexAuthManagerTests {
         #expect(tokenPair?.accessToken == "new-access")
     }
 
-    @Test("Given detached provider auth file with same email, when reconciling detached auth, then matching snapshot is overwritten and marked active")
+    @Test("Given detached provider auth file with same email, when reconciling detached auth, then matching snapshot is overwritten, relinked, and marked active")
     func reconcileDetachedProviderAuthOverwritesByEmail() async throws {
         let root = try makeTempRoot("codex-auth-reconcile-detached")
         defer { try? root.delete() }
@@ -237,7 +237,107 @@ struct CodexAuthManagerTests {
         #expect(tokenPair?.idToken == "new-id")
         #expect(tokenPair?.accessToken == "new-access")
 
+        let providerAuth = try #require(await manager.authFile(for: provider))
+        #expect(providerAuth.isSymbolicLink == true)
+        let destination = try providerAuth.destinationOfSymbolicLink()
+        let snapshotPath = await manager.accountAuthFile(existing).url.path
+        #expect(STPath.standardizedPath(destination.url.path).path == STPath.standardizedPath(snapshotPath).path)
+
         let activeId = await manager.activeAccountId(for: provider)
         #expect(activeId == existing.id)
+    }
+
+    @Test("Given detached provider auth without matching snapshot, when reconciling detached auth, then migrate to new snapshot and relink provider auth")
+    func reconcileDetachedProviderAuthMigratesAndRelinks() async throws {
+        let root = try makeTempRoot("codex-auth-reconcile-migrate")
+        defer { try? root.delete() }
+
+        let manager = CodexAuthManager(rootURL: root.url)
+        _ = try await manager.addAccount(
+            name: "existing",
+            authJSONString: #"{"tokens":{"id_token":"old-id","access_token":"old-access"},"user":{"email":"existing@example.com"}}"#
+        )
+        let providerRoot = root.folder("provider")
+        _ = providerRoot.createIfNotExists()
+        let provider = Provider(
+            name: "Codex",
+            defaultSkillsPath: providerRoot.folder("skills").url.path,
+            workflowPath: providerRoot.folder("prompts").url.path,
+            installMethod: .symlink,
+            templateId: "codex"
+        )
+
+        let detachedAuthURL = providerRoot.file("auth.json").url
+        let detachedRaw = #"{"tokens":{"id_token":"new-id","access_token":"new-access"},"user":{"email":"fresh@example.com"}}"#
+        try detachedRaw.write(to: detachedAuthURL, atomically: true, encoding: .utf8)
+
+        let reconciled = try await manager.reconcileDetachedProviderAuthIfNeeded(for: provider)
+        let account = try #require(reconciled)
+        let summary = CodexAuthSummary.fromJSONData(try await manager.accountAuthFile(account).data())
+        #expect(summary.email == "fresh@example.com")
+
+        let providerAuth = try #require(await manager.authFile(for: provider))
+        #expect(providerAuth.isSymbolicLink == true)
+        let destination = try providerAuth.destinationOfSymbolicLink()
+        let snapshotPath = await manager.accountAuthFile(account).url.path
+        #expect(STPath.standardizedPath(destination.url.path).path == STPath.standardizedPath(snapshotPath).path)
+
+        let activeId = await manager.activeAccountId(for: provider)
+        #expect(activeId == account.id)
+    }
+
+    @Test("Given detached provider auth and empty snapshots, when reading management status, then enable and migration are required")
+    func managementStatusShowsEnableAndMigrationNeeded() async throws {
+        let root = try makeTempRoot("codex-auth-management-status")
+        defer { try? root.delete() }
+
+        let manager = CodexAuthManager(rootURL: root.url)
+        let providerRoot = root.folder("provider")
+        _ = providerRoot.createIfNotExists()
+        let provider = Provider(
+            name: "Codex",
+            defaultSkillsPath: providerRoot.folder("skills").url.path,
+            workflowPath: providerRoot.folder("prompts").url.path,
+            installMethod: .symlink,
+            templateId: "codex"
+        )
+
+        try #"{"tokens":{"id_token":"id-1","access_token":"access-1"}}"#
+            .write(to: providerRoot.file("auth.json").url, atomically: true, encoding: .utf8)
+
+        let status = await manager.managementStatus(for: provider)
+        #expect(status.hasProviderAuthFile == true)
+        #expect(status.providerAuthIsSymlink == false)
+        #expect(status.snapshotCount == 0)
+        #expect(status.needsEnable == true)
+        #expect(status.needsMigration == true)
+    }
+
+    @Test("Given mixed import files, when validating then importing, only valid auth files become snapshots")
+    func validateAndImportAuthFilesOnlyImportsValidItems() async throws {
+        let root = try makeTempRoot("codex-auth-import-validate")
+        defer { try? root.delete() }
+
+        let manager = CodexAuthManager(rootURL: root.url)
+        let inputFolder = root.folder("input")
+        _ = inputFolder.createIfNotExists()
+
+        let validURL = inputFolder.file("valid.json").url
+        let invalidURL = inputFolder.file("invalid.json").url
+        try #"{"tokens":{"id_token":"id-valid","access_token":"access-valid"},"user":{"email":"valid@example.com"}}"#
+            .write(to: validURL, atomically: true, encoding: .utf8)
+        try #"{"user":{"email":"invalid@example.com"}}"#
+            .write(to: invalidURL, atomically: true, encoding: .utf8)
+
+        let results = await manager.validateImportAuthFiles(urls: [validURL, invalidURL])
+        #expect(results.count == 2)
+        #expect(results.filter(\.isValid).count == 1)
+        #expect(results.filter { !$0.isValid }.count == 1)
+
+        let imported = try await manager.importValidatedAuthFiles(results: results)
+        #expect(imported.count == 1)
+        let tokenPair = try await manager.readTokenPair(for: imported[0])
+        #expect(tokenPair?.idToken == "id-valid")
+        #expect(tokenPair?.accessToken == "access-valid")
     }
 }

@@ -20,16 +20,24 @@ public struct RepositorySyncPlan: Sendable {
 public struct RepositorySyncOrchestrator: Sendable {
     public typealias Sync = @Sendable (RemoteRepository) async throws -> GitRepository.SyncResult
     public typealias Detect = @Sendable (URL) -> GitRepository.RepositoryResources
+    public typealias IsSkillDirectory = @Sendable (String) -> Bool
+    public typealias SkillName = @Sendable (String) -> String?
 
     private let sync: Sync
     private let detectRepositoryResources: Detect
+    private let isSkillDirectory: IsSkillDirectory
+    private let skillName: SkillName
 
     public init(
         sync: @escaping Sync = { try await GitRepository.syncRepository($0) },
-        detectRepositoryResources: @escaping Detect = { GitRepository.detectRepositoryResources(at: $0) }
+        detectRepositoryResources: @escaping Detect = { GitRepository.detectRepositoryResources(at: $0) },
+        isSkillDirectory: @escaping IsSkillDirectory = { SkillParser.isSkillDirectory(at: $0) },
+        skillName: @escaping SkillName = { SkillParser.skillName(at: $0) }
     ) {
         self.sync = sync
         self.detectRepositoryResources = detectRepositoryResources
+        self.isSkillDirectory = isSkillDirectory
+        self.skillName = skillName
     }
 
     public func sync(repository: RemoteRepository) async throws -> (GitRepository.SyncResult, RepositorySyncPlan) {
@@ -48,6 +56,19 @@ public struct RepositorySyncOrchestrator: Sendable {
         }
 
         if !candidates.isEmpty {
+            updated.detectedDirectories = candidates.map(\.path)
+        } else {
+            updated.detectedDirectories = nil
+        }
+
+        // If repo root itself is a skills directory, expose "." as a selectable candidate.
+        let rootPath = repository.localClonePath.path
+        if isSkillDirectory(rootPath), candidates.contains(where: { $0.path == "." }) == false {
+            let inferredName = skillName(rootPath).map { [$0] } ?? []
+            candidates.insert(
+                .init(path: ".", skillCount: max(1, inferredName.count), skillNames: inferredName),
+                at: 0
+            )
             updated.detectedDirectories = candidates.map(\.path)
         }
 

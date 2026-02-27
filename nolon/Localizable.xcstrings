@@ -561,6 +561,7 @@
       }
     },
     "Add one or more paths containing skills (e.g., 'skills', 'python', '.agent/skills'). Use '.' for repository root." : {
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -1155,7 +1156,11 @@
         }
       }
     },
+    "Browse and install resources from Clawdhub" : {
+
+    },
     "Browse and install skills from Clawdhub" : {
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -1219,6 +1224,7 @@
     },
     "Choose..." : {
       "comment" : "Choose...",
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -1281,7 +1287,7 @@
     },
     "codex.accounts.action.add" : {
       "comment" : "Add account",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1819,6 +1825,30 @@
         }
       }
     },
+    "codex.accounts.import" : {
+      "comment" : "Codex import",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "导入"
+          }
+        }
+      }
+    },
+    "codex.accounts.login" : {
+      "comment" : "Codex login",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "登录"
+          }
+        }
+      }
+    },
     "codex.accounts.login_at" : {
       "comment" : "Last login label",
       "localizations" : {
@@ -1838,7 +1868,7 @@
     },
     "codex.accounts.multi.enable" : {
       "comment" : "Multi-account toggle",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -3687,6 +3717,126 @@
         }
       }
     },
+    "codex.import.apply_valid" : {
+      "comment" : "Import valid files",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Import Valid Files"
+          }
+        }
+      }
+    },
+    "codex.import.validate.title" : {
+      "comment" : "Import validation title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Import Validation"
+          }
+        }
+      }
+    },
+    "codex.login.sheet.cancel" : {
+      "comment" : "Cancel login",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "取消登录"
+          }
+        }
+      }
+    },
+    "codex.login.sheet.copy" : {
+      "comment" : "Copy login URL",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "复制 URL"
+          }
+        }
+      }
+    },
+    "codex.login.sheet.open" : {
+      "comment" : "Reopen browser",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "重新打开浏览器"
+          }
+        }
+      }
+    },
+    "codex.login.sheet.title" : {
+      "comment" : "Codex login sheet title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "登录中"
+          }
+        }
+      }
+    },
+    "codex.management.desc" : {
+      "comment" : "Codex management description",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "首次使用建议先启用管理并执行数据迁移。"
+          }
+        }
+      }
+    },
+    "codex.management.enable" : {
+      "comment" : "Enable codex management",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "启用管理"
+          }
+        }
+      }
+    },
+    "codex.management.migrate" : {
+      "comment" : "Migrate codex data",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "数据迁移"
+          }
+        }
+      }
+    },
+    "codex.management.title" : {
+      "comment" : "Codex management status",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "管理状态"
+          }
+        }
+      }
+    },
     "codex.usage.empty.desc" : {
       "comment" : "Empty description",
       "extractionState" : "stale",
@@ -4099,6 +4249,7 @@
       }
     },
     "Copy Command" : {
+      "comment" : "Copy command",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -4276,6 +4427,7 @@
     },
     "Edit Repository" : {
       "comment" : "Edit Repository",
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -4657,6 +4809,18 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "清除"
+          }
+        }
+      }
+    },
+    "generic.close" : {
+      "comment" : "Close",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Close"
           }
         }
       }
@@ -5466,6 +5630,7 @@
       }
     },
     "Name" : {
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -5646,6 +5811,7 @@
       }
     },
     "Not synced" : {
+      "comment" : "Repository not synced",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -6068,7 +6234,11 @@
         }
       }
     },
+    "Paste" : {
+
+    },
     "Path (e.g., skills, .agent)" : {
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -6378,18 +6548,6 @@
         }
       }
     },
-    "provider.resources.health.ok" : {
-      "comment" : "Provider resources healthy summary",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "All resources are healthy."
-          }
-        }
-      }
-    },
     "provider.resources.health.orphaned_skills_count" : {
       "comment" : "Provider orphaned skills count",
       "extractionState" : "extracted_with_value",
@@ -6461,24 +6619,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "刷新安装状态"
-          }
-        }
-      }
-    },
-    "remote.browser.title" : {
-      "comment" : "Remote skills browser",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Remote Skills"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "远程技能"
           }
         }
       }
@@ -6617,6 +6757,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "数据加载失败"
+          }
+        }
+      }
+    },
+    "remote.install.failed.hint" : {
+      "comment" : "Remote install failed hint",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Install timed out. Click Retry."
           }
         }
       }
@@ -6965,6 +7117,24 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "仓库类型"
+          }
+        }
+      }
+    },
+    "resource.center.title" : {
+      "comment" : "Resource center title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Resource Center"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "资源中心"
           }
         }
       }
@@ -7893,6 +8063,7 @@
       }
     },
     "Skills Paths" : {
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -8180,6 +8351,9 @@
           }
         }
       }
+    },
+    "Sync 后将自动扫描仓库中的技能目录，下一步可多选确认。" : {
+
     },
     "Syncing repository..." : {
       "comment" : "Sync in progress",
@@ -9149,6 +9323,7 @@
       }
     },
     "View Details" : {
+      "comment" : "View resource details",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -9272,6 +9447,9 @@
           }
         }
       }
+    },
+    "或点击选择文件夹" : {
+
     }
   },
   "version" : "1.1"

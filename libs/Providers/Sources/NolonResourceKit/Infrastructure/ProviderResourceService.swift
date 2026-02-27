@@ -111,25 +111,35 @@ public final class ProviderResourceService: @unchecked Sendable {
     public func scanRules(provider: Provider) -> [ProviderResourceItem] {
         guard isCodexProvider(provider) else { return [] }
         let baseDirectory = provider.codexRulesURL
-        let basePath = baseDirectory.standardizedFileURL.path
+        let basePath = baseDirectory.resolvingSymlinksInPath().standardizedFileURL.path
         let folder = STFolder(baseDirectory)
         guard folder.isExists else { return [] }
 
-        let entries = (try? folder.subFilePaths()) ?? []
-        return entries
-            .filter { $0.url.pathExtension.lowercased() == "rules" }
-            .compactMap { path in
-                let url = path.url
-                guard let content = try? String(contentsOf: url, encoding: .utf8) else { return nil }
-                let standardizedPath = url.standardizedFileURL.path
-                let relativePath: String
-                if standardizedPath.hasPrefix(basePath + "/") {
-                    relativePath = String(standardizedPath.dropFirst(basePath.count + 1))
-                } else {
-                    relativePath = url.lastPathComponent
-                }
-                let id = relativePath.replacingOccurrences(of: ".rules", with: "")
-                return ProviderResourceItem(
+        guard let enumerator = fileManager.enumerator(
+            at: baseDirectory,
+            includingPropertiesForKeys: [.isDirectoryKey],
+            options: [.skipsHiddenFiles]
+        ) else { return [] }
+
+        var items: [ProviderResourceItem] = []
+        for case let url as URL in enumerator {
+            let values = try? url.resourceValues(forKeys: [.isDirectoryKey])
+            if values?.isDirectory == true { continue }
+            guard url.pathExtension.lowercased() == "rules" else { continue }
+
+            if url.lastPathComponent.hasPrefix(".") { continue }
+            guard let content = try? String(contentsOf: url, encoding: .utf8) else { continue }
+
+            let canonicalPath = url.resolvingSymlinksInPath().standardizedFileURL.path
+            let relativePath: String
+            if canonicalPath.hasPrefix(basePath + "/") {
+                relativePath = String(canonicalPath.dropFirst(basePath.count + 1))
+            } else {
+                relativePath = url.lastPathComponent
+            }
+            let id = relativePath.replacingOccurrences(of: ".rules", with: "")
+            items.append(
+                ProviderResourceItem(
                     kind: .rule,
                     id: id,
                     name: url.deletingPathExtension().lastPathComponent,
@@ -140,8 +150,10 @@ public final class ProviderResourceService: @unchecked Sendable {
                     source: nil,
                     agentKind: nil
                 )
-            }
-            .sorted { $0.id.localizedCaseInsensitiveCompare($1.id) == .orderedAscending }
+            )
+        }
+
+        return items.sorted { $0.id.localizedCaseInsensitiveCompare($1.id) == .orderedAscending }
     }
 
     public func scanAgentDocs(provider: Provider) -> [ProviderResourceItem] {

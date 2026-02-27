@@ -3,6 +3,7 @@ import STJSON
 import ProviderUsage
 import STFilePath
 import ProviderCatalog
+import CodexBarProviderCatalog
 @testable import nolon
 
 @MainActor
@@ -190,7 +191,8 @@ final class CodexAuthCompatSyncTests: XCTestCase {
         )
 
         try await service.activateAccount(account, for: provider)
-        let authFile = try XCTUnwrap(await service.authFile(for: provider))
+        let maybeAuthFile = await service.authFile(for: provider)
+        let authFile = try XCTUnwrap(maybeAuthFile)
         XCTAssertTrue(authFile.isSymbolicLink)
         let destination = try authFile.destinationOfSymbolicLink()
         let snapshotFile = await service.accountAuthFile(account)

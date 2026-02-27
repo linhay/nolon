@@ -33,6 +33,7 @@ final class ProviderUsageViewModel {
     var settings: UsageMonitorProviderSettings
     var supportedSourceModes: [ProviderSourceMode] = []
     var isMultiAccountEnabled: Bool
+    var codexManagementStatus: CodexAuthManager.CodexManagementStatus?
 
     var isLoading = false
     var outcomes: [ProviderAccountUsageOutcome] = []
@@ -54,6 +55,7 @@ final class ProviderUsageViewModel {
 
     var addAccountSource: CodexAddSource = .current
     var importedAuthFileURL: URL?
+    var importedAuthFileURLs: [URL] = []
     var isShowingAuthFileImporter = false
     var isRunningCLILogin = false
     var cliLoginStatus: String?
@@ -63,6 +65,12 @@ final class ProviderUsageViewModel {
 
     var isShowingActivateConfirm = false
     var pendingActivateCodexAccount: CodexAuthAccount?
+    var isShowingImportValidationConfirm = false
+    var importValidationSummaryMessage: String?
+    var pendingImportValidationResults: [CodexAuthManager.CodexImportValidationResult] = []
+    var isShowingLoginURLSheet = false
+    var loginURLForSheet: URL?
+    var loginModeForSheet: String?
 
     var alertTitle: String?
     var alertMessage: String?
@@ -93,7 +101,11 @@ final class ProviderUsageViewModel {
         self.usageProvider = ProviderUsageViewModel.mapToUsageProvider(provider)
         let initialSettings = settingsStore.settings(for: provider)
         self.settings = initialSettings
-        self.isMultiAccountEnabled = settingsStore.isMultiAccountEnabled(for: provider)
+        if ProviderUsageViewModel.mapToUsageProvider(provider) == .codex {
+            self.isMultiAccountEnabled = true
+        } else {
+            self.isMultiAccountEnabled = settingsStore.isMultiAccountEnabled(for: provider)
+        }
         self.codexActivateAction = codexActivateAction ?? { account, provider in
             try await CodexAuthActivationCoordinator.shared.activate(account: account, provider: provider)
         }
@@ -161,6 +173,35 @@ final class ProviderUsageViewModel {
     func updateSettings(_ newSettings: UsageMonitorProviderSettings) {
         settings = newSettings
         settingsStore.update(settings: newSettings, for: provider)
+    }
+
+    func loadCodexManagementStatus() async {
+        guard usageProvider == .codex else { return }
+        codexManagementStatus = await codexAuthManager.managementStatus(for: provider)
+    }
+
+    func enableCodexManagement() async {
+        guard usageProvider == .codex else { return }
+        do {
+            _ = try await codexAuthManager.enableManagedAuth(for: provider)
+            await loadCodexManagementStatus()
+            await load()
+        } catch {
+            alertTitle = NSLocalizedString("codex.accounts.title", value: "Accounts", comment: "Codex accounts title")
+            alertMessage = error.localizedDescription
+        }
+    }
+
+    func migrateCodexManagementData() async {
+        guard usageProvider == .codex else { return }
+        do {
+            _ = try await codexAuthManager.migrateManagedAuthData(for: provider)
+            await loadCodexManagementStatus()
+            await load()
+        } catch {
+            alertTitle = NSLocalizedString("codex.accounts.title", value: "Accounts", comment: "Codex accounts title")
+            alertMessage = error.localizedDescription
+        }
     }
 
     @discardableResult
@@ -274,6 +315,7 @@ final class ProviderUsageViewModel {
         }
 
         await refreshCodexTokenTrend()
+        await loadCodexManagementStatus()
         await updateUsageFileWatcher()
     }
 
@@ -381,7 +423,10 @@ final class ProviderUsageViewModel {
         let authFolderPath = codexAuthManager.nolonCodexAuthFolder().url.standardizedFileURL.path
 
         let isAuthFolderChange = changedPath == authFolderPath || changedPath.hasPrefix(authFolderPath + "/")
-        let isAuthFileChange = false
+        let isAuthFileChange: Bool = {
+            guard let codexAuthFilePath else { return false }
+            return changedPath == normalizedPath(codexAuthFilePath)
+        }()
 
         Self.logger.debug(
             "Codex auth change. isAuthFolder=\(isAuthFolderChange, privacy: .public) isAuthFile=\(isAuthFileChange, privacy: .public) path=\(changedPath, privacy: .public)"
@@ -621,6 +666,75 @@ final class ProviderUsageViewModel {
         return URL(string: raw)
     }
 
+    func beginImportAuthFiles() {
+        importedAuthFileURL = nil
+        importedAuthFileURLs = []
+        isShowingAuthFileImporter = true
+    }
+
+    func validateImportedAuthFiles(_ urls: [URL]) async {
+        guard usageProvider == .codex else { return }
+        importedAuthFileURLs = urls
+        let results = await codexAuthManager.validateImportAuthFiles(urls: urls)
+        pendingImportValidationResults = results
+
+        let validCount = results.filter(\.isValid).count
+        let invalid = results.filter { !$0.isValid }
+
+        guard validCount > 0 else {
+            alertTitle = NSLocalizedString("codex.accounts.add.title", value: "Add Account", comment: "Add account title")
+            if invalid.isEmpty {
+                alertMessage = NSLocalizedString("codex.accounts.add.error.no_file", value: "Select an auth.json file first.", comment: "Error")
+            } else {
+                alertMessage = invalid.map {
+                    "\($0.fileURL.lastPathComponent): \($0.reason ?? "Invalid file")"
+                }.joined(separator: "\n")
+            }
+            return
+        }
+
+        guard !invalid.isEmpty else {
+            await applyValidatedImports()
+            return
+        }
+
+        importValidationSummaryMessage = invalid.map {
+            "\($0.fileURL.lastPathComponent): \($0.reason ?? "Invalid file")"
+        }.joined(separator: "\n")
+        isShowingImportValidationConfirm = true
+    }
+
+    func applyValidatedImports() async {
+        guard usageProvider == .codex else { return }
+        do {
+            _ = try await codexAuthManager.importValidatedAuthFiles(results: pendingImportValidationResults)
+            pendingImportValidationResults = []
+            importValidationSummaryMessage = nil
+            await load()
+        } catch {
+            alertTitle = NSLocalizedString("codex.accounts.add.title", value: "Add Account", comment: "Add account title")
+            alertMessage = error.localizedDescription
+        }
+    }
+
+    func startLoginFlow() {
+        if isRunningCLILogin {
+            cancelCLILoginIfNeeded()
+        }
+        startCLILoginFlow()
+    }
+
+    func copyLoginURL() {
+        guard let raw = loginURLForSheet?.absoluteString, !raw.isEmpty else { return }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(raw, forType: .string)
+    }
+
+    func reopenLoginURLInBrowser() {
+        guard let url = loginURLForSheet else { return }
+        NSWorkspace.shared.open(url)
+    }
+
     func beginAddAccount(_ source: CodexAddSource) {
         addAccountSource = source
         if source != .cliLogin {
@@ -689,6 +803,9 @@ final class ProviderUsageViewModel {
         isRunningCLILogin = false
         cliLoginStatus = nil
         cliLoginPreferredAccountId = nil
+        isShowingLoginURLSheet = false
+        loginURLForSheet = nil
+        loginModeForSheet = nil
     }
 
     private func resetCodexMultiAccountState() {
@@ -716,8 +833,55 @@ final class ProviderUsageViewModel {
         cliLoginTask?.cancel()
         cliLoginTask = Task { [weak self] in
             guard let self else { return }
-            await self.runCLILoginFlow(sessionId: sessionId)
+            await self.runUnifiedLoginFlow(sessionId: sessionId)
         }
+    }
+
+    private func runUnifiedLoginFlow(sessionId: UUID) async {
+        do {
+            try await runAppServerLoginFlow(sessionId: sessionId)
+            return
+        } catch {
+            Self.logger.error("App-server login failed, fallback to direct login. error=\(String(describing: error), privacy: .public)")
+        }
+        await runCLILoginFlow(sessionId: sessionId)
+    }
+
+    private func runAppServerLoginFlow(sessionId: UUID) async throws {
+        guard cliLoginSessionId == sessionId else { return }
+        let tempDir = try createCLILoginTempDir()
+        cliLoginTempDir = tempDir
+        var env = ProcessInfo.processInfo.environment
+        if let managedEnv = try? await CodexBinaryManager.shared.launchEnvironmentVariables() {
+            env.merge(managedEnv) { _, new in new }
+        }
+        env["CODEX_HOME"] = tempDir.path
+        let service = CodexAccountRuntimeService(
+            executable: env["CODEX_CLI_PATH"] ?? "codex",
+            environment: env
+        )
+        defer { Task { await service.shutdown() } }
+
+        try await service.initialize(clientName: "nolon", clientVersion: "1.0.0")
+        let started = try await service.startChatGPTLogin()
+        loginURLForSheet = started.authURL
+        loginModeForSheet = "CLI(AppServer)"
+        isShowingLoginURLSheet = true
+        NSWorkspace.shared.open(started.authURL)
+        cliLoginStatus = NSLocalizedString("codex.accounts.add.cli.waiting", value: "Waiting for auth.json…", comment: "CLI login waiting status")
+        try await service.awaitChatGPTLoginCompletion(loginID: started.loginID, timeout: cliLoginTimeoutSeconds)
+
+        let authFile = tempDir.appendingPathComponent("auth.json")
+        let data = try Data(contentsOf: authFile)
+        guard let raw = String(data: data, encoding: .utf8), !raw.isEmpty else {
+            throw CocoaError(.fileReadInapplicableStringEncoding)
+        }
+        _ = try await codexAuthManager.recordCLILoginSnapshot(
+            authJSONString: raw,
+            preferredAccountID: cliLoginPreferredAccountId,
+            loginAt: Date()
+        )
+        await load()
     }
 
     private func runCLILoginFlow(sessionId: UUID) async {
@@ -734,6 +898,9 @@ final class ProviderUsageViewModel {
                     try? FileManager.default.removeItem(at: tempDir)
                     cliLoginTempDir = nil
                 }
+                isShowingLoginURLSheet = false
+                loginURLForSheet = nil
+                loginModeForSheet = nil
             }
         }
 
@@ -750,6 +917,7 @@ final class ProviderUsageViewModel {
             let runner = CodexLoginRunner()
             cliLoginHandle = try runner.startLogin(environment: env, codexHome: tempDir)
             Self.logger.info("CLI login process launched.")
+            loginModeForSheet = "Direct OAuth"
 
             cliLoginStatus = NSLocalizedString("codex.accounts.add.cli.waiting", value: "Waiting for auth.json…", comment: "CLI login waiting status")
 
@@ -764,6 +932,13 @@ final class ProviderUsageViewModel {
                    let data = try? Data(contentsOf: authFile),
                    !data.isEmpty {
                     break
+                }
+
+                if let urlRaw = cliLoginHandle?.loginURL, let url = URL(string: urlRaw) {
+                    if loginURLForSheet?.absoluteString != url.absoluteString {
+                        loginURLForSheet = url
+                        isShowingLoginURLSheet = true
+                    }
                 }
 
                 if let handle = cliLoginHandle, !handle.isRunning {

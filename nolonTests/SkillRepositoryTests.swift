@@ -1,4 +1,5 @@
 import XCTest
+import NolonResourceKit
 @testable import nolon
 
 @MainActor

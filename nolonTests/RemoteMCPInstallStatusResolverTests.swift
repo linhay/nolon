@@ -1,78 +1,36 @@
 import XCTest
-@testable import nolon
+import NolonResourceKit
 
 final class RemoteMCPInstallStatusResolverTests: XCTestCase {
-    func testBDD_GivenGlobalCacheFiles_WhenResolvingSlugs_ThenReturnsJsonAndLegacyNames() throws {
+    func testBDD_GivenGlobalCacheFiles_WhenResolvingInstalledMCPIDs_ThenReturnsJsonAndLegacyNames() throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("remote-mcp-cache-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
 
-        try "{}".write(to: root.appendingPathComponent("stdio-server.json"), atomically: true, encoding: .utf8)
-        try "{}".write(to: root.appendingPathComponent("legacy-server"), atomically: true, encoding: .utf8)
-        try "".write(to: root.appendingPathComponent(".DS_Store"), atomically: true, encoding: .utf8)
+        let manager = NolonManager(rootURL: root)
+        let statusService = InstalledResourceStatusService(nolonManager: manager)
+        let mcpsRoot = root.appendingPathComponent("mcps", isDirectory: true)
+        try FileManager.default.createDirectory(at: mcpsRoot, withIntermediateDirectories: true)
 
-        let slugs = RemoteMCPInstallStatusResolver.slugsFromGlobalCache(at: root)
+        try "{}".write(to: mcpsRoot.appendingPathComponent("stdio-server.json"), atomically: true, encoding: .utf8)
+        try "{}".write(to: mcpsRoot.appendingPathComponent("legacy-server"), atomically: true, encoding: .utf8)
+        try "".write(to: mcpsRoot.appendingPathComponent(".DS_Store"), atomically: true, encoding: .utf8)
 
-        XCTAssertEqual(slugs, Set(["stdio-server", "legacy-server"]))
+        let ids = try statusService.installedMcpIDsStrict(provider: nil)
+        XCTAssertEqual(ids, Set(["stdio-server", "legacy-server"]))
     }
 
-    func testBDD_GivenTomlConfig_WhenResolvingSlugs_ThenReturnsMcpServerKeys() throws {
-        let file = FileManager.default.temporaryDirectory
-            .appendingPathComponent("remote-mcp-toml-\(UUID().uuidString).toml")
-        defer { try? FileManager.default.removeItem(at: file) }
+    func testBDD_GivenEmptyGlobalCache_WhenResolvingInstalledMCPIDs_ThenReturnsEmptySet() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("remote-mcp-empty-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
 
-        let content = """
-        [mcp_servers.alpha]
-        command = "node"
+        let manager = NolonManager(rootURL: root)
+        let statusService = InstalledResourceStatusService(nolonManager: manager)
 
-        [mcp_servers.beta]
-        command = "python"
-        """
-        try content.write(to: file, atomically: true, encoding: .utf8)
-
-        let slugs = RemoteMCPInstallStatusResolver.slugsFromProviderConfig(at: file, templateId: "codex")
-
-        XCTAssertEqual(slugs, Set(["alpha", "beta"]))
-    }
-
-    func testBDD_GivenJsonMcpServers_WhenResolvingSlugs_ThenReturnsServerKeys() throws {
-        let file = FileManager.default.temporaryDirectory
-            .appendingPathComponent("remote-mcp-json-\(UUID().uuidString).json")
-        defer { try? FileManager.default.removeItem(at: file) }
-
-        let content = """
-        {
-          "mcpServers": {
-            "s1": {"command": "node"},
-            "s2": {"url": "https://example.com/mcp"}
-          }
-        }
-        """
-        try content.write(to: file, atomically: true, encoding: .utf8)
-
-        let slugs = RemoteMCPInstallStatusResolver.slugsFromProviderConfig(at: file, templateId: "cursor")
-
-        XCTAssertEqual(slugs, Set(["s1", "s2"]))
-    }
-
-    func testBDD_GivenOpenCodeJson_WhenResolvingSlugs_ThenUsesMcpField() throws {
-        let file = FileManager.default.temporaryDirectory
-            .appendingPathComponent("remote-mcp-opencode-\(UUID().uuidString).json")
-        defer { try? FileManager.default.removeItem(at: file) }
-
-        let content = """
-        {
-          "mcp": {
-            "a": {"type": "local", "command": ["node", "server.js"]},
-            "b": {"type": "remote", "url": "https://example.com/mcp"}
-          }
-        }
-        """
-        try content.write(to: file, atomically: true, encoding: .utf8)
-
-        let slugs = RemoteMCPInstallStatusResolver.slugsFromProviderConfig(at: file, templateId: "opencode")
-
-        XCTAssertEqual(slugs, Set(["a", "b"]))
+        let ids = try statusService.installedMcpIDsStrict(provider: nil)
+        XCTAssertTrue(ids.isEmpty)
     }
 }

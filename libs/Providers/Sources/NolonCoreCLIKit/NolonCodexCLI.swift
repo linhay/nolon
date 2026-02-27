@@ -945,11 +945,19 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
             try isolatedAuthFile.delete()
         }
 
-        let loginResult = try await loginRunner.loginAndAwaitAuthResult(
-            binary: "codex",
-            environment: environment,
-            codexHome: codexHome
-        )
+        let loginResult: CodexLoginResult
+        do {
+            loginResult = try await Self.loginViaAppServer(
+                environment: environment,
+                codexHome: codexHome
+            )
+        } catch {
+            loginResult = try await loginRunner.loginAndAwaitAuthResult(
+                binary: "codex",
+                environment: environment,
+                codexHome: codexHome
+            )
+        }
 
         let account = try await authManager.recordCLILoginSnapshot(
             authJSONString: loginResult.authJSONString,
@@ -1245,6 +1253,46 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
         defer { Task { await service.shutdown() } }
         try await service.initialize(clientName: "nolon", clientVersion: "1.0.0")
         _ = try await service.readAccount(refreshToken: true)
+    }
+
+    private static func loginViaAppServer(
+        environment: [String: String],
+        codexHome: STFolder
+    ) async throws -> CodexLoginResult {
+        var runtimeEnvironment = environment
+        runtimeEnvironment["CODEX_HOME"] = codexHome.url.standardizedFileURL.path
+        let service = CodexAccountRuntimeService(
+            executable: environment["CODEX_CLI_PATH"] ?? "codex",
+            environment: runtimeEnvironment
+        )
+        defer { Task { await service.shutdown() } }
+        try await service.initialize(clientName: "nolon", clientVersion: "1.0.0")
+        let started = try await service.startChatGPTLogin()
+
+        if let openURL = URL(string: started.authURL.absoluteString) {
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+            process.arguments = [openURL.absoluteString]
+            try? process.run()
+        }
+
+        try await service.awaitChatGPTLoginCompletion(loginID: started.loginID, timeout: 10 * 60)
+
+        let authFile = codexHome.file("auth.json")
+        guard authFile.isExists else {
+            throw NolonCoreCLIError.domainFailed(
+                code: "codex_auth_login_missing_auth_file",
+                message: "Login completed but auth.json was not created."
+            )
+        }
+        let data = try authFile.data()
+        guard let raw = String(data: data, encoding: .utf8), !raw.isEmpty else {
+            throw NolonCoreCLIError.domainFailed(
+                code: "codex_auth_login_invalid_auth_file",
+                message: "Login completed but auth.json is empty or invalid UTF-8."
+            )
+        }
+        return CodexLoginResult(authJSONString: raw, loginURL: started.authURL.absoluteString)
     }
 
     private static func liveUsageOutcomeFetcher(environment: [String: String]) async -> ProviderFetchOutcome {

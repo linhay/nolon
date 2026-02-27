@@ -57,21 +57,39 @@ struct ProviderUsageView: View {
         .sheet(isPresented: Bindable(viewModel).isShowingLogin) {
             UsageLoginSheet(title: provider.name, url: viewModel.dashboardURL)
         }
+        .sheet(isPresented: $viewModel.isShowingLoginURLSheet) {
+            CodexLoginURLSheet(
+                mode: viewModel.loginModeForSheet ?? "Login",
+                url: viewModel.loginURLForSheet,
+                onCopy: { viewModel.copyLoginURL() },
+                onOpen: { viewModel.reopenLoginURLInBrowser() },
+                onCancel: { viewModel.cancelCLILoginIfNeeded() }
+            )
+        }
         .fileImporter(
             isPresented: $viewModel.isShowingAuthFileImporter,
             allowedContentTypes: [.json, .data],
-            allowsMultipleSelection: false
+            allowsMultipleSelection: true
         ) { result in
             switch result {
             case .success(let urls):
-                viewModel.importedAuthFileURL = urls.first
-                if urls.first != nil {
-                    viewModel.addAccountSource = .file
-                    Task { await viewModel.confirmAddAccount() }
-                }
+                Task { await viewModel.validateImportedAuthFiles(urls) }
             case .failure:
-                viewModel.importedAuthFileURL = nil
+                viewModel.importedAuthFileURLs = []
+                viewModel.pendingImportValidationResults = []
+                viewModel.importValidationSummaryMessage = nil
             }
+        }
+        .alert(
+            NSLocalizedString("codex.import.validate.title", value: "Import Validation", comment: "Import validation title"),
+            isPresented: $viewModel.isShowingImportValidationConfirm
+        ) {
+            Button(NSLocalizedString("generic.cancel", value: "Cancel", comment: "Cancel"), role: .cancel) {}
+            Button(NSLocalizedString("codex.import.apply_valid", value: "Import Valid Files", comment: "Import valid files")) {
+                Task { await viewModel.applyValidatedImports() }
+            }
+        } message: {
+            Text(viewModel.importValidationSummaryMessage ?? "")
         }
         .alert(viewModel.alertTitle ?? "", isPresented: Binding(get: {
             viewModel.alertTitle != nil || viewModel.alertMessage != nil
@@ -188,7 +206,16 @@ struct ProviderUsageView: View {
 
             Spacer()
 
-            if viewModel.usageProvider != .codex {
+            if viewModel.usageProvider == .codex {
+                Button(NSLocalizedString("codex.accounts.login", value: "登录", comment: "Codex login")) {
+                    viewModel.startLoginFlow()
+                }
+                .disabled(viewModel.isRunningCLILogin)
+
+                Button(NSLocalizedString("codex.accounts.import", value: "导入", comment: "Codex import")) {
+                    viewModel.beginImportAuthFiles()
+                }
+            } else {
                 Button(NSLocalizedString("usage.monitor.login", value: "Sign in…", comment: "Sign in")) {
                     viewModel.isShowingLogin = true
                 }
@@ -219,41 +246,11 @@ struct ProviderUsageView: View {
             }
 
             if viewModel.usageProvider == .codex {
-                Divider()
-
-                Menu(NSLocalizedString("codex.accounts.action.add", value: "Add Account", comment: "Add account")) {
-                    Button(NSLocalizedString("codex.accounts.add.source.current", value: "Current auth.json", comment: "Current auth.json")) {
-                        viewModel.beginAddAccount(.current)
-                    }
-                    Button(NSLocalizedString("codex.accounts.add.source.file", value: "Import auth.json file", comment: "Import auth.json file")) {
-                        viewModel.beginAddAccount(.file)
-                    }
-                    Button(NSLocalizedString("codex.accounts.add.source.cli", value: "CLI Login", comment: "CLI login")) {
-                        viewModel.beginAddAccount(.cliLogin)
-                    }
-                    .disabled(viewModel.isRunningCLILogin)
-
-                    if let status = viewModel.cliLoginStatus, viewModel.isRunningCLILogin {
-                        Divider()
-                        Text(status)
-                            .dsSecondaryText(font: .body)
-                    }
-                }
-                .disabled(!viewModel.isMultiAccountEnabled)
-
                 if viewModel.isRunningCLILogin {
                     Button(NSLocalizedString("codex.cli_login.cancel", value: "Cancel Login", comment: "Cancel CLI login")) {
                         viewModel.cancelCLILoginIfNeeded()
                     }
                 }
-
-                Toggle(
-                    NSLocalizedString("codex.accounts.multi.enable", value: "Multi-account", comment: "Multi-account toggle"),
-                    isOn: Binding(
-                        get: { viewModel.isMultiAccountEnabled },
-                        set: { viewModel.setMultiAccountEnabled($0) }
-                    )
-                )
             }
         } label: {
             Image(systemName: "ellipsis")
@@ -301,45 +298,57 @@ struct ProviderUsageView: View {
     private var codexContent: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                if viewModel.isMultiAccountEnabled {
-                    if viewModel.codexAccounts.isEmpty {
-                        ContentUnavailableView(
-                            NSLocalizedString("codex.accounts.empty.title", value: "No accounts", comment: "Empty state title"),
-                            systemImage: "person.crop.circle.badge.plus",
-                            description: Text(NSLocalizedString(
-                                "codex.accounts.empty.desc",
-                                value: "Add a snapshot of Codex auth.json to quickly switch accounts.",
-                                comment: "Empty state description"
-                            ))
-                            .dsSecondaryText(font: .body)
-                        )
-                    }
+                codexManagementCard
 
-                    LazyVGrid(columns: codexAccountColumns, alignment: .leading, spacing: 12) {
-                        ForEach(viewModel.codexAccountOutcomes) { outcome in
-                            codexOutcomeCard(outcome: outcome)
-                        }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                } else {
-                    if let outcome = codexCurrentOutcome {
-                        ProviderUsageSnapshotView(
-                            outcome: outcome,
-                            creditsRefreshedAt: creditsRefreshedAt(for: outcome)
-                        )
-                    } else {
-                        ContentUnavailableView(
-                            NSLocalizedString("usage.monitor.empty.title", value: "No usage data", comment: "Empty title"),
-                            systemImage: "chart.bar",
-                            description: Text(NSLocalizedString("usage.monitor.empty.desc", value: "No provider data available yet.", comment: "Empty description"))
-                                .dsSecondaryText(font: .body)
-                        )
+                if viewModel.codexAccounts.isEmpty {
+                    ContentUnavailableView(
+                        NSLocalizedString("codex.accounts.empty.title", value: "No accounts", comment: "Empty state title"),
+                        systemImage: "person.crop.circle.badge.plus",
+                        description: Text(NSLocalizedString(
+                            "codex.accounts.empty.desc",
+                            value: "Add a snapshot of Codex auth.json to quickly switch accounts.",
+                            comment: "Empty state description"
+                        ))
+                        .dsSecondaryText(font: .body)
+                    )
+                }
+
+                LazyVGrid(columns: codexAccountColumns, alignment: .leading, spacing: 12) {
+                    ForEach(viewModel.codexAccountOutcomes) { outcome in
+                        codexOutcomeCard(outcome: outcome)
                     }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
 
                 codexTrendSection
             }
+            .padding(.trailing, 12)
+            .padding(.vertical, 2)
             .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    @ViewBuilder
+    private var codexManagementCard: some View {
+        if let status = viewModel.codexManagementStatus, status.needsEnable || status.needsMigration {
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(NSLocalizedString("codex.management.title", value: "管理状态", comment: "Codex management status"))
+                        .font(.headline)
+                    Text(NSLocalizedString("codex.management.desc", value: "首次使用建议先启用管理并执行数据迁移。", comment: "Codex management description"))
+                        .font(.caption)
+                        .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                }
+                Spacer()
+                Button(NSLocalizedString("codex.management.enable", value: "启用管理", comment: "Enable codex management")) {
+                    Task { await viewModel.enableCodexManagement() }
+                }
+                Button(NSLocalizedString("codex.management.migrate", value: "数据迁移", comment: "Migrate codex data")) {
+                    Task { await viewModel.migrateCodexManagementData() }
+                }
+            }
+            .padding(12)
+            .dsCard()
         }
     }
 

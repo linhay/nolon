@@ -1,6 +1,7 @@
 import XCTest
 import STJSON
 import ProviderCatalog
+import NolonResourceKit
 @testable import nolon
 
 @MainActor
@@ -141,7 +142,8 @@ final class WorkflowInstallationTests: XCTestCase {
         // Provider workflow should exist and parse.
         let workflowPath = "\(provider.workflowPath)/\(mcp.name).md"
         XCTAssertTrue(fixture.fileManager.fileExists(atPath: workflowPath))
-        XCTAssertNotNil(WorkflowInfo.parse(from: URL(fileURLWithPath: workflowPath)))
+        let resourceService = ProviderResourceService(nolonManager: fixture.nolonManager)
+        XCTAssertNotNil(resourceService.parseWorkflow(atPath: workflowPath))
 
         // Global workflow should include required YAML frontmatter.
         let globalPath = "\(fixture.nolonManager.mcpsWorkflowsPath)/\(mcp.name).md"

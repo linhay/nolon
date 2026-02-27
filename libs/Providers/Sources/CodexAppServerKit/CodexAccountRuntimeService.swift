@@ -10,6 +10,18 @@ private struct AccountReadPayload: Decodable {
     let requiresOpenaiAuth: Bool?
 }
 
+private struct AccountLoginStartPayload: Decodable {
+    let type: String?
+    let loginId: String?
+    let authUrl: String?
+}
+
+private struct AccountLoginCompletedPayload: Decodable {
+    let loginId: String?
+    let success: Bool?
+    let error: String?
+}
+
 private struct AccountDetailsPayload: Decodable {
     let type: String?
     let email: String?
@@ -77,6 +89,42 @@ public actor CodexAccountRuntimeService {
         let paramsData = try CodexAppServerSession.encodeParams(params)
         _ = try await session.request(method: CodexAppServerMethod.accountLoginStart.rawValue, paramsData: paramsData)
         _ = try await updated
+    }
+
+    public func startChatGPTLogin() async throws -> (loginID: String, authURL: URL) {
+        let paramsData = try CodexAppServerSession.encodeParams([
+            "type": "chatgpt",
+        ])
+        let response = try await session.request(method: CodexAppServerMethod.accountLoginStart.rawValue, paramsData: paramsData)
+        let payload: AccountLoginStartPayload = try decodeResult(response.result)
+        guard let loginID = payload.loginId?.trimmingCharacters(in: .whitespacesAndNewlines), !loginID.isEmpty else {
+            throw CodexCLIError.protocolError("Missing loginId from account/login/start")
+        }
+        guard let authURLRaw = payload.authUrl?.trimmingCharacters(in: .whitespacesAndNewlines),
+              let authURL = URL(string: authURLRaw) else {
+            throw CodexCLIError.protocolError("Missing authUrl from account/login/start")
+        }
+        return (loginID, authURL)
+    }
+
+    public func awaitChatGPTLoginCompletion(loginID: String, timeout: TimeInterval = 300) async throws {
+        let notification = try await session.waitForNotification(method: .accountLoginCompleted, timeout: timeout)
+        let payload: AccountLoginCompletedPayload = try decodeResult(notification.params)
+        if let completedID = payload.loginId, !completedID.isEmpty, completedID != loginID {
+            throw CodexCLIError.protocolError("Unexpected login completion id: \(completedID)")
+        }
+        if payload.success == true {
+            return
+        }
+        let message = payload.error?.trimmingCharacters(in: .whitespacesAndNewlines)
+        throw CodexCLIError.protocolError(message?.isEmpty == false ? message! : "ChatGPT login failed")
+    }
+
+    public func cancelChatGPTLogin(loginID: String) async throws {
+        let paramsData = try CodexAppServerSession.encodeParams([
+            "loginId": loginID,
+        ])
+        _ = try await session.request(method: CodexAppServerMethod.accountLoginCancel.rawValue, paramsData: paramsData)
     }
 
     public func readAccount(refreshToken: Bool = false) async throws -> CodexRuntimeAccountState {
