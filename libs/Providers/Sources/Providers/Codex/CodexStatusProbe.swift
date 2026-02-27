@@ -1,4 +1,5 @@
 import Foundation
+import CodexCLIKit
 import ProvidersShared
 import SKProcessRunner
 
@@ -7,13 +8,16 @@ public struct CodexStatusProbe {
     public var codexBinary: String = "codex"
     public var timeout: TimeInterval = 18.0
     public var keepCLISessionsAlive: Bool = false
+    public var environment: [String: String] = ProcessInfo.processInfo.environment
     private let runner: any CodexCLICommandRunning
     private let fallbackRunner: any CodexCLICommandRunning
 
     public init(
+        environment: [String: String] = ProcessInfo.processInfo.environment,
         runner: (any CodexCLICommandRunning)? = nil,
         fallbackRunner: any CodexCLICommandRunning = TTYCommandRunner()
     ) {
+        self.environment = environment
         self.runner = runner ?? Self.defaultRunner()
         self.fallbackRunner = fallbackRunner
     }
@@ -22,23 +26,26 @@ public struct CodexStatusProbe {
         codexBinary: String = "codex",
         timeout: TimeInterval = 18.0,
         keepCLISessionsAlive: Bool = false,
+        environment: [String: String] = ProcessInfo.processInfo.environment,
         runner: (any CodexCLICommandRunning)? = nil,
         fallbackRunner: any CodexCLICommandRunning = TTYCommandRunner()
     ) {
         self.codexBinary = codexBinary
         self.timeout = timeout
         self.keepCLISessionsAlive = keepCLISessionsAlive
+        self.environment = environment
         self.runner = runner ?? Self.defaultRunner()
         self.fallbackRunner = fallbackRunner
     }
 
     public func fetch() async throws -> CodexStatusSnapshot {
-        let resolved = self.resolveBinary() ?? self.codexBinary
-        
-        guard FileManager.default.isExecutableFile(atPath: resolved) || self.which(resolved) != nil else {
+        guard let resolved = CodexCommandExecutor(
+            executable: self.codexBinary,
+            environment: self.environment
+        ).resolveExecutable() else {
             throw CodexStatusProbeError.codexNotInstalled
         }
-        
+
         do {
             return try await self.runAndParse(binary: resolved, rows: 60, cols: 200, timeout: self.timeout)
         } catch let error as CodexStatusProbeError {
@@ -148,52 +155,7 @@ public struct CodexStatusProbe {
         let lower = text.lowercased()
         return lower.contains("update available") && lower.contains("codex")
     }
-    
-    private func resolveBinary() -> String? {
-        if let envPath = ProcessInfo.processInfo.environment["CODEX_CLI_PATH"] {
-            return envPath
-        }
-        if let url = SKProcessRunner.resolveExecutableInPath(named: "codex") {
-            return url.path
-        }
-        if let url = SKProcessRunner.resolveExecutableInUserShellSync(named: "codex") {
-            return url.path
-        }
-        let fallbacks = [
-            "/opt/homebrew/bin/codex",
-            "/usr/local/bin/codex",
-            "\(NSHomeDirectory())/.bun/bin/codex",
-            "\(NSHomeDirectory())/.npm-global/bin/codex",
-        ]
-        for path in fallbacks {
-            if FileManager.default.isExecutableFile(atPath: path) {
-                return path
-            }
-        }
-        return which("codex")
-    }
-    
-    private func which(_ command: String) -> String? {
-        let task = Process()
-        task.launchPath = "/usr/bin/which"
-        task.arguments = [command]
-        
-        let pipe = Pipe()
-        task.standardOutput = pipe
-        
-        do {
-            try task.run()
-            task.waitUntilExit()
-            
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            guard let output = String(data: data, encoding: .utf8) else { return nil }
-            let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
-            return trimmed.isEmpty ? nil : trimmed
-        } catch {
-            return nil
-        }
-    }
-    
+
     private static func defaultRunner() -> any CodexCLICommandRunning {
 #if canImport(SKProcessRunner)
         return SKProcessRunnerCommandRunner()

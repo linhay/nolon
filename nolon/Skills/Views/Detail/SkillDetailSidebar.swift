@@ -1,4 +1,5 @@
 import SwiftUI
+import NolonResourceKit
 
 struct SkillDetailSidebar: View {
     @Bindable var viewModel: SkillDetailViewModel

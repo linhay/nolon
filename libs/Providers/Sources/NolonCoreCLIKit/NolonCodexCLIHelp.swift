@@ -1,0 +1,535 @@
+import Foundation
+
+enum NolonCodexCLIHelpResolver {
+    static func resolvedHelpText(arguments: [String]) -> String? {
+        let normalized = arguments.map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+        if normalized.isEmpty {
+            return rootHelpText()
+        }
+        guard let key = NolonCLIHelpPath(arguments: normalized) else { return nil }
+        switch key {
+        case .root:
+            return rootHelpText()
+        case .codex:
+            return codexHelpText()
+        case .provider:
+            return providerHelpText()
+        case .codexAuth:
+            return codexAuthHelpText()
+        case .codexBinary:
+            return codexBinaryHelpText()
+        case .codexStatus:
+            return codexStatusHelpText()
+        case .codexRuntime:
+            return codexRuntimeHelpText()
+        case .codexProvider:
+            return codexProviderHelpText()
+        case .codexAuthList:
+            return codexAuthListHelpText()
+        case .codexAuthUsage:
+            return codexAuthUsageHelpText()
+        case .codexAuthUsageTrend:
+            return codexAuthUsageTrendHelpText()
+        case .codexAuthStatus:
+            return codexAuthStatusHelpText()
+        case .codexAuthRefresh:
+            return codexAuthRefreshHelpText()
+        case .codexAuthActivate:
+            return codexAuthActivateHelpText()
+        case .codexAuthLogin:
+            return codexAuthLoginHelpText()
+        case .codexAuthDelete:
+            return codexAuthDeleteHelpText()
+        case .codexBinaryInstall:
+            return codexBinaryInstallHelpText()
+        case .codexBinaryList:
+            return codexBinaryListHelpText()
+        case .codexBinaryAvailable:
+            return codexBinaryAvailableHelpText()
+        case .codexBinarySwitch:
+            return codexBinarySwitchHelpText()
+        case .codexBinaryCurrent:
+            return codexBinaryCurrentHelpText()
+        case .codexBinaryDoctor:
+            return codexBinaryDoctorHelpText()
+        case .codexBinaryUse:
+            return codexBinaryUseHelpText()
+        case .codexStatusProbe:
+            return codexStatusProbeHelpText()
+        case .codexStatusDoctor:
+            return codexStatusDoctorHelpText()
+        case .codexRuntimeList:
+            return codexRuntimeListHelpText()
+        case .codexRuntimeStop:
+            return codexRuntimeStopHelpText()
+        case .codexProviderDiscover:
+            return codexProviderDiscoverHelpText()
+        case .providerList:
+            return providerListHelpText()
+        case .providerDiscover:
+            return providerDiscoverHelpText()
+        default:
+            return nil
+        }
+    }
+
+    private static func rootHelpText() -> String {
+        """
+        Usage: nolon <provider> <group> <action> [options]
+
+        Top-level commands:
+          codex       Codex CLI management
+          provider    Installed provider CLI discovery
+          skills      Skill repository and install operations
+          workflow    Workflow resource operations
+          mcp         MCP resource operations
+          remote      Remote catalog search and download
+
+        Examples:
+          nolon codex auth list --provider codex
+          nolon provider list
+          nolon remote list --kind skill --limit 20
+        """
+    }
+
+    private static func codexHelpText() -> String {
+        """
+        Usage: nolon <provider> <group> <action> [options]
+
+        Providers:
+          codex
+
+        Groups:
+          auth      list | usage | usage-trend | status | refresh | activate | login | delete
+          binary    list | current | install | use | available | switch | doctor
+          status    probe | doctor
+          runtime   list | stop
+          provider  discover
+
+        Global options:
+          --json    Output JSON envelope instead of table/text.
+
+        Examples:
+          nolon codex auth list --provider codex
+          nolon codex binary current
+          nolon codex status probe --provider codex
+        """
+    }
+
+    private static func providerHelpText() -> String {
+        """
+        Usage: nolon provider <action> [options]
+
+        Actions:
+          list
+          discover
+        """
+    }
+
+    private static func codexAuthHelpText() -> String {
+        """
+        Usage: nolon codex auth <action> [options]
+
+        Actions:
+          list
+            --provider codex|codex-xcode                # 指定 provider（可选）
+          usage
+            --provider codex|codex-xcode                # 指定 provider（可选）
+            --summary                                   # 仅输出汇总（可选）
+          usage-trend
+            --provider codex|codex-xcode                # 指定 provider（可选）
+            --range 7d|30d|all                          # 趋势区间（可选，默认 30d）
+          status
+            --provider codex|codex-xcode                # 指定 provider（可选）
+          refresh
+            --account-id <uuid> | --email <email>       # 指定账号（二选一，可选）
+            --provider <id>                             # 指定 provider（可选）
+          activate
+            --account-id <uuid> | --email <email>       # 指定账号（二选一，可选）
+            --provider <id>                             # 指定 provider（可选）
+          login
+            --preferred-account-id <uuid>               # 指定优先账号（可选）
+            --provider <id>                             # 指定 provider（可选）
+          delete
+            --account-id <uuid>                         # 指定待删账号（必填）
+            --provider <id>                             # 指定 provider（可选）
+        """
+    }
+
+    private static func codexBinaryHelpText() -> String {
+        """
+        Usage: nolon codex binary <action> [options]
+
+        Actions:
+          list
+            (无参数)
+          current
+            (无参数)
+          install
+            <version-or-tag>                            # 版本号或标签（必填）
+            --set-default                               # 安装后设为默认（可选）
+          use
+            --version <version-or-id>                   # 指定要切换的版本（必填）
+          available
+            (无参数)
+          switch
+            (无参数)
+          doctor
+            (无参数)
+        """
+    }
+
+    private static func codexStatusHelpText() -> String {
+        """
+        Usage: nolon codex status <action> [options]
+
+        Actions:
+          probe
+            --provider codex|codex-xcode                # 指定 provider（可选）
+          doctor
+            (无参数)
+        """
+    }
+
+    private static func codexRuntimeHelpText() -> String {
+        """
+        Usage: nolon codex runtime <action> [options]
+
+        Actions:
+          list
+            (无参数)
+          stop
+            --pid <pid>                                 # 进程 PID（必填）
+            --force                                     # 立即强制结束（可选）
+            --timeout-seconds <n>                       # 温和结束超时阈值（可选）
+        """
+    }
+
+    private static func codexProviderHelpText() -> String {
+        """
+        Usage: nolon codex provider <action> [options]
+
+        Actions:
+          discover
+        """
+    }
+
+    private static func codexAuthListHelpText() -> String {
+        """
+        Usage: nolon codex auth list [options]
+
+          --provider <id>                             # 指定 provider（可选，默认 codex）
+        """
+    }
+
+    private static func codexAuthUsageHelpText() -> String {
+        """
+        Usage: nolon codex auth usage [options]
+
+          --provider <id>                             # 指定 provider（可选，默认 codex）
+          --summary                                   # 仅输出汇总（可选）
+          --refresh                                   # 输出前刷新用量缓存（可选）
+          --account-id <id>                           # 刷新指定账号（需与 --refresh 一起使用）
+          --email <value>                             # 按邮箱刷新指定账号（需与 --refresh 一起使用）
+        """
+    }
+
+    private static func codexAuthUsageTrendHelpText() -> String {
+        """
+        Usage: nolon codex auth usage-trend [options]
+
+          --provider <id>                             # 指定 provider（可选，默认 codex）
+          --range 7d|30d|all                          # 趋势区间（可选，默认 30d）
+        """
+    }
+
+    private static func codexAuthStatusHelpText() -> String {
+        """
+        Usage: nolon codex auth status [options]
+
+          --provider <id>                             # 指定 provider（可选，默认 codex）
+        """
+    }
+
+    private static func codexAuthRefreshHelpText() -> String {
+        """
+        Usage: nolon codex auth refresh [--provider <id>] [--account-id <uuid>|--email <email>]
+
+          --provider <id>                             # 指定 provider（可选，默认 codex）
+          --account-id <id>                           # 刷新指定账号并切换为活跃账号（可选）
+          --email <value>                             # 按邮箱刷新并切换为活跃账号（可选）
+          (未指定账号)                                 # 刷新全部账号，保持当前活跃账号不变
+        """
+    }
+
+    private static func codexAuthActivateHelpText() -> String {
+        """
+        Usage: nolon codex auth activate [--account-id <uuid>|--email <email>] [--provider <id>]
+
+          --provider <id>                             # 指定 provider（可选，默认 codex）
+          --account-id <id>                           # 按账号 ID 激活（可选）
+          --email <value>                             # 按邮箱激活（可选）
+          --tui                                       # 显式使用交互选择（可选；不传账号时默认即为交互）
+        """
+    }
+
+    private static func codexAuthLoginHelpText() -> String {
+        """
+        Usage: nolon codex auth login [--provider <id>] [--preferred-account-id <uuid>]
+
+          --provider <id>                             # 指定 provider（可选，默认 codex）
+          --preferred-account-id <id>                 # 指定优先账号 ID（可选）
+        """
+    }
+
+    private static func codexAuthDeleteHelpText() -> String {
+        """
+        Usage: nolon codex auth delete --account-id <uuid> [--provider <id>]
+
+          --provider <id>                             # 指定 provider（可选，默认 codex）
+          --account-id <id>                           # 账号 ID（必填）
+        """
+    }
+
+    private static func codexBinaryInstallHelpText() -> String {
+        """
+        Usage: nolon codex binary install <version-or-tag> [--set-default]
+
+          <version-or-tag>                            # 版本号或标签（必填）
+          --set-default                               # 安装后立即切换为当前版本（可选）
+        """
+    }
+
+    private static func codexBinaryListHelpText() -> String {
+        """
+        Usage: nolon codex binary list
+        """
+    }
+
+    private static func codexBinaryAvailableHelpText() -> String {
+        """
+        Usage: nolon codex binary available
+        """
+    }
+
+    private static func codexBinarySwitchHelpText() -> String {
+        """
+        Usage: nolon codex binary switch
+        """
+    }
+
+    private static func codexBinaryCurrentHelpText() -> String {
+        """
+        Usage: nolon codex binary current
+        """
+    }
+
+    private static func codexBinaryDoctorHelpText() -> String {
+        """
+        Usage: nolon codex binary doctor
+        """
+    }
+
+    private static func codexBinaryUseHelpText() -> String {
+        """
+        Usage: nolon codex binary use --version <version-or-id>
+
+          --version <value>                           # 版本 ID 或语义化版本号（必填）
+        """
+    }
+
+    private static func codexStatusProbeHelpText() -> String {
+        """
+        Usage: nolon codex status probe [--provider <id>]
+
+          --provider <id>                             # 指定 provider（可选）
+        """
+    }
+
+    private static func codexStatusDoctorHelpText() -> String {
+        """
+        Usage: nolon codex status doctor
+        """
+    }
+
+    private static func codexRuntimeListHelpText() -> String {
+        """
+        Usage: nolon codex runtime list
+        """
+    }
+
+    private static func codexRuntimeStopHelpText() -> String {
+        """
+        Usage: nolon codex runtime stop --pid <pid> [--force] [--timeout-seconds <n>]
+
+          --pid <pid>                                 # 进程 PID（必填）
+          --force                                     # 立即强制结束（可选）
+          --timeout-seconds <n>                       # 温和结束超时阈值（可选）
+        """
+    }
+
+    private static func codexProviderDiscoverHelpText() -> String {
+        """
+        Usage: nolon codex provider discover
+        """
+    }
+
+    private static func providerListHelpText() -> String {
+        """
+        Usage: nolon provider list
+        """
+    }
+
+    private static func providerDiscoverHelpText() -> String {
+        """
+        Usage: nolon provider discover
+        """
+    }
+}
+
+private struct NolonCLIHelpPath: RawRepresentable, ExpressibleByStringLiteral, Equatable, Sendable {
+    static let root: Self = "help.root"
+    static let codex: Self = "help.codex"
+    static let codexAuth: Self = "help.codex.auth"
+    static let codexBinary: Self = "help.codex.binary"
+    static let codexStatus: Self = "help.codex.status"
+    static let codexRuntime: Self = "help.codex.runtime"
+    static let codexProvider: Self = "help.codex.provider"
+    static let provider: Self = "help.provider"
+    static let codexAuthList: Self = "help.codex.auth.list"
+    static let codexAuthUsage: Self = "help.codex.auth.usage"
+    static let codexAuthUsageTrend: Self = "help.codex.auth.usage-trend"
+    static let codexAuthStatus: Self = "help.codex.auth.status"
+    static let codexAuthRefresh: Self = "help.codex.auth.refresh"
+    static let codexAuthActivate: Self = "help.codex.auth.activate"
+    static let codexAuthLogin: Self = "help.codex.auth.login"
+    static let codexAuthDelete: Self = "help.codex.auth.delete"
+    static let codexBinaryInstall: Self = "help.codex.binary.install"
+    static let codexBinaryList: Self = "help.codex.binary.list"
+    static let codexBinaryAvailable: Self = "help.codex.binary.available"
+    static let codexBinarySwitch: Self = "help.codex.binary.switch"
+    static let codexBinaryCurrent: Self = "help.codex.binary.current"
+    static let codexBinaryDoctor: Self = "help.codex.binary.doctor"
+    static let codexBinaryUse: Self = "help.codex.binary.use"
+    static let codexStatusProbe: Self = "help.codex.status.probe"
+    static let codexStatusDoctor: Self = "help.codex.status.doctor"
+    static let codexRuntimeList: Self = "help.codex.runtime.list"
+    static let codexRuntimeStop: Self = "help.codex.runtime.stop"
+    static let codexProviderDiscover: Self = "help.codex.provider.discover"
+    static let providerList: Self = "help.provider.list"
+    static let providerDiscover: Self = "help.provider.discover"
+
+    let rawValue: String
+
+    init(rawValue: String) {
+        self.rawValue = rawValue
+    }
+
+    init(_ value: String) {
+        self.rawValue = value
+    }
+
+    init(stringLiteral value: String) {
+        self.rawValue = value
+    }
+
+    init?(arguments: [String]) {
+        switch arguments {
+        case []:
+            self = .root
+            return
+        case ["codex"]:
+            self = .codex
+            return
+        case ["provider"]:
+            self = .provider
+            return
+        case ["codex", "auth"]:
+            self = .codexAuth
+            return
+        case ["codex", "binary"]:
+            self = .codexBinary
+            return
+        case ["codex", "status"]:
+            self = .codexStatus
+            return
+        case ["codex", "runtime"]:
+            self = .codexRuntime
+            return
+        case ["codex", "provider"]:
+            self = .codexProvider
+            return
+        default:
+            break
+        }
+
+        let flag = arguments.last
+        guard flag == "help" || flag == "-h" || flag == "--help" else {
+            return nil
+        }
+        switch arguments {
+        case ["help"], ["-h"], ["--help"]:
+            self = .root
+        case ["codex", "help"], ["codex", "-h"], ["codex", "--help"]:
+            self = .codex
+        case ["provider", "help"], ["provider", "-h"], ["provider", "--help"]:
+            self = .provider
+        case ["codex", "auth", "help"], ["codex", "auth", "-h"], ["codex", "auth", "--help"]:
+            self = .codexAuth
+        case ["codex", "binary", "help"], ["codex", "binary", "-h"], ["codex", "binary", "--help"]:
+            self = .codexBinary
+        case ["codex", "status", "help"], ["codex", "status", "-h"], ["codex", "status", "--help"]:
+            self = .codexStatus
+        case ["codex", "runtime", "help"], ["codex", "runtime", "-h"], ["codex", "runtime", "--help"]:
+            self = .codexRuntime
+        case ["codex", "provider", "help"], ["codex", "provider", "-h"], ["codex", "provider", "--help"]:
+            self = .codexProvider
+        case ["codex", "auth", "list", "help"], ["codex", "auth", "list", "-h"], ["codex", "auth", "list", "--help"]:
+            self = .codexAuthList
+        case ["codex", "auth", "usage", "help"], ["codex", "auth", "usage", "-h"], ["codex", "auth", "usage", "--help"]:
+            self = .codexAuthUsage
+        case ["codex", "auth", "usage-trend", "help"], ["codex", "auth", "usage-trend", "-h"], ["codex", "auth", "usage-trend", "--help"]:
+            self = .codexAuthUsageTrend
+        case ["codex", "auth", "status", "help"], ["codex", "auth", "status", "-h"], ["codex", "auth", "status", "--help"]:
+            self = .codexAuthStatus
+        case ["codex", "auth", "refresh", "help"], ["codex", "auth", "refresh", "-h"], ["codex", "auth", "refresh", "--help"]:
+            self = .codexAuthRefresh
+        case ["codex", "auth", "activate", "help"], ["codex", "auth", "activate", "-h"], ["codex", "auth", "activate", "--help"]:
+            self = .codexAuthActivate
+        case ["codex", "auth", "login", "help"], ["codex", "auth", "login", "-h"], ["codex", "auth", "login", "--help"]:
+            self = .codexAuthLogin
+        case ["codex", "auth", "delete", "help"], ["codex", "auth", "delete", "-h"], ["codex", "auth", "delete", "--help"]:
+            self = .codexAuthDelete
+        case ["codex", "binary", "install", "help"], ["codex", "binary", "install", "-h"], ["codex", "binary", "install", "--help"]:
+            self = .codexBinaryInstall
+        case ["codex", "binary", "list", "help"], ["codex", "binary", "list", "-h"], ["codex", "binary", "list", "--help"]:
+            self = .codexBinaryList
+        case ["codex", "binary", "available", "help"], ["codex", "binary", "available", "-h"], ["codex", "binary", "available", "--help"]:
+            self = .codexBinaryAvailable
+        case ["codex", "binary", "switch", "help"], ["codex", "binary", "switch", "-h"], ["codex", "binary", "switch", "--help"]:
+            self = .codexBinarySwitch
+        case ["codex", "binary", "current", "help"], ["codex", "binary", "current", "-h"], ["codex", "binary", "current", "--help"]:
+            self = .codexBinaryCurrent
+        case ["codex", "binary", "doctor", "help"], ["codex", "binary", "doctor", "-h"], ["codex", "binary", "doctor", "--help"]:
+            self = .codexBinaryDoctor
+        case ["codex", "binary", "use", "help"], ["codex", "binary", "use", "-h"], ["codex", "binary", "use", "--help"]:
+            self = .codexBinaryUse
+        case ["codex", "status", "probe", "help"], ["codex", "status", "probe", "-h"], ["codex", "status", "probe", "--help"]:
+            self = .codexStatusProbe
+        case ["codex", "status", "doctor", "help"], ["codex", "status", "doctor", "-h"], ["codex", "status", "doctor", "--help"]:
+            self = .codexStatusDoctor
+        case ["codex", "runtime", "list", "help"], ["codex", "runtime", "list", "-h"], ["codex", "runtime", "list", "--help"]:
+            self = .codexRuntimeList
+        case ["codex", "runtime", "stop", "help"], ["codex", "runtime", "stop", "-h"], ["codex", "runtime", "stop", "--help"]:
+            self = .codexRuntimeStop
+        case ["codex", "provider", "discover", "help"], ["codex", "provider", "discover", "-h"], ["codex", "provider", "discover", "--help"]:
+            self = .codexProviderDiscover
+        case ["provider", "list", "help"], ["provider", "list", "-h"], ["provider", "list", "--help"]:
+            self = .providerList
+        case ["provider", "discover", "help"], ["provider", "discover", "-h"], ["provider", "discover", "--help"]:
+            self = .providerDiscover
+        default:
+            return nil
+        }
+    }
+}

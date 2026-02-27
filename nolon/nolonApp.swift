@@ -8,8 +8,8 @@
 import SwiftUI
 import Sparkle
 import Combine
+import OSLog
 import ProviderCatalog
-import SwiftGit
 
 // This view model class publishes when new updates can be checked by the user
 final class CheckForUpdatesViewModel: ObservableObject {
@@ -46,6 +46,7 @@ struct CheckForUpdatesView: View {
 /// Singleton to share pending URL across app
 @MainActor
 final class URLSchemeHandler: ObservableObject {
+    private static let logger = Logger(subsystem: "com.nolon.app", category: "URLSchemeHandler")
     static let shared = URLSchemeHandler()
     
     @Published var pendingURL: URL?
@@ -53,25 +54,29 @@ final class URLSchemeHandler: ObservableObject {
     private init() {}
     
     func handleURL(_ url: URL) {
-        guard url.scheme == "nolon" || url.scheme == "nln" else { return }
-        
-        // Reconstruct the original URL
+        guard let httpsURL = Self.normalizeIncomingURL(url) else { return }
+        Self.logger.info("Received URL: \(httpsURL.absoluteString, privacy: .public)")
+        pendingURL = httpsURL
+    }
+
+    static func normalizeIncomingURL(_ url: URL) -> URL? {
+        guard url.scheme == "nolon" || url.scheme == "nln" else { return nil }
+
+        // Reconstruct the original URL:
         // nolon://github.com/owner/repo -> https://github.com/owner/repo
         // nln://github.com/owner/repo -> https://github.com/owner/repo
         var components = URLComponents(url: url, resolvingAgainstBaseURL: true)
         components?.scheme = "https"
-        
-        if let httpsURL = components?.url {
-            print("[URLSchemeHandler] Received \(url.scheme ?? "") URL: \(httpsURL.absoluteString)")
-            pendingURL = httpsURL
-        }
+        return components?.url
     }
 }
 
 /// AppDelegate to handle URL events on macOS
 class AppDelegate: NSObject, NSApplicationDelegate {
+    private let logger = Logger(subsystem: "com.nolon.app", category: "AppDelegate")
+
     func application(_ application: NSApplication, open urls: [URL]) {
-        print("[AppDelegate] Received URLs: \(urls)")
+        logger.info("Received URL count: \(urls.count, privacy: .public)")
         for url in urls {
             Task { @MainActor in
                 URLSchemeHandler.shared.handleURL(url)

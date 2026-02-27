@@ -1,5 +1,6 @@
 import Foundation
 import CodexBarProviderCatalog
+import CodexProvider
 
 public struct ProviderUsageMonitorSettings: Sendable, Codable, Equatable {
     public var sourceMode: ProviderSourceMode
@@ -20,6 +21,10 @@ public struct ProviderUsageMonitorSettings: Sendable, Codable, Equatable {
         self.webTimeoutSeconds = webTimeoutSeconds
         self.autoRefreshIntervalMinutes = autoRefreshIntervalMinutes
         self.costWindowDays = costWindowDays
+    }
+
+    public func effectiveCostWindowDays(selected: Int?) -> Int? {
+        selected ?? costWindowDays
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -88,6 +93,8 @@ public struct ProviderAccountUsageOutcome: Identifiable, Sendable {
 public actor ProviderUsageMonitorService {
     private let tokenAccountStore: ProviderTokenAccountStoring
     private let baseEnvironment: [String: String]
+    private let codexManagedEnvironmentLoader: @Sendable () async throws -> [String: String]
+    private let codexCLIPathLoader: @Sendable () async -> String?
 
     public init(
         tokenAccountStore: ProviderTokenAccountStoring,
@@ -95,13 +102,56 @@ public actor ProviderUsageMonitorService {
     ) {
         self.tokenAccountStore = tokenAccountStore
         self.baseEnvironment = baseEnvironment
+        self.codexManagedEnvironmentLoader = {
+            try await CodexBinaryManager.shared.launchEnvironmentVariables()
+        }
+        self.codexCLIPathLoader = {
+            await CodexBinaryManager.shared.activeCLIPathIfAvailable()
+        }
+    }
+
+    init(
+        tokenAccountStore: ProviderTokenAccountStoring,
+        baseEnvironment: [String: String],
+        codexManagedEnvironmentLoader: @escaping @Sendable () async throws -> [String: String],
+        codexCLIPathLoader: @escaping @Sendable () async -> String?
+    ) {
+        self.tokenAccountStore = tokenAccountStore
+        self.baseEnvironment = baseEnvironment
+        self.codexManagedEnvironmentLoader = codexManagedEnvironmentLoader
+        self.codexCLIPathLoader = codexCLIPathLoader
+    }
+
+    func resolveEnvironmentForFetch(provider: UsageProvider) async -> [String: String] {
+        var environment = baseEnvironment
+        guard provider == .codex else { return environment }
+
+        if let managedEnvironment = try? await codexManagedEnvironmentLoader() {
+            environment.merge(managedEnvironment) { _, new in new }
+        }
+        if let codexCLIPath = await codexCLIPathLoader() {
+            environment["CODEX_CLI_PATH"] = codexCLIPath
+        }
+        return environment
+    }
+
+    func resolveCostWindowDaysForFetch(
+        settings: ProviderUsageMonitorSettings,
+        overrideCostWindowDays: Int?
+    ) -> Int? {
+        settings.effectiveCostWindowDays(selected: overrideCostWindowDays)
     }
 
     public func fetchOutcomes(
         provider: UsageProvider,
         settings: ProviderUsageMonitorSettings,
-        costWindowDays: Int? = 30
+        costWindowDays: Int? = nil
     ) async -> [ProviderAccountUsageOutcome] {
+        let resolvedEnvironment = await resolveEnvironmentForFetch(provider: provider)
+        let effectiveCostWindowDays = resolveCostWindowDaysForFetch(
+            settings: settings,
+            overrideCostWindowDays: costWindowDays
+        )
         let tokenAccounts: [ProviderTokenAccount] = (try? tokenAccountStore.loadAccounts()[provider]?.accounts) ?? []
         var accountKinds: [ProviderAccountUsageOutcome.AccountKind] = [.default]
         accountKinds.append(contentsOf: tokenAccounts.map { .tokenAccount($0) })
@@ -122,8 +172,8 @@ public actor ProviderUsageMonitorService {
                         sourceMode: settings.sourceMode,
                         includeCredits: settings.includeCredits,
                         timeout: TimeInterval(settings.webTimeoutSeconds),
-                        costWindowDays: costWindowDays,
-                        environment: self.baseEnvironment,
+                        costWindowDays: effectiveCostWindowDays,
+                        environment: resolvedEnvironment,
                         token: token
                     )
 

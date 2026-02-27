@@ -3,6 +3,7 @@ import Foundation
 import OSLog
 import ServiceManagement
 import SwiftUI
+import NolonResourceKit
 
 @MainActor
 @Observable

@@ -1,7 +1,10 @@
 import SwiftUI
 import ProviderCatalog
+import CodexProvider
 import Combine
 import OSLog
+import STFilePath
+import NolonResourceKit
 
 /// Main three-column split view for the app
 /// Left 1: Provider sidebar (collapsible)
@@ -16,13 +19,14 @@ final class MainSplitViewModel {
     var repository = SkillRepository()
     private(set) var installer: SkillInstaller?
     private var resourceMonitor: ProviderResourceMonitor?
+    private let remoteInstallOrchestrator = RemoteInstallOrchestrator()
 
     var selectedProviderId: Provider.ID?
     var selectedTab: ProviderContentTabType? = .skills
     var columnVisibility: NavigationSplitViewVisibility = .all
     
     var showingSettings = false
-    var showingClawdhub = false
+    var showingResourceCenter = false
     var refreshTrigger: Int = 0
     
     var selectedProvider: Provider? {
@@ -56,26 +60,12 @@ final class MainSplitViewModel {
         guard let installer = installer else { return }
 
         do {
-            if let localPath = skill.localPath {
-                // Install from local path (GitHub or Local Folder)
-                Self.logger.info("Installing skill from local path: \(localPath, privacy: .public)")
-                try installer.installLocal(from: localPath, slug: skill.slug, to: provider)
-                Self.logger.info("Installed skill \(skill.slug, privacy: .public) from local path")
-            } else {
-                let clawdhubRepo = ClawdhubRepository(
-                    repository: settings.remoteRepositories.first { $0.templateType == .clawdhub }
-                        ?? RepositoryTemplate.clawdhub.createRepository()
-                )
-
-                let zipURL = try await clawdhubRepo.downloadSkill(
-                    slug: skill.slug,
-                    version: skill.latestVersion?.version
-                )
-                try installer.installRemote(zipURL: zipURL, slug: skill.slug, to: provider)
-                Self.logger.info("Installed skill \(skill.slug, privacy: .public) from Clawdhub to \(provider.name, privacy: .public)")
-            }
-
-            // Trigger refresh immediately after install
+            try await remoteInstallOrchestrator.installSkill(
+                skill,
+                to: provider,
+                installer: installer,
+                remoteBaseURL: currentRemoteBaseURL()
+            )
             refreshTrigger += 1
         } catch {
             Self.logger.error("Failed to install remote skill: \(String(describing: error), privacy: .public)")
@@ -86,34 +76,13 @@ final class MainSplitViewModel {
     @MainActor
     func installRemoteWorkflow(_ workflow: RemoteWorkflow, to provider: Provider) async {
         do {
-            let resourceInstaller = ResourceInstaller(globalCache: GlobalCacheRepository())
-
-            if let localPath = workflow.localPath {
-                guard let installer else { return }
-                Self.logger.info("Installing workflow from local path: \(localPath, privacy: .public)")
-                try installer.installLocalWorkflow(
-                    fileURL: URL(fileURLWithPath: localPath),
-                    slug: workflow.slug,
-                    to: provider
-                )
-                Self.logger.info("Installed workflow \(workflow.slug, privacy: .public) from local path")
-            } else {
-                // Download from remote repository and install
-                let clawdhubRepo = ClawdhubRepository(
-                    repository: settings.remoteRepositories.first { $0.templateType == .clawdhub }
-                        ?? RepositoryTemplate.clawdhub.createRepository()
-                )
-                
-                try await resourceInstaller.installFromRemote(
-                    repository: clawdhubRepo,
-                    resourceSlug: workflow.slug,
-                    resourceType: .workflow,
-                    to: provider
-                )
-                Self.logger.info("Installed workflow \(workflow.slug, privacy: .public) to \(provider.name, privacy: .public)")
-            }
-            
-            // Trigger refresh immediately after install
+            guard let installer else { return }
+            try await remoteInstallOrchestrator.installWorkflow(
+                workflow,
+                to: provider,
+                installer: installer,
+                remoteBaseURL: currentRemoteBaseURL()
+            )
             refreshTrigger += 1
         } catch {
             Self.logger.error("Failed to install workflow: \(String(describing: error), privacy: .public)")
@@ -124,35 +93,11 @@ final class MainSplitViewModel {
     @MainActor
     func installRemoteMCP(_ mcp: RemoteMCP, to provider: Provider) async {
         do {
-            let resourceInstaller = ResourceInstaller(globalCache: GlobalCacheRepository())
-            
-            if let localPath = mcp.localPath {
-                // Install from local path (GitHub or Local Folder)
-                Self.logger.info("Installing MCP from local path: \(localPath, privacy: .public)")
-                try await resourceInstaller.installFromLocal(
-                    resourceURL: URL(fileURLWithPath: localPath),
-                    resourceSlug: mcp.slug,
-                    resourceType: .mcp,
-                    to: provider
-                )
-                Self.logger.info("Installed MCP \(mcp.slug, privacy: .public) from local path")
-            } else {
-                // Download from remote repository and install
-                let clawdhubRepo = ClawdhubRepository(
-                    repository: settings.remoteRepositories.first { $0.templateType == .clawdhub }
-                        ?? RepositoryTemplate.clawdhub.createRepository()
-                )
-                
-                try await resourceInstaller.installFromRemote(
-                    repository: clawdhubRepo,
-                    resourceSlug: mcp.slug,
-                    resourceType: .mcp,
-                    to: provider
-                )
-                Self.logger.info("Installed MCP \(mcp.slug, privacy: .public) to \(provider.name, privacy: .public)")
-            }
-            
-            // Trigger refresh immediately after install
+            try await remoteInstallOrchestrator.installMCP(
+                mcp,
+                to: provider,
+                remoteBaseURL: currentRemoteBaseURL()
+            )
             refreshTrigger += 1
         } catch {
             Self.logger.error("Failed to install MCP: \(String(describing: error), privacy: .public)")
@@ -161,8 +106,25 @@ final class MainSplitViewModel {
     }
     
     @MainActor
-    func onClawdhubDismissed() {
+    func onResourceCenterDismissed() {
         refreshTrigger += 1
+    }
+
+    @MainActor
+    func presentResourceCenter() {
+        showingResourceCenter = true
+    }
+
+    @MainActor
+    func dismissResourceCenter() {
+        guard showingResourceCenter else { return }
+        showingResourceCenter = false
+        onResourceCenterDismissed()
+    }
+
+    private func currentRemoteBaseURL() -> String {
+        settings.remoteRepositories.first { $0.templateType == .clawdhub }?.baseURL
+            ?? RepositoryTemplate.clawdhub.createRepository().baseURL
     }
 }
 
@@ -178,59 +140,105 @@ public struct MainSplitView: View {
     public init() {}
 
     public var body: some View {
-        NavigationSplitView(columnVisibility: $viewModel.columnVisibility) {
-            // Left 1: Provider sidebar
-            ProviderSidebarView(
-                selectedProviderId: $viewModel.selectedProviderId,
-                settings: viewModel.settings
-            )
-        } content: {
-            // Left 2: Skills/Workflows tab navigation
-            ProviderContentTabView(
-                provider: viewModel.selectedProvider,
-                selectedTab: $viewModel.selectedTab,
-                settings: viewModel.settings,
-                refreshTrigger: viewModel.refreshTrigger
-            )
-        } detail: {
-            // Left 3: Grid cards (skills or workflows)
-            ProviderDetailGridView(
-                provider: viewModel.selectedProvider,
-                selectedTab: viewModel.selectedTab,
-                settings: viewModel.settings,
-                refreshTrigger: viewModel.refreshTrigger,
-                onSelectProvider: { providerID in
-                    viewModel.selectedProviderId = providerID
-                },
-                onSelectTab: { tab in
-                    viewModel.selectedTab = tab
+        ZStack {
+            NavigationSplitView(columnVisibility: $viewModel.columnVisibility) {
+                // Left 1: Provider sidebar
+                ProviderSidebarView(
+                    selectedProviderId: $viewModel.selectedProviderId,
+                    settings: viewModel.settings
+                )
+            } content: {
+                // Left 2: Skills/Workflows tab navigation
+                ProviderContentTabView(
+                    provider: viewModel.selectedProvider,
+                    selectedTab: $viewModel.selectedTab,
+                    settings: viewModel.settings,
+                    refreshTrigger: viewModel.refreshTrigger
+                )
+            } detail: {
+                // Left 3: Grid cards (skills or workflows)
+                ProviderDetailGridView(
+                    provider: viewModel.selectedProvider,
+                    selectedTab: viewModel.selectedTab,
+                    settings: viewModel.settings,
+                    refreshTrigger: viewModel.refreshTrigger,
+                    onSelectProvider: { providerID in
+                        viewModel.selectedProviderId = providerID
+                    },
+                    onSelectTab: { tab in
+                        viewModel.selectedTab = tab
+                    }
+                )
+            }
+            .navigationSplitViewStyle(.balanced)
+            .toolbar {
+                ToolbarItemGroup(placement: .primaryAction) {
+                    // Resource Center button
+                    Button {
+                        viewModel.presentResourceCenter()
+                    } label: {
+                        Label(
+                            NSLocalizedString("toolbar.clawdhub", comment: "Clawdhub"),
+                            systemImage: "cloud"
+                        )
+                    }
+                    .help("Browse and install resources from Clawdhub")
                 }
-            )
-        }
-        .navigationSplitViewStyle(.balanced)
-        .toolbar {
-            ToolbarItemGroup(placement: .primaryAction) {
+            }
 
-
-                // Clawdhub button
-                Button {
-                    viewModel.showingClawdhub = true
-                } label: {
-                    Label(
-                        NSLocalizedString("toolbar.clawdhub", comment: "Clawdhub"),
-                        systemImage: "cloud"
-                    )
-                }
-                .help("Browse and install skills from Clawdhub")
+            if viewModel.showingResourceCenter {
+                resourceCenterOverlay
+                    .transition(.opacity.combined(with: .scale(scale: 0.98)))
+                    .zIndex(10)
             }
         }
+        .animation(.easeInOut(duration: 0.18), value: viewModel.showingResourceCenter)
 
         .sheet(isPresented: Bindable(AppCommandState.shared).showingSettings) {
             AppSettingsView()
                 .frame(minWidth: 720, minHeight: 480)
         }
-        .sheet(isPresented: $viewModel.showingClawdhub) {
-            RemoteSkillsBrowserView(
+        .onExitCommand {
+            viewModel.dismissResourceCenter()
+        }
+        .onReceive(URLSchemeHandler.shared.$pendingURL) { pendingURL in
+            guard let url = pendingURL else { return }
+            MainSplitViewModel.logger.info("Received URL from URLSchemeHandler: \(url.absoluteString, privacy: .public)")
+            
+            // URLSchemeHandler already converted nln:// or nolon:// to https://
+            let urlString = url.absoluteString
+            MainSplitViewModel.logger.info("Setting pendingImportURL to: \(urlString, privacy: .public)")
+            viewModel.settings.pendingImportURL = urlString
+            MainSplitViewModel.logger.info("pendingImportURL after set: \(viewModel.settings.pendingImportURL ?? "nil", privacy: .public)")
+            
+            MainSplitViewModel.logger.info("Opening ResourceCenterView overlay")
+            viewModel.presentResourceCenter()
+            
+            // Clear the pending URL after consuming
+            URLSchemeHandler.shared.pendingURL = nil
+        }
+        .onAppear {
+            viewModel.setup()
+        }
+        .onChange(of: viewModel.selectedProviderId) { _, _ in
+            viewModel.updateResourceMonitoring()
+        }
+        .onReceive(viewModel.settings.$providers) { _ in
+            viewModel.updateResourceMonitoring()
+        }
+
+    }
+
+    @ViewBuilder
+    private var resourceCenterOverlay: some View {
+        ZStack {
+            DesignSystem.Colors.Overlay.scrim
+                .ignoresSafeArea()
+                .onTapGesture {
+                    viewModel.dismissResourceCenter()
+                }
+
+            ResourceCenterView(
                 settings: viewModel.settings,
                 repository: viewModel.repository,
                 targetProvider: viewModel.selectedProvider,
@@ -251,42 +259,14 @@ public struct MainSplitView: View {
                     }
                 }
             )
-            .frame(minWidth: 980, idealWidth: 1100, maxWidth: .infinity,
-                   minHeight: 700, idealHeight: 760, maxHeight: .infinity)
+            .dsGlassPanel(cornerRadius: DesignSystem.Metrics.cornerRadiusXL)
+            .padding(ResourceCenterOverlayLayout.outerInset)
         }
-        .onChange(of: viewModel.showingClawdhub) { _, isShowing in
-            // Refresh skills list when Clawdhub sheet is dismissed
-            if !isShowing {
-                viewModel.onClawdhubDismissed()
-            }
-        }
-        .onReceive(URLSchemeHandler.shared.$pendingURL) { pendingURL in
-            guard let url = pendingURL else { return }
-            MainSplitViewModel.logger.info("Received URL from URLSchemeHandler: \(url.absoluteString, privacy: .public)")
-            
-            // URLSchemeHandler already converted nln:// or nolon:// to https://
-            let urlString = url.absoluteString
-            MainSplitViewModel.logger.info("Setting pendingImportURL to: \(urlString, privacy: .public)")
-            viewModel.settings.pendingImportURL = urlString
-            MainSplitViewModel.logger.info("pendingImportURL after set: \(viewModel.settings.pendingImportURL ?? "nil", privacy: .public)")
-            
-            MainSplitViewModel.logger.info("Opening RemoteSkillsBrowserView sheet")
-            viewModel.showingClawdhub = true
-            
-            // Clear the pending URL after consuming
-            URLSchemeHandler.shared.pendingURL = nil
-        }
-        .onAppear {
-            viewModel.setup()
-        }
-        .onChange(of: viewModel.selectedProviderId) { _, _ in
-            viewModel.updateResourceMonitoring()
-        }
-        .onReceive(viewModel.settings.$providers) { _ in
-            viewModel.updateResourceMonitoring()
-        }
-
     }
+}
+
+enum ResourceCenterOverlayLayout {
+    static let outerInset: CGFloat = 40
 }
 
 #Preview {

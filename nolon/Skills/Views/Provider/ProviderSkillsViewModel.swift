@@ -3,6 +3,7 @@ import ProviderCatalog
 import Observation
 import SwiftUI
 import STFilePath
+import NolonResourceKit
 
 @MainActor
 @Observable
@@ -13,18 +14,15 @@ final class ProviderSkillsViewModel {
     var availableUpdates: [SkillUpdateInfo] = []
     var isCheckingUpdates = false
     
-    private var repository: SkillRepository
-    private var installer: SkillInstaller
-    private var updateChecker: SkillUpdateChecker
+    private var updateOrchestrator: SkillUpdateOrchestrator
+    private var maintenanceService = ProviderSkillMaintenanceService()
     var settings: ProviderSettings
 
     init() {
         let repo = SkillRepository()
         let sett = ProviderSettings()
-        self.repository = repo
         self.settings = sett
-        self.installer = SkillInstaller(repository: repo, settings: sett)
-        self.updateChecker = SkillUpdateChecker()
+        self.updateOrchestrator = SkillUpdateOrchestrator(repository: repo, settings: sett)
     }
     
     var selectedProvider: Provider? {
@@ -43,7 +41,24 @@ final class ProviderSkillsViewModel {
         }
         
         do {
-            providerStates = try installer.scanProvider(provider: provider)
+            let scan = try maintenanceService.scanProviderSkills(
+                providerPath: STFolder(provider.defaultSkillsPath),
+                globalSkillsPath: NolonManager.shared.skillsFolder
+            )
+            providerStates = scan.states.map { state in
+                ProviderSkillState(
+                    skillName: state.skillID,
+                    state: {
+                        switch state.state {
+                        case .installed: return .installed
+                        case .orphaned: return .orphaned
+                        case .broken: return .broken
+                        }
+                    }(),
+                    path: state.path,
+                    basePath: provider.defaultSkillsPath
+                )
+            }
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -53,7 +68,18 @@ final class ProviderSkillsViewModel {
         guard let provider = selectedProvider else { return }
         
         do {
-            _ = try installer.migrateAll(from: provider)
+            let scan = try maintenanceService.scanProviderSkills(
+                providerPath: STFolder(provider.defaultSkillsPath),
+                globalSkillsPath: NolonManager.shared.skillsFolder
+            )
+            for state in scan.states where state.state == .orphaned {
+                _ = try maintenanceService.migrateSkill(
+                    skillID: state.skillID,
+                    providerPath: STFolder(provider.defaultSkillsPath),
+                    globalSkillsPath: NolonManager.shared.skillsFolder,
+                    installMethod: provider.installMethod
+                )
+            }
             await loadProviderStates()
             await onRefresh()
         } catch {
@@ -74,8 +100,13 @@ final class ProviderSkillsViewModel {
     
     // Actions for Row
     func uninstallSkill(at path: String) async {
+        guard let provider = selectedProvider else { return }
         do {
-            try STPath(path).deleteIncludingBrokenSymlink()
+            let skillID = URL(fileURLWithPath: path).lastPathComponent
+            _ = try maintenanceService.uninstallSkill(
+                skillID: skillID,
+                providerPath: STFolder(provider.defaultSkillsPath)
+            )
             await loadProviderStates()
         } catch {
             // handle error
@@ -85,7 +116,12 @@ final class ProviderSkillsViewModel {
     func migrateSkill(skillName: String) async {
         guard let provider = selectedProvider else { return }
         do {
-            _ = try installer.migrate(skillName: skillName, from: provider)
+            _ = try maintenanceService.migrateSkill(
+                skillID: skillName,
+                providerPath: STFolder(provider.defaultSkillsPath),
+                globalSkillsPath: NolonManager.shared.skillsFolder,
+                installMethod: provider.installMethod
+            )
             await loadProviderStates()
         } catch {
             // handle error
@@ -95,7 +131,12 @@ final class ProviderSkillsViewModel {
     func repairSymlink(skillName: String) async {
         guard let provider = selectedProvider else { return }
         do {
-            try installer.repairSymlink(skillName: skillName, for: provider)
+            _ = try maintenanceService.repairSkill(
+                skillID: skillName,
+                providerPath: STFolder(provider.defaultSkillsPath),
+                globalSkillsPath: NolonManager.shared.skillsFolder,
+                installMethod: provider.installMethod
+            )
             await loadProviderStates()
         } catch {
             // handle error
@@ -114,7 +155,7 @@ final class ProviderSkillsViewModel {
         isCheckingUpdates = true
         defer { isCheckingUpdates = false }
         
-        availableUpdates = await updateChecker.checkForUpdates()
+        availableUpdates = await updateOrchestrator.checkForUpdates()
     }
     
     func skillHasUpdate(_ skillName: String) -> Bool {
@@ -125,18 +166,11 @@ final class ProviderSkillsViewModel {
         guard let provider = selectedProvider else { return }
         
         do {
-            switch update.updateSource {
-            case .clawdhub:
-                let clawdhubRepo = ClawdhubRepository()
-                let zipURL = try await clawdhubRepo.downloadSkill(slug: update.id)
-                defer {
-                    try? STPath(zipURL).deleteIncludingBrokenSymlink()
-                }
-                try installer.updateSkill(slug: update.id, to: provider, zipURL: zipURL)
-            default:
-                break
+            let result = try await updateOrchestrator.update(update)
+            if !result.appliedProviderIDs.contains(provider.id),
+               let warning = result.warnings.first {
+                errorMessage = warning
             }
-            
             await loadProviderStates()
             await checkForUpdates()
         } catch {

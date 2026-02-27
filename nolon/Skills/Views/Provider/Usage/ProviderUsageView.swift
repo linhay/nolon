@@ -11,15 +11,23 @@ struct ProviderUsageView: View {
     let provider: Provider
     let isEmbedded: Bool
     @State private var viewModel: ProviderUsageViewModel
-    @State private var costChartGranularity: CostChartGranularity = .day
-    @State private var costChartValueDisplayMode: CostChartValueDisplayMode = .cost
-    @State private var costChartSelection: CostChartSelection?
-    @State private var costChartSelectedID: String?
-    @State private var costTableSelection: Set<String> = []
+    @State private var codexTrendSortKey: CodexTrendSortKey = .date
+    @State private var codexTrendSortAscending = false
+    @State private var selectedTrendDate: String?
 
     private let codexAccountColumns: [GridItem] = [
         GridItem(.adaptive(minimum: 240, maximum: 340), spacing: 12, alignment: .topLeading)
     ]
+
+    private enum CodexTrendSortKey: String, CaseIterable, Identifiable {
+        case date
+        case total
+        case input
+        case output
+        case cache
+
+        var id: String { rawValue }
+    }
 
     init(provider: Provider, isEmbedded: Bool = false) {
         self.provider = provider
@@ -49,21 +57,39 @@ struct ProviderUsageView: View {
         .sheet(isPresented: Bindable(viewModel).isShowingLogin) {
             UsageLoginSheet(title: provider.name, url: viewModel.dashboardURL)
         }
+        .sheet(isPresented: $viewModel.isShowingLoginURLSheet) {
+            CodexLoginURLSheet(
+                mode: viewModel.loginModeForSheet ?? "Login",
+                url: viewModel.loginURLForSheet,
+                onCopy: { viewModel.copyLoginURL() },
+                onOpen: { viewModel.reopenLoginURLInBrowser() },
+                onCancel: { viewModel.cancelCLILoginIfNeeded() }
+            )
+        }
         .fileImporter(
             isPresented: $viewModel.isShowingAuthFileImporter,
             allowedContentTypes: [.json, .data],
-            allowsMultipleSelection: false
+            allowsMultipleSelection: true
         ) { result in
             switch result {
             case .success(let urls):
-                viewModel.importedAuthFileURL = urls.first
-                if urls.first != nil {
-                    viewModel.addAccountSource = .file
-                    Task { await viewModel.confirmAddAccount() }
-                }
+                Task { await viewModel.validateImportedAuthFiles(urls) }
             case .failure:
-                viewModel.importedAuthFileURL = nil
+                viewModel.importedAuthFileURLs = []
+                viewModel.pendingImportValidationResults = []
+                viewModel.importValidationSummaryMessage = nil
             }
+        }
+        .alert(
+            NSLocalizedString("codex.import.validate.title", value: "Import Validation", comment: "Import validation title"),
+            isPresented: $viewModel.isShowingImportValidationConfirm
+        ) {
+            Button(NSLocalizedString("generic.cancel", value: "Cancel", comment: "Cancel"), role: .cancel) {}
+            Button(NSLocalizedString("codex.import.apply_valid", value: "Import Valid Files", comment: "Import valid files")) {
+                Task { await viewModel.applyValidatedImports() }
+            }
+        } message: {
+            Text(viewModel.importValidationSummaryMessage ?? "")
         }
         .alert(viewModel.alertTitle ?? "", isPresented: Binding(get: {
             viewModel.alertTitle != nil || viewModel.alertMessage != nil
@@ -180,7 +206,16 @@ struct ProviderUsageView: View {
 
             Spacer()
 
-            if viewModel.usageProvider != .codex {
+            if viewModel.usageProvider == .codex {
+                Button(NSLocalizedString("codex.accounts.login", value: "登录", comment: "Codex login")) {
+                    viewModel.startLoginFlow()
+                }
+                .disabled(viewModel.isRunningCLILogin)
+
+                Button(NSLocalizedString("codex.accounts.import", value: "导入", comment: "Codex import")) {
+                    viewModel.beginImportAuthFiles()
+                }
+            } else {
                 Button(NSLocalizedString("usage.monitor.login", value: "Sign in…", comment: "Sign in")) {
                     viewModel.isShowingLogin = true
                 }
@@ -211,41 +246,11 @@ struct ProviderUsageView: View {
             }
 
             if viewModel.usageProvider == .codex {
-                Divider()
-
-                Menu(NSLocalizedString("codex.accounts.action.add", value: "Add Account", comment: "Add account")) {
-                    Button(NSLocalizedString("codex.accounts.add.source.current", value: "Current auth.json", comment: "Current auth.json")) {
-                        viewModel.beginAddAccount(.current)
-                    }
-                    Button(NSLocalizedString("codex.accounts.add.source.file", value: "Import auth.json file", comment: "Import auth.json file")) {
-                        viewModel.beginAddAccount(.file)
-                    }
-                    Button(NSLocalizedString("codex.accounts.add.source.cli", value: "CLI Login", comment: "CLI login")) {
-                        viewModel.beginAddAccount(.cliLogin)
-                    }
-                    .disabled(viewModel.isRunningCLILogin)
-
-                    if let status = viewModel.cliLoginStatus, viewModel.isRunningCLILogin {
-                        Divider()
-                        Text(status)
-                            .dsSecondaryText(font: .body)
-                    }
-                }
-                .disabled(!viewModel.isMultiAccountEnabled)
-
                 if viewModel.isRunningCLILogin {
                     Button(NSLocalizedString("codex.cli_login.cancel", value: "Cancel Login", comment: "Cancel CLI login")) {
                         viewModel.cancelCLILoginIfNeeded()
                     }
                 }
-
-                Toggle(
-                    NSLocalizedString("codex.accounts.multi.enable", value: "Multi-account", comment: "Multi-account toggle"),
-                    isOn: Binding(
-                        get: { viewModel.isMultiAccountEnabled },
-                        set: { viewModel.setMultiAccountEnabled($0) }
-                    )
-                )
             }
         } label: {
             Image(systemName: "ellipsis")
@@ -290,70 +295,397 @@ struct ProviderUsageView: View {
         }
     }
 
-    private var codexGlobalOutcome: ProviderAccountUsageOutcome? {
-        if let activeId = viewModel.activeCodexAccountId,
-           let active = viewModel.codexAccountOutcomes.first(where: { outcome in
-               if case let .tokenAccount(account) = outcome.account {
-                   return account.id == activeId
-               }
-               return false
-           }) {
-            return active
-        }
-        if let success = viewModel.codexAccountOutcomes.first(where: { outcome in
-            if case .success = outcome.outcome.result { return true }
-            return false
-        }) {
-            return success
-        }
-        return viewModel.codexAccountOutcomes.first
-    }
-
     private var codexContent: some View {
         ScrollView {
-            if viewModel.isMultiAccountEnabled {
-                VStack(alignment: .leading, spacing: 16) {
-                    if viewModel.codexAccounts.isEmpty {
-                ContentUnavailableView(
-                    NSLocalizedString("codex.accounts.empty.title", value: "No accounts", comment: "Empty state title"),
-                    systemImage: "person.crop.circle.badge.plus",
-                    description: Text(NSLocalizedString(
-                        "codex.accounts.empty.desc",
-                        value: "Add a snapshot of Codex auth.json to quickly switch accounts.",
-                        comment: "Empty state description"
-                    ))
-                    .dsSecondaryText(font: .body)
-                )
-                    }
+            VStack(alignment: .leading, spacing: 16) {
+                codexManagementCard
 
-                    LazyVGrid(columns: codexAccountColumns, alignment: .leading, spacing: 12) {
-                        ForEach(viewModel.codexAccountOutcomes) { outcome in
-                            codexOutcomeCard(outcome: outcome)
+                if viewModel.codexAccounts.isEmpty {
+                    ContentUnavailableView(
+                        NSLocalizedString("codex.accounts.empty.title", value: "No accounts", comment: "Empty state title"),
+                        systemImage: "person.crop.circle.badge.plus",
+                        description: Text(NSLocalizedString(
+                            "codex.accounts.empty.desc",
+                            value: "Add a snapshot of Codex auth.json to quickly switch accounts.",
+                            comment: "Empty state description"
+                        ))
+                        .dsSecondaryText(font: .body)
+                    )
+                }
+
+                LazyVGrid(columns: codexAccountColumns, alignment: .leading, spacing: 12) {
+                    ForEach(viewModel.codexAccountOutcomes) { outcome in
+                        codexOutcomeCard(outcome: outcome)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                codexTrendSection
+            }
+            .padding(.trailing, 12)
+            .padding(.vertical, 2)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    @ViewBuilder
+    private var codexManagementCard: some View {
+        if let status = viewModel.codexManagementStatus, status.needsEnable || status.needsMigration {
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(NSLocalizedString("codex.management.title", value: "管理状态", comment: "Codex management status"))
+                        .font(.headline)
+                    Text(NSLocalizedString("codex.management.desc", value: "首次使用建议先启用管理并执行数据迁移。", comment: "Codex management description"))
+                        .font(.caption)
+                        .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                }
+                Spacer()
+                Button(NSLocalizedString("codex.management.enable", value: "启用管理", comment: "Enable codex management")) {
+                    Task { await viewModel.enableCodexManagement() }
+                }
+                Button(NSLocalizedString("codex.management.migrate", value: "数据迁移", comment: "Migrate codex data")) {
+                    Task { await viewModel.migrateCodexManagementData() }
+                }
+            }
+            .padding(12)
+            .dsCard()
+        }
+    }
+
+    @ViewBuilder
+    private var codexTrendSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .center, spacing: 12) {
+                Text(NSLocalizedString("codex.usage.trend.title", value: "Token Trend", comment: "Codex usage trend title"))
+                    .font(.headline)
+
+                Spacer()
+
+                Picker("", selection: Binding(
+                    get: { viewModel.codexTrendRange },
+                    set: { viewModel.setCodexTrendRange($0) }
+                )) {
+                    ForEach(ProviderUsageViewModel.CodexTrendRange.allCases) { range in
+                        Text(range.title).tag(range)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .frame(width: 220)
+
+                Button {
+                    viewModel.refreshCodexTokenTrendNow()
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                }
+                .help(NSLocalizedString("usage.monitor.refresh", value: "Refresh", comment: "Refresh"))
+                .dsBorderlessButton()
+            }
+
+            if viewModel.isLoadingCodexTrend {
+                ProgressView()
+                    .controlSize(.small)
+            } else if let errorMessage = viewModel.codexTrendErrorMessage, !errorMessage.isEmpty {
+                Text(errorMessage)
+                    .font(.caption)
+                    .foregroundStyle(DesignSystem.Colors.Status.error)
+            } else if let snapshot = viewModel.codexTrendSnapshot, !snapshot.points.isEmpty {
+                codexTrendSummaryRow(snapshot: snapshot)
+                codexTrendStackedBarChart(points: filteredTrendPoints(from: snapshot))
+                codexTrendTable(points: filteredTrendPoints(from: snapshot))
+            } else {
+                Text(NSLocalizedString("usage.monitor.empty.desc", value: "No provider data available yet.", comment: "Empty description"))
+                    .font(.caption)
+                    .foregroundStyle(DesignSystem.Colors.Text.tertiary)
+            }
+        }
+        .padding(12)
+        .dsCard()
+    }
+
+    private func codexTrendSummaryRow(snapshot: CodexTokenTrendSnapshot) -> some View {
+        HStack(spacing: 16) {
+            summaryPill(
+                title: NSLocalizedString("codex.usage.range.today", value: "Today", comment: "Today"),
+                value: formatTokenCountCompact(snapshot.todayTokens)
+            )
+            summaryPill(
+                title: NSLocalizedString("codex.usage.range.7d", value: "7D", comment: "7D"),
+                value: formatTokenCountCompact(snapshot.last7DaysTokens)
+            )
+            summaryPill(
+                title: NSLocalizedString("codex.usage.range.30d", value: "30D", comment: "30D"),
+                value: formatTokenCountCompact(snapshot.last30DaysTokens)
+            )
+            summaryPill(
+                title: NSLocalizedString("codex.usage.range.all", value: "ALL", comment: "ALL"),
+                value: formatTokenCountCompact(snapshot.points.reduce(0) { $0 + $1.totalTokens })
+            )
+            Spacer()
+        }
+    }
+
+    private func summaryPill(title: String, value: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title)
+                .font(.caption2)
+                .foregroundStyle(DesignSystem.Colors.Text.tertiary)
+            Text(value)
+                .font(.caption)
+                .monospacedDigit()
+                .foregroundStyle(DesignSystem.Colors.Text.primary)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(DesignSystem.Colors.Background.elevated)
+        )
+    }
+
+    private func codexTrendStackedBarChart(points: [CodexTokenTrendPoint]) -> some View {
+        let sortedPoints = points.sorted { $0.date < $1.date }
+        let maxTotal = max(sortedPoints.map(\.totalTokens).max() ?? 1, 1)
+
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 12) {
+                legendMark(title: "Input", color: DesignSystem.Colors.primary)
+                legendMark(title: "Output", color: DesignSystem.Colors.Status.success)
+                legendMark(title: "Cache", color: DesignSystem.Colors.Status.warning)
+                Spacer()
+            }
+            .font(.caption2)
+
+            ScrollViewReader { proxy in
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(alignment: .bottom, spacing: 8) {
+                        ForEach(sortedPoints, id: \.date) { point in
+                            let isSelected = selectedTrendDate == point.date
+                            VStack(spacing: 6) {
+                                VStack(spacing: 0) {
+                                    segmentBlock(height: stackHeight(total: point.totalTokens, part: point.inputTokens, maxTotal: maxTotal), color: DesignSystem.Colors.primary)
+                                    segmentBlock(height: stackHeight(total: point.totalTokens, part: point.outputTokens, maxTotal: maxTotal), color: DesignSystem.Colors.Status.success)
+                                    segmentBlock(height: stackHeight(total: point.totalTokens, part: point.cacheReadTokens, maxTotal: maxTotal), color: DesignSystem.Colors.Status.warning)
+                                }
+                                .frame(width: 22)
+                                .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
+                                .overlay {
+                                    if isSelected {
+                                        RoundedRectangle(cornerRadius: 3, style: .continuous)
+                                            .stroke(DesignSystem.Colors.primary, lineWidth: 2)
+                                    }
+                                }
+                                .frame(width: 28, height: 124, alignment: .bottom)
+                                .opacity(selectedTrendDate == nil || isSelected ? 1 : 0.55)
+
+                                Text(shortDateLabel(point.date))
+                                    .font(.caption2)
+                                    .foregroundStyle(DesignSystem.Colors.Text.tertiary)
+                            }
+                            .id(point.date)
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                if selectedTrendDate == point.date {
+                                    selectedTrendDate = nil
+                                } else {
+                                    selectedTrendDate = point.date
+                                }
+                            }
                         }
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-
-                    codexGlobalUsageGroup
+                    .padding(.vertical, 4)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-            } else {
-                VStack(alignment: .leading, spacing: 12) {
-                    if let outcome = codexCurrentOutcome {
-                        ProviderUsageSnapshotView(
-                            outcome: outcome,
-                            creditsRefreshedAt: creditsRefreshedAt(for: outcome)
-                        )
-                    } else {
-                        ContentUnavailableView(
-                            NSLocalizedString("usage.monitor.empty.title", value: "No usage data", comment: "Empty title"),
-                            systemImage: "chart.bar",
-                            description: Text(NSLocalizedString("usage.monitor.empty.desc", value: "No provider data available yet.", comment: "Empty description"))
-                                .dsSecondaryText(font: .body)
-                        )
+                .onChange(of: selectedTrendDate) { _, newValue in
+                    guard let newValue else { return }
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        proxy.scrollTo(newValue, anchor: .center)
                     }
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .onAppear {
+                    guard let selectedTrendDate else { return }
+                    DispatchQueue.main.async {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            proxy.scrollTo(selectedTrendDate, anchor: .center)
+                        }
+                    }
+                }
+                .onChange(of: viewModel.codexTrendRange) { _, _ in
+                    guard let selectedTrendDate else { return }
+                    DispatchQueue.main.async {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            proxy.scrollTo(selectedTrendDate, anchor: .center)
+                        }
+                    }
+                }
+                .onChange(of: sortedPoints.map(\.date)) { _, dates in
+                    guard let selectedTrendDate, dates.contains(selectedTrendDate) else {
+                        if let selectedTrendDate, !dates.contains(selectedTrendDate) {
+                            self.selectedTrendDate = nil
+                        }
+                        return
+                    }
+                    DispatchQueue.main.async {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            proxy.scrollTo(selectedTrendDate, anchor: .center)
+                        }
+                    }
+                }
             }
+            .onChange(of: selectedTrendDate) { _, newValue in
+                guard let newValue else { return }
+                if !sortedPoints.contains(where: { $0.date == newValue }) {
+                    selectedTrendDate = nil
+                }
+            }
+        }
+    }
+
+    private func legendMark(title: String, color: Color) -> some View {
+        HStack(spacing: 4) {
+            RoundedRectangle(cornerRadius: 3, style: .continuous)
+                .fill(color)
+                .frame(width: 10, height: 10)
+            Text(title)
+        }
+    }
+
+    private func segmentBlock(height: CGFloat, color: Color) -> some View {
+        Rectangle()
+            .fill(color)
+            .frame(height: max(0, height))
+    }
+
+    private func stackHeight(total: Int, part: Int, maxTotal: Int) -> CGFloat {
+        guard total > 0, part > 0, maxTotal > 0 else { return 0 }
+        let fullHeight = CGFloat(total) / CGFloat(maxTotal) * 120
+        return fullHeight * CGFloat(part) / CGFloat(total)
+    }
+
+    private func codexTrendTable(points: [CodexTokenTrendPoint]) -> some View {
+        let rows = sortedTrendRows(points)
+        return VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 0) {
+                trendHeaderCell(title: "Date", key: .date, width: 96)
+                trendHeaderCell(title: "Total", key: .total, width: 108)
+                trendHeaderCell(title: "Input", key: .input, width: 108)
+                trendHeaderCell(title: "Output", key: .output, width: 108)
+                trendHeaderCell(title: "Cache", key: .cache, width: 108)
+                Spacer(minLength: 0)
+            }
+            .padding(.vertical, 6)
+            .background(DesignSystem.Colors.Background.elevated)
+
+            ForEach(Array(rows.enumerated()), id: \.offset) { index, row in
+                let isSelected = selectedTrendDate == row.date
+                HStack(spacing: 0) {
+                    trendValueCell(row.date, width: 96, isDate: true)
+                    trendValueCell(formatTokenCompact(row.totalTokens), width: 108)
+                    trendValueCell(formatTokenCompact(row.inputTokens), width: 108)
+                    trendValueCell(formatTokenCompact(row.outputTokens), width: 108)
+                    trendValueCell(formatTokenCompact(row.cacheReadTokens), width: 108)
+                    Spacer(minLength: 0)
+                }
+                .padding(.vertical, 6)
+                .background(
+                    isSelected
+                    ? DesignSystem.Colors.primary.opacity(0.14)
+                    : (index.isMultiple(of: 2) ? DesignSystem.Colors.Background.surface : Color.clear)
+                )
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    if selectedTrendDate == row.date {
+                        selectedTrendDate = nil
+                    } else {
+                        selectedTrendDate = row.date
+                    }
+                }
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+
+    private func trendHeaderCell(title: String, key: CodexTrendSortKey, width: CGFloat) -> some View {
+        Button {
+            if codexTrendSortKey == key {
+                codexTrendSortAscending.toggle()
+            } else {
+                codexTrendSortKey = key
+                codexTrendSortAscending = false
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Text(title)
+                if codexTrendSortKey == key {
+                    Image(systemName: codexTrendSortAscending ? "arrow.up" : "arrow.down")
+                        .font(.body)
+                }
+            }
+            .frame(width: width, alignment: .center)
+            .font(.body)
+            .foregroundStyle(DesignSystem.Colors.Text.secondary)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func trendValueCell(_ value: String, width: CGFloat, isDate: Bool = false) -> some View {
+        Text(value)
+            .frame(width: width, alignment: .center)
+            .font(.body)
+            .foregroundStyle(DesignSystem.Colors.Text.primary)
+            .monospacedDigit()
+            .if(isDate == false) { view in
+                view
+                    .textSelection(.enabled)
+            }
+    }
+
+    private func sortedTrendRows(_ rows: [CodexTokenTrendPoint]) -> [CodexTokenTrendPoint] {
+        rows.sorted { lhs, rhs in
+            let ascending = codexTrendSortAscending
+            switch codexTrendSortKey {
+            case .date:
+                return ascending ? (lhs.date < rhs.date) : (lhs.date > rhs.date)
+            case .total:
+                return ascending ? (lhs.totalTokens < rhs.totalTokens) : (lhs.totalTokens > rhs.totalTokens)
+            case .input:
+                return ascending ? (lhs.inputTokens < rhs.inputTokens) : (lhs.inputTokens > rhs.inputTokens)
+            case .output:
+                return ascending ? (lhs.outputTokens < rhs.outputTokens) : (lhs.outputTokens > rhs.outputTokens)
+            case .cache:
+                return ascending ? (lhs.cacheReadTokens < rhs.cacheReadTokens) : (lhs.cacheReadTokens > rhs.cacheReadTokens)
+            }
+        }
+    }
+
+    private func formatTokenCountCompact(_ value: Int?) -> String {
+        guard let value else { return "-" }
+        return formatTokenCompact(value)
+    }
+
+    private func formatTokenCompact(_ value: Int) -> String {
+        if value >= 1_000_000 {
+            return String(format: "%.1fM", Double(value) / 1_000_000)
+        }
+        if value >= 1_000 {
+            return String(format: "%.1fK", Double(value) / 1_000)
+        }
+        return "\(value)"
+    }
+
+    private func shortDateLabel(_ value: String) -> String {
+        let parts = value.split(separator: "-")
+        guard parts.count == 3 else { return value }
+        return "\(parts[1])/\(parts[2])"
+    }
+
+    private func filteredTrendPoints(from snapshot: CodexTokenTrendSnapshot) -> [CodexTokenTrendPoint] {
+        let sorted = snapshot.points.sorted { $0.date > $1.date }
+        switch viewModel.codexTrendRange {
+        case .days7:
+            return Array(sorted.prefix(7))
+        case .days30:
+            return Array(sorted.prefix(30))
+        case .all:
+            return sorted
         }
     }
 
@@ -608,70 +940,6 @@ struct ProviderUsageView: View {
         .dsCard(background: .clear, borderColor: nil, borderWidth: 0)
     }
 
-    @ViewBuilder
-    private var codexGlobalUsageGroup: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(NSLocalizedString("codex.usage.group.title", value: "Usage & Cost", comment: "Global usage/cost group title"))
-                .font(.headline)
-
-            if let outcome = codexGlobalOutcome {
-                codexGlobalUsageContent(outcome: outcome)
-            } else {
-                ContentUnavailableView(
-                    NSLocalizedString("usage.monitor.empty.title", value: "No usage data", comment: "Empty title"),
-                    systemImage: "chart.bar",
-                    description: Text(NSLocalizedString("usage.monitor.empty.desc", value: "No provider data available yet.", comment: "Empty description"))
-                        .dsSecondaryText(font: .body)
-                )
-            }
-        }
-        .padding()
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .dsCard()
-    }
-
-    @ViewBuilder
-    private func codexGlobalUsageContent(outcome: ProviderAccountUsageOutcome) -> some View {
-        switch outcome.outcome.result {
-        case let .success(result):
-            VStack(alignment: .leading, spacing: 10) {
-                if let cost = result.cost {
-                    let todayLine = codexCostLineToday(cost)
-                    let last30Line = codexCostLineLast30(cost)
-                    let dailyCosts = cost.dailyCosts ?? []
-                    CodexCostChartSectionView(
-                        todayLine: todayLine,
-                        last30Line: last30Line,
-                        dailyCosts: dailyCosts,
-                        granularity: $costChartGranularity,
-                        valueDisplayMode: $costChartValueDisplayMode,
-                        selection: $costChartSelection,
-                        selectedID: $costChartSelectedID,
-                        tableSelection: $costTableSelection,
-                        windowDays: Binding(
-                            get: { viewModel.codexCostWindowDays },
-                            set: { newValue in
-                                viewModel.setCodexCostWindowDays(newValue)
-                            }
-                        )
-                    )
-                } else {
-                    Text(NSLocalizedString("usage.monitor.empty.desc", value: "No provider data available yet.", comment: "Empty description"))
-                        .font(.caption)
-                        .foregroundStyle(DesignSystem.Colors.Text.tertiary)
-                }
-            }
-        case let .failure(error):
-            Text(NSLocalizedString("usage.monitor.error.title", value: "Failed to load usage", comment: "Error title"))
-                .dsErrorText(font: .caption)
-
-            Text(error.localizedDescription)
-                .font(.caption)
-                .dsTertiaryText(font: .caption)
-                .lineLimit(2)
-        }
-    }
-
     private func codexSubtitleText(title: String, email: String?, plan: String?) -> String? {
         let trimmedEmail = email?.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedPlan = plan?.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -800,50 +1068,6 @@ struct ProviderUsageView: View {
             return NSLocalizedString("usage.metric.unknown", value: "Unknown", comment: "Unknown")
         }
         return String(format: "%.0f", value)
-    }
-
-    private func codexCostLineToday(_ cost: CostSnapshot) -> String? {
-        guard let dollars = cost.todayCostUSD else { return nil }
-        let tokens = cost.todayTokens
-        let tokenText = tokens.map { " • \(codexTokenCountText($0))" } ?? ""
-        return String(
-            format: NSLocalizedString(
-                "usage.metric.cost.today_format",
-                value: "Today: $%.2f%@",
-                comment: "Today cost format"
-            ),
-            dollars,
-            tokenText
-        )
-    }
-
-    private func codexCostLineLast30(_ cost: CostSnapshot) -> String? {
-        guard let dollars = cost.last30DaysCostUSD else { return nil }
-        let tokens = cost.last30DaysTokens
-        let tokenText = tokens.map { " • \(codexTokenCountText($0))" } ?? ""
-        let amountText = String(format: "$%.2f%@", dollars, tokenText)
-        if let days = cost.windowDays {
-            if isChineseLocale {
-                return "近\(days)天: \(amountText)"
-            }
-            return "Last \(days) days: \(amountText)"
-        }
-        if isChineseLocale {
-            return "全部时间: \(amountText)"
-        }
-        return "All time: \(amountText)"
-    }
-
-    private func codexTokenCountText(_ value: Int) -> String {
-        if value >= 1_000_000 {
-            let millions = Double(value) / 1_000_000.0
-            return String(format: NSLocalizedString("usage.metric.tokens_m", value: "%.0fM tokens", comment: "Token count in millions"), millions)
-        }
-        if value >= 1_000 {
-            let thousands = Double(value) / 1_000.0
-            return String(format: NSLocalizedString("usage.metric.tokens_k", value: "%.0fK tokens", comment: "Token count in thousands"), thousands)
-        }
-        return String(format: NSLocalizedString("usage.metric.tokens", value: "%d tokens", comment: "Token count"), value)
     }
 
 }

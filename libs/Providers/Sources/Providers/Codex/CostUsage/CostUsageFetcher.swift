@@ -1,6 +1,7 @@
 import Foundation
 import CodexBarProviderCatalog
 import ProvidersShared
+import STFilePath
 
 public enum CostUsageError: LocalizedError, Sendable {
     case unsupportedProvider(UsageProvider)
@@ -26,7 +27,9 @@ public struct CostUsageFetcher: Sendable {
         provider: UsageProvider,
         now: Date = Date(),
         trailingDays: Int? = 30,
-        forceRefresh: Bool = false) async throws -> CostUsageTokenSnapshot
+        forceRefresh: Bool = false,
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) async throws -> CostUsageTokenSnapshot
     {
         guard provider == .codex else {
             throw CostUsageError.unsupportedProvider(provider)
@@ -43,6 +46,10 @@ public struct CostUsageFetcher: Sendable {
         }()
 
         var options = CostUsageScanner.Options()
+        let codexHome = Self.codexHomeFolder(environment: environment)
+        options.codexSessionsRoot = codexHome.folder("sessions")
+        // Keep cost scanner cache isolated per CODEX_HOME to avoid cross-account token bleed.
+        options.cacheRoot = codexHome.folder("cache")
         if forceRefresh {
             options.refreshMinIntervalSeconds = 0
             options.forceRescan = true
@@ -54,13 +61,59 @@ public struct CostUsageFetcher: Sendable {
             now: now,
             options: options)
 
-        return Self.tokenSnapshot(from: daily, now: now, rangeDays: trailingDays)
+        if Self.hasUsableCostData(daily) || environment["CODEX_HOME"]?.isEmpty != false {
+            return Self.tokenSnapshot(from: daily, now: now, rangeDays: trailingDays, source: .scopedSessions)
+        }
+
+        // Fallback for accounts with isolated CODEX_HOME but without local sessions history.
+        // This keeps legacy behavior by reading global ~/.codex sessions.
+        var fallbackOptions = CostUsageScanner.Options()
+        let defaultHome = STFolder(NSHomeDirectory()).folder(".codex")
+        fallbackOptions.codexSessionsRoot = defaultHome.folder("sessions")
+        fallbackOptions.cacheRoot = defaultHome.folder("cache")
+        if forceRefresh {
+            fallbackOptions.refreshMinIntervalSeconds = 0
+            fallbackOptions.forceRescan = true
+        }
+
+        let fallbackDaily = CostUsageScanner.loadDailyReport(
+            provider: provider,
+            since: since,
+            until: until,
+            now: now,
+            options: fallbackOptions
+        )
+        if Self.hasUsableCostData(fallbackDaily) {
+            return Self.tokenSnapshot(from: fallbackDaily, now: now, rangeDays: trailingDays, source: .globalFallback)
+        }
+        return Self.tokenSnapshot(from: daily, now: now, rangeDays: trailingDays, source: .scopedSessions)
+    }
+
+    static func codexHomeFolder(environment: [String: String]) -> STFolder {
+        if let override = environment["CODEX_HOME"]?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !override.isEmpty
+        {
+            return STFolder(override)
+        }
+        return STFolder(NSHomeDirectory()).folder(".codex")
+    }
+
+    static func hasUsableCostData(_ report: CostUsageDailyReport) -> Bool {
+        if let summary = report.summary,
+           summary.totalTokens != nil || summary.totalCostUSD != nil
+        {
+            return true
+        }
+        return report.data.contains { entry in
+            entry.totalTokens != nil || entry.costUSD != nil
+        }
     }
 
     static func tokenSnapshot(
         from daily: CostUsageDailyReport,
         now: Date,
-        rangeDays: Int? = nil
+        rangeDays: Int? = nil,
+        source: CostUsageTokenSnapshot.Source = .scopedSessions
     ) -> CostUsageTokenSnapshot {
         // Session fields should represent "today" only.
         let currentDay = daily.data
@@ -98,7 +151,8 @@ public struct CostUsageFetcher: Sendable {
             rangeOutputTokens: daily.summary?.totalOutputTokens,
             rangeCachedInputTokens: daily.summary?.cacheReadTokens,
             daily: daily.data,
-            updatedAt: now)
+            updatedAt: now,
+            source: source)
     }
 
     static func selectCurrentSession(from sessions: [CostUsageSessionReport.Entry])

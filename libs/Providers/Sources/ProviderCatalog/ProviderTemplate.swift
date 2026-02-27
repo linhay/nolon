@@ -1,4 +1,5 @@
 import Foundation
+import STFilePath
 
 /// Built-in provider templates for quick setup.
 /// These are templates used when adding a new provider, not actual providers.
@@ -21,6 +22,21 @@ public enum ProviderTemplate: String, CaseIterable, Sendable, Identifiable {
     /// Human-readable display name.
     public var displayName: String {
         config?.displayName ?? rawValue.capitalized
+    }
+
+    /// CLI executable name for provider discovery (e.g. "codex", "claude").
+    public var cliName: String {
+        config?.cliName ?? rawValue
+    }
+
+    /// Stable provider id used by CLI output.
+    public var providerID: String {
+        switch self {
+        case .claudeCode:
+            return "claude"
+        default:
+            return rawValue
+        }
     }
 
     /// Icon name for this template.
@@ -72,7 +88,7 @@ public enum ProviderTemplate: String, CaseIterable, Sendable, Identifiable {
 
     /// Additional default skills paths for this template (penetration reading).
     public var defaultSkillsPaths: [URL] {
-        let homeURL = URL(fileURLWithPath: NSHomeDirectory())
+        let homeURL = STFolder(NSHomeDirectory()).url
         return (config?.defaultSkillsPaths ?? []).map { path in
             let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
             if trimmed.hasPrefix(".") {
@@ -126,7 +142,7 @@ public enum ProviderTemplate: String, CaseIterable, Sendable, Identifiable {
     // MARK: - Helpers
 
     private var vendorBaseURL: URL {
-        vendorHomeURL(projectRoot: URL(fileURLWithPath: NSHomeDirectory()))
+        vendorHomeURL(projectRoot: STFolder(NSHomeDirectory()).url)
     }
 
     private func vendorHomeURL(projectRoot: URL) -> URL {
@@ -150,5 +166,17 @@ public enum ProviderTemplate: String, CaseIterable, Sendable, Identifiable {
             url.appendPathComponent(component)
         }
         return url
+    }
+
+    /// Resolves a user-facing provider identifier to a template.
+    /// Accepts both `rawValue` and stable `providerID`, and keeps aliases for compatibility.
+    public static func resolve(providerID: String) -> ProviderTemplate? {
+        let normalized = providerID.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if normalized == "codex-xcode" || normalized == "codexxcode" {
+            return .codexXcode
+        }
+        return allCases.first { template in
+            normalized == template.rawValue.lowercased() || normalized == template.providerID.lowercased()
+        }
     }
 }

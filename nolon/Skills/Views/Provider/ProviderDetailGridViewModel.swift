@@ -2,160 +2,8 @@ import SwiftUI
 import ProviderCatalog
 import Observation
 import STJSON
-import TOML
 import STFilePath
-
-// MARK: - Codex MCP Config Models (shared)
-struct CodexMCPConfig: Codable, Sendable {
-    var model: String?
-    var modelReasoningEffort: String?
-    var projects: [String: CodexProject]?
-    var notice: CodexNotice?
-    var mcpServers: [String: CodexMCPServer]?
-    
-    enum CodingKeys: String, CodingKey {
-        case model
-        case modelReasoningEffort = "model_reasoning_effort"
-        case projects
-        case notice
-        case mcpServers = "mcp_servers"
-    }
-
-    nonisolated init(
-        model: String? = nil,
-        modelReasoningEffort: String? = nil,
-        projects: [String: CodexProject]? = nil,
-        notice: CodexNotice? = nil,
-        mcpServers: [String: CodexMCPServer]? = nil
-    ) {
-        self.model = model
-        self.modelReasoningEffort = modelReasoningEffort
-        self.projects = projects
-        self.notice = notice
-        self.mcpServers = mcpServers
-    }
-
-    nonisolated init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        self.model = try container.decodeIfPresent(String.self, forKey: .model)
-        self.modelReasoningEffort = try container.decodeIfPresent(String.self, forKey: .modelReasoningEffort)
-        self.projects = try container.decodeIfPresent([String: CodexProject].self, forKey: .projects)
-        self.notice = try container.decodeIfPresent(CodexNotice.self, forKey: .notice)
-        self.mcpServers = try container.decodeIfPresent([String: CodexMCPServer].self, forKey: .mcpServers)
-    }
-
-    nonisolated func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encodeIfPresent(model, forKey: .model)
-        try container.encodeIfPresent(modelReasoningEffort, forKey: .modelReasoningEffort)
-        try container.encodeIfPresent(projects, forKey: .projects)
-        try container.encodeIfPresent(notice, forKey: .notice)
-        try container.encodeIfPresent(mcpServers, forKey: .mcpServers)
-    }
-}
-
-struct CodexProject: Codable, Sendable {
-    var trustLevel: String?
-    
-    enum CodingKeys: String, CodingKey {
-        case trustLevel = "trust_level"
-    }
-
-    nonisolated init(trustLevel: String? = nil) {
-        self.trustLevel = trustLevel
-    }
-
-    nonisolated init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        self.trustLevel = try container.decodeIfPresent(String.self, forKey: .trustLevel)
-    }
-
-    nonisolated func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encodeIfPresent(trustLevel, forKey: .trustLevel)
-    }
-}
-
-struct CodexNotice: Codable, Sendable {
-    var modelMigrations: [String: String]?
-    
-    enum CodingKeys: String, CodingKey {
-        case modelMigrations = "model_migrations"
-    }
-
-    nonisolated init(modelMigrations: [String: String]? = nil) {
-        self.modelMigrations = modelMigrations
-    }
-
-    nonisolated init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        self.modelMigrations = try container.decodeIfPresent([String: String].self, forKey: .modelMigrations)
-    }
-
-    nonisolated func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encodeIfPresent(modelMigrations, forKey: .modelMigrations)
-    }
-}
-
-struct CodexMCPServer: Codable, Sendable {
-    var url: String?
-    var command: String?
-    var args: [String]?
-    var env: [String: String]?
-    var enabled: Bool?
-
-    enum CodingKeys: String, CodingKey {
-        case url
-        case command
-        case args
-        case env
-        case enabled
-    }
-
-    nonisolated init(
-        url: String? = nil,
-        command: String? = nil,
-        args: [String]? = nil,
-        env: [String: String]? = nil,
-        enabled: Bool? = nil
-    ) {
-        self.url = url
-        self.command = command
-        self.args = args
-        self.env = env
-        self.enabled = enabled
-    }
-
-    nonisolated init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        self.url = try container.decodeIfPresent(String.self, forKey: .url)
-        self.command = try container.decodeIfPresent(String.self, forKey: .command)
-        self.args = try container.decodeIfPresent([String].self, forKey: .args)
-        self.env = try container.decodeIfPresent([String: String].self, forKey: .env)
-        self.enabled = try container.decodeIfPresent(Bool.self, forKey: .enabled)
-    }
-
-    nonisolated func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encodeIfPresent(url, forKey: .url)
-        try container.encodeIfPresent(command, forKey: .command)
-        try container.encodeIfPresent(args, forKey: .args)
-        try container.encodeIfPresent(env, forKey: .env)
-        try container.encodeIfPresent(enabled, forKey: .enabled)
-    }
-}
-
-extension CodexMCPServer {
-    init(from mcp: MCP) {
-        let dict = mcp.json.value as? [String: Any] ?? [:]
-        url = dict["url"] as? String
-        command = dict["command"] as? String
-        args = dict["args"] as? [String]
-        env = dict["env"] as? [String: String]
-        enabled = dict["enabled"] as? Bool
-    }
-}
+import NolonResourceKit
 
 /// Detail 区域 Grid 视图的 ViewModel
 @MainActor
@@ -186,7 +34,11 @@ final class ProviderDetailGridViewModel {
     
     // State
     var isLoading = false
-    var errorMessage: String?
+    var skillsErrorMessage: String?
+    var workflowsErrorMessage: String?
+    var rulesErrorMessage: String?
+    var agentsErrorMessage: String?
+    var mcpErrorMessage: String?
     var searchText: String = ""
     var showingRemoteBrowser: RemoteBrowserType? = nil
     var codexModelOptions: [String] = []
@@ -199,10 +51,25 @@ final class ProviderDetailGridViewModel {
         
         var id: Self { self }
     }
+
+    enum ResourceErrorScope: Sendable {
+        case skills
+        case workflows
+        case rules
+        case agents
+        case mcp
+    }
     
     // Internals
     var repository: SkillRepository
     var installer: SkillInstaller
+    private let resourceService: ProviderResourceService
+    private let mcpMaintenanceService = ProviderMCPMaintenanceService()
+    private let remoteInstallOrchestrator = RemoteInstallOrchestrator()
+    private let codexModelPreferenceService = CodexModelPreferenceService()
+    private let skillSnapshotService = ProviderSkillSnapshotService()
+    private let snapshotService = ProviderResourceSnapshotService()
+    private let resourceViewMapper = ProviderResourceViewMapper()
     
     init(provider: Provider?, settings: ProviderSettings) {
         self.provider = provider
@@ -210,6 +77,7 @@ final class ProviderDetailGridViewModel {
         let repo = SkillRepository()
         self.repository = repo
         self.installer = SkillInstaller(repository: repo, settings: settings)
+        self.resourceService = ProviderResourceService()
     }
     
     func updateProvider(_ provider: Provider?) async {
@@ -218,6 +86,7 @@ final class ProviderDetailGridViewModel {
     }
     
     func loadData() async {
+        clearScopedErrors()
         guard let provider = provider else {
             installedSkills = []
             workflows = []
@@ -232,63 +101,63 @@ final class ProviderDetailGridViewModel {
         
         isLoading = true
         
-        // Load skills - scan all skills in provider directories (not just installed from global)
         do {
-            let states = try installer.scanProvider(provider: provider)
-            
-            // Parse all skills from provider directories (both installed and orphaned)
-            // This ensures we show all skills managed by the provider, not just those linked from global
-            var parsedSkills: [Skill] = []
-            
-            for state in states {
-                // Skip broken symlinks
-                guard state.state != .broken else { continue }
-                
-                // Try to parse skill from provider directory
-                let skillMdPath = "\(state.path)/SKILL.md"
-                guard let content = try? String(contentsOfFile: skillMdPath, encoding: .utf8),
-                      let skill = try? SkillParser.parse(
-                          content: content,
-                          id: state.skillName,
-                          globalPath: state.path
-                      ) else {
-                    continue
-                }
-                
-                var parsedSkill = Skill(
-                    id: skill.id,
-                    name: skill.name,
-                    description: skill.description,
-                    version: skill.version,
-                    globalPath: skill.globalPath,
-                    content: skill.content,
-                    referenceCount: 0,
-                    scriptCount: 0
-                )
-                parsedSkill.sourcePath = state.basePath
-                parsedSkill.installationState = state.state
-                parsedSkills.append(parsedSkill)
-            }
-            
-            installedSkills = parsedSkills
+            installedSkills = try skillSnapshotService.load(provider: provider)
         } catch {
-            errorMessage = error.localizedDescription
+            installedSkills = []
+            setError(error.localizedDescription, scope: .skills)
         }
         
-        // Load workflows
-        loadWorkflows(for: provider)
-        
-        // Load rules
-        loadRules(for: provider)
-        
-        // Load AGENTS docs
-        loadAgentsFiles(for: provider)
-        
-        // Load MCPs
-        loadMCPs(for: provider)
+        applyResourceSnapshot(for: provider)
         loadCodexBinaryModels(for: provider)
         
         isLoading = false
+    }
+
+    private func applyResourceSnapshot(for provider: Provider) {
+        let snapshot = snapshotService.load(provider: provider)
+        let mapped = resourceViewMapper.map(snapshot: snapshot)
+        workflows = mapped.workflows.map {
+            WorkflowInfo(
+                id: $0.id,
+                name: $0.name,
+                description: $0.description,
+                path: $0.path,
+                source: WorkflowSource(kind: $0.source)
+            )
+        }
+        workflowIds = Set(workflows.filter { $0.source == .skill }.map(\.id))
+        mcpWorkflowIds = Set(workflows.filter { $0.source == .mcp }.map(\.id))
+
+        rules = mapped.rules.map {
+            RuleInfo(
+                id: $0.id,
+                name: $0.name,
+                preview: $0.preview,
+                relativePath: $0.relativePath,
+                path: $0.path
+            )
+        }
+
+        agentsFiles = mapped.agents.map { item in
+            let kind: AgentDocKind
+            switch item.kind {
+            case .override: kind = .override
+            case .base: kind = .base
+            }
+            return AgentDocInfo(
+                id: item.path,
+                fileName: item.fileName,
+                path: item.path,
+                preview: item.preview,
+                kind: kind
+            )
+        }
+
+        mcps = snapshot.mcps
+        mcpCacheStates = snapshot.mcpCacheStates.reduce(into: [:]) { partialResult, item in
+            partialResult[item.key] = McpCacheState(rawValue: item.value.rawValue) ?? .notMigrated
+        }
     }
 
     var hasCodexBinarySupport: Bool {
@@ -299,20 +168,13 @@ final class ProviderDetailGridViewModel {
     func saveSelectedCodexModel(_ model: String?) async {
         guard let provider else { return }
         guard hasCodexBinarySupport else { return }
-        guard let templateId = provider.templateId, let template = ProviderTemplate(rawValue: templateId) else { return }
+        guard codexModelPreferenceService.supports(provider: provider) else { return }
 
         isSavingCodexModel = true
         defer { isSavingCodexModel = false }
 
         do {
-            let configFile = STFile(template.defaultMcpConfigPath)
-            let trimmed = model?.trimmingCharacters(in: .whitespacesAndNewlines)
-            let normalized = (trimmed?.isEmpty == false) ? trimmed : nil
-            if let normalized {
-                try await CodexBinaryManager.shared.applyModelToConfig(normalized, configFile: configFile)
-            } else {
-                try await CodexBinaryManager.shared.clearPreferredModel(configFile: configFile)
-            }
+            let normalized = try await codexModelPreferenceService.saveSelectedModel(model, for: provider)
             selectedCodexModel = normalized
             codexModelStatusMessage = NSLocalizedString(
                 "provider.binary.codex.model.saved",
@@ -325,24 +187,20 @@ final class ProviderDetailGridViewModel {
     }
 
     private func loadCodexBinaryModels(for provider: Provider) {
-        guard hasCodexBinarySupport else {
+        guard hasCodexBinarySupport,
+              codexModelPreferenceService.supports(provider: provider)
+        else {
             codexModelOptions = []
             selectedCodexModel = nil
             codexModelStatusMessage = nil
             return
         }
 
-        let configuredModel = loadCurrentConfiguredModel(for: provider)
+        let configuredModel = codexModelPreferenceService.loadConfiguredModel(for: provider)
         selectedCodexModel = configuredModel
 
-        var options: [String] = []
-        var seen = Set<String>()
-        for url in modelsCacheURLs(for: provider) {
-            for slug in loadVisibleModelSlugs(url) where seen.insert(slug).inserted {
-                options.append(slug)
-            }
-        }
-
+        var options = codexModelPreferenceService.loadVisibleModelSlugs(for: provider)
+        var seen = Set(options)
         if let configuredModel, !configuredModel.isEmpty, seen.insert(configuredModel).inserted {
             options.insert(configuredModel, at: 0)
         }
@@ -430,12 +288,13 @@ final class ProviderDetailGridViewModel {
     // MARK: - Async Error Handling Helper
     
     /// Generic async operation wrapper with automatic error handling and data reload
-    private func performAsync(_ operation: () async throws -> Void) async {
+    private func performAsync(scope: ResourceErrorScope, _ operation: () async throws -> Void) async {
         do {
             try await operation()
+            clearError(scope: scope)
             await loadData()
         } catch {
-            errorMessage = error.localizedDescription
+            setError(error.localizedDescription, scope: scope)
         }
     }
     
@@ -443,96 +302,23 @@ final class ProviderDetailGridViewModel {
         guard let templateId = provider.templateId,
               let template = ProviderTemplate(rawValue: templateId) else {
             mcps = []
+            mcpCacheStates = [:]
             return
         }
-        
-        let configPath = template.defaultMcpConfigPath
-        guard STFile(configPath).isExists else {
+        do {
+            let snapshot = try mcpMaintenanceService.listSnapshot(template: template)
+            mcps = snapshot.mcps
+            mcpCacheStates = snapshot.cacheStates.reduce(into: [:]) { partialResult, item in
+                partialResult[item.key] = McpCacheState(rawValue: item.value.rawValue) ?? .notMigrated
+            }
+        } catch {
             mcps = []
-            return
+            mcpCacheStates = [:]
         }
-
-        if template.rawValue == "opencode" {
-            do {
-                let data = try Data(contentsOf: configPath)
-                guard !data.isEmpty else {
-                    mcps = []
-                    refreshMcpCacheStates()
-                    return
-                }
-
-                let json = try JSON(data: data)
-                let servers = json["mcp"].dictionaryValue
-                mcps = servers
-                    .map { key, value in
-                        MCP(name: key, json: AnyCodable(Self.convertOpenCodeMcpServerJson(value.object)))
-                    }
-                    .sorted { $0.name < $1.name }
-                refreshMcpCacheStates()
-                return
-            } catch {
-                mcps = []
-                refreshMcpCacheStates()
-                return
-            }
-        }
-        
-        if configPath.pathExtension.lowercased() == "toml" {
-            // Codex uses TOML config
-            guard let data = try? Data(contentsOf: configPath) else { mcps = []; return }
-            
-            // Empty file -> no servers
-            if data.isEmpty {
-                mcps = []
-                return
-            }
-            
-            guard let config = try? TOMLDecoder().decode(CodexMCPConfig.self, from: data),
-                  let servers = config.mcpServers else {
-                mcps = []
-                return
-            }
-            
-            mcps = servers
-                .map { key, server in
-                    var dict: [String: Any] = [:]
-                    if let url = server.url { dict["url"] = url }
-                    if let command = server.command { dict["command"] = command }
-                    if let args = server.args { dict["args"] = args }
-                    if let env = server.env { dict["env"] = env }
-                    if let enabled = server.enabled { dict["enabled"] = enabled }
-                    return MCP(name: key, json: AnyCodable(dict))
-                }
-                .sorted { $0.name < $1.name }
-        } else {
-            // Existing JSON workflow
-            guard let data = try? Data(contentsOf: configPath),
-                  let json = try? JSON(data: data) else {
-                mcps = []
-                return
-            }
-            
-            // 1. Expand environment variables
-            let expandedJson = MCPConfigExpander.expand(json)
-            
-            // 2. Load enabled servers
-            let servers = expandedJson["mcpServers"].dictionary ?? expandedJson["mcp_servers"].dictionary
-            if let servers {
-                mcps = servers
-                    .map { key, value in
-                        MCP(name: key, json: AnyCodable(value.object))
-                    }
-                    .sorted { $0.name < $1.name }
-            } else {
-                mcps = []
-            }
-        }
-
-        refreshMcpCacheStates()
     }
 
     func setMCPEnabled(_ mcp: MCP, enabled: Bool, for provider: Provider) async {
-        await performAsync {
+        await performAsync(scope: .mcp) {
             try await updateMCPEnabled(mcp, enabled: enabled, for: provider)
         }
     }
@@ -542,81 +328,7 @@ final class ProviderDetailGridViewModel {
               let template = ProviderTemplate(rawValue: templateId) else {
             return
         }
-
-        let configPath = template.defaultMcpConfigPath
-
-        if template.rawValue == "opencode" {
-            guard STFile(configPath).isExists else { return }
-            let data = try Data(contentsOf: configPath)
-            var root = (try? JSONSerialization.jsonObject(with: data) as? [String: Any]) ?? [:]
-            var mcpDict = root["mcp"] as? [String: Any] ?? [:]
-            var server = mcpDict[mcp.name] as? [String: Any] ?? [:]
-            server["enabled"] = enabled
-            mcpDict[mcp.name] = server
-            root["mcp"] = mcpDict
-
-            let updated = try JSONSerialization.data(withJSONObject: root, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
-            try updated.write(to: configPath, options: .atomic)
-            loadMCPs(for: provider)
-            return
-        }
-
-        if configPath.pathExtension.lowercased() == "toml" {
-            guard
-                STFile(configPath).isExists,
-                let data = try? Data(contentsOf: configPath),
-                var config = try? TOMLDecoder().decode(CodexMCPConfig.self, from: data)
-            else {
-                return
-            }
-
-            if config.mcpServers == nil { config.mcpServers = [:] }
-            var server = config.mcpServers?[mcp.name] ?? .init(url: nil, command: nil, args: nil, env: nil, enabled: nil)
-            server.enabled = enabled
-            config.mcpServers?[mcp.name] = server
-
-            let tomlData = try TOMLEncoder().encode(config)
-            try tomlData.write(to: configPath)
-        } else {
-            var json: JSON
-            if STFile(configPath).isExists,
-               let data = try? Data(contentsOf: configPath),
-               let fileJson = try? JSON(data: data) {
-                json = fileJson
-            } else {
-                json = JSON([:])
-            }
-
-            // Normalize legacy key if present.
-            if json["mcpServers"].dictionary == nil,
-               json["mcp_servers"].dictionary != nil {
-                let legacy = json["mcp_servers"]
-                var root = json.dictionaryValue
-                root["mcpServers"] = legacy
-                root["mcp_servers"] = nil
-                json = JSON(root)
-            }
-
-            if json["mcpServers"].dictionary == nil {
-                json["mcpServers"] = JSON([:])
-            }
-
-            var servers = json["mcpServers"].dictionaryValue
-            var server = servers[mcp.name]?.dictionaryObject ?? [:]
-
-            if enabled {
-                server["disabled"] = nil
-            } else {
-                server["disabled"] = true
-            }
-
-            servers[mcp.name] = JSON(server)
-            json["mcpServers"] = JSON(servers)
-
-            if let str = json.rawString() {
-                try str.write(to: configPath, atomically: true, encoding: .utf8)
-            }
-        }
+        try mcpMaintenanceService.setEnabled(template: template, name: mcp.name, enabled: enabled)
 
         loadMCPs(for: provider)
     }
@@ -639,133 +351,17 @@ final class ProviderDetailGridViewModel {
               let template = ProviderTemplate(rawValue: templateId) else {
             return .init(migrated: 0, skipped: 0)
         }
-
-        let configPath = template.defaultMcpConfigPath
-        guard STFile(configPath).isExists else {
-            return .init(migrated: 0, skipped: 0)
-        }
-
-        var serverConfigs: [String: [String: Any]] = [:]
-
-        if configPath.pathExtension.lowercased() == "toml" {
-            let data = try Data(contentsOf: configPath)
-            guard !data.isEmpty else { return .init(migrated: 0, skipped: 0) }
-            let config = try TOMLDecoder().decode(CodexMCPConfig.self, from: data)
-            let servers = config.mcpServers ?? [:]
-            for (name, server) in servers {
-                var dict: [String: Any] = [:]
-                if let url = server.url { dict["url"] = url }
-                if let command = server.command { dict["command"] = command }
-                if let args = server.args { dict["args"] = args }
-                if let env = server.env { dict["env"] = env }
-                if let enabled = server.enabled, enabled == false { dict["disabled"] = true }
-
-                // Claude MCP JSON uses `type` to describe transport.
-                if dict["type"] == nil {
-                    if dict["command"] != nil {
-                        dict["type"] = "stdio"
-                    } else if dict["url"] != nil {
-                        dict["type"] = "http"
-                    }
-                }
-                serverConfigs[name] = dict
-            }
-        } else {
-            let data = try Data(contentsOf: configPath)
-            guard !data.isEmpty else { return .init(migrated: 0, skipped: 0) }
-            let json = try JSON(data: data)
-            let servers = json["mcpServers"].dictionaryValue.isEmpty ? json["mcp_servers"].dictionaryValue : json["mcpServers"].dictionaryValue
-            for (name, value) in servers {
-                var dict = value.dictionaryObject ?? [:]
-
-                if dict["type"] == nil {
-                    if dict["command"] != nil {
-                        dict["type"] = "stdio"
-                    } else if dict["url"] != nil {
-                        dict["type"] = "http"
-                    }
-                }
-                serverConfigs[name] = dict
-            }
-        }
-
-        guard !serverConfigs.isEmpty else {
-            return .init(migrated: 0, skipped: 0)
-        }
-
-        let manager = NolonManager.shared
-        STFolder(manager.mcpsURL).createIfNotExists()
-
-        var migrated = 0
-        var skipped = 0
-
-        for (name, serverDict) in serverConfigs {
-            let fileName = "\(safeMcpCacheFileStem(for: name)).json"
-            let targetURL = manager.mcpsURL.appendingPathComponent(fileName)
-            if STFile(targetURL).isExists {
-                skipped += 1
-                continue
-            }
-
-            let root: [String: Any] = ["mcpServers": [name: serverDict]]
-
-            let data = try JSONSerialization.data(
-                withJSONObject: root,
-                options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
-            )
-            try data.write(to: targetURL, options: .atomic)
-            migrated += 1
-        }
-
-        return .init(migrated: migrated, skipped: skipped)
+        let result = try mcpMaintenanceService.migrateServersToGlobalCache(template: template, overwrite: false)
+        return .init(migrated: result.migrated, skipped: result.skipped)
     }
 
     func migrateMcpToGlobalCache(_ mcp: MCP) async throws {
-        let manager = NolonManager.shared
-        STFolder(manager.mcpsURL).createIfNotExists()
-
-        let targetURL = mcpCacheFileURL(for: mcp.name)
-        guard !STFile(targetURL).isExists else {
-            refreshMcpCacheStates()
-            return
-        }
-
-        let server = normalizedProviderServerConfig(for: mcp)
-        let root: [String: Any] = ["mcpServers": [mcp.name: server]]
-        let data = try JSONSerialization.data(
-            withJSONObject: root,
-            options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
-        )
-        try data.write(to: targetURL, options: .atomic)
+        try mcpMaintenanceService.migrateMcpToGlobalCache(mcp)
         refreshMcpCacheStates()
     }
 
     func updateCachedMcpIfNeeded(_ mcp: MCP) async throws {
-        let manager = NolonManager.shared
-        STFolder(manager.mcpsURL).createIfNotExists()
-
-        let targetURL = mcpCacheFileURL(for: mcp.name)
-        guard STFile(targetURL).isExists else {
-            try await migrateMcpToGlobalCache(mcp)
-            return
-        }
-
-        let desired = normalizedProviderServerConfig(for: mcp)
-        let existingData = try Data(contentsOf: targetURL)
-        let existingServer = (try? MCPJsonFile.serverConfig(from: existingData, slug: mcp.name)) ?? [:]
-        let existing = normalizedServerConfigForComparison(existingServer, name: mcp.name)
-
-        if canonicalJsonData(existing) == canonicalJsonData(desired) {
-            refreshMcpCacheStates()
-            return
-        }
-
-        let root: [String: Any] = ["mcpServers": [mcp.name: desired]]
-        let data = try JSONSerialization.data(
-            withJSONObject: root,
-            options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
-        )
-        try data.write(to: targetURL, options: .atomic)
+        try mcpMaintenanceService.updateCachedMcpIfNeeded(mcp)
         refreshMcpCacheStates()
     }
 
@@ -790,28 +386,20 @@ final class ProviderDetailGridViewModel {
     }
 
     private func refreshMcpCacheStates() {
-        var states: [String: McpCacheState] = [:]
-
-        for mcp in mcps {
-            let url = mcpCacheFileURL(for: mcp.name)
-            guard STFile(url).isExists else {
-                states[mcp.name] = .notMigrated
-                continue
-            }
-
-            let desired = normalizedProviderServerConfig(for: mcp)
-            if let data = try? Data(contentsOf: url),
-               let server = try? MCPJsonFile.serverConfig(from: data, slug: mcp.name) {
-                let existing = normalizedServerConfigForComparison(server, name: mcp.name)
-                states[mcp.name] = (canonicalJsonData(existing) == canonicalJsonData(desired))
-                    ? .migratedUpToDate
-                    : .migratedNeedsUpdate
-            } else {
-                states[mcp.name] = .migratedNeedsUpdate
-            }
+        guard let provider,
+              let templateId = provider.templateId,
+              let template = ProviderTemplate(rawValue: templateId) else {
+            mcpCacheStates = [:]
+            return
         }
-
-        mcpCacheStates = states
+        do {
+            let states = try mcpMaintenanceService.cacheStatus(template: template)
+            mcpCacheStates = Dictionary(
+                uniqueKeysWithValues: states.map { ($0.name, McpCacheState(rawValue: $0.state.rawValue) ?? .notMigrated) }
+            )
+        } catch {
+            mcpCacheStates = [:]
+        }
     }
 
     private func normalizedProviderServerConfig(for mcp: MCP) -> [String: Any] {
@@ -908,64 +496,9 @@ final class ProviderDetailGridViewModel {
               let template = ProviderTemplate(rawValue: templateId) else {
             return
         }
-        
-        let configPath = template.defaultMcpConfigPath
-        
-        if configPath.pathExtension.lowercased() == "toml" {
-            // For TOML config, we only support updating enabled flag and basic fields
-            guard STFile(configPath).isExists,
-                  let data = try? Data(contentsOf: configPath),
-                  var config = try? TOMLDecoder().decode(CodexMCPConfig.self, from: data)
-            else {
-                return
-            }
-            
-            if config.mcpServers == nil { config.mcpServers = [:] }
-            if let mcp = mcp {
-                config.mcpServers?[mcp.name] = CodexMCPServer(from: mcp)
-            }
-            
-            if let tomlData = try? TOMLEncoder().encode(config) {
-                try? tomlData.write(to: configPath)
-            }
-        } else {
-            var json: JSON
-            if STFile(configPath).isExists,
-               let data = try? Data(contentsOf: configPath),
-               let fileJson = try? JSON(data: data) {
-                json = fileJson
-            } else {
-                json = JSON([:])
-            }
-            
-            // 2. Ensure mcpServers object exists
-            if json["mcpServers"].dictionary == nil,
-               json["mcp_servers"].dictionary != nil {
-                let legacy = json["mcp_servers"]
-                var root = json.dictionaryValue
-                root["mcpServers"] = legacy
-                root["mcp_servers"] = nil
-                json = JSON(root)
-            }
-            if json["mcpServers"].dictionary == nil {
-                json["mcpServers"] = JSON([:])
-            }
-            
-            // 3. Update or delete
-            if let mcp = mcp {
-                // Add or Update
-                // Get mutable dictionary
-                var servers = json["mcpServers"].dictionaryValue
-                servers[mcp.name] = JSON(mcp.json.value)
-                json["mcpServers"] = JSON(servers)
-            } else {
-                 // Handle delete logic here if extended
-            }
-            
-            // 4. Write back
-            if let str = json.rawString() {
-                try? str.write(to: configPath, atomically: true, encoding: .utf8)
-            }
+
+        if let mcp {
+            try? mcpMaintenanceService.upsertMCP(template: template, mcp: mcp)
         }
         
         // 5. Reload
@@ -977,146 +510,9 @@ final class ProviderDetailGridViewModel {
                let template = ProviderTemplate(rawValue: templateId) else {
              return
          }
-         
-         let configPath = template.defaultMcpConfigPath
-         
-         if template.rawValue == "opencode" {
-             do {
-                 let data = try Data(contentsOf: configPath)
-                 var root = (try? JSONSerialization.jsonObject(with: data) as? [String: Any]) ?? [:]
-                 var mcpDict = root["mcp"] as? [String: Any] ?? [:]
-                 mcpDict[name] = nil
-                 root["mcp"] = mcpDict
-                 let updated = try JSONSerialization.data(withJSONObject: root, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
-                 try updated.write(to: configPath, options: .atomic)
-             } catch {
-                 // ignore
-             }
-             
-             loadMCPs(for: provider)
-             return
-         }
-         
-         if configPath.pathExtension.lowercased() == "toml" {
-             guard
-                 let data = try? Data(contentsOf: configPath),
-                 var config = try? TOMLDecoder().decode(CodexMCPConfig.self, from: data),
-                 var servers = config.mcpServers
-             else { return }
-             
-             servers[name] = nil
-             config.mcpServers = servers
-             
-             if let tomlData = try? TOMLEncoder().encode(config) {
-                 try? tomlData.write(to: configPath)
-             }
-         } else {
-             guard let data = try? Data(contentsOf: configPath),
-                   var json = try? JSON(data: data) else { return }
-             
-             if json["mcpServers"].dictionary == nil,
-                json["mcp_servers"].dictionary != nil {
-                 let legacy = json["mcp_servers"]
-                 var root = json.dictionaryValue
-                 root["mcpServers"] = legacy
-                 root["mcp_servers"] = nil
-                 json = JSON(root)
-             }
-
-             var servers = json["mcpServers"].dictionaryValue
-             servers[name] = nil
-             json["mcpServers"] = JSON(servers)
-             
-             if let str = json.rawString() {
-                 try? str.write(to: configPath, atomically: true, encoding: .utf8)
-             }
-         }
+         try? mcpMaintenanceService.removeServer(template: template, name: name)
          
          loadMCPs(for: provider)
-    }
-    
-    private func loadWorkflows(for provider: Provider) {
-        let workflowPath = provider.workflowPath
-        let folder = STFolder(workflowPath)
-        guard folder.isExists else {
-            workflows = []
-            mcpWorkflowIds = []
-            workflowIds = []
-            return
-        }
-        
-        do {
-            let contents = try folder.files()
-            workflows = contents
-                .filter { $0.url.pathExtension == "md" }
-                .compactMap { WorkflowInfo.parse(from: $0.url) }
-                .sorted { $0.name < $1.name }
-            
-            workflowIds = Set(workflows.filter { $0.source == .skill }.map(\.id))
-            mcpWorkflowIds = Set(workflows.filter { $0.source == .mcp }.map(\.id))
-        } catch {
-            workflows = []
-            mcpWorkflowIds = []
-            workflowIds = []
-        }
-    }
-    
-    private func loadRules(for provider: Provider) {
-        guard provider.templateId == "codex" || provider.templateId == "codexXcode" else {
-            rules = []
-            return
-        }
-
-        let baseURL = provider.codexRulesURL
-        let fileManager = FileManager.default
-        guard fileManager.fileExists(atPath: baseURL.path) else {
-            rules = []
-            return
-        }
-
-        let enumerator = fileManager.enumerator(
-            at: baseURL,
-            includingPropertiesForKeys: [.isRegularFileKey],
-            options: [.skipsHiddenFiles]
-        )
-
-        var parsedRules: [RuleInfo] = []
-        while let entry = enumerator?.nextObject() as? URL {
-            guard entry.pathExtension.lowercased() == "rules" else { continue }
-            guard let values = try? entry.resourceValues(forKeys: [.isRegularFileKey]),
-                  values.isRegularFile == true else {
-                continue
-            }
-            if let rule = RuleInfo.parse(from: entry, baseDirectory: baseURL) {
-                parsedRules.append(rule)
-            }
-        }
-
-        rules = parsedRules.sorted { $0.relativePath.localizedStandardCompare($1.relativePath) == .orderedAscending }
-    }
-
-    private func loadAgentsFiles(for provider: Provider) {
-        guard provider.templateId == "codex" || provider.templateId == "codexXcode" else {
-            agentsFiles = []
-            return
-        }
-
-        let fileManager = FileManager.default
-        let overrideURL = provider.codexAgentsOverrideFileURL
-        let baseURL = provider.codexAgentsFileURL
-        var docs: [AgentDocInfo] = []
-
-        if fileManager.fileExists(atPath: overrideURL.path),
-           let doc = AgentDocInfo.parse(url: overrideURL, kind: .override) {
-            docs.append(doc)
-        }
-
-        if fileManager.fileExists(atPath: baseURL.path),
-           let doc = AgentDocInfo.parse(url: baseURL, kind: .base) {
-            docs.append(doc)
-        }
-
-        agentsFiles = docs
     }
     
     // MARK: - Actions
@@ -1129,7 +525,7 @@ final class ProviderDetailGridViewModel {
     
     func uninstallSkill(_ skill: Skill) async {
         guard let provider = provider else { return }
-        await performAsync {
+        await performAsync(scope: .skills) {
             try installer.uninstall(skill: skill, from: provider)
         }
     }
@@ -1139,9 +535,10 @@ final class ProviderDetailGridViewModel {
         
         do {
             try installer.installWorkflow(skill: skill, to: provider)
-            loadWorkflows(for: provider)
+            clearError(scope: .workflows)
+            applyResourceSnapshot(for: provider)
         } catch {
-            errorMessage = error.localizedDescription
+            setError(error.localizedDescription, scope: .workflows)
         }
     }
     
@@ -1150,9 +547,10 @@ final class ProviderDetailGridViewModel {
         
         do {
             try installer.uninstallWorkflow(skill: skill, from: provider)
-            loadWorkflows(for: provider)
+            clearError(scope: .workflows)
+            applyResourceSnapshot(for: provider)
         } catch {
-            errorMessage = error.localizedDescription
+            setError(error.localizedDescription, scope: .workflows)
         }
     }
     
@@ -1161,9 +559,10 @@ final class ProviderDetailGridViewModel {
         
         do {
             try installer.installMcpWorkflow(mcp: mcp, to: provider)
-            loadWorkflows(for: provider)
+            clearError(scope: .mcp)
+            applyResourceSnapshot(for: provider)
         } catch {
-            errorMessage = error.localizedDescription
+            setError(error.localizedDescription, scope: .mcp)
         }
     }
     
@@ -1172,15 +571,16 @@ final class ProviderDetailGridViewModel {
         
         do {
             try installer.uninstallMcpWorkflow(mcp: mcp, from: provider)
-            loadWorkflows(for: provider)
+            clearError(scope: .mcp)
+            applyResourceSnapshot(for: provider)
         } catch {
-            errorMessage = error.localizedDescription
+            setError(error.localizedDescription, scope: .mcp)
         }
     }
     
     func migrateSkill(_ skill: Skill) async {
         guard let provider = provider else { return }
-        await performAsync {
+        await performAsync(scope: .skills) {
             _ = try installer.migrate(skillName: skill.id, from: provider, overwriteExisting: false)
         }
     }
@@ -1195,42 +595,24 @@ final class ProviderDetailGridViewModel {
     
     func deleteWorkflow(_ workflow: WorkflowInfo) async {
         guard let provider = provider else { return }
-        
-        // Find skill ID from workflow ID or path
-        // Currently WorkflowInfo.id is the filename without extension, which usually matches skill.id
-        // However, we need a Skill object to call uninstallWorkflow.
-        // But uninstallWorkflow mainly needs the ID.
-        // We can create a dummy Skill or overload uninstallWorkflow.
-        // Let's modify SkillInstaller to accept ID or make a temporary fix here.
-        // Better: Fetch the skill from repository if possible, or construct one.
-        // Since we only need ID for the path in `uninstallWorkflow`, let's construct a minimal Skill or extend Installer.
-        // Extended Installer is better but requires changing infrastructure again.
-        // For now, let's look at `uninstallWorkflow`:
-        // public func uninstallWorkflow(skill: Skill, from provider: Provider)
-        // It uses skill.id.
-        
-        // Let's check `WorkflowInfo` in `loadWorkflows`. It uses filename as ID.
-        // Assuming workflow ID == skill ID.
-        
-        // To construct a Skill, we need a lot of params.
-        // Let's just manually delete the symlink here using the logic from `SkillInstaller`, 
-        // OR better: Update SkillInstaller to create an overload that takes ID.
-        // But avoiding context switch, I will try to find the skill from `installedSkills` or `allSkills`.
-        
-        if let skill = try? repository.listSkills().first(where: { $0.id == workflow.id }) {
-            try? installer.uninstallWorkflow(skill: skill, from: provider)
-        } else {
-             // Fallback: Manually remove file if skill not found (orphan workflow)
-            try? STPath(workflow.path).deleteIncludingBrokenSymlink()
+        do {
+            try resourceService.deleteWorkflow(workflowID: workflow.id, provider: provider)
+            clearError(scope: .workflows)
+        } catch {
+            setError(error.localizedDescription, scope: .workflows)
         }
-        
-        loadWorkflows(for: provider)
+        applyResourceSnapshot(for: provider)
     }
     
     func deleteRule(_ rule: RuleInfo) async {
         guard let provider else { return }
-        try? STPath(rule.path).deleteIncludingBrokenSymlink()
-        loadRules(for: provider)
+        do {
+            try resourceService.deleteResource(atPath: rule.path)
+            clearError(scope: .rules)
+        } catch {
+            setError(error.localizedDescription, scope: .rules)
+        }
+        applyResourceSnapshot(for: provider)
     }
 
     func revealAgentDocInFinder(_ doc: AgentDocInfo) {
@@ -1239,39 +621,27 @@ final class ProviderDetailGridViewModel {
 
     func deleteAgentDoc(_ doc: AgentDocInfo) async {
         guard let provider else { return }
-        try? STPath(doc.path).deleteIncludingBrokenSymlink()
-        loadAgentsFiles(for: provider)
+        do {
+            try resourceService.deleteResource(atPath: doc.path)
+            clearError(scope: .agents)
+        } catch {
+            setError(error.localizedDescription, scope: .agents)
+        }
+        applyResourceSnapshot(for: provider)
     }
 
     func createAgentDocDraft() -> URL? {
         guard let provider else { return nil }
         guard provider.templateId == "codex" || provider.templateId == "codexXcode" else { return nil }
-
-        let fileManager = FileManager.default
-        let baseURL = provider.codexAgentsFileURL
-        let overrideURL = provider.codexAgentsOverrideFileURL
-
-        let targetURL: URL
-        if !fileManager.fileExists(atPath: baseURL.path) {
-            targetURL = baseURL
-        } else if !fileManager.fileExists(atPath: overrideURL.path) {
-            targetURL = overrideURL
-        } else {
-            targetURL = overrideURL
-        }
-
         do {
-            try FileManager.default.createDirectory(
-                at: targetURL.deletingLastPathComponent(),
-                withIntermediateDirectories: true
-            )
-            if !fileManager.fileExists(atPath: targetURL.path) {
-                try "".write(to: targetURL, atomically: true, encoding: .utf8)
-            }
-            loadAgentsFiles(for: provider)
+            let basePath = STPath(provider.codexAgentsFileURL)
+            let draftKind: ProviderResourceDraftKind = basePath.isExists ? .agentOverride : .agentBase
+            let targetURL = try resourceService.createDraft(provider: provider, kind: draftKind)
+            clearError(scope: .agents)
+            applyResourceSnapshot(for: provider)
             return targetURL
         } catch {
-            errorMessage = error.localizedDescription
+            setError(error.localizedDescription, scope: .agents)
             return nil
         }
     }
@@ -1280,156 +650,90 @@ final class ProviderDetailGridViewModel {
         guard let provider else { return nil }
         guard provider.templateId == "codex" || provider.templateId == "codexXcode" else { return nil }
 
-        let rulesDirectory = provider.codexRulesURL
         do {
-            try FileManager.default.createDirectory(at: rulesDirectory, withIntermediateDirectories: true)
-            var index = 1
-            var candidateURL = rulesDirectory.appendingPathComponent("new-rule-\(index).rules")
-            while FileManager.default.fileExists(atPath: candidateURL.path) {
-                index += 1
-                candidateURL = rulesDirectory.appendingPathComponent("new-rule-\(index).rules")
-            }
-
-            try "".write(to: candidateURL, atomically: true, encoding: .utf8)
-            loadRules(for: provider)
-            return candidateURL
+            let draftURL = try resourceService.createDraft(provider: provider, kind: .rule)
+            clearError(scope: .rules)
+            applyResourceSnapshot(for: provider)
+            return draftURL
         } catch {
-            errorMessage = error.localizedDescription
+            setError(error.localizedDescription, scope: .rules)
             return nil
         }
     }
     
     func installRemoteSkill(_ skill: RemoteSkill, to provider: Provider) async {
-        await performAsync {
-            if let localPath = skill.localPath {
-                try installer.installLocal(from: localPath, slug: skill.slug, to: provider)
-            } else {
-                let clawdhubRepo = ClawdhubRepository(
-                    repository: settings.remoteRepositories.first { $0.templateType == .clawdhub }
-                        ?? RepositoryTemplate.clawdhub.createRepository()
-                )
-
-                let zipURL = try await clawdhubRepo.downloadSkill(
-                    slug: skill.slug,
-                    version: skill.latestVersion?.version
-                )
-                try installer.installRemote(zipURL: zipURL, slug: skill.slug, to: provider)
-            }
+        await performAsync(scope: .skills) {
+            try await remoteInstallOrchestrator.installSkill(
+                skill,
+                to: provider,
+                installer: installer,
+                remoteBaseURL: currentRemoteBaseURL()
+            )
         }
     }
     
     func installRemoteWorkflow(_ workflow: RemoteWorkflow, to provider: Provider) async {
-        await performAsync {
-            if let localPath = workflow.localPath {
-                try installer.installLocalWorkflow(
-                    fileURL: URL(fileURLWithPath: localPath),
-                    slug: workflow.slug,
-                    to: provider
-                )
-            } else {
-                let clawdhubRepo = ClawdhubRepository(
-                    repository: settings.remoteRepositories.first { $0.templateType == .clawdhub }
-                        ?? RepositoryTemplate.clawdhub.createRepository()
-                )
-
-                let fileURL = try await clawdhubRepo.downloadWorkflow(
-                    slug: workflow.slug,
-                    version: workflow.latestVersion?.version
-                )
-                try installer.installRemoteWorkflow(fileURL: fileURL, slug: workflow.slug, to: provider)
-            }
+        await performAsync(scope: .workflows) {
+            try await remoteInstallOrchestrator.installWorkflow(
+                workflow,
+                to: provider,
+                installer: installer,
+                remoteBaseURL: currentRemoteBaseURL()
+            )
         }
     }
     
     func installRemoteMCP(_ mcp: RemoteMCP, to provider: Provider) async {
-        await performAsync {
-            let resourceInstaller = ResourceInstaller(globalCache: GlobalCacheRepository())
-
-            if let localPath = mcp.localPath {
-                try await resourceInstaller.installFromLocal(
-                    resourceURL: URL(fileURLWithPath: localPath),
-                    resourceSlug: mcp.slug,
-                    resourceType: .mcp,
-                    to: provider
-                )
-            } else {
-                let clawdhubRepo = ClawdhubRepository(
-                    repository: settings.remoteRepositories.first { $0.templateType == .clawdhub }
-                        ?? RepositoryTemplate.clawdhub.createRepository()
-                )
-
-                try await resourceInstaller.installFromRemote(
-                    repository: clawdhubRepo,
-                    resourceSlug: mcp.slug,
-                    resourceType: .mcp,
-                    to: provider
-                )
-            }
+        await performAsync(scope: .mcp) {
+            try await remoteInstallOrchestrator.installMCP(
+                mcp,
+                to: provider,
+                remoteBaseURL: currentRemoteBaseURL()
+            )
         }
     }
 
-    private func modelsCacheURLs(for provider: Provider) -> [URL] {
-        var urls: [URL] = []
-        let providerHome = URL(fileURLWithPath: provider.defaultSkillsPath, isDirectory: true)
-            .deletingLastPathComponent()
-            .appendingPathComponent("models_cache.json", isDirectory: false)
-        urls.append(providerHome)
-
-        let userCodexHome = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".codex", isDirectory: true)
-            .appendingPathComponent("models_cache.json", isDirectory: false)
-        if userCodexHome.path != providerHome.path {
-            urls.append(userCodexHome)
-        }
-        return urls
+    private func clearScopedErrors() {
+        skillsErrorMessage = nil
+        workflowsErrorMessage = nil
+        rulesErrorMessage = nil
+        agentsErrorMessage = nil
+        mcpErrorMessage = nil
     }
 
-    private func loadVisibleModelSlugs(_ cacheURL: URL) -> [String] {
-        guard let data = try? Data(contentsOf: cacheURL),
-              let cache = try? JSONDecoder().decode(CodexModelsCacheLite.self, from: data)
-        else {
-            return []
+    private func clearError(scope: ResourceErrorScope) {
+        switch scope {
+        case .skills:
+            skillsErrorMessage = nil
+        case .workflows:
+            workflowsErrorMessage = nil
+        case .rules:
+            rulesErrorMessage = nil
+        case .agents:
+            agentsErrorMessage = nil
+        case .mcp:
+            mcpErrorMessage = nil
         }
-
-        var seen = Set<String>()
-        var models: [String] = []
-        for item in cache.models {
-            guard !item.slug.isEmpty else { continue }
-            if item.visibility?.lowercased() == "hide" { continue }
-            if seen.insert(item.slug).inserted {
-                models.append(item.slug)
-            }
-        }
-        return models
     }
 
-    private func loadCurrentConfiguredModel(for provider: Provider) -> String? {
-        guard let templateId = provider.templateId,
-              let template = ProviderTemplate(rawValue: templateId)
-        else {
-            return nil
+    private func setError(_ message: String, scope: ResourceErrorScope) {
+        switch scope {
+        case .skills:
+            skillsErrorMessage = message
+        case .workflows:
+            workflowsErrorMessage = message
+        case .rules:
+            rulesErrorMessage = message
+        case .agents:
+            agentsErrorMessage = message
+        case .mcp:
+            mcpErrorMessage = message
         }
-
-        let configPath = template.defaultMcpConfigPath
-        guard configPath.pathExtension.lowercased() == "toml",
-              let data = try? Data(contentsOf: configPath),
-              !data.isEmpty,
-              let config = try? TOMLDecoder().decode(CodexMCPConfig.self, from: data)
-        else {
-            return nil
-        }
-
-        let trimmed = config.model?.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let trimmed, !trimmed.isEmpty else { return nil }
-        return trimmed
     }
-}
 
-private struct CodexModelsCacheLite: Decodable {
-    let models: [Model]
-
-    struct Model: Decodable {
-        let slug: String
-        let visibility: String?
+    private func currentRemoteBaseURL() -> String {
+        settings.remoteRepositories.first { $0.templateType == .clawdhub }?.baseURL
+            ?? RepositoryTemplate.clawdhub.createRepository().baseURL
     }
+
 }

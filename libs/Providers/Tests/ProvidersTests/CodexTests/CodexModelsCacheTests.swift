@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 @testable import CodexProvider
+import STFilePath
 
 @Suite("Codex models_cache.json")
 struct CodexModelsCacheTests {
@@ -70,12 +71,12 @@ struct CodexModelsCacheTests {
 
     @Test("Loads cache via CodexHelper with CODEX_HOME override")
     func loadsViaHelperFromCodexHome() throws {
-        let base = FileManager.default.temporaryDirectory
-            .appendingPathComponent("codex-model-cache-\(UUID().uuidString)", isDirectory: true)
-        try FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: base) }
+        let base = STFolder("/tmp")
+            .folder("codex-model-cache-\(UUID().uuidString)")
+        _ = base.createIfNotExists()
+        defer { try? base.delete() }
 
-        let cacheURL = base.appendingPathComponent("models_cache.json", isDirectory: false)
+        let cacheURL = base.file("models_cache.json").url
         let json = """
         {
           "fetched_at": "2026-02-08T11:15:59Z",
@@ -89,12 +90,37 @@ struct CodexModelsCacheTests {
         """
         try json.write(to: cacheURL, atomically: true, encoding: .utf8)
 
-        let helper = CodexHelper(environment: ["CODEX_HOME": base.path])
+        let helper = CodexHelper(environment: ["CODEX_HOME": base.url.path])
         let snapshot = try helper.loadModelsCache()
         let visible = try helper.loadVisibleModelsFromCache()
 
         #expect(snapshot.clientVersion == "0.99.0")
         #expect(snapshot.models.count == 2)
         #expect(visible.map(\.slug) == ["visible-model"])
+    }
+
+    @Test("Loads cache from STFile path")
+    func loadsFromSTFile() throws {
+        let base = STFolder("/tmp")
+            .folder("codex-model-cache-stfile-\(UUID().uuidString)")
+        _ = base.createIfNotExists()
+        defer { try? base.delete() }
+
+        let file = base.file("models_cache.json")
+        let json = """
+        {
+          "fetched_at": "2026-02-08T11:15:59Z",
+          "etag": null,
+          "client_version": "1.0.0",
+          "models": [
+            { "slug": "m1", "display_name": "m1", "visibility": "list", "supported_reasoning_levels": [] }
+          ]
+        }
+        """
+        try file.overlay(with: json)
+
+        let cache = try CodexModelsCache.load(from: file)
+        #expect(cache.clientVersion == "1.0.0")
+        #expect(cache.models.map(\.slug) == ["m1"])
     }
 }

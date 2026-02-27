@@ -1,5 +1,6 @@
 import XCTest
 import ProviderCatalog
+import NolonResourceKit
 @testable import nolon
 import STJSON
 
@@ -112,8 +113,8 @@ final class MCPInstallationTests: XCTestCase {
         let workflowPath = "\(provider.workflowPath)/\(mcp.name).md"
         XCTAssertTrue(fixture.fileManager.fileExists(atPath: workflowPath))
 
-        let info = WorkflowInfo.parse(from: URL(fileURLWithPath: workflowPath))
-        XCTAssertNotNil(info)
+        let resourceService = ProviderResourceService(nolonManager: fixture.nolonManager)
+        XCTAssertNotNil(resourceService.parseWorkflow(atPath: workflowPath))
     }
     
     func testMcpWorkflow_Uninstall() throws {

@@ -1,5 +1,6 @@
 import SwiftUI
 import ProviderCatalog
+import NolonResourceKit
 
 struct ProviderSkillsGridView: View {
     let viewModel: ProviderDetailGridViewModel

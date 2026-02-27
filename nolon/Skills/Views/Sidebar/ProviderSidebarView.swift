@@ -1,6 +1,7 @@
 import SwiftUI
 import Observation
 import ProviderCatalog
+import NolonResourceKit
 
 // MARK: - ViewModel
 

@@ -32,6 +32,17 @@ public enum CostUsageJsonl {
         var truncated = false
         var bytesRead: Int64 = 0
 
+        func appendLinePart(_ linePart: Data.SubSequence) {
+            lineBytes += linePart.count
+            guard !truncated else { return }
+            if lineBytes > maxLineBytes || lineBytes > prefixBytes {
+                truncated = true
+                current.removeAll(keepingCapacity: true)
+            } else {
+                current.append(contentsOf: linePart)
+            }
+        }
+
         func flushLine() {
             guard lineBytes > 0 else { return }
             let line = Line(bytes: current, wasTruncated: truncated)
@@ -44,6 +55,10 @@ public enum CostUsageJsonl {
         while true {
             let chunk = try handle.read(upToCount: 256 * 1024) ?? Data()
             if chunk.isEmpty {
+                if !buffer.isEmpty {
+                    appendLinePart(buffer[buffer.startIndex..<buffer.endIndex])
+                    buffer.removeAll(keepingCapacity: true)
+                }
                 flushLine()
                 break
             }
@@ -56,15 +71,7 @@ public enum CostUsageJsonl {
                 let linePart = buffer[..<nl]
                 buffer.removeSubrange(...nl)
 
-                lineBytes += linePart.count
-                if !truncated {
-                    if lineBytes > maxLineBytes || lineBytes > prefixBytes {
-                        truncated = true
-                        current.removeAll(keepingCapacity: true)
-                    } else {
-                        current.append(contentsOf: linePart)
-                    }
-                }
+                appendLinePart(linePart)
                 flushLine()
             }
         }

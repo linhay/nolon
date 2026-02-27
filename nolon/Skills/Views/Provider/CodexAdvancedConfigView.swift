@@ -4,6 +4,7 @@ import ProviderCatalog
 import SwiftUI
 import STFilePath
 import CodexProvider
+import NolonResourceKit
 
 enum CodexLinkFolder: String, CaseIterable, Identifiable, Hashable {
     case prompts
@@ -51,10 +52,19 @@ final class CodexAdvancedConfigViewModel {
 
     private var provider: Provider
     private let manager: CodexBinaryManager
+    private let linkService: CodexLinkService
+    private let modelPreferenceService: CodexModelPreferenceService
 
-    init(provider: Provider, manager: CodexBinaryManager = .shared) {
+    init(
+        provider: Provider,
+        manager: CodexBinaryManager = .shared,
+        linkService: CodexLinkService = CodexLinkService(),
+        modelPreferenceService: CodexModelPreferenceService = CodexModelPreferenceService()
+    ) {
         self.provider = provider
         self.manager = manager
+        self.linkService = linkService
+        self.modelPreferenceService = modelPreferenceService
     }
 
     func updateProvider(_ provider: Provider) {
@@ -167,19 +177,14 @@ final class CodexAdvancedConfigViewModel {
 
     func openModelConfig() {
         let configFile = resolvedConfigFile()
-        let configURL = configFile?.url
-            ?? FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".codex/config.toml")
+        let configPath = configFile ?? STFile("\(NSHomeDirectory())/.codex/config.toml")
         do {
-            try FileManager.default.createDirectory(
-                at: configURL.deletingLastPathComponent(),
-                withIntermediateDirectories: true
-            )
-            if !FileManager.default.fileExists(atPath: configURL.path) {
+            _ = STFolder(configPath.url.deletingLastPathComponent()).createIfNotExists()
+            if !configPath.isExists {
                 let initialModel = preferredModelDraft.nonEmpty ?? "gpt-5.3-codex"
-                try "model = \"\(initialModel)\"\n".write(to: configURL, atomically: true, encoding: .utf8)
+                try "model = \"\(initialModel)\"\n".write(to: configPath.url, atomically: true, encoding: .utf8)
             }
-            NSWorkspace.shared.open(configURL)
+            NSWorkspace.shared.open(configPath.url)
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -242,15 +247,13 @@ final class CodexAdvancedConfigViewModel {
 
         var result: [CodexLinkFolder: CodexLinkState] = [:]
         for folder in CodexLinkFolder.allCases {
-            let pair = linkURLPair(for: folder)
-            let isLinked = isTargetLinked(to: pair.sourceURL, targetURL: pair.targetURL)
-            let hasVisibleEntries = !isLinked && hasVisibleContents(at: pair.targetURL)
+            let status = linkService.status(folder: map(folder), provider: provider)
             result[folder] = CodexLinkState(
                 folder: folder,
-                sourceURL: pair.sourceURL,
-                targetURL: pair.targetURL,
-                isLinked: isLinked,
-                hasVisibleEntries: hasVisibleEntries
+                sourceURL: status.sourceURL,
+                targetURL: status.targetURL,
+                isLinked: status.isLinked,
+                hasVisibleEntries: status.hasVisibleEntries
             )
         }
         linkStates = result
@@ -260,7 +263,7 @@ final class CodexAdvancedConfigViewModel {
         if let cached = linkStates[folder] {
             return cached
         }
-        let pair = linkURLPair(for: folder)
+        let pair = linkService.linkPair(folder: map(folder), provider: provider)
         return CodexLinkState(
             folder: folder,
             sourceURL: pair.sourceURL,
@@ -275,24 +278,8 @@ final class CodexAdvancedConfigViewModel {
         applyingLinkFolders.insert(folder)
         defer { applyingLinkFolders.remove(folder) }
 
-        let pair = linkURLPair(for: folder)
         do {
-            if enabled {
-                try FileManager.default.createDirectory(at: pair.sourceURL, withIntermediateDirectories: true)
-                try STPath(pair.targetURL).deleteIncludingBrokenSymlink()
-                try FileManager.default.createSymbolicLink(
-                    at: pair.targetURL,
-                    withDestinationURL: pair.sourceURL
-                )
-            } else {
-                if isSymbolicLink(pair.targetURL) {
-                    try STPath(pair.targetURL).deleteIncludingBrokenSymlink()
-                } else if FileManager.default.fileExists(atPath: pair.targetURL.path),
-                          !(try pair.targetURL.resourceValues(forKeys: [.isDirectoryKey]).isDirectory ?? false) {
-                    try STPath(pair.targetURL).deleteIncludingBrokenSymlink()
-                }
-                try FileManager.default.createDirectory(at: pair.targetURL, withIntermediateDirectories: true)
-            }
+            try linkService.apply(enabled: enabled, folder: map(folder), provider: provider)
             refreshLinkStates()
         } catch {
             errorMessage = error.localizedDescription
@@ -300,91 +287,33 @@ final class CodexAdvancedConfigViewModel {
     }
 
     private func loadModelsCache() {
-        models = []
-        modelsCacheSourcePath = nil
-        modelsCacheFetchedAt = nil
-        modelsCacheClientVersion = nil
-        modelsCacheETag = nil
-
-        for url in modelsCacheURLs() {
-            guard let cache = try? CodexModelsCache.load(from: url) else { continue }
-            models = cache.models
-            modelsCacheSourcePath = url.path
-            modelsCacheFetchedAt = cache.fetchedAt
-            modelsCacheClientVersion = cache.clientVersion
-            modelsCacheETag = cache.etag
-            break
-        }
+        let snapshot = modelPreferenceService.loadModelsCache(for: provider)
+        models = snapshot.models
+        modelsCacheSourcePath = snapshot.sourcePath
+        modelsCacheFetchedAt = snapshot.fetchedAt
+        modelsCacheClientVersion = snapshot.clientVersion
+        modelsCacheETag = snapshot.etag
 
         if let activeModelSlug, !models.contains(where: { $0.slug == activeModelSlug }) {
             self.activeModelSlug = nil
         }
     }
 
-    private func modelsCacheURLs() -> [URL] {
-        var urls: [URL] = []
-        let providerHome = URL(fileURLWithPath: provider.defaultSkillsPath, isDirectory: true)
-            .deletingLastPathComponent()
-            .appendingPathComponent("models_cache.json", isDirectory: false)
-        urls.append(providerHome)
-
-        let userCodexHome = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".codex", isDirectory: true)
-            .appendingPathComponent("models_cache.json", isDirectory: false)
-        if userCodexHome.path != providerHome.path {
-            urls.append(userCodexHome)
-        }
-        return urls
-    }
-
     private func resolvedConfigFile() -> STFile? {
-        let rawSkillsPath = (provider.defaultSkillsPath as NSString).expandingTildeInPath
-        if !rawSkillsPath.isEmpty {
-            let skillsURL = URL(fileURLWithPath: rawSkillsPath, isDirectory: true)
-            let codexHome = skillsURL.deletingLastPathComponent()
-            return STFile(codexHome.appendingPathComponent("config.toml").path)
-        }
-
-        let fallback = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".codex/config.toml")
-        return STFile(fallback.path)
+        modelPreferenceService.resolvedConfigFile(for: provider)
     }
 
     private func loadSelectionsFromConfig() {
-        guard let content = loadConfigContent() else {
+        guard let config = modelPreferenceService.loadConfig(for: provider) else {
             preferredModelDraft = ""
             activeModelSlug = nil
             selectedReasoningEffort = nil
             return
         }
-        let model = parseConfigValue(key: "model", from: content)
+        let model = config.model?.trimmingCharacters(in: .whitespacesAndNewlines)
         preferredModelDraft = model ?? ""
         activeModelSlug = model
-        selectedReasoningEffort = parseConfigValue(key: "model_reasoning_effort", from: content)
-    }
-
-    private func loadConfigContent() -> String? {
-        guard let configFile = resolvedConfigFile(),
-              FileManager.default.fileExists(atPath: configFile.url.path),
-              let content = try? String(contentsOf: configFile.url, encoding: .utf8) else {
-            return nil
-        }
-        return content
-    }
-
-    private func parseConfigValue(key: String, from content: String) -> String? {
-        for line in content.split(separator: "\n", omittingEmptySubsequences: false) {
-            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard let equalIndex = trimmed.firstIndex(of: "=") else { continue }
-            let lhs = trimmed[..<equalIndex].trimmingCharacters(in: .whitespacesAndNewlines)
-            guard lhs == key else { continue }
-            let rhs = trimmed[trimmed.index(after: equalIndex)...].trimmingCharacters(in: .whitespacesAndNewlines)
-            if rhs.hasPrefix("\""), rhs.hasSuffix("\""), rhs.count >= 2 {
-                return String(rhs.dropFirst().dropLast())
-            }
-            return rhs.nonEmpty
-        }
-        return nil
+        selectedReasoningEffort = config.modelReasoningEffort?.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private func normalizeReasoningEffortForActiveModel(persist: Bool) async {
@@ -411,43 +340,12 @@ final class CodexAdvancedConfigViewModel {
         }
     }
 
-    private func linkURLPair(for folder: CodexLinkFolder) -> (sourceURL: URL, targetURL: URL) {
-        let sourceRoot = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".codex", isDirectory: true)
-        let targetRoot = URL(fileURLWithPath: provider.defaultSkillsPath, isDirectory: true)
-            .deletingLastPathComponent()
-        return (
-            sourceRoot.appendingPathComponent(folder.rawValue, isDirectory: true),
-            targetRoot.appendingPathComponent(folder.rawValue, isDirectory: true)
-        )
-    }
-
-    private func isTargetLinked(to sourceURL: URL, targetURL: URL) -> Bool {
-        guard isSymbolicLink(targetURL) else { return false }
-        do {
-            let destination = try FileManager.default.destinationOfSymbolicLink(atPath: targetURL.path)
-            let resolved = URL(fileURLWithPath: destination, relativeTo: targetURL.deletingLastPathComponent())
-                .standardizedFileURL
-            return resolved.path == sourceURL.standardizedFileURL.path
-        } catch {
-            return false
+    private func map(_ folder: CodexLinkFolder) -> CodexLinkFolderKind {
+        switch folder {
+        case .prompts: return .prompts
+        case .rules: return .rules
+        case .skills: return .skills
         }
-    }
-
-    private func isSymbolicLink(_ url: URL) -> Bool {
-        (try? url.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink) ?? false
-    }
-
-    private func hasVisibleContents(at targetURL: URL) -> Bool {
-        let fileManager = FileManager.default
-        guard fileManager.fileExists(atPath: targetURL.path) else { return false }
-        guard (try? targetURL.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true else { return true }
-        let contents = (try? fileManager.contentsOfDirectory(
-            at: targetURL,
-            includingPropertiesForKeys: nil,
-            options: [.skipsSubdirectoryDescendants]
-        )) ?? []
-        return contents.contains { !$0.lastPathComponent.hasPrefix(".") }
     }
 }
 

@@ -1,5 +1,17 @@
 import Foundation
 import CodexBarProviderCatalog
+import STFilePath
+
+public enum ProviderUsagePaths {
+    public static func defaultTokenAccountsFileURL(
+        baseDirectory: URL? = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+    ) -> URL {
+        let base = baseDirectory ?? STFolder(NSHomeDirectory()).url
+        return base
+            .appendingPathComponent("Nolon", isDirectory: true)
+            .appendingPathComponent("token-accounts.json")
+    }
+}
 
 public struct ProviderTokenAccount: Identifiable, Codable, Sendable, Equatable {
     public let id: UUID
@@ -51,12 +63,20 @@ public protocol ProviderTokenAccountStoring: Sendable {
 }
 
 public final class FileTokenAccountStore: ProviderTokenAccountStoring {
-    private let fileURL: URL
+    private let file: STFile
     private let encoder: JSONEncoder
     private let decoder: JSONDecoder
 
     public init(fileURL: URL) {
-        self.fileURL = fileURL
+        self.file = STFile(fileURL)
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        self.encoder = encoder
+        self.decoder = JSONDecoder()
+    }
+
+    public init(file: STFile) {
+        self.file = file
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         self.encoder = encoder
@@ -64,10 +84,10 @@ public final class FileTokenAccountStore: ProviderTokenAccountStoring {
     }
 
     public func loadAccounts() throws -> [UsageProvider: ProviderTokenAccountData] {
-        guard FileManager.default.fileExists(atPath: fileURL.path) else {
+        guard file.isExists else {
             return [:]
         }
-        let data = try Data(contentsOf: fileURL)
+        let data = try file.data()
         if data.isEmpty {
             return [:]
         }
@@ -75,10 +95,8 @@ public final class FileTokenAccountStore: ProviderTokenAccountStoring {
     }
 
     public func storeAccounts(_ accounts: [UsageProvider: ProviderTokenAccountData]) throws {
-        let folderURL = fileURL.deletingLastPathComponent()
-        try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
+        _ = file.parentFolder()?.createIfNotExists()
         let data = try encoder.encode(accounts)
-        try data.write(to: fileURL, options: [.atomic])
+        try file.overlay(with: data)
     }
 }
-

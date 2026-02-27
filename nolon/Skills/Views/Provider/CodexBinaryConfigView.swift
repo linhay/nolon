@@ -1,9 +1,11 @@
 import Observation
 import ProviderCatalog
+import CodexProvider
 import SwiftUI
 import AppKit
 import UniformTypeIdentifiers
 import STFilePath
+import NolonResourceKit
 
 @MainActor
 @Observable
@@ -212,16 +214,14 @@ final class CodexBinaryConfigViewModel {
 
     func openModelConfig() async {
         let configFile = resolvedConfigFile()
-        let configURL = configFile?.url
-            ?? FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".codex/config.toml")
+        let configPath = configFile ?? STFile("\(NSHomeDirectory())/.codex/config.toml")
         do {
-            try FileManager.default.createDirectory(at: configURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-            if !FileManager.default.fileExists(atPath: configURL.path) {
+            _ = STFolder(configPath.url.deletingLastPathComponent()).createIfNotExists()
+            if !configPath.isExists {
                 let initialModel = preferredModelDraft.nonEmpty ?? "gpt-5.3-codex"
-                try "model = \"\(initialModel)\"\n".write(to: configURL, atomically: true, encoding: .utf8)
+                try "model = \"\(initialModel)\"\n".write(to: configPath.url, atomically: true, encoding: .utf8)
             }
-            NSWorkspace.shared.open(configURL)
+            NSWorkspace.shared.open(configPath.url)
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -395,20 +395,18 @@ final class CodexBinaryConfigViewModel {
     func resolvedConfigFile() -> STFile? {
         let rawSkillsPath = (provider.defaultSkillsPath as NSString).expandingTildeInPath
         if !rawSkillsPath.isEmpty {
-            let skillsURL = URL(fileURLWithPath: rawSkillsPath, isDirectory: true)
-            let codexHome = skillsURL.deletingLastPathComponent()
-            return STFile(codexHome.appendingPathComponent("config.toml").path)
+            let skillsFolder = STFolder(rawSkillsPath)
+            let codexHome = STFolder(skillsFolder.url.deletingLastPathComponent())
+            return STFile(codexHome.url.appendingPathComponent("config.toml"))
         }
 
-        let fallback = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".codex/config.toml")
-        return STFile(fallback.path)
+        return STFile("\(NSHomeDirectory())/.codex/config.toml")
     }
 
     private func loadModelFromConfig() -> String? {
         guard let configFile = resolvedConfigFile(),
-              FileManager.default.fileExists(atPath: configFile.url.path),
-              let content = try? String(contentsOf: configFile.url, encoding: .utf8) else {
+              configFile.isExists,
+              let content = try? configFile.read() else {
             return nil
         }
         return Self.parsePreferredModel(from: content)

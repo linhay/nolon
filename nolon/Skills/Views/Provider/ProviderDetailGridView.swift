@@ -1,6 +1,8 @@
 import SwiftUI
 import ProviderCatalog
 import Observation
+import STFilePath
+import NolonResourceKit
 
 /// Detail 区域 - Grid 布局显示 Skills 或 Workflows
 struct ProviderDetailGridView: View {
@@ -63,19 +65,6 @@ struct ProviderDetailGridView: View {
                 if viewModel.isLoading {
                     ProgressView()
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else if let error = viewModel.errorMessage {
-                    ContentUnavailableView {
-                        Label {
-                            Text("Error Loading Data")
-                                .dsEmptyStateErrorTitle()
-                        } icon: {
-                            Image(systemName: "exclamationmark.triangle")
-                                .dsEmptyStateIcon(color: DesignSystem.Colors.Status.error)
-                        }
-                    } description: {
-                        Text(error)
-                            .dsSecondaryText(font: .body)
-                    }
                 } else {
                     gridContent
                 }
@@ -99,8 +88,8 @@ struct ProviderDetailGridView: View {
         }
         .sheet(item: $viewModel.showingRemoteBrowser) { browserType in
             if let provider = provider {
-                let tabType: RemoteContentTabType = browserType == .skill ? .skills : (browserType == .workflow ? .workflows : .mcps)
-                RemoteSkillsBrowserView(
+                let tabType: ResourceContentTabType = browserType == .skill ? .skills : (browserType == .workflow ? .workflows : .mcps)
+                ResourceCenterView(
                     settings: settings,
                     repository: viewModel.repository,
                     targetProvider: provider,
@@ -154,6 +143,7 @@ struct ProviderDetailGridView: View {
                             codexXcodeNotice
                         }
                         codexLinkedHint
+                        resourceHealthSummary
                         tabContent
                     }
                     .frame(maxWidth: .infinity, alignment: .topLeading)
@@ -191,25 +181,199 @@ struct ProviderDetailGridView: View {
         }
     }
 
+    private var orphanedSkillCount: Int {
+        viewModel.installedSkills.filter { $0.installationState == .orphaned }.count
+    }
+
+    private var brokenSkillCount: Int {
+        viewModel.installedSkills.filter { $0.installationState == .broken }.count
+    }
+
+    private var unknownWorkflowCount: Int {
+        viewModel.workflows.filter { $0.source == .unknown }.count
+    }
+
+    private var mcpNeedUpdateCount: Int {
+        viewModel.mcpCacheStates.values.filter { $0 == .migratedNeedsUpdate }.count
+    }
+
+    private struct TabIssueSummary {
+        let orphanedSkillCount: Int
+        let brokenSkillCount: Int
+        let unknownWorkflowCount: Int
+        let mcpNeedUpdateCount: Int
+
+        var total: Int {
+            orphanedSkillCount + brokenSkillCount + unknownWorkflowCount + mcpNeedUpdateCount
+        }
+    }
+
+    private var currentTabIssueSummary: TabIssueSummary {
+        switch selectedTab {
+        case .skills:
+            return TabIssueSummary(
+                orphanedSkillCount: orphanedSkillCount,
+                brokenSkillCount: brokenSkillCount,
+                unknownWorkflowCount: 0,
+                mcpNeedUpdateCount: 0
+            )
+        case .workflows:
+            return TabIssueSummary(
+                orphanedSkillCount: 0,
+                brokenSkillCount: 0,
+                unknownWorkflowCount: unknownWorkflowCount,
+                mcpNeedUpdateCount: 0
+            )
+        case .mcp:
+            return TabIssueSummary(
+                orphanedSkillCount: 0,
+                brokenSkillCount: 0,
+                unknownWorkflowCount: 0,
+                mcpNeedUpdateCount: mcpNeedUpdateCount
+            )
+        default:
+            return TabIssueSummary(
+                orphanedSkillCount: 0,
+                brokenSkillCount: 0,
+                unknownWorkflowCount: 0,
+                mcpNeedUpdateCount: 0
+            )
+        }
+    }
+
+    @ViewBuilder
+    private var resourceHealthSummary: some View {
+        let summary = currentTabIssueSummary
+        if summary.total > 0 {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 8) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(DesignSystem.Colors.Status.warning)
+                    Text(
+                        NSLocalizedString(
+                            "provider.resources.health.warn",
+                            value: "Some resources need attention.",
+                            comment: "Provider resources warning summary"
+                        )
+                    )
+                    .font(.callout.weight(.semibold))
+                }
+                HStack(spacing: 12) {
+                    if summary.orphanedSkillCount > 0 {
+                        Text(
+                            String(
+                                format: NSLocalizedString(
+                                    "provider.resources.health.orphaned_skills_count",
+                                    value: "orphaned skills %d",
+                                    comment: "Provider orphaned skills count"
+                                ),
+                                summary.orphanedSkillCount
+                            )
+                        )
+                        .font(.caption)
+                        .dsBadge(
+                            foreground: DesignSystem.Colors.Status.warning,
+                            background: DesignSystem.Colors.Status.warning.opacity(0.14)
+                        )
+                    }
+                    if summary.brokenSkillCount > 0 {
+                        Text(
+                            String(
+                                format: NSLocalizedString(
+                                    "provider.resources.health.broken_skills_count",
+                                    value: "broken skills %d",
+                                    comment: "Provider broken skills count"
+                                ),
+                                summary.brokenSkillCount
+                            )
+                        )
+                        .font(.caption)
+                        .dsBadge(
+                            foreground: DesignSystem.Colors.Status.error,
+                            background: DesignSystem.Colors.Status.error.opacity(0.14)
+                        )
+                    }
+                    if summary.unknownWorkflowCount > 0 {
+                        Text(
+                            String(
+                                format: NSLocalizedString(
+                                    "provider.resources.health.unknown_workflows_count",
+                                    value: "unknown workflows %d",
+                                    comment: "Provider unknown workflows count"
+                                ),
+                                summary.unknownWorkflowCount
+                            )
+                        )
+                        .font(.caption)
+                        .dsBadge(
+                            foreground: DesignSystem.Colors.Text.secondary,
+                            background: DesignSystem.Colors.Component.controlFillSubtle
+                        )
+                    }
+                    if summary.mcpNeedUpdateCount > 0 {
+                        Text(
+                            String(
+                                format: NSLocalizedString(
+                                    "provider.resources.health.mcp_update_count",
+                                    value: "MCP cache update %d",
+                                    comment: "Provider MCP cache update count"
+                                ),
+                                summary.mcpNeedUpdateCount
+                            )
+                        )
+                        .font(.caption)
+                        .dsBadge(
+                            foreground: DesignSystem.Colors.secondary,
+                            background: DesignSystem.Colors.secondary.opacity(0.14)
+                        )
+                    }
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .dsCard(
+                background: DesignSystem.Colors.Status.warning.opacity(0.08),
+                cornerRadius: DesignSystem.Metrics.cornerRadiusM,
+                borderColor: DesignSystem.Colors.Status.warning.opacity(0.25),
+                borderWidth: 1
+            )
+        }
+    }
+
     @ViewBuilder
     private var tabContent: some View {
         switch selectedTab {
         case .skills:
             if let provider = provider {
-                ProviderSkillsGridView(viewModel: viewModel, columns: columns, provider: provider)
+                VStack(alignment: .leading, spacing: 12) {
+                    warningCard(viewModel.skillsErrorMessage)
+                    ProviderSkillsGridView(viewModel: viewModel, columns: columns, provider: provider)
+                }
             }
         case .workflows:
-            ProviderWorkflowsGridView(viewModel: viewModel, columns: columns)
+            VStack(alignment: .leading, spacing: 12) {
+                warningCard(viewModel.workflowsErrorMessage)
+                ProviderWorkflowsGridView(viewModel: viewModel, columns: columns)
+            }
         case .rules:
-            ProviderRulesGridView(viewModel: viewModel, columns: columns) { rule in
-                editingMarkdownDocument = EditingMarkdownDocument(url: URL(fileURLWithPath: rule.path))
+            VStack(alignment: .leading, spacing: 12) {
+                warningCard(viewModel.rulesErrorMessage)
+                ProviderRulesGridView(viewModel: viewModel, columns: columns) { rule in
+                    editingMarkdownDocument = EditingMarkdownDocument(url: URL(fileURLWithPath: rule.path))
+                }
             }
         case .agents:
-            ProviderAgentsGridView(viewModel: viewModel, columns: columns) { doc in
-                editingMarkdownDocument = EditingMarkdownDocument(url: URL(fileURLWithPath: doc.path))
+            VStack(alignment: .leading, spacing: 12) {
+                warningCard(viewModel.agentsErrorMessage)
+                ProviderAgentsGridView(viewModel: viewModel, columns: columns) { doc in
+                    editingMarkdownDocument = EditingMarkdownDocument(url: URL(fileURLWithPath: doc.path))
+                }
             }
         case .mcp:
-            mcpGrid
+            VStack(alignment: .leading, spacing: 12) {
+                warningCard(viewModel.mcpErrorMessage)
+                mcpGrid
+            }
         case .binary:
             if let provider = provider {
                 CodexBinaryConfigView(provider: provider)
@@ -233,6 +397,27 @@ struct ProviderDetailGridView: View {
             }
         case .none:
             EmptyView()
+        }
+    }
+
+    @ViewBuilder
+    private func warningCard(_ message: String?) -> some View {
+        if let message, !message.isEmpty {
+            HStack(alignment: .center, spacing: 8) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(DesignSystem.Colors.Status.warning)
+                Text(message)
+                    .font(.callout)
+                    .dsSecondaryText(font: .callout)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .dsCard(
+                background: DesignSystem.Colors.Status.warning.opacity(0.08),
+                cornerRadius: DesignSystem.Metrics.cornerRadiusM,
+                borderColor: DesignSystem.Colors.Status.warning.opacity(0.25),
+                borderWidth: 1
+            )
         }
     }
 
@@ -460,19 +645,18 @@ struct ProviderDetailGridView: View {
     }
 
     private func codexSourceURL(for folder: CodexLinkFolder) -> URL {
-        FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".codex", isDirectory: true)
+        STFolder("\(NSHomeDirectory())/.codex")
+            .url
             .appendingPathComponent(folder.rawValue, isDirectory: true)
     }
 
     private func isTargetLinked(to sourceURL: URL, targetURL: URL) -> Bool {
-        guard (try? targetURL.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink) == true else {
+        let targetPath = STPath(targetURL)
+        guard targetPath.isSymbolicLink else {
             return false
         }
         do {
-            let destination = try FileManager.default.destinationOfSymbolicLink(atPath: targetURL.path)
-            let resolved = URL(fileURLWithPath: destination, relativeTo: targetURL.deletingLastPathComponent())
-                .standardizedFileURL
+            let resolved = try targetPath.destinationOfSymbolicLink().url.standardizedFileURL
             return resolved.path == sourceURL.standardizedFileURL.path
         } catch {
             return false

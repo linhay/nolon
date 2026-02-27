@@ -15,13 +15,9 @@ public struct CodexUsageDescriptor: ProviderUsageDescribing {
             let helper = CodexHelper(codexBinary: nil, environment: context.environment)
             async let rateLimitsTask = helper.fetchRateLimits()
             async let accountInfoTask: CodexHelper.AccountInfo? = try? helper.fetchAccountInfo()
-            async let costTask: CodexCostSnapshot? = context.includeCredits
-                ? (try? CodexCostFetcher().fetchCostSnapshot(windowDays: context.costWindowDays))
-                : nil
 
             let rateLimits = try await rateLimitsTask
             let accountInfo = await accountInfoTask
-            let costInfo = await costTask
             let statusSnapshot: CodexStatusSnapshot?
             if rateLimits.primary?.resetsAt == nil || rateLimits.secondary?.resetsAt == nil {
                 statusSnapshot = try? await CodexStatusProbe().fetch()
@@ -82,25 +78,13 @@ public struct CodexUsageDescriptor: ProviderUsageDescribing {
                 fallbackCredits: nil
             )
 
-            let cost: CostSnapshot? = costInfo.map { snapshot in
-                CostSnapshot(
-                    todayCostUSD: snapshot.todayCostUSD,
-                    todayTokens: snapshot.todayTokens,
-                    last30DaysCostUSD: snapshot.last30DaysCostUSD,
-                    last30DaysTokens: snapshot.last30DaysTokens,
-                    windowDays: snapshot.windowDays,
-                    dailyCosts: snapshot.dailyCosts.map { daily in
-                        CostSnapshot.DailyCost(date: daily.date, costUSD: daily.costUSD, tokens: daily.tokens)
-                    },
-                    updatedAt: snapshot.updatedAt
-                )
-            }
+            let sourceLabel = NSLocalizedString("usage.source.cli", value: "CLI", comment: "CLI")
 
             let result = ProviderFetchResult(
                 usage: usage,
                 credits: credits,
-                cost: cost,
-                sourceLabel: NSLocalizedString("usage.source.cli", value: "CLI", comment: "CLI"),
+                cost: nil,
+                sourceLabel: sourceLabel,
                 fetchKind: fetchKind,
                 strategyKind: .direct
             )
