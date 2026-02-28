@@ -966,15 +966,21 @@ struct ProviderUsageView: View {
                     )
                     if actionLayout == .dualEqualWidth, let onLogin {
                         HStack(spacing: 8) {
-                            Button(NSLocalizedString("codex.accounts.copy_error", value: "Copy error", comment: "Copy account error")) {
+                            Button {
                                 viewModel.copyErrorText(failureDetail)
+                            } label: {
+                                Text(NSLocalizedString("codex.accounts.copy_error", value: "Copy error", comment: "Copy account error"))
+                                    .frame(maxWidth: .infinity)
                             }
                             .buttonStyle(.bordered)
                             .controlSize(.small)
                             .frame(maxWidth: .infinity)
 
-                            Button(NSLocalizedString("codex.accounts.relogin", value: "Re-login", comment: "Re-login account")) {
+                            Button {
                                 onLogin()
+                            } label: {
+                                Text(NSLocalizedString("codex.accounts.relogin", value: "Re-login", comment: "Re-login account"))
+                                    .frame(maxWidth: .infinity)
                             }
                             .buttonStyle(.borderedProminent)
                             .controlSize(.small)
@@ -982,8 +988,11 @@ struct ProviderUsageView: View {
                             .disabled(isLoggingIn)
                         }
                     } else {
-                        Button(NSLocalizedString("codex.accounts.copy_error", value: "Copy error", comment: "Copy account error")) {
+                        Button {
                             viewModel.copyErrorText(failureDetail)
+                        } label: {
+                            Text(NSLocalizedString("codex.accounts.copy_error", value: "Copy error", comment: "Copy account error"))
+                                .frame(maxWidth: .infinity)
                         }
                         .buttonStyle(.bordered)
                         .controlSize(.small)
