@@ -795,52 +795,43 @@ enum NolonCodexCLIExecutor {
     }
 
     private static func formatAuthUsageAccounts(_ payload: NolonCodexAuthUsagePayload, activeAccountIDOverride: UUID? = nil) -> String {
-        let title = "邮箱 | 5h剩余 | 7d剩余"
+        let title = "邮箱 | 状态 | 失败类型 | 5h剩余 | 7d剩余"
         guard !payload.accounts.isEmpty else { return title }
 
         let resolvedActiveID = activeAccountIDOverride
-        let rows: [(marker: String, email: String, fiveHour: String, weekly: String)] = payload.accounts.map { account in
+        let rows: [(marker: String, email: String, status: String, failureType: String, fiveHour: String, weekly: String)] = payload.accounts.map { account in
             let isActive = resolvedActiveID.map { account.id == $0 } ?? account.isActive
             let marker = isActive ? "*" : " "
             let emailRaw = account.email?.trimmingCharacters(in: .whitespacesAndNewlines)
             let email = (emailRaw?.isEmpty == false) ? (emailRaw ?? "-") : "-"
+            let status = account.status.rawValue
+            let failureType = account.failureType?.rawValue ?? "-"
             let fiveHour = account.fiveHourRemainingPercent.map { "\($0)%" } ?? "-"
             let weekly = account.weeklyRemainingPercent.map { "\($0)%" } ?? "-"
-            return (marker, email, fiveHour, weekly)
+            return (marker, email, status, failureType, fiveHour, weekly)
         }
 
         let emailWidth = max("邮箱".count, rows.map { $0.email.count }.max() ?? 0)
+        let statusWidth = max("状态".count, rows.map { $0.status.count }.max() ?? 0)
+        let failureTypeWidth = max("失败类型".count, rows.map { $0.failureType.count }.max() ?? 0)
         let fiveHourWidth = max("5h剩余".count, rows.map { $0.fiveHour.count }.max() ?? 0)
         let weeklyWidth = max("7d剩余".count, rows.map { $0.weekly.count }.max() ?? 0)
 
-        let header = "\(padRight("邮箱", to: emailWidth)) | \(padRight("5h剩余", to: fiveHourWidth)) | \(padRight("7d剩余", to: weeklyWidth))"
+        let header = "\(padRight("邮箱", to: emailWidth)) | \(padRight("状态", to: statusWidth)) | \(padRight("失败类型", to: failureTypeWidth)) | \(padRight("5h剩余", to: fiveHourWidth)) | \(padRight("7d剩余", to: weeklyWidth))"
         let body = rows.map { row in
-            "\(row.marker) \(padRight(row.email, to: emailWidth)) | \(padRight(row.fiveHour, to: fiveHourWidth)) | \(padRight(row.weekly, to: weeklyWidth))"
+            "\(row.marker) \(padRight(row.email, to: emailWidth)) | \(padRight(row.status, to: statusWidth)) | \(padRight(row.failureType, to: failureTypeWidth)) | \(padRight(row.fiveHour, to: fiveHourWidth)) | \(padRight(row.weekly, to: weeklyWidth))"
         }.joined(separator: "\n")
         var lines: [String] = ["\(header)\n\(body)"]
         lines.append(contentsOf: formatTokenSummaryTable(prefix: "Tokens汇总", summary: payload.summary))
         if shouldShowGlobalFallbackHint(payload.accounts) {
             lines.append("提示: 当前 Tokens 来自全局回退（~/.codex/sessions），账号间可能出现同值。")
         }
-        let refreshFailures = payload.accounts.compactMap { account -> (String, String, String)? in
-            guard account.syncFailedAt != nil || account.syncFailureMessage != nil else { return nil }
-            let emailRaw = account.email?.trimmingCharacters(in: .whitespacesAndNewlines)
-            let email = (emailRaw?.isEmpty == false) ? (emailRaw ?? "-") : "-"
-            let failedAt = account.syncFailedAt.map(formatDateTime) ?? "-"
-            let reasonRaw = account.syncFailureMessage?.trimmingCharacters(in: .whitespacesAndNewlines)
-            let reason = (reasonRaw?.isEmpty == false) ? (reasonRaw ?? "-") : "-"
-            return (email, failedAt, reason)
-        }
-        if !refreshFailures.isEmpty {
-            let emailWidth = max("邮箱".count, refreshFailures.map(\.0.count).max() ?? 0)
-            let timeWidth = max("失败时间".count, refreshFailures.map(\.1.count).max() ?? 0)
-            let failureHeader = "\(padRight("邮箱", to: emailWidth)) | \(padRight("失败时间", to: timeWidth)) | 原因"
-            let failureBody = refreshFailures.map { row in
-                "\(padRight(row.0, to: emailWidth)) | \(padRight(row.1, to: timeWidth)) | \(row.2)"
-            }.joined(separator: "\n")
+        if !payload.skippedAccounts.isEmpty {
             lines.append("")
-            lines.append("[刷新失败]")
-            lines.append("\(failureHeader)\n\(failureBody)")
+            lines.append("[跳过刷新]")
+            for skipped in payload.skippedAccounts {
+                lines.append("\(skipped.accountID.uuidString) | \(skipped.reason)")
+            }
         }
         return lines.joined(separator: "\n")
     }

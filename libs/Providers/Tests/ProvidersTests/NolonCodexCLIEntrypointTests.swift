@@ -1024,9 +1024,9 @@ struct NolonCodexCLIEntrypointTests {
 
         #expect(result.exitCode == 0)
         #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("[刷新失败]"))
         #expect(result.stdout.contains("broken@example.com"))
-        #expect(result.stdout.contains("401 Unauthorized"))
+        #expect(result.stdout.contains("failed"))
+        #expect(result.stdout.contains("other"))
     }
 
     @Test("auth usage overview resolves active account consistently by status")
@@ -1865,7 +1865,7 @@ struct NolonCodexCLIEntrypointTests {
         #expect(result.exitCode == 0)
         #expect(result.stderr.isEmpty)
 
-        let expected = #"{"command":"codex.auth.usage","data":{"accounts":[{"email":"json@example.com","expiresAt":"2026-12-31T08:00:00Z","fiveHourRemainingPercent":80,"id":"11111111-1111-1111-1111-111111111111","isActive":true,"refreshedAt":"1970-01-01T00:00:00Z","token1dCount":1200000,"token30dCount":24000000,"tokenAllCount":50000000,"weeklyRemainingPercent":60}],"providerID":"codex","summary":{"accountCount":1,"avgFiveHourRemainingPercent":80,"avgWeeklyRemainingPercent":60,"cachedCount":1,"earliestExpiresAt":"2026-12-31T08:00:00Z","latestRefreshedAt":"1970-01-01T00:00:00Z","totalToken1dCount":1200000,"totalToken30dCount":24000000,"totalTokenAllCount":50000000}},"ok":true}"#
+        let expected = #"{"command":"codex.auth.usage","data":{"accounts":[{"email":"json@example.com","expiresAt":"2026-12-31T08:00:00Z","fiveHourRemainingPercent":80,"id":"11111111-1111-1111-1111-111111111111","isActive":true,"isSkipped":false,"refreshedAt":"1970-01-01T00:00:00Z","status":"healthy","token1dCount":1200000,"token30dCount":24000000,"tokenAllCount":50000000,"weeklyRemainingPercent":60}],"providerID":"codex","refreshOrder":[],"skippedAccounts":[],"summary":{"accountCount":1,"avgFiveHourRemainingPercent":80,"avgWeeklyRemainingPercent":60,"cachedCount":1,"earliestExpiresAt":"2026-12-31T08:00:00Z","latestRefreshedAt":"1970-01-01T00:00:00Z","totalToken1dCount":1200000,"totalToken30dCount":24000000,"totalTokenAllCount":50000000}},"ok":true}"#
         #expect(try canonicalJSON(result.stdout) == expected)
     }
 
@@ -2684,6 +2684,7 @@ private actor JSONContractCodexCLIService: NolonCodexCLIServing {
                     id: UUID(uuidString: "11111111-1111-1111-1111-111111111111")!,
                     email: "json@example.com",
                     isActive: true,
+                    status: .healthy,
                     fiveHourRemainingPercent: 80,
                     weeklyRemainingPercent: 60,
                     token1dCount: 1_200_000,
@@ -3048,6 +3049,8 @@ private actor AuthUsageRefreshFailureCodexCLIService: NolonCodexCLIServing {
                     id: UUID(uuidString: "56565656-5656-5656-5656-565656565656")!,
                     email: "broken@example.com",
                     isActive: true,
+                    status: .failed,
+                    failureType: .other,
                     fiveHourRemainingPercent: nil,
                     weeklyRemainingPercent: nil,
                     refreshedAt: nil,

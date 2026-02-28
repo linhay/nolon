@@ -4,16 +4,6 @@
     "" : {
 
     },
-    "%@ · %@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$@ · %2$@"
-          }
-        }
-      }
-    },
     "%@=%@" : {
       "localizations" : {
         "en" : {
@@ -1627,6 +1617,24 @@
         }
       }
     },
+    "codex.accounts.copy_error" : {
+      "comment" : "Copy account error",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Copy error"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "复制错误"
+          }
+        }
+      }
+    },
     "codex.accounts.current.api_key" : {
       "comment" : "Current auth summary",
       "extractionState" : "stale",
@@ -1807,6 +1815,24 @@
         }
       }
     },
+    "codex.accounts.error.auth_expired" : {
+      "comment" : "Codex auth expired summary",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Authentication expired. Please sign in again."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "认证已失效，请重新登录。"
+          }
+        }
+      }
+    },
     "codex.accounts.error.delete" : {
       "comment" : "Error message",
       "extractionState" : "stale",
@@ -1884,8 +1910,81 @@
         }
       }
     },
+    "codex.accounts.relogin" : {
+      "comment" : "Re-login account",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Re-login"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新登录"
+          }
+        }
+      }
+    },
+    "codex.accounts.status.normal" : {
+      "comment" : "Codex account status healthy",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Healthy"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "状态正常"
+          }
+        }
+      }
+    },
+    "codex.accounts.status.pending" : {
+      "comment" : "Codex account status pending refresh",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Pending refresh"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "等待刷新"
+          }
+        }
+      }
+    },
+    "codex.accounts.status.reauth_needed" : {
+      "comment" : "Codex account status needs re-login",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Needs re-login"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "需要重新登录"
+          }
+        }
+      }
+    },
     "codex.accounts.sync.failure" : {
       "comment" : "Last failure label",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {

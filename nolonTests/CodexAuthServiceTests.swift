@@ -1,4 +1,5 @@
 import XCTest
+import AppKit
 import STJSON
 import ProviderUsage
 import STFilePath
@@ -301,6 +302,54 @@ final class ProviderUsageViewModelCLILoginTests: XCTestCase {
         XCTAssertTrue(viewModel.isRunningCLILogin)
         XCTAssertNotNil(viewModel.cliLoginPreferredAccountId)
     }
+
+    func testBDD_Given401Unauthorized_WhenCheckingAuthFailure_ThenReturnsTrue() {
+        let error = UsageViewModelTestError(message: "Codex protocol error: 401 Unauthorized")
+        XCTAssertTrue(ProviderUsageViewModel.isAuthFailure(error: error))
+    }
+
+    func testBDD_GivenRefreshTokenRevoked_WhenCheckingAuthFailure_ThenReturnsTrue() {
+        let error = UsageViewModelTestError(message: "refresh_token_revoked")
+        XCTAssertTrue(ProviderUsageViewModel.isAuthFailure(error: error))
+    }
+
+    func testBDD_GivenTimeoutFailure_WhenCheckingAuthFailure_ThenReturnsFalse() {
+        let error = UsageViewModelTestError(message: "request timed out")
+        XCTAssertFalse(ProviderUsageViewModel.isAuthFailure(error: error))
+    }
+
+    func testBDD_GivenAuthFailure_WhenBuildingSummary_ThenReturnsReauthMessage() {
+        let error = UsageViewModelTestError(message: "401 Unauthorized")
+        let summary = ProviderUsageViewModel.errorSummaryText(error: error)
+        XCTAssertEqual(
+            summary,
+            NSLocalizedString("codex.accounts.error.auth_expired", value: "Authentication expired. Please sign in again.", comment: "Codex auth expired summary")
+        )
+    }
+
+    func testBDD_GivenLongProtocolError_WhenBuildingSummary_ThenReturnsTrimmedText() {
+        let raw = "Codex protocol error: failed to fetch codex rate limits: GET https://chatgpt.com/backend-api/wham/usage failed"
+        let error = UsageViewModelTestError(message: raw)
+        let summary = ProviderUsageViewModel.errorSummaryText(error: error)
+        XCTAssertFalse(summary.isEmpty)
+        XCTAssertTrue(summary.count <= 140)
+    }
+
+    func testBDD_GivenFailureMessage_WhenCopyErrorText_ThenPasteboardContainsOriginalText() {
+        let provider = Provider(
+            name: "Codex",
+            defaultSkillsPath: "/tmp/codex-skills",
+            workflowPath: "/tmp/codex-prompts",
+            installMethod: .symlink,
+            templateId: "codex"
+        )
+        let viewModel = ProviderUsageViewModel(provider: provider)
+        let message = "Codex protocol error: 401 Unauthorized"
+
+        viewModel.copyErrorText(message)
+
+        XCTAssertEqual(NSPasteboard.general.string(forType: .string), message)
+    }
 }
 
 @MainActor
@@ -518,6 +567,12 @@ final class CodexAuthEventPolicyTests: XCTestCase {
 
 private enum ActivationTestError: Error {
     case failed
+}
+
+private struct UsageViewModelTestError: LocalizedError {
+    let message: String
+
+    var errorDescription: String? { message }
 }
 
 private actor AsyncFlagBox {

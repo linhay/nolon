@@ -45,6 +45,7 @@ final class ProviderUsageViewModel {
     var codexAccountSummaries: [UUID: CodexAuthSummary] = [:]
     var codexAccountCreditsRefreshedAt: [UUID: Date] = [:]
     var codexRefreshingAccountIds: Set<UUID> = []
+    var codexRefreshedAccountIdsInSession: Set<UUID> = []
     var currentCodexAuthHashHex: String?
     var codexAuthFilePath: String?
     var activeCodexAccountId: UUID?
@@ -84,6 +85,13 @@ final class ProviderUsageViewModel {
     private var didStartInitialLoad = false
     private var lastUsageRefreshAt: Date?
     private let cliLoginTimeoutSeconds: TimeInterval = 10 * 60
+
+    enum CodexAccountDisplayState: String, Sendable {
+        case pending
+        case healthy
+        case failed
+        case needsReauth
+    }
 
     var usageAggregate: ProviderUsageAggregate {
         usageSnapshotService.aggregate(items: currentSnapshotItems())
@@ -301,14 +309,10 @@ final class ProviderUsageViewModel {
             activeCodexAccountId = await codexAuthManager.activeAccountId(for: provider)
             codexAccountOutcomes = await loadCachedCodexAccountOutcomes(accounts: codexAccounts)
             reorderCodexAccountOutcomesForDisplay()
-
-            Task { [weak self] in
-                guard let self else { return }
-                await self.refreshCodexAccountsIfNeeded(
-                    activeId: self.activeCodexAccountId,
-                    summaries: self.codexAccountSummaries
-                )
-            }
+            await refreshCodexAccountsOnInitialLoad(
+                activeId: activeCodexAccountId,
+                summaries: codexAccountSummaries
+            )
         } catch {
             resetCodexMultiAccountState()
             Self.logger.error("Failed to load codex accounts: \(String(describing: error), privacy: .public)")
@@ -329,10 +333,12 @@ final class ProviderUsageViewModel {
                 return
             }
 
-            await refreshCodexAccountsIfNeeded(
-                activeId: activeCodexAccountId,
-                summaries: codexAccountSummaries
-            )
+            for account in orderedAccounts(activeId: activeCodexAccountId) {
+                if shouldSkipRefresh(accountID: account.id, summaries: codexAccountSummaries) {
+                    continue
+                }
+                await refreshCodexAccountOutcome(account)
+            }
             return
         }
 
@@ -730,6 +736,42 @@ final class ProviderUsageViewModel {
         NSPasteboard.general.setString(raw, forType: .string)
     }
 
+    func copyErrorText(_ raw: String) {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(trimmed, forType: .string)
+    }
+
+    static func isAuthFailure(error: Error) -> Bool {
+        CodexAuthFailureClassifier.isAuthFailure(errorText: errorDetailText(error: error))
+    }
+
+    static func errorSummaryText(error: Error, maxLength: Int = 140) -> String {
+        if isAuthFailure(error: error) {
+            return NSLocalizedString(
+                "codex.accounts.error.auth_expired",
+                value: "Authentication expired. Please sign in again.",
+                comment: "Codex auth expired summary"
+            )
+        }
+
+        let compact = errorDetailText(error: error)
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard compact.count > maxLength else { return compact }
+        let prefixLength = max(0, maxLength - 3)
+        return String(compact.prefix(prefixLength)) + "..."
+    }
+
+    static func errorDetailText(error: Error) -> String {
+        let trimmed = error.localizedDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty {
+            return trimmed
+        }
+        return String(describing: error).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     func reopenLoginURLInBrowser() {
         guard let url = loginURLForSheet else { return }
         NSWorkspace.shared.open(url)
@@ -814,6 +856,7 @@ final class ProviderUsageViewModel {
         codexAccountSummaries = [:]
         codexAccountCreditsRefreshedAt = [:]
         codexRefreshingAccountIds = []
+        codexRefreshedAccountIdsInSession = []
         currentCodexAuthHashHex = nil
         codexAuthFilePath = nil
         activeCodexAccountId = nil
@@ -1129,7 +1172,10 @@ final class ProviderUsageViewModel {
     }
 
     private func refreshCodexAccountsIfNeeded(activeId: UUID?, summaries: [UUID: CodexAuthSummary]) async {
-        let targets = codexAccounts.filter { account in
+        let targets = orderedAccounts(activeId: activeId).filter { account in
+            if shouldSkipRefresh(accountID: account.id, summaries: summaries) {
+                return false
+            }
             let isActive = account.id == activeId || (activeId == nil && isActiveCodexAccount(account))
             if isActive { return true }
             return isAccountInfoMissing(accountId: account.id, summaries: summaries)
@@ -1158,6 +1204,7 @@ final class ProviderUsageViewModel {
 
         if case let .success(result) = outcome.outcome.result {
             let now = Date()
+            codexRefreshedAccountIdsInSession.insert(accountId)
             try? await codexAuthManager.updateSyncSuccess(for: account, date: now)
             let creditsRefreshedAt: Date? = {
                 guard let credits = result.credits, !credits.remaining.isNaN else { return nil }
@@ -1209,6 +1256,7 @@ final class ProviderUsageViewModel {
             }
         } else if case let .failure(error) = outcome.outcome.result {
             let now = Date()
+            codexRefreshedAccountIdsInSession.remove(accountId)
             let message = error.localizedDescription
             try? await codexAuthManager.updateSyncFailure(for: account, message: message, date: now)
             var summary = codexAccountSummaries[accountId] ?? CodexAuthSummary()
@@ -1216,6 +1264,38 @@ final class ProviderUsageViewModel {
             summary.lastSyncFailureMessage = message
             codexAccountSummaries[accountId] = summary
         }
+    }
+
+    private func refreshCodexAccountsOnInitialLoad(activeId: UUID?, summaries: [UUID: CodexAuthSummary]) async {
+        for account in orderedAccounts(activeId: activeId) {
+            if shouldSkipRefresh(accountID: account.id, summaries: summaries) {
+                continue
+            }
+            await refreshCodexAccountOutcome(account)
+        }
+    }
+
+    private func orderedAccounts(activeId: UUID?) -> [CodexAuthAccount] {
+        guard !codexAccounts.isEmpty else { return [] }
+        let resolvedActiveID: UUID? = {
+            if let activeId { return activeId }
+            if let active = activeCodexAccountForRefresh() { return active.id }
+            return nil
+        }()
+        guard let resolvedActiveID else { return codexAccounts }
+
+        var ordered: [CodexAuthAccount] = []
+        ordered.reserveCapacity(codexAccounts.count)
+        if let active = codexAccounts.first(where: { $0.id == resolvedActiveID }) {
+            ordered.append(active)
+        }
+        ordered.append(contentsOf: codexAccounts.filter { $0.id != resolvedActiveID })
+        return ordered
+    }
+
+    private func shouldSkipRefresh(accountID: UUID, summaries: [UUID: CodexAuthSummary]) -> Bool {
+        guard let summary = summaries[accountID] else { return false }
+        return CodexAuthFailureClassifier.shouldSkipRefresh(summary: summary)
     }
 
     private func persistCurrentCodexOutcomeIfPossible(
@@ -1365,6 +1445,31 @@ final class ProviderUsageViewModel {
         }
 
         return true
+    }
+
+    func displayState(
+        accountID: UUID?,
+        outcome: ProviderAccountUsageOutcome,
+        summary: CodexAuthSummary?
+    ) -> CodexAccountDisplayState {
+        if case let .failure(error) = outcome.outcome.result {
+            return CodexAuthFailureClassifier.isAuthFailure(errorText: Self.errorDetailText(error: error))
+            ? .needsReauth
+            : .failed
+        }
+
+        let persistedFailureText = summary?.lastSyncFailureMessage?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let persistedFailureText, !persistedFailureText.isEmpty {
+            return CodexAuthFailureClassifier.isAuthFailure(errorText: persistedFailureText)
+            ? .needsReauth
+            : .failed
+        }
+        if summary?.lastSyncFailedAt != nil {
+            return .failed
+        }
+
+        guard let accountID else { return .pending }
+        return codexRefreshedAccountIdsInSession.contains(accountID) ? .healthy : .pending
     }
 
     private func fetchCodexOutcome(for account: CodexAuthAccount, settings: UsageMonitorProviderSettings) async -> ProviderAccountUsageOutcome {

@@ -71,6 +71,9 @@ public extension NolonCodexCLIServing {
                     id: account.id,
                     email: account.email,
                     isActive: account.isActive,
+                    status: .pending,
+                    failureType: nil,
+                    isSkipped: false,
                     usageSource: nil,
                     fiveHourRemainingPercent: nil,
                     weeklyRemainingPercent: nil,
@@ -92,7 +95,9 @@ public extension NolonCodexCLIServing {
                 totalTokenAllCount: nil,
                 earliestExpiresAt: nil,
                 latestRefreshedAt: list.accounts.compactMap(\.refreshedAt).max()
-            )
+            ),
+            refreshOrder: [],
+            skippedAccounts: []
         )
     }
 
@@ -150,9 +155,25 @@ public struct NolonCodexAuthListPayload: Codable, Sendable, Equatable {
 }
 
 public struct NolonCodexAuthUsageAccountView: Codable, Sendable, Equatable {
+    public enum Status: String, Codable, Sendable, Equatable {
+        case pending
+        case healthy
+        case failed
+        case needsReauth = "needs_reauth"
+        case skipped
+    }
+
+    public enum FailureType: String, Codable, Sendable, Equatable {
+        case auth
+        case other
+    }
+
     public let id: UUID
     public let email: String?
     public let isActive: Bool
+    public let status: Status
+    public let failureType: FailureType?
+    public let isSkipped: Bool
     public let usageSource: String?
     public let fiveHourRemainingPercent: Int?
     public let weeklyRemainingPercent: Int?
@@ -171,6 +192,9 @@ public struct NolonCodexAuthUsageAccountView: Codable, Sendable, Equatable {
         id: UUID,
         email: String?,
         isActive: Bool,
+        status: Status = .pending,
+        failureType: FailureType? = nil,
+        isSkipped: Bool = false,
         usageSource: String? = nil,
         fiveHourRemainingPercent: Int?,
         weeklyRemainingPercent: Int?,
@@ -188,6 +212,9 @@ public struct NolonCodexAuthUsageAccountView: Codable, Sendable, Equatable {
         self.id = id
         self.email = email
         self.isActive = isActive
+        self.status = status
+        self.failureType = failureType
+        self.isSkipped = isSkipped
         self.usageSource = usageSource
         self.fiveHourRemainingPercent = fiveHourRemainingPercent
         self.weeklyRemainingPercent = weeklyRemainingPercent
@@ -245,9 +272,35 @@ public struct NolonCodexAuthUsageSummaryView: Codable, Sendable, Equatable {
 }
 
 public struct NolonCodexAuthUsagePayload: Codable, Sendable, Equatable {
+    public struct RefreshStep: Codable, Sendable, Equatable {
+        public let accountID: UUID
+        public let order: Int
+    }
+
+    public struct SkippedAccount: Codable, Sendable, Equatable {
+        public let accountID: UUID
+        public let reason: String
+    }
+
     public let providerID: String
     public let accounts: [NolonCodexAuthUsageAccountView]
     public let summary: NolonCodexAuthUsageSummaryView
+    public let refreshOrder: [RefreshStep]
+    public let skippedAccounts: [SkippedAccount]
+
+    public init(
+        providerID: String,
+        accounts: [NolonCodexAuthUsageAccountView],
+        summary: NolonCodexAuthUsageSummaryView,
+        refreshOrder: [RefreshStep] = [],
+        skippedAccounts: [SkippedAccount] = []
+    ) {
+        self.providerID = providerID
+        self.accounts = accounts
+        self.summary = summary
+        self.refreshOrder = refreshOrder
+        self.skippedAccounts = skippedAccounts
+    }
 }
 
 public struct NolonCodexAuthUsageTrendPointView: Codable, Sendable, Equatable {
@@ -483,6 +536,13 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
     private let currentPIDProvider: @Sendable () -> Int32
     private let sleep: @Sendable (UInt64) async throws -> Void
 
+    private struct UsageRefreshReport: Sendable {
+        var refreshOrder: [UUID] = []
+        var skippedAccountIDs: Set<UUID> = []
+        var skippedReasons: [UUID: String] = [:]
+        var failedAccountIDs: Set<UUID> = []
+    }
+
     public init(
         authManager: CodexAuthManager = CodexAuthManager(),
         binaryManager: CodexBinaryManager = .shared,
@@ -640,16 +700,17 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
         let canonicalProviderID = try Self.canonicalProviderID(providerID)
         let provider = try Self.provider(for: canonicalProviderID)
         var accounts = try await authManager.loadAccounts()
-        let refreshFailedAccountIDs: Set<UUID>
+        let refreshReport: UsageRefreshReport
         if refreshBeforeRead {
-            refreshFailedAccountIDs = try await refreshUsageCaches(
+            refreshReport = try await refreshUsageCaches(
+                provider: provider,
                 accounts: accounts,
                 targetAccountID: refreshTargetAccountID
             )
             // Reload account metadata after refresh attempt so sync-failure flags are current.
             accounts = try await authManager.loadAccounts()
         } else {
-            refreshFailedAccountIDs = []
+            refreshReport = UsageRefreshReport()
         }
         let activeID = await authManager.activeAccountId(for: provider)
 
@@ -659,18 +720,32 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
         for account in accounts {
             let email = Self.loadEmail(for: account, authManager: authManager)
             let usageCache: CodexAuthUsageCache?
-            if refreshFailedAccountIDs.contains(account.id) {
+            if refreshReport.failedAccountIDs.contains(account.id) || refreshReport.skippedAccountIDs.contains(account.id) {
                 usageCache = nil
             } else {
                 usageCache = try? await authManager.loadUsageCache(for: account)
             }
             let authInfo = Self.resolveAuthTokenInfo(for: account, authManager: authManager)
             let syncFailure = Self.resolveSyncFailureInfo(for: account, authManager: authManager)
+            let status = resolveUsageStatus(
+                accountID: account.id,
+                usageCache: usageCache,
+                syncFailureMessage: syncFailure.message,
+                refreshReport: refreshReport
+            )
+            let failureType: NolonCodexAuthUsageAccountView.FailureType? = {
+                guard status == .failed || status == .needsReauth else { return nil }
+                let text = syncFailure.message?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                return CodexAuthFailureClassifier.isAuthFailure(errorText: text) ? .auth : .other
+            }()
             views.append(
                 NolonCodexAuthUsageAccountView(
                     id: account.id,
                     email: email,
                     isActive: account.id == activeID,
+                    status: status,
+                    failureType: failureType,
+                    isSkipped: refreshReport.skippedAccountIDs.contains(account.id),
                     usageSource: usageCache?.sourceLabel,
                     fiveHourRemainingPercent: Self.remainingPercent(usageCache?.usage.primary),
                     weeklyRemainingPercent: Self.remainingPercent(usageCache?.usage.secondary),
@@ -716,14 +791,22 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
         return NolonCodexAuthUsagePayload(
             providerID: canonicalProviderID,
             accounts: views,
-            summary: summary
+            summary: summary,
+            refreshOrder: refreshReport.refreshOrder.enumerated().map { idx, accountID in
+                NolonCodexAuthUsagePayload.RefreshStep(accountID: accountID, order: idx + 1)
+            },
+            skippedAccounts: refreshReport.skippedAccountIDs.compactMap { accountID in
+                let reason = refreshReport.skippedReasons[accountID] ?? "failed_before"
+                return NolonCodexAuthUsagePayload.SkippedAccount(accountID: accountID, reason: reason)
+            }
         )
     }
 
     private func refreshUsageCaches(
+        provider: Provider,
         accounts: [CodexAuthAccount],
         targetAccountID: UUID?
-    ) async throws -> Set<UUID> {
+    ) async throws -> UsageRefreshReport {
         let targets: [CodexAuthAccount]
         if let targetAccountID {
             guard let matched = accounts.first(where: { $0.id == targetAccountID }) else {
@@ -734,11 +817,17 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
             }
             targets = [matched]
         } else {
-            targets = accounts
+            let activeID = await authManager.activeAccountId(for: provider)
+            let activeAccount = activeID.flatMap { id in accounts.first(where: { $0.id == id }) }
+            if let activeAccount {
+                targets = [activeAccount] + accounts.filter { $0.id != activeAccount.id }
+            } else {
+                targets = accounts
+            }
         }
 
-        guard !targets.isEmpty else { return [] }
-        var failedAccountIDs: Set<UUID> = []
+        guard !targets.isEmpty else { return UsageRefreshReport() }
+        var report = UsageRefreshReport()
 
         var mergedEnvironment = environment
         if let managed = try? await binaryManager.launchEnvironmentVariables() {
@@ -746,6 +835,13 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
         }
 
         for account in targets {
+            let summary = Self.loadSummary(for: account, authManager: authManager)
+            if CodexAuthFailureClassifier.shouldSkipRefresh(summary: summary) {
+                report.skippedAccountIDs.insert(account.id)
+                report.skippedReasons[account.id] = "failed_before"
+                continue
+            }
+            report.refreshOrder.append(account.id)
             let runtimeHome = authManager.runtimeHomeFolder(accountID: account.id)
             _ = runtimeHome.createIfNotExists()
             let runtimeAuth = runtimeHome.file("auth.json")
@@ -781,10 +877,28 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
                 // remove cache to avoid showing outdated values as if they were fresh.
                 try await authManager.clearUsageCache(for: account)
                 try await authManager.updateSyncFailure(for: account, message: error.localizedDescription, date: Date())
-                failedAccountIDs.insert(account.id)
+                report.failedAccountIDs.insert(account.id)
             }
         }
-        return failedAccountIDs
+        return report
+    }
+
+    private func resolveUsageStatus(
+        accountID: UUID,
+        usageCache: CodexAuthUsageCache?,
+        syncFailureMessage: String?,
+        refreshReport: UsageRefreshReport
+    ) -> NolonCodexAuthUsageAccountView.Status {
+        if refreshReport.skippedAccountIDs.contains(accountID) { return .skipped }
+        if refreshReport.failedAccountIDs.contains(accountID) {
+            let text = syncFailureMessage?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            return CodexAuthFailureClassifier.isAuthFailure(errorText: text) ? .needsReauth : .failed
+        }
+        if let syncFailureMessage, !syncFailureMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return CodexAuthFailureClassifier.isAuthFailure(errorText: syncFailureMessage) ? .needsReauth : .failed
+        }
+        if usageCache != nil { return .healthy }
+        return .pending
     }
 
     public func authStatus(providerID: String) async throws -> NolonCodexAuthStatusPayload {
@@ -1403,6 +1517,13 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
         guard let data = try? authManager.accountAuthFile(relativeAuthPath: account.relativeAuthPath).data(), !data.isEmpty else { return nil }
         let summary = CodexAuthSummary.fromJSONData(data)
         return summary.email
+    }
+
+    private static func loadSummary(for account: CodexAuthAccount, authManager: CodexAuthManager) -> CodexAuthSummary {
+        guard let data = try? authManager.accountAuthFile(relativeAuthPath: account.relativeAuthPath).data(),
+              !data.isEmpty
+        else { return CodexAuthSummary() }
+        return CodexAuthSummary.fromJSONData(data)
     }
 
     private static func makeUsageDisplay(from cache: CodexAuthUsageCache?) -> String? {

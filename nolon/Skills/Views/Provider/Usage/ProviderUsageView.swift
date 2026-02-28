@@ -734,7 +734,9 @@ struct ProviderUsageView: View {
             summary: summary,
             onRefresh: accountId.map { id in
                 { viewModel.refreshCodexAccount(id: id) }
-            }
+            },
+            onLogin: onLogin,
+            isLoggingIn: isLoggingIn
         )
         .overlay {
             RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusL, style: .continuous)
@@ -788,15 +790,51 @@ struct ProviderUsageView: View {
         isSelected: Bool,
         isRefreshing: Bool,
         summary: CodexAuthSummary?,
-        onRefresh: (() -> Void)?
+        onRefresh: (() -> Void)?,
+        onLogin: (() -> Void)?,
+        isLoggingIn: Bool
     ) -> some View {
+        let accountId: UUID? = {
+            switch outcome.account {
+            case .default:
+                return nil
+            case let .tokenAccount(account):
+                return account.id
+            }
+        }()
         let title = outcome.displayName
         let fallbackEmail = summary?.email?.trimmingCharacters(in: .whitespacesAndNewlines)
         let fallbackPlan = summary?.plan?.trimmingCharacters(in: .whitespacesAndNewlines)
         let lastLogin = summary?.lastLoginAt
         let lastSync = summary?.lastSyncSucceededAt
-        let lastFailure = summary?.lastSyncFailedAt
-        let lastFailureMessage = summary?.lastSyncFailureMessage
+        let displayState = viewModel.displayState(accountID: accountId, outcome: outcome, summary: summary)
+        let liveFailureError: Error? = {
+            if case let .failure(error) = outcome.outcome.result { return error }
+            return nil
+        }()
+        let persistedFailureDetail = summary?.lastSyncFailureMessage?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let failureDetail: String? = {
+            if let persistedFailureDetail, !persistedFailureDetail.isEmpty { return persistedFailureDetail }
+            if let liveFailureError { return ProviderUsageViewModel.errorDetailText(error: liveFailureError) }
+            return nil
+        }()
+        let failureSummary: String? = {
+            if let liveFailureError {
+                return ProviderUsageViewModel.errorSummaryText(error: liveFailureError)
+            }
+            if let failureDetail {
+                if CodexAuthFailureClassifier.isAuthFailure(errorText: failureDetail) {
+                    return NSLocalizedString(
+                        "codex.accounts.error.auth_expired",
+                        value: "Authentication expired. Please sign in again.",
+                        comment: "Codex auth expired summary"
+                    )
+                }
+                return failureDetail
+            }
+            return nil
+        }()
+        let needsReauth = displayState == .needsReauth
 
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -823,27 +861,6 @@ struct ProviderUsageView: View {
                     .dsBorderlessButton()
                     .help(NSLocalizedString("usage.monitor.refresh", value: "Refresh", comment: "Refresh"))
                 }
-            }
-
-            if let lastFailure, let lastFailureMessage, !lastFailureMessage.isEmpty {
-                HStack(spacing: 6) {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .font(.caption)
-                        .foregroundStyle(DesignSystem.Colors.Status.error)
-                    Text(NSLocalizedString("codex.accounts.sync.failure", value: "Last failure", comment: "Last failure label"))
-                        .font(.caption)
-                        .foregroundStyle(DesignSystem.Colors.Text.secondary)
-                    Text("\(lastFailure.formatted(date: .abbreviated, time: .shortened)) · \(lastFailureMessage)")
-                        .font(.caption)
-                        .foregroundStyle(DesignSystem.Colors.Text.primary)
-                        .lineLimit(2)
-                }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 6)
-                .background(
-                    RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusS, style: .continuous)
-                        .fill(DesignSystem.Colors.Status.error.opacity(0.16))
-                )
             }
 
             switch outcome.outcome.result {
@@ -892,20 +909,50 @@ struct ProviderUsageView: View {
                         .dsSecondaryText(font: .caption)
                         .lineLimit(1)
                 }
+                let _ = error
+            }
 
-                let errorText = {
-                    let trimmed = error.localizedDescription.trimmingCharacters(in: .whitespacesAndNewlines)
-                    return trimmed.isEmpty ? String(describing: error) : trimmed
-                }()
+            HStack(spacing: 6) {
+                Circle()
+                    .fill(statusColor(for: displayState))
+                    .frame(width: 6, height: 6)
+                Text(
+                    statusText(for: displayState)
+                )
+                .font(.caption)
+                .foregroundStyle(statusColor(for: displayState))
+            }
 
-                Text(NSLocalizedString("usage.monitor.error.title", value: "Failed to load usage", comment: "Error title"))
-                    .dsErrorText(font: .caption)
-                    .lineLimit(1)
+            if let failureSummary, let failureDetail {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(failureSummary)
+                        .font(.caption)
+                        .foregroundStyle(DesignSystem.Colors.Text.primary)
+                        .lineLimit(1)
 
-                Text(errorText)
-                    .font(.caption)
-                    .dsTertiaryText(font: .caption)
-                    .lineLimit(2)
+                    HStack(spacing: 8) {
+                        Button(NSLocalizedString("codex.accounts.copy_error", value: "Copy error", comment: "Copy account error")) {
+                            viewModel.copyErrorText(failureDetail)
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+
+                        if needsReauth, let onLogin {
+                            Button(NSLocalizedString("codex.accounts.relogin", value: "Re-login", comment: "Re-login account")) {
+                                onLogin()
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.small)
+                            .disabled(isLoggingIn)
+                        }
+
+                        if isLoggingIn {
+                            Text(NSLocalizedString("codex.accounts.add.cli.running", value: "Logging in…", comment: "CLI login running status"))
+                                .font(.caption2)
+                                .foregroundStyle(DesignSystem.Colors.Text.tertiary)
+                        }
+                    }
+                }
             }
 
             if let lastLogin {
@@ -938,6 +985,30 @@ struct ProviderUsageView: View {
         .frame(maxWidth: .infinity, minHeight: 104, alignment: .topLeading)
         .textSelection(.enabled)
         .dsCard(background: .clear, borderColor: nil, borderWidth: 0)
+    }
+
+    private func statusColor(for state: ProviderUsageViewModel.CodexAccountDisplayState) -> Color {
+        switch state {
+        case .needsReauth, .failed:
+            return DesignSystem.Colors.Status.error
+        case .healthy:
+            return DesignSystem.Colors.Status.success
+        case .pending:
+            return DesignSystem.Colors.Text.secondary
+        }
+    }
+
+    private func statusText(for state: ProviderUsageViewModel.CodexAccountDisplayState) -> String {
+        switch state {
+        case .needsReauth:
+            return NSLocalizedString("codex.accounts.status.reauth_needed", value: "Needs re-login", comment: "Codex account status needs re-login")
+        case .failed:
+            return NSLocalizedString("codex.accounts.sync.failure", value: "Last failure", comment: "Last failure label")
+        case .healthy:
+            return NSLocalizedString("codex.accounts.status.normal", value: "Healthy", comment: "Codex account status healthy")
+        case .pending:
+            return NSLocalizedString("codex.accounts.status.pending", value: "Pending refresh", comment: "Codex account status pending refresh")
+        }
     }
 
     private func codexSubtitleText(title: String, email: String?, plan: String?) -> String? {
