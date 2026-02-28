@@ -7,6 +7,37 @@ import CodexBarProviderCatalog
 import CodexProvider
 import UniformTypeIdentifiers
 
+enum CodexUsageCardStatusKind: Equatable {
+    case healthy
+    case error
+    case pending
+}
+
+enum CodexUsageCardActionLayout: Equatable {
+    case singleFullWidth
+    case dualEqualWidth
+}
+
+enum CodexUsageCardPresentationPolicy {
+    static func statusKind(for state: ProviderUsageViewModel.CodexAccountDisplayState) -> CodexUsageCardStatusKind {
+        switch state {
+        case .needsReauth, .failed:
+            return .error
+        case .healthy:
+            return .healthy
+        case .pending:
+            return .pending
+        }
+    }
+
+    static func actionLayout(needsReauth: Bool, hasLoginAction: Bool) -> CodexUsageCardActionLayout {
+        if needsReauth, hasLoginAction {
+            return .dualEqualWidth
+        }
+        return .singleFullWidth
+    }
+}
+
 struct ProviderUsageView: View {
     let provider: Provider
     let isEmbedded: Bool
@@ -841,9 +872,14 @@ struct ProviderUsageView: View {
         }()
         let needsReauth = displayState == .needsReauth
         let shouldShowUsageMetrics = failureSummary == nil && (displayState == .healthy || displayState == .pending)
+        let statusKind = CodexUsageCardPresentationPolicy.statusKind(for: displayState)
+        let statusColor = statusColor(for: statusKind)
 
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Circle()
+                    .fill(statusColor)
+                    .frame(width: 6, height: 6)
                 Text(title)
                     .font(.subheadline)
                     .fontWeight(.semibold)
@@ -868,22 +904,6 @@ struct ProviderUsageView: View {
                     .help(NSLocalizedString("usage.monitor.refresh", value: "Refresh", comment: "Refresh"))
                 }
             }
-
-            HStack(spacing: 8) {
-                Circle()
-                    .fill(statusColor(for: displayState))
-                    .frame(width: 6, height: 6)
-                Text(statusText(for: displayState))
-                    .font(.caption)
-                    .foregroundStyle(statusColor(for: displayState))
-                Spacer(minLength: 0)
-            }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(statusColor(for: displayState).opacity(0.12))
-            )
 
             switch outcome.outcome.result {
             case let .success(result):
@@ -940,27 +960,40 @@ struct ProviderUsageView: View {
                         .foregroundStyle(DesignSystem.Colors.Text.primary)
                         .lineLimit(2)
 
-                    HStack(spacing: 8) {
-                        Button(NSLocalizedString("codex.accounts.copy_error", value: "Copy error", comment: "Copy account error")) {
-                            viewModel.copyErrorText(failureDetail)
-                        }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
+                    let actionLayout = CodexUsageCardPresentationPolicy.actionLayout(
+                        needsReauth: needsReauth,
+                        hasLoginAction: onLogin != nil
+                    )
+                    if actionLayout == .dualEqualWidth, let onLogin {
+                        HStack(spacing: 8) {
+                            Button(NSLocalizedString("codex.accounts.copy_error", value: "Copy error", comment: "Copy account error")) {
+                                viewModel.copyErrorText(failureDetail)
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                            .frame(maxWidth: .infinity)
 
-                        if needsReauth, let onLogin {
                             Button(NSLocalizedString("codex.accounts.relogin", value: "Re-login", comment: "Re-login account")) {
                                 onLogin()
                             }
                             .buttonStyle(.borderedProminent)
                             .controlSize(.small)
+                            .frame(maxWidth: .infinity)
                             .disabled(isLoggingIn)
                         }
-
-                        if isLoggingIn {
-                            Text(NSLocalizedString("codex.accounts.add.cli.running", value: "Logging in…", comment: "CLI login running status"))
-                                .font(.caption2)
-                                .foregroundStyle(DesignSystem.Colors.Text.tertiary)
+                    } else {
+                        Button(NSLocalizedString("codex.accounts.copy_error", value: "Copy error", comment: "Copy account error")) {
+                            viewModel.copyErrorText(failureDetail)
                         }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .frame(maxWidth: .infinity)
+                    }
+
+                    if isLoggingIn {
+                        Text(NSLocalizedString("codex.accounts.add.cli.running", value: "Logging in…", comment: "CLI login running status"))
+                            .font(.caption2)
+                            .foregroundStyle(DesignSystem.Colors.Text.tertiary)
                     }
                 }
             }
@@ -997,27 +1030,14 @@ struct ProviderUsageView: View {
         .dsCard(background: .clear, borderColor: nil, borderWidth: 0)
     }
 
-    private func statusColor(for state: ProviderUsageViewModel.CodexAccountDisplayState) -> Color {
-        switch state {
-        case .needsReauth, .failed:
+    private func statusColor(for statusKind: CodexUsageCardStatusKind) -> Color {
+        switch statusKind {
+        case .error:
             return DesignSystem.Colors.Status.error
         case .healthy:
             return DesignSystem.Colors.Status.success
         case .pending:
             return DesignSystem.Colors.Text.secondary
-        }
-    }
-
-    private func statusText(for state: ProviderUsageViewModel.CodexAccountDisplayState) -> String {
-        switch state {
-        case .needsReauth:
-            return NSLocalizedString("codex.accounts.status.reauth_needed", value: "Needs re-login", comment: "Codex account status needs re-login")
-        case .failed:
-            return NSLocalizedString("codex.accounts.sync.failure", value: "Last failure", comment: "Last failure label")
-        case .healthy:
-            return NSLocalizedString("codex.accounts.status.normal", value: "Healthy", comment: "Codex account status healthy")
-        case .pending:
-            return NSLocalizedString("codex.accounts.status.pending", value: "Pending refresh", comment: "Codex account status pending refresh")
         }
     }
 
