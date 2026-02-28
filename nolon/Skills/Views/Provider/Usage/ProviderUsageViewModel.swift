@@ -17,6 +17,7 @@ final class ProviderUsageViewModel {
     private static let logger = Logger(subsystem: "com.nolon", category: "ProviderUsageViewModel")
     private static var codexInitialFullRefreshProviderIDs: Set<String> = []
     typealias CodexActivateAction = @MainActor @Sendable (CodexAuthAccount, Provider) async throws -> CodexAuthActivationResult
+    typealias CodexDeleteAction = @MainActor @Sendable (UUID) async throws -> Void
     typealias AsyncVoidAction = @MainActor @Sendable () async -> Void
 
     private let usageMonitor: ProviderUsageMonitorService
@@ -25,6 +26,8 @@ final class ProviderUsageViewModel {
     private let codexAuthManager = CodexAuthManager()
     private let codexActivateAction: CodexActivateAction
     private let postActivationLoadAction: AsyncVoidAction?
+    private let codexDeleteAction: CodexDeleteAction?
+    private let postDeleteLoadAction: AsyncVoidAction?
     private let usageSnapshotService = ProviderUsageSnapshotService()
     @ObservationIgnored private var usageWatcher: UsageMonitorFileWatcher? = nil
 
@@ -67,6 +70,8 @@ final class ProviderUsageViewModel {
 
     var isShowingActivateConfirm = false
     var pendingActivateCodexAccount: CodexAuthAccount?
+    var isShowingDeleteConfirm = false
+    var pendingDeleteCodexAccount: CodexAuthAccount?
     var isShowingImportValidationConfirm = false
     var importValidationSummaryMessage: String?
     var pendingImportValidationResults: [CodexAuthManager.CodexImportValidationResult] = []
@@ -76,9 +81,12 @@ final class ProviderUsageViewModel {
 
     var alertTitle: String?
     var alertMessage: String?
+    var isShowingCopyToast = false
+    var copyToastMessage = NSLocalizedString("remote.error.copied", value: "Copied", comment: "Copied tooltip")
 
     private var cliLoginTask: Task<Void, Never>?
     private var cliLoginSessionId: UUID?
+    @ObservationIgnored private var copyToastTask: Task<Void, Never>?
     private var codexAuthChangeSuppressor = CodexAuthChangeSuppressionStore()
     private let codexAuthChangeSuppressionWindow: TimeInterval = 2.5
     private var codexUsageCacheWriteCount = 0
@@ -102,7 +110,9 @@ final class ProviderUsageViewModel {
         provider: Provider,
         usageMonitor: ProviderUsageMonitorService? = nil,
         codexActivateAction: CodexActivateAction? = nil,
-        postActivationLoadAction: AsyncVoidAction? = nil
+        postActivationLoadAction: AsyncVoidAction? = nil,
+        codexDeleteAction: CodexDeleteAction? = nil,
+        postDeleteLoadAction: AsyncVoidAction? = nil
     ) {
         let tokenStore = FileTokenAccountStore(fileURL: ProviderUsagePaths.defaultTokenAccountsFileURL())
         self.usageMonitor = usageMonitor ?? ProviderUsageMonitorService(tokenAccountStore: tokenStore)
@@ -119,6 +129,8 @@ final class ProviderUsageViewModel {
             try await CodexAuthActivationCoordinator.shared.activate(account: account, provider: provider)
         }
         self.postActivationLoadAction = postActivationLoadAction
+        self.codexDeleteAction = codexDeleteAction
+        self.postDeleteLoadAction = postDeleteLoadAction
         self.updateSupportedModes()
         let watcher = UsageMonitorFileWatcher { [weak self] change in
             Task { await self?.handleUsageFileChange(change) }
@@ -127,6 +139,7 @@ final class ProviderUsageViewModel {
     }
 
     deinit {
+        copyToastTask?.cancel()
         let watcher = usageWatcher
         Task { @MainActor in
             watcher?.stop()
@@ -283,6 +296,9 @@ final class ProviderUsageViewModel {
             await updateUsageFileWatcher()
             return
         }
+        let trendRefreshTask = Task { [weak self] in
+            await self?.refreshCodexTokenTrend()
+        }
         do {
             codexAuthFilePath = await codexAuthManager.authFile(for: provider)?.url.path
             currentCodexAuthHashHex = await codexAuthManager.currentAuthHashHex(for: provider)
@@ -301,7 +317,7 @@ final class ProviderUsageViewModel {
                     await persistCurrentCodexOutcomeIfPossible(outcome: merged, accounts: loadedAccounts)
                 }
                 resetCodexMultiAccountState()
-                await refreshCodexTokenTrend()
+                await trendRefreshTask.value
                 return
             }
 
@@ -327,7 +343,7 @@ final class ProviderUsageViewModel {
             Self.logger.error("Failed to load codex accounts: \(String(describing: error), privacy: .public)")
         }
 
-        await refreshCodexTokenTrend()
+        await trendRefreshTask.value
         await loadCodexManagementStatus()
         await updateUsageFileWatcher()
     }
@@ -739,15 +755,40 @@ final class ProviderUsageViewModel {
 
     func copyLoginURL() {
         guard let raw = loginURLForSheet?.absoluteString, !raw.isEmpty else { return }
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(raw, forType: .string)
+        copyText(raw)
     }
 
     func copyErrorText(_ raw: String) {
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
+        copyText(trimmed)
+    }
+
+    func copyCodexAccountID(id: UUID) {
+        copyText(id.uuidString.lowercased())
+    }
+
+    func copyCodexAccountPath(id: UUID) {
+        guard let account = codexAccounts.first(where: { $0.id == id }) else { return }
+        let file = codexAuthManager.accountAuthFile(relativeAuthPath: account.relativeAuthPath)
+        copyText(file.url.path)
+    }
+
+    private func copyText(_ text: String) {
         NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(trimmed, forType: .string)
+        NSPasteboard.general.setString(text, forType: .string)
+        showCopyToast()
+    }
+
+    private func showCopyToast() {
+        copyToastTask?.cancel()
+        copyToastMessage = NSLocalizedString("remote.error.copied", value: "Copied", comment: "Copied tooltip")
+        isShowingCopyToast = true
+        copyToastTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 1_200_000_000)
+            guard let self else { return }
+            self.isShowingCopyToast = false
+        }
     }
 
     static func isAuthFailure(error: Error) -> Bool {
@@ -885,6 +926,8 @@ final class ProviderUsageViewModel {
         codexAuthFilePath = nil
         activeCodexAccountId = nil
         pendingActivateCodexAccount = nil
+        pendingDeleteCodexAccount = nil
+        isShowingDeleteConfirm = false
     }
 
     func startCLILoginFlow(preferredAccountId: UUID? = nil) {
@@ -1067,6 +1110,12 @@ final class ProviderUsageViewModel {
         isShowingActivateConfirm = true
     }
 
+    func requestDeleteCodexAccount(id: UUID) {
+        guard let account = codexAccounts.first(where: { $0.id == id }) else { return }
+        pendingDeleteCodexAccount = account
+        isShowingDeleteConfirm = true
+    }
+
     func requestLoginForCodexAccount(id: UUID) {
         if isRunningCLILogin {
             Self.logger.info("CLI login restart requested for account \(id.uuidString, privacy: .public).")
@@ -1091,6 +1140,31 @@ final class ProviderUsageViewModel {
         } catch {
             alertTitle = NSLocalizedString("codex.accounts.title", value: "Accounts", comment: "Codex accounts title")
             alertMessage = NSLocalizedString("codex.accounts.error.activate", value: "Failed to activate this account.", comment: "Error message")
+        }
+    }
+
+    func confirmDeleteCodexAccount() async {
+        guard let account = pendingDeleteCodexAccount else { return }
+        do {
+            if let codexDeleteAction {
+                try await codexDeleteAction(account.id)
+            } else {
+                try await codexAuthManager.deleteAccount(id: account.id)
+            }
+
+            pendingDeleteCodexAccount = nil
+            isShowingDeleteConfirm = false
+
+            if let postDeleteLoadAction {
+                await postDeleteLoadAction()
+            } else {
+                await load()
+            }
+        } catch {
+            let fallback = NSLocalizedString("codex.accounts.error.delete", value: "Failed to delete this account.", comment: "Error message")
+            let message = error.localizedDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+            alertTitle = NSLocalizedString("codex.accounts.title", value: "Accounts", comment: "Codex accounts title")
+            alertMessage = message.isEmpty ? fallback : message
         }
     }
 
@@ -1193,9 +1267,7 @@ final class ProviderUsageViewModel {
             return isAccountInfoMissing(accountId: account.id, summaries: summaries)
         }
 
-        for account in targets {
-            await refreshCodexAccountOutcome(account)
-        }
+        await refreshCodexAccountsInParallel(targets)
     }
 
     private func refreshCodexAccountOutcome(_ account: CodexAuthAccount) async {
@@ -1210,7 +1282,60 @@ final class ProviderUsageViewModel {
         codexRefreshingAccountIds.insert(accountId)
         defer { codexRefreshingAccountIds.remove(accountId) }
 
-        let outcome = await fetchCodexOutcome(for: account, settings: settings)
+        let authURL = codexAuthManager.accountAuthFile(relativeAuthPath: account.relativeAuthPath).url
+        let outcome = await Self.fetchCodexOutcomeDetached(
+            for: account,
+            settings: settings,
+            authSourceURL: authURL
+        )
+        await applyRefreshedCodexOutcome(outcome, for: account)
+    }
+
+    private func refreshCodexAccountsOnInitialLoad(activeId: UUID?, summaries: [UUID: CodexAuthSummary]) async {
+        let targets = orderedAccounts(activeId: activeId).filter { account in
+            if shouldSkipRefresh(accountID: account.id, summaries: summaries) {
+                return false
+            }
+            return true
+        }
+        await refreshCodexAccountsInParallel(targets)
+    }
+
+    private func refreshCodexAccountsInParallel(_ accounts: [CodexAuthAccount]) async {
+        guard !accounts.isEmpty else { return }
+        let targets = accounts.filter { account in
+            codexAccounts.contains(where: { $0.id == account.id }) && !codexRefreshingAccountIds.contains(account.id)
+        }
+        guard !targets.isEmpty else { return }
+
+        let refreshingIDs = Set(targets.map(\.id))
+        codexRefreshingAccountIds.formUnion(refreshingIDs)
+        defer { codexRefreshingAccountIds.subtract(refreshingIDs) }
+
+        let settingsSnapshot = settings
+        var tasks: [UUID: Task<ProviderAccountUsageOutcome, Never>] = [:]
+        tasks.reserveCapacity(targets.count)
+
+        for account in targets {
+            let authURL = codexAuthManager.accountAuthFile(relativeAuthPath: account.relativeAuthPath).url
+            tasks[account.id] = Task.detached(priority: .userInitiated) {
+                await Self.fetchCodexOutcomeDetached(
+                    for: account,
+                    settings: settingsSnapshot,
+                    authSourceURL: authURL
+                )
+            }
+        }
+
+        for account in targets {
+            guard let task = tasks[account.id] else { continue }
+            let outcome = await task.value
+            await applyRefreshedCodexOutcome(outcome, for: account)
+        }
+    }
+
+    private func applyRefreshedCodexOutcome(_ outcome: ProviderAccountUsageOutcome, for account: CodexAuthAccount) async {
+        let accountId = account.id
         updateCodexOutcome(outcome, for: account)
         lastUsageRefreshAt = Date()
 
@@ -1275,15 +1400,6 @@ final class ProviderUsageViewModel {
             summary.lastSyncFailedAt = now
             summary.lastSyncFailureMessage = message
             codexAccountSummaries[accountId] = summary
-        }
-    }
-
-    private func refreshCodexAccountsOnInitialLoad(activeId: UUID?, summaries: [UUID: CodexAuthSummary]) async {
-        for account in orderedAccounts(activeId: activeId) {
-            if shouldSkipRefresh(accountID: account.id, summaries: summaries) {
-                continue
-            }
-            await refreshCodexAccountOutcome(account)
         }
     }
 
@@ -1484,7 +1600,11 @@ final class ProviderUsageViewModel {
         return codexRefreshedAccountIdsInSession.contains(accountID) ? .healthy : .pending
     }
 
-    private func fetchCodexOutcome(for account: CodexAuthAccount, settings: UsageMonitorProviderSettings) async -> ProviderAccountUsageOutcome {
+    nonisolated private static func fetchCodexOutcomeDetached(
+        for account: CodexAuthAccount,
+        settings: UsageMonitorProviderSettings,
+        authSourceURL: URL
+    ) async -> ProviderAccountUsageOutcome {
         let tempRoot = FileManager.default.temporaryDirectory
             .appendingPathComponent("nolon-codex-home-\(account.id.uuidString)", isDirectory: true)
 
@@ -1500,8 +1620,7 @@ final class ProviderUsageViewModel {
             try FileManager.default.createDirectory(at: tempRoot, withIntermediateDirectories: true, attributes: nil)
             defer { try? FileManager.default.removeItem(at: tempRoot) }
             let authURL = tempRoot.appendingPathComponent("auth.json")
-            let file = codexAuthManager.accountAuthFile(relativeAuthPath: account.relativeAuthPath)
-            let data = try file.data()
+            let data = try Data(contentsOf: authSourceURL)
             let cleanData = CodexAuthManager.cleanedAuthJSONData(from: data) ?? data
             try STFile(authURL).overlay(with: cleanData)
 

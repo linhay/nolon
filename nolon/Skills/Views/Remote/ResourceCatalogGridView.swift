@@ -731,7 +731,8 @@ struct ResourceCatalogGridView: View {
             if showCopiedToast {
                 ToastView(
                     text: NSLocalizedString("remote.error.copied", value: "Copied", comment: "Copied tooltip"),
-                    systemImage: "doc.on.doc"
+                    systemImage: "doc.on.doc",
+                    style: .success
                 )
                 .padding(.trailing, 16)
                 .padding(.bottom, 16)

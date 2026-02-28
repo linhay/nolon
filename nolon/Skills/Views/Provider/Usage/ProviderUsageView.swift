@@ -157,6 +157,33 @@ struct ProviderUsageView: View {
             )
             Text(String(format: format, name, path))
         }
+        .alert(
+            NSLocalizedString("codex.accounts.delete.title", value: "Delete Account", comment: "Delete account title"),
+            isPresented: $viewModel.isShowingDeleteConfirm
+        ) {
+            Button(NSLocalizedString("generic.cancel", value: "Cancel", comment: "Cancel"), role: .cancel) {
+                viewModel.pendingDeleteCodexAccount = nil
+            }
+            Button(NSLocalizedString("generic.delete", value: "Delete", comment: "Delete"), role: .destructive) {
+                Task { await viewModel.confirmDeleteCodexAccount() }
+            }
+        } message: {
+            let account = viewModel.pendingDeleteCodexAccount
+            let baseName = account?.name ?? ""
+            let email = account.flatMap { candidate in
+                viewModel.codexAccountSummaries[candidate.id]?.email?.trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+            let displayName: String = {
+                guard let email, !email.isEmpty else { return baseName }
+                return "\(baseName) (\(email))"
+            }()
+            let format = NSLocalizedString(
+                "codex.accounts.delete.message",
+                value: "Delete \"%@\"? This will not log you out of Codex, it only removes the saved snapshot in Nolon.",
+                comment: "Delete account message"
+            )
+            Text(String(format: format, displayName))
+        }
         .task(id: viewModel.settings.autoRefreshIntervalMinutes) {
             let minutes = viewModel.settings.autoRefreshIntervalMinutes
             guard minutes > 0 else { return }
@@ -167,6 +194,19 @@ struct ProviderUsageView: View {
                 await viewModel.performAutoRefresh()
             }
         }
+        .overlay(alignment: .bottomTrailing) {
+            if viewModel.isShowingCopyToast {
+                ToastView(
+                    text: viewModel.copyToastMessage,
+                    systemImage: "doc.on.doc",
+                    style: .success
+                )
+                .padding(.trailing, 16)
+                .padding(.bottom, 16)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .animation(.easeOut(duration: 0.2), value: viewModel.isShowingCopyToast)
     }
 
     private var autoRefreshIntervalBinding: Binding<Int> {
@@ -256,25 +296,34 @@ struct ProviderUsageView: View {
 
     private var actionsMenu: some View {
         Menu {
-            Button(NSLocalizedString("usage.monitor.refresh", value: "Refresh", comment: "Refresh")) {
+            Button {
                 Task { await viewModel.load() }
+            } label: {
+                Label(NSLocalizedString("usage.monitor.refresh", value: "Refresh", comment: "Refresh"), systemImage: "arrow.clockwise")
             }
 
             Divider()
 
-            Picker(
-                NSLocalizedString("usage.monitor.auto_refresh.title", value: "Auto refresh", comment: "Auto refresh interval"),
-                selection: autoRefreshIntervalBinding
-            ) {
+            Picker(selection: autoRefreshIntervalBinding) {
                 ForEach(UsageAutoRefreshInterval.allCases) { option in
                     Text(option.title).tag(option.rawValue)
                 }
+            } label: {
+                Label(
+                    NSLocalizedString("usage.monitor.auto_refresh.title", value: "Auto refresh", comment: "Auto refresh interval"),
+                    systemImage: "timer"
+                )
             }
 
             if viewModel.usageProvider == .codex {
                 if viewModel.isRunningCLILogin {
-                    Button(NSLocalizedString("codex.cli_login.cancel", value: "Cancel Login", comment: "Cancel CLI login")) {
+                    Button {
                         viewModel.cancelCLILoginIfNeeded()
+                    } label: {
+                        Label(
+                            NSLocalizedString("codex.cli_login.cancel", value: "Cancel Login", comment: "Cancel CLI login"),
+                            systemImage: "xmark.circle"
+                        )
                     }
                 }
             }
@@ -762,6 +811,35 @@ struct ProviderUsageView: View {
         let onLogin: (() -> Void)? = accountId.map { id in
             { viewModel.requestLoginForCodexAccount(id: id) }
         }
+        let displayState = viewModel.displayState(accountID: accountId, outcome: outcome, summary: summary)
+        let statusTitle = codexAccountStatusTitle(for: displayState)
+        let lastSync = summary?.lastSyncSucceededAt
+        let liveFailureError: Error? = {
+            if case let .failure(error) = outcome.outcome.result { return error }
+            return nil
+        }()
+        let persistedFailureDetail = summary?.lastSyncFailureMessage?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let failureDetail: String? = {
+            if let persistedFailureDetail, !persistedFailureDetail.isEmpty { return persistedFailureDetail }
+            if let liveFailureError { return ProviderUsageViewModel.errorDetailText(error: liveFailureError) }
+            return nil
+        }()
+        let failureSummary: String? = {
+            if let liveFailureError {
+                return ProviderUsageViewModel.errorSummaryText(error: liveFailureError)
+            }
+            if let failureDetail {
+                if CodexAuthFailureClassifier.isAuthFailure(errorText: failureDetail) {
+                    return NSLocalizedString(
+                        "codex.accounts.error.auth_expired",
+                        value: "Authentication expired. Please sign in again.",
+                        comment: "Codex auth expired summary"
+                    )
+                }
+                return failureDetail
+            }
+            return nil
+        }()
 
         codexCompactSnapshotView(
             outcome: outcome,
@@ -798,25 +876,139 @@ struct ProviderUsageView: View {
         .contextMenu {
             if let accountId {
                 Button {
-                    viewModel.revealCodexAccountInFinder(id: accountId)
                 } label: {
-                    Label(NSLocalizedString("action.show_in_finder", comment: "Show in Finder"), systemImage: "folder")
-                        .dsIconLabelButton()
+                    Label(statusTitle, systemImage: "circle.fill")
+                }
+                .disabled(true)
+
+                if isRefreshing {
+                    Button {} label: {
+                        Label(
+                            NSLocalizedString("usage.monitor.refreshing", value: "Refreshing…", comment: "Refreshing status"),
+                            systemImage: "arrow.trianglehead.clockwise"
+                        )
+                    }
+                        .disabled(true)
+                }
+
+                if let failureSummary {
+                    Button {} label: {
+                        Label(failureSummary, systemImage: "exclamationmark.triangle")
+                    }
+                        .disabled(true)
+                }
+
+                if let lastSync {
+                    let prefix = NSLocalizedString("codex.accounts.sync.success", value: "Last sync", comment: "Last sync label")
+                    Button {} label: {
+                        Label(
+                            "\(prefix): \(lastSync.formatted(date: .abbreviated, time: .shortened))",
+                            systemImage: "clock"
+                        )
+                    }
+                        .disabled(true)
+                }
+
+                Divider()
+
+                Button {
+                    viewModel.refreshCodexAccount(id: accountId)
+                } label: {
+                    Label(NSLocalizedString("usage.monitor.refresh", value: "Refresh", comment: "Refresh"), systemImage: "arrow.clockwise")
+                }
+                .disabled(isRefreshing)
+
+                if !isActive {
+                    Button {
+                        viewModel.requestActivateCodexAccount(id: accountId)
+                    } label: {
+                        Label(
+                            NSLocalizedString("codex.accounts.action.activate", value: "Activate", comment: "Activate account"),
+                            systemImage: "checkmark.circle"
+                        )
+                    }
                 }
 
                 if let onLogin {
-                    Divider()
-                    Button(NSLocalizedString("codex.cli_login.action", value: "CLI Login…", comment: "CLI login action")) {
+                    Button {
                         onLogin()
+                    } label: {
+                        Label(
+                            NSLocalizedString("codex.accounts.relogin", value: "Re-login", comment: "Re-login account"),
+                            systemImage: "person.badge.key"
+                        )
                     }
-                    .disabled(!canLogin)
+                    .disabled(!canLogin || isLoggingIn)
+                }
+
+                if let failureDetail {
+                    Button {
+                        viewModel.copyErrorText(failureDetail)
+                    } label: {
+                        Label(
+                            NSLocalizedString("codex.accounts.copy_error", value: "Copy error", comment: "Copy account error"),
+                            systemImage: "doc.on.doc"
+                        )
+                    }
                 }
 
                 if isLoggingIn {
-                    Button(NSLocalizedString("codex.accounts.add.cli.running", value: "Logging in…", comment: "CLI login running status")) {}
+                    Button {} label: {
+                        Label(
+                            NSLocalizedString("codex.accounts.add.cli.running", value: "Logging in…", comment: "CLI login running status"),
+                            systemImage: "hourglass"
+                        )
+                    }
                         .disabled(true)
                 }
+
+                Divider()
+
+                Button {
+                    viewModel.revealCodexAccountInFinder(id: accountId)
+                } label: {
+                    Label(NSLocalizedString("action.show_in_finder", comment: "Show in Finder"), systemImage: "folder")
+                }
+
+                Button {
+                    viewModel.copyCodexAccountID(id: accountId)
+                } label: {
+                    Label(
+                        NSLocalizedString("codex.accounts.menu.copy_account_id", value: "Copy Account ID", comment: "Copy account id"),
+                        systemImage: "number"
+                    )
+                }
+
+                Button {
+                    viewModel.copyCodexAccountPath(id: accountId)
+                } label: {
+                    Label(
+                        NSLocalizedString("codex.accounts.menu.copy_auth_path", value: "Copy Auth Path", comment: "Copy auth path"),
+                        systemImage: "doc.text"
+                    )
+                }
+
+                Divider()
+
+                Button(role: .destructive) {
+                    viewModel.requestDeleteCodexAccount(id: accountId)
+                } label: {
+                    Label(NSLocalizedString("codex.accounts.delete.title", value: "Delete Account", comment: "Delete account title"), systemImage: "trash")
+                }
             }
+        }
+    }
+
+    private func codexAccountStatusTitle(for state: ProviderUsageViewModel.CodexAccountDisplayState) -> String {
+        switch state {
+        case .healthy:
+            return NSLocalizedString("codex.accounts.status.normal", value: "Normal", comment: "Account status normal")
+        case .pending:
+            return NSLocalizedString("codex.accounts.status.pending", value: "Pending", comment: "Account status pending")
+        case .needsReauth:
+            return NSLocalizedString("codex.accounts.status.reauth_needed", value: "Needs re-login", comment: "Account status reauth")
+        case .failed:
+            return NSLocalizedString("codex.accounts.status.failed", value: "Failed", comment: "Account status failed")
         }
     }
 

@@ -349,6 +349,11 @@ final class ProviderUsageViewModelCLILoginTests: XCTestCase {
         viewModel.copyErrorText(message)
 
         XCTAssertEqual(NSPasteboard.general.string(forType: .string), message)
+        XCTAssertTrue(viewModel.isShowingCopyToast)
+        XCTAssertEqual(
+            viewModel.copyToastMessage,
+            NSLocalizedString("remote.error.copied", value: "Copied", comment: "Copied tooltip")
+        )
     }
 }
 
@@ -444,6 +449,95 @@ final class ProviderUsageViewModelActivationTests: XCTestCase {
         XCTAssertEqual(
             viewModel.alertMessage,
             NSLocalizedString("codex.accounts.error.activate", value: "Failed to activate this account.", comment: "Error message")
+        )
+    }
+}
+
+@MainActor
+final class ProviderUsageViewModelDeleteTests: XCTestCase {
+    func testBDD_GivenAccountId_WhenRequestDelete_ThenPendingDeleteAndConfirmAreSet() {
+        let provider = Provider(
+            name: "Codex",
+            defaultSkillsPath: "/tmp/codex-skills",
+            workflowPath: "/tmp/codex-prompts",
+            installMethod: .symlink,
+            templateId: "codex"
+        )
+        let account = CodexAuthAccount(name: "work", relativeAuthPath: "auth/work.json")
+        let viewModel = ProviderUsageViewModel(provider: provider)
+        viewModel.codexAccounts = [account]
+
+        viewModel.requestDeleteCodexAccount(id: account.id)
+
+        XCTAssertEqual(viewModel.pendingDeleteCodexAccount?.id, account.id)
+        XCTAssertTrue(viewModel.isShowingDeleteConfirm)
+    }
+
+    func testBDD_GivenDeleteSuccess_WhenConfirmDelete_ThenClearsPendingAndRunsReload() async {
+        let provider = Provider(
+            name: "Codex",
+            defaultSkillsPath: "/tmp/codex-skills",
+            workflowPath: "/tmp/codex-prompts",
+            installMethod: .symlink,
+            templateId: "codex"
+        )
+        let account = CodexAuthAccount(name: "work", relativeAuthPath: "auth/work.json")
+        let reloadFlag = AsyncFlagBox()
+        let deletedId = LockedBox<UUID?>(nil)
+        let viewModel = ProviderUsageViewModel(
+            provider: provider,
+            codexDeleteAction: { id in
+                await deletedId.set(id)
+            },
+            postDeleteLoadAction: {
+                await reloadFlag.setTrue()
+            }
+        )
+        viewModel.pendingDeleteCodexAccount = account
+        viewModel.isShowingDeleteConfirm = true
+
+        await viewModel.confirmDeleteCodexAccount()
+
+        let removedID = await deletedId.value()
+        XCTAssertEqual(removedID, account.id)
+        XCTAssertNil(viewModel.pendingDeleteCodexAccount)
+        XCTAssertFalse(viewModel.isShowingDeleteConfirm)
+        XCTAssertNil(viewModel.alertTitle)
+        XCTAssertNil(viewModel.alertMessage)
+        let reloaded = await reloadFlag.value()
+        XCTAssertTrue(reloaded)
+    }
+
+    func testBDD_GivenDeleteFailure_WhenConfirmDelete_ThenShowsDeleteAlert() async {
+        let provider = Provider(
+            name: "Codex",
+            defaultSkillsPath: "/tmp/codex-skills",
+            workflowPath: "/tmp/codex-prompts",
+            installMethod: .symlink,
+            templateId: "codex"
+        )
+        let account = CodexAuthAccount(name: "work", relativeAuthPath: "auth/work.json")
+        let viewModel = ProviderUsageViewModel(
+            provider: provider,
+            codexDeleteAction: { _ in
+                throw EmptyLocalizedError()
+            },
+            postDeleteLoadAction: {}
+        )
+        viewModel.pendingDeleteCodexAccount = account
+        viewModel.isShowingDeleteConfirm = true
+
+        await viewModel.confirmDeleteCodexAccount()
+
+        XCTAssertEqual(viewModel.pendingDeleteCodexAccount?.id, account.id)
+        XCTAssertTrue(viewModel.isShowingDeleteConfirm)
+        XCTAssertEqual(
+            viewModel.alertTitle,
+            NSLocalizedString("codex.accounts.title", value: "Accounts", comment: "Codex accounts title")
+        )
+        XCTAssertEqual(
+            viewModel.alertMessage,
+            NSLocalizedString("codex.accounts.error.delete", value: "Failed to delete this account.", comment: "Error message")
         )
     }
 }
@@ -622,4 +716,24 @@ private actor AsyncFlagBox {
     func value() -> Bool {
         flag
     }
+}
+
+private actor LockedBox<T: Sendable> {
+    private var stored: T
+
+    init(_ value: T) {
+        self.stored = value
+    }
+
+    func set(_ value: T) {
+        stored = value
+    }
+
+    func value() -> T {
+        stored
+    }
+}
+
+private struct EmptyLocalizedError: LocalizedError {
+    var errorDescription: String? { "   " }
 }

@@ -4,6 +4,16 @@
     "" : {
 
     },
+    "%@: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@: %2$@"
+          }
+        }
+      }
+    },
     "%@=%@" : {
       "localizations" : {
         "en" : {
@@ -1709,7 +1719,7 @@
     },
     "codex.accounts.delete.message" : {
       "comment" : "Delete account message",
-      "extractionState" : "stale",
+      "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1727,7 +1737,7 @@
     },
     "codex.accounts.delete.title" : {
       "comment" : "Delete account title",
-      "extractionState" : "stale",
+      "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1835,7 +1845,7 @@
     },
     "codex.accounts.error.delete" : {
       "comment" : "Error message",
-      "extractionState" : "stale",
+      "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1892,6 +1902,42 @@
         }
       }
     },
+    "codex.accounts.menu.copy_account_id" : {
+      "comment" : "Copy account id",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copy Account ID"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "复制账号 ID"
+          }
+        }
+      }
+    },
+    "codex.accounts.menu.copy_auth_path" : {
+      "comment" : "Copy auth path",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copy Auth Path"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "复制 Auth 路径"
+          }
+        }
+      }
+    },
     "codex.accounts.multi.enable" : {
       "comment" : "Multi-account toggle",
       "extractionState" : "stale",
@@ -1928,45 +1974,63 @@
         }
       }
     },
-    "codex.accounts.status.normal" : {
-      "comment" : "Codex account status healthy",
-      "extractionState" : "stale",
+    "codex.accounts.status.failed" : {
+      "comment" : "Codex account status failed",
+      "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
-            "value" : "Healthy"
+            "state" : "translated",
+            "value" : "Failed"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
+            "value" : "状态异常"
+          }
+        }
+      }
+    },
+    "codex.accounts.status.normal" : {
+      "comment" : "Account status normal",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Normal"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
             "value" : "状态正常"
           }
         }
       }
     },
     "codex.accounts.status.pending" : {
-      "comment" : "Codex account status pending refresh",
-      "extractionState" : "stale",
+      "comment" : "Account status pending",
+      "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "Pending refresh"
+            "value" : "Pending"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "等待刷新"
           }
         }
       }
     },
     "codex.accounts.status.reauth_needed" : {
-      "comment" : "Codex account status needs re-login",
-      "extractionState" : "stale",
+      "comment" : "Account status reauth",
+      "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -3585,7 +3649,7 @@
     },
     "codex.cli_login.action" : {
       "comment" : "CLI login action",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
