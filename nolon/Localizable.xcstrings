@@ -1930,7 +1930,7 @@
     },
     "codex.accounts.status.normal" : {
       "comment" : "Codex account status healthy",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1948,7 +1948,7 @@
     },
     "codex.accounts.status.pending" : {
       "comment" : "Codex account status pending refresh",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1966,7 +1966,7 @@
     },
     "codex.accounts.status.reauth_needed" : {
       "comment" : "Codex account status needs re-login",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -9190,6 +9190,18 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "Refresh"
+          }
+        }
+      }
+    },
+    "usage.monitor.refreshing" : {
+      "comment" : "Refreshing status",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Refreshing…"
           }
         }
       }
