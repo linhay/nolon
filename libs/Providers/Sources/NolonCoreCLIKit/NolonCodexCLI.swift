@@ -164,6 +164,8 @@ public struct NolonCodexAuthUsageAccountView: Codable, Sendable, Equatable {
     public let expiresAt: Date?
     public let hasRefreshToken: Bool?
     public let refreshedAt: Date?
+    public let syncFailedAt: Date?
+    public let syncFailureMessage: String?
 
     public init(
         id: UUID,
@@ -179,7 +181,9 @@ public struct NolonCodexAuthUsageAccountView: Codable, Sendable, Equatable {
         tokenAllCount: Int? = nil,
         expiresAt: Date? = nil,
         hasRefreshToken: Bool? = nil,
-        refreshedAt: Date?
+        refreshedAt: Date?,
+        syncFailedAt: Date? = nil,
+        syncFailureMessage: String? = nil
     ) {
         self.id = id
         self.email = email
@@ -195,6 +199,8 @@ public struct NolonCodexAuthUsageAccountView: Codable, Sendable, Equatable {
         self.expiresAt = expiresAt
         self.hasRefreshToken = hasRefreshToken
         self.refreshedAt = refreshedAt
+        self.syncFailedAt = syncFailedAt
+        self.syncFailureMessage = syncFailureMessage
     }
 }
 
@@ -633,12 +639,17 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
     ) async throws -> NolonCodexAuthUsagePayload {
         let canonicalProviderID = try Self.canonicalProviderID(providerID)
         let provider = try Self.provider(for: canonicalProviderID)
-        let accounts = try await authManager.loadAccounts()
+        var accounts = try await authManager.loadAccounts()
+        let refreshFailedAccountIDs: Set<UUID>
         if refreshBeforeRead {
-            try await refreshUsageCaches(
+            refreshFailedAccountIDs = try await refreshUsageCaches(
                 accounts: accounts,
                 targetAccountID: refreshTargetAccountID
             )
+            // Reload account metadata after refresh attempt so sync-failure flags are current.
+            accounts = try await authManager.loadAccounts()
+        } else {
+            refreshFailedAccountIDs = []
         }
         let activeID = await authManager.activeAccountId(for: provider)
 
@@ -647,8 +658,14 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
 
         for account in accounts {
             let email = Self.loadEmail(for: account, authManager: authManager)
-            let usageCache = try? await authManager.loadUsageCache(for: account)
+            let usageCache: CodexAuthUsageCache?
+            if refreshFailedAccountIDs.contains(account.id) {
+                usageCache = nil
+            } else {
+                usageCache = try? await authManager.loadUsageCache(for: account)
+            }
             let authInfo = Self.resolveAuthTokenInfo(for: account, authManager: authManager)
+            let syncFailure = Self.resolveSyncFailureInfo(for: account, authManager: authManager)
             views.append(
                 NolonCodexAuthUsageAccountView(
                     id: account.id,
@@ -664,7 +681,9 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
                     tokenAllCount: nil,
                     expiresAt: authInfo.expiresAt,
                     hasRefreshToken: authInfo.hasRefreshToken,
-                    refreshedAt: Self.resolveRefreshTime(from: usageCache)
+                    refreshedAt: Self.resolveRefreshTime(from: usageCache),
+                    syncFailedAt: syncFailure.failedAt,
+                    syncFailureMessage: syncFailure.message
                 )
             )
         }
@@ -704,7 +723,7 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
     private func refreshUsageCaches(
         accounts: [CodexAuthAccount],
         targetAccountID: UUID?
-    ) async throws {
+    ) async throws -> Set<UUID> {
         let targets: [CodexAuthAccount]
         if let targetAccountID {
             guard let matched = accounts.first(where: { $0.id == targetAccountID }) else {
@@ -718,7 +737,8 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
             targets = accounts
         }
 
-        guard !targets.isEmpty else { return }
+        guard !targets.isEmpty else { return [] }
+        var failedAccountIDs: Set<UUID> = []
 
         var mergedEnvironment = environment
         if let managed = try? await binaryManager.launchEnvironmentVariables() {
@@ -757,10 +777,14 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
                 try await authManager.storeUsageCache(cache, for: account)
                 try await authManager.updateSyncSuccess(for: account, date: now)
             case let .failure(error):
+                // Refresh failure means current account's usage snapshot is stale;
+                // remove cache to avoid showing outdated values as if they were fresh.
+                try await authManager.clearUsageCache(for: account)
                 try await authManager.updateSyncFailure(for: account, message: error.localizedDescription, date: Date())
+                failedAccountIDs.insert(account.id)
             }
         }
-
+        return failedAccountIDs
     }
 
     public func authStatus(providerID: String) async throws -> NolonCodexAuthStatusPayload {
@@ -1411,6 +1435,14 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
               !data.isEmpty
         else { return (nil, nil) }
         return parseAuthTokenInfo(fromAuthData: data)
+    }
+
+    private static func resolveSyncFailureInfo(for account: CodexAuthAccount, authManager: CodexAuthManager) -> (failedAt: Date?, message: String?) {
+        guard let data = try? authManager.accountAuthFile(relativeAuthPath: account.relativeAuthPath).data(),
+              !data.isEmpty
+        else { return (nil, nil) }
+        let summary = CodexAuthSummary.fromJSONData(data)
+        return (summary.lastSyncFailedAt, summary.lastSyncFailureMessage)
     }
 
     private static func parseAuthTokenInfo(fromAuthData data: Data) -> (expiresAt: Date?, hasRefreshToken: Bool?) {

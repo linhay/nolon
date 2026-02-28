@@ -1014,6 +1014,21 @@ struct NolonCodexCLIEntrypointTests {
         #expect(!result.stdout.contains("Tokens 当前无法按账号区分"))
     }
 
+    @Test("auth usage renders per-account refresh failure section")
+    func authUsageRendersRefreshFailureSection() async {
+        let service = AuthUsageRefreshFailureCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["codex", "auth", "usage", "--provider", "codex"],
+            codexService: service
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("[刷新失败]"))
+        #expect(result.stdout.contains("broken@example.com"))
+        #expect(result.stdout.contains("401 Unauthorized"))
+    }
+
     @Test("auth usage overview resolves active account consistently by status")
     func authUsageOverviewResolvesActiveAccountByStatus() async {
         let service = AuthUsageActiveConsistencyCodexCLIService()
@@ -2994,6 +3009,58 @@ private actor AuthUsageUndistinguishableTokensCodexCLIService: NolonCodexCLIServ
                 totalToken30dCount: 9_348_800_000,
                 totalTokenAllCount: 9_348_800_000,
                 latestRefreshedAt: Date()
+            )
+        )
+    }
+
+    private func unsupported() -> NolonCoreCLIError {
+        .invalidArguments("unsupported")
+    }
+}
+
+private actor AuthUsageRefreshFailureCodexCLIService: NolonCodexCLIServing {
+    func authList(providerID: String) async throws -> NolonCodexAuthListPayload {
+        NolonCodexAuthListPayload(providerID: providerID, activeAccountID: nil, accounts: [])
+    }
+    func authStatus(providerID: String) async throws -> NolonCodexAuthStatusPayload {
+        NolonCodexAuthStatusPayload(providerID: providerID, activeAccountID: nil, accountCount: 1, authHashHex: "refresh-failure")
+    }
+    func authActivate(providerID: String, accountID: UUID) async throws -> NolonCodexAuthActivatePayload { throw unsupported() }
+    func authLogin(providerID: String, preferredAccountID: UUID?) async throws -> NolonCodexAuthLoginPayload { throw unsupported() }
+    func authDelete(providerID: String, accountID: UUID) async throws -> NolonCodexAuthDeletePayload { throw unsupported() }
+    func binaryList() async throws -> NolonCodexBinaryListPayload { throw unsupported() }
+    func binaryAvailable() async throws -> NolonCodexBinaryAvailablePayload { throw unsupported() }
+    func binaryCurrent() async throws -> NolonCodexBinaryCurrentPayload { throw unsupported() }
+    func binaryInstall(version: String, setDefault: Bool) async throws -> NolonCodexBinaryInstallPayload { throw unsupported() }
+    func binaryUse(version: String) async throws -> NolonCodexBinaryUsePayload { throw unsupported() }
+    func binaryDoctor() async throws -> NolonCodexBinaryDoctorPayload { throw unsupported() }
+    func statusProbe(providerID: String?) async throws -> NolonCodexStatusProbePayload { throw unsupported() }
+    func runtimeList(providerID: String?) async throws -> NolonCodexRuntimeListPayload { throw unsupported() }
+    func runtimeStop(pid: Int32, force: Bool, timeoutSeconds: Int) async throws -> NolonCodexRuntimeStopPayload { throw unsupported() }
+    func providerList() async throws -> NolonProviderListPayload { throw unsupported() }
+    func providerDiscover() async throws -> NolonCodexProviderDiscoverPayload { throw unsupported() }
+
+    func authUsage(providerID: String) async throws -> NolonCodexAuthUsagePayload {
+        NolonCodexAuthUsagePayload(
+            providerID: providerID,
+            accounts: [
+                NolonCodexAuthUsageAccountView(
+                    id: UUID(uuidString: "56565656-5656-5656-5656-565656565656")!,
+                    email: "broken@example.com",
+                    isActive: true,
+                    fiveHourRemainingPercent: nil,
+                    weeklyRemainingPercent: nil,
+                    refreshedAt: nil,
+                    syncFailedAt: Date(timeIntervalSince1970: 1_740_000_000),
+                    syncFailureMessage: "Codex protocol error: 401 Unauthorized"
+                )
+            ],
+            summary: NolonCodexAuthUsageSummaryView(
+                accountCount: 1,
+                cachedCount: 0,
+                avgFiveHourRemainingPercent: nil,
+                avgWeeklyRemainingPercent: nil,
+                latestRefreshedAt: nil
             )
         )
     }

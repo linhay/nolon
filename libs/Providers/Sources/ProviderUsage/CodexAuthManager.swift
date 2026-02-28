@@ -397,6 +397,16 @@ public actor CodexAuthManager {
         try file.overlay(with: Self.encodeJSONObject(rootObject))
     }
 
+    public func clearUsageCache(for account: CodexAuthAccount) throws {
+        let file = accountAuthFile(account)
+        var rootObject = (try? file.data()).flatMap { Self.decodeJSONObject(from: $0) } ?? [:]
+        var nolonObject = (rootObject["nolon"] as? JSONObject) ?? [:]
+        guard nolonObject["usage_cache"] != nil else { return }
+        nolonObject.removeValue(forKey: "usage_cache")
+        rootObject["nolon"] = nolonObject
+        try file.overlay(with: Self.encodeJSONObject(rootObject))
+    }
+
     public func updateSyncSuccess(for account: CodexAuthAccount, date: Date = Date()) throws {
         let file = accountAuthFile(account)
         try updateSyncMetadata(

@@ -822,6 +822,26 @@ enum NolonCodexCLIExecutor {
         if shouldShowGlobalFallbackHint(payload.accounts) {
             lines.append("提示: 当前 Tokens 来自全局回退（~/.codex/sessions），账号间可能出现同值。")
         }
+        let refreshFailures = payload.accounts.compactMap { account -> (String, String, String)? in
+            guard account.syncFailedAt != nil || account.syncFailureMessage != nil else { return nil }
+            let emailRaw = account.email?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let email = (emailRaw?.isEmpty == false) ? (emailRaw ?? "-") : "-"
+            let failedAt = account.syncFailedAt.map(formatDateTime) ?? "-"
+            let reasonRaw = account.syncFailureMessage?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let reason = (reasonRaw?.isEmpty == false) ? (reasonRaw ?? "-") : "-"
+            return (email, failedAt, reason)
+        }
+        if !refreshFailures.isEmpty {
+            let emailWidth = max("邮箱".count, refreshFailures.map(\.0.count).max() ?? 0)
+            let timeWidth = max("失败时间".count, refreshFailures.map(\.1.count).max() ?? 0)
+            let failureHeader = "\(padRight("邮箱", to: emailWidth)) | \(padRight("失败时间", to: timeWidth)) | 原因"
+            let failureBody = refreshFailures.map { row in
+                "\(padRight(row.0, to: emailWidth)) | \(padRight(row.1, to: timeWidth)) | \(row.2)"
+            }.joined(separator: "\n")
+            lines.append("")
+            lines.append("[刷新失败]")
+            lines.append("\(failureHeader)\n\(failureBody)")
+        }
         return lines.joined(separator: "\n")
     }
 
@@ -833,6 +853,7 @@ enum NolonCodexCLIExecutor {
         let rows: [(String, String)] = [
             ("账号总数", String(payload.summary.accountCount)),
             ("已缓存用量", String(payload.summary.cachedCount)),
+            ("刷新失败账号", String(payload.accounts.filter { $0.syncFailedAt != nil || $0.syncFailureMessage != nil }.count)),
             ("5h平均剩余", payload.summary.avgFiveHourRemainingPercent.map { "\($0)%" } ?? "-"),
             ("7d平均剩余", payload.summary.avgWeeklyRemainingPercent.map { "\($0)%" } ?? "-"),
             ("Access最早到期", formatAccessExpiry(payload.summary.earliestExpiresAt)),
@@ -938,6 +959,13 @@ enum NolonCodexCLIExecutor {
             refresh = "Refresh:未知"
         }
         return "\(access) | \(refresh)"
+    }
+
+    private static func formatDateTime(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd HH:mm"
+        return formatter.string(from: date)
     }
 
     private static func formatDuration(_ seconds: Int) -> String {

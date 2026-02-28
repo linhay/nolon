@@ -300,6 +300,89 @@ struct NolonCodexCLIServiceTests {
         #expect(cacheA?.cost == nil)
     }
 
+    @Test("auth usage refresh invalidates stale cache and exposes sync failure metadata")
+    func authUsageRefreshInvalidatesStaleCacheOnFailure() async throws {
+        let root = try makeTempRoot("nolon-codex-cli-usage-refresh-failure")
+        defer { try? root.delete() }
+
+        let authManager = CodexAuthManager(rootURL: root.url)
+        let accountA = try await authManager.addAccount(
+            name: "a",
+            authJSONString: #"{"user":{"email":"a@example.com"}}"#
+        )
+        let accountB = try await authManager.addAccount(
+            name: "b",
+            authJSONString: #"{"user":{"email":"b@example.com"}}"#
+        )
+
+        let staleCacheA = CodexAuthUsageCache(
+            cachedAt: Date(timeIntervalSince1970: 1_733_000_000),
+            creditsRefreshedAt: Date(timeIntervalSince1970: 1_733_000_100),
+            fetchKind: .cli,
+            strategyKind: .direct,
+            sourceLabel: "CLI",
+            usage: UsageSnapshot(
+                identity: nil,
+                primary: RateWindow(usedPercent: 12),
+                secondary: RateWindow(usedPercent: 24),
+                tertiary: nil,
+                updatedAt: Date(timeIntervalSince1970: 1_733_000_200)
+            ),
+            credits: nil,
+            cost: nil
+        )
+        try await authManager.storeUsageCache(staleCacheA, for: accountA)
+
+        let validCacheB = CodexAuthUsageCache(
+            cachedAt: Date(timeIntervalSince1970: 1_733_100_000),
+            creditsRefreshedAt: Date(timeIntervalSince1970: 1_733_100_200),
+            fetchKind: .cli,
+            strategyKind: .direct,
+            sourceLabel: "CLI",
+            usage: UsageSnapshot(
+                identity: nil,
+                primary: RateWindow(usedPercent: 40),
+                secondary: RateWindow(usedPercent: 50),
+                tertiary: nil,
+                updatedAt: Date(timeIntervalSince1970: 1_733_100_400)
+            ),
+            credits: nil,
+            cost: nil
+        )
+        try await authManager.storeUsageCache(validCacheB, for: accountB)
+
+        let service = NolonLiveCodexCLIService(
+            authManager: authManager,
+            binaryManager: CodexBinaryManager(homeURL: root.url),
+            loginRunner: .init(),
+            environment: [:],
+            usageOutcomeFetcher: { _ in
+                ProviderFetchOutcome(
+                    fetchKind: .cli,
+                    result: .failure(CodexCLIError.protocolError("401 Unauthorized"))
+                )
+            },
+            runtimeProcessInspector: StubRuntimeProcessInspector(snapshots: []),
+            runtimeSignalController: StubRuntimeSignalController(),
+            currentPIDProvider: { 999_999 },
+            sleep: { _ in }
+        )
+
+        let payload = try await service.authUsageRefresh(providerID: "codex", accountID: accountA.id)
+
+        let accountARow = payload.accounts.first { $0.id == accountA.id }
+        let accountBRow = payload.accounts.first { $0.id == accountB.id }
+        #expect(accountARow?.fiveHourRemainingPercent == nil)
+        #expect(accountARow?.weeklyRemainingPercent == nil)
+        #expect(accountARow?.syncFailedAt != nil)
+        #expect(accountARow?.syncFailureMessage?.contains("401 Unauthorized") == true)
+        #expect(accountBRow?.fiveHourRemainingPercent == 60)
+        #expect(accountBRow?.weeklyRemainingPercent == 50)
+        #expect(payload.summary.cachedCount == 1)
+        #expect(payload.summary.avgFiveHourRemainingPercent == 60)
+        #expect(payload.summary.avgWeeklyRemainingPercent == 50)
+    }
+
     @Test("auth status includes usage summary fields")
     func authStatusIncludesUsageSummary() async throws {
         let root = try makeTempRoot("nolon-codex-cli")
