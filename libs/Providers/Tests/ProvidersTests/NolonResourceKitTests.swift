@@ -853,7 +853,7 @@ struct NolonResourceKitTests {
                 intervalMinutes: 0,
                 lastRefreshAt: now,
                 now: now
-            )
+            ) == false
         )
         #expect(
             UsageRefreshPolicy.shouldRefresh(

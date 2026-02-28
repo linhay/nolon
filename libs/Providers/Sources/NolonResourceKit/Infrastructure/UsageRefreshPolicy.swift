@@ -12,7 +12,7 @@ public enum UsageRefreshPolicy {
         }
         let intervalSeconds = TimeInterval(max(0, intervalMinutes)) * 60
         if intervalSeconds == 0 {
-            return true
+            return false
         }
         guard let lastRefreshAt else {
             return true

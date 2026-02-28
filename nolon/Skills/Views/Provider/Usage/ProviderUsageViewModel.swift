@@ -15,6 +15,7 @@ import NolonResourceKit
 @Observable
 final class ProviderUsageViewModel {
     private static let logger = Logger(subsystem: "com.nolon", category: "ProviderUsageViewModel")
+    private static var codexInitialFullRefreshProviderIDs: Set<String> = []
     typealias CodexActivateAction = @MainActor @Sendable (CodexAuthAccount, Provider) async throws -> CodexAuthActivationResult
     typealias AsyncVoidAction = @MainActor @Sendable () async -> Void
 
@@ -309,10 +310,18 @@ final class ProviderUsageViewModel {
             activeCodexAccountId = await codexAuthManager.activeAccountId(for: provider)
             codexAccountOutcomes = await loadCachedCodexAccountOutcomes(accounts: codexAccounts)
             reorderCodexAccountOutcomesForDisplay()
-            await refreshCodexAccountsOnInitialLoad(
-                activeId: activeCodexAccountId,
-                summaries: codexAccountSummaries
-            )
+            if Self.codexInitialFullRefreshProviderIDs.contains(provider.id) {
+                if let account = activeCodexAccountForRefresh(),
+                   !shouldSkipRefresh(accountID: account.id, summaries: codexAccountSummaries) {
+                    await refreshCodexAccountOutcome(account)
+                }
+            } else {
+                await refreshCodexAccountsOnInitialLoad(
+                    activeId: activeCodexAccountId,
+                    summaries: codexAccountSummaries
+                )
+                Self.codexInitialFullRefreshProviderIDs.insert(provider.id)
+            }
         } catch {
             resetCodexMultiAccountState()
             Self.logger.error("Failed to load codex accounts: \(String(describing: error), privacy: .public)")
@@ -333,10 +342,8 @@ final class ProviderUsageViewModel {
                 return
             }
 
-            for account in orderedAccounts(activeId: activeCodexAccountId) {
-                if shouldSkipRefresh(accountID: account.id, summaries: codexAccountSummaries) {
-                    continue
-                }
+            if let account = activeCodexAccountForRefresh(),
+               !shouldSkipRefresh(accountID: account.id, summaries: codexAccountSummaries) {
                 await refreshCodexAccountOutcome(account)
             }
             return

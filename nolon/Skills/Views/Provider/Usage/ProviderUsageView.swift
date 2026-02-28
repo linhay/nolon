@@ -164,11 +164,6 @@ struct ProviderUsageView: View {
             )
         } else if viewModel.usageProvider == .codex {
             codexContent
-                .overlay {
-                    if viewModel.isLoading {
-                        loadingOverlay
-                    }
-                }
         } else if viewModel.outcomes.isEmpty {
             if viewModel.isLoading {
                 loadingOverlay
@@ -319,6 +314,16 @@ struct ProviderUsageView: View {
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
+
+                if viewModel.isLoading && viewModel.codexAccountOutcomes.isEmpty {
+                    HStack {
+                        ProgressView()
+                            .controlSize(.small)
+                        Text(NSLocalizedString("usage.monitor.refreshing", value: "Refreshing…", comment: "Refreshing status"))
+                            .font(.caption)
+                            .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                    }
+                }
 
                 codexTrendSection
             }
