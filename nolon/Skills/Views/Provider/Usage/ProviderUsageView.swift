@@ -840,6 +840,7 @@ struct ProviderUsageView: View {
             return nil
         }()
         let needsReauth = displayState == .needsReauth
+        let shouldShowUsageMetrics = failureSummary == nil && (displayState == .healthy || displayState == .pending)
 
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -868,6 +869,22 @@ struct ProviderUsageView: View {
                 }
             }
 
+            HStack(spacing: 8) {
+                Circle()
+                    .fill(statusColor(for: displayState))
+                    .frame(width: 6, height: 6)
+                Text(statusText(for: displayState))
+                    .font(.caption)
+                    .foregroundStyle(statusColor(for: displayState))
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(statusColor(for: displayState).opacity(0.12))
+            )
+
             switch outcome.outcome.result {
             case let .success(result):
                 let identity = result.usage.identity?.scoped(to: outcome.provider)
@@ -882,7 +899,7 @@ struct ProviderUsageView: View {
                 }
 
                 let metadata = ProviderUsageRegistry.metadata(for: outcome.provider)
-                if result.usage.primary != nil || result.usage.secondary != nil || result.usage.tertiary != nil {
+                if shouldShowUsageMetrics, result.usage.primary != nil || result.usage.secondary != nil || result.usage.tertiary != nil {
                     VStack(alignment: .leading, spacing: 8) {
                         if let primary = result.usage.primary {
                             codexQuotaRow(
@@ -907,25 +924,13 @@ struct ProviderUsageView: View {
                         }
                     }
                 }
-            case let .failure(error):
+            case .failure:
                 if let subtitle = codexSubtitleText(title: title, email: fallbackEmail, plan: fallbackPlan) {
                     Text(subtitle)
                         .font(.caption)
                         .dsSecondaryText(font: .caption)
                         .lineLimit(1)
                 }
-                let _ = error
-            }
-
-            HStack(spacing: 6) {
-                Circle()
-                    .fill(statusColor(for: displayState))
-                    .frame(width: 6, height: 6)
-                Text(
-                    statusText(for: displayState)
-                )
-                .font(.caption)
-                .foregroundStyle(statusColor(for: displayState))
             }
 
             if let failureSummary, let failureDetail {
@@ -933,7 +938,7 @@ struct ProviderUsageView: View {
                     Text(failureSummary)
                         .font(.caption)
                         .foregroundStyle(DesignSystem.Colors.Text.primary)
-                        .lineLimit(1)
+                        .lineLimit(2)
 
                     HStack(spacing: 8) {
                         Button(NSLocalizedString("codex.accounts.copy_error", value: "Copy error", comment: "Copy account error")) {
