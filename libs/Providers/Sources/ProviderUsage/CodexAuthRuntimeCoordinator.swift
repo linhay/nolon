@@ -71,9 +71,20 @@ public actor CodexAuthRuntimeCoordinator {
             runtimeEnvironment["CODEX_HOME"] = runtimeHome.url.standardizedFileURL.path
             try await runtimeSwitch(tokenPair.idToken, tokenPair.accessToken, tokenPair.chatgptAccountID, executable, runtimeEnvironment)
         } catch let error as CodexCLIError {
-            throw CodexAuthRuntimeCoordinatorError.runtimeSwitchFailed(reason: error.localizedDescription)
+            throw CodexAuthRuntimeCoordinatorError.runtimeSwitchFailed(reason: Self.codexErrorReason(error))
         } catch {
             throw CodexAuthRuntimeCoordinatorError.runtimeSwitchFailed(reason: error.localizedDescription)
+        }
+    }
+
+    private static func codexErrorReason(_ error: CodexCLIError) -> String {
+        switch error {
+        case let .protocolError(message):
+            return message
+        case let .recoverableFallback(message):
+            return message
+        default:
+            return error.localizedDescription
         }
     }
 }

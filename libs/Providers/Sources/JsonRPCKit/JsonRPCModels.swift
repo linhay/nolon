@@ -1,5 +1,31 @@
 import Foundation
 
+public enum JsonRPCSessionError: LocalizedError, Sendable, Equatable {
+    case transport(String)
+    case shutdown
+    case invalidMessage
+    case invalidParams(String)
+    case protocolViolation(String)
+    case invalidResponse(String)
+
+    public var errorDescription: String? {
+        switch self {
+        case let .transport(message):
+            return message
+        case .shutdown:
+            return "JSON-RPC session shutdown"
+        case .invalidMessage:
+            return "Invalid JSON-RPC message"
+        case let .invalidParams(message):
+            return message
+        case let .protocolViolation(message):
+            return message
+        case let .invalidResponse(message):
+            return message
+        }
+    }
+}
+
 public enum JsonRPCID: Hashable, Sendable {
     case int(Int)
     case string(String)

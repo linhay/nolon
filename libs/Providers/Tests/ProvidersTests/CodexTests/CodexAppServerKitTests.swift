@@ -114,4 +114,124 @@ for line in sys.stdin:
         let requestMethods = collectMethodEnumStrings(from: requestObject)
         #expect(requestMethods == Set(CodexAppServerServerRequest.allCases.map(\.rawValue)))
     }
+
+    @Test("Maps JsonRPCKit protocol violation into categorized Codex protocol error")
+    func mapsProtocolViolationCategory() async throws {
+        guard STPath("/usr/bin/python3").permission.contains(.executable) else { return }
+
+        let script = #"""
+import json
+import sys
+
+for line in sys.stdin:
+    msg = json.loads(line)
+    mid = msg.get("id")
+    if mid is not None:
+        sys.stdout.write(json.dumps({"jsonrpc":"2.0","id":mid,"result":{"ok":True}}) + "\n")
+        sys.stdout.flush()
+"""#
+
+        let session = CodexAppServerSession(
+            executable: "/usr/bin/python3",
+            startupArguments: ["-u", "-c", script]
+        )
+        defer {
+            Task { await session.shutdown() }
+        }
+
+        do {
+            _ = try await session.request(method: "rpc.forbidden")
+            Issue.record("Expected protocol violation error")
+        } catch let error as CodexCLIError {
+            guard case let .protocolError(message) = error else {
+                Issue.record("Expected protocolError, got: \(error)")
+                return
+            }
+            #expect(message.contains("protocol_violation"))
+        } catch {
+            Issue.record("Expected CodexCLIError, got: \(error)")
+        }
+    }
+
+    @Test("Maps JsonRPCKit invalid params into categorized Codex protocol error")
+    func mapsInvalidParamsCategory() async throws {
+        guard STPath("/usr/bin/python3").permission.contains(.executable) else { return }
+
+        let script = #"""
+import json
+import sys
+
+for line in sys.stdin:
+    msg = json.loads(line)
+    mid = msg.get("id")
+    if mid is not None:
+        sys.stdout.write(json.dumps({"jsonrpc":"2.0","id":mid,"result":{"ok":True}}) + "\n")
+        sys.stdout.flush()
+"""#
+
+        let session = CodexAppServerSession(
+            executable: "/usr/bin/python3",
+            startupArguments: ["-u", "-c", script]
+        )
+        defer {
+            Task { await session.shutdown() }
+        }
+
+        do {
+            _ = try await session.request(method: "echo", paramsData: Data("1".utf8))
+            Issue.record("Expected invalid params error")
+        } catch let error as CodexCLIError {
+            guard case let .protocolError(message) = error else {
+                Issue.record("Expected protocolError, got: \(error)")
+                return
+            }
+            #expect(message.contains("invalid_params"))
+        } catch {
+            Issue.record("Expected CodexCLIError, got: \(error)")
+        }
+    }
+
+    @Test("Maps JsonRPCKit invalid response into categorized Codex protocol error")
+    func mapsInvalidResponseCategory() async throws {
+        guard STPath("/usr/bin/python3").permission.contains(.executable) else { return }
+
+        let script = #"""
+import json
+import sys
+
+for line in sys.stdin:
+    msg = json.loads(line)
+    mid = msg.get("id")
+    if mid is None:
+        continue
+    sys.stdout.write(json.dumps({
+        "jsonrpc":"2.0",
+        "id":mid,
+        "result":{"ok":True},
+        "error":{"code":123,"message":"boom"}
+    }) + "\n")
+    sys.stdout.flush()
+"""#
+
+        let session = CodexAppServerSession(
+            executable: "/usr/bin/python3",
+            startupArguments: ["-u", "-c", script]
+        )
+        defer {
+            Task { await session.shutdown() }
+        }
+
+        do {
+            _ = try await session.request(method: "echo")
+            Issue.record("Expected invalid response error")
+        } catch let error as CodexCLIError {
+            guard case let .protocolError(message) = error else {
+                Issue.record("Expected protocolError, got: \(error)")
+                return
+            }
+            #expect(message.contains("invalid_response"))
+        } catch {
+            Issue.record("Expected CodexCLIError, got: \(error)")
+        }
+    }
 }

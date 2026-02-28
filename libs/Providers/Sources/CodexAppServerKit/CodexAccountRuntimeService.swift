@@ -1,8 +1,57 @@
 import Foundation
 import CodexCLIKit
+import STJSON
 
 public protocol CodexTokenRefreshing: Sendable {
     func refreshedTokens(reason: CodexRefreshReason) async throws -> CodexTokenPair
+}
+
+public enum CodexAccountRuntimeServiceError: LocalizedError, Sendable, Equatable {
+    case unsupportedServerRequest(method: String)
+    case runtimeServiceDeallocated
+    case loginStartMissingLoginID
+    case loginStartMissingAuthURL
+    case loginCompletedUnexpectedID(expected: String, actual: String)
+    case loginCompletedFailed(message: String)
+    case invalidPayload(context: String, details: String)
+
+    public var code: String {
+        switch self {
+        case .unsupportedServerRequest:
+            return "unsupported_server_request"
+        case .runtimeServiceDeallocated:
+            return "runtime_service_deallocated"
+        case .loginStartMissingLoginID:
+            return "login_start_missing_login_id"
+        case .loginStartMissingAuthURL:
+            return "login_start_missing_auth_url"
+        case .loginCompletedUnexpectedID:
+            return "login_completed_unexpected_id"
+        case .loginCompletedFailed:
+            return "login_completed_failed"
+        case .invalidPayload:
+            return "invalid_payload"
+        }
+    }
+
+    public var errorDescription: String? {
+        switch self {
+        case let .unsupportedServerRequest(method):
+            return "Unsupported server request: \(method)"
+        case .runtimeServiceDeallocated:
+            return "Runtime service deallocated"
+        case .loginStartMissingLoginID:
+            return "Missing loginId from account/login/start"
+        case .loginStartMissingAuthURL:
+            return "Missing authUrl from account/login/start"
+        case let .loginCompletedUnexpectedID(expected, actual):
+            return "Unexpected login completion id: \(actual), expected: \(expected)"
+        case let .loginCompletedFailed(message):
+            return message
+        case let .invalidPayload(context, details):
+            return "Invalid payload for \(context): \(details)"
+        }
+    }
 }
 
 private struct AccountReadPayload: Decodable {
@@ -48,10 +97,10 @@ public actor CodexAccountRuntimeService {
         self.tokenRefresher = refresher
         await session.setServerRequestHandler { [weak self] request in
             guard request.method == CodexAppServerServerRequest.accountChatGPTAuthTokensRefresh.rawValue else {
-                throw CodexCLIError.protocolError("Unsupported server request: \(request.method)")
+                throw CodexAccountRuntimeServiceError.unsupportedServerRequest(method: request.method)
             }
             guard let self else {
-                throw CodexCLIError.protocolError("Runtime service deallocated")
+                throw CodexAccountRuntimeServiceError.runtimeServiceDeallocated
             }
             guard let refresher = await self.tokenRefresher else {
                 throw CodexCLIError.recoverableFallback("No token refresher configured")
@@ -67,10 +116,12 @@ public actor CodexAccountRuntimeService {
             }
 
             let tokenPair = try await refresher.refreshedTokens(reason: reason)
-            return [
+            let payload: [String: Any] = [
                 "idToken": tokenPair.idToken,
                 "accessToken": tokenPair.accessToken,
+                "chatgptAccountId": tokenPair.chatgptAccountID ?? NSNull(),
             ]
+            return payload
         }
     }
 
@@ -96,28 +147,28 @@ public actor CodexAccountRuntimeService {
             "type": "chatgpt",
         ])
         let response = try await session.request(method: CodexAppServerMethod.accountLoginStart.rawValue, paramsData: paramsData)
-        let payload: AccountLoginStartPayload = try decodeResult(response.result)
+        let payload: AccountLoginStartPayload = try decodeResult(response.result, context: "account/login/start")
         guard let loginID = payload.loginId?.trimmingCharacters(in: .whitespacesAndNewlines), !loginID.isEmpty else {
-            throw CodexCLIError.protocolError("Missing loginId from account/login/start")
+            throw CodexAccountRuntimeServiceError.loginStartMissingLoginID
         }
         guard let authURLRaw = payload.authUrl?.trimmingCharacters(in: .whitespacesAndNewlines),
               let authURL = URL(string: authURLRaw) else {
-            throw CodexCLIError.protocolError("Missing authUrl from account/login/start")
+            throw CodexAccountRuntimeServiceError.loginStartMissingAuthURL
         }
         return (loginID, authURL)
     }
 
     public func awaitChatGPTLoginCompletion(loginID: String, timeout: TimeInterval = 300) async throws {
         let notification = try await session.waitForNotification(method: .accountLoginCompleted, timeout: timeout)
-        let payload: AccountLoginCompletedPayload = try decodeResult(notification.params)
+        let payload: AccountLoginCompletedPayload = try decodeResult(notification.params, context: "account/login/completed")
         if let completedID = payload.loginId, !completedID.isEmpty, completedID != loginID {
-            throw CodexCLIError.protocolError("Unexpected login completion id: \(completedID)")
+            throw CodexAccountRuntimeServiceError.loginCompletedUnexpectedID(expected: loginID, actual: completedID)
         }
         if payload.success == true {
             return
         }
         let message = payload.error?.trimmingCharacters(in: .whitespacesAndNewlines)
-        throw CodexCLIError.protocolError(message?.isEmpty == false ? message! : "ChatGPT login failed")
+        throw CodexAccountRuntimeServiceError.loginCompletedFailed(message: message?.isEmpty == false ? message! : "ChatGPT login failed")
     }
 
     public func cancelChatGPTLogin(loginID: String) async throws {
@@ -132,7 +183,7 @@ public actor CodexAccountRuntimeService {
             "refreshToken": refreshToken,
         ])
         let response = try await session.request(method: CodexAppServerMethod.accountRead.rawValue, paramsData: params)
-        let payload: AccountReadPayload = try decodeResult(response.result)
+        let payload: AccountReadPayload = try decodeResult(response.result, context: "account/read")
         let account = payload.account
         let mode = account?.type.flatMap(Self.parseAuthMode)
 
@@ -146,12 +197,12 @@ public actor CodexAccountRuntimeService {
 
     public func readRateLimits() async throws -> CodexRuntimeRateLimitsSnapshot {
         let response = try await session.request(method: CodexAppServerMethod.accountRateLimitsRead.rawValue)
-        let payload: RateLimitsReadPayload = try decodeResult(response.result)
+        let payload: RateLimitsReadPayload = try decodeResult(response.result, context: "account/rateLimits/read")
         return payload.rateLimits
     }
 
     public func logout() async throws {
-        let params = try CodexAppServerSession.encodeParams(NSNull())
+        let params = try CodexAppServerSession.encodeParams([:])
         _ = try await session.request(method: CodexAppServerMethod.accountLogout.rawValue, paramsData: params)
     }
 
@@ -159,13 +210,35 @@ public actor CodexAccountRuntimeService {
         await session.shutdown()
     }
 
-    private func decodeResult<T: Decodable>(_ raw: Any?) throws -> T {
+    private func decodeResult<T: Decodable>(_ raw: Any?, context: String) throws -> T {
         let object = raw ?? [:]
         do {
-            let data = try JSONSerialization.data(withJSONObject: object)
+            let payload = Self.anyCodable(from: object)
+            let data = try JSONEncoder().encode(payload)
             return try JSONDecoder().decode(T.self, from: data)
         } catch {
-            throw CodexCLIError.invalidOutput(error.localizedDescription)
+            throw CodexAccountRuntimeServiceError.invalidPayload(context: context, details: error.localizedDescription)
+        }
+    }
+
+    private static func anyCodable(from value: Any) -> AnyCodable {
+        switch value {
+        case let codable as AnyCodable:
+            return codable
+        case let dict as [String: Any]:
+            return AnyCodable(dict.mapValues(Self.anyCodable(from:)))
+        case let array as [Any]:
+            return AnyCodable(array.map(Self.anyCodable(from:)))
+        case let bool as Bool:
+            return AnyCodable(bool)
+        case let number as NSNumber:
+            return AnyCodable(number)
+        case let string as String:
+            return AnyCodable(string)
+        case is NSNull:
+            return AnyCodable(nil)
+        default:
+            return AnyCodable(value)
         }
     }
 

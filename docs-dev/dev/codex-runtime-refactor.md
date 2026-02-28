@@ -164,3 +164,126 @@
   - `xcodebuild -project nolon.xcodeproj -scheme nolon ... test` 与 `./build.sh` 在当前分支仍被既有依赖问题阻塞：
     - `Unable to find module dependency: 'ProviderCatalog'`
     - `Unable to find module dependency: 'ProviderUsage'`
+
+## 增量（2026-02-28，STJSON JSON-RPC 协议校验接入）
+- 背景：`JsonRPCKit` 之前对入站 `method` 消息仅做松散 JSON 解析，未执行 JSON-RPC 2.0 的严格 method 约束（例如 `rpc.*` 保留前缀）。
+- 变更：
+  - `libs/Providers/Package.swift`
+    - `JsonRPCKit` target 新增 `STJSON` 依赖。
+  - `libs/Providers/Package.resolved`
+    - `STJSON` 从 `1.4.8` 升级到 `1.4.9`（引入 JSON-RPC 2.0 协议层）。
+  - `libs/Providers/Sources/JsonRPCKit/JsonRPCLineProcessSession.swift`
+    - 入站 `method` 消息先通过 `JSONRPC.decodeInbound(from:)` 做协议校验；
+    - 通过 `JSONRPC.Request` 的 `params` 还原为现有 `Any` 结构，保持对外 API 不变。
+- 测试：
+  - 新增 `JsonRPCKitTests.reservedRPCPrefixNotificationIsIgnored`（先红后绿）；
+  - 回归 `JsonRPCKitTests` + `CodexAccountRuntimeServiceTests` 全通过。
+
+## 增量（2026-02-28，STJSON JSON-RPC 出站校验补齐）
+- 在前一轮“入站 strict 校验”基础上，补齐出站 request/notify 的协议约束。
+- `JsonRPCLineProcessSession.request/notify` 改为构造 `JSONRPC.Request` 后编码发送，统一遵循 JSON-RPC 2.0 method/params 规则。
+- 新增测试：`JsonRPCKitTests.reservedRPCPrefixOutboundMethodIsRejected`（先红后绿）。
+- 回归：`JsonRPCKitTests` + `CodexAccountRuntimeServiceTests` 全通过。
+
+## 增量（2026-02-28，STJSON JSON-RPC 响应 strict 校验）
+- `JsonRPCLineProcessSession` 的响应分支改为优先解码 `JSONRPC.Response`：
+  - 校验 `jsonrpc == 2.0`、`result/error` 二选一约束；
+  - 校验响应 `id` 与 pending request 一致。
+- 非法响应（例如同时包含 `result` 与 `error`）会使对应 pending request 失败，不再静默透传到业务层。
+- 新增测试：`JsonRPCKitTests.invalidResponseWithResultAndErrorIsRejected`（先红后绿）。
+
+## 增量（2026-02-28，STJSON 参数编码收敛）
+- `JsonRPCLineProcessSession.encodeParams(_:)` 从 `JSONSerialization` 切换为 `JSONRPC.Params` + `JSONEncoder`。
+- 收益：
+  - 避免 `JSONSerialization` 对 `AnyCodable`/`__SwiftValue` 的 ObjC 异常崩溃路径；
+  - 统一 params 顶层约束（仅 object/array）。
+- `decodeOutboundParams(_:)` 同步改为 `JSONDecoder` 直接解码 `JSONRPC.Params`，去除二次 `JSONSerialization` 解析。
+- 新增测试：`JsonRPCKitTests.encodeParamsSupportsAnyCodablePayload`（先红后绿）。
+
+## 增量（2026-02-28，server-request 回包 STJSON 化）
+- 问题：`handleServerRequest` 回包仍使用 `JSONSerialization`，当 handler 返回 `AnyCodable` 时会触发 `Invalid type in JSON write (__SwiftValue)` 崩溃。
+- 修复：
+  - server-request 成功回包改为 `JSONRPC.Response(id:result:error:)` + `JSONRPC.encodeResponse(_)`；
+  - 错误回包同样走 `JSONRPC.Response`（`error.code = -32000` custom）。
+- 新增测试：`JsonRPCKitTests.serverRequestReplySupportsAnyCodablePayload`（先红后绿）。
+- 结果：`JsonRPCKit` 端到端 request/response/notification/server-request 四条链路均有 STJSON 协议校验与编码覆盖。
+
+## 增量（2026-02-28，移除 JsonRPCKit 入站分发中的 JSONSerialization）
+- `handleIncomingLine` 从 `JSONSerialization` 字典分发改为：
+  - 先解码轻量 envelope（`id/method`）做消息分流；
+  - response 分支使用 `JSONRPC.Response` strict 解码；
+  - request/notification 分支使用 `JSONRPC.decodeInbound` strict 解码。
+- 兼容语义保持：`id: null` 的 method 消息仍按 notification 处理；`id: null` 的 response 忽略。
+- 结果：`JsonRPCLineProcessSession.swift` 已无 `JSONSerialization` 直接调用。
+
+## 增量（2026-02-28，JsonRPCKit 结构化错误）
+- 新增 `JsonRPCSessionError`：
+  - `transport` / `shutdown` / `invalidMessage` / `invalidParams` / `protocolViolation` / `invalidResponse`。
+- `JsonRPCLineProcessSession` 关键抛错点改为结构化错误：
+  - 出站 method 违规 -> `protocolViolation`
+  - 无效 response -> `invalidResponse`
+  - params 非 object/array -> `invalidParams`
+  - 管道/启动问题 -> `transport`
+  - 关停中断 pending -> `shutdown`
+- 测试更新：`JsonRPCKitTests` 中违规 method 与无效 response 用例改为断言 `JsonRPCSessionError` case，而非字符串匹配。
+
+## 增量（2026-02-28，CodexAppServerKit 错误分类透传）
+- `CodexAppServerSession.mapError` 新增对 `JsonRPCSessionError` 的分类映射：
+  - `transport` -> `protocolError("transport: ...")`
+  - `shutdown` -> `protocolError("session_shutdown")`
+  - `invalidMessage` -> `protocolError("invalid_message")`
+  - `invalidParams` -> `protocolError("invalid_params: ...")`
+  - `protocolViolation` -> `protocolError("protocol_violation: ...")`
+  - `invalidResponse` -> `protocolError("invalid_response: ...")`
+- 新增测试：`CodexAppServerKitTests.mapsProtocolViolationCategory`。
+- 结果：上层在不改异常类型签名（仍为 `CodexCLIError`）前提下，获得稳定错误分类前缀，便于 CLI/UI 分支处理。
+
+## 增量（2026-02-28，错误分类映射覆盖补齐）
+- 在 `CodexAppServerKitTests` 补齐 error 分类映射覆盖：
+  - `mapsInvalidParamsCategory`
+  - `mapsInvalidResponseCategory`
+  - `mapsProtocolViolationCategory`
+- 目标：防止 `CodexAppServerSession.mapError` 后续改动导致分类前缀回退为非结构化字符串。
+
+## 增量（2026-03-01，账号 runtime typed 错误 + STJSON decode 收敛）
+- 背景：`CodexAccountRuntimeService` 仍以字符串 `protocolError` 抛错，且 `decodeResult` 仍依赖 `JSONSerialization`，上游难以稳定分流账号场景错误。
+- 变更：
+  - `libs/Providers/Sources/CodexAppServerKit/CodexAccountRuntimeService.swift`
+    - 新增 `CodexAccountRuntimeServiceError`（`code + LocalizedError`）：
+      - `unsupportedServerRequest`
+      - `runtimeServiceDeallocated`
+      - `loginStartMissingLoginID`
+      - `loginStartMissingAuthURL`
+      - `loginCompletedUnexpectedID`
+      - `loginCompletedFailed`
+      - `invalidPayload`
+    - `startChatGPTLogin` / `awaitChatGPTLoginCompletion` / `decodeResult` 改为抛 typed 错误，不再拼字符串。
+    - `decodeResult` 改为 `Any -> AnyCodable -> JSONEncoder/JSONDecoder`，移除 `JSONSerialization` 路径。
+  - `libs/Providers/Package.swift`
+    - `CodexAppServerKit` target 增加 `STJSON` 依赖（直接使用 `AnyCodable`）。
+  - `libs/Providers/Sources/Providers/Codex/CodexRuntimeAccountSwitcher.swift`
+    - 映射 `CodexAccountRuntimeServiceError -> CodexCLIError.protocolError("account/<code>: ...")`，保证分类码向上游保留。
+  - `libs/Providers/Sources/ProviderUsage/CodexAuthRuntimeCoordinator.swift`
+    - 对 `CodexCLIError.protocolError` / `recoverableFallback` 使用原始 message 透传，避免被 `localizedDescription` 包装后丢失分类码前缀。
+- 测试（先红后绿）：
+  - `CodexAccountRuntimeServiceTests.startChatGPTLoginMissingLoginIDThrowsTypedError`
+  - `CodexRuntimeAccountSwitcherTests.mapsTypedServiceErrorIntoProtocolCategory`
+  - `CodexAuthRuntimeCoordinatorTests.runtimeSwitchProtocolCategoryPreserved`
+- 回归：
+  - `swift test --package-path libs/Providers --filter "JsonRPCKitTests|CodexAccountRuntimeServiceTests|CodexAppServerKitTests/mapsInvalidParamsCategory|CodexAppServerKitTests/mapsInvalidResponseCategory|CodexAppServerKitTests/mapsProtocolViolationCategory|CodexRuntimeAccountSwitcherTests|CodexAuthRuntimeCoordinatorTests"`
+  - 25 tests 通过。
+
+## 增量（2026-03-01，account 负例契约测试 + 登录链路 E2E）
+- 目标：补齐 `account/read`、`account/rateLimits/read` 的字段异常负例，并新增从登录到读取账号/配额的一条端到端场景测试。
+- 新增测试（`CodexAccountRuntimeServiceTests`）：
+  - `readAccountInvalidPayloadThrowsTypedError`
+    - 当 `requiresOpenaiAuth` 返回错误类型（string）时，断言抛出 `CodexAccountRuntimeServiceError.invalidPayload(context: "account/read", ...)`。
+  - `readRateLimitsInvalidPayloadThrowsTypedError`
+    - 当 `rateLimits` 对象缺失时，断言抛出 `invalidPayload(context: "account/rateLimits/read", ...)`。
+  - `endToEndLoginThenReadAccountAndRateLimits`
+    - 覆盖 `initialize -> account/login/start -> account/login/completed -> account/read -> account/rateLimits/read` 完整链路。
+- 小修：
+  - 去除测试中的类型推断告警：`async let completion: Void = ...`。
+- 回归：
+  - `swift test --package-path libs/Providers --filter "CodexAccountRuntimeServiceTests|CodexAppServerKitTests/mapsInvalidParamsCategory|CodexAppServerKitTests/mapsInvalidResponseCategory|CodexAppServerKitTests/mapsProtocolViolationCategory|CodexRuntimeAccountSwitcherTests|CodexAuthRuntimeCoordinatorTests|JsonRPCKitTests"`
+  - 28 tests 通过。

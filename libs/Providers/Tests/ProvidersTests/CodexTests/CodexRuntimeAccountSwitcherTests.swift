@@ -8,12 +8,21 @@ import STFilePath
 private actor FakeRuntimeAccountService: CodexRuntimeAccountServing {
     private(set) var initializeCalls = 0
     private(set) var logoutCalls = 0
+    var switchError: Error?
+
+    func setSwitchError(_ error: Error?) {
+        switchError = error
+    }
 
     func initialize(clientName: String, clientVersion: String) async throws {
         initializeCalls += 1
     }
 
-    func switchAccount(idToken: String, accessToken: String, chatgptAccountID: String?) async throws {}
+    func switchAccount(idToken: String, accessToken: String, chatgptAccountID: String?) async throws {
+        if let switchError {
+            throw switchError
+        }
+    }
 
     func readAccount(refreshToken: Bool) async throws -> CodexRuntimeAccountState {
         CodexRuntimeAccountState(email: nil, planType: nil, requiresOpenaiAuth: false, authMode: nil)
@@ -56,5 +65,26 @@ struct CodexRuntimeAccountSwitcherTests {
         let counts = await fake.counts()
         #expect(counts.initialize == 1)
         #expect(counts.logout == 2)
+    }
+
+    @Test("Maps account runtime typed error into categorized protocol error")
+    func mapsTypedServiceErrorIntoProtocolCategory() async throws {
+        let fake = FakeRuntimeAccountService()
+        await fake.setSwitchError(CodexAccountRuntimeServiceError.loginStartMissingLoginID)
+        let switcher = CodexRuntimeAccountSwitcher(serviceFactory: { _, _ in fake })
+
+        let tokens = CodexTokenPair(idToken: "id", accessToken: "access", chatgptAccountID: nil)
+        do {
+            _ = try await switcher.switchAccount(tokens: tokens, executable: "codex", environment: [:])
+            Issue.record("Expected protocol error")
+        } catch let error as CodexCLIError {
+            guard case let .protocolError(message) = error else {
+                Issue.record("Expected protocolError, got: \(error)")
+                return
+            }
+            #expect(message.contains("account/login_start_missing_login_id"))
+        } catch {
+            Issue.record("Expected CodexCLIError, got: \(error)")
+        }
     }
 }

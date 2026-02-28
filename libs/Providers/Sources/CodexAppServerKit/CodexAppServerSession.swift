@@ -104,6 +104,22 @@ public actor CodexAppServerSession {
         if let codexError = error as? CodexCLIError {
             return codexError
         }
+        if let rpcError = error as? JsonRPCSessionError {
+            switch rpcError {
+            case let .transport(message):
+                return CodexCLIError.protocolError("transport: \(message)")
+            case .shutdown:
+                return CodexCLIError.protocolError("session_shutdown")
+            case .invalidMessage:
+                return CodexCLIError.protocolError("invalid_message")
+            case let .invalidParams(message):
+                return CodexCLIError.protocolError("invalid_params: \(message)")
+            case let .protocolViolation(message):
+                return CodexCLIError.protocolError("protocol_violation: \(message)")
+            case let .invalidResponse(message):
+                return CodexCLIError.protocolError("invalid_response: \(message)")
+            }
+        }
         return CodexCLIError.protocolError(error.localizedDescription)
     }
 

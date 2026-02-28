@@ -2,6 +2,7 @@ import Foundation
 import Testing
 import STFilePath
 import JsonRPCKit
+import STJSON
 
 @Suite("JsonRPCKit")
 struct JsonRPCKitTests {
@@ -146,5 +147,188 @@ for line in sys.stdin:
         let result = response.result as? [String: Any]
         #expect(result?["server"] as? String == "ok")
         #expect(result?["value"] as? String == "context-ready")
+    }
+
+    @Test("TDD: Given reserved rpc.* notification when parsing then it is ignored by protocol guard")
+    func reservedRPCPrefixNotificationIsIgnored() async throws {
+        guard STPath("/usr/bin/python3").permission.contains(.executable) else {
+            return
+        }
+
+        let script = """
+import json
+import sys
+
+sys.stdout.write(json.dumps({"jsonrpc":"2.0","method":"rpc.forbidden","params":{"k":"v"}}) + "\\n")
+sys.stdout.flush()
+
+for line in sys.stdin:
+    msg = json.loads(line)
+    if msg.get("method") == "echo":
+        sys.stdout.write(json.dumps({"jsonrpc":"2.0","id":msg["id"],"result":{"ok":True}}) + "\\n")
+        sys.stdout.flush()
+"""
+
+        let session = JsonRPCLineProcessSession(
+            executableURL: URL(fileURLWithPath: "/usr/bin/python3"),
+            startupArguments: ["-u", "-c", script]
+        ) { message in
+            TestError(message: message)
+        }
+        defer { Task { await session.shutdown() } }
+
+        let recorder = NotificationRecorder()
+        await session.setNotificationHandler { notification in
+            await recorder.record(notification.method)
+        }
+
+        _ = try await session.request(method: "echo")
+        try await Task.sleep(nanoseconds: 200_000_000)
+        #expect(await recorder.hasMethod("rpc.forbidden") == false)
+    }
+
+    @Test("TDD: Given reserved rpc.* outbound method when requesting then request is rejected before send")
+    func reservedRPCPrefixOutboundMethodIsRejected() async throws {
+        guard STPath("/usr/bin/python3").permission.contains(.executable) else {
+            return
+        }
+
+        let script = """
+import json
+import sys
+
+for line in sys.stdin:
+    msg = json.loads(line)
+    mid = msg.get("id")
+    if mid is not None:
+        sys.stdout.write(json.dumps({"jsonrpc":"2.0","id":mid,"result":{"ok":True}}) + "\\n")
+        sys.stdout.flush()
+"""
+
+        let session = JsonRPCLineProcessSession(
+            executableURL: URL(fileURLWithPath: "/usr/bin/python3"),
+            startupArguments: ["-u", "-c", script]
+        ) { message in
+            TestError(message: message)
+        }
+        defer { Task { await session.shutdown() } }
+
+        do {
+            _ = try await session.request(method: "rpc.forbidden", paramsData: Data("{}".utf8))
+            Issue.record("Expected protocol validation failure")
+        } catch let error as JsonRPCSessionError {
+            guard case .protocolViolation = error else {
+                Issue.record("Expected protocolViolation, got: \(error)")
+                return
+            }
+        } catch {
+            Issue.record("Expected JsonRPCSessionError, got: \(error)")
+        }
+    }
+
+    @Test("TDD: Given invalid response containing both result and error when parsing then request fails")
+    func invalidResponseWithResultAndErrorIsRejected() async throws {
+        guard STPath("/usr/bin/python3").permission.contains(.executable) else {
+            return
+        }
+
+        let script = """
+import json
+import sys
+
+for line in sys.stdin:
+    msg = json.loads(line)
+    mid = msg.get("id")
+    if mid is None:
+        continue
+    sys.stdout.write(json.dumps({
+        "jsonrpc":"2.0",
+        "id":mid,
+        "result":{"ok":True},
+        "error":{"code":123,"message":"boom"}
+    }) + "\\n")
+    sys.stdout.flush()
+"""
+
+        let session = JsonRPCLineProcessSession(
+            executableURL: URL(fileURLWithPath: "/usr/bin/python3"),
+            startupArguments: ["-u", "-c", script]
+        ) { message in
+            TestError(message: message)
+        }
+        defer { Task { await session.shutdown() } }
+
+        do {
+            _ = try await session.request(method: "echo")
+            Issue.record("Expected invalid response rejection")
+        } catch let error as JsonRPCSessionError {
+            guard case .invalidResponse = error else {
+                Issue.record("Expected invalidResponse, got: \(error)")
+                return
+            }
+        } catch {
+            Issue.record("Expected JsonRPCSessionError, got: \(error)")
+        }
+    }
+
+    @Test("TDD: Given AnyCodable params when encoding then params data is generated")
+    func encodeParamsSupportsAnyCodablePayload() throws {
+        let params: [String: Any] = [
+            "meta": [
+                "id": AnyCodable("acct-1"),
+                "flags": [AnyCodable(true), AnyCodable(2)],
+            ],
+        ]
+
+        let data = try JsonRPCLineProcessSession.encodeParams(params)
+        let object = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+        let meta = object?["meta"] as? [String: Any]
+        #expect(meta?["id"] as? String == "acct-1")
+        let flags = meta?["flags"] as? [Any]
+        #expect(flags?.count == 2)
+    }
+
+    @Test("TDD: Given server handler returns AnyCodable when replying then response stays valid JSON-RPC")
+    func serverRequestReplySupportsAnyCodablePayload() async throws {
+        guard STPath("/usr/bin/python3").permission.contains(.executable) else {
+            return
+        }
+
+        let script = """
+import json
+import sys
+
+for line in sys.stdin:
+    msg = json.loads(line)
+    if msg.get("method") != "echo":
+        continue
+    sys.stdout.write(json.dumps({"jsonrpc":"2.0","id":"srv-2","method":"fetch_anycodable","params":{"topic":"swift"}}) + "\\n")
+    sys.stdout.flush()
+
+    callback_line = sys.stdin.readline()
+    callback_msg = json.loads(callback_line)
+    result_obj = callback_msg.get("result") or {}
+    value = result_obj.get("answer")
+
+    sys.stdout.write(json.dumps({"jsonrpc":"2.0","id":msg["id"],"result":{"ok": value == "context-ready"}}) + "\\n")
+    sys.stdout.flush()
+"""
+
+        let session = JsonRPCLineProcessSession(
+            executableURL: URL(fileURLWithPath: "/usr/bin/python3"),
+            startupArguments: ["-u", "-c", script]
+        ) { message in
+            TestError(message: message)
+        }
+        defer { Task { await session.shutdown() } }
+
+        await session.setServerRequestHandler { request in
+            #expect(request.method == "fetch_anycodable")
+            return ["answer": AnyCodable("context-ready")]
+        }
+
+        let response = try await session.request(method: "echo")
+        let result = response.result as? [String: Any]
+        #expect(result?["ok"] as? Bool == true)
     }
 }

@@ -45,6 +45,9 @@ public actor CodexRuntimeAccountSwitcher {
             return try await service.readAccount(refreshToken: false)
         } catch let error as CodexCLIError {
             throw error
+        } catch let error as CodexAccountRuntimeServiceError {
+            let details = error.errorDescription ?? error.code
+            throw CodexCLIError.protocolError("account/\(error.code): \(details)")
         } catch {
             throw CodexCLIError.recoverableFallback(error.localizedDescription)
         }
@@ -75,6 +78,9 @@ public actor CodexRuntimeAccountSwitcher {
         let created = serviceFactory(resolvedBinary, environment)
         do {
             try await created.initialize(clientName: "nolon", clientVersion: "1.0.0")
+        } catch let error as CodexAccountRuntimeServiceError {
+            let details = error.errorDescription ?? error.code
+            throw CodexCLIError.protocolError("account/\(error.code): \(details)")
         } catch {
             throw CodexCLIError.recoverableFallback(error.localizedDescription)
         }

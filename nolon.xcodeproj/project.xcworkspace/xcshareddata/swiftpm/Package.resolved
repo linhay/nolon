@@ -51,8 +51,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/linhay/STJSON",
       "state" : {
-        "revision" : "e1f8082a0f9ec26f6d4f51a83f47c527575f8bd3",
-        "version" : "1.4.8"
+        "revision" : "cec55e35b2fe3193739ca6cd1ec87f7c1d98dd66",
+        "version" : "1.4.9"
       }
     },
     {

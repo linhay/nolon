@@ -68,6 +68,23 @@ struct CodexAuthRuntimeCoordinatorTests {
             try await coordinator.activateAccountInRuntime(account: account)
         }
     }
+
+    @Test("Given protocol categorized runtime error, when activating runtime, then preserves reason code")
+    func runtimeSwitchProtocolCategoryPreserved() async {
+        let account = CodexAuthAccount(name: "work", relativeAuthPath: "auth/work.json")
+
+        let coordinator = CodexAuthRuntimeCoordinator(
+            tokenReader: { _ in ("id-token", "access-token", nil) },
+            runtimeSwitch: { _, _, _, _, _ in
+                throw CodexCLIError.protocolError("account/login_start_missing_login_id")
+            },
+            runtimeHomeResolver: { _, _ in STFolder("/tmp/runtime-home-for-tests") }
+        )
+
+        await #expect(throws: CodexAuthRuntimeCoordinatorError.runtimeSwitchFailed(reason: "account/login_start_missing_login_id")) {
+            try await coordinator.activateAccountInRuntime(account: account)
+        }
+    }
 }
 
 private final class LockIsolated<Value: Sendable>: @unchecked Sendable {
