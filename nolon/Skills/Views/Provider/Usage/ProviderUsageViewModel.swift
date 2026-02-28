@@ -843,12 +843,29 @@ final class ProviderUsageViewModel {
         cliLoginSessionId = nil
         cliLoginTask?.cancel()
         cliLoginTask = nil
+        cleanupCLILoginArtifacts()
+        isRunningCLILogin = false
+        cliLoginStatus = nil
+        cliLoginPreferredAccountId = nil
+        isShowingLoginURLSheet = false
+        loginURLForSheet = nil
+        loginModeForSheet = nil
+    }
+
+    private func cleanupCLILoginArtifacts() {
         cliLoginHandle?.cancel()
         cliLoginHandle = nil
         if let tempDir = cliLoginTempDir {
             try? FileManager.default.removeItem(at: tempDir)
             cliLoginTempDir = nil
         }
+    }
+
+    private func finalizeCLILoginSessionIfNeeded(sessionId: UUID) {
+        guard cliLoginSessionId == sessionId else { return }
+        cliLoginTask = nil
+        cliLoginSessionId = nil
+        cleanupCLILoginArtifacts()
         isRunningCLILogin = false
         cliLoginStatus = nil
         cliLoginPreferredAccountId = nil
@@ -888,6 +905,9 @@ final class ProviderUsageViewModel {
     }
 
     private func runUnifiedLoginFlow(sessionId: UUID) async {
+        defer {
+            finalizeCLILoginSessionIfNeeded(sessionId: sessionId)
+        }
         do {
             try await runAppServerLoginFlow(sessionId: sessionId)
             return
@@ -936,22 +956,7 @@ final class ProviderUsageViewModel {
 
     private func runCLILoginFlow(sessionId: UUID) async {
         defer {
-            if cliLoginSessionId == sessionId {
-                cliLoginTask = nil
-                isRunningCLILogin = false
-                cliLoginStatus = nil
-                cliLoginSessionId = nil
-                cliLoginPreferredAccountId = nil
-                cliLoginHandle?.cancel()
-                cliLoginHandle = nil
-                if let tempDir = cliLoginTempDir {
-                    try? FileManager.default.removeItem(at: tempDir)
-                    cliLoginTempDir = nil
-                }
-                isShowingLoginURLSheet = false
-                loginURLForSheet = nil
-                loginModeForSheet = nil
-            }
+            finalizeCLILoginSessionIfNeeded(sessionId: sessionId)
         }
 
         do {
