@@ -739,7 +739,13 @@ struct CodexGeneratedFilesParserTests {
     func parseConfigToml() throws {
         let toml = """
         model = "gpt-5"
+        model_provider = "openai"
         profile = "work"
+        model_reasoning_effort = "high"
+        model_reasoning_summary = "detailed"
+        model_verbosity = "high"
+        personality = "balanced"
+        web_search = "cached"
         approval_policy = "on-request"
         sandbox_mode = "workspace-write"
         chatgpt_base_url = "https://chatgpt.com/backend-api"
@@ -747,14 +753,31 @@ struct CodexGeneratedFilesParserTests {
         [features]
         web_search_request = true
         shell_tool = false
+        multi_agent = true
 
         [history]
         persistence = "save-all"
         max_bytes = 1024
 
+        [tools]
+        web_search = true
+        view_image = true
+
         [sandbox_workspace_write]
         network_access = true
         writable_roots = ["/tmp/project"]
+
+        [agents]
+        max_threads = 8
+        max_depth = 3
+
+        [agents.reviewer]
+        description = "PR reviewer"
+        config_file = ".codex/agents/reviewer.toml"
+        model = "gpt-5.3-codex"
+        model_reasoning_effort = "high"
+        sandbox_mode = "read-only"
+        approval_policy = "never"
 
         [mcp_servers.docs]
         command = "npx"
@@ -767,10 +790,24 @@ struct CodexGeneratedFilesParserTests {
         """
         let parsed = try CodexGeneratedFilesParser.parseConfigToml(data: Data(toml.utf8))
         #expect(parsed.model == "gpt-5")
+        #expect(parsed.modelProvider == "openai")
         #expect(parsed.profile == "work")
+        #expect(parsed.modelReasoningEffort == "high")
+        #expect(parsed.modelReasoningSummary == "detailed")
+        #expect(parsed.modelVerbosity == "high")
+        #expect(parsed.personality == "balanced")
+        #expect(parsed.webSearch == "cached")
         #expect(parsed.features?["web_search_request"] == true)
+        #expect(parsed.features?["multi_agent"] == true)
         #expect(parsed.history?.maxBytes == 1024)
+        #expect(parsed.tools?.webSearch == true)
+        #expect(parsed.tools?.viewImage == true)
         #expect(parsed.sandboxWorkspaceWrite?.networkAccess == true)
+        #expect(parsed.agents?.maxThreads == 8)
+        #expect(parsed.agents?.maxDepth == 3)
+        #expect(parsed.agents?.roles["reviewer"]?.description == "PR reviewer")
+        #expect(parsed.agents?.roles["reviewer"]?.configFile == ".codex/agents/reviewer.toml")
+        #expect(parsed.agents?.roles["reviewer"]?.sandboxMode == "read-only")
         #expect(parsed.mcpServers["docs"]?.command == "npx")
         #expect(parsed.profiles["work"]?.model == "gpt-5-codex")
 

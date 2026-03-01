@@ -213,39 +213,231 @@ public struct CodexConfigToml: Sendable, Equatable, Codable {
 
     public struct Profile: Sendable, Equatable, Codable {
         public let model: String?
+        public let modelProvider: String?
         public let approvalPolicy: String?
         public let sandboxMode: String?
+        public let modelReasoningEffort: String?
+        public let modelReasoningSummary: String?
+        public let modelVerbosity: String?
+        public let personality: String?
+        public let webSearch: String?
+        public let toolsWebSearch: Bool?
         public let mcpServers: [String: McpServer]?
 
         enum CodingKeys: String, CodingKey {
             case model
+            case modelProvider = "model_provider"
             case approvalPolicy = "approval_policy"
             case sandboxMode = "sandbox_mode"
+            case modelReasoningEffort = "model_reasoning_effort"
+            case modelReasoningSummary = "model_reasoning_summary"
+            case modelVerbosity = "model_verbosity"
+            case personality
+            case webSearch = "web_search"
+            case toolsWebSearch = "tools_web_search"
             case mcpServers = "mcp_servers"
         }
     }
 
+    public struct Tools: Sendable, Equatable, Codable {
+        public let webSearch: Bool?
+        public let viewImage: Bool?
+
+        enum CodingKeys: String, CodingKey {
+            case webSearch = "web_search"
+            case webSearchRequest = "web_search_request"
+            case viewImage = "view_image"
+        }
+
+        public init(webSearch: Bool?, viewImage: Bool?) {
+            self.webSearch = webSearch
+            self.viewImage = viewImage
+        }
+
+        public init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            self.webSearch = try container.decodeIfPresent(Bool.self, forKey: .webSearch)
+                ?? container.decodeIfPresent(Bool.self, forKey: .webSearchRequest)
+            self.viewImage = try container.decodeIfPresent(Bool.self, forKey: .viewImage)
+        }
+
+        public func encode(to encoder: Encoder) throws {
+            var container = encoder.container(keyedBy: CodingKeys.self)
+            try container.encodeIfPresent(webSearch, forKey: .webSearch)
+            try container.encodeIfPresent(viewImage, forKey: .viewImage)
+        }
+    }
+
+    public struct AgentRole: Sendable, Equatable, Codable {
+        public let description: String?
+        public let configFile: String?
+        public let model: String?
+        public let modelReasoningEffort: String?
+        public let modelReasoningSummary: String?
+        public let modelVerbosity: String?
+        public let approvalPolicy: String?
+        public let sandboxMode: String?
+        public let personality: String?
+        public let webSearch: String?
+
+        enum CodingKeys: String, CodingKey {
+            case description
+            case configFile = "config_file"
+            case model
+            case modelReasoningEffort = "model_reasoning_effort"
+            case modelReasoningSummary = "model_reasoning_summary"
+            case modelVerbosity = "model_verbosity"
+            case approvalPolicy = "approval_policy"
+            case sandboxMode = "sandbox_mode"
+            case personality
+            case webSearch = "web_search"
+        }
+
+        public init(
+            description: String?,
+            configFile: String?,
+            model: String?,
+            modelReasoningEffort: String?,
+            modelReasoningSummary: String?,
+            modelVerbosity: String?,
+            approvalPolicy: String?,
+            sandboxMode: String?,
+            personality: String?,
+            webSearch: String?
+        ) {
+            self.description = description
+            self.configFile = configFile
+            self.model = model
+            self.modelReasoningEffort = modelReasoningEffort
+            self.modelReasoningSummary = modelReasoningSummary
+            self.modelVerbosity = modelVerbosity
+            self.approvalPolicy = approvalPolicy
+            self.sandboxMode = sandboxMode
+            self.personality = personality
+            self.webSearch = webSearch
+        }
+    }
+
+    public struct Agents: Sendable, Equatable, Codable {
+        public let maxThreads: Int?
+        public let maxDepth: Int?
+        public let roles: [String: AgentRole]
+
+        private struct DynamicKey: CodingKey {
+            var stringValue: String
+            var intValue: Int?
+
+            init?(stringValue: String) { self.stringValue = stringValue }
+            init?(intValue: Int) {
+                self.intValue = intValue
+                self.stringValue = "\(intValue)"
+            }
+        }
+
+        public init(maxThreads: Int?, maxDepth: Int?, roles: [String: AgentRole]) {
+            self.maxThreads = maxThreads
+            self.maxDepth = maxDepth
+            self.roles = roles
+        }
+
+        public init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: DynamicKey.self)
+            var maxThreads: Int?
+            var maxDepth: Int?
+            var roles: [String: AgentRole] = [:]
+
+            for key in container.allKeys {
+                switch key.stringValue {
+                case "max_threads":
+                    maxThreads = try container.decodeIfPresent(Int.self, forKey: key)
+                case "max_depth":
+                    maxDepth = try container.decodeIfPresent(Int.self, forKey: key)
+                default:
+                    roles[key.stringValue] = try container.decode(AgentRole.self, forKey: key)
+                }
+            }
+
+            self.maxThreads = maxThreads
+            self.maxDepth = maxDepth
+            self.roles = roles
+        }
+
+        public func encode(to encoder: Encoder) throws {
+            var container = encoder.container(keyedBy: DynamicKey.self)
+            if let maxThreads, let key = DynamicKey(stringValue: "max_threads") {
+                try container.encode(maxThreads, forKey: key)
+            }
+            if let maxDepth, let key = DynamicKey(stringValue: "max_depth") {
+                try container.encode(maxDepth, forKey: key)
+            }
+            for (name, role) in roles {
+                guard let key = DynamicKey(stringValue: name) else { continue }
+                try container.encode(role, forKey: key)
+            }
+        }
+    }
+
     public let model: String?
+    public let reviewModel: String?
     public let modelProvider: String?
+    public let modelContextWindow: Int?
+    public let modelAutoCompactTokenLimit: Int?
     public let profile: String?
     public let approvalPolicy: String?
     public let sandboxMode: String?
     public let sandboxWorkspaceWrite: SandboxWorkspaceWrite?
+    public let notify: [String]?
+    public let instructions: String?
+    public let developerInstructions: String?
+    public let compactPrompt: String?
+    public let modelReasoningEffort: String?
+    public let modelReasoningSummary: String?
+    public let modelVerbosity: String?
+    public let modelSupportsReasoningSummaries: Bool?
+    public let personality: String?
     public let chatgptBaseURL: String?
+    public let webSearch: String?
+    public let tools: Tools?
+    public let agents: Agents?
     public let features: [String: Bool]?
+    public let suppressUnstableFeaturesWarning: Bool?
+    public let checkForUpdateOnStartup: Bool?
+    public let hideAgentReasoning: Bool?
+    public let showRawAgentReasoning: Bool?
+    public let ossProvider: String?
     public let history: History?
     public let mcpServers: [String: McpServer]
     public let profiles: [String: Profile]
 
     enum CodingKeys: String, CodingKey {
         case model
+        case reviewModel = "review_model"
         case modelProvider = "model_provider"
+        case modelContextWindow = "model_context_window"
+        case modelAutoCompactTokenLimit = "model_auto_compact_token_limit"
         case profile
         case approvalPolicy = "approval_policy"
         case sandboxMode = "sandbox_mode"
         case sandboxWorkspaceWrite = "sandbox_workspace_write"
+        case notify
+        case instructions
+        case developerInstructions = "developer_instructions"
+        case compactPrompt = "compact_prompt"
+        case modelReasoningEffort = "model_reasoning_effort"
+        case modelReasoningSummary = "model_reasoning_summary"
+        case modelVerbosity = "model_verbosity"
+        case modelSupportsReasoningSummaries = "model_supports_reasoning_summaries"
+        case personality
         case chatgptBaseURL = "chatgpt_base_url"
+        case webSearch = "web_search"
+        case tools
+        case agents
         case features
+        case suppressUnstableFeaturesWarning = "suppress_unstable_features_warning"
+        case checkForUpdateOnStartup = "check_for_update_on_startup"
+        case hideAgentReasoning = "hide_agent_reasoning"
+        case showRawAgentReasoning = "show_raw_agent_reasoning"
+        case ossProvider = "oss_provider"
         case history
         case mcpServers = "mcp_servers"
         case profiles
@@ -253,25 +445,65 @@ public struct CodexConfigToml: Sendable, Equatable, Codable {
 
     public init(
         model: String? = nil,
+        reviewModel: String? = nil,
         modelProvider: String? = nil,
+        modelContextWindow: Int? = nil,
+        modelAutoCompactTokenLimit: Int? = nil,
         profile: String? = nil,
         approvalPolicy: String? = nil,
         sandboxMode: String? = nil,
         sandboxWorkspaceWrite: SandboxWorkspaceWrite? = nil,
+        notify: [String]? = nil,
+        instructions: String? = nil,
+        developerInstructions: String? = nil,
+        compactPrompt: String? = nil,
+        modelReasoningEffort: String? = nil,
+        modelReasoningSummary: String? = nil,
+        modelVerbosity: String? = nil,
+        modelSupportsReasoningSummaries: Bool? = nil,
+        personality: String? = nil,
         chatgptBaseURL: String? = nil,
+        webSearch: String? = nil,
+        tools: Tools? = nil,
+        agents: Agents? = nil,
         features: [String: Bool]? = nil,
+        suppressUnstableFeaturesWarning: Bool? = nil,
+        checkForUpdateOnStartup: Bool? = nil,
+        hideAgentReasoning: Bool? = nil,
+        showRawAgentReasoning: Bool? = nil,
+        ossProvider: String? = nil,
         history: History? = nil,
         mcpServers: [String: McpServer] = [:],
         profiles: [String: Profile] = [:]
     ) {
         self.model = model
+        self.reviewModel = reviewModel
         self.modelProvider = modelProvider
+        self.modelContextWindow = modelContextWindow
+        self.modelAutoCompactTokenLimit = modelAutoCompactTokenLimit
         self.profile = profile
         self.approvalPolicy = approvalPolicy
         self.sandboxMode = sandboxMode
         self.sandboxWorkspaceWrite = sandboxWorkspaceWrite
+        self.notify = notify
+        self.instructions = instructions
+        self.developerInstructions = developerInstructions
+        self.compactPrompt = compactPrompt
+        self.modelReasoningEffort = modelReasoningEffort
+        self.modelReasoningSummary = modelReasoningSummary
+        self.modelVerbosity = modelVerbosity
+        self.modelSupportsReasoningSummaries = modelSupportsReasoningSummaries
+        self.personality = personality
         self.chatgptBaseURL = chatgptBaseURL
+        self.webSearch = webSearch
+        self.tools = tools
+        self.agents = agents
         self.features = features
+        self.suppressUnstableFeaturesWarning = suppressUnstableFeaturesWarning
+        self.checkForUpdateOnStartup = checkForUpdateOnStartup
+        self.hideAgentReasoning = hideAgentReasoning
+        self.showRawAgentReasoning = showRawAgentReasoning
+        self.ossProvider = ossProvider
         self.history = history
         self.mcpServers = mcpServers
         self.profiles = profiles
@@ -280,13 +512,33 @@ public struct CodexConfigToml: Sendable, Equatable, Codable {
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         self.model = try container.decodeIfPresent(String.self, forKey: .model)
+        self.reviewModel = try container.decodeIfPresent(String.self, forKey: .reviewModel)
         self.modelProvider = try container.decodeIfPresent(String.self, forKey: .modelProvider)
+        self.modelContextWindow = try container.decodeIfPresent(Int.self, forKey: .modelContextWindow)
+        self.modelAutoCompactTokenLimit = try container.decodeIfPresent(Int.self, forKey: .modelAutoCompactTokenLimit)
         self.profile = try container.decodeIfPresent(String.self, forKey: .profile)
         self.approvalPolicy = try container.decodeIfPresent(String.self, forKey: .approvalPolicy)
         self.sandboxMode = try container.decodeIfPresent(String.self, forKey: .sandboxMode)
         self.sandboxWorkspaceWrite = try container.decodeIfPresent(SandboxWorkspaceWrite.self, forKey: .sandboxWorkspaceWrite)
+        self.notify = try container.decodeIfPresent([String].self, forKey: .notify)
+        self.instructions = try container.decodeIfPresent(String.self, forKey: .instructions)
+        self.developerInstructions = try container.decodeIfPresent(String.self, forKey: .developerInstructions)
+        self.compactPrompt = try container.decodeIfPresent(String.self, forKey: .compactPrompt)
+        self.modelReasoningEffort = try container.decodeIfPresent(String.self, forKey: .modelReasoningEffort)
+        self.modelReasoningSummary = try container.decodeIfPresent(String.self, forKey: .modelReasoningSummary)
+        self.modelVerbosity = try container.decodeIfPresent(String.self, forKey: .modelVerbosity)
+        self.modelSupportsReasoningSummaries = try container.decodeIfPresent(Bool.self, forKey: .modelSupportsReasoningSummaries)
+        self.personality = try container.decodeIfPresent(String.self, forKey: .personality)
         self.chatgptBaseURL = try container.decodeIfPresent(String.self, forKey: .chatgptBaseURL)
+        self.webSearch = try container.decodeIfPresent(String.self, forKey: .webSearch)
+        self.tools = try container.decodeIfPresent(Tools.self, forKey: .tools)
+        self.agents = try container.decodeIfPresent(Agents.self, forKey: .agents)
         self.features = try container.decodeIfPresent([String: Bool].self, forKey: .features)
+        self.suppressUnstableFeaturesWarning = try container.decodeIfPresent(Bool.self, forKey: .suppressUnstableFeaturesWarning)
+        self.checkForUpdateOnStartup = try container.decodeIfPresent(Bool.self, forKey: .checkForUpdateOnStartup)
+        self.hideAgentReasoning = try container.decodeIfPresent(Bool.self, forKey: .hideAgentReasoning)
+        self.showRawAgentReasoning = try container.decodeIfPresent(Bool.self, forKey: .showRawAgentReasoning)
+        self.ossProvider = try container.decodeIfPresent(String.self, forKey: .ossProvider)
         self.history = try container.decodeIfPresent(History.self, forKey: .history)
         self.mcpServers = try container.decodeIfPresent([String: McpServer].self, forKey: .mcpServers) ?? [:]
         self.profiles = try container.decodeIfPresent([String: Profile].self, forKey: .profiles) ?? [:]

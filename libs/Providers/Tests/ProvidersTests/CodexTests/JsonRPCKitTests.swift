@@ -271,6 +271,87 @@ for line in sys.stdin:
         }
     }
 
+    @Test("TDD: Given invalid response error object missing message when parsing then stable payload error is returned")
+    func invalidResponseMissingErrorMessageUsesStablePayloadDescription() async throws {
+        guard STPath("/usr/bin/python3").permission.contains(.executable) else {
+            return
+        }
+
+        let script = """
+import json
+import sys
+
+for line in sys.stdin:
+    msg = json.loads(line)
+    mid = msg.get("id")
+    if mid is None:
+        continue
+    sys.stdout.write(json.dumps({
+        "jsonrpc":"2.0",
+        "id":mid,
+        "error":{"code":123}
+    }) + "\\n")
+    sys.stdout.flush()
+"""
+
+        let session = JsonRPCLineProcessSession(
+            executableURL: URL(fileURLWithPath: "/usr/bin/python3"),
+            startupArguments: ["-u", "-c", script]
+        ) { message in
+            TestError(message: message)
+        }
+        defer { Task { await session.shutdown() } }
+
+        do {
+            _ = try await session.request(method: "echo")
+            Issue.record("Expected invalid response rejection")
+        } catch let error as JsonRPCSessionError {
+            guard case let .invalidResponse(message) = error else {
+                Issue.record("Expected invalidResponse, got: \(error)")
+                return
+            }
+            #expect(message.contains("Invalid JSON-RPC response payload"))
+        } catch {
+            Issue.record("Expected JsonRPCSessionError, got: \(error)")
+        }
+    }
+
+    @Test("BDD: Given response missing jsonrpc field when parsing then session accepts legacy payload")
+    func responseMissingJSONRPCFieldIsAccepted() async throws {
+        guard STPath("/usr/bin/python3").permission.contains(.executable) else {
+            return
+        }
+
+        let script = """
+import json
+import sys
+
+for line in sys.stdin:
+    msg = json.loads(line)
+    mid = msg.get("id")
+    if mid is None:
+        continue
+    sys.stdout.write(json.dumps({
+        "id":mid,
+        "result":{"ok":True}
+    }) + "\\n")
+    sys.stdout.flush()
+"""
+
+        let session = JsonRPCLineProcessSession(
+            executableURL: URL(fileURLWithPath: "/usr/bin/python3"),
+            startupArguments: ["-u", "-c", script]
+        ) { message in
+            TestError(message: message)
+        }
+        defer { Task { await session.shutdown() } }
+
+        let response = try await session.request(method: "echo")
+        let result = response.result as? [String: Any]
+        #expect(result?["ok"] as? Bool == true)
+        #expect(response.error == nil)
+    }
+
     @Test("TDD: Given AnyCodable params when encoding then params data is generated")
     func encodeParamsSupportsAnyCodablePayload() throws {
         let params: [String: Any] = [
@@ -286,6 +367,20 @@ for line in sys.stdin:
         #expect(meta?["id"] as? String == "acct-1")
         let flags = meta?["flags"] as? [Any]
         #expect(flags?.count == 2)
+    }
+
+    @Test("TDD: Given Bool params when encoding then bool remains JSON boolean")
+    func encodeParamsPreservesBoolType() throws {
+        let params: [String: Any] = [
+            "capabilities": [
+                "experimentalApi": true,
+            ],
+        ]
+
+        let data = try JsonRPCLineProcessSession.encodeParams(params)
+        let json = String(decoding: data, as: UTF8.self)
+        #expect(json.contains("\"experimentalApi\":true"))
+        #expect(json.contains("\"experimentalApi\":1") == false)
     }
 
     @Test("TDD: Given server handler returns AnyCodable when replying then response stays valid JSON-RPC")

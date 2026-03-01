@@ -186,18 +186,7 @@ public actor JsonRPCLineProcessSession {
                 return
             }
             do {
-                let model = try JSONDecoder().decode(JSONRPC.Response.self, from: lineData)
-                if let modelID = model.id {
-                    let parsedID = try Self.sessionID(from: modelID)
-                    guard parsedID == messageID else {
-                        throw JsonRPCSessionError.invalidResponse("JSON-RPC response id mismatch")
-                    }
-                }
-                let response = JsonRPCResponseMessage(
-                    id: messageID,
-                    result: model.result.map { jsonValue(fromAnyCodable: $0) },
-                    error: model.error.map { JsonRPCErrorObject(code: $0.code.value, message: $0.message) }
-                )
+                let response = try decodeResponseMessage(from: lineData, expectedID: messageID)
                 if let continuation = pending.removeValue(forKey: messageID) {
                     continuation.resume(returning: response)
                 }
@@ -228,6 +217,28 @@ public actor JsonRPCLineProcessSession {
         if let notificationHandler {
             await notificationHandler(notification)
         }
+    }
+
+    private func decodeResponseMessage(from lineData: Data, expectedID: JsonRPCID) throws -> JsonRPCResponseMessage {
+        let model = try JSONDecoder().decode(JSONRPC.Response.self, from: lineData)
+        return try responseMessage(from: model, fallbackID: expectedID)
+    }
+
+    private func responseMessage(from model: JSONRPC.Response, fallbackID: JsonRPCID) throws -> JsonRPCResponseMessage {
+        let resolvedID: JsonRPCID
+        if let modelID = model.id {
+            resolvedID = try Self.sessionID(from: modelID)
+        } else {
+            resolvedID = fallbackID
+        }
+        guard resolvedID == fallbackID else {
+            throw JsonRPCSessionError.invalidResponse("JSON-RPC response id mismatch")
+        }
+        return JsonRPCResponseMessage(
+            id: resolvedID,
+            result: model.result.map { jsonValue(fromAnyCodable: $0) },
+            error: model.error.map { JsonRPCErrorObject(code: $0.code.value, message: $0.message) }
+        )
     }
 
     private func decodeValidatedRequest(from lineData: Data, expectedMethod: String) throws -> JSONRPC.Request {
@@ -307,12 +318,12 @@ public actor JsonRPCLineProcessSession {
             return AnyCodable(dict.mapValues(Self.anyCodable(from:)))
         case let array as [Any]:
             return AnyCodable(array.map(Self.anyCodable(from:)))
+        case let bool as Bool:
+            return AnyCodable(bool)
         case let number as NSNumber:
             return AnyCodable(number)
         case let string as String:
             return AnyCodable(string)
-        case let bool as Bool:
-            return AnyCodable(bool)
         case is NSNull:
             return AnyCodable(nil)
         default:
@@ -400,7 +411,43 @@ public actor JsonRPCLineProcessSession {
         if let sessionError = error as? JsonRPCSessionError {
             return sessionError
         }
-        return .invalidResponse("Invalid JSON-RPC response: \(error.localizedDescription)")
+        let detail = normalizedResponseDecodeMessage(from: error)
+        if detail.isEmpty {
+            return .invalidResponse("Invalid JSON-RPC response payload")
+        }
+        return .invalidResponse("Invalid JSON-RPC response payload: \(detail)")
+    }
+
+    private func normalizedResponseDecodeMessage(from error: Error) -> String {
+        if let decodingError = error as? DecodingError {
+            switch decodingError {
+            case let .keyNotFound(key, _):
+                let keyName = key.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                return keyName.isEmpty ? "missing required key" : "missing required key '\(keyName)'"
+            case let .typeMismatch(_, context):
+                let path = codingPathString(context.codingPath)
+                return path.isEmpty ? "type mismatch" : "type mismatch at '\(path)'"
+            case let .valueNotFound(_, context):
+                let path = codingPathString(context.codingPath)
+                return path.isEmpty ? "missing required value" : "missing required value at '\(path)'"
+            case let .dataCorrupted(context):
+                let detail = context.debugDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+                return detail.isEmpty ? "malformed JSON payload" : detail
+            @unknown default:
+                return "malformed JSON payload"
+            }
+        }
+
+        let nsError = error as NSError
+        if nsError.domain == NSCocoaErrorDomain, nsError.code == 3840 {
+            return "malformed JSON payload"
+        }
+        return ""
+    }
+
+    private func codingPathString(_ codingPath: [CodingKey]) -> String {
+        let components = codingPath.map(\.stringValue).filter { !$0.isEmpty }
+        return components.joined(separator: ".")
     }
 }
 

@@ -5,6 +5,7 @@ import SwiftUI
 import STFilePath
 import CodexProvider
 import NolonResourceKit
+import TOML
 
 enum CodexLinkFolder: String, CaseIterable, Identifiable, Hashable {
     case prompts
@@ -29,6 +30,86 @@ struct CodexLinkConflict: Identifiable {
     var id: String { folder.rawValue }
 }
 
+struct CodexConfigDocLink: Identifiable, Sendable {
+    let id: String
+    let title: String
+    let url: String
+}
+
+struct CodexFeatureDefinition: Identifiable, Sendable {
+    let key: String
+    let maturity: String
+    let description: String
+    let source: String
+
+    var id: String { key }
+}
+
+private struct CodexFeatureChipStyle {
+    let foreground: Color
+    let background: Color
+    let border: Color
+}
+
+private enum CodexFeatureSourceTag: String, CaseIterable {
+    case coreFeatures
+    case cliFeaturesList
+    case appServer
+    case codexDocs
+    case nolonCompatibility
+    case configUnknown
+
+    var localizedTitle: String {
+        switch self {
+        case .coreFeatures:
+            return NSLocalizedString("codex.features.source.tag.core_features", value: "Core Features", comment: "Core features source tag")
+        case .cliFeaturesList:
+            return NSLocalizedString("codex.features.source.tag.cli_features_list", value: "CLI Features List", comment: "CLI features list source tag")
+        case .appServer:
+            return NSLocalizedString("codex.features.source.tag.app_server", value: "App Server", comment: "App server source tag")
+        case .codexDocs:
+            return NSLocalizedString("codex.features.source.tag.codex_docs", value: "Codex Docs", comment: "Codex docs source tag")
+        case .nolonCompatibility:
+            return NSLocalizedString("codex.features.source.tag.nolon_compatibility", value: "Nolon Compatibility", comment: "Nolon compatibility source tag")
+        case .configUnknown:
+            return NSLocalizedString("codex.features.source.tag.config_unknown", value: "Config Unknown Key", comment: "Config unknown source tag")
+        }
+    }
+}
+
+struct CodexAgentRoleDraft: Identifiable, Equatable {
+    let id = UUID()
+    var name: String
+    var description: String
+    var configFile: String
+    var model: String
+    var modelReasoningEffort: String
+    var sandboxMode: String
+    var approvalPolicy: String
+}
+
+enum CodexBuiltinAgentRole: String, CaseIterable, Identifiable {
+    case `default`
+    case worker
+    case explorer
+    case monitor
+
+    var id: String { rawValue }
+
+    var defaultDescription: String {
+        switch self {
+        case .default:
+            return "General fallback role."
+        case .worker:
+            return "Execution-focused role for implementation and fixes."
+        case .explorer:
+            return "Read-focused role for repository exploration."
+        case .monitor:
+            return "Long-running task monitor role optimized for wait/poll workflows."
+        }
+    }
+}
+
 @MainActor
 @Observable
 final class CodexAdvancedConfigViewModel {
@@ -49,11 +130,62 @@ final class CodexAdvancedConfigViewModel {
     var pendingConflict: CodexLinkConflict?
     var linkStates: [CodexLinkFolder: CodexLinkState] = [:]
     var applyingLinkFolders: Set<CodexLinkFolder> = []
+    var configFileURL: URL?
+    var isSavingConfig = false
+    var configErrorMessage: String?
+    var approvalPolicyDraft: String = ""
+    var sandboxModeDraft: String = ""
+    var webSearchDraft: String = ""
+    var modelProviderDraft: String = ""
+    var profileDraft: String = ""
+    var personalityDraft: String = ""
+    var reasoningSummaryDraft: String = ""
+    var verbosityDraft: String = ""
+    var agentsMaxThreadsDraft: String = ""
+    var agentsMaxDepthDraft: String = ""
+    var featureValues: [String: Bool] = [:]
+    var roleDrafts: [CodexAgentRoleDraft] = []
 
     private var provider: Provider
     private let manager: CodexBinaryManager
     private let linkService: CodexLinkService
     private let modelPreferenceService: CodexModelPreferenceService
+
+    static let supportedFeatures: [CodexFeatureDefinition] = [
+        .init(key: "undo", maturity: "Stable", description: "Create a ghost commit at each turn.", source: "codex-rs/core/src/features.rs + codex features list"),
+        .init(key: "shell_tool", maturity: "Stable", description: "Enable the default shell tool.", source: "codex-rs/core/src/features.rs + codex features list"),
+        .init(key: "unified_exec", maturity: "Stable", description: "Use the unified PTY-backed exec tool.", source: "codex-rs/core/src/features.rs + codex features list"),
+        .init(key: "shell_snapshot", maturity: "Experimental", description: "Snapshot shell env for repeated commands.", source: "codex-rs/core/src/features.rs + codex features list"),
+        .init(key: "web_search_request", maturity: "Deprecated", description: "Legacy live web search toggle.", source: "codex-rs/core/src/features.rs + codex features list"),
+        .init(key: "web_search_cached", maturity: "Deprecated", description: "Legacy cached web search toggle.", source: "codex-rs/core/src/features.rs + codex features list"),
+        .init(key: "search_tool", maturity: "Under Development", description: "Enable search_tool_bm25 tool discovery.", source: "codex-rs/core/src/features.rs"),
+        .init(key: "runtime_metrics", maturity: "Under Development", description: "Show runtime metrics summaries in TUI.", source: "codex-rs/core/src/features.rs + codex features list"),
+        .init(key: "sqlite", maturity: "Under Development", description: "Persist rollout metadata to local SQLite.", source: "codex-rs/core/src/features.rs + codex features list"),
+        .init(key: "memory_tool", maturity: "Under Development", description: "Enable startup memory extraction and consolidation.", source: "codex-rs/core/src/features.rs"),
+        .init(key: "child_agents_md", maturity: "Under Development", description: "Append additional AGENTS.md guidance.", source: "codex-rs/core/src/features.rs + codex features list"),
+        .init(key: "apply_patch_freeform", maturity: "Under Development", description: "Enable freeform apply_patch tool mode.", source: "codex-rs/core/src/features.rs + codex features list"),
+        .init(key: "exec_policy", maturity: "Under Development", description: "Enable exec policy pipeline.", source: "codex features list (local CLI)"),
+        .init(key: "use_linux_sandbox_bwrap", maturity: "Under Development", description: "Use Linux bubblewrap sandbox pipeline.", source: "codex-rs/core/src/features.rs + codex features list"),
+        .init(key: "request_rule", maturity: "Stable", description: "Enable smart approval prefix rule suggestions.", source: "codex-rs/core/src/features.rs + codex features list"),
+        .init(key: "experimental_windows_sandbox", maturity: "Under Development", description: "Enable Windows restricted-token sandbox.", source: "codex-rs/core/src/features.rs + codex features list"),
+        .init(key: "elevated_windows_sandbox", maturity: "Under Development", description: "Enable elevated Windows sandbox runner.", source: "codex-rs/core/src/features.rs + codex features list"),
+        .init(key: "remote_compaction", maturity: "Under Development", description: "Enable remote compaction flow.", source: "codex features list (local CLI)"),
+        .init(key: "remote_models", maturity: "Under Development", description: "Refresh remote model list before readiness.", source: "codex-rs/core/src/features.rs + codex features list"),
+        .init(key: "powershell_utf8", maturity: "Under Development", description: "Enforce UTF8 output in PowerShell.", source: "codex-rs/core/src/features.rs + codex features list"),
+        .init(key: "enable_request_compression", maturity: "Stable", description: "Enable compressed request bodies.", source: "codex-rs/core/src/features.rs + codex features list"),
+        .init(key: "collab", maturity: "Experimental", description: "Enable collab/sub-agent tools.", source: "codex-rs/core/src/features.rs + codex features list"),
+        .init(key: "apps", maturity: "Experimental", description: "Enable ChatGPT Apps/connectors support.", source: "codex-rs/core/src/features.rs + codex features list"),
+        .init(key: "skill_mcp_dependency_install", maturity: "Stable", description: "Allow installing missing MCP dependencies for skills.", source: "codex-rs/core/src/features.rs + codex features list"),
+        .init(key: "skill_env_var_dependency_prompt", maturity: "Under Development", description: "Prompt for missing skill env var dependencies.", source: "codex-rs/core/src/features.rs + codex features list"),
+        .init(key: "steer", maturity: "Stable", description: "Enable steer mode behavior.", source: "codex-rs/core/src/features.rs + codex features list"),
+        .init(key: "collaboration_modes", maturity: "Stable", description: "Enable collaboration modes such as plan mode.", source: "codex-rs/core/src/features.rs + codex features list"),
+        .init(key: "personality", maturity: "Stable", description: "Enable personality selection controls.", source: "codex-rs/core/src/features.rs + codex features list"),
+        .init(key: "responses_websockets", maturity: "Under Development", description: "Use Responses API WebSocket transport by default.", source: "codex-rs/core/src/features.rs + codex features list"),
+        .init(key: "responses_websockets_v2", maturity: "Under Development", description: "Enable Responses API websocket v2 mode.", source: "codex-rs/core/src/features.rs"),
+        .init(key: "multi_agent", maturity: "Experimental", description: "Enable multi-agent collaboration tools.", source: "codex docs + Nolon config support"),
+        .init(key: "apps_mcp_gateway", maturity: "Experimental", description: "Use the Apps MCP gateway endpoint.", source: "codex docs + Nolon config support"),
+        .init(key: "web_search", maturity: "Deprecated", description: "Legacy web_search feature toggle.", source: "legacy compatibility (Nolon)"),
+    ]
 
     init(
         provider: Provider,
@@ -112,6 +244,7 @@ final class CodexAdvancedConfigViewModel {
     func load() async {
         loadModelsCache()
         loadSelectionsFromConfig()
+        loadConfigDraft()
         if isCodexXcodeProvider {
             pathStatus = nil
             refreshLinkStates()
@@ -299,8 +432,177 @@ final class CodexAdvancedConfigViewModel {
         }
     }
 
+    func featureEnabled(_ key: String) -> Bool {
+        featureValues[key] ?? false
+    }
+
+    func setFeature(_ key: String, enabled: Bool) {
+        featureValues[key] = enabled
+        if key == "multi_agent", !enabled {
+            roleDrafts = []
+            agentsMaxDepthDraft = ""
+            agentsMaxThreadsDraft = ""
+        }
+    }
+
+    @discardableResult
+    func addRoleDraft() -> UUID {
+        let role = CodexAgentRoleDraft(
+            name: "role_\(roleDrafts.count + 1)",
+            description: "",
+            configFile: "",
+            model: "",
+            modelReasoningEffort: "",
+            sandboxMode: "",
+            approvalPolicy: ""
+        )
+        roleDrafts.append(role)
+        return role.id
+    }
+
+    @discardableResult
+    func upsertBuiltinRole(_ builtinRole: CodexBuiltinAgentRole) -> UUID {
+        if let index = roleDrafts.firstIndex(where: { $0.name == builtinRole.rawValue }) {
+            roleDrafts[index].description = builtinRole.defaultDescription
+            return roleDrafts[index].id
+        }
+
+        let role = CodexAgentRoleDraft(
+            name: builtinRole.rawValue,
+            description: builtinRole.defaultDescription,
+            configFile: "",
+            model: "",
+            modelReasoningEffort: "",
+            sandboxMode: "",
+            approvalPolicy: ""
+        )
+        roleDrafts.append(role)
+        return role.id
+    }
+
+    func removeRoleDraft(_ id: UUID) {
+        roleDrafts.removeAll { $0.id == id }
+    }
+
+    func saveStructuredConfig() async {
+        guard let configFile = resolvedConfigFile() else { return }
+        isSavingConfig = true
+        defer { isSavingConfig = false }
+
+        do {
+            let base = loadConfigFromFile(configFile) ?? CodexConfigToml()
+            let merged = mergeDraft(into: base)
+            let data = try TOMLEncoder().encode(merged)
+            try configFile.overlay(with: String(decoding: data, as: UTF8.self))
+            loadConfigDraft()
+        } catch {
+            configErrorMessage = error.localizedDescription
+        }
+    }
+
+    func reloadConfigDraft() {
+        loadConfigDraft()
+    }
+
     private func resolvedConfigFile() -> STFile? {
         modelPreferenceService.resolvedConfigFile(for: provider)
+    }
+
+    private func loadConfigFromFile(_ configFile: STFile) -> CodexConfigToml? {
+        guard configFile.isExists else { return nil }
+        guard let data = try? Data(contentsOf: configFile.url), !data.isEmpty else { return nil }
+        return try? CodexGeneratedFilesParser.parseConfigToml(data: data)
+    }
+
+    private func loadConfigDraft() {
+        guard let configFile = resolvedConfigFile() else { return }
+        configFileURL = configFile.url
+        let config = loadConfigFromFile(configFile) ?? CodexConfigToml()
+
+        approvalPolicyDraft = config.approvalPolicy ?? ""
+        sandboxModeDraft = config.sandboxMode ?? ""
+        webSearchDraft = config.webSearch ?? ""
+        modelProviderDraft = config.modelProvider ?? ""
+        profileDraft = config.profile ?? ""
+        personalityDraft = config.personality ?? ""
+        reasoningSummaryDraft = config.modelReasoningSummary ?? ""
+        verbosityDraft = config.modelVerbosity ?? ""
+        agentsMaxThreadsDraft = config.agents?.maxThreads.map(String.init) ?? ""
+        agentsMaxDepthDraft = config.agents?.maxDepth.map(String.init) ?? ""
+        featureValues = config.features ?? [:]
+        roleDrafts = (config.agents?.roles ?? [:]).keys.sorted().compactMap { key in
+            guard let role = config.agents?.roles[key] else { return nil }
+            return CodexAgentRoleDraft(
+                name: key,
+                description: role.description ?? "",
+                configFile: role.configFile ?? "",
+                model: role.model ?? "",
+                modelReasoningEffort: role.modelReasoningEffort ?? "",
+                sandboxMode: role.sandboxMode ?? "",
+                approvalPolicy: role.approvalPolicy ?? ""
+            )
+        }
+    }
+
+    private func mergeDraft(into base: CodexConfigToml) -> CodexConfigToml {
+        var roles: [String: CodexConfigToml.AgentRole] = [:]
+        for role in roleDrafts {
+            let name = role.name.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !name.isEmpty else { continue }
+            roles[name] = .init(
+                description: role.description.nonEmpty,
+                configFile: role.configFile.nonEmpty,
+                model: role.model.nonEmpty,
+                modelReasoningEffort: role.modelReasoningEffort.nonEmpty,
+                modelReasoningSummary: nil,
+                modelVerbosity: nil,
+                approvalPolicy: role.approvalPolicy.nonEmpty,
+                sandboxMode: role.sandboxMode.nonEmpty,
+                personality: nil,
+                webSearch: nil
+            )
+        }
+
+        let maxThreads = Int(agentsMaxThreadsDraft.trimmingCharacters(in: .whitespacesAndNewlines))
+        let maxDepth = Int(agentsMaxDepthDraft.trimmingCharacters(in: .whitespacesAndNewlines))
+        let agents = (!roles.isEmpty || maxThreads != nil || maxDepth != nil)
+            ? CodexConfigToml.Agents(maxThreads: maxThreads, maxDepth: maxDepth, roles: roles)
+            : nil
+        let normalizedFeatures = featureValues.filter { $0.value || (base.features?[$0.key] != nil) }
+
+        return CodexConfigToml(
+            model: base.model,
+            reviewModel: base.reviewModel,
+            modelProvider: modelProviderDraft.nonEmpty,
+            modelContextWindow: base.modelContextWindow,
+            modelAutoCompactTokenLimit: base.modelAutoCompactTokenLimit,
+            profile: profileDraft.nonEmpty,
+            approvalPolicy: approvalPolicyDraft.nonEmpty,
+            sandboxMode: sandboxModeDraft.nonEmpty,
+            sandboxWorkspaceWrite: base.sandboxWorkspaceWrite,
+            notify: base.notify,
+            instructions: base.instructions,
+            developerInstructions: base.developerInstructions,
+            compactPrompt: base.compactPrompt,
+            modelReasoningEffort: base.modelReasoningEffort,
+            modelReasoningSummary: reasoningSummaryDraft.nonEmpty,
+            modelVerbosity: verbosityDraft.nonEmpty,
+            modelSupportsReasoningSummaries: base.modelSupportsReasoningSummaries,
+            personality: personalityDraft.nonEmpty,
+            chatgptBaseURL: base.chatgptBaseURL,
+            webSearch: webSearchDraft.nonEmpty,
+            tools: base.tools,
+            agents: agents,
+            features: normalizedFeatures.isEmpty ? nil : normalizedFeatures,
+            suppressUnstableFeaturesWarning: base.suppressUnstableFeaturesWarning,
+            checkForUpdateOnStartup: base.checkForUpdateOnStartup,
+            hideAgentReasoning: base.hideAgentReasoning,
+            showRawAgentReasoning: base.showRawAgentReasoning,
+            ossProvider: base.ossProvider,
+            history: base.history,
+            mcpServers: base.mcpServers,
+            profiles: base.profiles
+        )
     }
 
     private func loadSelectionsFromConfig() {
@@ -352,6 +654,9 @@ final class CodexAdvancedConfigViewModel {
 struct CodexAdvancedConfigView: View {
     let provider: Provider
     @State private var viewModel: CodexAdvancedConfigViewModel
+    @State private var isEditingRawConfig = false
+    @State private var expandedRoleIDs: Set<UUID> = []
+    @State private var featureSearchText: String = ""
 
     init(provider: Provider) {
         self.provider = provider
@@ -361,8 +666,14 @@ struct CodexAdvancedConfigView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                sectionHeader(NSLocalizedString("codex.binary.section.preferences", value: "Run Preferences", comment: "Preferences section"))
-                combinedPreferencesSection
+                sectionHeader(NSLocalizedString("codex.advanced.config.options.title", value: "Common Options", comment: "Common options"))
+                commonOptionsSection
+
+                sectionHeader(NSLocalizedString("codex.advanced.config.features.title", value: "Feature Flags", comment: "Feature flags"))
+                featureFlagsSection
+
+                sectionHeader(NSLocalizedString("codex.advanced.config.multi_agent.title", value: "Multi-Agent Roles", comment: "Multi-agent roles"))
+                multiAgentSection
 
                 if viewModel.isCodexXcodeProvider {
                     sectionHeader(NSLocalizedString("codex.advanced.xcode_links.title", value: "Xcode Folder Links", comment: "Xcode folder links section title"))
@@ -371,9 +682,28 @@ struct CodexAdvancedConfigView: View {
             }
             .padding()
         }
+        .textSelection(.enabled)
         .task(id: provider.id) {
             viewModel.updateProvider(provider)
             await viewModel.load()
+            if expandedRoleIDs.isEmpty, let firstRoleID = viewModel.roleDrafts.first?.id {
+                expandedRoleIDs.insert(firstRoleID)
+            }
+        }
+        .onChange(of: viewModel.roleDrafts.map(\.id)) { _, roleIDs in
+            expandedRoleIDs = expandedRoleIDs.intersection(Set(roleIDs))
+            if expandedRoleIDs.isEmpty, let firstRoleID = roleIDs.first {
+                expandedRoleIDs.insert(firstRoleID)
+            }
+        }
+        .sheet(isPresented: $isEditingRawConfig) {
+            if let configURL = viewModel.configFileURL {
+                CodexConfigEditorView(configURL: configURL) {
+                    viewModel.reloadConfigDraft()
+                }
+            } else {
+                EmptyView()
+            }
         }
         .alert(
             NSLocalizedString("codex.binary.error.title", value: "Binary Error", comment: "Binary error"),
@@ -387,6 +717,19 @@ struct CodexAdvancedConfigView: View {
             }
         } message: {
             Text(viewModel.errorMessage ?? "")
+        }
+        .alert(
+            NSLocalizedString("codex.advanced.config.error.title", value: "Config Error", comment: "Config error"),
+            isPresented: Binding(
+                get: { viewModel.configErrorMessage != nil },
+                set: { if !$0 { viewModel.configErrorMessage = nil } }
+            )
+        ) {
+            Button(NSLocalizedString("generic.ok", value: "OK", comment: "OK")) {
+                viewModel.configErrorMessage = nil
+            }
+        } message: {
+            Text(viewModel.configErrorMessage ?? "")
         }
         .alert(
             NSLocalizedString("codex.advanced.link.conflict.title", value: "Directory Contains Files", comment: "Conflict title"),
@@ -413,7 +756,7 @@ struct CodexAdvancedConfigView: View {
         }
     }
 
-    private var combinedPreferencesSection: some View {
+    private var commonOptionsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             runtimeOverviewSection
 
@@ -451,15 +794,80 @@ struct CodexAdvancedConfigView: View {
 
             Divider().padding(.vertical, 4)
 
+            availableModelsSection
+
+            Divider()
+
+            commonOptionPickerRow(
+                title: "approval_policy",
+                selection: $viewModel.approvalPolicyDraft,
+                description: NSLocalizedString(
+                    "codex.config.description.approval_policy",
+                    value: "Controls when Codex asks for permission before running sensitive commands.",
+                    comment: "Description for approval_policy"
+                ),
+                options: mergedOptions(
+                    current: viewModel.approvalPolicyDraft,
+                    defaults: ["untrusted", "on-failure", "on-request", "never"]
+                )
+            )
+            commonOptionPickerRow(
+                title: "sandbox_mode",
+                selection: $viewModel.sandboxModeDraft,
+                options: mergedOptions(
+                    current: viewModel.sandboxModeDraft,
+                    defaults: ["read-only", "workspace-write", "danger-full-access"]
+                )
+            )
+            commonOptionPickerRow(
+                title: "web_search",
+                selection: $viewModel.webSearchDraft,
+                options: mergedOptions(
+                    current: viewModel.webSearchDraft,
+                    defaults: ["cached", "live", "disabled"]
+                )
+            )
+            commonOptionRow(title: "model_provider", text: $viewModel.modelProviderDraft)
+            commonOptionRow(title: "profile", text: $viewModel.profileDraft)
+            commonOptionPickerRow(
+                title: "personality",
+                selection: $viewModel.personalityDraft,
+                options: mergedOptions(
+                    current: viewModel.personalityDraft,
+                    defaults: ["balanced", "concise", "verbose"]
+                )
+            )
+            commonOptionPickerRow(
+                title: "model_reasoning_summary",
+                selection: $viewModel.reasoningSummaryDraft,
+                options: mergedOptions(
+                    current: viewModel.reasoningSummaryDraft,
+                    defaults: ["none", "auto", "concise", "detailed"]
+                )
+            )
+            commonOptionPickerRow(
+                title: "model_verbosity",
+                selection: $viewModel.verbosityDraft,
+                description: NSLocalizedString(
+                    "codex.config.description.model_verbosity",
+                    value: "Sets response detail level. Low is concise, high is more detailed.",
+                    comment: "Description for model_verbosity"
+                ),
+                options: mergedOptions(
+                    current: viewModel.verbosityDraft,
+                    defaults: ["low", "medium", "high"]
+                )
+            )
+
+            Divider()
+
             HStack {
                 Spacer(minLength: 0)
-                Button(NSLocalizedString("codex.binary.open_config", value: "Open Config", comment: "Open config file")) {
-                    viewModel.openModelConfig()
+                Button(NSLocalizedString("codex.advanced.config.edit_raw", value: "Edit Raw TOML", comment: "Edit raw TOML")) {
+                    isEditingRawConfig = true
                 }
                 .dsSecondaryButton()
             }
-
-            availableModelsSection
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .topLeading)
@@ -468,6 +876,638 @@ struct CodexAdvancedConfigView: View {
             cornerRadius: DesignSystem.Metrics.cornerRadiusM,
             borderColor: DesignSystem.Colors.Component.border.opacity(0.35)
         )
+    }
+
+    private var featureFlagsSection: some View {
+        let knownKeys = Set(CodexAdvancedConfigViewModel.supportedFeatures.map(\.key))
+        let extraFeatures = viewModel.featureValues.keys
+            .filter { !knownKeys.contains($0) }
+            .sorted()
+            .map { key in
+                CodexFeatureDefinition(
+                    key: key,
+                    maturity: NSLocalizedString("codex.features.maturity.unknown", value: "Unknown", comment: "Unknown feature maturity"),
+                    description: NSLocalizedString(
+                        "codex.features.description.unrecognized",
+                        value: "Detected from config.toml but not in current built-in feature registry.",
+                        comment: "Unrecognized feature description"
+                    ),
+                    source: NSLocalizedString(
+                        "codex.features.source.config_unrecognized",
+                        value: "config.toml (unrecognized key)",
+                        comment: "Unrecognized feature source"
+                    )
+                )
+            }
+        let query = featureSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let renderedFeatures = (CodexAdvancedConfigViewModel.supportedFeatures + extraFeatures)
+            .sorted { lhs, rhs in
+                let lhsRank = featureSortRank(lhs.maturity)
+                let rhsRank = featureSortRank(rhs.maturity)
+                if lhsRank != rhsRank { return lhsRank < rhsRank }
+                return lhs.key < rhs.key
+            }
+            .filter { feature in
+                guard !query.isEmpty else { return true }
+                let values = [
+                    feature.key,
+                    feature.maturity,
+                    localizedMaturityLabel(feature.maturity),
+                    localizedFeatureDescription(feature),
+                    feature.source
+                ]
+                return values.contains { $0.localizedCaseInsensitiveContains(query) }
+            }
+
+        return VStack(alignment: .leading, spacing: 8) {
+            TextField(
+                NSLocalizedString(
+                    "codex.features.search.placeholder",
+                    value: "Search features...",
+                    comment: "Feature search placeholder"
+                ),
+                text: $featureSearchText
+            )
+            .textFieldStyle(.roundedBorder)
+
+            ForEach(renderedFeatures) { feature in
+                let source = sourceTag(for: feature.source)
+                let maturityStyle = maturityChipStyle(feature.maturity)
+                let sourceStyle = sourceChipStyle(source)
+                HStack(alignment: .top, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        highlightedText(feature.key, query: query)
+                            .font(.callout.monospaced())
+                            .foregroundStyle(DesignSystem.Colors.Text.primary)
+                        highlightedText(localizedFeatureDescription(feature), query: query)
+                            .font(.caption)
+                            .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                        HStack(spacing: 6) {
+                            highlightedText(localizedMaturityLabel(feature.maturity), query: query)
+                                .font(.caption2.weight(.medium))
+                                .foregroundStyle(maturityStyle.foreground)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(
+                                    maturityStyle.background,
+                                    in: Capsule()
+                                )
+                                .overlay(
+                                    Capsule()
+                                        .stroke(maturityStyle.border, lineWidth: 1)
+                                )
+                            highlightedText(source.localizedTitle, query: query)
+                                .font(.caption2.weight(.medium))
+                                .foregroundStyle(sourceStyle.foreground)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(
+                                    sourceStyle.background,
+                                    in: Capsule()
+                                )
+                                .overlay(
+                                    Capsule()
+                                        .stroke(sourceStyle.border, lineWidth: 1)
+                                )
+                        }
+                    }
+                    Spacer(minLength: 0)
+                    Toggle(
+                        "",
+                        isOn: Binding(
+                            get: { viewModel.featureEnabled(feature.key) },
+                            set: { newValue in
+                                viewModel.setFeature(feature.key, enabled: newValue)
+                                Task { await viewModel.saveStructuredConfig() }
+                            }
+                        )
+                    )
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .padding(.top, 2)
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .dsCard(
+                    background: DesignSystem.Colors.Background.surface.opacity(0.25),
+                    cornerRadius: DesignSystem.Metrics.cornerRadiusS,
+                    borderColor: DesignSystem.Colors.Component.border.opacity(0.18)
+                )
+            }
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .dsCard(
+            background: DesignSystem.Colors.Background.elevated,
+            cornerRadius: DesignSystem.Metrics.cornerRadiusM,
+            borderColor: DesignSystem.Colors.Component.border.opacity(0.35)
+        )
+    }
+
+    private func featureSortRank(_ maturity: String) -> Int {
+        let normalized = normalizedMaturityToken(maturity)
+        if normalized.contains("stable") { return 0 }
+        if normalized.contains("experimental") || normalized.contains("beta") { return 1 }
+        return 2
+    }
+
+    private func localizedMaturityLabel(_ maturity: String) -> String {
+        let normalized = normalizedMaturityToken(maturity)
+        if normalized.contains("stable") {
+            return NSLocalizedString("codex.features.maturity.stable", value: "Stable", comment: "Stable maturity")
+        }
+        if normalized.contains("experimental") {
+            return NSLocalizedString("codex.features.maturity.experimental", value: "Experimental", comment: "Experimental maturity")
+        }
+        if normalized.contains("beta") {
+            return NSLocalizedString("codex.features.maturity.beta", value: "Beta", comment: "Beta maturity")
+        }
+        if normalized.contains("under_development") || normalized.contains("underdevelopment") {
+            return NSLocalizedString("codex.features.maturity.under_development", value: "Under Development", comment: "Under development maturity")
+        }
+        if normalized.contains("deprecated") {
+            return NSLocalizedString("codex.features.maturity.deprecated", value: "Deprecated", comment: "Deprecated maturity")
+        }
+        if normalized.contains("removed") {
+            return NSLocalizedString("codex.features.maturity.removed", value: "Removed", comment: "Removed maturity")
+        }
+        return NSLocalizedString("codex.features.maturity.unknown", value: "Unknown", comment: "Unknown feature maturity")
+    }
+
+    private func localizedFeatureDescription(_ feature: CodexFeatureDefinition) -> String {
+        let key = "codex.features.description.\(feature.key)"
+        return NSLocalizedString(
+            key,
+            value: feature.description,
+            comment: "Feature description"
+        )
+    }
+
+    private func normalizedMaturityToken(_ maturity: String) -> String {
+        maturity
+            .lowercased()
+            .replacingOccurrences(of: "-", with: "_")
+            .replacingOccurrences(of: " ", with: "_")
+    }
+
+    private func highlightedText(_ raw: String, query: String) -> Text {
+        var text = AttributedString(raw)
+        let keyword = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !keyword.isEmpty else { return Text(text) }
+
+        let lowerRaw = raw.lowercased()
+        let lowerKeyword = keyword.lowercased()
+        var searchStart = lowerRaw.startIndex
+        while let range = lowerRaw.range(of: lowerKeyword, range: searchStart..<lowerRaw.endIndex) {
+            let lowerBound = lowerRaw.distance(from: lowerRaw.startIndex, to: range.lowerBound)
+            let upperBound = lowerRaw.distance(from: lowerRaw.startIndex, to: range.upperBound)
+            let start = text.index(text.startIndex, offsetByCharacters: lowerBound)
+            let end = text.index(text.startIndex, offsetByCharacters: upperBound)
+            text[start..<end].backgroundColor = NSColor.systemYellow.withAlphaComponent(0.35)
+            searchStart = range.upperBound
+        }
+
+        return Text(text)
+    }
+
+    private func sourceTag(for source: String) -> CodexFeatureSourceTag {
+        let normalized = source.lowercased()
+
+        // Priority: app server / cli list > docs > core > compatibility > config unknown
+        if normalized.contains("app-server") {
+            return .appServer
+        }
+        if normalized.contains("codex features list") {
+            return .cliFeaturesList
+        }
+        if normalized.contains("codex docs") {
+            return .codexDocs
+        }
+        if normalized.contains("codex-rs/core/src/features.rs") {
+            return .coreFeatures
+        }
+        if normalized.contains("legacy") || normalized.contains("compatibility") {
+            return .nolonCompatibility
+        }
+        if normalized.contains("unrecognized") || normalized.contains("unknown") || normalized.contains("config.toml") {
+            return .configUnknown
+        }
+        return .nolonCompatibility
+    }
+
+    private func maturityChipStyle(_ maturity: String) -> CodexFeatureChipStyle {
+        let normalized = normalizedMaturityToken(maturity)
+        if normalized.contains("stable") {
+            return .init(
+                foreground: DesignSystem.Colors.Status.success,
+                background: DesignSystem.Colors.Status.success.opacity(0.14),
+                border: DesignSystem.Colors.Status.success.opacity(0.45)
+            )
+        }
+        if normalized.contains("experimental") || normalized.contains("beta") || normalized.contains("under_development") || normalized.contains("underdevelopment") {
+            return .init(
+                foreground: DesignSystem.Colors.Status.warning,
+                background: DesignSystem.Colors.Status.warning.opacity(0.14),
+                border: DesignSystem.Colors.Status.warning.opacity(0.45)
+            )
+        }
+        if normalized.contains("deprecated") || normalized.contains("removed") {
+            return .init(
+                foreground: DesignSystem.Colors.Status.error,
+                background: DesignSystem.Colors.Status.error.opacity(0.14),
+                border: DesignSystem.Colors.Status.error.opacity(0.45)
+            )
+        }
+        return .init(
+            foreground: DesignSystem.Colors.Text.secondary,
+            background: DesignSystem.Colors.Component.controlFillSubtle.opacity(0.25),
+            border: DesignSystem.Colors.Component.border.opacity(0.35)
+        )
+    }
+
+    private func sourceChipStyle(_ source: CodexFeatureSourceTag) -> CodexFeatureChipStyle {
+        switch source {
+        case .appServer, .cliFeaturesList:
+            return .init(
+                foreground: DesignSystem.Colors.Status.success,
+                background: DesignSystem.Colors.Status.success.opacity(0.14),
+                border: DesignSystem.Colors.Status.success.opacity(0.45)
+            )
+        case .codexDocs:
+            return .init(
+                foreground: DesignSystem.Colors.Status.info,
+                background: DesignSystem.Colors.Status.info.opacity(0.14),
+                border: DesignSystem.Colors.Status.info.opacity(0.45)
+            )
+        case .coreFeatures:
+            return .init(
+                foreground: DesignSystem.Colors.Status.warning,
+                background: DesignSystem.Colors.Status.warning.opacity(0.14),
+                border: DesignSystem.Colors.Status.warning.opacity(0.45)
+            )
+        case .nolonCompatibility, .configUnknown:
+            return .init(
+                foreground: DesignSystem.Colors.Text.secondary,
+                background: DesignSystem.Colors.Component.controlFillSubtle.opacity(0.25),
+                border: DesignSystem.Colors.Component.border.opacity(0.35)
+            )
+        }
+    }
+
+    private var multiAgentSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 10) {
+                Text(NSLocalizedString(
+                    "codex.advanced.config.multi_agent.toggle_label",
+                    value: "[features].multi_agent",
+                    comment: "multi-agent toggle label"
+                ))
+                .font(.caption.monospaced())
+                .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                Spacer(minLength: 0)
+                Toggle(
+                    "",
+                    isOn: Binding(
+                        get: { viewModel.featureEnabled("multi_agent") },
+                        set: { newValue in
+                            viewModel.setFeature("multi_agent", enabled: newValue)
+                            Task { await viewModel.saveStructuredConfig() }
+                        }
+                    )
+                )
+                .labelsHidden()
+                .toggleStyle(.switch)
+            }
+
+            HStack(spacing: 8) {
+                let enabled = viewModel.featureEnabled("multi_agent")
+                Image(systemName: enabled ? "checkmark.circle.fill" : "xmark.circle")
+                    .foregroundStyle(enabled ? DesignSystem.Colors.Status.success : DesignSystem.Colors.Text.secondary)
+                Text(NSLocalizedString(
+                    enabled
+                        ? "codex.advanced.config.multi_agent.status_enabled"
+                        : "codex.advanced.config.multi_agent.status_disabled",
+                    value: enabled
+                        ? "Multi-agent is enabled. You can edit roles and agents settings below."
+                        : "Multi-agent is disabled. Enable the switch above to edit roles.",
+                    comment: "multi-agent status"
+                ))
+                .font(.callout)
+                .foregroundStyle(DesignSystem.Colors.Text.secondary)
+            }
+
+            numericInputRow(
+                label: "agents.max_threads",
+                text: $viewModel.agentsMaxThreadsDraft
+            )
+            numericInputRow(
+                label: "agents.max_depth",
+                text: $viewModel.agentsMaxDepthDraft
+            )
+
+            if viewModel.roleDrafts.isEmpty {
+                Text(NSLocalizedString(
+                    "codex.advanced.config.multi_agent.empty",
+                    value: "No roles configured yet. Click Add Role to create the first role.",
+                    comment: "No multi-agent roles"
+                ))
+                .font(.callout)
+                .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .dsCard(
+                    background: DesignSystem.Colors.Background.surface.opacity(0.26),
+                    cornerRadius: DesignSystem.Metrics.cornerRadiusS,
+                    borderColor: DesignSystem.Colors.Component.border.opacity(0.18)
+                )
+            } else {
+                ForEach($viewModel.roleDrafts) { $role in
+                    let roleID = role.id
+                    DisclosureGroup(
+                        isExpanded: Binding(
+                            get: { expandedRoleIDs.contains(roleID) },
+                            set: { isExpanded in
+                                if isExpanded {
+                                    expandedRoleIDs.insert(roleID)
+                                } else {
+                                    expandedRoleIDs.remove(roleID)
+                                }
+                            }
+                        )
+                    ) {
+                        VStack(alignment: .leading, spacing: 8) {
+                            roleTextFieldRow(
+                                label: "name",
+                                placeholder: NSLocalizedString(
+                                    "codex.advanced.config.multi_agent.role_name",
+                                    value: "role name",
+                                    comment: "Role name placeholder"
+                                ),
+                                text: $role.name
+                            )
+                            roleTextFieldRow(
+                                label: "description",
+                                placeholder: NSLocalizedString(
+                                    "codex.advanced.config.multi_agent.description",
+                                    value: "description",
+                                    comment: "Role description placeholder"
+                                ),
+                                text: $role.description
+                            )
+                            roleTextFieldRow(
+                                label: "config_file",
+                                placeholder: NSLocalizedString(
+                                    "codex.advanced.config.multi_agent.config_file",
+                                    value: "config file path",
+                                    comment: "Role config file placeholder"
+                                ),
+                                text: $role.configFile
+                            )
+                            roleTextFieldRow(
+                                label: "model",
+                                placeholder: NSLocalizedString(
+                                    "codex.advanced.config.multi_agent.model",
+                                    value: "model",
+                                    comment: "Role model placeholder"
+                                ),
+                                text: $role.model
+                            )
+                            roleEnumPickerField(
+                                label: "model_reasoning_effort",
+                                selection: $role.modelReasoningEffort,
+                                key: "model_reasoning_effort",
+                                options: ["minimal", "low", "medium", "high"]
+                            )
+                            roleEnumPickerField(
+                                label: "sandbox_mode",
+                                selection: $role.sandboxMode,
+                                key: "sandbox_mode",
+                                options: ["read-only", "workspace-write", "danger-full-access"]
+                            )
+                            roleEnumPickerField(
+                                label: "approval_policy",
+                                selection: $role.approvalPolicy,
+                                key: "approval_policy",
+                                options: ["untrusted", "on-failure", "on-request", "never"]
+                            )
+                        }
+                        .padding(.top, 6)
+                    } label: {
+                        HStack(spacing: 8) {
+                            Text(role.name.nonEmpty ?? NSLocalizedString(
+                                "codex.advanced.config.multi_agent.unnamed_role",
+                                value: "Unnamed Role",
+                                comment: "Unnamed role"
+                            ))
+                            .font(.headline)
+                            .foregroundStyle(DesignSystem.Colors.Text.primary)
+
+                            Text(role.model.nonEmpty ?? "-")
+                                .font(.caption.monospaced())
+                                .foregroundStyle(DesignSystem.Colors.Text.secondary)
+
+                            Spacer(minLength: 0)
+
+                            Button(role: .destructive) {
+                                viewModel.removeRoleDraft(roleID)
+                                expandedRoleIDs.remove(roleID)
+                            } label: {
+                                Image(systemName: "trash")
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .dsCard(
+                        background: DesignSystem.Colors.Background.surface.opacity(0.26),
+                        cornerRadius: DesignSystem.Metrics.cornerRadiusS,
+                        borderColor: DesignSystem.Colors.Component.border.opacity(0.18)
+                    )
+                }
+            }
+
+            HStack {
+                Menu {
+                    Button(NSLocalizedString(
+                        "codex.advanced.config.multi_agent.add_role.empty",
+                        value: "Add Empty Role",
+                        comment: "Add empty role"
+                    )) {
+                        let newRoleID = viewModel.addRoleDraft()
+                        expandedRoleIDs.insert(newRoleID)
+                    }
+                    Divider()
+                    ForEach(CodexBuiltinAgentRole.allCases) { builtinRole in
+                        Button(
+                            String(
+                                format: NSLocalizedString(
+                                    "codex.advanced.config.multi_agent.add_builtin.format",
+                                    value: "Add or Override: %@",
+                                    comment: "Add/override builtin role format"
+                                ),
+                                builtinRole.rawValue
+                            )
+                        ) {
+                            let roleID = viewModel.upsertBuiltinRole(builtinRole)
+                            expandedRoleIDs.insert(roleID)
+                        }
+                    }
+                } label: {
+                    Label(
+                        NSLocalizedString("codex.advanced.config.multi_agent.add_role", value: "Add Role", comment: "Add role"),
+                        systemImage: "plus"
+                    )
+                }
+                .dsSecondaryButton()
+                Spacer(minLength: 0)
+                Button(NSLocalizedString("action.save", value: "Save", comment: "Save")) {
+                    Task { await viewModel.saveStructuredConfig() }
+                }
+                .dsPrimaryButton()
+                .disabled(viewModel.isSavingConfig)
+            }
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .dsCard(
+            background: DesignSystem.Colors.Background.elevated,
+            cornerRadius: DesignSystem.Metrics.cornerRadiusM,
+            borderColor: DesignSystem.Colors.Component.border.opacity(0.35)
+        )
+    }
+
+    private func commonOptionRow(title: String, text: Binding<String>, description: String? = nil) -> some View {
+        alignedConfigRow(label: title, description: description) {
+            TextField(title, text: text)
+                .onChange(of: text.wrappedValue) { _, _ in
+                    Task { await viewModel.saveStructuredConfig() }
+                }
+                .textFieldStyle(.roundedBorder)
+                .multilineTextAlignment(.trailing)
+        }
+    }
+
+    private func roleTextFieldRow(label: String, placeholder: String, text: Binding<String>) -> some View {
+        HStack(spacing: 10) {
+            Text(label)
+                .font(.caption.monospaced())
+                .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                .frame(width: 180, alignment: .leading)
+            Spacer(minLength: 12)
+            TextField(placeholder, text: text)
+                .textFieldStyle(.roundedBorder)
+                .frame(width: 360, alignment: .trailing)
+        }
+    }
+
+    private func roleEnumPickerField(
+        label: String,
+        selection: Binding<String>,
+        key: String,
+        options: [String]
+    ) -> some View {
+        HStack(spacing: 10) {
+            Text(label)
+                .font(.caption.monospaced())
+                .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                .frame(width: 180, alignment: .leading)
+            Spacer(minLength: 12)
+            Picker("", selection: selection) {
+                Text(localizedOptionLabel(key: key, value: "")).tag("")
+                ForEach(options, id: \.self) { value in
+                    Text(localizedOptionLabel(key: key, value: value)).tag(value)
+                }
+            }
+            .onChange(of: selection.wrappedValue) { _, _ in
+                Task { await viewModel.saveStructuredConfig() }
+            }
+            .pickerStyle(.menu)
+            .labelsHidden()
+            .frame(width: 260, alignment: .trailing)
+        }
+    }
+
+    private func numericInputRow(label: String, text: Binding<String>) -> some View {
+        return alignedConfigRow(label: label) {
+            TextField("", text: text)
+                .onChange(of: text.wrappedValue) { _, newValue in
+                    let filtered = newValue.filter(\.isNumber)
+                    if filtered != newValue {
+                        text.wrappedValue = filtered
+                        return
+                    }
+                    Task { await viewModel.saveStructuredConfig() }
+                }
+                .textFieldStyle(.roundedBorder)
+                .multilineTextAlignment(.trailing)
+        }
+    }
+
+    private func commonOptionPickerRow(
+        title: String,
+        selection: Binding<String>,
+        description: String? = nil,
+        options: [String]
+    ) -> some View {
+        alignedConfigRow(label: title, description: description) {
+            Picker("", selection: selection) {
+                Text(localizedOptionLabel(key: title, value: "")).tag("")
+                ForEach(options, id: \.self) { value in
+                    Text(localizedOptionLabel(key: title, value: value)).tag(value)
+                }
+            }
+            .onChange(of: selection.wrappedValue) { _, _ in
+                Task { await viewModel.saveStructuredConfig() }
+            }
+            .pickerStyle(.menu)
+            .labelsHidden()
+        }
+    }
+
+    private func alignedConfigRow<Control: View>(
+        label: String,
+        description: String? = nil,
+        @ViewBuilder control: () -> Control
+    ) -> some View {
+        HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(label)
+                    .font(.caption.monospaced())
+                    .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                if let description, !description.isEmpty {
+                    Text(description)
+                        .font(.caption2)
+                        .foregroundStyle(DesignSystem.Colors.Text.tertiary)
+                        .textSelection(.enabled)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            Spacer(minLength: 12)
+            control()
+                .frame(minWidth: 200, maxWidth: 420, alignment: .trailing)
+        }
+    }
+
+    private func mergedOptions(current: String, defaults: [String]) -> [String] {
+        var options = defaults
+        let normalized = current.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !normalized.isEmpty && !options.contains(normalized) {
+            options.insert(normalized, at: 0)
+        }
+        return options
+    }
+
+    private func localizedOptionLabel(key: String, value: String) -> String {
+        let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        if normalized.isEmpty {
+            return NSLocalizedString("codex.config.option.unset", value: "Unset", comment: "Unset option")
+        }
+        let optionKey = "codex.config.option.\(key).\(normalized)"
+        return NSLocalizedString(optionKey, value: normalized, comment: "Codex config option value")
     }
 
     private var runtimeOverviewSection: some View {
@@ -514,8 +1554,6 @@ struct CodexAdvancedConfigView: View {
                     .font(.caption)
                     .dsSecondaryText(font: .caption)
             }
-
-            reasoningEffortSection
         }
     }
 
@@ -531,6 +1569,8 @@ struct CodexAdvancedConfigView: View {
                 }
             }
 
+            reasoningEffortSection
+
             if viewModel.models.isEmpty {
                 Text(NSLocalizedString(
                     "provider.binary.codex.model.empty",
@@ -540,6 +1580,8 @@ struct CodexAdvancedConfigView: View {
                 .font(.caption)
                 .dsSecondaryText(font: .caption)
             } else {
+                let visibleModels = viewModel.visibleModels
+
                 if viewModel.hasHiddenActiveModel {
                     Text(NSLocalizedString(
                         "codex.advanced.models_cache.hidden_active_hint",
@@ -550,121 +1592,78 @@ struct CodexAdvancedConfigView: View {
                     .foregroundStyle(DesignSystem.Colors.Status.warning)
                 }
 
-                let visibleModels = viewModel.visibleModels
-                VStack(spacing: 0) {
-                    ForEach(visibleModels, id: \.slug) { model in
-                        HStack(spacing: 10) {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(model.displayName)
-                                    .font(.callout)
-                                    .foregroundStyle(DesignSystem.Colors.Text.primary)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
+                alignedConfigRow(label: NSLocalizedString(
+                    "codex.advanced.models_cache.column.model",
+                    value: "Model",
+                    comment: "Model column title"
+                )) {
+                    Picker(
+                        "",
+                        selection: Binding(
+                            get: { viewModel.activeModelSlug ?? "" },
+                            set: { slug in
+                                guard
+                                    !slug.isEmpty,
+                                    slug != viewModel.activeModelSlug,
+                                    let model = visibleModels.first(where: { $0.slug == slug })
+                                else { return }
+                                Task { await viewModel.activateModel(model) }
                             }
-                            Spacer(minLength: 0)
-                            if viewModel.activeModelSlug == model.slug {
-                                Button(NSLocalizedString("codex.advanced.models_cache.activated", value: "Activated", comment: "Activated state")) {}
-                                    .dsPrimaryButton()
-                                    .disabled(true)
-                            } else {
-                                Button(NSLocalizedString("codex.advanced.models_cache.activate", value: "Activate", comment: "Activate model")) {
-                                    Task { await viewModel.activateModel(model) }
-                                }
-                                .dsPrimaryButton()
-                                .disabled(viewModel.isApplyingModel)
-                            }
-                        }
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 8)
-                        if model.slug != visibleModels.last?.slug {
-                            Divider()
+                        )
+                    ) {
+                        ForEach(visibleModels, id: \.slug) { model in
+                            Text(model.displayName).tag(model.slug)
                         }
                     }
-                }
-                .dsCard(
-                    background: DesignSystem.Colors.Background.surface.opacity(0.38),
-                    cornerRadius: DesignSystem.Metrics.cornerRadiusS,
-                    borderColor: DesignSystem.Colors.Component.border.opacity(0.22)
-                )
-
-                if let active = viewModel.activeModel {
-                    activeModelSummarySection(active)
+                    .pickerStyle(.menu)
+                    .labelsHidden()
+                    .disabled(viewModel.isApplyingModel || visibleModels.isEmpty)
                 }
             }
         }
-    }
-
-    private func activeModelSummarySection(_ model: CodexModelsCache.Model) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(NSLocalizedString("codex.advanced.models_cache.detail", value: "Model Details", comment: "Model details title"))
-                .font(.callout.weight(.semibold))
-                .foregroundStyle(DesignSystem.Colors.Text.primary)
-
-            HStack(spacing: 8) {
-                statChip(
-                    title: NSLocalizedString("codex.advanced.models_cache.field.default_reasoning_level", value: "Default Reasoning", comment: "Default reasoning level field"),
-                    value: model.defaultReasoningLevel ?? "-"
-                )
-                statChip(
-                    title: NSLocalizedString("codex.advanced.models_cache.field.context_window", value: "Context Window", comment: "Context window field"),
-                    value: model.contextWindow.map(String.init) ?? "-"
-                )
-                statChip(
-                    title: NSLocalizedString("codex.advanced.models_cache.field.supported_reasoning_levels", value: "Reasoning Levels", comment: "Supported reasoning levels field"),
-                    value: model.supportedReasoningLevels.map(\.effort).joined(separator: ", ").nonEmpty ?? "-"
-                )
-            }
-        }
-        .padding(10)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .dsCard(
-            background: DesignSystem.Colors.Background.surface.opacity(0.3),
-            cornerRadius: DesignSystem.Metrics.cornerRadiusS,
-            borderColor: DesignSystem.Colors.Component.border.opacity(0.2)
-        )
     }
 
     private var reasoningEffortSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .center, spacing: 10) {
-                Text(NSLocalizedString(
+            alignedConfigRow(
+                label: NSLocalizedString(
                     "codex.advanced.models_cache.reasoning_effort",
                     value: "Reasoning Effort",
                     comment: "Reasoning effort title"
-                ))
-                .font(.callout)
-                .foregroundStyle(DesignSystem.Colors.Text.secondary)
-
-                Spacer(minLength: 0)
-
-                Picker(
-                    "",
-                    selection: Binding(
-                        get: { viewModel.selectedReasoningEffort ?? "__default__" },
-                        set: { value in
-                            let effort = value == "__default__" ? nil : value
-                            Task { await viewModel.applyReasoningEffort(effort) }
-                        }
-                    )
-                ) {
-                    Text(NSLocalizedString(
-                        "codex.advanced.models_cache.reasoning_effort.default",
-                        value: "Use Model Default",
-                        comment: "Default reasoning effort"
-                    ))
-                    .tag("__default__")
-                    ForEach(viewModel.availableReasoningEfforts, id: \.self) { effort in
-                        Text(effort).tag(effort)
-                    }
-                }
-                .pickerStyle(.menu)
-                .disabled(
-                    viewModel.availableReasoningEfforts.isEmpty
-                    || viewModel.isApplyingReasoning
-                    || viewModel.activeModel == nil
                 )
+            ) {
+                HStack(spacing: 8) {
+                    Picker(
+                        "",
+                        selection: Binding(
+                            get: { viewModel.selectedReasoningEffort ?? "__default__" },
+                            set: { value in
+                                let effort = value == "__default__" ? nil : value
+                                Task { await viewModel.applyReasoningEffort(effort) }
+                            }
+                        )
+                    ) {
+                        Text(NSLocalizedString(
+                            "codex.advanced.models_cache.reasoning_effort.default",
+                            value: "Use Model Default",
+                            comment: "Default reasoning effort"
+                        ))
+                        .tag("__default__")
+                        ForEach(viewModel.availableReasoningEfforts, id: \.self) { effort in
+                            Text(effort).tag(effort)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .disabled(
+                        viewModel.availableReasoningEfforts.isEmpty
+                        || viewModel.isApplyingReasoning
+                        || viewModel.activeModel == nil
+                    )
+                    .frame(maxWidth: .infinity, alignment: .trailing)
 
-                if viewModel.isApplyingReasoning {
-                    ProgressView().controlSize(.small)
+                    if viewModel.isApplyingReasoning {
+                        ProgressView().controlSize(.small)
+                    }
                 }
             }
 
@@ -861,25 +1860,14 @@ struct CodexAdvancedConfigView: View {
         }
         .padding(10)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .dsCard(
-            background: DesignSystem.Colors.Background.surface.opacity(0.35),
-            cornerRadius: DesignSystem.Metrics.cornerRadiusS,
-            borderColor: DesignSystem.Colors.Component.border.opacity(0.2)
+        .background(
+            .ultraThinMaterial,
+            in: RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusS, style: .continuous)
         )
-    }
-
-    private func statChip(title: String, value: String) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(title)
-                .font(.caption2)
-                .foregroundStyle(DesignSystem.Colors.Text.secondary)
-            Text(value)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(DesignSystem.Colors.Text.primary)
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
-        .background(DesignSystem.Colors.Component.controlFillSubtle.opacity(0.35), in: Capsule())
+        .overlay(
+            RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusS, style: .continuous)
+                .stroke(DesignSystem.Colors.Component.border.opacity(0.22), lineWidth: 1)
+        )
     }
 
     private func pathStatusText(_ status: CodexBinaryManager.CodexPathStatus) -> String {

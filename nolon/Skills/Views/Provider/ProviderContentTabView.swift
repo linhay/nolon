@@ -8,6 +8,7 @@ import NolonResourceKit
 import SKProcessRunner
 
 private let terminalLogger = Logger(subsystem: "com.nolon", category: "TerminalDetection")
+private let codexConfigDocsURL = "https://developers.openai.com/codex/config-basic"
 
 private enum CodexTerminalLauncher {
     static func launchCLI(command: String, in app: CodexTerminalApp) throws {
@@ -422,6 +423,18 @@ struct ProviderContentTabView: View {
         HStack {
             Label(tab.localizedName, systemImage: tab.icon)
             Spacer()
+            if tab == .advanced, let provider, viewModel.isCodexProvider(provider) {
+                Button {
+                    guard let url = URL(string: codexConfigDocsURL) else { return }
+                    NSWorkspace.shared.open(url)
+                } label: {
+                    Image(systemName: "arrow.up.right.square")
+                        .font(.caption)
+                        .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                }
+                .buttonStyle(.plain)
+                .help(NSLocalizedString("action.view_official_docs", value: "View Official Documentation", comment: "Open official docs"))
+            }
             if tab == .skills || tab == .workflows || tab == .rules || tab == .agents || tab == .mcp {
                 Text("\(viewModel.count(for: tab))")
                     .dsSecondaryText(font: .callout)

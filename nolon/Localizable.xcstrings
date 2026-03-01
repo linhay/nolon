@@ -533,7 +533,7 @@
       }
     },
     "action.view_official_docs" : {
-      "comment" : "Open official provider documentation",
+      "comment" : "Open official docs\nOpen official provider documentation",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
@@ -2099,6 +2099,282 @@
         }
       }
     },
+    "codex.advanced.config.edit_raw" : {
+      "comment" : "Edit raw TOML",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Edit Raw TOML"
+          }
+        }
+      }
+    },
+    "codex.advanced.config.error.title" : {
+      "comment" : "Config error",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Config Error"
+          }
+        }
+      }
+    },
+    "codex.advanced.config.features.title" : {
+      "comment" : "Feature flags",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Feature Flags"
+          }
+        }
+      }
+    },
+    "codex.advanced.config.multi_agent.add_builtin.format" : {
+      "comment" : "Add/override builtin role format",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Add or Override: %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新增或覆盖：%@"
+          }
+        }
+      }
+    },
+    "codex.advanced.config.multi_agent.add_role" : {
+      "comment" : "Add role",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Add Role"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "添加角色"
+          }
+        }
+      }
+    },
+    "codex.advanced.config.multi_agent.add_role.empty" : {
+      "comment" : "Add empty role",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Add Empty Role"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新增空白角色"
+          }
+        }
+      }
+    },
+    "codex.advanced.config.multi_agent.config_file" : {
+      "comment" : "Role config file placeholder",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "config file path"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "配置文件路径"
+          }
+        }
+      }
+    },
+    "codex.advanced.config.multi_agent.description" : {
+      "comment" : "Role description placeholder",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "description"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "描述"
+          }
+        }
+      }
+    },
+    "codex.advanced.config.multi_agent.empty" : {
+      "comment" : "No multi-agent roles",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "No roles configured yet. Click Add Role to create the first role."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "尚未配置角色。点击“添加角色”创建第一个角色。"
+          }
+        }
+      }
+    },
+    "codex.advanced.config.multi_agent.model" : {
+      "comment" : "Role model placeholder",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "model"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "模型"
+          }
+        }
+      }
+    },
+    "codex.advanced.config.multi_agent.role_name" : {
+      "comment" : "Role name placeholder",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "role name"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "角色名"
+          }
+        }
+      }
+    },
+    "codex.advanced.config.multi_agent.status_disabled" : {
+      "comment" : "multi-agent status",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Multi-agent is disabled. Enable the switch above to edit roles."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "多代理已关闭。请先打开上方开关，再编辑角色。"
+          }
+        }
+      }
+    },
+    "codex.advanced.config.multi_agent.status_enabled" : {
+      "comment" : "multi-agent status",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Multi-agent is enabled. You can edit roles and agents settings below."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "多代理已启用。你可以在下方编辑角色和代理参数。"
+          }
+        }
+      }
+    },
+    "codex.advanced.config.multi_agent.title" : {
+      "comment" : "Multi-agent roles",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Multi-Agent Roles"
+          }
+        }
+      }
+    },
+    "codex.advanced.config.multi_agent.toggle_label" : {
+      "comment" : "multi-agent toggle label",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "[features].multi_agent"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "[features].multi_agent"
+          }
+        }
+      }
+    },
+    "codex.advanced.config.multi_agent.unnamed_role" : {
+      "comment" : "Unnamed role",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Unnamed Role"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未命名角色"
+          }
+        }
+      }
+    },
+    "codex.advanced.config.options.title" : {
+      "comment" : "Common options",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Common Options"
+          }
+        }
+      }
+    },
     "codex.advanced.link.confirm" : {
       "comment" : "Confirm action",
       "extractionState" : "extracted_with_value",
@@ -2173,7 +2449,7 @@
     },
     "codex.advanced.models_cache.activate" : {
       "comment" : "Activate model",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2191,7 +2467,7 @@
     },
     "codex.advanced.models_cache.activated" : {
       "comment" : "Activated state",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2245,7 +2521,7 @@
     },
     "codex.advanced.models_cache.column.model" : {
       "comment" : "Model column title",
-      "extractionState" : "stale",
+      "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2281,7 +2557,7 @@
     },
     "codex.advanced.models_cache.detail" : {
       "comment" : "Model details title",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2299,7 +2575,7 @@
     },
     "codex.advanced.models_cache.field.context_window" : {
       "comment" : "Context window field",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2317,7 +2593,7 @@
     },
     "codex.advanced.models_cache.field.default_reasoning_level" : {
       "comment" : "Default reasoning level field",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2407,7 +2683,7 @@
     },
     "codex.advanced.models_cache.field.supported_reasoning_levels" : {
       "comment" : "Supported reasoning levels field",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -3173,18 +3449,6 @@
         }
       }
     },
-    "codex.binary.open_config" : {
-      "comment" : "Open config file",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Open Config"
-          }
-        }
-      }
-    },
     "codex.binary.path.active" : {
       "comment" : "Active label",
       "extractionState" : "extracted_with_value",
@@ -3361,18 +3625,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "自动"
-          }
-        }
-      }
-    },
-    "codex.binary.section.preferences" : {
-      "comment" : "Preferences section",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Run Preferences"
           }
         }
       }
@@ -3876,6 +4128,1434 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "CLI 登录"
+          }
+        }
+      }
+    },
+    "codex.config.editor.error.title" : {
+      "comment" : "Invalid config title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Invalid config.toml"
+          }
+        }
+      }
+    },
+    "codex.config.editor.title" : {
+      "comment" : "Codex config editor title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Edit config.toml"
+          }
+        }
+      }
+    },
+    "codex.config.description.approval_policy" : {
+      "comment" : "Description for approval_policy",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Controls when Codex asks for permission before running sensitive commands."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "控制 Codex 在执行敏感命令前何时请求授权。"
+          }
+        }
+      }
+    },
+    "codex.config.description.model_verbosity" : {
+      "comment" : "Description for model_verbosity",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Sets response detail level. Low is concise, high is more detailed."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "设置回答详细程度。低更简洁，高更详细。"
+          }
+        }
+      }
+    },
+    "codex.config.option.approval_policy.never" : {
+      "comment" : "Codex approval_policy value",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Never"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "从不"
+          }
+        }
+      }
+    },
+    "codex.config.option.approval_policy.on-failure" : {
+      "comment" : "Codex approval_policy value",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "On Failure"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "失败时"
+          }
+        }
+      }
+    },
+    "codex.config.option.approval_policy.on-request" : {
+      "comment" : "Codex approval_policy value",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "On Request"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "按需"
+          }
+        }
+      }
+    },
+    "codex.config.option.approval_policy.untrusted" : {
+      "comment" : "Codex approval_policy value",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Untrusted"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不受信任"
+          }
+        }
+      }
+    },
+    "codex.config.option.custom" : {
+      "comment" : "Custom option",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Custom"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自定义"
+          }
+        }
+      }
+    },
+    "codex.config.option.custom_value" : {
+      "comment" : "Custom value placeholder",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Custom value"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自定义值"
+          }
+        }
+      }
+    },
+    "codex.config.option.model_reasoning_effort.high" : {
+      "comment" : "Codex model_reasoning_effort value",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "High"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "高"
+          }
+        }
+      }
+    },
+    "codex.config.option.model_reasoning_effort.low" : {
+      "comment" : "Codex model_reasoning_effort value",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Low"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "低"
+          }
+        }
+      }
+    },
+    "codex.config.option.model_reasoning_effort.medium" : {
+      "comment" : "Codex model_reasoning_effort value",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Medium"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "中"
+          }
+        }
+      }
+    },
+    "codex.config.option.model_reasoning_effort.minimal" : {
+      "comment" : "Codex model_reasoning_effort value",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Minimal"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最小"
+          }
+        }
+      }
+    },
+    "codex.config.option.model_reasoning_summary.auto" : {
+      "comment" : "Codex model_reasoning_summary value",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Auto"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自动"
+          }
+        }
+      }
+    },
+    "codex.config.option.model_reasoning_summary.concise" : {
+      "comment" : "Codex model_reasoning_summary value",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Concise"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "简洁"
+          }
+        }
+      }
+    },
+    "codex.config.option.model_reasoning_summary.detailed" : {
+      "comment" : "Codex model_reasoning_summary value",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Detailed"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "详细"
+          }
+        }
+      }
+    },
+    "codex.config.option.model_reasoning_summary.none" : {
+      "comment" : "Codex model_reasoning_summary value",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "None"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无"
+          }
+        }
+      }
+    },
+    "codex.config.option.model_verbosity.high" : {
+      "comment" : "Codex model_verbosity value",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "High"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "高"
+          }
+        }
+      }
+    },
+    "codex.config.option.model_verbosity.low" : {
+      "comment" : "Codex model_verbosity value",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Low"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "低"
+          }
+        }
+      }
+    },
+    "codex.config.option.model_verbosity.medium" : {
+      "comment" : "Codex model_verbosity value",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Medium"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "中"
+          }
+        }
+      }
+    },
+    "codex.config.option.personality.balanced" : {
+      "comment" : "Codex personality value",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Balanced"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "平衡"
+          }
+        }
+      }
+    },
+    "codex.config.option.personality.concise" : {
+      "comment" : "Codex personality value",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Concise"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "简洁"
+          }
+        }
+      }
+    },
+    "codex.config.option.personality.verbose" : {
+      "comment" : "Codex personality value",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Verbose"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "详细"
+          }
+        }
+      }
+    },
+    "codex.config.option.sandbox_mode.danger-full-access" : {
+      "comment" : "Codex sandbox_mode value",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Danger Full Access"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "完全访问（危险）"
+          }
+        }
+      }
+    },
+    "codex.config.option.sandbox_mode.read-only" : {
+      "comment" : "Codex sandbox_mode value",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Read Only"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "只读"
+          }
+        }
+      }
+    },
+    "codex.config.option.sandbox_mode.workspace-write" : {
+      "comment" : "Codex sandbox_mode value",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Workspace Write"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "工作区可写"
+          }
+        }
+      }
+    },
+    "codex.config.option.unset" : {
+      "comment" : "Unset option",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Unset"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未设置"
+          }
+        }
+      }
+    },
+    "codex.config.option.web_search.cached" : {
+      "comment" : "Codex web_search value",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Cached"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "缓存"
+          }
+        }
+      }
+    },
+    "codex.config.option.web_search.disabled" : {
+      "comment" : "Codex web_search value",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Disabled"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "禁用"
+          }
+        }
+      }
+    },
+    "codex.config.option.web_search.live" : {
+      "comment" : "Codex web_search value",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Live"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "实时"
+          }
+        }
+      }
+    },
+    "codex.features.description.apply_patch_freeform" : {
+      "comment" : "Feature description for apply_patch_freeform",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Enable freeform apply_patch tool mode."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "启用 freeform apply_patch 工具模式。"
+          }
+        }
+      }
+    },
+    "codex.features.description.apps" : {
+      "comment" : "Feature description for apps",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Enable ChatGPT Apps/connectors support."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "启用 ChatGPT Apps/Connectors 支持。"
+          }
+        }
+      }
+    },
+    "codex.features.description.apps_mcp_gateway" : {
+      "comment" : "Feature description for apps_mcp_gateway",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Use the Apps MCP gateway endpoint."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用 Apps MCP gateway 端点。"
+          }
+        }
+      }
+    },
+    "codex.features.description.child_agents_md" : {
+      "comment" : "Feature description for child_agents_md",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Append additional AGENTS.md guidance."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "附加额外的 AGENTS.md 指引。"
+          }
+        }
+      }
+    },
+    "codex.features.description.collab" : {
+      "comment" : "Feature description for collab",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Enable collab/sub-agent tools."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "启用协作/子代理工具。"
+          }
+        }
+      }
+    },
+    "codex.features.description.collaboration_modes" : {
+      "comment" : "Feature description for collaboration_modes",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Enable collaboration modes such as plan mode."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "启用 plan mode 等协作模式。"
+          }
+        }
+      }
+    },
+    "codex.features.description.elevated_windows_sandbox" : {
+      "comment" : "Feature description for elevated_windows_sandbox",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Enable elevated Windows sandbox runner."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "启用提升权限的 Windows 沙箱运行器。"
+          }
+        }
+      }
+    },
+    "codex.features.description.enable_request_compression" : {
+      "comment" : "Feature description for enable_request_compression",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Enable compressed request bodies."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "启用压缩请求体。"
+          }
+        }
+      }
+    },
+    "codex.features.description.exec_policy" : {
+      "comment" : "Feature description for exec_policy",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Enable exec policy pipeline."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "启用 exec policy 流程。"
+          }
+        }
+      }
+    },
+    "codex.features.description.experimental_windows_sandbox" : {
+      "comment" : "Feature description for experimental_windows_sandbox",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Enable Windows restricted-token sandbox."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "启用 Windows restricted-token 沙箱。"
+          }
+        }
+      }
+    },
+    "codex.features.description.memory_tool" : {
+      "comment" : "Feature description for memory_tool",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Enable startup memory extraction and consolidation."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "启用启动时内存提取与合并。"
+          }
+        }
+      }
+    },
+    "codex.features.description.multi_agent" : {
+      "comment" : "Feature description for multi_agent",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Enable multi-agent collaboration tools."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "启用多代理协作工具。"
+          }
+        }
+      }
+    },
+    "codex.features.description.personality" : {
+      "comment" : "Feature description for personality",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Enable personality selection controls."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "启用 personality 选择控制。"
+          }
+        }
+      }
+    },
+    "codex.features.description.powershell_utf8" : {
+      "comment" : "Feature description for powershell_utf8",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Enforce UTF8 output in PowerShell."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 PowerShell 中强制 UTF-8 输出。"
+          }
+        }
+      }
+    },
+    "codex.features.description.remote_compaction" : {
+      "comment" : "Feature description for remote_compaction",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Enable remote compaction flow."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "启用远程压缩流程。"
+          }
+        }
+      }
+    },
+    "codex.features.description.remote_models" : {
+      "comment" : "Feature description for remote_models",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Refresh remote model list before readiness."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在就绪前刷新远程模型列表。"
+          }
+        }
+      }
+    },
+    "codex.features.description.request_rule" : {
+      "comment" : "Feature description for request_rule",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Enable smart approval prefix rule suggestions."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "启用智能审批前缀规则建议。"
+          }
+        }
+      }
+    },
+    "codex.features.description.responses_websockets" : {
+      "comment" : "Feature description for responses_websockets",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Use Responses API WebSocket transport by default."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "默认使用 Responses API WebSocket 传输。"
+          }
+        }
+      }
+    },
+    "codex.features.description.responses_websockets_v2" : {
+      "comment" : "Feature description for responses_websockets_v2",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Enable Responses API websocket v2 mode."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "启用 Responses API websocket v2 模式。"
+          }
+        }
+      }
+    },
+    "codex.features.description.runtime_metrics" : {
+      "comment" : "Feature description for runtime_metrics",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Show runtime metrics summaries in TUI."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 TUI 中显示运行时指标摘要。"
+          }
+        }
+      }
+    },
+    "codex.features.description.search_tool" : {
+      "comment" : "Feature description for search_tool",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Enable search_tool_bm25 tool discovery."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "启用 search_tool_bm25 工具发现。"
+          }
+        }
+      }
+    },
+    "codex.features.description.shell_snapshot" : {
+      "comment" : "Feature description for shell_snapshot",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Snapshot shell env for repeated commands."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "为重复命令快照 shell 环境。"
+          }
+        }
+      }
+    },
+    "codex.features.description.shell_tool" : {
+      "comment" : "Feature description for shell_tool",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Enable the default shell tool."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "启用默认 shell 工具。"
+          }
+        }
+      }
+    },
+    "codex.features.description.skill_env_var_dependency_prompt" : {
+      "comment" : "Feature description for skill_env_var_dependency_prompt",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Prompt for missing skill env var dependencies."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "提示缺失的技能环境变量依赖。"
+          }
+        }
+      }
+    },
+    "codex.features.description.skill_mcp_dependency_install" : {
+      "comment" : "Feature description for skill_mcp_dependency_install",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Allow installing missing MCP dependencies for skills."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "允许为技能安装缺失的 MCP 依赖。"
+          }
+        }
+      }
+    },
+    "codex.features.description.sqlite" : {
+      "comment" : "Feature description for sqlite",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Persist rollout metadata to local SQLite."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "将 rollout 元数据持久化到本地 SQLite。"
+          }
+        }
+      }
+    },
+    "codex.features.description.steer" : {
+      "comment" : "Feature description for steer",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Enable steer mode behavior."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "启用 steer 模式行为。"
+          }
+        }
+      }
+    },
+    "codex.features.description.undo" : {
+      "comment" : "Feature description for undo",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Create a ghost commit at each turn."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在每一轮创建一个幽灵提交。"
+          }
+        }
+      }
+    },
+    "codex.features.description.unified_exec" : {
+      "comment" : "Feature description for unified_exec",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Use the unified PTY-backed exec tool."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用基于 PTY 的统一 exec 工具。"
+          }
+        }
+      }
+    },
+    "codex.features.description.unrecognized" : {
+      "comment" : "Unrecognized feature description",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Detected from config.toml but not in current built-in feature registry."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "从 config.toml 检测到，但不在当前内置 feature 注册表中。"
+          }
+        }
+      }
+    },
+    "codex.features.description.use_linux_sandbox_bwrap" : {
+      "comment" : "Feature description for use_linux_sandbox_bwrap",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Use Linux bubblewrap sandbox pipeline."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用 Linux bubblewrap 沙箱流程。"
+          }
+        }
+      }
+    },
+    "codex.features.description.web_search" : {
+      "comment" : "Feature description for web_search",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Legacy web_search feature toggle."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "旧版 web_search 功能开关。"
+          }
+        }
+      }
+    },
+    "codex.features.description.web_search_cached" : {
+      "comment" : "Feature description for web_search_cached",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Legacy cached web search toggle."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "旧版缓存 web search 开关。"
+          }
+        }
+      }
+    },
+    "codex.features.description.web_search_request" : {
+      "comment" : "Feature description for web_search_request",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Legacy live web search toggle."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "旧版实时 web search 开关。"
+          }
+        }
+      }
+    },
+    "codex.features.maturity.beta" : {
+      "comment" : "Beta maturity",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Beta"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beta"
+          }
+        }
+      }
+    },
+    "codex.features.maturity.deprecated" : {
+      "comment" : "Deprecated maturity",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Deprecated"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已弃用"
+          }
+        }
+      }
+    },
+    "codex.features.maturity.experimental" : {
+      "comment" : "Experimental maturity",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Experimental"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "实验性"
+          }
+        }
+      }
+    },
+    "codex.features.maturity.removed" : {
+      "comment" : "Removed maturity",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Removed"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已移除"
+          }
+        }
+      }
+    },
+    "codex.features.maturity.stable" : {
+      "comment" : "Stable maturity",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Stable"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "稳定"
+          }
+        }
+      }
+    },
+    "codex.features.maturity.under_development" : {
+      "comment" : "Under development maturity",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Under Development"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开发中"
+          }
+        }
+      }
+    },
+    "codex.features.maturity.unknown" : {
+      "comment" : "Unknown feature maturity",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Unknown"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未知"
+          }
+        }
+      }
+    },
+    "codex.features.search.placeholder" : {
+      "comment" : "Feature search placeholder",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Search features..."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "搜索 Feature..."
+          }
+        }
+      }
+    },
+    "codex.features.source.config_unrecognized" : {
+      "comment" : "Unrecognized feature source",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "config.toml (unrecognized key)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "config.toml（未识别键）"
+          }
+        }
+      }
+    },
+    "codex.features.source.tag.app_server" : {
+      "comment" : "App server source tag",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "App Server"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App Server"
+          }
+        }
+      }
+    },
+    "codex.features.source.tag.cli_features_list" : {
+      "comment" : "CLI features list source tag",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "CLI Features List"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CLI 特性列表"
+          }
+        }
+      }
+    },
+    "codex.features.source.tag.codex_docs" : {
+      "comment" : "Codex docs source tag",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Codex Docs"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Codex 文档"
+          }
+        }
+      }
+    },
+    "codex.features.source.tag.config_unknown" : {
+      "comment" : "Config unknown source tag",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Config Unknown Key"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "配置未知键"
+          }
+        }
+      }
+    },
+    "codex.features.source.tag.core_features" : {
+      "comment" : "Core features source tag",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Core Features"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Core 特性"
+          }
+        }
+      }
+    },
+    "codex.features.source.tag.nolon_compatibility" : {
+      "comment" : "Nolon compatibility source tag",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Nolon Compatibility"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nolon 兼容"
           }
         }
       }
