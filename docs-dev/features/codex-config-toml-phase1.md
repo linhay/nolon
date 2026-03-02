@@ -45,6 +45,10 @@
    When 打开 TOML 编辑器直接编辑并保存
    Then 能通过 SDK 校验并写回 `config.toml`。
 
+6. Given 用户在 `Multi-Agent Roles` 点击“添加角色 -> 新增空白角色”
+   When 打开角色编辑 `sheet` 并点击保存
+   Then 新角色以空白字段创建，并使用 `sheet` 作为角色编辑区（而非行内展开编辑）。
+
 ## DoD
 - SDK 测试覆盖 `feature flags + common options + agents roles` 解析。
 - App 层有可交互的配置区、文档跳转按钮、TOML 兜底编辑。

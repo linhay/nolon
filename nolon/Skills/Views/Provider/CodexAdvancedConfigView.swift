@@ -459,9 +459,21 @@ final class CodexAdvancedConfigViewModel {
         )
     }
 
+    static func makeBuiltinRoleDraft(_ builtinRole: CodexBuiltinAgentRole) -> CodexAgentRoleDraft {
+        CodexAgentRoleDraft(
+            name: builtinRole.rawValue,
+            description: builtinRole.defaultDescription,
+            configFile: "",
+            model: "",
+            modelReasoningEffort: "",
+            sandboxMode: "",
+            approvalPolicy: ""
+        )
+    }
+
     @discardableResult
-    func addRoleDraft() -> UUID {
-        let role = Self.makeEmptyRoleDraft()
+    func addRoleDraft(_ role: CodexAgentRoleDraft? = nil) -> UUID {
+        let role = role ?? Self.makeEmptyRoleDraft()
         roleDrafts.append(role)
         return role.id
     }
@@ -473,15 +485,7 @@ final class CodexAdvancedConfigViewModel {
             return roleDrafts[index].id
         }
 
-        let role = CodexAgentRoleDraft(
-            name: builtinRole.rawValue,
-            description: builtinRole.defaultDescription,
-            configFile: "",
-            model: "",
-            modelReasoningEffort: "",
-            sandboxMode: "",
-            approvalPolicy: ""
-        )
+        let role = Self.makeBuiltinRoleDraft(builtinRole)
         roleDrafts.append(role)
         return role.id
     }
@@ -659,13 +663,28 @@ final class CodexAdvancedConfigViewModel {
 
 struct CodexAdvancedConfigView: View {
     private struct RoleEditorTarget: Identifiable {
-        let id: UUID
+        enum Mode: Equatable {
+            case existing(UUID)
+            case creating
+        }
+
+        let mode: Mode
+
+        var id: String {
+            switch mode {
+            case .existing(let roleID):
+                return "existing-\(roleID.uuidString)"
+            case .creating:
+                return "creating"
+            }
+        }
     }
 
     let provider: Provider
     @State private var viewModel: CodexAdvancedConfigViewModel
     @State private var isEditingRawConfig = false
-    @State private var editingRoleID: UUID?
+    @State private var roleEditorTarget: RoleEditorTarget?
+    @State private var pendingNewRoleDraft = CodexAdvancedConfigViewModel.makeEmptyRoleDraft()
     @State private var featureSearchText: String = ""
 
     init(provider: Provider) {
@@ -706,8 +725,8 @@ struct CodexAdvancedConfigView: View {
                 EmptyView()
             }
         }
-        .sheet(item: editingRoleSheetBinding) { target in
-            roleEditorSheet(for: target.id)
+        .sheet(item: $roleEditorTarget) { target in
+            roleEditorSheet(for: target)
         }
         .alert(
             NSLocalizedString("codex.binary.error.title", value: "Binary Error", comment: "Binary error"),
@@ -1245,14 +1264,14 @@ struct CodexAdvancedConfigView: View {
                         Spacer(minLength: 0)
 
                         Button(NSLocalizedString("action.edit", value: "Edit", comment: "Edit action")) {
-                            editingRoleID = roleID
+                            roleEditorTarget = RoleEditorTarget(mode: .existing(roleID))
                         }
                         .buttonStyle(.borderless)
 
                         Button(role: .destructive) {
                             viewModel.removeRoleDraft(roleID)
-                            if editingRoleID == roleID {
-                                editingRoleID = nil
+                            if case .existing(let editingID) = roleEditorTarget?.mode, editingID == roleID {
+                                roleEditorTarget = nil
                             }
                         } label: {
                             Image(systemName: "trash")
@@ -1277,8 +1296,8 @@ struct CodexAdvancedConfigView: View {
                         value: "Add Empty Role",
                         comment: "Add empty role"
                     )) {
-                        let newRoleID = viewModel.addRoleDraft()
-                        editingRoleID = newRoleID
+                        pendingNewRoleDraft = CodexAdvancedConfigViewModel.makeEmptyRoleDraft()
+                        roleEditorTarget = RoleEditorTarget(mode: .creating)
                     }
                     Divider()
                     ForEach(CodexBuiltinAgentRole.allCases) { builtinRole in
@@ -1292,7 +1311,13 @@ struct CodexAdvancedConfigView: View {
                                 builtinRole.rawValue
                             )
                         ) {
-                            editingRoleID = viewModel.upsertBuiltinRole(builtinRole)
+                            if viewModel.roleDrafts.contains(where: { $0.name == builtinRole.rawValue }) {
+                                let roleID = viewModel.upsertBuiltinRole(builtinRole)
+                                roleEditorTarget = RoleEditorTarget(mode: .existing(roleID))
+                            } else {
+                                pendingNewRoleDraft = CodexAdvancedConfigViewModel.makeBuiltinRoleDraft(builtinRole)
+                                roleEditorTarget = RoleEditorTarget(mode: .creating)
+                            }
                         }
                     }
                 } label: {
@@ -1319,19 +1344,9 @@ struct CodexAdvancedConfigView: View {
         )
     }
 
-    private var editingRoleSheetBinding: Binding<RoleEditorTarget?> {
-        Binding(
-            get: {
-                guard let editingRoleID else { return nil }
-                return RoleEditorTarget(id: editingRoleID)
-            },
-            set: { editingRoleID = $0?.id }
-        )
-    }
-
     @ViewBuilder
-    private func roleEditorSheet(for roleID: UUID) -> some View {
-        if let role = roleBinding(for: roleID) {
+    private func roleEditorSheet(for target: RoleEditorTarget) -> some View {
+        if let role = roleBinding(for: target) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
                     Text(role.wrappedValue.name.nonEmpty ?? NSLocalizedString(
@@ -1402,12 +1417,13 @@ struct CodexAdvancedConfigView: View {
                     HStack(spacing: 10) {
                         Spacer(minLength: 0)
                         Button(NSLocalizedString("generic.close", value: "Close", comment: "Close")) {
-                            editingRoleID = nil
+                            closeRoleEditor(target)
                         }
                         .dsSecondaryButton()
                         Button(NSLocalizedString("action.save", value: "Save", comment: "Save")) {
+                            commitRoleEditorIfNeeded(target)
                             Task { await viewModel.saveStructuredConfig() }
-                            editingRoleID = nil
+                            closeRoleEditor(target)
                         }
                         .dsPrimaryButton()
                         .disabled(viewModel.isSavingConfig)
@@ -1422,11 +1438,33 @@ struct CodexAdvancedConfigView: View {
         }
     }
 
-    private func roleBinding(for roleID: UUID) -> Binding<CodexAgentRoleDraft>? {
-        guard let index = viewModel.roleDrafts.firstIndex(where: { $0.id == roleID }) else {
-            return nil
+    private func roleBinding(for target: RoleEditorTarget) -> Binding<CodexAgentRoleDraft>? {
+        switch target.mode {
+        case .creating:
+            return Binding(
+                get: { pendingNewRoleDraft },
+                set: { pendingNewRoleDraft = $0 }
+            )
+        case .existing(let roleID):
+            guard let index = viewModel.roleDrafts.firstIndex(where: { $0.id == roleID }) else {
+                return nil
+            }
+            return $viewModel.roleDrafts[index]
         }
-        return $viewModel.roleDrafts[index]
+    }
+
+    private func commitRoleEditorIfNeeded(_ target: RoleEditorTarget) {
+        if case .creating = target.mode {
+            _ = viewModel.addRoleDraft(pendingNewRoleDraft)
+            pendingNewRoleDraft = CodexAdvancedConfigViewModel.makeEmptyRoleDraft()
+        }
+    }
+
+    private func closeRoleEditor(_ target: RoleEditorTarget) {
+        if case .creating = target.mode {
+            pendingNewRoleDraft = CodexAdvancedConfigViewModel.makeEmptyRoleDraft()
+        }
+        roleEditorTarget = nil
     }
 
     private func commonOptionRow(title: String, text: Binding<String>, description: String? = nil) -> some View {

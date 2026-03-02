@@ -34,4 +34,51 @@ final class CodexAdvancedConfigRoleDraftTests: XCTestCase {
         // Then
         XCTAssertNil(weakViewModel)
     }
+
+    func testBDD_GivenBuiltinRole_WhenCreateDraft_ThenAppliesBuiltinDefaults() {
+        // Given
+        let builtinRole = CodexBuiltinAgentRole.worker
+
+        // When
+        let draft = CodexAdvancedConfigViewModel.makeBuiltinRoleDraft(builtinRole)
+
+        // Then
+        XCTAssertEqual(draft.name, "worker")
+        XCTAssertEqual(draft.description, builtinRole.defaultDescription)
+        XCTAssertEqual(draft.configFile, "")
+        XCTAssertEqual(draft.model, "")
+        XCTAssertEqual(draft.modelReasoningEffort, "")
+        XCTAssertEqual(draft.sandboxMode, "")
+        XCTAssertEqual(draft.approvalPolicy, "")
+    }
+
+    func testBDD_GivenRoleDraft_WhenCommitOnSave_ThenAppendsDraftToRoles() throws {
+        // Given
+        let provider = Provider(
+            name: "Codex",
+            defaultSkillsPath: "~/.codex/skills",
+            workflowPath: "~/.codex/prompts",
+            installMethod: .symlink,
+            templateId: "codex"
+        )
+        let viewModel = CodexAdvancedConfigViewModel(provider: provider)
+        let draft = CodexAgentRoleDraft(
+            name: "reviewer",
+            description: "code review role",
+            configFile: "",
+            model: "gpt-5-codex",
+            modelReasoningEffort: "medium",
+            sandboxMode: "workspace-write",
+            approvalPolicy: "on-request"
+        )
+        XCTAssertEqual(viewModel.roleDrafts.count, 0)
+
+        // When
+        let roleID = viewModel.addRoleDraft(draft)
+
+        // Then
+        XCTAssertEqual(roleID, draft.id)
+        XCTAssertEqual(viewModel.roleDrafts.count, 1)
+        XCTAssertEqual(viewModel.roleDrafts.first, draft)
+    }
 }
