@@ -543,6 +543,63 @@ final class ProviderUsageViewModelDeleteTests: XCTestCase {
 }
 
 @MainActor
+final class ProviderUsageViewModelManualRefreshTests: XCTestCase {
+    func testBDD_GivenHeaderRefresh_WhenCodexMultiAccount_ThenRefreshActionRunsForAllAccounts() async {
+        let provider = Provider(
+            name: "Codex",
+            defaultSkillsPath: "/tmp/codex-skills",
+            workflowPath: "/tmp/codex-prompts",
+            installMethod: .symlink,
+            templateId: "codex"
+        )
+
+        let failed = CodexAuthAccount(name: "failed", relativeAuthPath: "auth/failed.json")
+        let healthy = CodexAuthAccount(name: "healthy", relativeAuthPath: "auth/healthy.json")
+        let refreshedIDs = LockedBox<[UUID]>([])
+
+        let viewModel = ProviderUsageViewModel(
+            provider: provider,
+            codexRefreshAllAction: { accounts in
+                await refreshedIDs.set(accounts.map(\.id))
+            }
+        )
+        viewModel.codexAccounts = [failed, healthy]
+        viewModel.activeCodexAccountId = healthy.id
+        viewModel.codexAccountSummaries = [
+            failed.id: CodexAuthSummary(lastSyncFailedAt: Date(), lastSyncFailureMessage: "401 Unauthorized"),
+            healthy.id: CodexAuthSummary(lastSyncSucceededAt: Date())
+        ]
+
+        await viewModel.refreshFromHeader()
+
+        let ids = await refreshedIDs.value()
+        XCTAssertEqual(ids, [healthy.id, failed.id])
+    }
+
+    func testBDD_GivenFailedAccount_WhenResolvingHeaderRefreshTargets_ThenDoesNotSkipIt() {
+        let provider = Provider(
+            name: "Codex",
+            defaultSkillsPath: "/tmp/codex-skills",
+            workflowPath: "/tmp/codex-prompts",
+            installMethod: .symlink,
+            templateId: "codex"
+        )
+
+        let failed = CodexAuthAccount(name: "failed", relativeAuthPath: "auth/failed.json")
+        let normal = CodexAuthAccount(name: "normal", relativeAuthPath: "auth/normal.json")
+        let viewModel = ProviderUsageViewModel(provider: provider)
+        viewModel.codexAccounts = [failed, normal]
+        viewModel.codexAccountSummaries = [
+            failed.id: CodexAuthSummary(lastSyncFailedAt: Date(), lastSyncFailureMessage: "auth expired")
+        ]
+
+        let targets = viewModel.codexHeaderRefreshTargets()
+
+        XCTAssertEqual(Set(targets.map(\.id)), Set([failed.id, normal.id]))
+    }
+}
+
+@MainActor
 final class ProviderUsageViewModelOutcomeOrderingTests: XCTestCase {
     func testBDD_GivenOutcomeOrderMismatch_WhenReplacingByAccountId_ThenUsageDoesNotDriftAcrossAccounts() {
         let provider = Provider(

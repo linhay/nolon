@@ -18,6 +18,19 @@ enum CodexUsageCardActionLayout: Equatable {
     case dualEqualWidth
 }
 
+enum ProviderUsageHeaderAction: Equatable {
+    case refreshAll
+    case login
+    case importAuth
+
+    static func orderedActions(for provider: Provider) -> [ProviderUsageHeaderAction] {
+        if provider.templateId == "codex" || provider.templateId == "codexXcode" {
+            return [.refreshAll, .login, .importAuth]
+        }
+        return [.login]
+    }
+}
+
 enum CodexUsageCardPresentationPolicy {
     static func statusKind(for state: ProviderUsageViewModel.CodexAccountDisplayState) -> CodexUsageCardStatusKind {
         switch state {
@@ -74,7 +87,7 @@ struct ProviderUsageView: View {
 
         }
         .if(!isEmbedded) { view in
-            view.navigationTitle(NSLocalizedString("tab.usage", value: "Usage", comment: "Usage"))
+            view.navigationTitle(usageNavigationTitle)
         }
         .task(id: provider.id) {
             await viewModel.loadIfNeeded()
@@ -273,36 +286,55 @@ struct ProviderUsageView: View {
             Spacer()
 
             if viewModel.usageProvider == .codex {
-                Button(NSLocalizedString("codex.accounts.login", value: "登录", comment: "Codex login")) {
-                    viewModel.startLoginFlow()
+                ForEach(ProviderUsageHeaderAction.orderedActions(for: provider), id: \.self) { action in
+                    switch action {
+                    case .refreshAll:
+                        Button(NSLocalizedString("codex.accounts.refresh_all", value: "刷新", comment: "Codex refresh all")) {
+                            Task { await viewModel.refreshFromHeader() }
+                        }
+                        .disabled(viewModel.isLoading)
+                    case .login:
+                        Button(NSLocalizedString("codex.accounts.login", value: "登录", comment: "Codex login")) {
+                            viewModel.startLoginFlow()
+                        }
+                        .disabled(viewModel.isRunningCLILogin)
+                    case .importAuth:
+                        Button(NSLocalizedString("codex.accounts.import", value: "导入", comment: "Codex import")) {
+                            viewModel.beginImportAuthFiles()
+                        }
+                    }
                 }
-                .disabled(viewModel.isRunningCLILogin)
-
-                Button(NSLocalizedString("codex.accounts.import", value: "导入", comment: "Codex import")) {
-                    viewModel.beginImportAuthFiles()
-                }
+                actionsMenu
             } else {
                 Button(NSLocalizedString("usage.monitor.login", value: "Sign in…", comment: "Sign in")) {
                     viewModel.isShowingLogin = true
                 }
+                actionsMenu
             }
-
-            actionsMenu
         }
         .onChange(of: viewModel.settings) { _, newValue in
             viewModel.updateSettings(newValue)
         }
     }
 
+    private var usageNavigationTitle: String {
+        if provider.templateId == "codex" || provider.templateId == "codexXcode" {
+            return NSLocalizedString("tab.account_usage", value: "账号与用量", comment: "Account and usage")
+        }
+        return NSLocalizedString("tab.usage", value: "Usage", comment: "Usage")
+    }
+
     private var actionsMenu: some View {
         Menu {
-            Button {
-                Task { await viewModel.load() }
-            } label: {
-                Label(NSLocalizedString("usage.monitor.refresh", value: "Refresh", comment: "Refresh"), systemImage: "arrow.clockwise")
-            }
+            if viewModel.usageProvider != .codex {
+                Button {
+                    Task { await viewModel.load() }
+                } label: {
+                    Label(NSLocalizedString("usage.monitor.refresh", value: "Refresh", comment: "Refresh"), systemImage: "arrow.clockwise")
+                }
 
-            Divider()
+                Divider()
+            }
 
             Picker(selection: autoRefreshIntervalBinding) {
                 ForEach(UsageAutoRefreshInterval.allCases) { option in

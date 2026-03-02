@@ -1729,8 +1729,8 @@
         },
         "zh-Hans" : {
           "stringUnit" : {
-            "state" : "translated",
-            "value" : "删除“%@”？这不会退出 Codex 登录，只会移除 Nolon 中保存的快照。"
+            "state" : "needs_review",
+            "value" : "从 Nolon 删除“%@”账号记录？这不会退出 Codex 登录，只会移除 Nolon 本地保存的账号记录。"
           }
         }
       }
@@ -1952,6 +1952,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "多账号"
+          }
+        }
+      }
+    },
+    "codex.accounts.refresh_all" : {
+      "comment" : "Codex refresh all",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "刷新"
           }
         }
       }
@@ -4132,30 +4144,6 @@
         }
       }
     },
-    "codex.config.editor.error.title" : {
-      "comment" : "Invalid config title",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Invalid config.toml"
-          }
-        }
-      }
-    },
-    "codex.config.editor.title" : {
-      "comment" : "Codex config editor title",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Edit config.toml"
-          }
-        }
-      }
-    },
     "codex.config.description.approval_policy" : {
       "comment" : "Description for approval_policy",
       "extractionState" : "manual",
@@ -4188,6 +4176,30 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "设置回答详细程度。低更简洁，高更详细。"
+          }
+        }
+      }
+    },
+    "codex.config.editor.error.title" : {
+      "comment" : "Invalid config title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Invalid config.toml"
+          }
+        }
+      }
+    },
+    "codex.config.editor.title" : {
+      "comment" : "Codex config editor title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Edit config.toml"
           }
         }
       }
@@ -10205,6 +10217,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "正在同步仓库..."
+          }
+        }
+      }
+    },
+    "tab.account_usage" : {
+      "comment" : "Account and usage",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "账号与用量"
           }
         }
       }

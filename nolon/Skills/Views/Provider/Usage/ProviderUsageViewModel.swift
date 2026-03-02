@@ -18,6 +18,7 @@ final class ProviderUsageViewModel {
     private static var codexInitialFullRefreshProviderIDs: Set<String> = []
     typealias CodexActivateAction = @MainActor @Sendable (CodexAuthAccount, Provider) async throws -> CodexAuthActivationResult
     typealias CodexDeleteAction = @MainActor @Sendable (UUID) async throws -> Void
+    typealias CodexRefreshAllAction = @MainActor @Sendable ([CodexAuthAccount]) async -> Void
     typealias AsyncVoidAction = @MainActor @Sendable () async -> Void
 
     private let usageMonitor: ProviderUsageMonitorService
@@ -28,6 +29,7 @@ final class ProviderUsageViewModel {
     private let postActivationLoadAction: AsyncVoidAction?
     private let codexDeleteAction: CodexDeleteAction?
     private let postDeleteLoadAction: AsyncVoidAction?
+    private let codexRefreshAllAction: CodexRefreshAllAction?
     private let usageSnapshotService = ProviderUsageSnapshotService()
     @ObservationIgnored private var usageWatcher: UsageMonitorFileWatcher? = nil
 
@@ -112,6 +114,7 @@ final class ProviderUsageViewModel {
         codexActivateAction: CodexActivateAction? = nil,
         postActivationLoadAction: AsyncVoidAction? = nil,
         codexDeleteAction: CodexDeleteAction? = nil,
+        codexRefreshAllAction: CodexRefreshAllAction? = nil,
         postDeleteLoadAction: AsyncVoidAction? = nil
     ) {
         let tokenStore = FileTokenAccountStore(fileURL: ProviderUsagePaths.defaultTokenAccountsFileURL())
@@ -130,6 +133,7 @@ final class ProviderUsageViewModel {
         }
         self.postActivationLoadAction = postActivationLoadAction
         self.codexDeleteAction = codexDeleteAction
+        self.codexRefreshAllAction = codexRefreshAllAction
         self.postDeleteLoadAction = postDeleteLoadAction
         self.updateSupportedModes()
         let watcher = UsageMonitorFileWatcher { [weak self] change in
@@ -366,6 +370,34 @@ final class ProviderUsageViewModel {
         }
 
         await load()
+    }
+
+    func refreshFromHeader() async {
+        guard !isLoading else { return }
+        guard let usageProvider else { return }
+
+        if usageProvider == .codex, isMultiAccountEnabled {
+            if codexAccounts.isEmpty {
+                await load()
+                return
+            }
+
+            let targets = codexHeaderRefreshTargets()
+            guard !targets.isEmpty else { return }
+
+            if let codexRefreshAllAction {
+                await codexRefreshAllAction(targets)
+            } else {
+                await refreshCodexAccountsInParallel(targets)
+            }
+            return
+        }
+
+        await load()
+    }
+
+    func codexHeaderRefreshTargets() -> [CodexAuthAccount] {
+        orderedAccounts(activeId: activeCodexAccountId)
     }
 
     func setCodexTrendRange(_ range: CodexTrendRange) {
