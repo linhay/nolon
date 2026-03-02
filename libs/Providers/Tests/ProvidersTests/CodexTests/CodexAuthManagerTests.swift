@@ -2,6 +2,7 @@ import Foundation
 import Testing
 import ProviderCatalog
 import STFilePath
+import STJSON
 @testable import ProviderUsage
 
 @Suite("CodexAuthManager")
@@ -112,6 +113,58 @@ struct CodexAuthManagerTests {
 
         let activeId = await manager.activeAccountId(for: provider)
         #expect(activeId == account.id)
+    }
+
+    @Test("Given snapshot drift right after activation, when preflight runs then active snapshot is restored from activation baseline")
+    func activateAccountAndMarkActiveSeedsDriftRestoreBaseline() async throws {
+        let root = try makeTempRoot("codex-auth-activate-drift-baseline")
+        defer { try? root.delete() }
+
+        let manager = CodexAuthManager(rootURL: root.url)
+        let active = try await manager.addAccount(
+            name: "active",
+            authJSONString: #"{"tokens":{"id_token":"id-active","access_token":"access-active"},"user":{"email":"active@example.com"}}"#
+        )
+        let providerRoot = root.folder("provider")
+        _ = providerRoot.createIfNotExists()
+        let provider = Provider(
+            name: "Codex",
+            defaultSkillsPath: providerRoot.folder("skills").url.path,
+            workflowPath: providerRoot.folder("prompts").url.path,
+            installMethod: .symlink,
+            templateId: "codex"
+        )
+
+        try await manager.activateAccountAndMarkActive(active, for: provider)
+
+        let driftedRaw = #"{"tokens":{"id_token":"id-drift","access_token":"access-drift"},"user":{"email":"drift-after-activate@example.com"}}"#
+        let activeID = try #require(await manager.activeAccountId(for: provider))
+        let activeResolved = try #require((try await manager.loadAccounts()).first(where: { $0.id == activeID }))
+        let activeFile = await manager.accountAuthFile(activeResolved)
+        try activeFile.overlay(with: Data(driftedRaw.utf8))
+
+        _ = try await manager.preflightManagedAuthIfNeeded(
+            for: provider,
+            forceBackup: false,
+            reason: "post_activate_detect_drift"
+        )
+
+        let restoredActiveID = try #require(await manager.activeAccountId(for: provider))
+        let restoredActive = try #require((try await manager.loadAccounts()).first(where: { $0.id == restoredActiveID }))
+        let restoredSummary = CodexAuthSummary.fromJSONData(try await manager.accountAuthFile(restoredActive).data())
+        #expect(restoredSummary.email == "active@example.com")
+
+        let accounts = try await manager.loadAccounts()
+        var driftedFound = false
+        for account in accounts where account.id != restoredActiveID {
+            let file = await manager.accountAuthFile(account)
+            let summary = CodexAuthSummary.fromJSONData((try? file.data()) ?? Data())
+            if summary.email == "drift-after-activate@example.com" {
+                driftedFound = true
+                break
+            }
+        }
+        #expect(driftedFound == true)
     }
 
     @Test("Given fresh CLI login, when finalizing, then account is active and provider auth contains new token")
@@ -231,20 +284,21 @@ struct CodexAuthManagerTests {
         try detachedRaw.write(to: detachedAuthURL, atomically: true, encoding: .utf8)
 
         let reconciled = try await manager.reconcileDetachedProviderAuthIfNeeded(for: provider)
-        #expect(reconciled?.id == existing.id)
+        let resolved = try #require(reconciled)
+        #expect(resolved.id == existing.id)
 
-        let tokenPair = try await manager.readTokenPair(for: existing)
+        let tokenPair = try await manager.readTokenPair(for: resolved)
         #expect(tokenPair?.idToken == "new-id")
         #expect(tokenPair?.accessToken == "new-access")
 
         let providerAuth = try #require(await manager.authFile(for: provider))
         #expect(providerAuth.isSymbolicLink == true)
         let destination = try providerAuth.destinationOfSymbolicLink()
-        let snapshotPath = await manager.accountAuthFile(existing).url.path
+        let snapshotPath = await manager.accountAuthFile(resolved).url.path
         #expect(STPath.standardizedPath(destination.url.path).path == STPath.standardizedPath(snapshotPath).path)
 
         let activeId = await manager.activeAccountId(for: provider)
-        #expect(activeId == existing.id)
+        #expect(activeId == resolved.id)
     }
 
     @Test("Given detached provider auth without matching snapshot, when reconciling detached auth, then migrate to new snapshot and relink provider auth")
@@ -400,6 +454,31 @@ struct CodexAuthManagerTests {
         #expect(matched?.id == accountIDMatch.id)
     }
 
+    @Test("Given two snapshots share api key suffix, when recording login snapshot, then exact api key account is updated without drifting into newer file")
+    func recordCLILoginSnapshotMatchesExactAPIKeyWithoutSuffixDrift() async throws {
+        let root = try makeTempRoot("codex-auth-match-exact-api-key")
+        defer { try? root.delete() }
+
+        let manager = CodexAuthManager(rootURL: root.url)
+        let older = try await manager.addAccount(
+            name: "older",
+            authJSONString: #"{"OPENAI_API_KEY":"sk-alpha-1234"}"#
+        )
+        let newer = try await manager.addAccount(
+            name: "newer",
+            authJSONString: #"{"OPENAI_API_KEY":"sk-beta-1234"}"#
+        )
+
+        let updated = try await manager.recordCLILoginSnapshot(
+            authJSONString: #"{"OPENAI_API_KEY":"sk-alpha-1234"}"#,
+            preferredAccountID: nil
+        )
+        #expect(updated.id == older.id)
+
+        let newerRaw = try await manager.accountAuthFile(newer).read()
+        #expect(newerRaw.contains("\"OPENAI_API_KEY\":\"sk-beta-1234\""))
+    }
+
     @Test("Given detached provider auth with invalid json and healthy snapshot, when preflight runs then snapshot is kept as source of truth")
     func preflightPrefersHealthySnapshotWhenProviderAuthBroken() async throws {
         let root = try makeTempRoot("codex-auth-preflight-prefer-snapshot")
@@ -423,7 +502,7 @@ struct CodexAuthManagerTests {
 
         try await manager.activateAccountAndMarkActive(snapshot, for: provider)
         let providerAuth = try #require(await manager.authFile(for: provider))
-        if providerAuth.isExists {
+        if providerAuth.isExists || providerAuth.isSymbolicLink {
             try providerAuth.delete()
         }
         try "not-json".write(to: providerAuth.url, atomically: true, encoding: .utf8)
@@ -458,17 +537,21 @@ struct CodexAuthManagerTests {
         _ = try await manager.preflightManagedAuthIfNeeded(for: provider, forceBackup: true, reason: "seed_backup")
 
         let driftedRaw = #"{"tokens":{"id_token":"id-drift","access_token":"access-drift"},"user":{"email":"drift@example.com"}}"#
-        let activeFile = await manager.accountAuthFile(active)
+        let activeID = try #require(await manager.activeAccountId(for: provider))
+        let activeResolved = try #require((try await manager.loadAccounts()).first(where: { $0.id == activeID }))
+        let activeFile = await manager.accountAuthFile(activeResolved)
         try activeFile.overlay(with: Data(driftedRaw.utf8))
 
         _ = try await manager.preflightManagedAuthIfNeeded(for: provider, forceBackup: false, reason: "detect_drift")
 
-        let restoredSummary = CodexAuthSummary.fromJSONData(try activeFile.data())
+        let restoredActiveID = try #require(await manager.activeAccountId(for: provider))
+        let restoredActive = try #require((try await manager.loadAccounts()).first(where: { $0.id == restoredActiveID }))
+        let restoredSummary = CodexAuthSummary.fromJSONData(try await manager.accountAuthFile(restoredActive).data())
         #expect(restoredSummary.email == "active@example.com")
 
         let accounts = try await manager.loadAccounts()
         var driftedFound = false
-        for account in accounts where account.id != active.id {
+        for account in accounts where account.id != restoredActiveID {
             let file = await manager.accountAuthFile(account)
             let summary = CodexAuthSummary.fromJSONData((try? file.data()) ?? Data())
             if summary.email == "drift@example.com" {
@@ -477,5 +560,107 @@ struct CodexAuthManagerTests {
             }
         }
         #expect(driftedFound == true)
+    }
+
+    @Test("Given duplicate snapshot ids and wrong relative path metadata, when loading accounts then id collision is healed and relative path is corrected")
+    func loadAccountsHealsDuplicateIDsAndWrongRelativePath() async throws {
+        let root = try makeTempRoot("codex-auth-heal-duplicate-id")
+        defer { try? root.delete() }
+
+        let manager = CodexAuthManager(rootURL: root.url)
+        let canonical = try await manager.addAccount(
+            name: "linhan",
+            authJSONString: #"{"tokens":{"id_token":"id-1","access_token":"access-1"},"user":{"email":"linhan.bigl055@gmail.com"}}"#
+        )
+        let duplicate = try await manager.addAccount(
+            name: "robbins",
+            authJSONString: #"{"tokens":{"id_token":"id-2","access_token":"access-2"},"user":{"email":"robbinsterry3456@gmail.com"}}"#
+        )
+
+        let canonicalFile = await manager.accountAuthFile(canonical)
+        let duplicateFile = await manager.accountAuthFile(duplicate)
+        let canonicalRaw = try canonicalFile.read()
+        let polluted = canonicalRaw
+            .replacingOccurrences(of: "linhan.bigl055@gmail.com", with: "robbinsterry3456@gmail.com")
+            .replacingOccurrences(of: "\"id-1\"", with: "\"id-2\"")
+            .replacingOccurrences(of: "\"access-1\"", with: "\"access-2\"")
+        try duplicateFile.overlay(with: Data(polluted.utf8))
+
+        let accounts = try await manager.loadAccounts()
+        #expect(accounts.count == 2)
+
+        var accountByEmail: [String: CodexAuthAccount] = [:]
+        for account in accounts {
+            let summary = CodexAuthSummary.fromJSONData((try? await manager.accountAuthFile(account).data()) ?? Data())
+            if let email = summary.email?.lowercased() {
+                accountByEmail[email] = account
+            }
+        }
+
+        let canonicalAfter = try #require(accountByEmail["linhan.bigl055@gmail.com"])
+        let duplicateAfter = try #require(accountByEmail["robbinsterry3456@gmail.com"])
+        #expect(canonicalAfter.id == canonical.id)
+        #expect(duplicateAfter.id != canonical.id)
+
+        let duplicateAfterFile = await manager.accountAuthFile(duplicateAfter)
+        let duplicateJSON = try #require(try? JSON(data: duplicateAfterFile.data()))
+        #expect(duplicateJSON["nolon"]["account"]["relativeAuthPath"].string == duplicateAfter.relativeAuthPath)
+        #expect(duplicateJSON["nolon"]["account"]["id"].string == duplicateAfter.id.uuidString)
+    }
+
+    @Test("Given duplicated snapshot payload in another file, when loading accounts then duplicate file is pruned")
+    func loadAccountsPrunesDuplicatedSnapshotPayloadFile() async throws {
+        let root = try makeTempRoot("codex-auth-prune-duplicate-payload")
+        defer { try? root.delete() }
+
+        let manager = CodexAuthManager(rootURL: root.url)
+        let canonical = try await manager.addAccount(
+            name: "linhan",
+            authJSONString: #"{"tokens":{"id_token":"id-1","access_token":"access-1"},"user":{"email":"linhan.bigl055@gmail.com"}}"#
+        )
+        let duplicate = try await manager.addAccount(
+            name: "robbins",
+            authJSONString: #"{"tokens":{"id_token":"id-2","access_token":"access-2"},"user":{"email":"robbinsterry3456@gmail.com"}}"#
+        )
+
+        let canonicalFile = await manager.accountAuthFile(canonical)
+        let duplicateFile = await manager.accountAuthFile(duplicate)
+        try duplicateFile.overlay(with: Data(try canonicalFile.read().utf8))
+
+        let accounts = try await manager.loadAccounts()
+        #expect(accounts.count == 1)
+        let kept = try #require(accounts.first)
+        let keptSummary = CodexAuthSummary.fromJSONData((try? await manager.accountAuthFile(kept).data()) ?? Data())
+        #expect(keptSummary.email?.lowercased() == "linhan.bigl055@gmail.com")
+        #expect(duplicateFile.isExists == false)
+    }
+
+    @Test("Given snapshot file name mismatched with email, when loading accounts then snapshot file is renamed to match email")
+    func loadAccountsAlignsSnapshotFileNameWithEmail() async throws {
+        let root = try makeTempRoot("codex-auth-align-file-name")
+        defer { try? root.delete() }
+
+        let manager = CodexAuthManager(rootURL: root.url)
+        let account = try await manager.addAccount(
+            name: "dzurillaisadore@gmail.com",
+            authJSONString: #"{"tokens":{"id_token":"id-1","access_token":"access-1"},"user":{"email":"linhan.bigl055@gmail.com"}}"#
+        )
+
+        let oldPath = account.relativeAuthPath
+        let oldFile = await manager.accountAuthFile(account)
+        #expect(oldFile.isExists == true)
+
+        let accounts = try await manager.loadAccounts()
+        let aligned = try #require(accounts.first(where: { $0.id == account.id }))
+        #expect(aligned.relativeAuthPath == "auth/linhan-bigl055-gmail-com.json")
+
+        let newFile = await manager.accountAuthFile(aligned)
+        #expect(newFile.isExists == true)
+        #expect(oldFile.isExists == false)
+
+        let json = try #require(try? JSON(data: newFile.data()))
+        #expect(json["nolon"]["account"]["relativeAuthPath"].string == aligned.relativeAuthPath)
+        #expect((json["email"].string ?? "").lowercased() == "linhan.bigl055@gmail.com")
+        #expect(oldPath != aligned.relativeAuthPath)
     }
 }

@@ -322,7 +322,8 @@ public actor CodexAuthManager {
 
     private func loadAccountsFromAuthFolder() throws -> [CodexAuthAccount] {
         let folder = nolonCodexAuthFolder()
-        let files = (try? folder.files()) ?? []
+        let files = ((try? folder.files()) ?? [])
+            .sorted(by: { $0.attributes.name < $1.attributes.name })
 
         var accounts: [CodexAuthAccount] = []
         accounts.reserveCapacity(files.count)
@@ -338,6 +339,9 @@ public actor CodexAuthManager {
             }
         }
 
+        accounts = try healDuplicateAccountIDsIfNeeded(accounts)
+        accounts = try pruneDuplicateSnapshotPayloadsIfNeeded(accounts)
+        accounts = try alignSnapshotFileNamesWithEmailIfNeeded(accounts)
         accounts.sort(by: { $0.createdAt > $1.createdAt })
         return accounts
     }
@@ -637,9 +641,7 @@ public actor CodexAuthManager {
         _ = authFile.parentFolder()?.createIfNotExists()
 
         // Replace existing auth.json (file or symlink) with a symlink to the selected snapshot.
-        if authFile.isExists {
-            try authFile.delete()
-        }
+        try removeFileOrSymlinkIfPresent(authFile)
 
         let sourceFile = accountAuthFile(account)
         try authFile.createSymbolicLink(to: sourceFile)
@@ -649,9 +651,14 @@ public actor CodexAuthManager {
 
     /// Activate snapshot into provider auth and persist active-account registry in one step.
     public func activateAccountAndMarkActive(_ account: CodexAuthAccount, for provider: Provider) throws {
-        try activateAccount(account, for: provider)
-        try setActiveAccount(account, for: provider)
-        _ = try reconcileDetachedProviderAuthIfNeeded(for: provider)
+        try withAuthFileLock {
+            try activateAccount(account, for: provider)
+            try setActiveAccount(account, for: provider)
+            _ = try reconcileProviderAuthWithSnapshotsIfNeeded(for: provider)
+            // Establish a fresh restore baseline immediately after activation.
+            try backupActiveSnapshotIfNeeded(for: provider, force: true, reason: "activate_account")
+            try persistActiveFingerprintIfNeeded(for: provider)
+        }
     }
 
     /// Safety check after activation/login:
@@ -693,16 +700,16 @@ public actor CodexAuthManager {
         _ = codexHome.createIfNotExists()
 
         guard let authFile = authFile(for: provider) else { throw CLILoginError.codexHomeUnavailable }
-        guard authFile.isExists else { return }
+        guard authFile.isExists || authFile.isSymbolicLink else { return }
         if authFile.isSymbolicLink {
             // The active auth is already stored elsewhere; just detach so `codex login` can write a fresh file.
-            try authFile.delete()
+            try removeFileOrSymlinkIfPresent(authFile)
             return
         }
 
         // Regular file: if it matches an existing snapshot, just detach to avoid duplicating the account.
         if await activeAccountId(for: provider) != nil {
-            try authFile.delete()
+            try removeFileOrSymlinkIfPresent(authFile)
             return
         }
 
@@ -711,7 +718,7 @@ public actor CodexAuthManager {
         let defaultName = deriveAccountName(fromAuthJSONString: raw)
         let name = (archiveAccountName?.trimmingCharacters(in: .whitespacesAndNewlines)).flatMap { $0.isEmpty ? nil : $0 } ?? defaultName
         _ = try await addAccount(name: name, authJSONString: raw)
-        try authFile.delete()
+        try removeFileOrSymlinkIfPresent(authFile)
     }
 
     /// After the user finishes `codex login`, call this to snapshot the freshly created `auth.json`
@@ -726,8 +733,7 @@ public actor CodexAuthManager {
         let name = trimmed.isEmpty ? deriveAccountName(fromAuthJSONString: raw) : trimmed
 
         let account = try await addAccount(name: name, authJSONString: raw)
-        try activateAccount(account, for: provider)
-        try setActiveAccount(account, for: provider)
+        try activateAccountAndMarkActive(account, for: provider)
         return account
     }
 
@@ -889,6 +895,7 @@ private extension CodexAuthManager {
         let data: Data
         let cleanedData: Data
         let summary: CodexAuthSummary
+        let apiKey: String?
     }
 
     private struct AuthSourceCandidate {
@@ -925,6 +932,16 @@ private extension CodexAuthManager {
         return try body()
     }
 
+    private func removeFileOrSymlinkIfPresent(_ file: STFile) throws {
+        do {
+            try FileManager.default.removeItem(at: file.url)
+        } catch let error as NSError where error.domain == NSCocoaErrorDomain && error.code == NSFileNoSuchFileError {
+            return
+        } catch let error as NSError where error.domain == NSPOSIXErrorDomain && error.code == ENOENT {
+            return
+        }
+    }
+
     @discardableResult
     private func reconcileProviderAuthWithSnapshotsIfNeeded(for provider: Provider) throws -> CodexAuthAccount? {
         guard Self.isCodexTemplate(provider.templateId),
@@ -938,6 +955,19 @@ private extension CodexAuthManager {
                let active = snapshots.first(where: { $0.id == activeID }) {
                 try relinkProviderAuth(providerAuthFile: providerAuthFile, resolved: active, provider: provider)
                 return active
+            }
+            if let expectedHash = loadActiveFingerprintMap()[provider.id] {
+                for snapshot in snapshots {
+                    guard let data = try? accountAuthFile(snapshot).data(), !data.isEmpty else { continue }
+                    if cleanedHashHex(for: data) == expectedHash {
+                        try relinkProviderAuth(providerAuthFile: providerAuthFile, resolved: snapshot, provider: provider)
+                        return snapshot
+                    }
+                }
+            }
+            if snapshots.count == 1, let lone = snapshots.first {
+                try relinkProviderAuth(providerAuthFile: providerAuthFile, resolved: lone, provider: provider)
+                return lone
             }
             return nil
         }
@@ -1003,9 +1033,7 @@ private extension CodexAuthManager {
     }
 
     private func relinkProviderAuth(providerAuthFile: STFile, resolved: CodexAuthAccount, provider: Provider) throws {
-        if providerAuthFile.isExists {
-            try providerAuthFile.delete()
-        }
+        try removeFileOrSymlinkIfPresent(providerAuthFile)
         try providerAuthFile.createSymbolicLink(to: accountAuthFile(resolved))
         try setActiveAccount(resolved, for: provider)
     }
@@ -1209,20 +1237,21 @@ private extension CodexAuthManager {
         try activeFile.overlay(with: backupData)
         let restoredAccount = try loadAccount(file: activeFile, relativeAuthPath: activeAccount.relativeAuthPath)
         let refreshedSnapshots = try loadAccountsFromAuthFolder()
+        let refreshedRestoredAccount = refreshedSnapshots.first(where: { $0.id == restoredAccount.id }) ?? restoredAccount
         _ = try upsertSnapshotFromProviderData(
             authData: activeData,
             providerRaw: String(data: activeData, encoding: .utf8),
             snapshots: refreshedSnapshots,
-            excludedAccountID: restoredAccount.id
+            excludedAccountID: refreshedRestoredAccount.id
         )
-        try relinkProviderAuth(providerAuthFile: providerAuthFile, resolved: restoredAccount, provider: provider)
+        try relinkProviderAuth(providerAuthFile: providerAuthFile, resolved: refreshedRestoredAccount, provider: provider)
 
         fingerprints[provider.id] = previousHash
         try saveActiveFingerprintMap(fingerprints)
         Self.logger.info(
-            "Codex active snapshot restored from backup after external drift. provider=\(provider.id, privacy: .public) active=\(restoredAccount.id.uuidString, privacy: .public)"
+            "Codex active snapshot restored from backup after external drift. provider=\(provider.id, privacy: .public) active=\(refreshedRestoredAccount.id.uuidString, privacy: .public)"
         )
-        return restoredAccount
+        return refreshedRestoredAccount
     }
 
     private func isSameIdentity(_ lhs: CodexAuthSummary, _ rhs: CodexAuthSummary) -> Bool {
@@ -1457,7 +1486,8 @@ private extension CodexAuthManager {
             else { continue }
             let cleaned = Self.cleanedAuthJSONData(from: data) ?? data
             let summary = CodexAuthSummary.fromJSONData(data)
-            snapshots.append(AccountSnapshot(account: account, data: data, cleanedData: cleaned, summary: summary))
+            let apiKey = extractAPIKey(from: data)
+            snapshots.append(AccountSnapshot(account: account, data: data, cleanedData: cleaned, summary: summary, apiKey: apiKey))
         }
 
         return snapshots
@@ -1513,7 +1543,7 @@ private extension CodexAuthManager {
         let authSummary = CodexAuthSummary.fromJSONData(authData)
         let authEmail = normalizedEmail(authSummary.email)
         let authAccountID = normalizedAccountID(authSummary.accountID)
-        let authSuffix = authSummary.apiKeySuffix?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let authAPIKey = extractAPIKey(from: authData)
 
         let emailMatches = snapshots.compactMap { snapshot -> CodexAuthAccount? in
             guard let authEmail,
@@ -1531,10 +1561,10 @@ private extension CodexAuthManager {
             return snapshot.account
         }
 
-        let suffixMatches = snapshots.compactMap { snapshot -> CodexAuthAccount? in
-            guard let authSuffix,
-                  let suffix = snapshot.summary.apiKeySuffix?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
-                  suffix == authSuffix
+        let apiKeyMatches = snapshots.compactMap { snapshot -> CodexAuthAccount? in
+            guard let authAPIKey,
+                  let apiKey = snapshot.apiKey,
+                  apiKey == authAPIKey
             else { return nil }
             return snapshot.account
         }
@@ -1545,13 +1575,33 @@ private extension CodexAuthManager {
         if let match = pickLatestAccount(from: accountIDMatches) {
             return match
         }
-        if let match = pickLatestAccount(from: suffixMatches) {
+        if let match = pickLatestAccount(from: apiKeyMatches) {
             return match
         }
 
         let cleanedAuthData = Self.cleanedAuthJSONData(from: authData) ?? authData
         if let match = snapshots.first(where: { $0.cleanedData == cleanedAuthData }) {
             return match.account
+        }
+        return nil
+    }
+
+    func extractAPIKey(from data: Data) -> String? {
+        guard let json = try? JSON(data: data) else { return nil }
+        let candidates: [String?] = [
+            json["OPENAI_API_KEY"].string,
+            json["openai_api_key"].string,
+            json["api_key"].string,
+            json["apiKey"].string,
+            json["token"].string,
+            json["access_token"].string,
+            json["tokens"]["access_token"].string,
+        ]
+        for candidate in candidates {
+            guard let value = candidate?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !value.isEmpty
+            else { continue }
+            return value
         }
         return nil
     }
@@ -1648,6 +1698,13 @@ private extension CodexAuthManager {
             changed = true
         }
 
+        let existingRelativePath = getString(rootObject, path: ["nolon", "account", "relativeAuthPath"])?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if existingRelativePath != relativeAuthPath {
+            setValue(relativeAuthPath, path: ["nolon", "account", "relativeAuthPath"], dict: &rootObject)
+            changed = true
+        }
+
         let existingCreatedAt = getString(rootObject, path: ["nolon", "account", "createdAt"]).flatMap { Self.makeISOFormatter().date(from: $0) }
         let createdAt = existingCreatedAt ?? fallbackCreatedAt
         if existingCreatedAt == nil {
@@ -1684,6 +1741,171 @@ private extension CodexAuthManager {
         }
 
         return CodexAuthAccount(id: id, name: name, createdAt: createdAt, relativeAuthPath: relativeAuthPath)
+    }
+
+    func healDuplicateAccountIDsIfNeeded(_ accounts: [CodexAuthAccount]) throws -> [CodexAuthAccount] {
+        guard !accounts.isEmpty else { return accounts }
+
+        var healed = accounts
+        var seen = Set<UUID>()
+
+        for index in healed.indices {
+            let account = healed[index]
+            if seen.insert(account.id).inserted {
+                continue
+            }
+
+            let file = accountAuthFile(account)
+            do {
+                let raw = try file.read()
+                let newID = UUID()
+                try writeAccountFile(
+                    file: file,
+                    relativeAuthPath: account.relativeAuthPath,
+                    authJSONString: raw,
+                    preferredId: newID,
+                    preferredName: account.name,
+                    preferredCreatedAt: account.createdAt
+                )
+                let reloaded = try loadAccount(file: file, relativeAuthPath: account.relativeAuthPath)
+                healed[index] = reloaded
+                _ = seen.insert(reloaded.id)
+                Self.logger.warning(
+                    "Detected duplicate Codex snapshot id, reassigned account identity. file=\(account.relativeAuthPath, privacy: .public) old=\(account.id.uuidString, privacy: .public) new=\(reloaded.id.uuidString, privacy: .public)"
+                )
+            } catch {
+                Self.logger.error(
+                    "Failed to heal duplicate Codex snapshot id. file=\(account.relativeAuthPath, privacy: .public) id=\(account.id.uuidString, privacy: .public) error=\(String(describing: error), privacy: .public)"
+                )
+            }
+        }
+
+        return healed
+    }
+
+    func pruneDuplicateSnapshotPayloadsIfNeeded(_ accounts: [CodexAuthAccount]) throws -> [CodexAuthAccount] {
+        guard accounts.count > 1 else { return accounts }
+
+        let snapshots = loadAccountSnapshots(for: accounts)
+        guard snapshots.count > 1 else { return accounts }
+
+        var grouped: [String: [AccountSnapshot]] = [:]
+        grouped.reserveCapacity(snapshots.count)
+        for snapshot in snapshots {
+            let key = cleanedHashHex(for: snapshot.cleanedData)
+            grouped[key, default: []].append(snapshot)
+        }
+
+        let activeMap = loadActiveAccountMap()
+        let activeIDs = Set(activeMap.values.compactMap(UUID.init(uuidString:)))
+        var removedIDs = Set<UUID>()
+        var replacementByRemovedID: [UUID: UUID] = [:]
+
+        for group in grouped.values where group.count > 1 {
+            let ordered = group.sorted { lhs, rhs in
+                let lhsActive = activeIDs.contains(lhs.account.id)
+                let rhsActive = activeIDs.contains(rhs.account.id)
+                if lhsActive != rhsActive {
+                    return lhsActive && !rhsActive
+                }
+                if lhs.account.createdAt != rhs.account.createdAt {
+                    return lhs.account.createdAt < rhs.account.createdAt
+                }
+                return lhs.account.relativeAuthPath < rhs.account.relativeAuthPath
+            }
+
+            guard let keeper = ordered.first else { continue }
+            for duplicate in ordered.dropFirst() {
+                let duplicateFile = accountAuthFile(duplicate.account)
+                do {
+                    if duplicateFile.isExists {
+                        try duplicateFile.delete()
+                    }
+                    removedIDs.insert(duplicate.account.id)
+                    replacementByRemovedID[duplicate.account.id] = keeper.account.id
+                    Self.logger.warning(
+                        "Removed duplicate Codex snapshot payload. removed=\(duplicate.account.relativeAuthPath, privacy: .public) kept=\(keeper.account.relativeAuthPath, privacy: .public)"
+                    )
+                } catch {
+                    Self.logger.error(
+                        "Failed to remove duplicate Codex snapshot payload. file=\(duplicate.account.relativeAuthPath, privacy: .public) error=\(String(describing: error), privacy: .public)"
+                    )
+                }
+            }
+        }
+
+        guard !removedIDs.isEmpty else { return accounts }
+
+        var nextMap = activeMap
+        var mapChanged = false
+        for (providerID, rawID) in activeMap {
+            guard let id = UUID(uuidString: rawID) else { continue }
+            if let replacement = replacementByRemovedID[id] {
+                nextMap[providerID] = replacement.uuidString
+                mapChanged = true
+            } else if removedIDs.contains(id) {
+                nextMap.removeValue(forKey: providerID)
+                mapChanged = true
+            }
+        }
+        if mapChanged {
+            try saveActiveAccountMap(nextMap)
+        }
+
+        return accounts.filter { !removedIDs.contains($0.id) }
+    }
+
+    func alignSnapshotFileNamesWithEmailIfNeeded(_ accounts: [CodexAuthAccount]) throws -> [CodexAuthAccount] {
+        guard !accounts.isEmpty else { return accounts }
+
+        var aligned = accounts
+        var usedPaths = Set(accounts.map(\.relativeAuthPath))
+
+        for index in aligned.indices {
+            let account = aligned[index]
+            let file = accountAuthFile(account)
+            guard let data = try? file.data(), !data.isEmpty else { continue }
+            let summary = CodexAuthSummary.fromJSONData(data)
+            guard let email = normalizedEmail(summary.email) else { continue }
+
+            usedPaths.remove(account.relativeAuthPath)
+            let expectedFileName = uniqueAuthFileName(for: email, existing: usedPaths)
+            let expectedRelativePath = "auth/\(expectedFileName)"
+            guard expectedRelativePath != account.relativeAuthPath else {
+                usedPaths.insert(account.relativeAuthPath)
+                continue
+            }
+
+            let targetFile = accountAuthFile(relativeAuthPath: expectedRelativePath)
+            do {
+                if targetFile.isExists {
+                    try targetFile.delete()
+                }
+                try file.move(to: targetFile)
+                let movedRaw = try targetFile.read()
+                try writeAccountFile(
+                    file: targetFile,
+                    relativeAuthPath: expectedRelativePath,
+                    authJSONString: movedRaw,
+                    preferredId: account.id,
+                    preferredName: account.name,
+                    preferredCreatedAt: account.createdAt
+                )
+                let reloaded = try loadAccount(file: targetFile, relativeAuthPath: expectedRelativePath)
+                aligned[index] = reloaded
+                usedPaths.insert(expectedRelativePath)
+                Self.logger.warning(
+                    "Renamed Codex snapshot to align file name with email. from=\(account.relativeAuthPath, privacy: .public) to=\(expectedRelativePath, privacy: .public)"
+                )
+            } catch {
+                usedPaths.insert(account.relativeAuthPath)
+                Self.logger.error(
+                    "Failed to align Codex snapshot file name with email. file=\(account.relativeAuthPath, privacy: .public) error=\(String(describing: error), privacy: .public)"
+                )
+            }
+        }
+
+        return aligned
     }
 
     func writeAccountFile(

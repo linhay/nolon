@@ -1467,19 +1467,27 @@ final class ProviderUsageViewModel {
 
     private func orderedAccounts(activeId: UUID?) -> [CodexAuthAccount] {
         guard !codexAccounts.isEmpty else { return [] }
+        let uniqueAccounts = uniqueCodexAccountsInDisplayOrder()
         let resolvedActiveID: UUID? = {
             if let activeId { return activeId }
-            if let active = activeCodexAccountForRefresh() { return active.id }
+            if let active = uniqueAccounts.first(where: { account in
+                if let current = activeCodexAccountForRefresh() {
+                    return account.id == current.id
+                }
+                return false
+            }) {
+                return active.id
+            }
             return nil
         }()
-        guard let resolvedActiveID else { return codexAccounts }
+        guard let resolvedActiveID else { return uniqueAccounts }
 
         var ordered: [CodexAuthAccount] = []
-        ordered.reserveCapacity(codexAccounts.count)
-        if let active = codexAccounts.first(where: { $0.id == resolvedActiveID }) {
+        ordered.reserveCapacity(uniqueAccounts.count)
+        if let active = uniqueAccounts.first(where: { $0.id == resolvedActiveID }) {
             ordered.append(active)
         }
-        ordered.append(contentsOf: codexAccounts.filter { $0.id != resolvedActiveID })
+        ordered.append(contentsOf: uniqueAccounts.filter { $0.id != resolvedActiveID })
         return ordered
     }
 
@@ -1596,7 +1604,7 @@ final class ProviderUsageViewModel {
             uniquingKeysWith: { _, newest in newest }
         )
 
-        let ordered = codexAccounts.compactMap { byAccountID[$0.id] }
+        let ordered = uniqueCodexAccountIDsInDisplayOrder().compactMap { byAccountID[$0] }
         let unknowns = codexAccountOutcomes.filter { outcome in
             switch outcome.account {
             case let .tokenAccount(account):
@@ -1607,6 +1615,26 @@ final class ProviderUsageViewModel {
         }
 
         codexAccountOutcomes = ordered + unknowns
+    }
+
+    private func uniqueCodexAccountIDsInDisplayOrder() -> [UUID] {
+        var seen: Set<UUID> = []
+        return codexAccounts.compactMap { account in
+            if seen.insert(account.id).inserted {
+                return account.id
+            }
+            return nil
+        }
+    }
+
+    private func uniqueCodexAccountsInDisplayOrder() -> [CodexAuthAccount] {
+        var seen: Set<UUID> = []
+        return codexAccounts.compactMap { account in
+            if seen.insert(account.id).inserted {
+                return account
+            }
+            return nil
+        }
     }
 
     private func isAccountInfoMissing(accountId: UUID, summaries: [UUID: CodexAuthSummary]) -> Bool {

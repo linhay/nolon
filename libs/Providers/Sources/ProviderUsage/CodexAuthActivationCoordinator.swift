@@ -41,6 +41,12 @@ public actor CodexAuthActivationCoordinator {
         provider: Provider
     ) async throws -> CodexAuthActivationResult {
         try await authActivate(account, provider)
+        return CodexAuthActivationResult(runtimeSwitched: false, runtimeErrorDescription: nil)
+    }
+
+    public func activateRuntime(
+        account: CodexAuthAccount
+    ) async -> CodexAuthActivationResult {
         do {
             try await runtimeActivate(account)
             return CodexAuthActivationResult(runtimeSwitched: true, runtimeErrorDescription: nil)

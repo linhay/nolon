@@ -669,6 +669,32 @@ final class ProviderUsageViewModelOutcomeOrderingTests: XCTestCase {
         XCTAssertEqual(viewModel.codexAccountOutcomes[1].displayName, "old-second")
     }
 
+    func testBDD_GivenDuplicatedCodexAccounts_WhenReordering_ThenDisplayOutcomesRemainUniqueByAccountID() {
+        let provider = Provider(
+            name: "Codex",
+            defaultSkillsPath: "/tmp/codex-skills",
+            workflowPath: "/tmp/codex-prompts",
+            installMethod: .symlink,
+            templateId: "codex"
+        )
+
+        let duplicated = CodexAuthAccount(name: "duplicated", relativeAuthPath: "auth/duplicated.json")
+        let normal = CodexAuthAccount(name: "normal", relativeAuthPath: "auth/normal.json")
+        let viewModel = ProviderUsageViewModel(provider: provider)
+
+        viewModel.codexAccounts = [duplicated, duplicated, normal]
+        viewModel.codexAccountOutcomes = [
+            makeOutcome(account: duplicated, label: "duplicated"),
+            makeOutcome(account: normal, label: "normal")
+        ]
+
+        viewModel.reorderCodexAccountOutcomesForDisplay()
+
+        XCTAssertEqual(viewModel.codexAccountOutcomes.count, 2)
+        XCTAssertEqual(Set(viewModel.codexAccountOutcomes.map(\.id)).count, 2)
+        XCTAssertEqual(viewModel.codexAccountOutcomes.map(\.displayName), ["duplicated", "normal"])
+    }
+
     private func makeOutcome(account: CodexAuthAccount, label: String) -> ProviderAccountUsageOutcome {
         let usage = UsageSnapshot(
             identity: UsageIdentity(accountEmail: "\(label)@example.com", accountOrganization: nil, loginMethod: "oauth", plan: "plus"),
