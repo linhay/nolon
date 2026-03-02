@@ -642,6 +642,33 @@ final class ProviderUsageViewModelOutcomeOrderingTests: XCTestCase {
         XCTAssertEqual(secondLabel, "new-second")
     }
 
+    func testBDD_GivenDuplicatedAccountOutcomes_WhenReordering_ThenKeepsLatestWithoutCrash() {
+        let provider = Provider(
+            name: "Codex",
+            defaultSkillsPath: "/tmp/codex-skills",
+            workflowPath: "/tmp/codex-prompts",
+            installMethod: .symlink,
+            templateId: "codex"
+        )
+
+        let first = CodexAuthAccount(name: "first", relativeAuthPath: "auth/first.json")
+        let second = CodexAuthAccount(name: "second", relativeAuthPath: "auth/second.json")
+        let viewModel = ProviderUsageViewModel(provider: provider)
+
+        viewModel.codexAccounts = [first, second]
+        viewModel.codexAccountOutcomes = [
+            makeOutcome(account: first, label: "old-first"),
+            makeOutcome(account: first, label: "new-first"),
+            makeOutcome(account: second, label: "old-second")
+        ]
+
+        viewModel.reorderCodexAccountOutcomesForDisplay()
+
+        XCTAssertEqual(viewModel.codexAccountOutcomes.count, 2)
+        XCTAssertEqual(viewModel.codexAccountOutcomes[0].displayName, "new-first")
+        XCTAssertEqual(viewModel.codexAccountOutcomes[1].displayName, "old-second")
+    }
+
     private func makeOutcome(account: CodexAuthAccount, label: String) -> ProviderAccountUsageOutcome {
         let usage = UsageSnapshot(
             identity: UsageIdentity(accountEmail: "\(label)@example.com", accountOrganization: nil, loginMethod: "oauth", plan: "plus"),

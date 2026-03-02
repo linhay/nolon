@@ -1584,14 +1584,17 @@ final class ProviderUsageViewModel {
     }
 
     func reorderCodexAccountOutcomesForDisplay() {
-        let byAccountID = Dictionary(uniqueKeysWithValues: codexAccountOutcomes.compactMap { outcome -> (UUID, ProviderAccountUsageOutcome)? in
-            switch outcome.account {
-            case let .tokenAccount(account):
-                return (account.id, outcome)
-            case .default:
-                return nil
-            }
-        })
+        let byAccountID = Dictionary(
+            codexAccountOutcomes.compactMap { outcome -> (UUID, ProviderAccountUsageOutcome)? in
+                switch outcome.account {
+                case let .tokenAccount(account):
+                    return (account.id, outcome)
+                case .default:
+                    return nil
+                }
+            },
+            uniquingKeysWith: { _, newest in newest }
+        )
 
         let ordered = codexAccounts.compactMap { byAccountID[$0.id] }
         let unknowns = codexAccountOutcomes.filter { outcome in
