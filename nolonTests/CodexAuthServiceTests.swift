@@ -597,6 +597,21 @@ final class ProviderUsageViewModelManualRefreshTests: XCTestCase {
 
         XCTAssertEqual(Set(targets.map(\.id)), Set([failed.id, normal.id]))
     }
+
+    func testBDD_GivenCodexXcodeProvider_WhenCreatingUsageViewModel_ThenItMapsToCodexUsageProvider() {
+        let provider = Provider(
+            name: "Codex (Xcode)",
+            defaultSkillsPath: "/tmp/codex-xcode/skills",
+            workflowPath: "/tmp/codex-xcode/prompts",
+            installMethod: .symlink,
+            templateId: "codexXcode"
+        )
+
+        let viewModel = ProviderUsageViewModel(provider: provider)
+
+        XCTAssertEqual(viewModel.usageProvider, .codex)
+        XCTAssertTrue(viewModel.isMultiAccountEnabled)
+    }
 }
 
 @MainActor

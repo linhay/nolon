@@ -340,4 +340,142 @@ struct CodexAuthManagerTests {
         #expect(tokenPair?.idToken == "id-valid")
         #expect(tokenPair?.accessToken == "access-valid")
     }
+
+    @Test("Given codexXcode provider template, when resolving codex home, then auth manager returns valid home folder")
+    func codexXcodeHomeFolderIsAvailable() async throws {
+        let root = try makeTempRoot("codex-auth-codexxcode-home")
+        defer { try? root.delete() }
+
+        let manager = CodexAuthManager(rootURL: root.url)
+        let providerRoot = root.folder("xcode-codex-home")
+        let provider = Provider(
+            name: "Codex (Xcode)",
+            defaultSkillsPath: providerRoot.folder("skills").url.path,
+            workflowPath: providerRoot.folder("prompts").url.path,
+            installMethod: .symlink,
+            templateId: "codexXcode"
+        )
+
+        let home = await manager.codexHomeFolder(for: provider)
+        #expect(home == providerRoot)
+    }
+
+    @Test("Given auth payload with both email and api key suffix hints, when matching snapshot then email has highest priority")
+    func matchAccountPrioritizesEmailOverApiKey() async throws {
+        let root = try makeTempRoot("codex-auth-match-email")
+        defer { try? root.delete() }
+
+        let manager = CodexAuthManager(rootURL: root.url)
+        let emailMatch = try await manager.addAccount(
+            name: "email-match",
+            authJSONString: #"{"OPENAI_API_KEY":"sk-email-1111","user":{"email":"email-match@example.com"}}"#
+        )
+        _ = try await manager.addAccount(
+            name: "key-match",
+            authJSONString: #"{"OPENAI_API_KEY":"sk-key-9999","user":{"email":"other@example.com"}}"#
+        )
+        let payload = Data(#"{"OPENAI_API_KEY":"sk-any-9999","user":{"email":"email-match@example.com"}}"#.utf8)
+
+        let matched = try await manager.matchAccountByAuthData(payload)
+        #expect(matched?.id == emailMatch.id)
+    }
+
+    @Test("Given auth payload missing email but containing account id, when matching snapshot then account id wins over api key")
+    func matchAccountPrioritizesAccountIDOverApiKey() async throws {
+        let root = try makeTempRoot("codex-auth-match-accountid")
+        defer { try? root.delete() }
+
+        let manager = CodexAuthManager(rootURL: root.url)
+        let accountIDMatch = try await manager.addAccount(
+            name: "accountid-match",
+            authJSONString: #"{"tokens":{"account_id":"acct-123"},"OPENAI_API_KEY":"sk-one-1111"}"#
+        )
+        _ = try await manager.addAccount(
+            name: "suffix-match",
+            authJSONString: #"{"OPENAI_API_KEY":"sk-two-7777"}"#
+        )
+        let payload = Data(#"{"tokens":{"account_id":"acct-123"},"OPENAI_API_KEY":"sk-other-7777"}"#.utf8)
+
+        let matched = try await manager.matchAccountByAuthData(payload)
+        #expect(matched?.id == accountIDMatch.id)
+    }
+
+    @Test("Given detached provider auth with invalid json and healthy snapshot, when preflight runs then snapshot is kept as source of truth")
+    func preflightPrefersHealthySnapshotWhenProviderAuthBroken() async throws {
+        let root = try makeTempRoot("codex-auth-preflight-prefer-snapshot")
+        defer { try? root.delete() }
+
+        let manager = CodexAuthManager(rootURL: root.url)
+        let snapshot = try await manager.addAccount(
+            name: "stable",
+            authJSONString: #"{"tokens":{"id_token":"id-stable","access_token":"access-stable"},"user":{"email":"stable@example.com"}}"#
+        )
+
+        let providerRoot = root.folder("provider")
+        _ = providerRoot.createIfNotExists()
+        let provider = Provider(
+            name: "Codex",
+            defaultSkillsPath: providerRoot.folder("skills").url.path,
+            workflowPath: providerRoot.folder("prompts").url.path,
+            installMethod: .symlink,
+            templateId: "codex"
+        )
+
+        try await manager.activateAccountAndMarkActive(snapshot, for: provider)
+        let providerAuth = try #require(await manager.authFile(for: provider))
+        if providerAuth.isExists {
+            try providerAuth.delete()
+        }
+        try "not-json".write(to: providerAuth.url, atomically: true, encoding: .utf8)
+
+        let affected = try await manager.preflightManagedAuthIfNeeded(for: provider, forceBackup: true, reason: "test")
+        #expect(affected?.id == snapshot.id)
+        #expect(providerAuth.isSymbolicLink == true)
+    }
+
+    @Test("Given active snapshot drifted by external write, when preflight runs then active snapshot is restored and drifted auth is preserved separately")
+    func preflightRestoresActiveSnapshotAfterExternalDrift() async throws {
+        let root = try makeTempRoot("codex-auth-preflight-drift")
+        defer { try? root.delete() }
+
+        let manager = CodexAuthManager(rootURL: root.url)
+        let active = try await manager.addAccount(
+            name: "active",
+            authJSONString: #"{"tokens":{"id_token":"id-active","access_token":"access-active"},"user":{"email":"active@example.com"}}"#
+        )
+
+        let providerRoot = root.folder("provider")
+        _ = providerRoot.createIfNotExists()
+        let provider = Provider(
+            name: "Codex",
+            defaultSkillsPath: providerRoot.folder("skills").url.path,
+            workflowPath: providerRoot.folder("prompts").url.path,
+            installMethod: .symlink,
+            templateId: "codex"
+        )
+
+        try await manager.activateAccountAndMarkActive(active, for: provider)
+        _ = try await manager.preflightManagedAuthIfNeeded(for: provider, forceBackup: true, reason: "seed_backup")
+
+        let driftedRaw = #"{"tokens":{"id_token":"id-drift","access_token":"access-drift"},"user":{"email":"drift@example.com"}}"#
+        let activeFile = await manager.accountAuthFile(active)
+        try activeFile.overlay(with: Data(driftedRaw.utf8))
+
+        _ = try await manager.preflightManagedAuthIfNeeded(for: provider, forceBackup: false, reason: "detect_drift")
+
+        let restoredSummary = CodexAuthSummary.fromJSONData(try activeFile.data())
+        #expect(restoredSummary.email == "active@example.com")
+
+        let accounts = try await manager.loadAccounts()
+        var driftedFound = false
+        for account in accounts where account.id != active.id {
+            let file = await manager.accountAuthFile(account)
+            let summary = CodexAuthSummary.fromJSONData((try? file.data()) ?? Data())
+            if summary.email == "drift@example.com" {
+                driftedFound = true
+                break
+            }
+        }
+        #expect(driftedFound == true)
+    }
 }

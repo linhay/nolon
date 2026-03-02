@@ -25,6 +25,7 @@ public struct CodexAuthAccount: Codable, Identifiable, Hashable, Sendable {
 
 public struct CodexAuthSummary: Hashable, Sendable {
     public var email: String?
+    public var accountID: String?
     public var apiKeySuffix: String?
     public var plan: String?
     public var lastLoginAt: Date?
@@ -34,6 +35,7 @@ public struct CodexAuthSummary: Hashable, Sendable {
 
     public nonisolated init(
         email: String? = nil,
+        accountID: String? = nil,
         apiKeySuffix: String? = nil,
         plan: String? = nil,
         lastLoginAt: Date? = nil,
@@ -42,6 +44,7 @@ public struct CodexAuthSummary: Hashable, Sendable {
         lastSyncFailureMessage: String? = nil
     ) {
         self.email = email
+        self.accountID = accountID
         self.apiKeySuffix = apiKeySuffix
         self.plan = plan
         self.lastLoginAt = lastLoginAt
@@ -88,6 +91,19 @@ public struct CodexAuthSummary: Hashable, Sendable {
             ?? json["access_token"].string
             ?? json["tokens"]["access_token"].string
         )?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let accountIDCandidates: [String?] = [
+            json["account"]["id"].string,
+            json["tokens"]["account_id"].string,
+            json["tokens"]["accountId"].string,
+            json["chatgpt_account_id"].string,
+            json["chatgptAccountId"].string,
+            json["account_id"].string,
+            json["accountId"].string,
+            json["nolon"]["account"]["id"].string
+        ]
+        let accountID = accountIDCandidates
+            .compactMap { $0?.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines) }
+            .first(where: { !$0.isEmpty })
 
         var plan = (json["plan"].string
             ?? json["subscription"]["plan"].string
@@ -123,6 +139,7 @@ public struct CodexAuthSummary: Hashable, Sendable {
 
         return CodexAuthSummary(
             email: email,
+            accountID: accountID,
             apiKeySuffix: suffix,
             plan: plan,
             lastLoginAt: lastLoginAt,
@@ -166,6 +183,19 @@ public struct CodexAuthSummary: Hashable, Sendable {
             ?? json["access_token"].string
             ?? json["tokens"]["access_token"].string
         )?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let accountIDCandidates: [String?] = [
+            json["account"]["id"].string,
+            json["tokens"]["account_id"].string,
+            json["tokens"]["accountId"].string,
+            json["chatgpt_account_id"].string,
+            json["chatgptAccountId"].string,
+            json["account_id"].string,
+            json["accountId"].string,
+            json["nolon"]["account"]["id"].string
+        ]
+        let accountID = accountIDCandidates
+            .compactMap { $0?.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines) }
+            .first(where: { !$0.isEmpty })
 
         var plan = (json["plan"].string
             ?? json["subscription"]["plan"].string
@@ -201,6 +231,7 @@ public struct CodexAuthSummary: Hashable, Sendable {
 
         return CodexAuthSummary(
             email: email,
+            accountID: accountID,
             apiKeySuffix: suffix,
             plan: plan,
             lastLoginAt: lastLoginAt,

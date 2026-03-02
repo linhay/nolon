@@ -286,6 +286,15 @@ final class ProviderUsageViewModel {
 
         Self.logger.info("Loading usage. provider=\(usageProvider.rawValue, privacy: .public) multiAccount=\(self.isMultiAccountEnabled, privacy: .public)")
         if usageProvider == .codex, isMultiAccountEnabled {
+            do {
+                _ = try await codexAuthManager.preflightManagedAuthIfNeeded(
+                    for: provider,
+                    forceBackup: true,
+                    reason: "usage_load"
+                )
+            } catch {
+                Self.logger.error("Codex preflight failed on load: \(String(describing: error), privacy: .public)")
+            }
             outcomes = []
         } else {
             outcomes = await usageMonitor.fetchOutcomes(
@@ -357,6 +366,15 @@ final class ProviderUsageViewModel {
         guard let usageProvider else { return }
 
         if usageProvider == .codex, isMultiAccountEnabled {
+            do {
+                _ = try await codexAuthManager.preflightManagedAuthIfNeeded(
+                    for: provider,
+                    forceBackup: false,
+                    reason: "usage_auto_refresh"
+                )
+            } catch {
+                Self.logger.error("Codex preflight failed on auto refresh: \(String(describing: error), privacy: .public)")
+            }
             if codexAccounts.isEmpty {
                 await load()
                 return
@@ -377,6 +395,15 @@ final class ProviderUsageViewModel {
         guard let usageProvider else { return }
 
         if usageProvider == .codex, isMultiAccountEnabled {
+            do {
+                _ = try await codexAuthManager.preflightManagedAuthIfNeeded(
+                    for: provider,
+                    forceBackup: true,
+                    reason: "header_refresh"
+                )
+            } catch {
+                Self.logger.error("Codex preflight failed from header refresh: \(String(describing: error), privacy: .public)")
+            }
             if codexAccounts.isEmpty {
                 await load()
                 return
@@ -669,6 +696,9 @@ final class ProviderUsageViewModel {
     }
 
     private static func mapToUsageProvider(_ provider: Provider) -> UsageProvider? {
+        if provider.templateId == ProviderTemplate.codexXcode.rawValue {
+            return .codex
+        }
         if let templateId = provider.templateId, let mapped = UsageProvider(rawValue: templateId) {
             return mapped
         }

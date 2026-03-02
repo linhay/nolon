@@ -10,6 +10,8 @@ import Sparkle
 import Combine
 import OSLog
 import ProviderCatalog
+import ProviderUsage
+import NolonResourceKit
 
 // This view model class publishes when new updates can be checked by the user
 final class CheckForUpdatesViewModel: ObservableObject {
@@ -85,6 +87,76 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
+@MainActor
+final class CodexAuthBackgroundPoller {
+    static let shared = CodexAuthBackgroundPoller()
+
+    private static let logger = Logger(subsystem: "com.nolon.app", category: "CodexAuthBackgroundPoller")
+    private let authManager = CodexAuthManager()
+    private var pollTask: Task<Void, Never>?
+    private let pollIntervalNanoseconds: UInt64 = 60 * 1_000_000_000
+    private let enabledDefaultsKey = "codex.auth.background_poll.enabled"
+
+    private init() {}
+
+    func start() {
+        guard pollTask == nil else { return }
+        pollTask = Task { [weak self] in
+            guard let self else { return }
+            await self.runLoop()
+        }
+        Self.logger.info("Codex auth background poller started.")
+    }
+
+    func stop() {
+        pollTask?.cancel()
+        pollTask = nil
+        Self.logger.info("Codex auth background poller stopped.")
+    }
+
+    private var isEnabled: Bool {
+        if UserDefaults.standard.object(forKey: enabledDefaultsKey) == nil {
+            return true
+        }
+        return UserDefaults.standard.bool(forKey: enabledDefaultsKey)
+    }
+
+    private func runLoop() async {
+        while !Task.isCancelled {
+            if isEnabled {
+                await pollOnce()
+            }
+            do {
+                try await Task.sleep(nanoseconds: pollIntervalNanoseconds)
+            } catch {
+                break
+            }
+        }
+    }
+
+    private func pollOnce() async {
+        let providers = ProviderSettings.shared.providers.filter { provider in
+            provider.templateId == ProviderTemplate.codex.rawValue
+                || provider.templateId == ProviderTemplate.codexXcode.rawValue
+        }
+        guard !providers.isEmpty else { return }
+
+        for provider in providers {
+            do {
+                _ = try await authManager.preflightManagedAuthIfNeeded(
+                    for: provider,
+                    forceBackup: false,
+                    reason: "background_poll"
+                )
+            } catch {
+                Self.logger.error(
+                    "Codex auth preflight failed in background poll. provider=\(provider.id, privacy: .public) error=\(String(describing: error), privacy: .public)"
+                )
+            }
+        }
+    }
+}
+
 @main
 struct nolonApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
@@ -109,6 +181,9 @@ struct nolonApp: App {
             ContentView()
                 .onOpenURL { url in
                     URLSchemeHandler.shared.handleURL(url)
+                }
+                .task {
+                    CodexAuthBackgroundPoller.shared.start()
                 }
         }
         .handlesExternalEvents(matching: [])  // Prevent new windows from URL events
