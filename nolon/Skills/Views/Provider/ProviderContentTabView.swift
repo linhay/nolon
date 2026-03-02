@@ -161,6 +161,18 @@ enum ProviderContentTabType: String, CaseIterable, Identifiable {
         }
     }
 
+    func localizedName(for provider: Provider?) -> String {
+        switch self {
+        case .usage:
+            if provider?.templateId == "codex" || provider?.templateId == "codexXcode" {
+                return NSLocalizedString("tab.account_usage", value: "账号与用量", comment: "Account and usage")
+            }
+            return self.localizedName
+        default:
+            return self.localizedName
+        }
+    }
+
     @MainActor
     static func availableTabs(for provider: Provider) -> [ProviderContentTabType] {
         var tabs: [ProviderContentTabType] = [.skills, .workflows, .mcp]
@@ -421,7 +433,7 @@ struct ProviderContentTabView: View {
     @ViewBuilder
     private func tabRow(_ tab: ProviderContentTabType) -> some View {
         HStack {
-            Label(tab.localizedName, systemImage: tab.icon)
+            Label(tab.localizedName(for: provider), systemImage: tab.icon)
             Spacer()
             if tab == .advanced, let provider, viewModel.isCodexProvider(provider) {
                 Button {

@@ -2,57 +2,55 @@
 
 English | [中文](README_ZH.md)
 
-Nolon is an AI coding workspace manager for macOS.
+Nolon is a macOS workspace orchestrator for AI coding tools.
 
-Use one workspace across **Codex**, **Claude Code**, **Cursor**, and 20+ other providers, instead of reconfiguring each tool separately.
-
-## Why Nolon
-
-* One source of truth for your setup at `~/.nolon/skills`
-* Unified management for **skills**, **providers**, and **MCP**
-* Fast switching between tools without losing workflow consistency
-* Reliable update flow for both app and managed content
+It keeps one canonical workspace in `~/.nolon/skills`, then projects that workspace into Codex, Claude Code, Cursor, and 25+ providers with provider-specific behavior.
 
 ## Download
 
-* Latest release: [v1.3.5](https://github.com/linhay/nolon/releases/latest)
-* Appcast (Sparkle): [appcast.xml](https://linhay.github.io/nolon/appcast.xml)
+- Latest release: [v1.3.5](https://github.com/linhay/nolon/releases/latest)
+- Sparkle appcast: [appcast.xml](https://linhay.github.io/nolon/appcast.xml)
+
+## Current App Shape
+
+### 1) Main Workspace (always-on)
+
+Nolon uses a three-column split workspace:
+- Provider sidebar
+- Provider content tabs
+- Detail grid/content panel
+
+### 2) Resource Center (overlay)
+
+The cloud button opens Resource Center as an overlay for remote discovery and install:
+- Skills
+- Workflows
+- MCPs
+
+### 3) Provider-Specific Surfaces
+
+Provider tabs are now capability-driven:
+- Base tabs: `Skills`, `Workflows`, `MCP`
+- Codex tabs: `Rules`, `Agents`, `Binary`, `Advanced`, `Usage`
+- Vendor-defined tabs (when available): `Accounts`, `Usage`, and more
 
 ## Core Capabilities
 
-* Provider management across 25+ AI coding assistants
-* Per-provider install mode: **symlink** or **copy**
-* Remote discovery and install from [Clawdhub](https://clawdhub.com)
-* MCP configuration and remote MCP install flows
-* Migration assistant for unmanaged/orphaned skills
-* Health checks and repair for broken links/install drift
-* Skills update checks and in-app app updates
-
-## Recent Updates (This Branch)
-
-Detailed merge notes for the 280-commit delta to `main`:
-- [`docs-dev/ops/main-merge-notes-2026-02-27.md`](docs-dev/ops/main-merge-notes-2026-02-27.md)
-
-* **Add Repository flow refinement**
-  * Larger, clearer add dialog with drag-and-drop local folder support
-  * Git URL quick-paste action
-  * Auto repository naming (manual name input removed)
-  * Safer repository write path with upsert behavior
-* **Resource Center refactor**
-  * Replaced old remote browser with a unified Resource Center experience
-  * New reusable resource card shell/meta/state components
-  * Better tab and catalog readability for skills/workflows/MCP
-* **Codex usage & auth management polish**
-  * Unified account/auth management flow for provider usage
-  * Improved provider usage UX and related CLI/provider service alignment
+- Unified provider management for 25+ AI coding assistants.
+- One-source-of-truth skill storage at `~/.nolon/skills`.
+- Remote resource discovery/install from [Clawdhub](https://clawdhub.com).
+- MCP configuration management and install flow.
+- Codex-focused account/usage and advanced configuration workflows.
+- Migration assistant for unmanaged/orphaned skills.
+- Health checks and repair for broken links/install drift.
 
 ## Typical Workflow
 
-1. Import or sync skills into Nolon.
-2. Install to one or more providers.
-3. Manage MCP and provider-specific configuration.
-4. Run migration/repair when drift is detected.
-5. Keep app and content updated from built-in update channels.
+1. Select a provider in the main workspace.
+2. Open Resource Center and install Skills/Workflows/MCPs.
+3. Configure provider-specific tabs (for example Codex `Advanced`/`Usage`).
+4. Run migration/repair checks when drift is detected.
+5. Keep app/resources updated through built-in channels.
 
 ## Build (Developers)
 
@@ -69,5 +67,17 @@ xcodebuild -project nolon.xcodeproj -scheme nolon -configuration Release
 
 ## Requirements
 
-* macOS 15.0+
-* Xcode 16.0+ (for building)
+- macOS 15.0+
+- Xcode 16.0+ (for local build)
+
+## Documentation
+
+- Feature specs: [`docs-dev/features/`](docs-dev/features/)
+- Engineering docs: [`docs-dev/dev/`](docs-dev/dev/)
+- API docs: [`docs-dev/api/`](docs-dev/api/)
+- Operations/release docs: [`docs-dev/ops/`](docs-dev/ops/)
+
+## Branch Notes
+
+Current branch merge notes are tracked in:
+- [`docs-dev/ops/main-merge-notes-2026-02-27.md`](docs-dev/ops/main-merge-notes-2026-02-27.md)
