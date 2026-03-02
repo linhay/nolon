@@ -151,6 +151,8 @@ final class CodexAdvancedConfigViewModel {
     private let linkService: CodexLinkService
     private let modelPreferenceService: CodexModelPreferenceService
 
+    nonisolated deinit {}
+
     static let supportedFeatures: [CodexFeatureDefinition] = [
         .init(key: "undo", maturity: "Stable", description: "Create a ghost commit at each turn.", source: "codex-rs/core/src/features.rs + codex features list"),
         .init(key: "shell_tool", maturity: "Stable", description: "Enable the default shell tool.", source: "codex-rs/core/src/features.rs + codex features list"),
@@ -445,10 +447,9 @@ final class CodexAdvancedConfigViewModel {
         }
     }
 
-    @discardableResult
-    func addRoleDraft() -> UUID {
-        let role = CodexAgentRoleDraft(
-            name: "role_\(roleDrafts.count + 1)",
+    static func makeEmptyRoleDraft() -> CodexAgentRoleDraft {
+        CodexAgentRoleDraft(
+            name: "",
             description: "",
             configFile: "",
             model: "",
@@ -456,6 +457,11 @@ final class CodexAdvancedConfigViewModel {
             sandboxMode: "",
             approvalPolicy: ""
         )
+    }
+
+    @discardableResult
+    func addRoleDraft() -> UUID {
+        let role = Self.makeEmptyRoleDraft()
         roleDrafts.append(role)
         return role.id
     }
@@ -652,10 +658,14 @@ final class CodexAdvancedConfigViewModel {
 }
 
 struct CodexAdvancedConfigView: View {
+    private struct RoleEditorTarget: Identifiable {
+        let id: UUID
+    }
+
     let provider: Provider
     @State private var viewModel: CodexAdvancedConfigViewModel
     @State private var isEditingRawConfig = false
-    @State private var expandedRoleIDs: Set<UUID> = []
+    @State private var editingRoleID: UUID?
     @State private var featureSearchText: String = ""
 
     init(provider: Provider) {
@@ -686,15 +696,6 @@ struct CodexAdvancedConfigView: View {
         .task(id: provider.id) {
             viewModel.updateProvider(provider)
             await viewModel.load()
-            if expandedRoleIDs.isEmpty, let firstRoleID = viewModel.roleDrafts.first?.id {
-                expandedRoleIDs.insert(firstRoleID)
-            }
-        }
-        .onChange(of: viewModel.roleDrafts.map(\.id)) { _, roleIDs in
-            expandedRoleIDs = expandedRoleIDs.intersection(Set(roleIDs))
-            if expandedRoleIDs.isEmpty, let firstRoleID = roleIDs.first {
-                expandedRoleIDs.insert(firstRoleID)
-            }
         }
         .sheet(isPresented: $isEditingRawConfig) {
             if let configURL = viewModel.configFileURL {
@@ -704,6 +705,9 @@ struct CodexAdvancedConfigView: View {
             } else {
                 EmptyView()
             }
+        }
+        .sheet(item: editingRoleSheetBinding) { target in
+            roleEditorSheet(for: target.id)
         }
         .alert(
             NSLocalizedString("codex.binary.error.title", value: "Binary Error", comment: "Binary error"),
@@ -1223,101 +1227,37 @@ struct CodexAdvancedConfigView: View {
                     borderColor: DesignSystem.Colors.Component.border.opacity(0.18)
                 )
             } else {
-                ForEach($viewModel.roleDrafts) { $role in
+                ForEach(viewModel.roleDrafts) { role in
                     let roleID = role.id
-                    DisclosureGroup(
-                        isExpanded: Binding(
-                            get: { expandedRoleIDs.contains(roleID) },
-                            set: { isExpanded in
-                                if isExpanded {
-                                    expandedRoleIDs.insert(roleID)
-                                } else {
-                                    expandedRoleIDs.remove(roleID)
-                                }
-                            }
-                        )
-                    ) {
-                        VStack(alignment: .leading, spacing: 8) {
-                            roleTextFieldRow(
-                                label: "name",
-                                placeholder: NSLocalizedString(
-                                    "codex.advanced.config.multi_agent.role_name",
-                                    value: "role name",
-                                    comment: "Role name placeholder"
-                                ),
-                                text: $role.name
-                            )
-                            roleTextFieldRow(
-                                label: "description",
-                                placeholder: NSLocalizedString(
-                                    "codex.advanced.config.multi_agent.description",
-                                    value: "description",
-                                    comment: "Role description placeholder"
-                                ),
-                                text: $role.description
-                            )
-                            roleTextFieldRow(
-                                label: "config_file",
-                                placeholder: NSLocalizedString(
-                                    "codex.advanced.config.multi_agent.config_file",
-                                    value: "config file path",
-                                    comment: "Role config file placeholder"
-                                ),
-                                text: $role.configFile
-                            )
-                            roleTextFieldRow(
-                                label: "model",
-                                placeholder: NSLocalizedString(
-                                    "codex.advanced.config.multi_agent.model",
-                                    value: "model",
-                                    comment: "Role model placeholder"
-                                ),
-                                text: $role.model
-                            )
-                            roleEnumPickerField(
-                                label: "model_reasoning_effort",
-                                selection: $role.modelReasoningEffort,
-                                key: "model_reasoning_effort",
-                                options: ["minimal", "low", "medium", "high"]
-                            )
-                            roleEnumPickerField(
-                                label: "sandbox_mode",
-                                selection: $role.sandboxMode,
-                                key: "sandbox_mode",
-                                options: ["read-only", "workspace-write", "danger-full-access"]
-                            )
-                            roleEnumPickerField(
-                                label: "approval_policy",
-                                selection: $role.approvalPolicy,
-                                key: "approval_policy",
-                                options: ["untrusted", "on-failure", "on-request", "never"]
-                            )
+                    HStack(spacing: 8) {
+                        Text(role.name.nonEmpty ?? NSLocalizedString(
+                            "codex.advanced.config.multi_agent.unnamed_role",
+                            value: "Unnamed Role",
+                            comment: "Unnamed role"
+                        ))
+                        .font(.headline)
+                        .foregroundStyle(DesignSystem.Colors.Text.primary)
+
+                        Text(role.model.nonEmpty ?? "-")
+                            .font(.caption.monospaced())
+                            .foregroundStyle(DesignSystem.Colors.Text.secondary)
+
+                        Spacer(minLength: 0)
+
+                        Button(NSLocalizedString("action.edit", value: "Edit", comment: "Edit action")) {
+                            editingRoleID = roleID
                         }
-                        .padding(.top, 6)
-                    } label: {
-                        HStack(spacing: 8) {
-                            Text(role.name.nonEmpty ?? NSLocalizedString(
-                                "codex.advanced.config.multi_agent.unnamed_role",
-                                value: "Unnamed Role",
-                                comment: "Unnamed role"
-                            ))
-                            .font(.headline)
-                            .foregroundStyle(DesignSystem.Colors.Text.primary)
+                        .buttonStyle(.borderless)
 
-                            Text(role.model.nonEmpty ?? "-")
-                                .font(.caption.monospaced())
-                                .foregroundStyle(DesignSystem.Colors.Text.secondary)
-
-                            Spacer(minLength: 0)
-
-                            Button(role: .destructive) {
-                                viewModel.removeRoleDraft(roleID)
-                                expandedRoleIDs.remove(roleID)
-                            } label: {
-                                Image(systemName: "trash")
+                        Button(role: .destructive) {
+                            viewModel.removeRoleDraft(roleID)
+                            if editingRoleID == roleID {
+                                editingRoleID = nil
                             }
-                            .buttonStyle(.plain)
+                        } label: {
+                            Image(systemName: "trash")
                         }
+                        .buttonStyle(.plain)
                     }
                     .padding(.horizontal, 10)
                     .padding(.vertical, 8)
@@ -1338,7 +1278,7 @@ struct CodexAdvancedConfigView: View {
                         comment: "Add empty role"
                     )) {
                         let newRoleID = viewModel.addRoleDraft()
-                        expandedRoleIDs.insert(newRoleID)
+                        editingRoleID = newRoleID
                     }
                     Divider()
                     ForEach(CodexBuiltinAgentRole.allCases) { builtinRole in
@@ -1352,8 +1292,7 @@ struct CodexAdvancedConfigView: View {
                                 builtinRole.rawValue
                             )
                         ) {
-                            let roleID = viewModel.upsertBuiltinRole(builtinRole)
-                            expandedRoleIDs.insert(roleID)
+                            editingRoleID = viewModel.upsertBuiltinRole(builtinRole)
                         }
                     }
                 } label: {
@@ -1378,6 +1317,116 @@ struct CodexAdvancedConfigView: View {
             cornerRadius: DesignSystem.Metrics.cornerRadiusM,
             borderColor: DesignSystem.Colors.Component.border.opacity(0.35)
         )
+    }
+
+    private var editingRoleSheetBinding: Binding<RoleEditorTarget?> {
+        Binding(
+            get: {
+                guard let editingRoleID else { return nil }
+                return RoleEditorTarget(id: editingRoleID)
+            },
+            set: { editingRoleID = $0?.id }
+        )
+    }
+
+    @ViewBuilder
+    private func roleEditorSheet(for roleID: UUID) -> some View {
+        if let role = roleBinding(for: roleID) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text(role.wrappedValue.name.nonEmpty ?? NSLocalizedString(
+                        "codex.advanced.config.multi_agent.unnamed_role",
+                        value: "Unnamed Role",
+                        comment: "Unnamed role"
+                    ))
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(DesignSystem.Colors.Text.primary)
+
+                    roleTextFieldRow(
+                        label: "name",
+                        placeholder: NSLocalizedString(
+                            "codex.advanced.config.multi_agent.role_name",
+                            value: "role name",
+                            comment: "Role name placeholder"
+                        ),
+                        text: role.name
+                    )
+                    roleTextFieldRow(
+                        label: "description",
+                        placeholder: NSLocalizedString(
+                            "codex.advanced.config.multi_agent.description",
+                            value: "description",
+                            comment: "Role description placeholder"
+                        ),
+                        text: role.description
+                    )
+                    roleTextFieldRow(
+                        label: "config_file",
+                        placeholder: NSLocalizedString(
+                            "codex.advanced.config.multi_agent.config_file",
+                            value: "config file path",
+                            comment: "Role config file placeholder"
+                        ),
+                        text: role.configFile
+                    )
+                    roleTextFieldRow(
+                        label: "model",
+                        placeholder: NSLocalizedString(
+                            "codex.advanced.config.multi_agent.model",
+                            value: "model",
+                            comment: "Role model placeholder"
+                        ),
+                        text: role.model
+                    )
+                    roleEnumPickerField(
+                        label: "model_reasoning_effort",
+                        selection: role.modelReasoningEffort,
+                        key: "model_reasoning_effort",
+                        options: ["minimal", "low", "medium", "high"]
+                    )
+                    roleEnumPickerField(
+                        label: "sandbox_mode",
+                        selection: role.sandboxMode,
+                        key: "sandbox_mode",
+                        options: ["read-only", "workspace-write", "danger-full-access"]
+                    )
+                    roleEnumPickerField(
+                        label: "approval_policy",
+                        selection: role.approvalPolicy,
+                        key: "approval_policy",
+                        options: ["untrusted", "on-failure", "on-request", "never"]
+                    )
+
+                    Divider().padding(.top, 4)
+
+                    HStack(spacing: 10) {
+                        Spacer(minLength: 0)
+                        Button(NSLocalizedString("generic.close", value: "Close", comment: "Close")) {
+                            editingRoleID = nil
+                        }
+                        .dsSecondaryButton()
+                        Button(NSLocalizedString("action.save", value: "Save", comment: "Save")) {
+                            Task { await viewModel.saveStructuredConfig() }
+                            editingRoleID = nil
+                        }
+                        .dsPrimaryButton()
+                        .disabled(viewModel.isSavingConfig)
+                    }
+                }
+                .padding(18)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .frame(minWidth: 680, minHeight: 420)
+        } else {
+            EmptyView()
+        }
+    }
+
+    private func roleBinding(for roleID: UUID) -> Binding<CodexAgentRoleDraft>? {
+        guard let index = viewModel.roleDrafts.firstIndex(where: { $0.id == roleID }) else {
+            return nil
+        }
+        return $viewModel.roleDrafts[index]
     }
 
     private func commonOptionRow(title: String, text: Binding<String>, description: String? = nil) -> some View {
