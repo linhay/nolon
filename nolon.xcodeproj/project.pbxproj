@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		CD36A3782F56E32D004ADF28 /* SnapshotTesting in Frameworks */ = {isa = PBXBuildFile; productRef = CDF7A1D130C5BFC7009A00A1 /* SnapshotTesting */; };
 		CD447BF32F1F79890056366B /* MarkdownUI in Frameworks */ = {isa = PBXBuildFile; productRef = CD447BF22F1F79890056366B /* MarkdownUI */; };
 		CD447BF62F1F79890056366B /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = CD447BF52F1F79890056366B /* Sparkle */; };
 		CD4538D82F3442FC0090D8F7 /* STFilePath in Frameworks */ = {isa = PBXBuildFile; productRef = CD4538D72F3442FC0090D8F7 /* STFilePath */; };
@@ -103,6 +104,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				CD36A3782F56E32D004ADF28 /* SnapshotTesting in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -197,6 +199,7 @@
 			);
 			name = nolonTests;
 			packageProductDependencies = (
+				CDF7A1D130C5BFC7009A00A1 /* SnapshotTesting */,
 			);
 			productName = nolonTests;
 			productReference = CD9EDF3C2F24F31E009248CB /* nolonTests.xctest */;
@@ -234,6 +237,7 @@
 			packageReferences = (
 				CD447BF12F1F79890056366B /* XCRemoteSwiftPackageReference "swift-markdown-ui" */,
 				CD447BF42F1F79890056366B /* XCRemoteSwiftPackageReference "Sparkle" */,
+				CDF7A1D030C5BFC7009A00A1 /* XCRemoteSwiftPackageReference "swift-snapshot-testing" */,
 				CD9EE26E2F2677A0009248CB /* XCRemoteSwiftPackageReference "Yams" */,
 				CD702B9D2F29FBC700E22535 /* XCRemoteSwiftPackageReference "swift-toml" */,
 				CD8D475F2F2E606000428E7B /* XCRemoteSwiftPackageReference "GRDB.swift" */,
@@ -626,6 +630,14 @@
 				minimumVersion = 6.2.0;
 			};
 		};
+		CDF7A1D030C5BFC7009A00A1 /* XCRemoteSwiftPackageReference "swift-snapshot-testing" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/pointfreeco/swift-snapshot-testing";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.17.6;
+			};
+		};
 		CDFA673F2F3599FB0053E30A /* XCRemoteSwiftPackageReference "STFilePath" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/linhay/STFilePath";
@@ -718,6 +730,11 @@
 		CDA190482F3DA580000DBF77 /* NolonResourceKit */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = NolonResourceKit;
+		};
+		CDF7A1D130C5BFC7009A00A1 /* SnapshotTesting */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = CDF7A1D030C5BFC7009A00A1 /* XCRemoteSwiftPackageReference "swift-snapshot-testing" */;
+			productName = SnapshotTesting;
 		};
 		CDFA67402F3599FB0053E30A /* STFilePath */ = {
 			isa = XCSwiftPackageProductDependency;

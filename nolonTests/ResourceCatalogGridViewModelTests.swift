@@ -5,6 +5,34 @@ import ProviderCatalog
 
 final class ResourceCatalogGridViewModelTests: XCTestCase {
     @MainActor
+    func testLoadContentMCPs_IncludesBuiltInXcodeMCPKitPlugin() async {
+        let service = MockRemoteCatalogQueryService(
+            responses: [
+                .success(
+                    .init(
+                        items: [],
+                        canLoadMore: false
+                    )
+                )
+            ]
+        )
+        let viewModel = ResourceCatalogGridViewModel(queryService: service)
+        let repository = Self.makeClawdhubRepository()
+
+        await viewModel.loadContent(
+            for: repository,
+            tab: ResourceContentTabType.mcps,
+            searchQuery: "",
+            cacheBuster: "v1"
+        )
+
+        let plugin = viewModel.mcps.first(where: { $0.slug == "xcodemcpkit" })
+        XCTAssertNotNil(plugin)
+        XCTAssertEqual(plugin?.displayName, "XcodeMCPKit")
+        XCTAssertEqual(plugin?.configuration?.command, "xcode-mcp-proxy")
+    }
+
+    @MainActor
     func testLoadContentFailure_WithCachedItems_KeepsContentAndShowsInlineError() async {
         let service = MockRemoteCatalogQueryService(
             responses: [
