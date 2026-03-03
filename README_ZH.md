@@ -77,6 +77,11 @@ xcodebuild -project nolon.xcodeproj -scheme nolon -configuration Release
 - API 文档：[`docs-dev/api/`](docs-dev/api/)
 - 运维与发布：[`docs-dev/ops/`](docs-dev/ops/)
 
+## 许可证
+
+本项目采用 GNU General Public License v3.0（GPL-3.0）开源协议。
+详细条款见 [`LICENSE`](LICENSE)。
+
 ## 分支变更说明
 
 当前分支合并说明见：

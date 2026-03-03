@@ -77,6 +77,11 @@ xcodebuild -project nolon.xcodeproj -scheme nolon -configuration Release
 - API docs: [`docs-dev/api/`](docs-dev/api/)
 - Operations/release docs: [`docs-dev/ops/`](docs-dev/ops/)
 
+## License
+
+This project is licensed under the GNU General Public License v3.0 (GPL-3.0).
+See [`LICENSE`](LICENSE) for details.
+
 ## Branch Notes
 
 Current branch merge notes are tracked in:
