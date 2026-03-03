@@ -5,6 +5,18 @@ public enum CodexAuthEventChangeKind: Sendable {
     case other
 }
 
+public enum CodexAuthSuppressionKind: Sendable {
+    case created
+    case deleted
+    case modified
+    case renamed
+    case any
+
+    fileprivate func matches(_ other: CodexAuthSuppressionKind) -> Bool {
+        self == .any || other == .any || self == other
+    }
+}
+
 public enum CodexAuthEventPolicy {
     public static func shouldIgnoreKnownAuthRename(
         changedPath: String,
@@ -13,7 +25,7 @@ public enum CodexAuthEventPolicy {
         isAuthFileChange: Bool,
         knownAuthFileNames: Set<String>
     ) -> Bool {
-        guard isAuthFolderChange, !isAuthFileChange, kind == .renamed else {
+        guard !isAuthFolderChange, !isAuthFileChange, kind == .renamed else {
             return false
         }
         let fileName = (changedPath as NSString).lastPathComponent
@@ -22,7 +34,14 @@ public enum CodexAuthEventPolicy {
 }
 
 public struct CodexAuthChangeSuppressionStore: Sendable {
-    private var expiryByPath: [String: Date] = [:]
+    private struct Entry: Sendable {
+        let operationID: UUID
+        let path: String
+        let kind: CodexAuthSuppressionKind
+        let expiry: Date
+    }
+
+    private var entries: [Entry] = []
 
     public init() {}
 
@@ -32,31 +51,53 @@ public struct CodexAuthChangeSuppressionStore: Sendable {
         ttl: TimeInterval,
         now: Date = Date()
     ) {
+        markOperation(
+            filePath: filePath,
+            folderPath: folderPath,
+            kind: .any,
+            ttl: ttl,
+            now: now
+        )
+    }
+
+    public mutating func markOperation(
+        filePath: String,
+        folderPath: String,
+        kind: CodexAuthSuppressionKind,
+        ttl: TimeInterval = 30,
+        now: Date = Date()
+    ) {
         let expiry = now.addingTimeInterval(ttl)
-        expiryByPath[filePath] = expiry
-        expiryByPath[folderPath] = expiry
+        let operationID = UUID()
+        entries.append(Entry(operationID: operationID, path: filePath, kind: kind, expiry: expiry))
+        entries.append(Entry(operationID: operationID, path: folderPath, kind: kind, expiry: expiry))
         cleanup(now: now)
     }
 
-    public mutating func shouldSuppress(path: String, now: Date = Date()) -> Bool {
+    public mutating func consumeSuppression(
+        path: String,
+        kind: CodexAuthSuppressionKind,
+        now: Date = Date()
+    ) -> Bool {
         cleanup(now: now)
 
-        guard !expiryByPath.isEmpty else { return false }
+        guard !entries.isEmpty else { return false }
 
-        if let expiry = expiryByPath[path], expiry > now {
+        if let matched = entries.first(where: { entry in
+            guard entry.kind.matches(kind) else { return false }
+            return path == entry.path || path.hasPrefix(entry.path + "/")
+        }) {
+            entries.removeAll { $0.operationID == matched.operationID }
             return true
         }
-
-        for (key, expiry) in expiryByPath where expiry > now {
-            if path.hasPrefix(key + "/") {
-                return true
-            }
-        }
-
         return false
     }
 
+    public mutating func shouldSuppress(path: String, now: Date = Date()) -> Bool {
+        consumeSuppression(path: path, kind: .any, now: now)
+    }
+
     public mutating func cleanup(now: Date = Date()) {
-        expiryByPath = expiryByPath.filter { $0.value > now }
+        entries.removeAll { $0.expiry <= now }
     }
 }

@@ -12,8 +12,6 @@ public final class UsageMonitorFileWatcher {
     private let onChange: OnChange
     private var watchers: [STPathWatcher] = []
     private var watchTasks: [Task<Void, Never>] = []
-    private var debounceTask: Task<Void, Never>?
-    private var latestChange: STPathChanged?
     private var targetPaths: [String] = []
 
     public init(onChange: @escaping OnChange) {
@@ -39,7 +37,7 @@ public final class UsageMonitorFileWatcher {
             Task { [weak self] in
                 do {
                     for try await change in watcher.stream() {
-                        await self?.scheduleChange(change)
+                        await self?.dispatchChange(change)
                     }
                 } catch {
                     // Ignore watcher errors; a later re-start will recreate watchers.
@@ -49,10 +47,6 @@ public final class UsageMonitorFileWatcher {
     }
 
     public func stop() {
-        debounceTask?.cancel()
-        debounceTask = nil
-        latestChange = nil
-
         watchTasks.forEach { $0.cancel() }
         watchTasks.removeAll()
 
@@ -67,27 +61,14 @@ public final class UsageMonitorFileWatcher {
         targetPaths
     }
 
-    private func scheduleChange(_ change: STPathChanged) async {
-        latestChange = change
+    private func dispatchChange(_ change: STPathChanged) async {
         Self.logger.debug(
             "Detected change: kind=\(String(describing: change.kind), privacy: .public) path=\(change.path.url.path, privacy: .public)"
         )
-        debounceTask?.cancel()
-        debounceTask = Task { [weak self] in
-            do {
-                try await Task.sleep(for: .milliseconds(250))
-            } catch {
-                return
-            }
-            guard let self, !Task.isCancelled, let latest = self.latestChange else { return }
-            self.latestChange = nil
-            Self.logger.info(
-                "Dispatching debounced change: kind=\(String(describing: latest.kind), privacy: .public) path=\(latest.path.url.path, privacy: .public)"
-            )
-            Task { @MainActor in
-                self.onChange(latest)
-            }
-        }
+        Self.logger.info(
+            "Dispatching change: kind=\(String(describing: change.kind), privacy: .public) path=\(change.path.url.path, privacy: .public)"
+        )
+        onChange(change)
     }
 
     private func canonicalWatchedTargets(paths: [String]) -> [STPath] {

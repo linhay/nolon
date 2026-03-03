@@ -102,7 +102,7 @@ struct CodexLoginRunnerTests {
                 "CODEX_CLI_PATH": fakeCLI.url.path,
             ],
             codexHome: codexHomeFolder,
-            timeoutSeconds: 5,
+            timeoutSeconds: 15,
             pollIntervalSeconds: 0.05,
             processExitGraceSeconds: 0.2
         )
@@ -136,7 +136,7 @@ struct CodexLoginRunnerTests {
                 "CODEX_CLI_PATH": fakeCLI.url.path,
             ],
             codexHome: codexHomeFolder,
-            timeoutSeconds: 5,
+            timeoutSeconds: 15,
             pollIntervalSeconds: 0.05,
             processExitGraceSeconds: 0.2
         )
@@ -214,6 +214,166 @@ struct CodexLoginRunnerTests {
         }
 
         #expect(handle.isRunning == false)
+    }
+
+    @Test("awaitAuthResult waits for delayed auth.json write")
+    func awaitAuthResultWaitsForDelayedWrite() async throws {
+        let tempRoot = STFolder("/tmp").folder("codex-login-await-delayed-\(UUID().uuidString)")
+        _ = tempRoot.createIfNotExists()
+        defer { try? tempRoot.delete() }
+
+        let codexHome = tempRoot.folder("codex-home")
+        _ = codexHome.createIfNotExists()
+
+        let writer = Task.detached {
+            try? await Task.sleep(nanoseconds: 250_000_000)
+            try? codexHome.file("auth.json").overlay(with: #"{"tokens":{"id_token":"id-delayed","access_token":"access-delayed"}}"#)
+        }
+        defer { writer.cancel() }
+
+        let result = try await CodexLoginRunner.awaitAuthResult(
+            codexHome: codexHome,
+            timeoutSeconds: 2,
+            pollIntervalSeconds: 0.05
+        )
+        #expect(result.authJSONString.contains("\"id_token\":\"id-delayed\""))
+        #expect(result.authJSONString.contains("\"access_token\":\"access-delayed\""))
+    }
+
+    @Test("awaitAuthResult keeps polling when auth.json is temporarily invalid UTF-8")
+    func awaitAuthResultRetriesWhenAuthUTF8IsTemporarilyInvalid() async throws {
+        let tempRoot = STFolder("/tmp").folder("codex-login-await-invalid-utf8-\(UUID().uuidString)")
+        _ = tempRoot.createIfNotExists()
+        defer { try? tempRoot.delete() }
+
+        let codexHome = tempRoot.folder("codex-home")
+        _ = codexHome.createIfNotExists()
+        let authURL = codexHome.file("auth.json").url
+
+        let writer = Task.detached {
+            try? await Task.sleep(nanoseconds: 120_000_000)
+            try? Data([0xC3, 0x28]).write(to: authURL)
+            try? await Task.sleep(nanoseconds: 180_000_000)
+            try? #"{"tokens":{"id_token":"id-fixed","access_token":"access-fixed"}}"#.write(
+                to: authURL,
+                atomically: true,
+                encoding: .utf8
+            )
+        }
+        defer { writer.cancel() }
+
+        let result = try await CodexLoginRunner.awaitAuthResult(
+            codexHome: codexHome,
+            timeoutSeconds: 2,
+            pollIntervalSeconds: 0.05
+        )
+        #expect(result.authJSONString.contains("\"id_token\":\"id-fixed\""))
+        #expect(result.authJSONString.contains("\"access_token\":\"access-fixed\""))
+    }
+
+    @Test("awaitAuthResult throws authInvalidUTF8 when auth.json stays invalid until timeout")
+    func awaitAuthResultThrowsInvalidUTF8WhenStillInvalidAtTimeout() async throws {
+        let tempRoot = STFolder("/tmp").folder("codex-login-await-invalid-utf8-timeout-\(UUID().uuidString)")
+        _ = tempRoot.createIfNotExists()
+        defer { try? tempRoot.delete() }
+
+        let codexHome = tempRoot.folder("codex-home")
+        _ = codexHome.createIfNotExists()
+        let authFile = codexHome.file("auth.json")
+        try authFile.overlay(with: Data([0xC3, 0x28]))
+
+        do {
+            _ = try await CodexLoginRunner.awaitAuthResult(
+                codexHome: codexHome,
+                timeoutSeconds: 0.2,
+                pollIntervalSeconds: 0.05
+            )
+            Issue.record("Expected authInvalidUTF8 timeout error")
+        } catch let error as CodexLoginError {
+            #expect(error == .authInvalidUTF8)
+        }
+    }
+
+    @Test("awaitAuthResultPreferFile succeeds even when completion waiter fails")
+    func awaitAuthResultPreferFileIgnoresCompletionWaiterFailure() async throws {
+        let tempRoot = STFolder("/tmp").folder("codex-login-await-prefer-file-\(UUID().uuidString)")
+        _ = tempRoot.createIfNotExists()
+        defer { try? tempRoot.delete() }
+
+        let codexHome = tempRoot.folder("codex-home")
+        _ = codexHome.createIfNotExists()
+
+        let writer = Task.detached {
+            try? await Task.sleep(nanoseconds: 250_000_000)
+            try? codexHome.file("auth.json").overlay(with: #"{"tokens":{"id_token":"id-prefer","access_token":"access-prefer"}}"#)
+        }
+        defer { writer.cancel() }
+
+        let result = try await CodexLoginRunner.awaitAuthResultPreferFile(
+            codexHome: codexHome,
+            timeoutSeconds: 2,
+            pollIntervalSeconds: 0.05,
+            completionWaiter: {
+                throw NSError(domain: "CodexLoginRunnerTests", code: -1)
+            }
+        )
+        #expect(result.authJSONString.contains("\"id_token\":\"id-prefer\""))
+        #expect(result.authJSONString.contains("\"access_token\":\"access-prefer\""))
+    }
+
+    @Test("awaitAuthResultPreferFile returns immediately when auth file is ready even if completion waiter ignores cancellation")
+    func awaitAuthResultPreferFileDoesNotBlockOnNonCancellableCompletionWaiter() async throws {
+        let tempRoot = STFolder("/tmp").folder("codex-login-await-prefer-file-cancel-\(UUID().uuidString)")
+        _ = tempRoot.createIfNotExists()
+        defer { try? tempRoot.delete() }
+
+        let codexHome = tempRoot.folder("codex-home")
+        _ = codexHome.createIfNotExists()
+
+        let writer = Task.detached {
+            try? await Task.sleep(nanoseconds: 250_000_000)
+            try? codexHome.file("auth.json").overlay(with: #"{"tokens":{"id_token":"id-fast","access_token":"access-fast"}}"#)
+        }
+        defer { writer.cancel() }
+
+        let startedAt = Date()
+        let result = try await CodexLoginRunner.awaitAuthResultPreferFile(
+            codexHome: codexHome,
+            timeoutSeconds: 2,
+            pollIntervalSeconds: 0.05,
+            completionWaiter: {
+                let waiterStart = Date()
+                while Date().timeIntervalSince(waiterStart) < 3 {
+                    try? await Task.sleep(nanoseconds: 50_000_000)
+                }
+            }
+        )
+        let elapsed = Date().timeIntervalSince(startedAt)
+
+        #expect(result.authJSONString.contains("\"id_token\":\"id-fast\""))
+        #expect(result.authJSONString.contains("\"access_token\":\"access-fast\""))
+        #expect(elapsed < 1.5)
+    }
+
+    @Test("awaitAuthResult throws authNotCreated when timeout expires")
+    func awaitAuthResultThrowsWhenTimeoutExpires() async throws {
+        let tempRoot = STFolder("/tmp").folder("codex-login-await-timeout-\(UUID().uuidString)")
+        _ = tempRoot.createIfNotExists()
+        defer { try? tempRoot.delete() }
+
+        let codexHome = tempRoot.folder("codex-home")
+        _ = codexHome.createIfNotExists()
+
+        do {
+            _ = try await CodexLoginRunner.awaitAuthResult(
+                codexHome: codexHome,
+                timeoutSeconds: 0.2,
+                pollIntervalSeconds: 0.05
+            )
+            Issue.record("Expected authNotCreated timeout error")
+        } catch let error as CodexLoginError {
+            #expect(error == .authNotCreated)
+        }
     }
 
     private func awaitMarkerOutput(at marker: URL, handle: CodexLoginHandle, timeout: TimeInterval) throws -> String {

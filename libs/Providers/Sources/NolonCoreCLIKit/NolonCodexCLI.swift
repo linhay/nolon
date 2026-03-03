@@ -842,6 +842,7 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
                 continue
             }
             report.refreshOrder.append(account.id)
+            try authManager.ensureRuntimeSkillsSymlink(accountID: account.id)
             let runtimeHome = authManager.runtimeHomeFolder(accountID: account.id)
             _ = runtimeHome.createIfNotExists()
             let runtimeAuth = runtimeHome.file("auth.json")
@@ -872,6 +873,11 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
                 )
                 try await authManager.storeUsageCache(cache, for: account)
                 try await authManager.updateSyncSuccess(for: account, date: now)
+                if let email = result.usage.identity?.accountEmail?.trimmingCharacters(in: .whitespacesAndNewlines),
+                   !email.isEmpty
+                {
+                    _ = try? await authManager.backfillEmailIfMissing(for: account, email: email)
+                }
             case let .failure(error):
                 // Refresh failure means current account's usage snapshot is stale;
                 // remove cache to avoid showing outdated values as if they were fresh.
@@ -1077,11 +1083,7 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
         let canonicalProviderID = try Self.canonicalProviderID(providerID)
         let provider = try Self.provider(for: canonicalProviderID)
         let codexHome = authManager.cliLoginCodexHomeFolder(providerID: canonicalProviderID)
-        _ = codexHome.createIfNotExists()
-        let isolatedAuthFile = codexHome.file("auth.json")
-        if isolatedAuthFile.isExists {
-            try isolatedAuthFile.delete()
-        }
+        try Self.prepareIsolatedLoginHome(codexHome: codexHome)
 
         let loginResult: CodexLoginResult
         do {
@@ -1123,7 +1125,7 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
             )
         }
         let activeID = await authManager.activeAccountId(for: provider)
-        try await authManager.deleteAccount(id: accountID)
+        try await authManager.deleteAccount(id: accountID, provider: provider)
         return NolonCodexAuthDeletePayload(
             providerID: canonicalProviderID,
             accountID: accountID,
@@ -1381,7 +1383,9 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
     private static func liveAuthRefreshRunner(providerID: String, accountID: UUID, environment: [String: String]) async throws {
         _ = providerID
         var runtimeEnvironment = environment
-        let runtimeHome = CodexAuthManager(environment: environment).runtimeHomeFolder(accountID: accountID)
+        let authManager = CodexAuthManager(environment: environment)
+        try authManager.ensureRuntimeSkillsSymlink(accountID: accountID)
+        let runtimeHome = authManager.runtimeHomeFolder(accountID: accountID)
         _ = runtimeHome.createIfNotExists()
         runtimeEnvironment["CODEX_HOME"] = runtimeHome.url.standardizedFileURL.path
         let service = CodexAccountRuntimeService(
@@ -1404,33 +1408,52 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
             environment: runtimeEnvironment
         )
         defer { Task { await service.shutdown() } }
-        try await service.initialize(clientName: "nolon", clientVersion: "1.0.0")
+        try await service.initialize(clientName: "codex", clientVersion: "1.0.0")
         let started = try await service.startChatGPTLogin()
 
-        if let openURL = URL(string: started.authURL.absoluteString) {
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
-            process.arguments = [openURL.absoluteString]
-            try? process.run()
+        do {
+            let authResult = try await CodexLoginRunner.awaitAuthResultPreferFile(
+                codexHome: codexHome,
+                timeoutSeconds: 10 * 60,
+                pollIntervalSeconds: 0.2,
+                completionWaiter: {
+                    try await service.awaitChatGPTLoginCompletion(loginID: started.loginID, timeout: 10 * 60)
+                }
+            )
+            return CodexLoginResult(authJSONString: authResult.authJSONString, loginURL: started.authURL.absoluteString)
+        } catch let error as CodexLoginError {
+            switch error {
+            case .authInvalidUTF8:
+                throw NolonCoreCLIError.domainFailed(
+                    code: "codex_auth_login_invalid_auth_file",
+                    message: "Login completed but auth.json is empty or invalid UTF-8."
+                )
+            default:
+                throw NolonCoreCLIError.domainFailed(
+                    code: "codex_auth_login_missing_auth_file",
+                    message: "Login completed but auth.json was not created."
+                )
+            }
+        }
+    }
+
+    static func prepareIsolatedLoginHome(codexHome: STFolder) throws {
+        _ = codexHome.createIfNotExists()
+
+        let configFile = codexHome.file("config.toml")
+        let requiredConfig = "cli_auth_credentials_store = \"file\"\n"
+        if !configFile.isExists || ((try? configFile.read()) != requiredConfig) {
+            try configFile.overlay(with: requiredConfig)
         }
 
-        try await service.awaitChatGPTLoginCompletion(loginID: started.loginID, timeout: 10 * 60)
-
-        let authFile = codexHome.file("auth.json")
-        guard authFile.isExists else {
-            throw NolonCoreCLIError.domainFailed(
-                code: "codex_auth_login_missing_auth_file",
-                message: "Login completed but auth.json was not created."
-            )
+        let authFileURL = codexHome.file("auth.json").url
+        do {
+            try FileManager.default.removeItem(at: authFileURL)
+        } catch let error as NSError where error.domain == NSCocoaErrorDomain && error.code == NSFileNoSuchFileError {
+            return
+        } catch let error as NSError where error.domain == NSPOSIXErrorDomain && error.code == ENOENT {
+            return
         }
-        let data = try authFile.data()
-        guard let raw = String(data: data, encoding: .utf8), !raw.isEmpty else {
-            throw NolonCoreCLIError.domainFailed(
-                code: "codex_auth_login_invalid_auth_file",
-                message: "Login completed but auth.json is empty or invalid UTF-8."
-            )
-        }
-        return CodexLoginResult(authJSONString: raw, loginURL: started.authURL.absoluteString)
     }
 
     private static func liveUsageOutcomeFetcher(environment: [String: String]) async -> ProviderFetchOutcome {

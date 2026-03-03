@@ -83,7 +83,7 @@ struct CodexLoginURLSheet: View {
                 Button(NSLocalizedString("codex.login.sheet.copy", value: "复制 URL", comment: "Copy login URL")) {
                     onCopy()
                 }
-                Button(NSLocalizedString("codex.login.sheet.open", value: "重新打开浏览器", comment: "Reopen browser")) {
+                Button(NSLocalizedString("codex.login.sheet.open", value: "在浏览器中打开", comment: "Open in browser")) {
                     onOpen()
                 }
                 Spacer()

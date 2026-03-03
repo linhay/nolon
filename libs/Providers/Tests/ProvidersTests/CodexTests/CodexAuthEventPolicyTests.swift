@@ -12,7 +12,7 @@ struct CodexAuthEventPolicyTests {
         let ignored = CodexAuthEventPolicy.shouldIgnoreKnownAuthRename(
             changedPath: changedPath,
             kind: .renamed,
-            isAuthFolderChange: true,
+            isAuthFolderChange: false,
             isAuthFileChange: false,
             knownAuthFileNames: knownFiles
         )
@@ -23,6 +23,22 @@ struct CodexAuthEventPolicyTests {
     @Test("Given unknown renamed file, when evaluating policy, then rename is not ignored")
     func unknownRenamedFileIsNotIgnored() {
         let changedPath = "/Users/test/.Trash/unknown.json"
+        let knownFiles: Set<String> = ["personal-account.json", "work-account.json"]
+
+        let ignored = CodexAuthEventPolicy.shouldIgnoreKnownAuthRename(
+            changedPath: changedPath,
+            kind: .renamed,
+            isAuthFolderChange: false,
+            isAuthFileChange: false,
+            knownAuthFileNames: knownFiles
+        )
+
+        #expect(ignored == false)
+    }
+
+    @Test("Given known account file renamed inside auth folder, when evaluating policy, then rename is not ignored")
+    func knownRenameInsideAuthFolderIsNotIgnored() {
+        let changedPath = "/Users/test/.nolon/codex/auth/personal-account.json"
         let knownFiles: Set<String> = ["personal-account.json", "work-account.json"]
 
         let ignored = CodexAuthEventPolicy.shouldIgnoreKnownAuthRename(
@@ -90,5 +106,71 @@ struct CodexAuthChangeSuppressionStoreTests {
         var store = CodexAuthChangeSuppressionStore()
         let suppressed = store.shouldSuppress(path: "/tmp/auth/work.json", now: Date())
         #expect(suppressed == false)
+    }
+
+    @Test("Given delete suppression mark, when event kind differs, then change is not suppressed")
+    func suppressionKindMismatchIsNotSuppressed() {
+        var store = CodexAuthChangeSuppressionStore()
+        let now = Date()
+        store.markOperation(
+            filePath: "/tmp/auth/work.json",
+            folderPath: "/tmp/auth",
+            kind: .deleted,
+            ttl: 10,
+            now: now
+        )
+
+        let suppressed = store.consumeSuppression(
+            path: "/tmp/auth/work.json",
+            kind: .modified,
+            now: now.addingTimeInterval(0.2)
+        )
+        #expect(suppressed == false)
+    }
+
+    @Test("Given delete suppression mark, when matching delete event arrives twice, then only first event is suppressed")
+    func suppressionConsumedAfterFirstMatch() {
+        var store = CodexAuthChangeSuppressionStore()
+        let now = Date()
+        store.markOperation(
+            filePath: "/tmp/auth/work.json",
+            folderPath: "/tmp/auth",
+            kind: .deleted,
+            ttl: 10,
+            now: now
+        )
+
+        let firstSuppressed = store.consumeSuppression(
+            path: "/tmp/auth/work.json",
+            kind: .deleted,
+            now: now.addingTimeInterval(0.2)
+        )
+        let secondSuppressed = store.consumeSuppression(
+            path: "/tmp/auth/work.json",
+            kind: .deleted,
+            now: now.addingTimeInterval(0.3)
+        )
+        #expect(firstSuppressed == true)
+        #expect(secondSuppressed == false)
+    }
+
+    @Test("Given delete suppression mark on auth folder, when child delete event arrives, then child event is suppressed")
+    func childDeleteEventUnderMarkedFolderIsSuppressed() {
+        var store = CodexAuthChangeSuppressionStore()
+        let now = Date()
+        store.markOperation(
+            filePath: "/tmp/auth/work.json",
+            folderPath: "/tmp/auth",
+            kind: .deleted,
+            ttl: 10,
+            now: now
+        )
+
+        let suppressed = store.consumeSuppression(
+            path: "/tmp/auth/new.json",
+            kind: .deleted,
+            now: now.addingTimeInterval(0.2)
+        )
+        #expect(suppressed == true)
     }
 }

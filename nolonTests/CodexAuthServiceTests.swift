@@ -282,6 +282,57 @@ final class ProviderUsageViewModelCLILoginTests: XCTestCase {
         XCTAssertFalse(watched.contains(providerAuthPath))
     }
 
+    func testBDD_GivenIsolatedNolonHome_WhenPreparingCLILoginHome_ThenUsesStableFolderAndForcesFileStore() throws {
+        let provider = Provider(
+            name: "Codex",
+            defaultSkillsPath: "/tmp/codex-skills",
+            workflowPath: "/tmp/codex-prompts",
+            installMethod: .symlink,
+            templateId: "codex"
+        )
+
+        let isolatedRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("nolon-vm-login-home-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: isolatedRoot, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: isolatedRoot) }
+
+        let previousNolonHome = getenv("NOLON_HOME").map { String(cString: $0) }
+        setenv("NOLON_HOME", isolatedRoot.path, 1)
+        defer {
+            if let previousNolonHome {
+                setenv("NOLON_HOME", previousNolonHome, 1)
+            } else {
+                unsetenv("NOLON_HOME")
+            }
+        }
+
+        let viewModel = ProviderUsageViewModel(provider: provider)
+        let firstHome = try viewModel.prepareCLILoginHomeDirectory()
+
+        let expectedHome = isolatedRoot
+            .appendingPathComponent("codex", isDirectory: true)
+            .appendingPathComponent("cli-login-home", isDirectory: true)
+            .appendingPathComponent("codex", isDirectory: true)
+            .standardizedFileURL
+        XCTAssertEqual(firstHome.standardizedFileURL.path, expectedHome.path)
+
+        let configFile = expectedHome.appendingPathComponent("config.toml")
+        let configText = try String(contentsOf: configFile, encoding: .utf8)
+        XCTAssertEqual(configText, "cli_auth_credentials_store = \"file\"\n")
+
+        let staleAuthFile = expectedHome.appendingPathComponent("auth.json")
+        try "{\"tokens\":{\"id_token\":\"old\",\"access_token\":\"old\"}}".write(
+            to: staleAuthFile,
+            atomically: true,
+            encoding: .utf8
+        )
+        XCTAssertTrue(FileManager.default.fileExists(atPath: staleAuthFile.path))
+
+        let secondHome = try viewModel.prepareCLILoginHomeDirectory()
+        XCTAssertEqual(secondHome.standardizedFileURL.path, expectedHome.path)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: staleAuthFile.path))
+    }
+
     func testBDD_GivenCLILoginAlreadyRunning_WhenRequestingCardLoginAgain_ThenFlowRestartsWithPreferredAccount() {
         // Given
         let provider = Provider(
@@ -301,6 +352,28 @@ final class ProviderUsageViewModelCLILoginTests: XCTestCase {
         // Then
         XCTAssertTrue(viewModel.isRunningCLILogin)
         XCTAssertNotNil(viewModel.cliLoginPreferredAccountId)
+    }
+
+    func testBDD_GivenCLILoginRunning_WhenLoginURLSheetDismisses_ThenLoginFlowCancelsImmediately() {
+        let provider = Provider(
+            name: "Codex",
+            defaultSkillsPath: "/tmp/codex-skills",
+            workflowPath: "/tmp/codex-prompts",
+            installMethod: .symlink,
+            templateId: "codex"
+        )
+        let viewModel = ProviderUsageViewModel(provider: provider)
+        viewModel.isRunningCLILogin = true
+        viewModel.isShowingLoginURLSheet = true
+        viewModel.loginURLForSheet = URL(string: "https://auth.openai.com/oauth/authorize?foo=bar")
+        viewModel.loginModeForSheet = "CLI(AppServer)"
+
+        viewModel.handleLoginURLSheetDismissed()
+
+        XCTAssertFalse(viewModel.isRunningCLILogin)
+        XCTAssertFalse(viewModel.isShowingLoginURLSheet)
+        XCTAssertNil(viewModel.loginURLForSheet)
+        XCTAssertNil(viewModel.loginModeForSheet)
     }
 
     func testBDD_Given401Unauthorized_WhenCheckingAuthFailure_ThenReturnsTrue() {
@@ -354,6 +427,44 @@ final class ProviderUsageViewModelCLILoginTests: XCTestCase {
             viewModel.copyToastMessage,
             NSLocalizedString("remote.error.copied", value: "Copied", comment: "Copied tooltip")
         )
+    }
+}
+
+@MainActor
+final class ProviderUsageViewModelAuthSignalAggregationTests: XCTestCase {
+    func testBDD_GivenBurstAuthSignals_WhenDebouncedByCombine_ThenOnlyOneReloadIsTriggered() async {
+        let provider = Provider(
+            name: "Codex",
+            defaultSkillsPath: "/tmp/codex-skills",
+            workflowPath: "/tmp/codex-prompts",
+            installMethod: .symlink,
+            templateId: "codex"
+        )
+        let viewModel = ProviderUsageViewModel(provider: provider)
+
+        viewModel.emitCodexAuthReloadSignalForTesting()
+        viewModel.emitCodexAuthReloadSignalForTesting()
+        try? await Task.sleep(nanoseconds: 900_000_000)
+
+        XCTAssertEqual(viewModel.codexDiskReloadCountForTesting, 1)
+    }
+
+    func testBDD_GivenSpacedAuthSignals_WhenDebouncedByCombine_ThenEachWindowTriggersReload() async {
+        let provider = Provider(
+            name: "Codex",
+            defaultSkillsPath: "/tmp/codex-skills",
+            workflowPath: "/tmp/codex-prompts",
+            installMethod: .symlink,
+            templateId: "codex"
+        )
+        let viewModel = ProviderUsageViewModel(provider: provider)
+
+        viewModel.emitCodexAuthReloadSignalForTesting()
+        try? await Task.sleep(nanoseconds: 450_000_000)
+        viewModel.emitCodexAuthReloadSignalForTesting()
+        try? await Task.sleep(nanoseconds: 900_000_000)
+
+        XCTAssertEqual(viewModel.codexDiskReloadCountForTesting, 2)
     }
 }
 
@@ -540,6 +651,68 @@ final class ProviderUsageViewModelDeleteTests: XCTestCase {
             NSLocalizedString("codex.accounts.error.delete", value: "Failed to delete this account.", comment: "Error message")
         )
     }
+
+    func testBDD_GivenDeletingNonActiveAccount_WhenConfirmDeleteWithoutHook_ThenDoesNotRefreshRemainingSnapshot() async throws {
+        let isolatedRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("nolon-delete-no-refresh-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: isolatedRoot, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: isolatedRoot) }
+
+        let previousNolonHome = getenv("NOLON_HOME").map { String(cString: $0) }
+        setenv("NOLON_HOME", isolatedRoot.path, 1)
+        defer {
+            if let previousNolonHome {
+                setenv("NOLON_HOME", previousNolonHome, 1)
+            } else {
+                unsetenv("NOLON_HOME")
+            }
+        }
+
+        let provider = Provider(
+            name: "Codex",
+            defaultSkillsPath: isolatedRoot.appendingPathComponent("provider/skills").path,
+            workflowPath: isolatedRoot.appendingPathComponent("provider/prompts").path,
+            installMethod: .symlink,
+            templateId: "codex"
+        )
+
+        let service = CodexAuthManager(rootURL: isolatedRoot)
+        let active = try await service.addAccount(
+            name: "active",
+            authJSONString: #"{"tokens":{"id_token":"active-id","access_token":"active-access"},"user":{"email":"active@example.com"}}"#
+        )
+        let removable = try await service.addAccount(
+            name: "removable",
+            authJSONString: #"{"tokens":{"id_token":"remove-id","access_token":"remove-access"},"user":{"email":"remove@example.com"}}"#
+        )
+        try await service.setActiveAccount(active, for: provider)
+
+        let canonicalAccounts = try await service.loadAccounts()
+        let canonicalActive = try XCTUnwrap(canonicalAccounts.first(where: { $0.id == active.id }))
+        let canonicalRemovable = try XCTUnwrap(canonicalAccounts.first(where: { $0.id == removable.id }))
+        let activeFileURL = await service.accountAuthFile(canonicalActive).url
+        let before = try Data(contentsOf: activeFileURL)
+
+        let viewModel = ProviderUsageViewModel(provider: provider)
+        viewModel.settings.webTimeoutSeconds = 1
+        viewModel.codexAccounts = [canonicalActive, canonicalRemovable]
+        viewModel.pendingDeleteCodexAccount = canonicalRemovable
+        viewModel.isShowingDeleteConfirm = true
+
+        await viewModel.confirmDeleteCodexAccount()
+
+        XCTAssertEqual(viewModel.codexAccounts.map(\.id), [active.id])
+        XCTAssertNil(viewModel.pendingDeleteCodexAccount)
+        XCTAssertFalse(viewModel.isShowingDeleteConfirm)
+        XCTAssertNil(viewModel.alertTitle)
+        XCTAssertNil(viewModel.alertMessage)
+
+        let updatedAccounts = try await service.loadAccounts()
+        let remaining = try XCTUnwrap(updatedAccounts.first(where: { $0.id == active.id }))
+        let updatedActiveFileURL = await service.accountAuthFile(remaining).url
+        let after = try Data(contentsOf: updatedActiveFileURL)
+        XCTAssertEqual(before, after)
+    }
 }
 
 @MainActor
@@ -695,6 +868,31 @@ final class ProviderUsageViewModelOutcomeOrderingTests: XCTestCase {
         XCTAssertEqual(viewModel.codexAccountOutcomes.map(\.displayName), ["duplicated", "normal"])
     }
 
+    func testBDD_GivenStaleOutcomeWithoutSnapshot_WhenReordering_ThenDropsStaleOutcomeCard() {
+        let provider = Provider(
+            name: "Codex",
+            defaultSkillsPath: "/tmp/codex-skills",
+            workflowPath: "/tmp/codex-prompts",
+            installMethod: .symlink,
+            templateId: "codex"
+        )
+
+        let existing = CodexAuthAccount(name: "existing", relativeAuthPath: "auth/existing.json")
+        let stale = CodexAuthAccount(name: "stale", relativeAuthPath: "auth/stale.json")
+        let viewModel = ProviderUsageViewModel(provider: provider)
+
+        viewModel.codexAccounts = [existing]
+        viewModel.codexAccountOutcomes = [
+            makeOutcome(account: existing, label: "existing"),
+            makeOutcome(account: stale, label: "stale")
+        ]
+
+        viewModel.reorderCodexAccountOutcomesForDisplay()
+
+        XCTAssertEqual(viewModel.codexAccountOutcomes.count, 1)
+        XCTAssertEqual(viewModel.codexAccountOutcomes.first?.displayName, "existing")
+    }
+
     private func makeOutcome(account: CodexAuthAccount, label: String) -> ProviderAccountUsageOutcome {
         let usage = UsageSnapshot(
             identity: UsageIdentity(accountEmail: "\(label)@example.com", accountOrganization: nil, loginMethod: "oauth", plan: "plus"),
@@ -775,7 +973,7 @@ final class CodexAuthEventPolicyTests: XCTestCase {
         let ignored = CodexAuthEventPolicy.shouldIgnoreKnownAuthRename(
             changedPath: changedPath,
             kind: .renamed,
-            isAuthFolderChange: true,
+            isAuthFolderChange: false,
             isAuthFileChange: false,
             knownAuthFileNames: knownFiles
         )
@@ -793,7 +991,7 @@ final class CodexAuthEventPolicyTests: XCTestCase {
         let ignored = CodexAuthEventPolicy.shouldIgnoreKnownAuthRename(
             changedPath: changedPath,
             kind: .renamed,
-            isAuthFolderChange: true,
+            isAuthFolderChange: false,
             isAuthFileChange: false,
             knownAuthFileNames: knownFiles
         )
@@ -813,6 +1011,24 @@ final class CodexAuthEventPolicyTests: XCTestCase {
             kind: .renamed,
             isAuthFolderChange: true,
             isAuthFileChange: true,
+            knownAuthFileNames: knownFiles
+        )
+
+        // Then
+        XCTAssertFalse(ignored)
+    }
+
+    func testBDD_GivenKnownAccountRenameInsideAuthFolder_WhenEvaluatingPolicy_ThenRenameIsNotIgnored() {
+        // Given
+        let changedPath = "/Users/test/.nolon/codex/auth/personal-account.json"
+        let knownFiles: Set<String> = ["personal-account.json", "work-account.json"]
+
+        // When
+        let ignored = CodexAuthEventPolicy.shouldIgnoreKnownAuthRename(
+            changedPath: changedPath,
+            kind: .renamed,
+            isAuthFolderChange: true,
+            isAuthFileChange: false,
             knownAuthFileNames: knownFiles
         )
 

@@ -70,7 +70,7 @@ public actor CodexRuntimeAccountSwitcher {
     }
 
     private func serviceFor(executable: String, environment: [String: String]) async throws -> any CodexRuntimeAccountServing {
-        let resolvedBinary = CodexRuntimeSupport.resolvedBinary(preferredBinary: executable, environment: environment)
+        let resolvedBinary = await CodexRuntimeSupport.resolvedBinaryAsync(preferredBinary: executable, environment: environment)
         let key = cacheKey(executable: resolvedBinary, environment: environment)
         if let existing = services[key] {
             return existing

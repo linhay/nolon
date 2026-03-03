@@ -45,6 +45,69 @@ struct CodexAuthManagerTests {
         #expect(folder == expected)
     }
 
+    @Test("Given runtime home without skills link, when ensuring runtime skills symlink, then template and symlink are created")
+    func ensureRuntimeSkillsSymlinkCreatesTemplateAndLink() async throws {
+        let root = try makeTempRoot("codex-auth-runtime-skills")
+        defer { try? root.delete() }
+
+        let manager = CodexAuthManager(rootURL: root.url)
+        let accountID = UUID(uuidString: "11111111-1111-1111-1111-111111111111")!
+
+        try manager.ensureRuntimeSkillsSymlink(accountID: accountID)
+
+        let template = manager.runtimeSkillsTemplateFolder()
+        #expect(template.isExists)
+
+        let runtimeSkills = STPath(manager.runtimeHomeFolder(accountID: accountID).folder("skills").url)
+        #expect(runtimeSkills.isSymbolicLink == true)
+        let destination = try runtimeSkills.destinationOfSymbolicLink()
+        #expect(STPath.standardizedPath(destination.url.path).path == STPath.standardizedPath(template.url.path).path)
+    }
+
+    @Test("Given runtime skills directory already exists, when ensuring runtime skills symlink, then directory is replaced with symlink")
+    func ensureRuntimeSkillsSymlinkReplacesExistingDirectory() async throws {
+        let root = try makeTempRoot("codex-auth-runtime-skills-replace")
+        defer { try? root.delete() }
+
+        let manager = CodexAuthManager(rootURL: root.url)
+        let accountID = UUID(uuidString: "22222222-2222-2222-2222-222222222222")!
+
+        let runtimeSkillsFolder = manager.runtimeHomeFolder(accountID: accountID).folder("skills")
+        _ = runtimeSkillsFolder.createIfNotExists()
+        let legacyFile = runtimeSkillsFolder.file("legacy.txt")
+        try legacyFile.overlay(with: "legacy")
+        #expect(legacyFile.isExists)
+
+        try manager.ensureRuntimeSkillsSymlink(accountID: accountID)
+
+        let runtimeSkills = STPath(runtimeSkillsFolder.url)
+        #expect(runtimeSkills.isSymbolicLink == true)
+        #expect(legacyFile.isExists == false)
+    }
+
+    @Test("Given runtime skills is already linked to template, when ensuring runtime skills symlink, then keeps existing link target")
+    func ensureRuntimeSkillsSymlinkKeepsExistingLink() async throws {
+        let root = try makeTempRoot("codex-auth-runtime-skills-keep")
+        defer { try? root.delete() }
+
+        let manager = CodexAuthManager(rootURL: root.url)
+        let accountID = UUID(uuidString: "33333333-3333-3333-3333-333333333333")!
+
+        try manager.ensureRuntimeSkillsSymlink(accountID: accountID)
+        let runtimeSkills = STPath(manager.runtimeHomeFolder(accountID: accountID).folder("skills").url)
+        let before = try runtimeSkills.destinationOfSymbolicLink()
+
+        let template = manager.runtimeSkillsTemplateFolder()
+        let marker = template.file("marker.txt")
+        try marker.overlay(with: "ok")
+
+        try manager.ensureRuntimeSkillsSymlink(accountID: accountID)
+        let after = try runtimeSkills.destinationOfSymbolicLink()
+
+        #expect(STPath.standardizedPath(before.url.path).path == STPath.standardizedPath(after.url.path).path)
+        #expect(marker.isExists == true)
+    }
+
     @Test("Given account snapshot, when reading token pair, then returns id/access token and chatgpt account id")
     func readTokenPairFromSnapshot() async throws {
         let root = try makeTempRoot("codex-auth-manager")
@@ -88,6 +151,40 @@ struct CodexAuthManagerTests {
         #expect(STPath.standardizedPath(destination.url.path).path == STPath.standardizedPath(snapshot.url.path).path)
     }
 
+    @Test("Given active snapshot symlink, when deleting that account, then provider auth symlink is removed")
+    func deleteAccountRemovesProviderAuthSymlinkForDeletedActiveAccount() async throws {
+        let root = try makeTempRoot("codex-auth-delete-active-symlink")
+        defer { try? root.delete() }
+
+        let manager = CodexAuthManager(rootURL: root.url)
+        let account = try await manager.addAccount(
+            name: "active",
+            authJSONString: #"{"tokens":{"id_token":"id-delete","access_token":"access-delete"},"email":"active-delete@example.com"}"#
+        )
+        let providerRoot = root.folder("provider")
+        _ = providerRoot.createIfNotExists()
+        let provider = Provider(
+            name: "Codex",
+            defaultSkillsPath: providerRoot.folder("skills").url.path,
+            workflowPath: providerRoot.folder("prompts").url.path,
+            installMethod: .symlink,
+            templateId: "codex"
+        )
+
+        try await manager.activateAccountAndMarkActive(account, for: provider)
+        let providerAuth = try #require(await manager.authFile(for: provider))
+        #expect(providerAuth.isSymbolicLink == true)
+
+        try await manager.deleteAccount(id: account.id, provider: provider)
+
+        #expect(providerAuth.isExists == false)
+        #expect(providerAuth.isSymbolicLink == false)
+        let remaining = try await manager.loadAccounts()
+        #expect(remaining.isEmpty)
+        let activeID = await manager.activeAccountId(for: provider)
+        #expect(activeID == nil)
+    }
+
     @Test("Given activated snapshot via unified activation, when provider auth is deleted, then active account still resolves from registry")
     func activateAccountAndMarkActivePersistsRegistry() async throws {
         let root = try makeTempRoot("codex-auth-activate-mark")
@@ -123,7 +220,7 @@ struct CodexAuthManagerTests {
         let manager = CodexAuthManager(rootURL: root.url)
         let active = try await manager.addAccount(
             name: "active",
-            authJSONString: #"{"tokens":{"id_token":"id-active","access_token":"access-active"},"user":{"email":"active@example.com"}}"#
+            authJSONString: #"{"tokens":{"id_token":"id-active","access_token":"access-active"},"email":"active@example.com"}"#
         )
         let providerRoot = root.folder("provider")
         _ = providerRoot.createIfNotExists()
@@ -137,7 +234,7 @@ struct CodexAuthManagerTests {
 
         try await manager.activateAccountAndMarkActive(active, for: provider)
 
-        let driftedRaw = #"{"tokens":{"id_token":"id-drift","access_token":"access-drift"},"user":{"email":"drift-after-activate@example.com"}}"#
+        let driftedRaw = #"{"tokens":{"id_token":"id-drift","access_token":"access-drift"},"email":"drift-after-activate@example.com"}"#
         let activeID = try #require(await manager.activeAccountId(for: provider))
         let activeResolved = try #require((try await manager.loadAccounts()).first(where: { $0.id == activeID }))
         let activeFile = await manager.accountAuthFile(activeResolved)
@@ -185,7 +282,7 @@ struct CodexAuthManagerTests {
         )
 
         let authURL = providerRoot.file("auth.json").url
-        let raw = #"{"tokens":{"id_token":"id-2","access_token":"access-2"},"user":{"email":"cli@example.com"}}"#
+        let raw = #"{"tokens":{"id_token":"id-2","access_token":"access-2"},"email":"cli@example.com"}"#
         try raw.write(to: authURL, atomically: true, encoding: .utf8)
 
         let account = try await manager.finalizeCLILogin(provider: provider, newAccountName: "cli")
@@ -205,11 +302,11 @@ struct CodexAuthManagerTests {
         let manager = CodexAuthManager(rootURL: root.url)
         let preferred = try await manager.addAccount(
             name: "preferred",
-            authJSONString: #"{"tokens":{"id_token":"old-id","access_token":"old-access"},"user":{"email":"preferred@example.com"}}"#
+            authJSONString: #"{"tokens":{"id_token":"old-id","access_token":"old-access"},"email":"preferred@example.com"}"#
         )
         _ = try await manager.addAccount(
             name: "other",
-            authJSONString: #"{"tokens":{"id_token":"other-id","access_token":"other-access"},"user":{"email":"other@example.com"}}"#
+            authJSONString: #"{"tokens":{"id_token":"other-id","access_token":"other-access"},"email":"other@example.com"}"#
         )
         try await manager.updateSyncFailure(
             for: preferred,
@@ -219,7 +316,7 @@ struct CodexAuthManagerTests {
 
         let loginAt = Date(timeIntervalSince1970: 1_700_000_100)
         let updated = try await manager.recordCLILoginSnapshot(
-            authJSONString: #"{"tokens":{"id_token":"new-id","access_token":"new-access"},"user":{"email":"other@example.com"}}"#,
+            authJSONString: #"{"tokens":{"id_token":"new-id","access_token":"new-access"},"email":"other@example.com"}"#,
             preferredAccountID: preferred.id,
             loginAt: loginAt
         )
@@ -237,23 +334,54 @@ struct CodexAuthManagerTests {
         #expect(summary.lastSyncFailureMessage == nil)
     }
 
-    @Test("Given existing snapshot with same email, when recording CLI login snapshot, then account is overwritten in-place")
-    func recordCLILoginSnapshotOverwritesByEmail() async throws {
+    @Test("Given existing snapshot with same email but different account id, when recording CLI login snapshot, then a new snapshot is created")
+    func recordCLILoginSnapshotCreatesNewWhenEmailMatchesButAccountIDDiffers() async throws {
         let root = try makeTempRoot("codex-auth-record-email")
         defer { try? root.delete() }
 
         let manager = CodexAuthManager(rootURL: root.url)
         let existing = try await manager.addAccount(
             name: "existing",
-            authJSONString: #"{"tokens":{"id_token":"old-id","access_token":"old-access"},"user":{"email":"same@example.com"}}"#
+            authJSONString: #"{"email":"same@example.com","tokens":{"account_id":"acct-old","id_token":"old-id","access_token":"old-access"}}"#
+        )
+
+        let created = try await manager.recordCLILoginSnapshot(
+            authJSONString: #"{"email":"same@example.com","tokens":{"account_id":"acct-new","id_token":"new-id","access_token":"new-access"}}"#,
+            preferredAccountID: nil
+        )
+
+        #expect(created.id != existing.id)
+        let all = try await manager.loadAccounts()
+        #expect(all.count == 2)
+        let persistedExisting = try #require(all.first(where: { $0.id == existing.id }))
+        let existingPair = try await manager.readTokenPair(for: persistedExisting)
+        #expect(existingPair?.idToken == "old-id")
+        #expect(existingPair?.accessToken == "old-access")
+        let persistedCreated = try #require(all.first(where: { $0.id == created.id }))
+        let createdPair = try await manager.readTokenPair(for: persistedCreated)
+        #expect(createdPair?.idToken == "new-id")
+        #expect(createdPair?.accessToken == "new-access")
+    }
+
+    @Test("Given existing snapshot with same email and same account id, when recording CLI login snapshot, then account is overwritten in-place")
+    func recordCLILoginSnapshotOverwritesWhenEmailAndAccountIDMatch() async throws {
+        let root = try makeTempRoot("codex-auth-record-email-accountid")
+        defer { try? root.delete() }
+
+        let manager = CodexAuthManager(rootURL: root.url)
+        let existing = try await manager.addAccount(
+            name: "existing",
+            authJSONString: #"{"email":"same@example.com","tokens":{"account_id":"acct-same","id_token":"old-id","access_token":"old-access"}}"#
         )
 
         let updated = try await manager.recordCLILoginSnapshot(
-            authJSONString: #"{"tokens":{"id_token":"new-id","access_token":"new-access"},"user":{"email":"same@example.com"}}"#,
+            authJSONString: #"{"email":"same@example.com","tokens":{"account_id":"acct-same","id_token":"new-id","access_token":"new-access"}}"#,
             preferredAccountID: nil
         )
 
         #expect(updated.id == existing.id)
+        let all = try await manager.loadAccounts()
+        #expect(all.count == 1)
         let tokenPair = try await manager.readTokenPair(for: updated)
         #expect(tokenPair?.idToken == "new-id")
         #expect(tokenPair?.accessToken == "new-access")
@@ -267,7 +395,7 @@ struct CodexAuthManagerTests {
         let manager = CodexAuthManager(rootURL: root.url)
         let existing = try await manager.addAccount(
             name: "existing",
-            authJSONString: #"{"tokens":{"id_token":"old-id","access_token":"old-access"},"user":{"email":"same@example.com"}}"#
+            authJSONString: #"{"tokens":{"id_token":"old-id","access_token":"old-access"},"email":"same@example.com"}"#
         )
         let providerRoot = root.folder("provider")
         _ = providerRoot.createIfNotExists()
@@ -280,7 +408,7 @@ struct CodexAuthManagerTests {
         )
 
         let detachedAuthURL = providerRoot.file("auth.json").url
-        let detachedRaw = #"{"tokens":{"id_token":"new-id","access_token":"new-access"},"user":{"email":"same@example.com"}}"#
+        let detachedRaw = #"{"tokens":{"id_token":"new-id","access_token":"new-access"},"email":"same@example.com"}"#
         try detachedRaw.write(to: detachedAuthURL, atomically: true, encoding: .utf8)
 
         let reconciled = try await manager.reconcileDetachedProviderAuthIfNeeded(for: provider)
@@ -309,7 +437,7 @@ struct CodexAuthManagerTests {
         let manager = CodexAuthManager(rootURL: root.url)
         _ = try await manager.addAccount(
             name: "existing",
-            authJSONString: #"{"tokens":{"id_token":"old-id","access_token":"old-access"},"user":{"email":"existing@example.com"}}"#
+            authJSONString: #"{"tokens":{"id_token":"old-id","access_token":"old-access"},"email":"existing@example.com"}"#
         )
         let providerRoot = root.folder("provider")
         _ = providerRoot.createIfNotExists()
@@ -322,7 +450,7 @@ struct CodexAuthManagerTests {
         )
 
         let detachedAuthURL = providerRoot.file("auth.json").url
-        let detachedRaw = #"{"tokens":{"id_token":"new-id","access_token":"new-access"},"user":{"email":"fresh@example.com"}}"#
+        let detachedRaw = #"{"tokens":{"id_token":"new-id","access_token":"new-access"},"email":"fresh@example.com"}"#
         try detachedRaw.write(to: detachedAuthURL, atomically: true, encoding: .utf8)
 
         let reconciled = try await manager.reconcileDetachedProviderAuthIfNeeded(for: provider)
@@ -378,9 +506,9 @@ struct CodexAuthManagerTests {
 
         let validURL = inputFolder.file("valid.json").url
         let invalidURL = inputFolder.file("invalid.json").url
-        try #"{"tokens":{"id_token":"id-valid","access_token":"access-valid"},"user":{"email":"valid@example.com"}}"#
+        try #"{"tokens":{"id_token":"id-valid","access_token":"access-valid"},"email":"valid@example.com"}"#
             .write(to: validURL, atomically: true, encoding: .utf8)
-        try #"{"user":{"email":"invalid@example.com"}}"#
+        try #"{"email":"invalid@example.com"}"#
             .write(to: invalidURL, atomically: true, encoding: .utf8)
 
         let results = await manager.validateImportAuthFiles(urls: [validURL, invalidURL])
@@ -422,13 +550,13 @@ struct CodexAuthManagerTests {
         let manager = CodexAuthManager(rootURL: root.url)
         let emailMatch = try await manager.addAccount(
             name: "email-match",
-            authJSONString: #"{"OPENAI_API_KEY":"sk-email-1111","user":{"email":"email-match@example.com"}}"#
+            authJSONString: #"{"OPENAI_API_KEY":"sk-email-1111","email":"email-match@example.com"}"#
         )
         _ = try await manager.addAccount(
             name: "key-match",
-            authJSONString: #"{"OPENAI_API_KEY":"sk-key-9999","user":{"email":"other@example.com"}}"#
+            authJSONString: #"{"OPENAI_API_KEY":"sk-key-9999","email":"other@example.com"}"#
         )
-        let payload = Data(#"{"OPENAI_API_KEY":"sk-any-9999","user":{"email":"email-match@example.com"}}"#.utf8)
+        let payload = Data(#"{"OPENAI_API_KEY":"sk-any-9999","email":"email-match@example.com"}"#.utf8)
 
         let matched = try await manager.matchAccountByAuthData(payload)
         #expect(matched?.id == emailMatch.id)
@@ -487,7 +615,7 @@ struct CodexAuthManagerTests {
         let manager = CodexAuthManager(rootURL: root.url)
         let snapshot = try await manager.addAccount(
             name: "stable",
-            authJSONString: #"{"tokens":{"id_token":"id-stable","access_token":"access-stable"},"user":{"email":"stable@example.com"}}"#
+            authJSONString: #"{"tokens":{"id_token":"id-stable","access_token":"access-stable"},"email":"stable@example.com"}"#
         )
 
         let providerRoot = root.folder("provider")
@@ -520,7 +648,7 @@ struct CodexAuthManagerTests {
         let manager = CodexAuthManager(rootURL: root.url)
         let active = try await manager.addAccount(
             name: "active",
-            authJSONString: #"{"tokens":{"id_token":"id-active","access_token":"access-active"},"user":{"email":"active@example.com"}}"#
+            authJSONString: #"{"tokens":{"id_token":"id-active","access_token":"access-active"},"email":"active@example.com"}"#
         )
 
         let providerRoot = root.folder("provider")
@@ -536,7 +664,7 @@ struct CodexAuthManagerTests {
         try await manager.activateAccountAndMarkActive(active, for: provider)
         _ = try await manager.preflightManagedAuthIfNeeded(for: provider, forceBackup: true, reason: "seed_backup")
 
-        let driftedRaw = #"{"tokens":{"id_token":"id-drift","access_token":"access-drift"},"user":{"email":"drift@example.com"}}"#
+        let driftedRaw = #"{"tokens":{"id_token":"id-drift","access_token":"access-drift"},"email":"drift@example.com"}"#
         let activeID = try #require(await manager.activeAccountId(for: provider))
         let activeResolved = try #require((try await manager.loadAccounts()).first(where: { $0.id == activeID }))
         let activeFile = await manager.accountAuthFile(activeResolved)
@@ -570,11 +698,11 @@ struct CodexAuthManagerTests {
         let manager = CodexAuthManager(rootURL: root.url)
         let canonical = try await manager.addAccount(
             name: "linhan",
-            authJSONString: #"{"tokens":{"id_token":"id-1","access_token":"access-1"},"user":{"email":"linhan.bigl055@gmail.com"}}"#
+            authJSONString: #"{"tokens":{"id_token":"id-1","access_token":"access-1"},"email":"linhan.bigl055@gmail.com"}"#
         )
         let duplicate = try await manager.addAccount(
             name: "robbins",
-            authJSONString: #"{"tokens":{"id_token":"id-2","access_token":"access-2"},"user":{"email":"robbinsterry3456@gmail.com"}}"#
+            authJSONString: #"{"tokens":{"id_token":"id-2","access_token":"access-2"},"email":"robbinsterry3456@gmail.com"}"#
         )
 
         let canonicalFile = await manager.accountAuthFile(canonical)
@@ -616,11 +744,11 @@ struct CodexAuthManagerTests {
         let manager = CodexAuthManager(rootURL: root.url)
         let canonical = try await manager.addAccount(
             name: "linhan",
-            authJSONString: #"{"tokens":{"id_token":"id-1","access_token":"access-1"},"user":{"email":"linhan.bigl055@gmail.com"}}"#
+            authJSONString: #"{"tokens":{"id_token":"id-1","access_token":"access-1"},"email":"linhan.bigl055@gmail.com"}"#
         )
         let duplicate = try await manager.addAccount(
             name: "robbins",
-            authJSONString: #"{"tokens":{"id_token":"id-2","access_token":"access-2"},"user":{"email":"robbinsterry3456@gmail.com"}}"#
+            authJSONString: #"{"tokens":{"id_token":"id-2","access_token":"access-2"},"email":"robbinsterry3456@gmail.com"}"#
         )
 
         let canonicalFile = await manager.accountAuthFile(canonical)
@@ -635,15 +763,15 @@ struct CodexAuthManagerTests {
         #expect(duplicateFile.isExists == false)
     }
 
-    @Test("Given snapshot file name mismatched with email, when loading accounts then snapshot file is renamed to match email")
-    func loadAccountsAlignsSnapshotFileNameWithEmail() async throws {
+    @Test("Given snapshot file name mismatched with email(account_id), when loading accounts then snapshot file is renamed to match email(account_id)")
+    func loadAccountsAlignsSnapshotFileNameWithEmailAndAccountID() async throws {
         let root = try makeTempRoot("codex-auth-align-file-name")
         defer { try? root.delete() }
 
         let manager = CodexAuthManager(rootURL: root.url)
         let account = try await manager.addAccount(
             name: "dzurillaisadore@gmail.com",
-            authJSONString: #"{"tokens":{"id_token":"id-1","access_token":"access-1"},"user":{"email":"linhan.bigl055@gmail.com"}}"#
+            authJSONString: #"{"email":"linhan.bigl055@gmail.com","tokens":{"account_id":"acct-123","id_token":"id-1","access_token":"access-1"}}"#
         )
 
         let oldPath = account.relativeAuthPath
@@ -652,7 +780,7 @@ struct CodexAuthManagerTests {
 
         let accounts = try await manager.loadAccounts()
         let aligned = try #require(accounts.first(where: { $0.id == account.id }))
-        #expect(aligned.relativeAuthPath == "auth/linhan-bigl055-gmail-com.json")
+        #expect(aligned.relativeAuthPath == "auth/linhan.bigl055@gmail.com(acct-123).json")
 
         let newFile = await manager.accountAuthFile(aligned)
         #expect(newFile.isExists == true)
@@ -663,4 +791,29 @@ struct CodexAuthManagerTests {
         #expect((json["email"].string ?? "").lowercased() == "linhan.bigl055@gmail.com")
         #expect(oldPath != aligned.relativeAuthPath)
     }
+
+    @Test("Given snapshot missing email and using account.json, when backfilling email then load accounts aligns file name to email(account_id)")
+    func backfillEmailEnablesEmailAccountIDAlignment() async throws {
+        let root = try makeTempRoot("codex-auth-backfill-email-align")
+        defer { try? root.delete() }
+
+        let manager = CodexAuthManager(rootURL: root.url)
+        let account = try await manager.addAccount(
+            name: "account",
+            authJSONString: #"{"tokens":{"account_id":"acct-raw","id_token":"id-raw","access_token":"access-raw"}}"#
+        )
+        #expect(account.relativeAuthPath == "auth/account.json")
+
+        try await manager.backfillEmailIfMissing(for: account, email: "fresh@example.com")
+
+        let accounts = try await manager.loadAccounts()
+        let aligned = try #require(accounts.first(where: { $0.id == account.id }))
+        #expect(aligned.relativeAuthPath == "auth/fresh@example.com(acct-raw).json")
+
+        let alignedFile = await manager.accountAuthFile(aligned)
+        let json = try #require(try? JSON(data: alignedFile.data()))
+        #expect((json["email"].string ?? "").lowercased() == "fresh@example.com")
+        #expect((json["nolon"]["account"]["email"].string ?? "").lowercased() == "fresh@example.com")
+    }
+
 }

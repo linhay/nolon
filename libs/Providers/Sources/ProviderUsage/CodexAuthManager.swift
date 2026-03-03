@@ -76,6 +76,7 @@ public actor CodexAuthManager {
         static let authFolder: PathName = "auth"
         static let cliLoginHomeFolder: PathName = "cli-login-home"
         static let runtimeHomeFolder: PathName = "runtime-home"
+        static let runtimeSkillsTemplateFolder: PathName = "runtime-skills-template"
         static let activeAccountsFile: PathName = "active-accounts.json"
         static let activeFingerprintsFile: PathName = "active-fingerprints.json"
         static let backupsFolder: PathName = "backups"
@@ -173,6 +174,35 @@ public actor CodexAuthManager {
             .folder(accountID.uuidString.lowercased())
     }
 
+    public nonisolated func runtimeSkillsTemplateFolder() -> STFolder {
+        nolonCodexRootFolder().folder(PathName.runtimeSkillsTemplateFolder.rawValue)
+    }
+
+    public nonisolated func ensureRuntimeSkillsSymlink(accountID: UUID) throws {
+        let runtimeHome = runtimeHomeFolder(accountID: accountID)
+        _ = runtimeHome.createIfNotExists()
+
+        let templateFolder = runtimeSkillsTemplateFolder()
+        _ = templateFolder.createIfNotExists()
+
+        let runtimeSkills = STPath(runtimeHome.folder("skills").url)
+        let templatePath = STPath(templateFolder.url)
+        let expectedDestination = standardizedPathString(templatePath)
+
+        if runtimeSkills.isSymbolicLink,
+           let linked = resolveSymlinkTarget(for: runtimeSkills),
+           standardizedPathString(linked) == expectedDestination
+        {
+            return
+        }
+
+        if runtimeSkills.isExists || runtimeSkills.isSymbolicLink {
+            try FileManager.default.removeItem(at: runtimeSkills.url)
+        }
+
+        try runtimeSkills.createSymbolicLink(to: templatePath)
+    }
+
     public nonisolated func accountAuthFile(relativeAuthPath: String) -> STFile {
         nolonCodexRootFolder().file(relativeAuthPath)
     }
@@ -260,7 +290,8 @@ public actor CodexAuthManager {
 
     /// Upsert account snapshot from a successful `codex login` output.
     /// - If `preferredAccountID` is provided and exists, update that account first.
-    /// - Else, try to match by email, then by auth data hash/content.
+    /// - Else, if email matches existing snapshots, require exact account-id match to update.
+    /// - Else, try to match by auth data hash/content.
     /// - If no match, create a new snapshot account.
     public func upsertAccountFromCLILogin(authJSONString: String, preferredAccountID: UUID?) async throws -> CodexAuthAccount {
         let data = Data(authJSONString.utf8)
@@ -273,13 +304,40 @@ public actor CodexAuthManager {
             }
         }
 
-        if let email = deriveEmail(fromAuthJSONString: authJSONString),
-           let matchedByEmail = try await findAccountByEmail(email) {
-            try await updateAccount(matchedByEmail, authJSONString: authJSONString)
-            return matchedByEmail
+        let accounts = try await loadAccounts()
+        let summary = CodexAuthSummary.fromJSONData(data)
+        let authEmail = normalizedEmail(summary.email)
+        let authAccountID = normalizedAccountID(summary.accountID)
+
+        if let authEmail {
+            let snapshots = loadAccountSnapshots(for: accounts)
+            let emailMatches = snapshots.compactMap { snapshot -> CodexAuthAccount? in
+                guard let email = normalizedEmail(snapshot.summary.email), email == authEmail else { return nil }
+                return snapshot.account
+            }
+
+            if !emailMatches.isEmpty {
+                if let authAccountID {
+                    let accountIDMatches = snapshots.compactMap { snapshot -> CodexAuthAccount? in
+                        guard let email = normalizedEmail(snapshot.summary.email),
+                              email == authEmail,
+                              let accountID = normalizedAccountID(snapshot.summary.accountID),
+                              accountID == authAccountID
+                        else { return nil }
+                        return snapshot.account
+                    }
+                    if let matchedByEmailAndAccountID = pickLatestAccount(from: accountIDMatches) {
+                        try await updateAccount(matchedByEmailAndAccountID, authJSONString: authJSONString)
+                        return matchedByEmailAndAccountID
+                    }
+                }
+
+                let finalName = deriveAccountName(fromAuthJSONString: authJSONString)
+                return try await addAccount(name: finalName, authJSONString: authJSONString)
+            }
         }
 
-        if let matchedByAuth = try await matchAccountByAuthData(data) {
+        if let matchedByAuth = matchAccount(authData: data, accounts: accounts) {
             try await updateAccount(matchedByAuth, authJSONString: authJSONString)
             return matchedByAuth
         }
@@ -304,17 +362,50 @@ public actor CodexAuthManager {
         return account
     }
 
-    public func deleteAccount(id: UUID) async throws {
-        let accounts = try await loadAccounts()
-        guard let account = accounts.first(where: { $0.id == id }) else { return }
-        let file = accountAuthFile(account)
-        try? file.delete()
+    public func deleteAccount(id: UUID, provider: Provider? = nil) async throws {
+        try await migrateLegacyIfNeeded()
+        try withAuthFileLock {
+            let accounts = try loadAccountsFromAuthFolder()
+            guard let account = accounts.first(where: { $0.id == id }) else { return }
 
-        var map = loadActiveAccountMap()
-        let before = map.count
-        map = map.filter { $0.value != id.uuidString }
-        if map.count != before {
-            try saveActiveAccountMap(map)
+            let snapshotFile = accountAuthFile(account)
+            let snapshotData = try? snapshotFile.data()
+            let snapshotPath = standardizedPathString(snapshotFile)
+            try removeFileOrSymlinkIfPresent(snapshotFile)
+
+            var map = loadActiveAccountMap()
+            let before = map.count
+            map = map.filter { $0.value != id.uuidString }
+            if map.count != before {
+                try saveActiveAccountMap(map)
+            }
+
+            guard let provider,
+                  Self.isCodexTemplate(provider.templateId),
+                  let providerAuthFile = authFile(for: provider)
+            else { return }
+
+            let shouldDetachProviderAuth: Bool = {
+                if providerAuthFile.isSymbolicLink,
+                   let destination = resolveSymlinkTarget(for: providerAuthFile) {
+                    return standardizedPathString(destination) == snapshotPath
+                }
+
+                guard providerAuthFile.isExists,
+                      !providerAuthFile.isSymbolicLink,
+                      let snapshotData,
+                      !snapshotData.isEmpty,
+                      let providerData = try? providerAuthFile.data(),
+                      !providerData.isEmpty
+                else { return false }
+                return cleanedHashHex(for: providerData) == cleanedHashHex(for: snapshotData)
+            }()
+
+            if shouldDetachProviderAuth {
+                try removeFileOrSymlinkIfPresent(providerAuthFile)
+            }
+
+            try persistActiveFingerprintIfNeeded(for: provider)
         }
     }
 
@@ -460,6 +551,38 @@ public actor CodexAuthManager {
             failureMessage: nil,
             clearFailure: false
         )
+    }
+
+    @discardableResult
+    public func backfillEmailIfMissing(for account: CodexAuthAccount, email: String) throws -> Bool {
+        let trimmedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedEmail.isEmpty else { return false }
+
+        let file = accountAuthFile(account)
+        let data = try file.data()
+        guard !data.isEmpty,
+              let rootJSON = try? JSON(data: data)
+        else { return false }
+
+        var rootObject = rootJSON.dictionaryObject ?? [:]
+        var changed = false
+
+        let topLevelEmail = getString(rootObject, path: ["email"])?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if topLevelEmail?.isEmpty != false {
+            setValue(trimmedEmail, path: ["email"], dict: &rootObject)
+            changed = true
+        }
+
+        let metadataEmail = getString(rootObject, path: ["nolon", "account", "email"])?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if metadataEmail?.isEmpty != false {
+            setValue(trimmedEmail, path: ["nolon", "account", "email"], dict: &rootObject)
+            changed = true
+        }
+
+        if changed {
+            try file.overlay(with: Self.encodeJSONObject(rootObject))
+        }
+        return changed
     }
 
     public func currentAuthHashHex(for provider: Provider) -> String? {
@@ -750,6 +873,18 @@ public actor CodexAuthManager {
         return candidate
     }
 
+    private func uniqueAuthFileName(forStem stem: String, existing: Set<String>) -> String {
+        let trimmed = stem.trimmingCharacters(in: .whitespacesAndNewlines)
+        let base = trimmed.isEmpty ? "account" : trimmed
+        var candidate = "\(base).json"
+        var idx = 2
+        while existing.contains("auth/\(candidate)") {
+            candidate = "\(base)-\(idx).json"
+            idx += 1
+        }
+        return candidate
+    }
+
     private func sanitizeFileStem(_ name: String) -> String {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.isEmpty { return "account" }
@@ -764,6 +899,40 @@ public actor CodexAuthManager {
             .replacingOccurrences(of: "-+", with: "-", options: .regularExpression)
             .trimmingCharacters(in: CharacterSet(charactersIn: "-"))
         return collapsed.isEmpty ? "account" : collapsed.lowercased()
+    }
+
+    private func sanitizeEmailFileComponent(_ email: String) -> String {
+        sanitizeSnapshotFileComponent(
+            email,
+            allowed: CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "@.+_-")),
+            fallback: "unknown-email"
+        )
+    }
+
+    private func sanitizeAccountIDFileComponent(_ accountID: String) -> String? {
+        let sanitized = sanitizeSnapshotFileComponent(
+            accountID,
+            allowed: CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "._-")),
+            fallback: ""
+        )
+        return sanitized.isEmpty ? nil : sanitized
+    }
+
+    private func sanitizeSnapshotFileComponent(_ value: String, allowed: CharacterSet, fallback: String) -> String {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return fallback }
+
+        let mapped = trimmed.unicodeScalars.map { scalar -> Character in
+            if allowed.contains(scalar) {
+                return Character(scalar)
+            }
+            return "-"
+        }
+        let collapsed = String(mapped)
+            .replacingOccurrences(of: "-+", with: "-", options: .regularExpression)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "-"))
+            .lowercased()
+        return collapsed.isEmpty ? fallback : collapsed
     }
 
     private func findSnapshotAccountByEmail(_ email: String) throws -> CodexAuthAccount? {
@@ -1439,12 +1608,12 @@ private extension CodexAuthManager {
         return left == right
     }
 
-    private func resolveSymlinkTarget(for path: any STPathProtocol) -> STPath? {
+    private nonisolated func resolveSymlinkTarget(for path: any STPathProtocol) -> STPath? {
         guard path.isSymbolicLink else { return nil }
         return try? path.destinationOfSymbolicLink()
     }
 
-    private func standardizedPathString(_ path: any STPathProtocol) -> String {
+    private nonisolated func standardizedPathString(_ path: any STPathProtocol) -> String {
         STPath.standardizedPath(path.url.path).path
     }
 
@@ -1569,13 +1738,13 @@ private extension CodexAuthManager {
             return snapshot.account
         }
 
-        if let match = pickLatestAccount(from: emailMatches) {
-            return match
-        }
         if let match = pickLatestAccount(from: accountIDMatches) {
             return match
         }
         if let match = pickLatestAccount(from: apiKeyMatches) {
+            return match
+        }
+        if let match = pickLatestAccount(from: emailMatches) {
             return match
         }
 
@@ -1588,22 +1757,9 @@ private extension CodexAuthManager {
 
     func extractAPIKey(from data: Data) -> String? {
         guard let json = try? JSON(data: data) else { return nil }
-        let candidates: [String?] = [
-            json["OPENAI_API_KEY"].string,
-            json["openai_api_key"].string,
-            json["api_key"].string,
-            json["apiKey"].string,
-            json["token"].string,
-            json["access_token"].string,
-            json["tokens"]["access_token"].string,
-        ]
-        for candidate in candidates {
-            guard let value = candidate?.trimmingCharacters(in: .whitespacesAndNewlines),
-                  !value.isEmpty
-            else { continue }
-            return value
-        }
-        return nil
+        let value = json["OPENAI_API_KEY"].string?.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let value, !value.isEmpty else { return nil }
+        return value
     }
 
     func updateSyncMetadata(
@@ -1866,10 +2022,15 @@ private extension CodexAuthManager {
             let file = accountAuthFile(account)
             guard let data = try? file.data(), !data.isEmpty else { continue }
             let summary = CodexAuthSummary.fromJSONData(data)
-            guard let email = normalizedEmail(summary.email) else { continue }
+            guard let email = normalizedEmail(summary.email),
+                  let accountID = normalizedAccountID(summary.accountID),
+                  let accountIDComponent = sanitizeAccountIDFileComponent(accountID)
+            else { continue }
 
             usedPaths.remove(account.relativeAuthPath)
-            let expectedFileName = uniqueAuthFileName(for: email, existing: usedPaths)
+            let emailComponent = sanitizeEmailFileComponent(email)
+            let expectedStem = "\(emailComponent)(\(accountIDComponent))"
+            let expectedFileName = uniqueAuthFileName(forStem: expectedStem, existing: usedPaths)
             let expectedRelativePath = "auth/\(expectedFileName)"
             guard expectedRelativePath != account.relativeAuthPath else {
                 usedPaths.insert(account.relativeAuthPath)
@@ -1895,12 +2056,12 @@ private extension CodexAuthManager {
                 aligned[index] = reloaded
                 usedPaths.insert(expectedRelativePath)
                 Self.logger.warning(
-                    "Renamed Codex snapshot to align file name with email. from=\(account.relativeAuthPath, privacy: .public) to=\(expectedRelativePath, privacy: .public)"
+                    "Renamed Codex snapshot to align file name with email(account_id). from=\(account.relativeAuthPath, privacy: .public) to=\(expectedRelativePath, privacy: .public)"
                 )
             } catch {
                 usedPaths.insert(account.relativeAuthPath)
                 Self.logger.error(
-                    "Failed to align Codex snapshot file name with email. file=\(account.relativeAuthPath, privacy: .public) error=\(String(describing: error), privacy: .public)"
+                    "Failed to align Codex snapshot file name with email(account_id). file=\(account.relativeAuthPath, privacy: .public) error=\(String(describing: error), privacy: .public)"
                 )
             }
         }
@@ -2035,51 +2196,7 @@ private extension CodexAuthManager {
             return value
         }
 
-        if let email = trimmed(authJSON["email"].string)
-            ?? trimmed(authJSON["user"]["email"].string)
-            ?? trimmed(authJSON["profile"]["email"].string)
+        return trimmed(authJSON["email"].string)
             ?? trimmed(authJSON["nolon"]["account"]["email"].string)
-        {
-            return email
-        }
-
-        let idToken = trimmed(authJSON["tokens"]["id_token"].string)
-            ?? trimmed(authJSON["tokens"]["idToken"].string)
-            ?? trimmed(authJSON["id_token"].string)
-            ?? trimmed(authJSON["idToken"].string)
-
-        guard let idToken else { return nil }
-        return decodeEmail(fromJWT: idToken)
-    }
-
-    nonisolated func decodeEmail(fromJWT jwt: String) -> String? {
-        let parts = jwt.split(separator: ".")
-        guard parts.count >= 2 else { return nil }
-        let payloadB64 = String(parts[1])
-        guard let payloadData = base64URLDecode(payloadB64),
-              let payloadJSON = try? JSON(data: payloadData)
-        else { return nil }
-
-        let trimmed: (String?) -> String? = { value in
-            guard let value = value?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else { return nil }
-            return value
-        }
-
-        return trimmed(payloadJSON["email"].string)
-            ?? trimmed(payloadJSON["https://api.openai.com/profile"]["email"].string)
-            ?? trimmed(payloadJSON["profile"]["email"].string)
-    }
-
-    nonisolated func base64URLDecode(_ string: String) -> Data? {
-        var base64 = string
-            .replacingOccurrences(of: "-", with: "+")
-            .replacingOccurrences(of: "_", with: "/")
-
-        let remainder = base64.count % 4
-        if remainder != 0 {
-            base64.append(String(repeating: "=", count: 4 - remainder))
-        }
-
-        return Data(base64Encoded: base64)
     }
 }

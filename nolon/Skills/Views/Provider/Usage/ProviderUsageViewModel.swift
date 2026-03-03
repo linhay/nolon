@@ -8,6 +8,7 @@ import CodexBarProviderCatalog
 import CodexProvider
 import UniformTypeIdentifiers
 import OSLog
+import Combine
 import NolonResourceKit
 @preconcurrency import STFilePath
 
@@ -68,7 +69,7 @@ final class ProviderUsageViewModel {
     var cliLoginStatus: String?
     var cliLoginPreferredAccountId: UUID?
     @ObservationIgnored private var cliLoginHandle: CodexLoginHandle?
-    @ObservationIgnored private var cliLoginTempDir: URL?
+    @ObservationIgnored private var cliLoginHomeDir: URL?
 
     var isShowingActivateConfirm = false
     var pendingActivateCodexAccount: CodexAuthAccount?
@@ -89,9 +90,13 @@ final class ProviderUsageViewModel {
     private var cliLoginTask: Task<Void, Never>?
     private var cliLoginSessionId: UUID?
     @ObservationIgnored private var copyToastTask: Task<Void, Never>?
-    private var codexAuthChangeSuppressor = CodexAuthChangeSuppressionStore()
-    private let codexAuthChangeSuppressionWindow: TimeInterval = 2.5
+    @ObservationIgnored private var codexAuthReloadSignalCancellable: AnyCancellable?
+    @ObservationIgnored private var codexReloadTask: Task<Void, Never>?
+    @ObservationIgnored private let codexAuthReloadSignal = PassthroughSubject<Void, Never>()
+    private var codexReloadPending = false
+    private var codexReloadPendingRefreshUsage = false
     private var codexUsageCacheWriteCount = 0
+    private(set) var codexDiskReloadCountForTesting = 0
     private var hasTriggeredAppearRefresh = false
     private var didStartInitialLoad = false
     private var lastUsageRefreshAt: Date?
@@ -136,6 +141,7 @@ final class ProviderUsageViewModel {
         self.codexRefreshAllAction = codexRefreshAllAction
         self.postDeleteLoadAction = postDeleteLoadAction
         self.updateSupportedModes()
+        self.configureCodexAuthReloadPipeline()
         let watcher = UsageMonitorFileWatcher { [weak self] change in
             Task { await self?.handleUsageFileChange(change) }
         }
@@ -144,6 +150,8 @@ final class ProviderUsageViewModel {
 
     deinit {
         copyToastTask?.cancel()
+        codexAuthReloadSignalCancellable?.cancel()
+        codexReloadTask?.cancel()
         let watcher = usageWatcher
         Task { @MainActor in
             watcher?.stop()
@@ -484,6 +492,10 @@ final class ProviderUsageViewModel {
         usageWatcher?.watchedPathsForTesting ?? []
     }
 
+    func emitCodexAuthReloadSignalForTesting() {
+        codexAuthReloadSignal.send()
+    }
+
     private func handleUsageFileChange(_ change: STPathChanged) async {
         guard !isLoading else { return }
         guard let usageProvider else { return }
@@ -521,41 +533,19 @@ final class ProviderUsageViewModel {
         )
         guard isAuthFolderChange || isAuthFileChange else { return }
 
-        if CodexAuthEventPolicy.shouldIgnoreKnownAuthRename(
-            changedPath: changedPath,
-            kind: change.kind == .renamed ? .renamed : .other,
-            isAuthFolderChange: isAuthFolderChange,
-            isAuthFileChange: isAuthFileChange,
-            knownAuthFileNames: Set(codexAccounts.map { ($0.relativeAuthPath as NSString).lastPathComponent })
-        ) {
-            Self.logger.debug("Ignored auth rename for known account file. path=\(changedPath, privacy: .public)")
-            return
-        }
-
         guard isMultiAccountEnabled else {
             await load()
             return
         }
 
-        let refreshUsage: Bool
-        if isAuthFileChange {
-            refreshUsage = true
-        } else {
-            switch change.kind {
-            case .created, .deleted:
-                refreshUsage = true
-            case .renamed, .modified:
-                refreshUsage = false
-            }
-        }
-
         Self.logger.info(
-            "Reloading Codex from disk. refreshUsage=\(refreshUsage, privacy: .public) kind=\(String(describing: change.kind), privacy: .public)"
+            "Queueing Codex auth reload signal. kind=\(String(describing: change.kind), privacy: .public) path=\(changedPath, privacy: .public)"
         )
-        await reloadCodexFromDisk(refreshUsage: refreshUsage)
+        codexAuthReloadSignal.send()
     }
 
     private func reloadCodexFromDisk(refreshUsage: Bool) async {
+        codexDiskReloadCountForTesting += 1
         do {
             codexAuthFilePath = await codexAuthManager.authFile(for: provider)?.url.path
             currentCodexAuthHashHex = await codexAuthManager.currentAuthHashHex(for: provider)
@@ -580,6 +570,42 @@ final class ProviderUsageViewModel {
             // Ignore file reload errors; watcher will fire again on next change.
             Self.logger.error("Codex disk reload failed: \(String(describing: error), privacy: .public)")
         }
+    }
+
+    private func enqueueCodexReload(refreshUsage: Bool, reason: String) {
+        codexReloadPending = true
+        codexReloadPendingRefreshUsage = codexReloadPendingRefreshUsage || refreshUsage
+
+        guard codexReloadTask == nil else {
+            Self.logger.debug(
+                "Coalesced Codex disk reload. pendingRefreshUsage=\(self.codexReloadPendingRefreshUsage, privacy: .public) reason=\(reason, privacy: .public)"
+            )
+            return
+        }
+
+        codexReloadTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer { self.codexReloadTask = nil }
+
+            while self.codexReloadPending {
+                let shouldRefreshUsage = self.codexReloadPendingRefreshUsage
+                self.codexReloadPending = false
+                self.codexReloadPendingRefreshUsage = false
+                await self.reloadCodexFromDisk(refreshUsage: shouldRefreshUsage)
+            }
+        }
+    }
+
+    private func configureCodexAuthReloadPipeline() {
+        guard usageProvider == .codex else { return }
+        codexAuthReloadSignalCancellable = codexAuthReloadSignal
+            .debounce(for: .milliseconds(300), scheduler: DispatchQueue.main)
+            .sink { [weak self] _ in
+                Task { @MainActor [weak self] in
+                    guard let self else { return }
+                    self.enqueueCodexReload(refreshUsage: false, reason: "combine_debounced_auth_change")
+                }
+            }
     }
 
     private func normalizedPath(_ path: String) -> String {
@@ -955,13 +981,15 @@ final class ProviderUsageViewModel {
         loginModeForSheet = nil
     }
 
+    func handleLoginURLSheetDismissed() {
+        guard isRunningCLILogin else { return }
+        cancelCLILoginIfNeeded()
+    }
+
     private func cleanupCLILoginArtifacts() {
         cliLoginHandle?.cancel()
         cliLoginHandle = nil
-        if let tempDir = cliLoginTempDir {
-            try? FileManager.default.removeItem(at: tempDir)
-            cliLoginTempDir = nil
-        }
+        cliLoginHomeDir = nil
     }
 
     private func finalizeCLILoginSessionIfNeeded(sessionId: UUID) {
@@ -1024,39 +1052,39 @@ final class ProviderUsageViewModel {
 
     private func runAppServerLoginFlow(sessionId: UUID) async throws {
         guard cliLoginSessionId == sessionId else { return }
-        let tempDir = try createCLILoginTempDir()
-        cliLoginTempDir = tempDir
+        let loginHome = try prepareCLILoginHomeDirectory()
+        cliLoginHomeDir = loginHome
         var env = ProcessInfo.processInfo.environment
         if let managedEnv = try? await CodexBinaryManager.shared.launchEnvironmentVariables() {
             env.merge(managedEnv) { _, new in new }
         }
-        env["CODEX_HOME"] = tempDir.path
+        env["CODEX_HOME"] = loginHome.path
         let service = CodexAccountRuntimeService(
             executable: env["CODEX_CLI_PATH"] ?? "codex",
             environment: env
         )
         defer { Task { await service.shutdown() } }
 
-        try await service.initialize(clientName: "nolon", clientVersion: "1.0.0")
+        try await service.initialize(clientName: "codex", clientVersion: "1.0.0")
         let started = try await service.startChatGPTLogin()
         loginURLForSheet = started.authURL
         loginModeForSheet = "CLI(AppServer)"
         isShowingLoginURLSheet = true
-        NSWorkspace.shared.open(started.authURL)
         cliLoginStatus = NSLocalizedString("codex.accounts.add.cli.waiting", value: "Waiting for auth.json…", comment: "CLI login waiting status")
-        try await service.awaitChatGPTLoginCompletion(loginID: started.loginID, timeout: cliLoginTimeoutSeconds)
-
-        let authFile = tempDir.appendingPathComponent("auth.json")
-        let data = try Data(contentsOf: authFile)
-        guard let raw = String(data: data, encoding: .utf8), !raw.isEmpty else {
-            throw CocoaError(.fileReadInapplicableStringEncoding)
-        }
-        _ = try await codexAuthManager.recordCLILoginSnapshot(
-            authJSONString: raw,
+        let authResult = try await CodexLoginRunner.awaitAuthResultPreferFile(
+            codexHome: STFolder(loginHome),
+            timeoutSeconds: cliLoginTimeoutSeconds,
+            pollIntervalSeconds: 0.2,
+            completionWaiter: {
+                try await service.awaitChatGPTLoginCompletion(loginID: started.loginID, timeout: self.cliLoginTimeoutSeconds)
+            }
+        )
+        let account = try await codexAuthManager.recordCLILoginSnapshot(
+            authJSONString: authResult.authJSONString,
             preferredAccountID: cliLoginPreferredAccountId,
             loginAt: Date()
         )
-        await load()
+        schedulePostLoginReload(preferredBackfillAccount: account)
     }
 
     private func runCLILoginFlow(sessionId: UUID) async {
@@ -1065,9 +1093,9 @@ final class ProviderUsageViewModel {
         }
 
         do {
-            let tempDir = try createCLILoginTempDir()
-            cliLoginTempDir = tempDir
-            Self.logger.info("CLI login started. tempDir=\(tempDir.path, privacy: .public)")
+            let loginHome = try prepareCLILoginHomeDirectory()
+            cliLoginHomeDir = loginHome
+            Self.logger.info("CLI login started. home=\(loginHome.path, privacy: .public)")
 
             var env = ProcessInfo.processInfo.environment
             if let managedEnv = try? await CodexBinaryManager.shared.launchEnvironmentVariables() {
@@ -1075,14 +1103,14 @@ final class ProviderUsageViewModel {
             }
 
             let runner = CodexLoginRunner()
-            cliLoginHandle = try runner.startLogin(environment: env, codexHome: tempDir)
+            cliLoginHandle = try runner.startLogin(environment: env, codexHome: loginHome)
             Self.logger.info("CLI login process launched.")
             loginModeForSheet = "Direct OAuth"
 
             cliLoginStatus = NSLocalizedString("codex.accounts.add.cli.waiting", value: "Waiting for auth.json…", comment: "CLI login waiting status")
 
             let fileManager = FileManager.default
-            let authFile = tempDir.appendingPathComponent("auth.json")
+            let authFile = loginHome.appendingPathComponent("auth.json")
             let deadline = Date().addingTimeInterval(cliLoginTimeoutSeconds)
             let processExitGraceSeconds: TimeInterval = 4
             var processExitedAt: Date?
@@ -1149,12 +1177,9 @@ final class ProviderUsageViewModel {
 
             cliLoginHandle?.cancel()
             cliLoginHandle = nil
-            if let tempDir = cliLoginTempDir {
-                try? FileManager.default.removeItem(at: tempDir)
-                cliLoginTempDir = nil
-            }
+            cliLoginHomeDir = nil
 
-            await load()
+            schedulePostLoginReload(preferredBackfillAccount: account)
         } catch {
             if error is CancellationError {
                 Self.logger.info("CLI login task cancelled.")
@@ -1166,6 +1191,38 @@ final class ProviderUsageViewModel {
         }
     }
 
+    private func schedulePostLoginReload(preferredBackfillAccount account: CodexAuthAccount? = nil) {
+        Task { [weak self] in
+            guard let self else { return }
+            if let account {
+                _ = await self.probeLoginSnapshotUsageAndBackfillEmailIfMissing(account: account)
+            }
+            await self.load()
+            guard let accountID = account?.id,
+                  let refreshedAccount = self.codexAccounts.first(where: { $0.id == accountID })
+            else { return }
+            // Force one immediate usage refresh for the newly logged-in snapshot.
+            await self.refreshCodexAccountOutcome(refreshedAccount)
+        }
+    }
+
+    private func probeLoginSnapshotUsageAndBackfillEmailIfMissing(account: CodexAuthAccount) async -> ProviderAccountUsageOutcome {
+        let authURL = codexAuthManager.accountAuthFile(relativeAuthPath: account.relativeAuthPath).url
+        let outcome = await Self.fetchCodexOutcomeDetached(
+            for: account,
+            settings: settings,
+            authSourceURL: authURL
+        )
+
+        if case let .success(result) = outcome.outcome.result,
+           let email = result.usage.identity?.accountEmail?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !email.isEmpty
+        {
+            _ = try? await codexAuthManager.backfillEmailIfMissing(for: account, email: email)
+        }
+        return outcome
+    }
+
     func requestActivateCodexAccount(id: UUID) {
         guard let account = codexAccounts.first(where: { $0.id == id }) else { return }
         pendingActivateCodexAccount = account
@@ -1173,7 +1230,17 @@ final class ProviderUsageViewModel {
     }
 
     func requestDeleteCodexAccount(id: UUID) {
-        guard let account = codexAccounts.first(where: { $0.id == id }) else { return }
+        guard let account = codexAccounts.first(where: { $0.id == id }) else {
+            codexAccountOutcomes.removeAll { outcome in
+                switch outcome.account {
+                case let .tokenAccount(account):
+                    return account.id == id
+                case .default:
+                    return false
+                }
+            }
+            return
+        }
         pendingDeleteCodexAccount = account
         isShowingDeleteConfirm = true
     }
@@ -1211,7 +1278,7 @@ final class ProviderUsageViewModel {
             if let codexDeleteAction {
                 try await codexDeleteAction(account.id)
             } else {
-                try await codexAuthManager.deleteAccount(id: account.id)
+                try await codexAuthManager.deleteAccount(id: account.id, provider: provider)
             }
 
             pendingDeleteCodexAccount = nil
@@ -1220,7 +1287,7 @@ final class ProviderUsageViewModel {
             if let postDeleteLoadAction {
                 await postDeleteLoadAction()
             } else {
-                await load()
+                await reloadCodexFromDisk(refreshUsage: false)
             }
         } catch {
             let fallback = NSLocalizedString("codex.accounts.error.delete", value: "Failed to delete this account.", comment: "Error message")
@@ -1420,16 +1487,14 @@ final class ProviderUsageViewModel {
                     creditsRefreshedAt: creditsRefreshedAt,
                     fetchKind: outcome.outcome.fetchKind,
                     strategyKind: result.strategyKind,
-                    sourceLabel: result.sourceLabel,
-                    usage: result.usage,
-                    credits: result.credits,
-                    cost: nil
-                )
-                let targetFile = codexAuthManager.accountAuthFile(relativeAuthPath: account.relativeAuthPath)
-                markAuthCacheWrite(at: targetFile.url)
-                codexUsageCacheWriteCount += 1
-                defer { codexUsageCacheWriteCount = max(0, codexUsageCacheWriteCount - 1) }
-                try await codexAuthManager.storeUsageCache(cache, for: account)
+                sourceLabel: result.sourceLabel,
+                usage: result.usage,
+                credits: result.credits,
+                cost: nil
+            )
+            codexUsageCacheWriteCount += 1
+            defer { codexUsageCacheWriteCount = max(0, codexUsageCacheWriteCount - 1) }
+            try await codexAuthManager.storeUsageCache(cache, for: account)
             } catch {
                 // Best-effort cache write; ignore.
             }
@@ -1437,9 +1502,11 @@ final class ProviderUsageViewModel {
             if let identity = result.usage.identity {
                 var summary = codexAccountSummaries[accountId] ?? CodexAuthSummary()
                 if let email = identity.accountEmail?.trimmingCharacters(in: .whitespacesAndNewlines),
-                   !email.isEmpty,
-                   summary.email == nil
+                   !email.isEmpty
                 {
+                    if summary.email == nil {
+                        _ = try? await codexAuthManager.backfillEmailIfMissing(for: account, email: email)
+                    }
                     summary.email = email
                 }
                 if let plan = identity.plan?.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -1527,26 +1594,12 @@ final class ProviderUsageViewModel {
                 credits: result.credits,
                 cost: nil
             )
-            let targetFile = codexAuthManager.accountAuthFile(relativeAuthPath: activeAccount.relativeAuthPath)
-            markAuthCacheWrite(at: targetFile.url)
             codexUsageCacheWriteCount += 1
             defer { codexUsageCacheWriteCount = max(0, codexUsageCacheWriteCount - 1) }
             try await codexAuthManager.storeUsageCache(cache, for: activeAccount)
         } catch {
             // Best-effort cache write; ignore.
         }
-    }
-
-    private func markAuthCacheWrite(at url: URL) {
-        let filePath = url.standardizedFileURL.path
-        let folderPath = codexAuthManager.nolonCodexAuthFolder().url.standardizedFileURL.path
-        codexAuthChangeSuppressor.mark(
-            filePath: filePath,
-            folderPath: folderPath,
-            ttl: codexAuthChangeSuppressionWindow
-        )
-
-        Self.logger.debug("Auth cache write suppression set. file=\(filePath, privacy: .public)")
     }
 
     private func shouldIgnoreAuthChange(path: String, kind: STPathChangeKind) -> Bool {
@@ -1561,11 +1614,6 @@ final class ProviderUsageViewModel {
                 Self.logger.debug("Ignoring auth change during refresh. kind=\(String(describing: kind), privacy: .public) path=\(path, privacy: .public)")
                 return true
             }
-        }
-
-        if codexAuthChangeSuppressor.shouldSuppress(path: path) {
-            Self.logger.debug("Ignoring auth change (suppressed). kind=\(String(describing: kind), privacy: .public) path=\(path, privacy: .public)")
-            return true
         }
 
         return false
@@ -1604,17 +1652,7 @@ final class ProviderUsageViewModel {
             uniquingKeysWith: { _, newest in newest }
         )
 
-        let ordered = uniqueCodexAccountIDsInDisplayOrder().compactMap { byAccountID[$0] }
-        let unknowns = codexAccountOutcomes.filter { outcome in
-            switch outcome.account {
-            case let .tokenAccount(account):
-                return !codexAccounts.contains(where: { $0.id == account.id })
-            case .default:
-                return true
-            }
-        }
-
-        codexAccountOutcomes = ordered + unknowns
+        codexAccountOutcomes = uniqueCodexAccountIDsInDisplayOrder().compactMap { byAccountID[$0] }
     }
 
     private func uniqueCodexAccountIDsInDisplayOrder() -> [UUID] {
@@ -1754,25 +1792,46 @@ final class ProviderUsageViewModel {
         return raw
     }
 
-    private func createCLILoginTempDir() throws -> URL {
-        let base = FileManager.default.temporaryDirectory
-        cleanupExpiredLoginTempDirs(base: base)
-        let dir = base.appendingPathComponent("nolon-codex-login-\(UUID().uuidString)", isDirectory: true)
-        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true, attributes: nil)
-        return dir
+    func prepareCLILoginHomeDirectory() throws -> URL {
+        let providerID = Self.canonicalCodexProviderID(for: provider)
+        let codexHome = codexAuthManager.cliLoginCodexHomeFolder(providerID: providerID)
+        _ = codexHome.createIfNotExists()
+        try writeCLILoginConfig(codexHome: codexHome)
+        try removeCLILoginAuthFileIfPresent(codexHome: codexHome)
+        return codexHome.url.standardizedFileURL
     }
 
-    private func cleanupExpiredLoginTempDirs(base: URL) {
-        let fm = FileManager.default
-        guard let entries = try? fm.contentsOfDirectory(at: base, includingPropertiesForKeys: [.creationDateKey], options: []) else {
+    private static func canonicalCodexProviderID(for provider: Provider) -> String {
+        let normalized = provider.templateId?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? ""
+        switch normalized {
+        case "codex":
+            return "codex"
+        case "codexxcode", "codex-xcode":
+            return "codex-xcode"
+        default:
+            return "codex"
+        }
+    }
+
+    private func writeCLILoginConfig(codexHome: STFolder) throws {
+        let configFile = codexHome.file("config.toml")
+        let content = "cli_auth_credentials_store = \"file\"\n"
+        if configFile.isExists,
+           let existing = try? configFile.read(),
+           existing == content {
             return
         }
-        let cutoff = Date().addingTimeInterval(-24 * 60 * 60)
-        for entry in entries where entry.lastPathComponent.hasPrefix("nolon-codex-login-") {
-            let created = (try? entry.resourceValues(forKeys: [.creationDateKey]).creationDate) ?? Date()
-            if created < cutoff {
-                try? fm.removeItem(at: entry)
-            }
+        try configFile.overlay(with: content)
+    }
+
+    private func removeCLILoginAuthFileIfPresent(codexHome: STFolder) throws {
+        let authFileURL = codexHome.file("auth.json").url
+        do {
+            try FileManager.default.removeItem(at: authFileURL)
+        } catch let error as NSError where error.domain == NSCocoaErrorDomain && error.code == NSFileNoSuchFileError {
+            return
+        } catch let error as NSError where error.domain == NSPOSIXErrorDomain && error.code == ENOENT {
+            return
         }
     }
 }

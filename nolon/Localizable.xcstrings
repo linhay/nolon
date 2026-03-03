@@ -1887,6 +1887,7 @@
     },
     "codex.accounts.login_at" : {
       "comment" : "Last login label",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2089,6 +2090,78 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "上次同步"
+          }
+        }
+      }
+    },
+    "codex.accounts.time.login.inline" : {
+      "comment" : "Inline login time",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Login %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "登录 %@"
+          }
+        }
+      }
+    },
+    "codex.accounts.time.sync.absolute" : {
+      "comment" : "Inline absolute sync time",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Synced %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同步于 %@"
+          }
+        }
+      }
+    },
+    "codex.accounts.time.sync.inline" : {
+      "comment" : "Inline sync ago time",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Synced %@ ago"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同步于 %@ 前"
+          }
+        }
+      }
+    },
+    "codex.accounts.time.sync.just_now" : {
+      "comment" : "Inline sync just now text",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Synced just now"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "刚刚同步"
           }
         }
       }
@@ -5621,13 +5694,13 @@
       }
     },
     "codex.login.sheet.open" : {
-      "comment" : "Reopen browser",
+      "comment" : "Open in browser",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "重新打开浏览器"
+            "value" : "在浏览器中打开"
           }
         }
       }

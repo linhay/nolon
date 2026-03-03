@@ -92,7 +92,7 @@ struct NolonCodexCLIServiceTests {
         let authManager = CodexAuthManager(rootURL: root.url)
         let account = try await authManager.addAccount(
             name: "demo",
-            authJSONString: #"{"user":{"email":"dev@example.com"}}"#
+            authJSONString: #"{"email":"dev@example.com"}"#
         )
 
         let cache = CodexAuthUsageCache(
@@ -135,7 +135,7 @@ struct NolonCodexCLIServiceTests {
         let authManager = CodexAuthManager(rootURL: root.url)
         let account = try await authManager.addAccount(
             name: "demo",
-            authJSONString: #"{"user":{"email":"weekly@example.com"}}"#
+            authJSONString: #"{"email":"weekly@example.com"}"#
         )
 
         let cache = CodexAuthUsageCache(
@@ -177,11 +177,11 @@ struct NolonCodexCLIServiceTests {
         let authManager = CodexAuthManager(rootURL: root.url)
         let accountA = try await authManager.addAccount(
             name: "a",
-            authJSONString: #"{"user":{"email":"a@example.com"},"expires_at":"2026-12-31T08:00:00Z","tokens":{"refresh_token":"rt_demo"}}"#
+            authJSONString: #"{"email":"a@example.com","expires_at":"2026-12-31T08:00:00Z","tokens":{"refresh_token":"rt_demo"}}"#
         )
         let accountB = try await authManager.addAccount(
             name: "b",
-            authJSONString: #"{"user":{"email":"b@example.com"}}"#
+            authJSONString: #"{"email":"b@example.com"}"#
         )
 
         let cacheA = CodexAuthUsageCache(
@@ -254,11 +254,11 @@ struct NolonCodexCLIServiceTests {
         let authManager = CodexAuthManager(rootURL: root.url)
         let accountA = try await authManager.addAccount(
             name: "a",
-            authJSONString: #"{"user":{"email":"a@example.com"}}"#
+            authJSONString: #"{"email":"a@example.com"}"#
         )
         _ = try await authManager.addAccount(
             name: "b",
-            authJSONString: #"{"user":{"email":"b@example.com"}}"#
+            authJSONString: #"{"email":"b@example.com"}"#
         )
 
         let service = NolonLiveCodexCLIService(
@@ -296,8 +296,15 @@ struct NolonCodexCLIServiceTests {
 
         _ = try await service.authUsageRefresh(providerID: "codex", accountID: accountA.id)
 
-        let cacheA = try await authManager.loadUsageCache(for: accountA)
+        let refreshedAccountA = try #require((try await authManager.loadAccounts()).first(where: { $0.id == accountA.id }))
+        let cacheA = try await authManager.loadUsageCache(for: refreshedAccountA)
         #expect(cacheA?.cost == nil)
+
+        let runtimeSkills = STPath(authManager.runtimeHomeFolder(accountID: accountA.id).folder("skills").url)
+        let template = authManager.runtimeSkillsTemplateFolder()
+        #expect(runtimeSkills.isSymbolicLink == true)
+        let linkedTo = try runtimeSkills.destinationOfSymbolicLink()
+        #expect(STPath.standardizedPath(linkedTo.url.path).path == STPath.standardizedPath(template.url.path).path)
     }
 
     @Test("auth usage refresh invalidates stale cache and exposes sync failure metadata")
@@ -308,11 +315,11 @@ struct NolonCodexCLIServiceTests {
         let authManager = CodexAuthManager(rootURL: root.url)
         let accountA = try await authManager.addAccount(
             name: "a",
-            authJSONString: #"{"user":{"email":"a@example.com"}}"#
+            authJSONString: #"{"email":"a@example.com"}"#
         )
         let accountB = try await authManager.addAccount(
             name: "b",
-            authJSONString: #"{"user":{"email":"b@example.com"}}"#
+            authJSONString: #"{"email":"b@example.com"}"#
         )
 
         let staleCacheA = CodexAuthUsageCache(
@@ -391,7 +398,7 @@ struct NolonCodexCLIServiceTests {
         let authManager = CodexAuthManager(rootURL: root.url)
         let account = try await authManager.addAccount(
             name: "demo",
-            authJSONString: #"{"user":{"email":"status@example.com"}}"#
+            authJSONString: #"{"email":"status@example.com"}"#
         )
 
         let cache = CodexAuthUsageCache(
@@ -435,7 +442,7 @@ struct NolonCodexCLIServiceTests {
         let authManager = CodexAuthManager(rootURL: root.url)
         let account = try await authManager.addAccount(
             name: "demo",
-            authJSONString: #"{"user":{"email":"refresh@example.com"},"tokens":{"refresh_token":"rt_demo"}}"#
+            authJSONString: #"{"email":"refresh@example.com","tokens":{"refresh_token":"rt_demo"}}"#
         )
 
         let refreshCounter = Counter()
@@ -472,7 +479,7 @@ struct NolonCodexCLIServiceTests {
         let authManager = CodexAuthManager(rootURL: root.url)
         let account = try await authManager.addAccount(
             name: "demo",
-            authJSONString: #"{"user":{"email":"expired@example.com"},"tokens":{"refresh_token":"rt_demo"}}"#
+            authJSONString: #"{"email":"expired@example.com","tokens":{"refresh_token":"rt_demo"}}"#
         )
 
         let service = NolonLiveCodexCLIService(
@@ -503,11 +510,11 @@ struct NolonCodexCLIServiceTests {
         let authManager = CodexAuthManager(rootURL: root.url)
         let accountA = try await authManager.addAccount(
             name: "a",
-            authJSONString: #"{"user":{"email":"a@example.com"},"tokens":{"refresh_token":"rt_a"}}"#
+            authJSONString: #"{"email":"a@example.com","tokens":{"refresh_token":"rt_a"}}"#
         )
         _ = try await authManager.addAccount(
             name: "b",
-            authJSONString: #"{"user":{"email":"b@example.com"},"tokens":{"refresh_token":"rt_b"}}"#
+            authJSONString: #"{"email":"b@example.com","tokens":{"refresh_token":"rt_b"}}"#
         )
         let codexProvider = ProviderTemplate.codex.createProvider()
         try await authManager.setActiveAccount(accountA, for: codexProvider)
@@ -634,6 +641,30 @@ struct NolonCodexCLIServiceTests {
             uniqueKeysWithValues: ProviderTemplate.allCases.map { ($0.providerID, $0.cliName) }
         )
         #expect(payload.providers.allSatisfy { expectedCLIByProviderID[$0.providerID] == $0.cli })
+    }
+
+    @Test("prepare isolated login home enforces file store config and clears stale auth")
+    func prepareIsolatedLoginHomeEnforcesFileStoreAndClearsStaleAuth() throws {
+        let root = try makeTempRoot("nolon-codex-cli-login-home")
+        defer { try? root.delete() }
+
+        let codexHome = root
+            .folder("codex")
+            .folder("cli-login-home")
+            .folder("codex")
+        _ = codexHome.createIfNotExists()
+
+        let authFile = codexHome.file("auth.json")
+        try authFile.overlay(with: #"{"tokens":{"id_token":"old","access_token":"old"}}"#)
+        #expect(authFile.isExists)
+
+        let configFile = codexHome.file("config.toml")
+        try configFile.overlay(with: #"cli_auth_credentials_store = "keyring""# + "\n")
+
+        try NolonLiveCodexCLIService.prepareIsolatedLoginHome(codexHome: codexHome)
+
+        #expect(!authFile.isExists)
+        #expect((try? configFile.read()) == #"cli_auth_credentials_store = "file""# + "\n")
     }
 }
 

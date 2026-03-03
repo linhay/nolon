@@ -85,6 +85,29 @@ struct CodexAuthRuntimeCoordinatorTests {
             try await coordinator.activateAccountInRuntime(account: account)
         }
     }
+
+    @Test("Given runtime activation, when switch starts, then runtime skills symlink is prepared first")
+    func activateRuntimePreparesRuntimeSkillsBeforeSwitch() async throws {
+        let account = CodexAuthAccount(name: "work", relativeAuthPath: "auth/work.json")
+        let events = LockIsolated<[String]>([])
+
+        let coordinator = CodexAuthRuntimeCoordinator(
+            tokenReader: { _ in ("id-token", "access-token", nil) },
+            runtimeSwitch: { _, _, _, _, _ in
+                events.withValue { $0.append("switch") }
+            },
+            runtimeHomeResolver: { _, _ in STFolder("/tmp/runtime-home-for-tests") },
+            runtimeHomePreparer: { accountID, _ in
+                events.withValue { $0.append("prepare:\(accountID.uuidString.lowercased())") }
+            }
+        )
+
+        try await coordinator.activateAccountInRuntime(account: account)
+
+        #expect(events.value.count == 2)
+        #expect(events.value.first == "prepare:\(account.id.uuidString.lowercased())")
+        #expect(events.value.last == "switch")
+    }
 }
 
 private final class LockIsolated<Value: Sendable>: @unchecked Sendable {

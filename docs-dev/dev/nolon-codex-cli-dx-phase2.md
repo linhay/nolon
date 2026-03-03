@@ -1149,3 +1149,37 @@
   - `swift test --package-path libs/Providers --filter CostUsageFetcherTests` 通过；
   - `swift test --package-path libs/Providers --filter NolonCodexCLIEntrypointTests` 通过；
   - 实测 `nolon codex auth usage --refresh` 显示 `来源=全局回退`，可解释 tokens 同值现象。
+
+## Phase 2.58（runtime-home skills 全量共享模板化）
+- 背景：
+  - `runtime-home/<account-id>/skills/.system` 在多账号场景会重复创建，占用磁盘且目录膨胀；
+  - 决策：runtime-home 不保留账号级独立 skills，统一共享一个模板目录。
+- 变更：
+  1. `CodexAuthManager` 新增：
+     - `runtimeSkillsTemplateFolder() -> ~/.nolon/codex/runtime-skills-template`
+     - `ensureRuntimeSkillsSymlink(accountID:)`
+  2. `ensureRuntimeSkillsSymlink` 行为：
+     - 确保模板目录存在；
+     - 确保 `runtime-home/<id>/skills` 指向模板；
+     - 若是普通目录或错误软链接，按“强制删除后替换”执行；
+  3. 运行链路接入：
+     - `CodexAuthRuntimeCoordinator.activateAccountInRuntime` 在 runtime switch 前先执行 skills 链接准备；
+     - `NolonLiveCodexCLIService.authUsageRefresh` 每账号刷新前执行 skills 链接准备；
+     - `NolonLiveCodexCLIService.liveAuthRefreshRunner` 执行静默 refresh 前执行 skills 链接准备；
+  4. 兼容性：
+     - 不改变 `auth.json` 与 `~/.nolon/codex/auth/*.json` 的主存储语义；
+     - 仅收敛 runtime-home 下 `skills` 路径到共享模板。
+- 测试：
+  - `CodexAuthManagerTests`
+    - `ensureRuntimeSkillsSymlinkCreatesTemplateAndLink`
+    - `ensureRuntimeSkillsSymlinkReplacesExistingDirectory`
+    - `ensureRuntimeSkillsSymlinkKeepsExistingLink`
+  - `CodexAuthRuntimeCoordinatorTests`
+    - `activateRuntimePreparesRuntimeSkillsBeforeSwitch`
+  - `NolonCodexCLIServiceTests`
+    - `authUsageRefreshWritesBackPerAccount` 新增 runtime skills 软链接断言
+- 验证：
+  - `swift test --package-path libs/Providers --filter CodexAuthManagerTests` 通过（25 tests）；
+  - `swift test --package-path libs/Providers --filter CodexAuthRuntimeCoordinatorTests` 通过（5 tests）；
+  - `swift test --package-path libs/Providers --filter NolonCodexCLIServiceTests` 通过（17 tests）；
+  - `swift test --package-path libs/Providers` 已执行并跑到 live 相关尾段；由于测试进程在本地环境挂起，人工终止，未拿到一次性完整收敛结果。

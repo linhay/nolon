@@ -130,6 +130,72 @@ public final class CodexLoginHandle: @unchecked Sendable {
 public struct CodexLoginRunner: Sendable {
     public init() {}
 
+    public static func awaitAuthResult(
+        codexHome: STFolder,
+        timeoutSeconds: TimeInterval = 120,
+        pollIntervalSeconds: TimeInterval = 0.25
+    ) async throws -> CodexLoginResult {
+        let authFile = codexHome.file("auth.json")
+        let deadline = Date().addingTimeInterval(timeoutSeconds)
+        let sleepNanoseconds = UInt64(max(0.01, pollIntervalSeconds) * 1_000_000_000)
+        var sawInvalidUTF8 = false
+
+        while true {
+            try Task.checkCancellation()
+
+            if authFile.isExists, let data = try? authFile.data(), !data.isEmpty {
+                guard let raw = String(data: data, encoding: .utf8) else {
+                    sawInvalidUTF8 = true
+                    if Date() >= deadline {
+                        throw CodexLoginError.authInvalidUTF8
+                    }
+                    try await Task.sleep(nanoseconds: sleepNanoseconds)
+                    continue
+                }
+                return CodexLoginResult(authJSONString: raw, loginURL: nil)
+            }
+
+            if Date() >= deadline {
+                if sawInvalidUTF8 {
+                    throw CodexLoginError.authInvalidUTF8
+                }
+                throw CodexLoginError.authNotCreated
+            }
+
+            try await Task.sleep(nanoseconds: sleepNanoseconds)
+        }
+    }
+
+    /// Waits for `auth.json` as the primary success signal.
+    /// The app-server completion waiter is optional and best-effort only:
+    /// its failures are ignored because some environments can miss completion
+    /// callbacks while still writing a valid `auth.json`.
+    public static func awaitAuthResultPreferFile(
+        codexHome: STFolder,
+        timeoutSeconds: TimeInterval = 120,
+        pollIntervalSeconds: TimeInterval = 0.25,
+        completionWaiter: (@Sendable () async throws -> Void)? = nil
+    ) async throws -> CodexLoginResult {
+        guard let completionWaiter else {
+            return try await awaitAuthResult(
+                codexHome: codexHome,
+                timeoutSeconds: timeoutSeconds,
+                pollIntervalSeconds: pollIntervalSeconds
+            )
+        }
+
+        let completionTask = Task {
+            try? await completionWaiter()
+        }
+        defer { completionTask.cancel() }
+
+        return try await awaitAuthResult(
+            codexHome: codexHome,
+            timeoutSeconds: timeoutSeconds,
+            pollIntervalSeconds: pollIntervalSeconds
+        )
+    }
+
     public func startLogin(
         binary: String = "codex",
         environment: [String: String],
@@ -251,7 +317,6 @@ public struct CodexLoginRunner: Sendable {
             }
         }
 
-        let authFile = codexHome.file("auth.json")
         let deadline = Date().addingTimeInterval(timeoutSeconds)
         var processExitedAt: Date?
         let sleepNanoseconds = UInt64(max(0.01, pollIntervalSeconds) * 1_000_000_000)
@@ -259,11 +324,8 @@ public struct CodexLoginRunner: Sendable {
         while true {
             try Task.checkCancellation()
 
-            if authFile.isExists, let data = try? authFile.data(), !data.isEmpty {
-                guard let raw = String(data: data, encoding: .utf8) else {
-                    throw CodexLoginError.authInvalidUTF8
-                }
-                return CodexLoginResult(authJSONString: raw, loginURL: capture.detectedURL)
+            if let authResult = try Self.tryReadAuthResult(codexHome: codexHome, loginURL: capture.detectedURL) {
+                return authResult
             }
 
             let hasExited = context.processExitState.hasExited || !handle.isRunning
@@ -284,6 +346,18 @@ public struct CodexLoginRunner: Sendable {
 
             try await Task.sleep(nanoseconds: sleepNanoseconds)
         }
+    }
+
+    private static func tryReadAuthResult(codexHome: STFolder, loginURL: String?) throws -> CodexLoginResult? {
+        let authFile = codexHome.file("auth.json")
+        guard authFile.isExists,
+              let data = try? authFile.data(),
+              !data.isEmpty
+        else { return nil }
+        guard let raw = String(data: data, encoding: .utf8) else {
+            throw CodexLoginError.authInvalidUTF8
+        }
+        return CodexLoginResult(authJSONString: raw, loginURL: loginURL)
     }
 
     private struct LoginSessionContext {

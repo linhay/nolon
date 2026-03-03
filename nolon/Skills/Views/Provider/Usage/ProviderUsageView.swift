@@ -101,7 +101,9 @@ struct ProviderUsageView: View {
         .sheet(isPresented: Bindable(viewModel).isShowingLogin) {
             UsageLoginSheet(title: provider.name, url: viewModel.dashboardURL)
         }
-        .sheet(isPresented: $viewModel.isShowingLoginURLSheet) {
+        .sheet(isPresented: $viewModel.isShowingLoginURLSheet, onDismiss: {
+            viewModel.handleLoginURLSheetDismissed()
+        }) {
             CodexLoginURLSheet(
                 mode: viewModel.loginModeForSheet ?? "Login",
                 url: viewModel.loginURLForSheet,
@@ -1067,6 +1069,54 @@ struct ProviderUsageView: View {
         let fallbackPlan = summary?.plan?.trimmingCharacters(in: .whitespacesAndNewlines)
         let lastLogin = summary?.lastLoginAt
         let lastSync = summary?.lastSyncSucceededAt
+        let loginInlineText: String? = {
+            guard let lastLogin else { return nil }
+            return String(
+                format: NSLocalizedString(
+                    "codex.accounts.time.login.inline",
+                    value: "Login %@",
+                    comment: "Inline login time"
+                ),
+                CodexAccountInlineTimeFormatter.loginTimestamp(lastLogin)
+            )
+        }()
+        let syncInlineText: String? = {
+            guard let lastSync else { return nil }
+            let syncDisplay = CodexAccountInlineTimeFormatter.syncDisplay(
+                since: lastSync,
+                isChinese: isChineseLocale
+            )
+            switch syncDisplay {
+            case .justNow:
+                return NSLocalizedString(
+                    "codex.accounts.time.sync.just_now",
+                    value: "Synced just now",
+                    comment: "Inline sync just now text"
+                )
+            case let .relative(relativeText):
+                return String(
+                    format: NSLocalizedString(
+                        "codex.accounts.time.sync.inline",
+                        value: "Synced %@ ago",
+                        comment: "Inline sync ago time"
+                    ),
+                    relativeText
+                )
+            case let .absolute(absoluteText):
+                return String(
+                    format: NSLocalizedString(
+                        "codex.accounts.time.sync.absolute",
+                        value: "Synced %@",
+                        comment: "Inline absolute sync time"
+                    ),
+                    absoluteText
+                )
+            }
+        }()
+        let inlineTimeLineText = CodexAccountInlineTimeFormatter.joinInlineTimeLine(
+            loginSegment: loginInlineText,
+            syncSegment: syncInlineText
+        )
         let displayState = viewModel.displayState(accountID: accountId, outcome: outcome, summary: summary)
         let liveFailureError: Error? = {
             if case let .failure(error) = outcome.outcome.result { return error }
@@ -1231,28 +1281,14 @@ struct ProviderUsageView: View {
                 }
             }
 
-            if let lastLogin {
-                HStack(spacing: 6) {
-                    Text(NSLocalizedString("codex.accounts.login_at", value: "Last login", comment: "Last login label"))
-                        .font(.caption)
-                        .foregroundStyle(DesignSystem.Colors.Text.secondary)
-                    Text(lastLogin.formatted(date: .abbreviated, time: .shortened))
-                        .font(.caption)
-                        .foregroundStyle(DesignSystem.Colors.Text.primary)
-                        .lineLimit(1)
-                }
-            }
-
-            if let lastSync {
-                HStack(spacing: 6) {
-                    Text(NSLocalizedString("codex.accounts.sync.success", value: "Last sync", comment: "Last sync label"))
-                        .font(.caption)
-                        .foregroundStyle(DesignSystem.Colors.Text.secondary)
-                    Text(lastSync.formatted(date: .abbreviated, time: .shortened))
-                        .font(.caption)
-                        .foregroundStyle(DesignSystem.Colors.Text.primary)
-                        .lineLimit(1)
-                }
+            if let inlineTimeLineText {
+                Text(inlineTimeLineText)
+                    .font(.caption)
+                    .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+                    .multilineTextAlignment(.trailing)
             }
 
         }

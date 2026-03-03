@@ -54,4 +54,34 @@ struct CodexCLIKitEnvironmentTests {
         let executor = CodexCommandExecutor(executable: fakeCLI.url.path, environment: [:])
         #expect(executor.resolveExecutable() == fakeCLI.url.path)
     }
+
+    @Test("async resolver respects CODEX_CLI_PATH")
+    func resolveByEnvOverrideAsync() async throws {
+        let tempRoot = STFolder("/tmp")
+            .folder("codex-cli-env-async-\(UUID().uuidString)")
+        _ = tempRoot.createIfNotExists()
+        defer { try? tempRoot.delete() }
+
+        let fakeCLI = tempRoot.file("codex")
+        try fakeCLI.overlay(with: "#!/bin/sh\nexit 0\n")
+        try fakeCLI.set(permissions: .default)
+
+        let executor = CodexCommandExecutor(executable: "codex", environment: ["CODEX_CLI_PATH": fakeCLI.url.path])
+        #expect(await executor.resolveExecutableAsync() == fakeCLI.url.path)
+    }
+
+    @Test("async resolver accepts explicit executable path")
+    func resolveExplicitPathAsync() async throws {
+        let tempRoot = STFolder("/tmp")
+            .folder("codex-cli-explicit-async-\(UUID().uuidString)")
+        _ = tempRoot.createIfNotExists()
+        defer { try? tempRoot.delete() }
+
+        let fakeCLI = tempRoot.file("codex-cli")
+        try fakeCLI.overlay(with: "#!/bin/sh\nexit 0\n")
+        try fakeCLI.set(permissions: .default)
+
+        let executor = CodexCommandExecutor(executable: fakeCLI.url.path, environment: [:])
+        #expect(await executor.resolveExecutableAsync() == fakeCLI.url.path)
+    }
 }

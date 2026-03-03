@@ -22,10 +22,12 @@ public actor CodexAuthRuntimeCoordinator {
 
     typealias TokenReader = @Sendable (CodexAuthAccount) async throws -> (idToken: String, accessToken: String, chatgptAccountID: String?)?
     typealias RuntimeSwitch = @Sendable (String, String, String?, String, [String: String]) async throws -> Void
+    typealias RuntimeHomePreparer = @Sendable (UUID, [String: String]) async throws -> Void
 
     private let tokenReader: TokenReader
     private let runtimeSwitch: RuntimeSwitch
     private let runtimeHomeResolver: @Sendable (UUID, [String: String]) -> STFolder
+    private let runtimeHomePreparer: RuntimeHomePreparer
 
     public init() {
         let authManager = CodexAuthManager()
@@ -36,6 +38,9 @@ public actor CodexAuthRuntimeCoordinator {
         }
         self.runtimeHomeResolver = { accountID, environment in
             CodexAuthManager(environment: environment).runtimeHomeFolder(accountID: accountID)
+        }
+        self.runtimeHomePreparer = { accountID, environment in
+            try CodexAuthManager(environment: environment).ensureRuntimeSkillsSymlink(accountID: accountID)
         }
         self.runtimeSwitch = { idToken, accessToken, chatgptAccountID, executable, environment in
             let tokenPair = CodexTokenPair(idToken: idToken, accessToken: accessToken, chatgptAccountID: chatgptAccountID)
@@ -48,11 +53,15 @@ public actor CodexAuthRuntimeCoordinator {
         runtimeSwitch: @escaping RuntimeSwitch,
         runtimeHomeResolver: @escaping @Sendable (UUID, [String: String]) -> STFolder = { accountID, environment in
             CodexAuthManager(environment: environment).runtimeHomeFolder(accountID: accountID)
+        },
+        runtimeHomePreparer: @escaping RuntimeHomePreparer = { accountID, environment in
+            try CodexAuthManager(environment: environment).ensureRuntimeSkillsSymlink(accountID: accountID)
         }
     ) {
         self.tokenReader = tokenReader
         self.runtimeSwitch = runtimeSwitch
         self.runtimeHomeResolver = runtimeHomeResolver
+        self.runtimeHomePreparer = runtimeHomePreparer
     }
 
     public func activateAccountInRuntime(
@@ -66,6 +75,7 @@ public actor CodexAuthRuntimeCoordinator {
 
         do {
             var runtimeEnvironment = environment
+            try await runtimeHomePreparer(account.id, environment)
             let runtimeHome = runtimeHomeResolver(account.id, environment)
             _ = runtimeHome.createIfNotExists()
             runtimeEnvironment["CODEX_HOME"] = runtimeHome.url.standardizedFileURL.path

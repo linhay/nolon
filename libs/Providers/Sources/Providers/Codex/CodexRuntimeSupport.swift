@@ -15,6 +15,18 @@ enum CodexRuntimeSupport {
         return candidate
     }
 
+    static func resolvedBinaryAsync(
+        preferredBinary: String?,
+        environment: [String: String]
+    ) async -> String {
+        let candidate = (preferredBinary?.isEmpty == false) ? preferredBinary! : "codex"
+        if let resolved = await CodexCommandExecutor(executable: candidate, environment: environment).resolveExecutableAsync() {
+            return resolved
+        }
+
+        return candidate
+    }
+
     static func withRuntimeService<T>(
         preferredBinary: String?,
         environment: [String: String],
@@ -22,8 +34,9 @@ enum CodexRuntimeSupport {
         clientVersion: String = "1.0.0",
         operation: @Sendable (CodexAccountRuntimeService) async throws -> T
     ) async throws -> T {
+        let executable = await resolvedBinaryAsync(preferredBinary: preferredBinary, environment: environment)
         let service = CodexAccountRuntimeService(
-            executable: resolvedBinary(preferredBinary: preferredBinary, environment: environment),
+            executable: executable,
             environment: environment
         )
         defer { Task { await service.shutdown() } }

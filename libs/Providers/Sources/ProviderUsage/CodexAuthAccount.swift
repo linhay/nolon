@@ -61,44 +61,14 @@ public struct CodexAuthSummary: Hashable, Sendable {
         }
 
         var email = (json["email"].string
-            ?? json["user"]["email"].string
-            ?? json["profile"]["email"].string
             ?? json["nolon"]["account"]["email"].string
         )?.trimmingCharacters(in: .whitespacesAndNewlines)
         if email?.isEmpty == true { email = nil }
 
-        if email == nil,
-           let idToken = (json["tokens"]["id_token"].string
-               ?? json["tokens"]["idToken"].string
-               ?? json["id_token"].string
-               ?? json["idToken"].string
-           )?.trimmingCharacters(in: .whitespacesAndNewlines),
-           let payload = decodeJWTPayloadJSON(idToken),
-           let derived = (payload["email"].string
-               ?? payload["https://api.openai.com/profile"]["email"].string
-               ?? payload["profile"]["email"].string
-           )?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !derived.isEmpty
-        {
-            email = derived
-        }
-
-        let apiKey = (json["OPENAI_API_KEY"].string
-            ?? json["openai_api_key"].string
-            ?? json["api_key"].string
-            ?? json["apiKey"].string
-            ?? json["token"].string
-            ?? json["access_token"].string
-            ?? json["tokens"]["access_token"].string
-        )?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let apiKey = json["OPENAI_API_KEY"].string?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
         let accountIDCandidates: [String?] = [
-            json["account"]["id"].string,
             json["tokens"]["account_id"].string,
-            json["tokens"]["accountId"].string,
-            json["chatgpt_account_id"].string,
-            json["chatgptAccountId"].string,
-            json["account_id"].string,
-            json["accountId"].string,
             json["nolon"]["account"]["id"].string
         ]
         let accountID = accountIDCandidates
@@ -153,44 +123,14 @@ public struct CodexAuthSummary: Hashable, Sendable {
         guard let json = try? JSON(data: data) else { return CodexAuthSummary() }
 
         var email = (json["email"].string
-            ?? json["user"]["email"].string
-            ?? json["profile"]["email"].string
             ?? json["nolon"]["account"]["email"].string
         )?.trimmingCharacters(in: .whitespacesAndNewlines)
         if email?.isEmpty == true { email = nil }
 
-        if email == nil,
-           let idToken = (json["tokens"]["id_token"].string
-               ?? json["tokens"]["idToken"].string
-               ?? json["id_token"].string
-               ?? json["idToken"].string
-           )?.trimmingCharacters(in: .whitespacesAndNewlines),
-           let payload = decodeJWTPayloadJSON(idToken),
-           let derived = (payload["email"].string
-               ?? payload["https://api.openai.com/profile"]["email"].string
-               ?? payload["profile"]["email"].string
-           )?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !derived.isEmpty
-        {
-            email = derived
-        }
-
-        let apiKey = (json["OPENAI_API_KEY"].string
-            ?? json["openai_api_key"].string
-            ?? json["api_key"].string
-            ?? json["apiKey"].string
-            ?? json["token"].string
-            ?? json["access_token"].string
-            ?? json["tokens"]["access_token"].string
-        )?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let apiKey = json["OPENAI_API_KEY"].string?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
         let accountIDCandidates: [String?] = [
-            json["account"]["id"].string,
             json["tokens"]["account_id"].string,
-            json["tokens"]["accountId"].string,
-            json["chatgpt_account_id"].string,
-            json["chatgptAccountId"].string,
-            json["account_id"].string,
-            json["accountId"].string,
             json["nolon"]["account"]["id"].string
         ]
         let accountID = accountIDCandidates

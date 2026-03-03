@@ -61,6 +61,32 @@ public struct CodexCommandExecutor: Sendable {
         return nil
     }
 
+    public func resolveExecutableAsync() async -> String? {
+        if executable.contains("/") {
+            return Self.isExecutable(path: executable) ? executable : nil
+        }
+
+        if let override = environment["CODEX_CLI_PATH"], Self.isExecutable(path: override) {
+            return override
+        }
+
+        if let url = SKProcessRunner.resolveExecutableInPath(named: executable, environment: environment) {
+            return url.path
+        }
+
+        if let url = await SKProcessRunner.resolveExecutableInUserShell(named: executable, environment: environment) {
+            return url.path
+        }
+
+        for candidate in Self.fallbackExecutablePaths(for: executable) {
+            if Self.isExecutable(path: candidate) {
+                return candidate
+            }
+        }
+
+        return nil
+    }
+
     private static func fallbackExecutablePaths(for executable: String) -> [String] {
         [
             "/opt/homebrew/bin/\(executable)",
