@@ -912,7 +912,7 @@ struct NolonCodexCLIEntrypointTests {
         #expect(result.stderr.isEmpty)
         #expect(result.stdout.contains("provider | codex"))
         #expect(result.stdout.contains("range | 7d"))
-        #expect(result.stdout.contains("summary.today"))
+        #expect(result.stdout.contains("summary.today | 1.2亿"))
         #expect(result.stdout.contains("date | total | input | output | cache"))
         #expect(result.stdout.contains("2026-02-26 |"))
         #expect(await mock.lastCall() == "authUsageTrend")
@@ -2127,9 +2127,9 @@ private actor MockCodexCLIService: NolonCodexCLIServing {
                 ),
             ],
             summary: NolonCodexAuthUsageTrendSummaryView(
-                todayTokens: 2_500_000,
-                last7DaysTokens: 4_450_000,
-                last30DaysTokens: 4_450_000
+                todayTokens: 120_000_000,
+                last7DaysTokens: 124_450_000,
+                last30DaysTokens: 124_450_000
             )
         )
     }

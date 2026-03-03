@@ -907,6 +907,10 @@ enum NolonCodexCLIExecutor {
 
     private static func formatTokensInMillions(_ value: Int?) -> String {
         guard let value else { return "-" }
+        if value >= 100_000_000 {
+            let yi = Double(value) / 100_000_000
+            return String(format: "%.1f亿", yi)
+        }
         let millions = Double(value) / 1_000_000
         return String(format: "%.1fm", millions)
     }
