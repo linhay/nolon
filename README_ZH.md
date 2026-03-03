@@ -10,6 +10,7 @@ Nolon 是一款面向 macOS 的 AI 编程工具工作区编排器。
 
 - 最新版本：[v1.3.5](https://github.com/linhay/nolon/releases/latest)
 - Sparkle 更新源：[appcast.xml](https://linhay.github.io/nolon/appcast.xml)
+- 项目官网：[GitHub Pages](https://linhay.github.io/nolon/)
 
 ## 当前 App 形态
 

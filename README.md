@@ -10,6 +10,7 @@ It keeps one canonical workspace in `~/.nolon/skills`, then projects that worksp
 
 - Latest release: [v1.3.5](https://github.com/linhay/nolon/releases/latest)
 - Sparkle appcast: [appcast.xml](https://linhay.github.io/nolon/appcast.xml)
+- Project site: [GitHub Pages](https://linhay.github.io/nolon/)
 
 ## Current App Shape
 
