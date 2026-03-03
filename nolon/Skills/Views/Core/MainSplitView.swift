@@ -21,16 +21,28 @@ final class MainSplitViewModel {
     private var resourceMonitor: ProviderResourceMonitor?
     private let remoteInstallOrchestrator = RemoteInstallOrchestrator()
 
-    var selectedProviderId: Provider.ID?
+    var selectedSidebarItem: MainSidebarSelection?
     var selectedTab: ProviderContentTabType? = .skills
     var columnVisibility: NavigationSplitViewVisibility = .all
     
     var showingSettings = false
     var showingResourceCenter = false
     var refreshTrigger: Int = 0
-    
+
+    var selectedProviderId: Provider.ID? {
+        guard case let .provider(providerID)? = selectedSidebarItem else {
+            return nil
+        }
+        return providerID
+    }
+
     var selectedProvider: Provider? {
-        settings.providers.first { $0.id == selectedProviderId }
+        guard let selectedProviderId else { return nil }
+        return settings.providers.first { $0.id == selectedProviderId }
+    }
+
+    var isPluginManagementSelected: Bool {
+        selectedSidebarItem == .pluginManagement
     }
     
     @MainActor
@@ -144,31 +156,39 @@ public struct MainSplitView: View {
             NavigationSplitView(columnVisibility: $viewModel.columnVisibility) {
                 // Left 1: Provider sidebar
                 ProviderSidebarView(
-                    selectedProviderId: $viewModel.selectedProviderId,
+                    selectedItem: $viewModel.selectedSidebarItem,
                     settings: viewModel.settings
                 )
             } content: {
-                // Left 2: Skills/Workflows tab navigation
-                ProviderContentTabView(
-                    provider: viewModel.selectedProvider,
-                    selectedTab: $viewModel.selectedTab,
-                    settings: viewModel.settings,
-                    refreshTrigger: viewModel.refreshTrigger
-                )
+                if viewModel.isPluginManagementSelected {
+                    PluginManagementNavigationView()
+                } else {
+                    // Left 2: Skills/Workflows tab navigation
+                    ProviderContentTabView(
+                        provider: viewModel.selectedProvider,
+                        selectedTab: $viewModel.selectedTab,
+                        settings: viewModel.settings,
+                        refreshTrigger: viewModel.refreshTrigger
+                    )
+                }
             } detail: {
-                // Left 3: Grid cards (skills or workflows)
-                ProviderDetailGridView(
-                    provider: viewModel.selectedProvider,
-                    selectedTab: viewModel.selectedTab,
-                    settings: viewModel.settings,
-                    refreshTrigger: viewModel.refreshTrigger,
-                    onSelectProvider: { providerID in
-                        viewModel.selectedProviderId = providerID
-                    },
-                    onSelectTab: { tab in
-                        viewModel.selectedTab = tab
-                    }
-                )
+                if viewModel.isPluginManagementSelected {
+                    PluginManagementView()
+                } else {
+                    // Left 3: Grid cards (skills or workflows)
+                    ProviderDetailGridView(
+                        provider: viewModel.selectedProvider,
+                        selectedTab: viewModel.selectedTab,
+                        settings: viewModel.settings,
+                        refreshTrigger: viewModel.refreshTrigger,
+                        onSelectProvider: { providerID in
+                            viewModel.selectedSidebarItem = .provider(providerID)
+                        },
+                        onSelectTab: { tab in
+                            viewModel.selectedTab = tab
+                        }
+                    )
+                }
             }
             .navigationSplitViewStyle(.balanced)
             .toolbar {
@@ -220,7 +240,7 @@ public struct MainSplitView: View {
         .onAppear {
             viewModel.setup()
         }
-        .onChange(of: viewModel.selectedProviderId) { _, _ in
+        .onChange(of: viewModel.selectedSidebarItem) { _, _ in
             viewModel.updateResourceMonitoring()
         }
         .onReceive(viewModel.settings.$providers) { _ in
@@ -262,6 +282,21 @@ public struct MainSplitView: View {
             .dsGlassPanel(cornerRadius: DesignSystem.Metrics.cornerRadiusXL)
             .padding(ResourceCenterOverlayLayout.outerInset)
         }
+    }
+}
+
+private struct PluginManagementNavigationView: View {
+    var body: some View {
+        List {
+            Label(
+                NSLocalizedString("plugins.navigation.title", value: "Plugin Management", comment: "Plugin management navigation title"),
+                systemImage: "puzzlepiece.extension"
+            )
+        }
+        .listStyle(.sidebar)
+        .navigationTitle(
+            NSLocalizedString("plugins.navigation.group", value: "Plugins", comment: "Plugins navigation group title")
+        )
     }
 }
 

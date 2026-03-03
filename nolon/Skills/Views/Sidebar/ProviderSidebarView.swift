@@ -16,10 +16,14 @@ final class ProviderSidebarViewModel {
     }
     
     @MainActor
-    func deleteProvider(_ provider: Provider, currentSelection: Binding<Provider.ID?>) {
+    func deleteProvider(_ provider: Provider, currentSelection: Binding<MainSidebarSelection?>) {
         settings.removeProvider(provider)
-        if currentSelection.wrappedValue == provider.id {
-            currentSelection.wrappedValue = settings.providers.first?.id
+        if currentSelection.wrappedValue == .provider(provider.id) {
+            if let firstProvider = settings.providers.first {
+                currentSelection.wrappedValue = .provider(firstProvider.id)
+            } else {
+                currentSelection.wrappedValue = .pluginManagement
+            }
         }
     }
     
@@ -62,9 +66,13 @@ final class ProviderSidebarViewModel {
     }
     
     @MainActor
-    func selectFirstProviderIfNone(selection: Binding<Provider.ID?>) {
+    func selectFirstProviderIfNone(selection: Binding<MainSidebarSelection?>) {
         if selection.wrappedValue == nil {
-            selection.wrappedValue = settings.providers.first?.id
+            if let firstProvider = settings.providers.first {
+                selection.wrappedValue = .provider(firstProvider.id)
+            } else {
+                selection.wrappedValue = .pluginManagement
+            }
         }
     }
     
@@ -87,7 +95,7 @@ final class ProviderSidebarViewModel {
 /// Displays the unified list of all providers with selection state
 @MainActor
 public struct ProviderSidebarView: View {
-    @Binding var selectedProviderId: Provider.ID?
+    @Binding var selectedItem: MainSidebarSelection?
     @ObservedObject var settings: ProviderSettings
     @State private var viewModel: ProviderSidebarViewModel
     @State private var showingAddSheet = false
@@ -101,28 +109,28 @@ public struct ProviderSidebarView: View {
     }
     
     public init(
-        selectedProviderId: Binding<Provider.ID?>,
+        selectedItem: Binding<MainSidebarSelection?>,
         settings: ProviderSettings
     ) {
-        self._selectedProviderId = selectedProviderId
+        self._selectedItem = selectedItem
         self.settings = settings
         self._viewModel = State(initialValue: ProviderSidebarViewModel(settings: settings))
     }
     
     public var body: some View {
-        List(selection: $selectedProviderId) {
+        List(selection: $selectedItem) {
             if !vendorProviders.isEmpty {
                 Section {
                     ForEach(vendorProviders) { provider in
                         ProviderRowView(
                             provider: provider,
-                            isSelected: selectedProviderId == provider.id,
+                            isSelected: selectedItem == .provider(provider.id),
                             onShowInFinder: { viewModel.showInFinder(provider) },
                             onViewOfficialDocumentation: { viewModel.openOfficialDocumentation(for: provider) },
                             onEdit: { viewModel.editingProvider = provider },
-                            onDelete: { viewModel.deleteProvider(provider, currentSelection: $selectedProviderId) }
+                            onDelete: { viewModel.deleteProvider(provider, currentSelection: $selectedItem) }
                         )
-                        .tag(provider.id)
+                        .tag(MainSidebarSelection.provider(provider.id))
                     }
                     .onDelete { offsets in
                         let idsToDelete = Set(offsets.map { vendorProviders[$0].id })
@@ -146,13 +154,13 @@ public struct ProviderSidebarView: View {
                     ForEach(projectProviders) { provider in
                         ProviderRowView(
                             provider: provider,
-                            isSelected: selectedProviderId == provider.id,
+                            isSelected: selectedItem == .provider(provider.id),
                             onShowInFinder: { viewModel.showInFinder(provider) },
                             onViewOfficialDocumentation: { viewModel.openOfficialDocumentation(for: provider) },
                             onEdit: { viewModel.editingProvider = provider },
-                            onDelete: { viewModel.deleteProvider(provider, currentSelection: $selectedProviderId) }
+                            onDelete: { viewModel.deleteProvider(provider, currentSelection: $selectedItem) }
                         )
-                        .tag(provider.id)
+                        .tag(MainSidebarSelection.provider(provider.id))
                     }
                     .onDelete { offsets in
                         let idsToDelete = Set(offsets.map { projectProviders[$0].id })
@@ -167,6 +175,16 @@ public struct ProviderSidebarView: View {
                     Text(NSLocalizedString("sidebar.providers.projects", value: "Projects", comment: "Project providers section"))
                 }
             }
+
+            Section {
+                Label(
+                    NSLocalizedString("sidebar.plugins.management", value: "Plugin Management", comment: "Plugin management sidebar item"),
+                    systemImage: "puzzlepiece.extension"
+                )
+                .tag(MainSidebarSelection.pluginManagement)
+            } header: {
+                Text(NSLocalizedString("sidebar.section.tools", value: "Tools", comment: "Tools section"))
+            }
         }
         .listStyle(.sidebar)
         .navigationTitle(NSLocalizedString("app.title", comment: "nolon"))
@@ -175,7 +193,7 @@ public struct ProviderSidebarView: View {
             EditProviderSheet(settings: viewModel.settings, provider: provider)
         }
         .onAppear {
-            viewModel.selectFirstProviderIfNone(selection: $selectedProviderId)
+            viewModel.selectFirstProviderIfNone(selection: $selectedItem)
         }
         .toolbar {
             ToolbarItem(placement: .primaryAction) {

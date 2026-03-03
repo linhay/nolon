@@ -7000,6 +7000,9 @@
         }
       }
     },
+    "Installed: %@" : {
+
+    },
     "language.en" : {
       "comment" : "English",
       "localizations" : {
@@ -8183,6 +8186,78 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "个人访问令牌"
+          }
+        }
+      }
+    },
+    "plugin.action.open_release" : {
+      "comment" : "Open plugin releases",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Open Releases"
+          }
+        }
+      }
+    },
+    "plugin.action.upgrade" : {
+      "comment" : "Upgrade plugin",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Upgrade"
+          }
+        }
+      }
+    },
+    "plugin.empty.desc" : {
+      "comment" : "No plugin description",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "No available plugins."
+          }
+        }
+      }
+    },
+    "plugin.empty.title" : {
+      "comment" : "No plugin title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "No Plugin"
+          }
+        }
+      }
+    },
+    "plugins.navigation.group" : {
+      "comment" : "Plugins navigation group title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Plugins"
+          }
+        }
+      }
+    },
+    "plugins.navigation.title" : {
+      "comment" : "Plugin management navigation title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Plugin Management"
           }
         }
       }
@@ -9903,6 +9978,18 @@
         }
       }
     },
+    "sidebar.plugins.management" : {
+      "comment" : "Plugin management sidebar item",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Plugin Management"
+          }
+        }
+      }
+    },
     "sidebar.providers" : {
       "comment" : "Providers",
       "extractionState" : "stale",
@@ -9947,6 +10034,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "厂商"
+          }
+        }
+      }
+    },
+    "sidebar.section.tools" : {
+      "comment" : "Tools section",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Tools"
           }
         }
       }
