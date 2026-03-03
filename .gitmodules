@@ -1,0 +1,3 @@
+[submodule "projects/leaderboard-template"]
+	path = projects/leaderboard-template
+	url = git@github.com:linhay/nolon-leaderboard-template.git
