@@ -2035,7 +2035,10 @@ public struct NolonCoreCLIRunner: Sendable {
         let sourceURL = sourcePath.url.standardizedFileURL
         let targetURL = target.url.standardizedFileURL
         if sourceURL.path != targetURL.path {
-            try sourcePath.copy(to: target, isOverlay: true)
+            try SkillContentMaterializer.copyMaterializingSymlinks(
+                from: sourcePath,
+                to: target
+            )
         }
         let now = Date()
         try writeResourceOrigin(

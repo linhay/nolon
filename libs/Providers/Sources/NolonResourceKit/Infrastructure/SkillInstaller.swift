@@ -246,7 +246,10 @@ public final class SkillInstaller {
         if sourceURL != globalURL {
             let globalPathRef = STPath(globalURL)
             try globalPathRef.deleteIncludingBrokenSymlink()
-            try STPath(sourceURL).copy(to: STPath(globalURL), isOverlay: true)
+            try SkillContentMaterializer.copyMaterializingSymlinks(
+                from: STPath(sourceURL),
+                to: STPath(globalURL)
+            )
         } else {
             // Source is already in global storage; nothing to copy
             let globalPathRef = STPath(globalURL)

@@ -515,6 +515,58 @@ struct NolonResourceKitTests {
         #expect(summary.agentsCount == 1)
     }
 
+    @MainActor
+    @Test("SkillInstaller installLocal materializes relative symlinked skill assets")
+    func skillInstallerInstallLocalMaterializesRelativeSymlinkedAssets() throws {
+        let root = try STFolder(sanbox: .temporary)
+            .folder("nolon-local-symlink-skill-\(UUID().uuidString)")
+            .create()
+        defer { try? root.deleteIncludingBrokenSymlink() }
+
+        let repoRoot = root.folder("repo")
+        let skillFolder = repoRoot.folder(".claude").folder("skills").folder("ui-ux-pro-max")
+        let sourceScripts = repoRoot.folder("src").folder("ui-ux-pro-max").folder("scripts")
+        _ = skillFolder.createIfNotExists()
+        _ = sourceScripts.createIfNotExists()
+
+        try """
+        ---
+        name: ui-ux-pro-max
+        description: ui ux helper
+        ---
+        """.write(to: skillFolder.file("SKILL.md").url, atomically: true, encoding: .utf8)
+        try "print('ok')".write(to: sourceScripts.file("search.py").url, atomically: true, encoding: .utf8)
+
+        let fileManager = FileManager.default
+        try fileManager.createSymbolicLink(
+            atPath: skillFolder.subpath("scripts").url.path,
+            withDestinationPath: "../../../src/ui-ux-pro-max/scripts"
+        )
+
+        let manager = NolonManager(rootURL: root.folder(".nolon").url)
+        let repository = SkillRepository(nolonManager: manager)
+        let settings = ProviderSettings(userDefaults: .standard, nolonManager: manager)
+        let providerSkills = root.folder("provider").folder("skills")
+        _ = providerSkills.createIfNotExists()
+        let provider = Provider(
+            kind: .vendor,
+            name: "Codex",
+            defaultSkillsPath: providerSkills.url.path,
+            workflowPath: root.folder("provider").folder("prompts").url.path,
+            installMethod: .symlink,
+            templateId: "codex"
+        )
+        settings.providers = [provider]
+
+        let installer = SkillInstaller(repository: repository, settings: settings, nolonManager: manager)
+        try installer.installLocal(from: skillFolder.url.path, slug: "ui-ux-pro-max", to: provider)
+
+        let globalSkill = manager.skillsFolder.folder("ui-ux-pro-max")
+        let globalScripts = STPath(globalSkill.subpath("scripts").url.path)
+        #expect(globalScripts.isSymbolicLink == false)
+        #expect(STFile("\(globalSkill.url.path)/scripts/search.py").isExists)
+    }
+
     @Test("ProviderDiscoveryService detects installed providers from paths")
     func providerDiscoveryServiceDetectsInstalledProvidersFromPaths() {
         let knownPaths = Set([
