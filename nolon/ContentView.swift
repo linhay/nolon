@@ -11,18 +11,20 @@ struct ContentView: View {
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
     
     var body: some View {
-        if hasCompletedOnboarding {
-            MainSplitView()
-        } else {
-            OnboardingView {
-                hasCompletedOnboarding = true
+        Group {
+            if hasCompletedOnboarding {
+                MainSplitView()
+            } else {
+                OnboardingView {
+                    hasCompletedOnboarding = true
+                }
             }
         }
+        .textSelection(.enabled)
     }
 }
 
 #Preview {
     ContentView()
 }
-
 
