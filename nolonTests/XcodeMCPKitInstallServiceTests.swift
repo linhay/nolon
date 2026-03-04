@@ -226,6 +226,146 @@ final class XcodeMCPKitInstallServiceTests: XCTestCase {
         }
     }
 
+    func testUninstall_WhenManagedMcpAndArtifactsExist_RemovesAllPluginArtifacts() async throws {
+        let root = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("nolon-uninstall-test-\(UUID().uuidString)", isDirectory: true)
+        let fm = FileManager.default
+        try fm.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? fm.removeItem(at: root) }
+
+        let binDir = root.appendingPathComponent("bin", isDirectory: true)
+        try fm.createDirectory(at: binDir, withIntermediateDirectories: true)
+        let runtime = binDir.appendingPathComponent("xcodemcpkit", isDirectory: false)
+        let server = binDir.appendingPathComponent("xcode-mcp-server", isDirectory: false)
+        try "runtime".write(to: runtime, atomically: true, encoding: .utf8)
+        try "server".write(to: server, atomically: true, encoding: .utf8)
+
+        let pluginDir = root
+            .appendingPathComponent("plugins", isDirectory: true)
+            .appendingPathComponent("xcodemcpkit", isDirectory: true)
+        try fm.createDirectory(at: pluginDir, withIntermediateDirectories: true)
+        try "v1.2.3".write(
+            to: pluginDir.appendingPathComponent("installed_version.txt", isDirectory: false),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        let mcpsDir = root.appendingPathComponent("mcps", isDirectory: true)
+        try fm.createDirectory(at: mcpsDir, withIntermediateDirectories: true)
+        let managedMcp = mcpsDir.appendingPathComponent("xcodemcpkit.json", isDirectory: false)
+        let managedPayload = """
+        {
+          "mcpServers": {
+            "xcodemcpkit": {
+              "command": "xcode-mcp-server",
+              "nolon_plugin": {
+                "managed": true,
+                "plugin_id": "xcodemcpkit"
+              }
+            }
+          }
+        }
+        """
+        try managedPayload.write(to: managedMcp, atomically: true, encoding: .utf8)
+
+        let service = XcodeMCPKitInstallService(
+            fileManager: fm,
+            nolonRootURL: root
+        )
+        try await service.uninstall()
+
+        XCTAssertFalse(fm.fileExists(atPath: runtime.path))
+        XCTAssertFalse(fm.fileExists(atPath: server.path))
+        XCTAssertFalse(fm.fileExists(atPath: pluginDir.path))
+        XCTAssertFalse(fm.fileExists(atPath: managedMcp.path))
+    }
+
+    func testUninstall_WhenMcpIsNotPluginManaged_KeepsGlobalMcpFile() async throws {
+        let root = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("nolon-uninstall-keep-mcp-\(UUID().uuidString)", isDirectory: true)
+        let fm = FileManager.default
+        try fm.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? fm.removeItem(at: root) }
+
+        let mcpsDir = root.appendingPathComponent("mcps", isDirectory: true)
+        try fm.createDirectory(at: mcpsDir, withIntermediateDirectories: true)
+        let mcp = mcpsDir.appendingPathComponent("xcodemcpkit.json", isDirectory: false)
+        let unmanagedPayload = """
+        {
+          "mcpServers": {
+            "xcodemcpkit": {
+              "command": "xcode-mcp-server"
+            }
+          }
+        }
+        """
+        try unmanagedPayload.write(to: mcp, atomically: true, encoding: .utf8)
+
+        let service = XcodeMCPKitInstallService(
+            fileManager: fm,
+            nolonRootURL: root
+        )
+        try await service.uninstall()
+
+        XCTAssertTrue(fm.fileExists(atPath: mcp.path))
+    }
+
+    func testInstallLatest_WhenInstallSucceeded_CallsBinarySignerForInstalledExecutables() async throws {
+        let root = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("nolon-install-sign-test-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let archiveData = try makeLegacyArchiveData()
+        MockURLProtocol.requestHandler = { request in
+            guard let url = request.url else { throw URLError(.badURL) }
+            if url.absoluteString.contains("/releases?per_page=20") {
+                let body = """
+                [
+                  {
+                    "tag_name": "v1.2.4",
+                    "prerelease": false,
+                    "draft": false,
+                    "assets": [
+                      {
+                        "name": "xcode-mcp-proxy-darwin-arm64.tar.gz",
+                        "browser_download_url": "https://example.com/xcode-mcp-proxy-darwin-arm64.tar.gz"
+                      }
+                    ]
+                  }
+                ]
+                """
+                let response = HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)!
+                return (response, Data(body.utf8))
+            }
+            if url.absoluteString == "https://example.com/xcode-mcp-proxy-darwin-arm64.tar.gz" {
+                let response = HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)!
+                return (response, archiveData)
+            }
+            throw URLError(.unsupportedURL)
+        }
+
+        URLProtocol.registerClass(MockURLProtocol.self)
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [MockURLProtocol.self]
+        let session = URLSession(configuration: config)
+
+        var signedPaths: [String] = []
+        let service = XcodeMCPKitInstallService(
+            session: session,
+            fileManager: .default,
+            dateProvider: { Date(timeIntervalSince1970: 1_700_000_000) },
+            nolonRootURL: root,
+            binarySigner: { signedPaths.append($0.path) }
+        )
+
+        _ = try await service.installLatest()
+
+        let runtime = root.appendingPathComponent("bin/xcodemcpkit", isDirectory: false).path
+        let server = root.appendingPathComponent("bin/xcode-mcp-server", isDirectory: false).path
+        XCTAssertEqual(Set(signedPaths), Set([runtime, server]))
+    }
+
     private func makeLegacyArchiveData() throws -> Data {
         let fm = FileManager.default
         let tmp = URL(fileURLWithPath: NSTemporaryDirectory())

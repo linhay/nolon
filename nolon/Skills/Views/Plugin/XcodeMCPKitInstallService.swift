@@ -1,6 +1,7 @@
 import Foundation
 import NolonResourceKit
 import SKProcessRunner
+import OSLog
 
 enum XcodeMCPKitInstallError: LocalizedError, Equatable {
     case releaseNotFound
@@ -8,6 +9,7 @@ enum XcodeMCPKitInstallError: LocalizedError, Equatable {
     case binaryMissing(String)
     case extractionFailed(String)
     case httpFailed(Int)
+    case binarySignFailed(String)
 
     var errorDescription: String? {
         switch self {
@@ -21,15 +23,20 @@ enum XcodeMCPKitInstallError: LocalizedError, Equatable {
             return "Failed to extract package: \(message)"
         case let .httpFailed(code):
             return "HTTP request failed with status code \(code)."
+        case let .binarySignFailed(message):
+            return "Failed to sign binary: \(message)"
         }
     }
 }
 
 protocol XcodeMCPKitInstallServicing {
     func installLatest() async throws -> String
+    func uninstall() async throws
 }
 
 struct XcodeMCPKitInstallService: XcodeMCPKitInstallServicing {
+    private static let logger = Logger(subsystem: "com.nolon", category: "XcodeMCPKitInstall")
+
     private struct GitHubRelease: Decodable {
         struct Asset: Decodable {
             let name: String
@@ -46,37 +53,64 @@ struct XcodeMCPKitInstallService: XcodeMCPKitInstallServicing {
     private let fileManager: FileManager
     private let dateProvider: @Sendable () -> Date
     private let nolonRootURL: URL
+    private let binarySigner: @Sendable (_ binaryURL: URL) throws -> Void
 
     init(
         session: URLSession = .shared,
         fileManager: FileManager = .default,
         dateProvider: @escaping @Sendable () -> Date = { Date() },
-        nolonRootURL: URL = NolonManager.shared.rootURL
+        nolonRootURL: URL = NolonManager.shared.rootURL,
+        binarySigner: (@Sendable (_ binaryURL: URL) throws -> Void)? = nil
     ) {
         self.session = session
         self.fileManager = fileManager
         self.dateProvider = dateProvider
         self.nolonRootURL = nolonRootURL
+        self.binarySigner = binarySigner ?? { try Self.defaultBinarySigner(binaryURL: $0) }
     }
 
     func installLatest() async throws -> String {
+        Self.logger.info("Starting XcodeMCPKit install flow")
         let release = try await fetchLatestRelease()
         let asset = try selectAsset(from: release.assets)
+        Self.logger.info("Selected release=\(release.tag_name, privacy: .public), asset=\(asset.name, privacy: .public)")
 
         let tmpDir = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         try fileManager.createDirectory(at: tmpDir, withIntermediateDirectories: true)
         defer { try? fileManager.removeItem(at: tmpDir) }
+        Self.logger.debug("Created temp dir at \(tmpDir.path, privacy: .public)")
 
         let archiveURL = tmpDir.appendingPathComponent(asset.name)
         let (archiveData, archiveResponse) = try await session.data(from: URL(string: asset.browser_download_url)!)
         try validateHTTP(archiveResponse)
         try archiveData.write(to: archiveURL, options: .atomic)
+        Self.logger.info("Downloaded archive bytes=\(archiveData.count) to \(archiveURL.path, privacy: .public)")
 
         try extract(archive: archiveURL, to: tmpDir)
         try installBinaries(from: tmpDir)
         try writeInstalledVersion(release.tag_name)
         try writeGlobalMcpConfig(installedAt: dateProvider())
+        Self.logger.info("Install flow completed. version=\(release.tag_name, privacy: .public)")
         return release.tag_name
+    }
+
+    func uninstall() async throws {
+        Self.logger.info("Starting XcodeMCPKit uninstall flow")
+        let installDir = nolonRootURL.appendingPathComponent("bin", isDirectory: true)
+        let runtimeBinary = installDir.appendingPathComponent("xcodemcpkit", isDirectory: false)
+        let serverBinary = installDir.appendingPathComponent("xcode-mcp-server", isDirectory: false)
+        let pluginDir = nolonRootURL
+            .appendingPathComponent("plugins", isDirectory: true)
+            .appendingPathComponent("xcodemcpkit", isDirectory: true)
+        let globalMcp = nolonRootURL
+            .appendingPathComponent("mcps", isDirectory: true)
+            .appendingPathComponent("xcodemcpkit.json", isDirectory: false)
+
+        try removeIfExists(runtimeBinary)
+        try removeIfExists(serverBinary)
+        try removeIfExists(pluginDir)
+        try removeManagedGlobalMcpConfigIfNeeded(globalMcp)
+        Self.logger.info("XcodeMCPKit uninstall flow completed")
     }
 
     private func fetchLatestRelease() async throws -> GitHubRelease {
@@ -86,6 +120,7 @@ struct XcodeMCPKitInstallService: XcodeMCPKitInstallServicing {
         let (data, response) = try await session.data(for: request)
         try validateHTTP(response)
         let releases = try JSONDecoder().decode([GitHubRelease].self, from: data)
+        Self.logger.debug("Fetched release candidates count=\(releases.count)")
         guard let release = releases.first(where: { !$0.draft && !$0.prerelease }) else {
             throw XcodeMCPKitInstallError.releaseNotFound
         }
@@ -115,6 +150,7 @@ struct XcodeMCPKitInstallService: XcodeMCPKitInstallServicing {
     }
 
     private func extract(archive: URL, to destination: URL) throws {
+        Self.logger.info("Extracting archive \(archive.lastPathComponent, privacy: .public) to \(destination.path, privacy: .public)")
         var payload = SKProcessPayload.executableURL(URL(fileURLWithPath: "/usr/bin/tar"))
         payload = payload.arguments(["-xzf", archive.path, "-C", destination.path])
         let result: SKProcessResult
@@ -133,6 +169,7 @@ struct XcodeMCPKitInstallService: XcodeMCPKitInstallServicing {
             let message = stderrText.isEmpty ? "tar exited with code \(result.exitCode)" : stderrText
             throw XcodeMCPKitInstallError.extractionFailed(message)
         }
+        Self.logger.info("Archive extracted successfully")
     }
 
     private func validateHTTP(_ response: URLResponse) throws {
@@ -145,6 +182,7 @@ struct XcodeMCPKitInstallService: XcodeMCPKitInstallServicing {
     private func installBinaries(from extractedRoot: URL) throws {
         let installDir = nolonRootURL.appendingPathComponent("bin", isDirectory: true)
         try fileManager.createDirectory(at: installDir, withIntermediateDirectories: true)
+        Self.logger.info("Installing binaries into \(installDir.path, privacy: .public)")
 
         try installBinary(
             sourceCandidates: ["xcodemcpkit", "xcode-mcp-proxy-server"],
@@ -171,6 +209,29 @@ struct XcodeMCPKitInstallService: XcodeMCPKitInstallServicing {
         try? fileManager.removeItem(at: targetURL)
         try fileManager.copyItem(at: sourceURL, to: targetURL)
         try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: targetURL.path)
+        try binarySigner(targetURL)
+        Self.logger.info("Installed binary \(targetName, privacy: .public): \(sourceURL.path, privacy: .public) -> \(targetURL.path, privacy: .public)")
+    }
+
+    private static func defaultBinarySigner(binaryURL: URL) throws {
+        var payload = SKProcessPayload.executableURL(URL(fileURLWithPath: "/usr/bin/codesign"))
+        payload = payload.arguments(["--force", "--sign", "-", binaryURL.path])
+        let result: SKProcessResult
+        do {
+            result = try SKProcessRunner.runSync(payload)
+        } catch let SKProcessRunError.nonZeroExit(exitCode, _, stderrData) {
+            let stderrText = String(data: stderrData, encoding: .utf8)?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let message = (stderrText?.isEmpty == false) ? stderrText! : "codesign exited with code \(exitCode)"
+            throw XcodeMCPKitInstallError.binarySignFailed(message)
+        } catch {
+            throw XcodeMCPKitInstallError.binarySignFailed(error.localizedDescription)
+        }
+        guard result.exitCode == 0 else {
+            let stderrText = result.stderr.trimmingCharacters(in: .whitespacesAndNewlines)
+            let message = stderrText.isEmpty ? "codesign exited with code \(result.exitCode)" : stderrText
+            throw XcodeMCPKitInstallError.binarySignFailed(message)
+        }
     }
 
     private func resolveBinaryURL(candidates: [String], in root: URL) throws -> URL {
@@ -196,6 +257,7 @@ struct XcodeMCPKitInstallService: XcodeMCPKitInstallServicing {
         try fileManager.createDirectory(at: pluginDir, withIntermediateDirectories: true)
         let versionFile = pluginDir.appendingPathComponent("installed_version.txt", isDirectory: false)
         try version.write(to: versionFile, atomically: true, encoding: .utf8)
+        Self.logger.info("Wrote installed version file: \(versionFile.path, privacy: .public)")
     }
 
     private func writeGlobalMcpConfig(installedAt: Date) throws {
@@ -221,5 +283,28 @@ struct XcodeMCPKitInstallService: XcodeMCPKitInstallServicing {
         ]
         let data = try JSONSerialization.data(withJSONObject: payload, options: [.prettyPrinted, .sortedKeys])
         try data.write(to: file, options: .atomic)
+        Self.logger.info("Wrote global MCP config: \(file.path, privacy: .public)")
+    }
+
+    private func removeIfExists(_ target: URL) throws {
+        guard fileManager.fileExists(atPath: target.path) else { return }
+        try fileManager.removeItem(at: target)
+    }
+
+    private func removeManagedGlobalMcpConfigIfNeeded(_ file: URL) throws {
+        guard fileManager.fileExists(atPath: file.path) else { return }
+        guard let data = try? Data(contentsOf: file),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let mcpServers = json["mcpServers"] as? [String: Any],
+              let entry = mcpServers["xcodemcpkit"] as? [String: Any],
+              let marker = entry["nolon_plugin"] as? [String: Any],
+              marker["managed"] as? Bool == true,
+              marker["plugin_id"] as? String == "xcodemcpkit"
+        else {
+            Self.logger.info("Keeping global MCP config because it is not plugin-managed: \(file.path, privacy: .public)")
+            return
+        }
+        try fileManager.removeItem(at: file)
+        Self.logger.info("Removed plugin-managed global MCP config: \(file.path, privacy: .public)")
     }
 }

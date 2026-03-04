@@ -3,10 +3,13 @@ import Observation
 import NolonResourceKit
 import AppKit
 import Foundation
+import OSLog
+import SKProcessRunner
 
 @MainActor
 @Observable
 final class PluginManagementViewModel {
+    private static let logger = Logger(subsystem: "com.nolon", category: "PluginManagement")
     struct PluginItem: Identifiable, Equatable {
         let id: String
         let name: String
@@ -23,39 +26,59 @@ final class PluginManagementViewModel {
 
     private let releaseChecker: XcodeMCPKitReleaseChecker
     private let installedVersionProvider: @Sendable () -> String?
+    private let detectedVersionProvider: @Sendable () -> String?
     private let binaryExistsProvider: @Sendable (_ binaryName: String) -> Bool
     private let runtimeService: any XcodeMCPKitRuntimeServicing
     private let installService: any XcodeMCPKitInstallServicing
     private let releaseRootURL = URL(string: "https://github.com/linhay/XcodeMCPKit/releases")!
 
     var runtimeState: XcodeMCPKitRuntimeState = .idle
+    var runtimeLogs: String = ""
     var isInstalling = false
     var isUpgrading = false
+    var isUninstalling = false
 
     init(
         releaseChecker: XcodeMCPKitReleaseChecker = XcodeMCPKitReleaseChecker(),
         installedVersionProvider: (@Sendable () -> String?)? = nil,
+        detectedVersionProvider: (@Sendable () -> String?)? = nil,
         binaryExistsProvider: (@Sendable (_ binaryName: String) -> Bool)? = nil,
         runtimeService: (any XcodeMCPKitRuntimeServicing)? = nil,
         installService: (any XcodeMCPKitInstallServicing)? = nil
     ) {
         self.releaseChecker = releaseChecker
         self.installedVersionProvider = installedVersionProvider ?? { Self.defaultInstalledVersion() }
+        self.detectedVersionProvider = detectedVersionProvider ?? { Self.defaultDetectedVersion() }
         self.binaryExistsProvider = binaryExistsProvider ?? { Self.defaultBinaryExists(binaryName: $0) }
         self.runtimeService = runtimeService ?? XcodeMCPKitRuntimeService()
         self.installService = installService ?? XcodeMCPKitInstallService()
         self.runtimeState = self.runtimeService.state
+        self.runtimeLogs = self.runtimeService.logsText
         self.runtimeService.onStateChange = { [weak self] state in
             self?.runtimeState = state
+        }
+        self.runtimeService.onLogsChange = { [weak self] logs in
+            self?.runtimeLogs = logs
         }
     }
 
     func load() async {
+        Self.logger.info("Loading plugin status")
         isChecking = true
         defer { isChecking = false }
 
         let isInstalled = binaryExistsProvider("xcodemcpkit")
-        let rawInstalledVersion = installedVersionProvider()
+        let storedInstalledVersion = installedVersionProvider()
+        let detectedVersion: String?
+        if storedInstalledVersion == nil, isInstalled {
+            let provider = detectedVersionProvider
+            detectedVersion = await Task.detached(priority: .utility) {
+                provider()
+            }.value
+        } else {
+            detectedVersion = nil
+        }
+        let rawInstalledVersion = storedInstalledVersion ?? detectedVersion
         let installedVersion = isInstalled ? rawInstalledVersion : nil
         let status = await releaseChecker.checkUpgrade(installedVersion: rawInstalledVersion)
         plugin = PluginItem(
@@ -69,29 +92,42 @@ final class PluginManagementViewModel {
         )
         runtimeService.refreshStatus()
         runtimeState = runtimeService.state
+        Self.logger.info("Plugin status loaded. installed=\(isInstalled), installedVersion=\(installedVersion ?? "-", privacy: .public), latestVersion=\(status.latestVersion ?? "-", privacy: .public), hasUpgrade=\(status.hasUpgrade)")
     }
 
     func startPlugin() async {
+        Self.logger.info("Start plugin runtime requested")
         await runtimeService.start()
         runtimeState = runtimeService.state
+        Self.logger.info("Runtime state after start: \(String(describing: self.runtimeState), privacy: .public)")
     }
 
     func stopPlugin(force: Bool = false) async {
+        Self.logger.info("Stop plugin runtime requested. force=\(force)")
         await runtimeService.stop(force: force)
         runtimeState = runtimeService.state
+        Self.logger.info("Runtime state after stop: \(String(describing: self.runtimeState), privacy: .public)")
+    }
+
+    func clearRuntimeLogs() {
+        runtimeService.clearLogs()
+        runtimeLogs = runtimeService.logsText
     }
 
     func installPlugin() async {
         guard plugin?.isInstalled == false else { return }
         if isInstalling || isUpgrading { return }
+        Self.logger.info("Plugin install requested")
         isInstalling = true
         defer { isInstalling = false }
         do {
-            _ = try await installService.installLatest()
+            let version = try await installService.installLatest()
             errorMessage = nil
+            Self.logger.info("Plugin install succeeded. version=\(version, privacy: .public)")
             await load()
         } catch {
             errorMessage = error.localizedDescription
+            Self.logger.error("Plugin install failed: \(error.localizedDescription, privacy: .public)")
         }
     }
 
@@ -99,14 +135,37 @@ final class PluginManagementViewModel {
         guard plugin?.isInstalled == true else { return }
         guard plugin?.hasUpgrade == true else { return }
         if isInstalling || isUpgrading { return }
+        Self.logger.info("Plugin upgrade requested")
         isUpgrading = true
         defer { isUpgrading = false }
         do {
-            _ = try await installService.installLatest()
+            let version = try await installService.installLatest()
             errorMessage = nil
+            Self.logger.info("Plugin upgrade succeeded. version=\(version, privacy: .public)")
             await load()
         } catch {
             errorMessage = error.localizedDescription
+            Self.logger.error("Plugin upgrade failed: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    func uninstallPlugin() async {
+        guard plugin?.isInstalled == true else { return }
+        if isInstalling || isUpgrading || isUninstalling { return }
+        Self.logger.info("Plugin uninstall requested")
+        isUninstalling = true
+        defer { isUninstalling = false }
+        do {
+            if case .running = runtimeState {
+                await stopPlugin(force: true)
+            }
+            try await installService.uninstall()
+            errorMessage = nil
+            Self.logger.info("Plugin uninstall succeeded")
+            await load()
+        } catch {
+            errorMessage = error.localizedDescription
+            Self.logger.error("Plugin uninstall failed: \(error.localizedDescription, privacy: .public)")
         }
     }
 
@@ -164,7 +223,7 @@ final class PluginManagementViewModel {
     }
 
     var runtimeActionEnabled: Bool {
-        if isInstalling || isUpgrading {
+        if isInstalling || isUpgrading || isUninstalling {
             return false
         }
         if plugin?.isInstalled == false {
@@ -182,7 +241,19 @@ final class PluginManagementViewModel {
 
     var upgradeActionEnabled: Bool {
         guard plugin?.hasUpgrade == true else { return false }
-        return !isInstalling && !isUpgrading
+        return !isInstalling && !isUpgrading && !isUninstalling
+    }
+
+    var uninstallActionTitle: String {
+        if isUninstalling {
+            return NSLocalizedString("plugin.action.uninstalling", value: "Uninstalling...", comment: "Uninstalling plugin")
+        }
+        return NSLocalizedString("plugin.action.uninstall", value: "Uninstall", comment: "Uninstall plugin")
+    }
+
+    var uninstallActionEnabled: Bool {
+        guard plugin?.isInstalled == true else { return false }
+        return !isInstalling && !isUpgrading && !isUninstalling && !runtimeState.isBusy
     }
 
     nonisolated private static func defaultInstalledVersion() -> String? {
@@ -198,6 +269,36 @@ final class PluginManagementViewModel {
             return nil
         }
         return raw
+    }
+
+    nonisolated private static func defaultDetectedVersion() -> String? {
+        let executableURL: URL = {
+            let local = NolonManager.shared.rootURL
+                .appendingPathComponent("bin", isDirectory: true)
+                .appendingPathComponent("xcodemcpkit", isDirectory: false)
+            if FileManager.default.isExecutableFile(atPath: local.path) {
+                return local
+            }
+            if let resolved = SKProcessRunner.resolveExecutableInPath(
+                named: "xcodemcpkit",
+                environment: ProcessInfo.processInfo.environment
+            ) {
+                return resolved
+            }
+            return local
+        }()
+
+        var payload = SKProcessPayload.executableURL(executableURL)
+        payload = payload.arguments(["--version"])
+        guard let result = try? SKProcessRunner.runSync(payload), result.exitCode == 0 else {
+            return nil
+        }
+        let merged = "\(result.stdout)\n\(result.stderr)"
+        guard let matched = merged.firstMatch(of: #/v?\d+\.\d+\.\d+(?:[-+][0-9A-Za-z\.-]+)?/#) else {
+            return nil
+        }
+        let version = String(matched.output)
+        return version.hasPrefix("v") ? version : "v\(version)"
     }
 
     nonisolated private static func defaultBinaryExists(binaryName: String) -> Bool {
@@ -226,6 +327,8 @@ final class PluginManagementViewModel {
 
 struct PluginManagementView: View {
     @State private var viewModel = PluginManagementViewModel()
+    @State private var showingLogs = false
+    @State private var logsAutoScroll = true
 
     var body: some View {
         ScrollView {
@@ -286,6 +389,13 @@ struct PluginManagementView: View {
                 .buttonStyle(.borderedProminent)
                 .disabled(!viewModel.runtimeActionEnabled)
 
+                Button(
+                    NSLocalizedString("plugin.action.logs", value: "Logs", comment: "Open plugin runtime logs")
+                ) {
+                    showingLogs = true
+                }
+                .buttonStyle(.bordered)
+
                 if plugin.hasUpgrade {
                     Button(viewModel.upgradeActionTitle) {
                         Task {
@@ -302,19 +412,36 @@ struct PluginManagementView: View {
                     }
                     .dsLinkButton()
                 }
+
+                if plugin.isInstalled {
+                    Button(viewModel.uninstallActionTitle) {
+                        Task {
+                            await viewModel.uninstallPlugin()
+                        }
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(!viewModel.uninstallActionEnabled)
+                }
             }
 
             HStack(spacing: 14) {
                 let installStatus = plugin.isInstalled
                     ? NSLocalizedString("plugin.install_status.installed", value: "Installed", comment: "Plugin installed status")
                     : NSLocalizedString("plugin.install_status.not_installed", value: "Not Installed", comment: "Plugin not installed status")
+                let installedText: String = {
+                    if plugin.isInstalled {
+                        return plugin.installedVersion ?? NSLocalizedString("plugin.version.unknown", value: "Unknown", comment: "Installed version unknown")
+                    }
+                    return NSLocalizedString("plugin.version.not_installed", value: "Not Installed", comment: "Not installed version text")
+                }()
+                let latestText = plugin.latestVersion ?? NSLocalizedString("plugin.version.unavailable", value: "Unavailable", comment: "Latest version unavailable")
                 Text("Status: \(installStatus)")
                     .font(.caption)
                     .dsSecondaryText(font: .caption)
-                Text("Installed: \(plugin.installedVersion ?? "-")")
+                Text("Installed: \(installedText)")
                     .font(.caption)
                     .dsSecondaryText(font: .caption)
-                Text("Latest: \(plugin.latestVersion ?? "-")")
+                Text("Latest: \(latestText)")
                     .font(.caption)
                     .dsSecondaryText(font: .caption)
             }
@@ -330,5 +457,78 @@ struct PluginManagementView: View {
             cornerRadius: DesignSystem.Metrics.cornerRadiusM,
             borderColor: DesignSystem.Colors.Component.border.opacity(0.4)
         )
+        .sheet(isPresented: $showingLogs) {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    Text(
+                        NSLocalizedString("plugin.logs.title", value: "Runtime Logs", comment: "Plugin runtime logs title")
+                    )
+                    .font(.headline)
+                    Spacer()
+                    Button(logsAutoScroll
+                        ? NSLocalizedString("plugin.logs.auto_on", value: "Auto On", comment: "Auto scroll enabled")
+                        : NSLocalizedString("plugin.logs.auto_off", value: "Auto Off", comment: "Auto scroll disabled")
+                    ) {
+                        logsAutoScroll.toggle()
+                    }
+                    .buttonStyle(.bordered)
+                    Button(
+                        NSLocalizedString("plugin.logs.clear", value: "Clear", comment: "Clear logs")
+                    ) {
+                        viewModel.clearRuntimeLogs()
+                    }
+                    .buttonStyle(.bordered)
+                    Button(
+                        NSLocalizedString("plugin.logs.copy", value: "Copy", comment: "Copy logs")
+                    ) {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(viewModel.runtimeLogs, forType: .string)
+                    }
+                    .buttonStyle(.bordered)
+                    Button(
+                        NSLocalizedString("plugin.logs.close", value: "Close", comment: "Close logs sheet")
+                    ) {
+                        showingLogs = false
+                    }
+                    .keyboardShortcut(.cancelAction)
+                    .buttonStyle(.borderedProminent)
+                }
+
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        Text(viewModel.runtimeLogs.isEmpty
+                            ? NSLocalizedString("plugin.logs.empty", value: "No runtime output yet.", comment: "Empty runtime logs")
+                            : viewModel.runtimeLogs
+                        )
+                        .font(.system(size: 12, weight: .regular, design: .monospaced))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .textSelection(.enabled)
+
+                        Color.clear
+                            .frame(height: 1)
+                            .id("runtime-log-bottom")
+                    }
+                    .onAppear {
+                        guard logsAutoScroll else { return }
+                        DispatchQueue.main.async {
+                            proxy.scrollTo("runtime-log-bottom", anchor: .bottom)
+                        }
+                    }
+                    .onChange(of: viewModel.runtimeLogs) { _, _ in
+                        guard logsAutoScroll else { return }
+                        withAnimation(.easeOut(duration: 0.15)) {
+                            proxy.scrollTo("runtime-log-bottom", anchor: .bottom)
+                        }
+                    }
+                    .dsCard(
+                        background: DesignSystem.Colors.Background.surface,
+                        cornerRadius: DesignSystem.Metrics.cornerRadiusS,
+                        borderColor: DesignSystem.Colors.Component.border.opacity(0.3)
+                    )
+                }
+            }
+            .padding()
+            .frame(minWidth: 760, minHeight: 420)
+        }
     }
 }
