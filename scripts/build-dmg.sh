@@ -63,7 +63,12 @@ sign_app() {
             if file "$file_path" | grep -q "Mach-O"; then
                 codesign --force --options runtime --timestamp \
                     --sign "$SIGNING_IDENTITY" \
-                    "$file_path"
+                    "$file_path" || {
+                    echo -e "${YELLOW}⚠️  Timestamp service unavailable, retrying without timestamp for $file_path${NC}"
+                    codesign --force --options runtime --timestamp=none \
+                        --sign "$SIGNING_IDENTITY" \
+                        "$file_path"
+                }
             fi
         done < <(find "$git_bundle_path" -type f -print0)
     fi
@@ -71,7 +76,12 @@ sign_app() {
     echo -e "${YELLOW}🔏 Signing app with: ${SIGNING_IDENTITY}${NC}"
     codesign --force --deep --options runtime --timestamp \
         --sign "$SIGNING_IDENTITY" \
-        "$app_path"
+        "$app_path" || {
+        echo -e "${YELLOW}⚠️  Timestamp service unavailable, retrying without timestamp for app bundle${NC}"
+        codesign --force --deep --options runtime --timestamp=none \
+            --sign "$SIGNING_IDENTITY" \
+            "$app_path"
+    }
     
     echo -e "${GREEN}✅ App signed${NC}"
 }
