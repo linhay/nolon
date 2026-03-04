@@ -358,7 +358,7 @@ final class ResourceCatalogGridViewModel {
                 stars: nil,
                 installs: nil,
                 configuration: .init(
-                    command: "xcode-mcp-proxy",
+                    command: "xcode-mcp-server",
                     args: nil,
                     env: nil
                 ),
@@ -384,6 +384,9 @@ struct ResourceCatalogGridView: View {
     let onInstall: (RemoteSkill, Provider) -> Void
     let onInstallWorkflow: ((RemoteWorkflow, Provider) -> Void)?
     let onInstallMCP: ((RemoteMCP, Provider) -> Void)?
+    let onDeleteSkill: ((RemoteSkill, ResourceDeleteTarget) async -> ResourceDeleteExecutionResult)?
+    let onDeleteWorkflow: ((RemoteWorkflow, ResourceDeleteTarget) async -> ResourceDeleteExecutionResult)?
+    let onDeleteMCP: ((RemoteMCP, ResourceDeleteTarget) async -> ResourceDeleteExecutionResult)?
     let onRefresh: (() -> Void)?
     let onClose: (() -> Void)?
     
@@ -399,6 +402,12 @@ struct ResourceCatalogGridView: View {
     @State private var skillInstallErrors: [String: String] = [:]
     @State private var workflowInstallErrors: [String: String] = [:]
     @State private var mcpInstallErrors: [String: String] = [:]
+    @State private var pendingSkillDeletes: Set<String> = []
+    @State private var pendingWorkflowDeletes: Set<String> = []
+    @State private var pendingMcpDeletes: Set<String> = []
+    @State private var deleteRequest: DeleteRequest?
+    @State private var deleteResultMessage: String = ""
+    @State private var showingDeleteResultAlert = false
     
     init(
         repository: RemoteRepository?,
@@ -413,6 +422,9 @@ struct ResourceCatalogGridView: View {
         onInstall: @escaping (RemoteSkill, Provider) -> Void,
         onInstallWorkflow: ((RemoteWorkflow, Provider) -> Void)? = nil,
         onInstallMCP: ((RemoteMCP, Provider) -> Void)? = nil,
+        onDeleteSkill: ((RemoteSkill, ResourceDeleteTarget) async -> ResourceDeleteExecutionResult)? = nil,
+        onDeleteWorkflow: ((RemoteWorkflow, ResourceDeleteTarget) async -> ResourceDeleteExecutionResult)? = nil,
+        onDeleteMCP: ((RemoteMCP, ResourceDeleteTarget) async -> ResourceDeleteExecutionResult)? = nil,
         onRefresh: (() -> Void)? = nil,
         onClose: (() -> Void)? = nil
     ) {
@@ -428,6 +440,9 @@ struct ResourceCatalogGridView: View {
         self.onInstall = onInstall
         self.onInstallWorkflow = onInstallWorkflow
         self.onInstallMCP = onInstallMCP
+        self.onDeleteSkill = onDeleteSkill
+        self.onDeleteWorkflow = onDeleteWorkflow
+        self.onDeleteMCP = onDeleteMCP
         self.onRefresh = onRefresh
         self.onClose = onClose
     }
@@ -460,8 +475,41 @@ struct ResourceCatalogGridView: View {
     private var loadTaskID: String {
         "\(repository?.id ?? "")-\(selectedTab?.rawValue ?? "")-\(cacheBuster)"
     }
+
+    private enum DeleteRequest: Identifiable {
+        case skill(RemoteSkill)
+        case workflow(RemoteWorkflow)
+        case mcp(RemoteMCP)
+
+        var id: String {
+            switch self {
+            case let .skill(skill): return "skill-\(skill.slug)"
+            case let .workflow(workflow): return "workflow-\(workflow.slug)"
+            case let .mcp(mcp): return "mcp-\(mcp.slug)"
+            }
+        }
+
+        var displayName: String {
+            switch self {
+            case let .skill(skill): skill.displayName
+            case let .workflow(workflow): workflow.displayName
+            case let .mcp(mcp): mcp.displayName
+            }
+        }
+
+        var resourceType: RemoteContentType {
+            switch self {
+            case .skill: .skill
+            case .workflow: .workflow
+            case .mcp: .mcp
+            }
+        }
+    }
     
-    var body: some View { contentWithDetailSheets }
+    var body: some View {
+        contentWithDetailSheets
+            .textSelection(.enabled)
+    }
 
     @ViewBuilder
     private var mainContentView: some View {
@@ -577,6 +625,26 @@ struct ResourceCatalogGridView: View {
                 )
                 .frame(minWidth: 920, idealWidth: 1100, maxWidth: .infinity,
                        minHeight: 620, idealHeight: 720, maxHeight: .infinity)
+            }
+            .sheet(item: $deleteRequest) { request in
+                ResourceDeleteTargetSheet(
+                    resourceName: request.displayName,
+                    resourceType: request.resourceType,
+                    providers: providers,
+                    preferredProvider: targetProvider
+                ) { target in
+                    Task {
+                        await handleDeleteRequest(request, target: target)
+                    }
+                }
+            }
+            .alert(
+                NSLocalizedString("action.delete", value: "Delete", comment: "Delete action"),
+                isPresented: $showingDeleteResultAlert
+            ) {
+                Button(NSLocalizedString("ok", value: "OK", comment: "OK")) {}
+            } message: {
+                Text(deleteResultMessage)
             }
     }
 
@@ -809,6 +877,10 @@ struct ResourceCatalogGridView: View {
                                         onInstall: { provider in
                                             onInstall(skill, provider)
                                         },
+                                        onDeleteRequest: {
+                                            deleteRequest = .skill(skill)
+                                        },
+                                        isDeleting: pendingSkillDeletes.contains(skill.slug),
                                         onTap: {
                                             viewModel.selectedSkillForDetail = skill
                                         }
@@ -830,6 +902,8 @@ struct ResourceCatalogGridView: View {
                                         targetProvider: targetProvider,
                                         providers: providers,
                                         onInstall: { _ in },
+                                        onDeleteRequest: nil,
+                                        isDeleting: false,
                                         onTap: {
                                             viewModel.selectedSkillForDetail = skill
                                         }
@@ -853,6 +927,8 @@ struct ResourceCatalogGridView: View {
                                         onInstall: { provider in
                                             beginSkillInstall(skill, provider: provider)
                                         },
+                                        onDeleteRequest: nil,
+                                        isDeleting: false,
                                         onTap: {
                                             viewModel.selectedSkillForDetail = skill
                                         }
@@ -901,6 +977,10 @@ struct ResourceCatalogGridView: View {
                                         onInstall: { provider in
                                             onInstallWorkflow?(workflow, provider)
                                         },
+                                        onDeleteRequest: {
+                                            deleteRequest = .workflow(workflow)
+                                        },
+                                        isDeleting: pendingWorkflowDeletes.contains(workflow.slug),
                                         onTap: {
                                             viewModel.selectedWorkflowForDetail = workflow
                                         }
@@ -922,6 +1002,8 @@ struct ResourceCatalogGridView: View {
                                         targetProvider: targetProvider,
                                         providers: providers,
                                         onInstall: { _ in },
+                                        onDeleteRequest: nil,
+                                        isDeleting: false,
                                         onTap: {
                                             viewModel.selectedWorkflowForDetail = workflow
                                         }
@@ -945,6 +1027,8 @@ struct ResourceCatalogGridView: View {
                                         onInstall: { provider in
                                             beginWorkflowInstall(workflow, provider: provider)
                                         },
+                                        onDeleteRequest: nil,
+                                        isDeleting: false,
                                         onTap: {
                                             viewModel.selectedWorkflowForDetail = workflow
                                         }
@@ -993,6 +1077,10 @@ struct ResourceCatalogGridView: View {
                                         onInstall: { provider in
                                             onInstallMCP?(mcp, provider)
                                         },
+                                        onDeleteRequest: {
+                                            deleteRequest = .mcp(mcp)
+                                        },
+                                        isDeleting: pendingMcpDeletes.contains(mcp.slug),
                                         onTap: {
                                             viewModel.selectedMCPForDetail = mcp
                                         }
@@ -1014,6 +1102,8 @@ struct ResourceCatalogGridView: View {
                                         targetProvider: targetProvider,
                                         providers: providers,
                                         onInstall: { _ in },
+                                        onDeleteRequest: nil,
+                                        isDeleting: false,
                                         onTap: {
                                             viewModel.selectedMCPForDetail = mcp
                                         }
@@ -1037,6 +1127,8 @@ struct ResourceCatalogGridView: View {
                                         onInstall: { provider in
                                             beginMCPInstall(mcp, provider: provider)
                                         },
+                                        onDeleteRequest: nil,
+                                        isDeleting: false,
                                         onTap: {
                                             viewModel.selectedMCPForDetail = mcp
                                         }
@@ -1194,6 +1286,73 @@ struct ResourceCatalogGridView: View {
                 )
             }
         }
+    }
+
+    @MainActor
+    private func handleDeleteRequest(_ request: DeleteRequest, target: ResourceDeleteTarget) async {
+        switch request {
+        case let .skill(skill):
+            guard let onDeleteSkill else { return }
+            pendingSkillDeletes.insert(skill.slug)
+            defer { pendingSkillDeletes.remove(skill.slug) }
+            let result = await onDeleteSkill(skill, target)
+            showDeleteResult(result)
+        case let .workflow(workflow):
+            guard let onDeleteWorkflow else { return }
+            pendingWorkflowDeletes.insert(workflow.slug)
+            defer { pendingWorkflowDeletes.remove(workflow.slug) }
+            let result = await onDeleteWorkflow(workflow, target)
+            showDeleteResult(result)
+        case let .mcp(mcp):
+            guard let onDeleteMCP else { return }
+            pendingMcpDeletes.insert(mcp.slug)
+            defer { pendingMcpDeletes.remove(mcp.slug) }
+            let result = await onDeleteMCP(mcp, target)
+            showDeleteResult(result)
+        }
+    }
+
+    @MainActor
+    private func showDeleteResult(_ result: ResourceDeleteExecutionResult) {
+        let typeName: String
+        switch result.resourceType {
+        case .skill:
+            typeName = NSLocalizedString("tab.skills", comment: "Skills")
+        case .workflow:
+            typeName = NSLocalizedString("tab.workflows", comment: "Workflows")
+        case .mcp:
+            typeName = NSLocalizedString("tab.mcps", comment: "MCPs")
+        }
+
+        if result.failures.isEmpty {
+            deleteResultMessage = String(
+                format: NSLocalizedString(
+                    "resource.delete.result.success",
+                    value: "%@ \"%@\" deleted. Removed from %d provider(s).",
+                    comment: "Delete success message"
+                ),
+                typeName, result.resourceSlug, result.successCount
+            )
+        } else {
+            let failures = result.failures
+                .map { "\($0.targetName): \($0.reason)" }
+                .joined(separator: "\n")
+            deleteResultMessage = String(
+                format: NSLocalizedString(
+                    "resource.delete.result.partial",
+                    value: "%@ \"%@\" deleted with partial failures.\nSuccess: %d/%d\n%@",
+                    comment: "Delete partial failure message"
+                ),
+                typeName,
+                result.resourceSlug,
+                result.successCount,
+                result.attemptedCount,
+                failures
+            )
+        }
+
+        showingDeleteResultAlert = true
+        onRefresh?()
     }
 }
 

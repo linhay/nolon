@@ -785,6 +785,108 @@ final class ProviderUsageViewModelManualRefreshTests: XCTestCase {
         XCTAssertEqual(viewModel.usageProvider, .codex)
         XCTAssertTrue(viewModel.isMultiAccountEnabled)
     }
+
+    func testBDD_GivenAccountRefreshCompletes_WhenRefreshingCodexAccount_ThenRefreshingStateClears() async throws {
+        let provider = Provider(
+            name: "Codex",
+            defaultSkillsPath: "/tmp/codex-skills",
+            workflowPath: "/tmp/codex-prompts",
+            installMethod: .symlink,
+            templateId: "codex"
+        )
+        let account = CodexAuthAccount(name: "test", relativeAuthPath: "auth/test.json")
+        let viewModel = ProviderUsageViewModel(
+            provider: provider,
+            codexOutcomeFetchAction: { account, _, _ in
+                try? await Task.sleep(nanoseconds: 80_000_000)
+                let outcome = ProviderFetchOutcome(fetchKind: .cli, result: .failure(UsageViewModelTestError(message: "network done")))
+                return ProviderAccountUsageOutcome(
+                    provider: .codex,
+                    account: .tokenAccount(
+                        .init(
+                            id: account.id,
+                            label: account.name,
+                            token: "",
+                            addedAt: account.createdAt.timeIntervalSince1970,
+                            lastUsed: nil
+                        )
+                    ),
+                    outcome: outcome
+                )
+            }
+        )
+        viewModel.codexAccounts = [account]
+
+        viewModel.refreshCodexAccount(id: account.id)
+
+        try await waitUntil { viewModel.codexRefreshingAccountIds.contains(account.id) }
+        try await waitUntil { !viewModel.codexRefreshingAccountIds.contains(account.id) }
+        XCTAssertFalse(viewModel.codexRefreshingAccountIds.contains(account.id))
+    }
+
+    func testBDD_GivenHeaderRefreshInProgress_WhenTappingRefreshAgain_ThenCanInterruptAndRefreshAgain() async throws {
+        let provider = Provider(
+            name: "Codex",
+            defaultSkillsPath: "/tmp/codex-skills",
+            workflowPath: "/tmp/codex-prompts",
+            installMethod: .symlink,
+            templateId: "codex"
+        )
+        let account = CodexAuthAccount(name: "test", relativeAuthPath: "auth/test.json")
+        let startedCount = AsyncIntBox(0)
+        let viewModel = ProviderUsageViewModel(
+            provider: provider,
+            codexRefreshAllAction: { _ in
+                await startedCount.increment()
+                while !Task.isCancelled {
+                    try? await Task.sleep(nanoseconds: 20_000_000)
+                }
+            }
+        )
+        viewModel.codexAccounts = [account]
+
+        viewModel.handleHeaderRefreshButtonTap()
+        try await waitUntilAsync { await startedCount.value() >= 1 }
+        try await waitUntil { viewModel.isCodexHeaderRefreshing }
+
+        viewModel.handleHeaderRefreshButtonTap()
+        try await waitUntil { !viewModel.isCodexHeaderRefreshing }
+
+        viewModel.handleHeaderRefreshButtonTap()
+        try await waitUntilAsync { await startedCount.value() >= 2 }
+        try await waitUntil { viewModel.isCodexHeaderRefreshing }
+        XCTAssertTrue(viewModel.isCodexHeaderRefreshing)
+
+        viewModel.handleHeaderRefreshButtonTap()
+        try await waitUntil { !viewModel.isCodexHeaderRefreshing }
+    }
+
+    @MainActor
+    private func waitUntil(
+        timeout: TimeInterval = 2.0,
+        pollIntervalNanoseconds: UInt64 = 20_000_000,
+        condition: () -> Bool
+    ) async throws {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if condition() { return }
+            try await Task.sleep(nanoseconds: pollIntervalNanoseconds)
+        }
+        XCTFail("Condition was not met before timeout")
+    }
+
+    private func waitUntilAsync(
+        timeout: TimeInterval = 2.0,
+        pollIntervalNanoseconds: UInt64 = 20_000_000,
+        condition: () async -> Bool
+    ) async throws {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if await condition() { return }
+            try await Task.sleep(nanoseconds: pollIntervalNanoseconds)
+        }
+        XCTFail("Condition was not met before timeout")
+    }
 }
 
 @MainActor
@@ -1071,6 +1173,22 @@ private actor LockedBox<T: Sendable> {
     }
 
     func value() -> T {
+        stored
+    }
+}
+
+private actor AsyncIntBox {
+    private var stored: Int
+
+    init(_ value: Int) {
+        stored = value
+    }
+
+    func increment() {
+        stored += 1
+    }
+
+    func value() -> Int {
         stored
     }
 }

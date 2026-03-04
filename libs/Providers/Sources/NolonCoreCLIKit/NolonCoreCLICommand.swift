@@ -233,6 +233,33 @@ public enum NolonCoreCLICommand: Sendable, Equatable {
         resourceName: String,
         targetPath: String
     )
+    case pluginList
+    case pluginStatus(name: String)
+    case pluginInstall(
+        name: String,
+        provider: String,
+        version: String?,
+        force: Bool
+    )
+    case pluginUninstall(
+        name: String,
+        provider: String,
+        force: Bool
+    )
+    case pluginUpgrade(
+        name: String,
+        provider: String,
+        toVersion: String?,
+        force: Bool
+    )
+    case pluginStart(
+        name: String,
+        forceRestart: Bool
+    )
+    case pluginStop(
+        name: String,
+        force: Bool
+    )
     case remoteList(
         kind: NolonRemoteCatalogKind,
         query: String?,
@@ -345,6 +372,13 @@ public enum NolonCoreCLICommand: Sendable, Equatable {
         case .mcpSync: "mcp.sync"
         case .mcpInstall: "mcp.install"
         case .mcpUninstall: "mcp.uninstall"
+        case .pluginList: "plugin.list"
+        case .pluginStatus: "plugin.status"
+        case .pluginInstall: "plugin.install"
+        case .pluginUninstall: "plugin.uninstall"
+        case .pluginUpgrade: "plugin.upgrade"
+        case .pluginStart: "plugin.start"
+        case .pluginStop: "plugin.stop"
         case .remoteList: "remote.list"
         case .remoteDownload: "remote.download"
         case .remoteSync: "remote.sync"
@@ -395,7 +429,7 @@ public enum NolonCoreCLIError: LocalizedError, Equatable, Sendable {
 public enum NolonCoreCLICommandParser {
     public static func parse(_ arguments: [String]) throws -> NolonCoreCLICommand {
         guard arguments.count >= 2 else {
-            throw NolonCoreCLIError.invalidArguments("Missing command. Expected: skills|workflow|mcp|remote ...")
+            throw NolonCoreCLIError.invalidArguments("Missing command. Expected: skills|workflow|mcp|plugin|remote ...")
         }
 
         let command = arguments[0]
@@ -626,11 +660,15 @@ public enum NolonCoreCLICommandParser {
             return try parseMcp(Array(arguments.dropFirst(1)))
         }
 
+        if command == "plugin" {
+            return try parsePlugin(Array(arguments.dropFirst(1)))
+        }
+
         if command == "remote" {
             return try parseRemote(Array(arguments.dropFirst(1)))
         }
 
-        throw NolonCoreCLIError.invalidArguments("Unsupported command root: \(command)")
+        throw NolonCoreCLIError.invalidArguments("Unsupported command root: \(command). Expected: skills|workflow|mcp|plugin|remote")
     }
 
     private static func parseSkillsRepo(_ arguments: [String]) throws -> NolonCoreCLICommand {
@@ -986,6 +1024,54 @@ public enum NolonCoreCLICommandParser {
             )
         }
         throw NolonCoreCLIError.invalidArguments("Unsupported mcp action: \(action). Expected: list|search|add|remove|server|cache|sync")
+    }
+
+    private static func parsePlugin(_ arguments: [String]) throws -> NolonCoreCLICommand {
+        guard let action = arguments.first else {
+            throw NolonCoreCLIError.invalidArguments("Missing command. Expected: plugin <action> ...")
+        }
+
+        let options = Array(arguments.dropFirst())
+        switch action {
+        case "list":
+            return .pluginList
+        case "status":
+            return .pluginStatus(name: readOption("--name", in: options) ?? "xcodemcpkit")
+        case "install":
+            return .pluginInstall(
+                name: readOption("--name", in: options) ?? "xcodemcpkit",
+                provider: readOption("--provider", in: options) ?? "codex",
+                version: readOption("--version", in: options),
+                force: readFlag("--force", in: options)
+            )
+        case "uninstall":
+            return .pluginUninstall(
+                name: readOption("--name", in: options) ?? "xcodemcpkit",
+                provider: readOption("--provider", in: options) ?? "codex",
+                force: readFlag("--force", in: options)
+            )
+        case "upgrade":
+            return .pluginUpgrade(
+                name: readOption("--name", in: options) ?? "xcodemcpkit",
+                provider: readOption("--provider", in: options) ?? "codex",
+                toVersion: readOption("--to-version", in: options),
+                force: readFlag("--force", in: options)
+            )
+        case "start":
+            return .pluginStart(
+                name: readOption("--name", in: options) ?? "xcodemcpkit",
+                forceRestart: readFlag("--force-restart", in: options)
+            )
+        case "stop":
+            return .pluginStop(
+                name: readOption("--name", in: options) ?? "xcodemcpkit",
+                force: readFlag("--force", in: options)
+            )
+        default:
+            throw NolonCoreCLIError.invalidArguments(
+                "Unsupported plugin action: \(action). Expected: list|status|install|uninstall|upgrade|start|stop"
+            )
+        }
     }
 
     private static func parseRemote(_ arguments: [String]) throws -> NolonCoreCLICommand {

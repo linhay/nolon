@@ -24,8 +24,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/linhay/SKProcessRunner",
       "state" : {
-        "branch" : "48c7918",
-        "revision" : "48c7918fdc077bff295a30635798f944b8c07ed1"
+        "branch" : "1512ca7",
+        "revision" : "1512ca731064b202981a9d862c5ee31c23d3eba1"
       }
     },
     {

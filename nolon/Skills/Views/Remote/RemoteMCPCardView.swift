@@ -13,6 +13,8 @@ struct RemoteMCPCardView: View {
     let targetProvider: Provider?
     let providers: [Provider]
     let onInstall: (Provider) -> Void
+    let onDeleteRequest: (() -> Void)?
+    let isDeleting: Bool
     let onTap: () -> Void
     
     @State private var showingInstallSheet = false
@@ -120,6 +122,17 @@ struct RemoteMCPCardView: View {
                 Label(NSLocalizedString("action.install", value: "Install", comment: "Install action"), systemImage: "arrow.down.circle")
                     .dsIconLabelButton()
             }
+        }
+
+        if isInstalled && !isDeleting {
+            Divider()
+            Button(role: .destructive) {
+                onDeleteRequest?()
+            } label: {
+                Label(NSLocalizedString("action.delete", value: "Delete", comment: "Delete action"), systemImage: "trash")
+                    .dsIconLabelButton()
+            }
+            .disabled(onDeleteRequest == nil)
         }
 
         if let config = mcp.configuration, let command = config.command {

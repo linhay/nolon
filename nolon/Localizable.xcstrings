@@ -201,7 +201,7 @@
       }
     },
     "action.delete" : {
-      "comment" : "Delete\nDelete skill",
+      "comment" : "Delete\nDelete action\nDelete skill",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
@@ -7752,6 +7752,18 @@
         }
       }
     },
+    "ok" : {
+      "comment" : "OK",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "OK"
+          }
+        }
+      }
+    },
     "onboarding.button.back" : {
       "localizations" : {
         "en" : {
@@ -8190,6 +8202,30 @@
         }
       }
     },
+    "plugin.action.install" : {
+      "comment" : "Install plugin",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Install"
+          }
+        }
+      }
+    },
+    "plugin.action.installing" : {
+      "comment" : "Installing plugin",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Installing..."
+          }
+        }
+      }
+    },
     "plugin.action.open_release" : {
       "comment" : "Open plugin releases",
       "extractionState" : "extracted_with_value",
@@ -8202,6 +8238,66 @@
         }
       }
     },
+    "plugin.action.retry_start" : {
+      "comment" : "Retry start plugin runtime",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Retry Start"
+          }
+        }
+      }
+    },
+    "plugin.action.start" : {
+      "comment" : "Start plugin runtime",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Start"
+          }
+        }
+      }
+    },
+    "plugin.action.starting" : {
+      "comment" : "Plugin starting action",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Starting..."
+          }
+        }
+      }
+    },
+    "plugin.action.stop" : {
+      "comment" : "Stop plugin runtime",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Stop"
+          }
+        }
+      }
+    },
+    "plugin.action.stopping" : {
+      "comment" : "Plugin stopping action",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Stopping..."
+          }
+        }
+      }
+    },
     "plugin.action.upgrade" : {
       "comment" : "Upgrade plugin",
       "extractionState" : "extracted_with_value",
@@ -8210,6 +8306,18 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "Upgrade"
+          }
+        }
+      }
+    },
+    "plugin.action.upgrading" : {
+      "comment" : "Upgrading plugin",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Upgrading..."
           }
         }
       }
@@ -8234,6 +8342,126 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "No Plugin"
+          }
+        }
+      }
+    },
+    "plugin.install_status.installed" : {
+      "comment" : "Plugin installed status",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Installed"
+          }
+        }
+      }
+    },
+    "plugin.install_status.not_installed" : {
+      "comment" : "Plugin not installed status",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Not Installed"
+          }
+        }
+      }
+    },
+    "plugin.runtime.error.binary_not_found" : {
+      "comment" : "XcodeMCPKit binary missing",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Cannot find `xcodemcpkit` in PATH."
+          }
+        }
+      }
+    },
+    "plugin.runtime.error.exited" : {
+      "comment" : "XcodeMCPKit terminated unexpectedly",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "XcodeMCPKit exited unexpectedly (%d)."
+          }
+        }
+      }
+    },
+    "plugin.runtime.failed" : {
+      "comment" : "Plugin runtime failed",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Failed: %@"
+          }
+        }
+      }
+    },
+    "plugin.runtime.idle" : {
+      "comment" : "Plugin runtime idle",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Stopped"
+          }
+        }
+      }
+    },
+    "plugin.runtime.not_installed" : {
+      "comment" : "Plugin runtime not installed",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Not Installed"
+          }
+        }
+      }
+    },
+    "plugin.runtime.running" : {
+      "comment" : "Plugin runtime running",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Running (PID: %d)"
+          }
+        }
+      }
+    },
+    "plugin.runtime.starting" : {
+      "comment" : "Plugin runtime starting",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Starting..."
+          }
+        }
+      }
+    },
+    "plugin.runtime.stopping" : {
+      "comment" : "Plugin runtime stopping",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Stopping..."
           }
         }
       }
@@ -9138,6 +9366,90 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "资源中心"
+          }
+        }
+      }
+    },
+    "resource.delete.confirm.message" : {
+      "comment" : "Delete all confirmation message",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "This will remove the resource from all providers and delete global cache files."
+          }
+        }
+      }
+    },
+    "resource.delete.confirm.title" : {
+      "comment" : "Delete all confirmation title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Delete from all providers?"
+          }
+        }
+      }
+    },
+    "resource.delete.result.partial" : {
+      "comment" : "Delete partial failure message",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ \"%2$@\" deleted with partial failures.\nSuccess: %3$d/%4$d\n%5$@"
+          }
+        }
+      }
+    },
+    "resource.delete.result.success" : {
+      "comment" : "Delete success message",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ \"%2$@\" deleted. Removed from %3$d provider(s)."
+          }
+        }
+      }
+    },
+    "resource.delete.target.all" : {
+      "comment" : "Delete all target",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "All providers + global cache"
+          }
+        }
+      }
+    },
+    "resource.delete.target.all.desc" : {
+      "comment" : "Delete all target description",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Remove from every provider and delete global cache files."
+          }
+        }
+      }
+    },
+    "resource.delete.target.provider" : {
+      "comment" : "Delete provider selection title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Provider"
           }
         }
       }
@@ -10199,6 +10511,9 @@
           }
         }
       }
+    },
+    "Status: %@" : {
+
     },
     "status.broken" : {
       "comment" : "Broken Link",

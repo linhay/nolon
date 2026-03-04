@@ -292,9 +292,9 @@ struct ProviderUsageView: View {
                     switch action {
                     case .refreshAll:
                         Button(NSLocalizedString("codex.accounts.refresh_all", value: "刷新", comment: "Codex refresh all")) {
-                            Task { await viewModel.refreshFromHeader() }
+                            viewModel.handleHeaderRefreshButtonTap()
                         }
-                        .disabled(viewModel.isLoading)
+                        .disabled(viewModel.isLoading && !viewModel.isCodexHeaderRefreshing)
                     case .login:
                         Button(NSLocalizedString("codex.accounts.login", value: "登录", comment: "Codex login")) {
                             viewModel.startLoginFlow()

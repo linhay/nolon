@@ -1824,6 +1824,30 @@ struct NolonCodexCLIEntrypointTests {
         #expect(result.stdout.contains("\"versions\""))
     }
 
+    @Test("json flag before plugin command routes to core CLI")
+    func jsonFlagBeforePluginCommandRoutesToCoreCLI() async {
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["--json", "plugin", "status", "--name", "xcodemcpkit"]
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("\"ok\":true"))
+        #expect(result.stdout.contains("\"command\":\"plugin.status\""))
+    }
+
+    @Test("json flag after plugin command routes to core CLI")
+    func jsonFlagAfterPluginCommandRoutesToCoreCLI() async {
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["plugin", "status", "--name", "xcodemcpkit", "--json"]
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("\"ok\":true"))
+        #expect(result.stdout.contains("\"command\":\"plugin.status\""))
+    }
+
     @Test("json contract snapshot for codex binary list success")
     func jsonContractSnapshotBinaryListSuccess() async throws {
         let service = JSONContractCodexCLIService()

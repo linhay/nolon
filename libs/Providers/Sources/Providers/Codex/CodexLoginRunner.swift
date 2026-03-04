@@ -325,7 +325,18 @@ public struct CodexLoginRunner: Sendable {
             try Task.checkCancellation()
 
             if let authResult = try Self.tryReadAuthResult(codexHome: codexHome, loginURL: capture.detectedURL) {
-                return authResult
+                if authResult.loginURL != nil {
+                    return authResult
+                }
+                let loginURL = await Self.awaitDetectedLoginURL(
+                    capture: capture,
+                    timeoutSeconds: 0.35,
+                    pollIntervalSeconds: 0.05
+                )
+                return CodexLoginResult(
+                    authJSONString: authResult.authJSONString,
+                    loginURL: loginURL
+                )
             }
 
             let hasExited = context.processExitState.hasExited || !handle.isRunning
@@ -358,6 +369,25 @@ public struct CodexLoginRunner: Sendable {
             throw CodexLoginError.authInvalidUTF8
         }
         return CodexLoginResult(authJSONString: raw, loginURL: loginURL)
+    }
+
+    private static func awaitDetectedLoginURL(
+        capture: LoginOutputCapture,
+        timeoutSeconds: TimeInterval,
+        pollIntervalSeconds: TimeInterval
+    ) async -> String? {
+        if let detected = capture.detectedURL {
+            return detected
+        }
+        let deadline = Date().addingTimeInterval(max(0.01, timeoutSeconds))
+        let sleepNanoseconds = UInt64(max(0.01, pollIntervalSeconds) * 1_000_000_000)
+        while Date() < deadline {
+            if let detected = capture.detectedURL {
+                return detected
+            }
+            try? await Task.sleep(nanoseconds: sleepNanoseconds)
+        }
+        return capture.detectedURL
     }
 
     private struct LoginSessionContext {

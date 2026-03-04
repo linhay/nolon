@@ -1135,6 +1135,134 @@ struct NolonMcpCacheStatusCommand: ParsableCommand, NolonMcpProviderRequiredVali
     }
 }
 
+struct NolonPluginRootCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "plugin",
+        subcommands: [
+            NolonPluginListCommand.self,
+            NolonPluginStatusCommand.self,
+            NolonPluginInstallCommand.self,
+            NolonPluginUninstallCommand.self,
+            NolonPluginUpgradeCommand.self,
+            NolonPluginStartCommand.self,
+            NolonPluginStopCommand.self,
+        ]
+    )
+}
+
+private protocol NolonPluginNameValidating {
+    var name: String { get }
+}
+
+private extension NolonPluginNameValidating {
+    func validatePluginName() throws {
+        let normalized = name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if normalized != "xcodemcpkit" {
+            throw ValidationError("Unsupported plugin name: \(name). Supported: xcodemcpkit")
+        }
+    }
+}
+
+struct NolonPluginListCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(commandName: "list")
+}
+
+struct NolonPluginStatusCommand: ParsableCommand, NolonPluginNameValidating {
+    static let configuration = CommandConfiguration(commandName: "status")
+
+    @Option(name: .long)
+    var name: String = "xcodemcpkit"
+
+    func validate() throws {
+        try validatePluginName()
+    }
+}
+
+struct NolonPluginInstallCommand: ParsableCommand, NolonPluginNameValidating {
+    static let configuration = CommandConfiguration(commandName: "install")
+
+    @Option(name: .long)
+    var name: String = "xcodemcpkit"
+
+    @Option(name: .long)
+    var provider: String = "codex"
+
+    @Option(name: .long)
+    var version: String?
+
+    @Flag(name: .long)
+    var force: Bool = false
+
+    func validate() throws {
+        try validatePluginName()
+    }
+}
+
+struct NolonPluginUninstallCommand: ParsableCommand, NolonPluginNameValidating {
+    static let configuration = CommandConfiguration(commandName: "uninstall")
+
+    @Option(name: .long)
+    var name: String = "xcodemcpkit"
+
+    @Option(name: .long)
+    var provider: String = "codex"
+
+    @Flag(name: .long)
+    var force: Bool = false
+
+    func validate() throws {
+        try validatePluginName()
+    }
+}
+
+struct NolonPluginUpgradeCommand: ParsableCommand, NolonPluginNameValidating {
+    static let configuration = CommandConfiguration(commandName: "upgrade")
+
+    @Option(name: .long)
+    var name: String = "xcodemcpkit"
+
+    @Option(name: .long)
+    var provider: String = "codex"
+
+    @Option(name: .customLong("to-version"))
+    var toVersion: String?
+
+    @Flag(name: .long)
+    var force: Bool = false
+
+    func validate() throws {
+        try validatePluginName()
+    }
+}
+
+struct NolonPluginStartCommand: ParsableCommand, NolonPluginNameValidating {
+    static let configuration = CommandConfiguration(commandName: "start")
+
+    @Option(name: .long)
+    var name: String = "xcodemcpkit"
+
+    @Flag(name: .customLong("force-restart"))
+    var forceRestart: Bool = false
+
+    func validate() throws {
+        try validatePluginName()
+    }
+}
+
+struct NolonPluginStopCommand: ParsableCommand, NolonPluginNameValidating {
+    static let configuration = CommandConfiguration(commandName: "stop")
+
+    @Option(name: .long)
+    var name: String = "xcodemcpkit"
+
+    @Flag(name: .long)
+    var force: Bool = false
+
+    func validate() throws {
+        try validatePluginName()
+    }
+}
+
 struct NolonRemoteRootCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "remote",
@@ -1601,6 +1729,40 @@ enum NolonCoreCLIArgumentParser {
                 provider: command.provider ?? command.providerID ?? "",
                 name: command.name
             )
+        case is NolonPluginListCommand:
+            return .pluginList
+        case let command as NolonPluginStatusCommand:
+            return .pluginStatus(name: command.name)
+        case let command as NolonPluginInstallCommand:
+            return .pluginInstall(
+                name: command.name,
+                provider: command.provider,
+                version: command.version,
+                force: command.force
+            )
+        case let command as NolonPluginUninstallCommand:
+            return .pluginUninstall(
+                name: command.name,
+                provider: command.provider,
+                force: command.force
+            )
+        case let command as NolonPluginUpgradeCommand:
+            return .pluginUpgrade(
+                name: command.name,
+                provider: command.provider,
+                toVersion: command.toVersion,
+                force: command.force
+            )
+        case let command as NolonPluginStartCommand:
+            return .pluginStart(
+                name: command.name,
+                forceRestart: command.forceRestart
+            )
+        case let command as NolonPluginStopCommand:
+            return .pluginStop(
+                name: command.name,
+                force: command.force
+            )
         case let command as NolonRemoteListCommand:
             return .remoteList(
                 kind: command.kind,
@@ -1690,6 +1852,8 @@ enum NolonCoreCLIArgumentParser {
             throw NolonCoreCLIError.invalidArguments("Missing command. Expected: skills repo <action> ...")
         case is NolonSkillsMigrateGroupCommand:
             throw NolonCoreCLIError.invalidArguments("Missing command. Expected: skills migrate <action> ...")
+        case is NolonPluginRootCommand:
+            throw NolonCoreCLIError.invalidArguments("Missing command. Expected: plugin <action> ...")
         default:
             throw NolonCoreCLIError.invalidArguments("Unsupported parsed command type: \(type(of: parsed))")
         }

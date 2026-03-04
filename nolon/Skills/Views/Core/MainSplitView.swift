@@ -20,6 +20,7 @@ final class MainSplitViewModel {
     private(set) var installer: SkillInstaller?
     private var resourceMonitor: ProviderResourceMonitor?
     private let remoteInstallOrchestrator = RemoteInstallOrchestrator()
+    private let resourceDeletionCoordinator: ResourceDeletionCoordinator
 
     var selectedSidebarItem: MainSidebarSelection?
     var selectedTab: ProviderContentTabType? = .skills
@@ -28,6 +29,47 @@ final class MainSplitViewModel {
     var showingSettings = false
     var showingResourceCenter = false
     var refreshTrigger: Int = 0
+
+    init() {
+        let coordinator = ResourceDeletionCoordinator(
+            uninstallAction: { slug, type, provider in
+                let installer = ResourceInstaller(globalCache: GlobalCacheRepository())
+                try await installer.uninstall(resourceSlug: slug, resourceType: type, from: provider)
+            },
+            removeGlobalAction: { slug, type in
+                let manager = NolonManager.shared
+                var removed = false
+                switch type {
+                case .skill:
+                    let skillPath = STPath(manager.skillsURL.appendingPathComponent(slug))
+                    if skillPath.isExists || skillPath.isSymbolicLink {
+                        try skillPath.deleteIncludingBrokenSymlink()
+                        removed = true
+                    }
+                case .workflow:
+                    let candidates: [STPath] = [
+                        STPath(manager.userWorkflowsURL.appendingPathComponent("\(slug).md")),
+                        STPath(manager.userWorkflowsURL.appendingPathComponent(slug))
+                    ]
+                    for path in candidates where path.isExists || path.isSymbolicLink {
+                        try path.deleteIncludingBrokenSymlink()
+                        removed = true
+                    }
+                case .mcp:
+                    let candidates: [STPath] = [
+                        STPath(manager.mcpsURL.appendingPathComponent("\(slug).json")),
+                        STPath(manager.mcpsURL.appendingPathComponent(slug))
+                    ]
+                    for path in candidates where path.isExists || path.isSymbolicLink {
+                        try path.deleteIncludingBrokenSymlink()
+                        removed = true
+                    }
+                }
+                return removed
+            }
+        )
+        self.resourceDeletionCoordinator = coordinator
+    }
 
     var selectedProviderId: Provider.ID? {
         guard case let .provider(providerID)? = selectedSidebarItem else {
@@ -115,6 +157,42 @@ final class MainSplitViewModel {
             Self.logger.error("Failed to install MCP: \(String(describing: error), privacy: .public)")
             // Ideally show an alert here
         }
+    }
+
+    @MainActor
+    func deleteRemoteSkill(_ skill: RemoteSkill, target: ResourceDeleteTarget) async -> ResourceDeleteExecutionResult {
+        let result = await resourceDeletionCoordinator.execute(
+            resourceSlug: skill.slug,
+            resourceType: .skill,
+            target: target,
+            providers: settings.providers
+        )
+        refreshTrigger += 1
+        return result
+    }
+
+    @MainActor
+    func deleteRemoteWorkflow(_ workflow: RemoteWorkflow, target: ResourceDeleteTarget) async -> ResourceDeleteExecutionResult {
+        let result = await resourceDeletionCoordinator.execute(
+            resourceSlug: workflow.slug,
+            resourceType: .workflow,
+            target: target,
+            providers: settings.providers
+        )
+        refreshTrigger += 1
+        return result
+    }
+
+    @MainActor
+    func deleteRemoteMCP(_ mcp: RemoteMCP, target: ResourceDeleteTarget) async -> ResourceDeleteExecutionResult {
+        let result = await resourceDeletionCoordinator.execute(
+            resourceSlug: mcp.slug,
+            resourceType: .mcp,
+            target: target,
+            providers: settings.providers
+        )
+        refreshTrigger += 1
+        return result
     }
     
     @MainActor
@@ -277,6 +355,15 @@ public struct MainSplitView: View {
                     Task {
                         await viewModel.installRemoteMCP(mcp, to: provider)
                     }
+                },
+                onDeleteSkill: { skill, target in
+                    await viewModel.deleteRemoteSkill(skill, target: target)
+                },
+                onDeleteWorkflow: { workflow, target in
+                    await viewModel.deleteRemoteWorkflow(workflow, target: target)
+                },
+                onDeleteMCP: { mcp, target in
+                    await viewModel.deleteRemoteMCP(mcp, target: target)
                 }
             )
             .dsGlassPanel(cornerRadius: DesignSystem.Metrics.cornerRadiusXL)

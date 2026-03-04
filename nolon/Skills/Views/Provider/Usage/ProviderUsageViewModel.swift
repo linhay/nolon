@@ -20,6 +20,7 @@ final class ProviderUsageViewModel {
     typealias CodexActivateAction = @MainActor @Sendable (CodexAuthAccount, Provider) async throws -> CodexAuthActivationResult
     typealias CodexDeleteAction = @MainActor @Sendable (UUID) async throws -> Void
     typealias CodexRefreshAllAction = @MainActor @Sendable ([CodexAuthAccount]) async -> Void
+    typealias CodexOutcomeFetchAction = @Sendable (CodexAuthAccount, UsageMonitorProviderSettings, URL) async -> ProviderAccountUsageOutcome
     typealias AsyncVoidAction = @MainActor @Sendable () async -> Void
 
     private let usageMonitor: ProviderUsageMonitorService
@@ -31,6 +32,7 @@ final class ProviderUsageViewModel {
     private let codexDeleteAction: CodexDeleteAction?
     private let postDeleteLoadAction: AsyncVoidAction?
     private let codexRefreshAllAction: CodexRefreshAllAction?
+    private let codexOutcomeFetchAction: CodexOutcomeFetchAction
     private let usageSnapshotService = ProviderUsageSnapshotService()
     @ObservationIgnored private var usageWatcher: UsageMonitorFileWatcher? = nil
 
@@ -101,6 +103,9 @@ final class ProviderUsageViewModel {
     private var didStartInitialLoad = false
     private var lastUsageRefreshAt: Date?
     private let cliLoginTimeoutSeconds: TimeInterval = 10 * 60
+    @ObservationIgnored private var codexHeaderRefreshTask: Task<Void, Never>?
+    private var codexHeaderRefreshSessionID: UUID?
+    var isCodexHeaderRefreshing = false
 
     enum CodexAccountDisplayState: String, Sendable {
         case pending
@@ -120,6 +125,7 @@ final class ProviderUsageViewModel {
         postActivationLoadAction: AsyncVoidAction? = nil,
         codexDeleteAction: CodexDeleteAction? = nil,
         codexRefreshAllAction: CodexRefreshAllAction? = nil,
+        codexOutcomeFetchAction: CodexOutcomeFetchAction? = nil,
         postDeleteLoadAction: AsyncVoidAction? = nil
     ) {
         let tokenStore = FileTokenAccountStore(fileURL: ProviderUsagePaths.defaultTokenAccountsFileURL())
@@ -139,6 +145,9 @@ final class ProviderUsageViewModel {
         self.postActivationLoadAction = postActivationLoadAction
         self.codexDeleteAction = codexDeleteAction
         self.codexRefreshAllAction = codexRefreshAllAction
+        self.codexOutcomeFetchAction = codexOutcomeFetchAction ?? { account, settings, authSourceURL in
+            await Self.fetchCodexOutcomeDetached(for: account, settings: settings, authSourceURL: authSourceURL)
+        }
         self.postDeleteLoadAction = postDeleteLoadAction
         self.updateSupportedModes()
         self.configureCodexAuthReloadPipeline()
@@ -152,6 +161,7 @@ final class ProviderUsageViewModel {
         copyToastTask?.cancel()
         codexAuthReloadSignalCancellable?.cancel()
         codexReloadTask?.cancel()
+        codexHeaderRefreshTask?.cancel()
         let watcher = usageWatcher
         Task { @MainActor in
             watcher?.stop()
@@ -429,6 +439,38 @@ final class ProviderUsageViewModel {
         }
 
         await load()
+    }
+
+    func handleHeaderRefreshButtonTap() {
+        guard usageProvider == .codex, isMultiAccountEnabled else {
+            Task { [weak self] in
+                await self?.refreshFromHeader()
+            }
+            return
+        }
+
+        if isCodexHeaderRefreshing {
+            let task = codexHeaderRefreshTask
+            codexHeaderRefreshTask = nil
+            codexHeaderRefreshSessionID = nil
+            isCodexHeaderRefreshing = false
+            task?.cancel()
+            return
+        }
+
+        isCodexHeaderRefreshing = true
+        let sessionID = UUID()
+        codexHeaderRefreshSessionID = sessionID
+        codexHeaderRefreshTask = Task { [weak self] in
+            guard let self else { return }
+            await self.refreshFromHeader()
+            await MainActor.run {
+                guard self.codexHeaderRefreshSessionID == sessionID else { return }
+                self.isCodexHeaderRefreshing = false
+                self.codexHeaderRefreshTask = nil
+                self.codexHeaderRefreshSessionID = nil
+            }
+        }
     }
 
     func codexHeaderRefreshTargets() -> [CodexAuthAccount] {
@@ -1208,11 +1250,7 @@ final class ProviderUsageViewModel {
 
     private func probeLoginSnapshotUsageAndBackfillEmailIfMissing(account: CodexAuthAccount) async -> ProviderAccountUsageOutcome {
         let authURL = codexAuthManager.accountAuthFile(relativeAuthPath: account.relativeAuthPath).url
-        let outcome = await Self.fetchCodexOutcomeDetached(
-            for: account,
-            settings: settings,
-            authSourceURL: authURL
-        )
+        let outcome = await codexOutcomeFetchAction(account, settings, authURL)
 
         if case let .success(result) = outcome.outcome.result,
            let email = result.usage.identity?.accountEmail?.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -1409,14 +1447,17 @@ final class ProviderUsageViewModel {
         guard !codexRefreshingAccountIds.contains(accountId) else { return }
 
         codexRefreshingAccountIds.insert(accountId)
-        defer { codexRefreshingAccountIds.remove(accountId) }
+        var isRefreshingCleared = false
+        defer {
+            if !isRefreshingCleared {
+                codexRefreshingAccountIds.remove(accountId)
+            }
+        }
 
         let authURL = codexAuthManager.accountAuthFile(relativeAuthPath: account.relativeAuthPath).url
-        let outcome = await Self.fetchCodexOutcomeDetached(
-            for: account,
-            settings: settings,
-            authSourceURL: authURL
-        )
+        let outcome = await codexOutcomeFetchAction(account, settings, authURL)
+        codexRefreshingAccountIds.remove(accountId)
+        isRefreshingCleared = true
         await applyRefreshedCodexOutcome(outcome, for: account)
     }
 
@@ -1447,18 +1488,20 @@ final class ProviderUsageViewModel {
 
         for account in targets {
             let authURL = codexAuthManager.accountAuthFile(relativeAuthPath: account.relativeAuthPath).url
-            tasks[account.id] = Task.detached(priority: .userInitiated) {
-                await Self.fetchCodexOutcomeDetached(
-                    for: account,
-                    settings: settingsSnapshot,
-                    authSourceURL: authURL
-                )
+            tasks[account.id] = Task(priority: .userInitiated) {
+                await self.codexOutcomeFetchAction(account, settingsSnapshot, authURL)
             }
         }
 
         for account in targets {
+            if Task.isCancelled {
+                tasks.values.forEach { $0.cancel() }
+                break
+            }
             guard let task = tasks[account.id] else { continue }
             let outcome = await task.value
+            codexRefreshingAccountIds.remove(account.id)
+            if Task.isCancelled { continue }
             await applyRefreshedCodexOutcome(outcome, for: account)
         }
     }

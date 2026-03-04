@@ -16,6 +16,8 @@ struct SearchField: View {
                 TextField(placeholder, text: $text)
                     .textFieldStyle(.plain)
                     .focused($isFocused)
+                    .lineLimit(1)
+                    .frame(minHeight: 18)
                 if !text.isEmpty {
                     Button {
                         text = ""
@@ -30,9 +32,11 @@ struct SearchField: View {
                     HStack(spacing: 6) {
                         ProgressView()
                             .controlSize(.small)
+                            .frame(width: 14, height: 14)
                         Text(NSLocalizedString("remote.searching", value: "Searching...", comment: "Searching indicator"))
                             .dsSecondaryText(font: .callout)
                     }
+                    .fixedSize(horizontal: true, vertical: false)
                     .transition(.opacity)
                 }
             }
@@ -66,8 +70,9 @@ struct SearchField: View {
                 Text("")
             }
             .keyboardShortcut("f", modifiers: .command)
-            .frame(width: 0, height: 0)
+            .frame(width: 1, height: 1)
             .opacity(0)
+            .accessibilityHidden(true)
 
             Button {
                 if text.isEmpty {
@@ -79,8 +84,9 @@ struct SearchField: View {
                 Text("")
             }
             .keyboardShortcut(.cancelAction)
-            .frame(width: 0, height: 0)
+            .frame(width: 1, height: 1)
             .opacity(0)
+            .accessibilityHidden(true)
         }
     }
 }

@@ -77,6 +77,9 @@ struct ResourceCenterView: View {
     let onInstall: (RemoteSkill, Provider) -> Void
     let onInstallWorkflow: ((RemoteWorkflow, Provider) -> Void)?
     let onInstallMCP: ((RemoteMCP, Provider) -> Void)?
+    let onDeleteSkill: ((RemoteSkill, ResourceDeleteTarget) async -> ResourceDeleteExecutionResult)?
+    let onDeleteWorkflow: ((RemoteWorkflow, ResourceDeleteTarget) async -> ResourceDeleteExecutionResult)?
+    let onDeleteMCP: ((RemoteMCP, ResourceDeleteTarget) async -> ResourceDeleteExecutionResult)?
     
     @State private var viewModel = ResourceCenterViewModel()
     @Environment(\.dismiss) private var dismiss
@@ -88,7 +91,10 @@ struct ResourceCenterView: View {
         selectedTab: ResourceContentTabType? = .skills,
         onInstall: @escaping (RemoteSkill, Provider) -> Void,
         onInstallWorkflow: ((RemoteWorkflow, Provider) -> Void)? = nil,
-        onInstallMCP: ((RemoteMCP, Provider) -> Void)? = nil
+        onInstallMCP: ((RemoteMCP, Provider) -> Void)? = nil,
+        onDeleteSkill: ((RemoteSkill, ResourceDeleteTarget) async -> ResourceDeleteExecutionResult)? = nil,
+        onDeleteWorkflow: ((RemoteWorkflow, ResourceDeleteTarget) async -> ResourceDeleteExecutionResult)? = nil,
+        onDeleteMCP: ((RemoteMCP, ResourceDeleteTarget) async -> ResourceDeleteExecutionResult)? = nil
     ) {
         self.settings = settings
         self.repository = repository
@@ -96,6 +102,9 @@ struct ResourceCenterView: View {
         self.onInstall = onInstall
         self.onInstallWorkflow = onInstallWorkflow
         self.onInstallMCP = onInstallMCP
+        self.onDeleteSkill = onDeleteSkill
+        self.onDeleteWorkflow = onDeleteWorkflow
+        self.onDeleteMCP = onDeleteMCP
         self._viewModel = State(initialValue: {
             let vm = ResourceCenterViewModel()
             vm.selectedTab = selectedTab
@@ -159,6 +168,9 @@ struct ResourceCenterView: View {
                                 viewModel.refreshTrigger += 1
                             }
                         },
+                        onDeleteSkill: onDeleteSkill,
+                        onDeleteWorkflow: onDeleteWorkflow,
+                        onDeleteMCP: onDeleteMCP,
                         onRefresh: {
                             refreshData()
                         },
@@ -221,6 +233,9 @@ struct ResourceCenterView: View {
                                 viewModel.refreshTrigger += 1
                             }
                         },
+                        onDeleteSkill: onDeleteSkill,
+                        onDeleteWorkflow: onDeleteWorkflow,
+                        onDeleteMCP: onDeleteMCP,
                         onRefresh: {
                             refreshData()
                         },
@@ -232,6 +247,7 @@ struct ResourceCenterView: View {
                 .navigationSplitViewStyle(.balanced)
             }
         }
+        .textSelection(.enabled)
         .onAppear {
             refreshData()
             if viewModel.selectedRepository?.templateType == .clawdhub {

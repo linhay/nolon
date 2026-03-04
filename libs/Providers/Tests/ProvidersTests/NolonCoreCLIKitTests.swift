@@ -4,7 +4,7 @@ import STFilePath
 import Testing
 @testable import NolonCoreCLIKit
 
-@Suite("NolonCoreCLIKit")
+@Suite("NolonCoreCLIKit", .serialized)
 struct NolonCoreCLIKitTests {
     @Test("parse skills repo plan command")
     func parseSkillsRepoPlan() throws {
@@ -613,6 +613,224 @@ struct NolonCoreCLIKitTests {
         }
         #expect(provider == "codex")
         #expect(name == "playwright")
+    }
+
+    @Test("parse plugin install command")
+    func parsePluginInstall() throws {
+        let command = try NolonCoreCLIArgumentParser.parse(
+            ["plugin", "install", "--name", "xcodemcpkit", "--provider", "codex", "--version", "v0.3.6", "--force"]
+        )
+        guard case let .pluginInstall(name, provider, version, force) = command else {
+            Issue.record("Expected .pluginInstall")
+            return
+        }
+        #expect(name == "xcodemcpkit")
+        #expect(provider == "codex")
+        #expect(version == "v0.3.6")
+        #expect(force == true)
+    }
+
+    @Test("parse plugin stop command")
+    func parsePluginStop() throws {
+        let command = try NolonCoreCLIArgumentParser.parse(
+            ["plugin", "stop", "--name", "xcodemcpkit", "--force"]
+        )
+        guard case let .pluginStop(name, force) = command else {
+            Issue.record("Expected .pluginStop")
+            return
+        }
+        #expect(name == "xcodemcpkit")
+        #expect(force == true)
+    }
+
+    @Test("runner plugin install writes global mcp file with plugin marker")
+    func runnerPluginInstallWritesGlobalMcpFileWithPluginMarker() async throws {
+        let tempRoot = try STFolder(sanbox: .temporary).folder("nolon-cli-plugin-install-\(UUID().uuidString)").create()
+        defer { try? tempRoot.delete() }
+
+        let nolonHome = tempRoot.folder("nolon-home")
+        _ = nolonHome.createIfNotExists()
+        let binDir = tempRoot.folder("bin")
+        _ = binDir.createIfNotExists()
+        try makeExecutableScript(at: binDir.file("xcodemcpkit").url.path)
+        try makeExecutableScript(at: binDir.file("xcode-mcp-server").url.path)
+
+        let backupHome = getenv("NOLON_HOME").map { String(cString: $0) }
+        let backupPath = getenv("PATH").map { String(cString: $0) } ?? ""
+        setenv("NOLON_HOME", nolonHome.url.path, 1)
+        setenv("PATH", "\(binDir.url.path):\(backupPath)", 1)
+        defer {
+            if let backupHome {
+                setenv("NOLON_HOME", backupHome, 1)
+            } else {
+                unsetenv("NOLON_HOME")
+            }
+            setenv("PATH", backupPath, 1)
+        }
+
+        let runner = NolonCoreCLIRunner(
+            service: MockSkillsRepositoryService(),
+            fileReader: { _ in "" }
+        )
+        let result = await runner.execute(
+            arguments: ["plugin", "install", "--name", "xcodemcpkit"],
+            outputMode: .json
+        )
+
+        #expect(result.exitCode == 0)
+        let globalMcpPath = nolonHome.folder("mcps").file("xcodemcpkit.json")
+        #expect(globalMcpPath.isExists)
+        let content = try globalMcpPath.read()
+        #expect(content.contains("\"nolon_plugin\""))
+        #expect(content.contains("\"plugin_id\" : \"xcodemcpkit\""))
+        #expect(content.contains("\"managed\" : true"))
+        #expect(content.contains("\"mcpServers\""))
+        #expect(content.contains("\"command\" : \"xcode-mcp-server\""))
+    }
+
+    @Test("runner plugin uninstall rejects non-plugin-managed global mcp entry")
+    func runnerPluginUninstallRejectsNonPluginManagedGlobalMcpEntry() async throws {
+        let tempRoot = try STFolder(sanbox: .temporary).folder("nolon-cli-plugin-uninstall-\(UUID().uuidString)").create()
+        defer { try? tempRoot.delete() }
+
+        let nolonHome = tempRoot.folder("nolon-home")
+        let mcpsDir = nolonHome.folder("mcps")
+        _ = mcpsDir.createIfNotExists()
+        let binDir = tempRoot.folder("bin")
+        _ = binDir.createIfNotExists()
+        try makeExecutableScript(at: binDir.file("xcodemcpkit").url.path)
+        try makeExecutableScript(at: binDir.file("xcode-mcp-server").url.path)
+        let globalMcpPath = mcpsDir.file("xcodemcpkit.json")
+        try """
+        {
+          "name": "XcodeMCPKit",
+          "mcpServers": {
+            "xcodemcpkit": {
+              "command": "xcode-mcp-server",
+              "enabled": true
+            }
+          }
+        }
+        """.write(to: globalMcpPath.url, atomically: true, encoding: .utf8)
+
+        let backupHome = getenv("NOLON_HOME").map { String(cString: $0) }
+        let backupPath = getenv("PATH").map { String(cString: $0) } ?? ""
+        setenv("NOLON_HOME", nolonHome.url.path, 1)
+        setenv("PATH", "\(binDir.url.path):\(backupPath)", 1)
+        defer {
+            if let backupHome {
+                setenv("NOLON_HOME", backupHome, 1)
+            } else {
+                unsetenv("NOLON_HOME")
+            }
+            setenv("PATH", backupPath, 1)
+        }
+
+        let runner = NolonCoreCLIRunner(
+            service: MockSkillsRepositoryService(),
+            fileReader: { _ in "" }
+        )
+        let result = await runner.execute(
+            arguments: ["plugin", "uninstall", "--name", "xcodemcpkit"],
+            outputMode: .json
+        )
+
+        #expect(result.exitCode == 2)
+        #expect(result.stderr.contains("\"code\":\"plugin_not_managed_by_nolon\""))
+        #expect(globalMcpPath.isExists)
+    }
+
+    @Test("runner plugin uninstall treats invalid global json as unmanaged and blocks deletion")
+    func runnerPluginUninstallTreatsInvalidGlobalJSONAsUnmanaged() async throws {
+        let tempRoot = try STFolder(sanbox: .temporary).folder("nolon-cli-plugin-invalid-json-\(UUID().uuidString)").create()
+        defer { try? tempRoot.delete() }
+
+        let nolonHome = tempRoot.folder("nolon-home")
+        let mcpsDir = nolonHome.folder("mcps")
+        _ = mcpsDir.createIfNotExists()
+        let binDir = tempRoot.folder("bin")
+        _ = binDir.createIfNotExists()
+        try makeExecutableScript(at: binDir.file("xcodemcpkit").url.path)
+        try makeExecutableScript(at: binDir.file("xcode-mcp-server").url.path)
+        let globalMcpPath = mcpsDir.file("xcodemcpkit.json")
+        try "{ invalid-json".write(to: globalMcpPath.url, atomically: true, encoding: .utf8)
+
+        let backupHome = getenv("NOLON_HOME").map { String(cString: $0) }
+        let backupPath = getenv("PATH").map { String(cString: $0) } ?? ""
+        setenv("NOLON_HOME", nolonHome.url.path, 1)
+        setenv("PATH", "\(binDir.url.path):\(backupPath)", 1)
+        defer {
+            if let backupHome {
+                setenv("NOLON_HOME", backupHome, 1)
+            } else {
+                unsetenv("NOLON_HOME")
+            }
+            setenv("PATH", backupPath, 1)
+        }
+
+        let runner = NolonCoreCLIRunner(
+            service: MockSkillsRepositoryService(),
+            fileReader: { _ in "" }
+        )
+        let result = await runner.execute(
+            arguments: ["plugin", "uninstall", "--name", "xcodemcpkit"],
+            outputMode: .json
+        )
+
+        #expect(result.exitCode == 2)
+        #expect(result.stderr.contains("\"code\":\"plugin_not_managed_by_nolon\""))
+        #expect(globalMcpPath.isExists)
+    }
+
+    @Test("runner plugin start/stop is idempotent when runtime command is shell script")
+    func runnerPluginStartStopIdempotentForShellScriptRuntime() async throws {
+        let tempRoot = try STFolder(sanbox: .temporary).folder("nolon-cli-plugin-runtime-\(UUID().uuidString)").create()
+        defer { try? tempRoot.delete() }
+
+        let nolonHome = tempRoot.folder("nolon-home")
+        _ = nolonHome.createIfNotExists()
+        let binDir = tempRoot.folder("bin")
+        _ = binDir.createIfNotExists()
+        try """
+        #!/bin/sh
+        trap 'exit 0' TERM INT
+        sleep 120 &
+        wait $!
+        """.write(to: binDir.file("xcodemcpkit").url, atomically: true, encoding: .utf8)
+        try makeExecutableScript(at: binDir.file("xcode-mcp-server").url.path)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: binDir.file("xcodemcpkit").url.path)
+
+        let backupHome = getenv("NOLON_HOME").map { String(cString: $0) }
+        let backupPath = getenv("PATH").map { String(cString: $0) } ?? ""
+        setenv("NOLON_HOME", nolonHome.url.path, 1)
+        setenv("PATH", "\(binDir.url.path):\(backupPath)", 1)
+        defer {
+            if let backupHome {
+                setenv("NOLON_HOME", backupHome, 1)
+            } else {
+                unsetenv("NOLON_HOME")
+            }
+            setenv("PATH", backupPath, 1)
+        }
+
+        let runner = NolonCoreCLIRunner(
+            service: MockSkillsRepositoryService(),
+            fileReader: { _ in "" }
+        )
+
+        _ = await runner.execute(arguments: ["plugin", "install", "--name", "xcodemcpkit"], outputMode: .text)
+        let start1 = await runner.execute(arguments: ["plugin", "start", "--name", "xcodemcpkit"], outputMode: .text)
+        let start2 = await runner.execute(arguments: ["plugin", "start", "--name", "xcodemcpkit"], outputMode: .text)
+        let stop1 = await runner.execute(arguments: ["plugin", "stop", "--name", "xcodemcpkit"], outputMode: .text)
+        usleep(200_000)
+        let stop2 = await runner.execute(arguments: ["plugin", "stop", "--name", "xcodemcpkit"], outputMode: .text)
+
+        #expect(start1.exitCode == 0)
+        #expect(start2.exitCode == 0)
+        #expect(start2.stdout.contains("already running"))
+        #expect(stop1.exitCode == 0)
+        #expect(stop2.exitCode == 0)
+        #expect(stop2.stdout.contains("not running") || stop2.stdout.contains("sent SIGTERM"))
     }
 
     @Test("parse workflow bind-skill command")
@@ -3563,6 +3781,15 @@ struct NolonCoreCLIKitTests {
         #expect(help.contains("  list      [--provider <id>|--provider-id <id>]") == false)
     }
 
+    @Test("plugin help text clarifies global resource center behavior")
+    func pluginHelpTextClarifiesGlobalResourceCenterBehavior() {
+        let help = NolonCoreCLIHelpResolver.resolvedHelpText(arguments: ["plugin"]) ?? ""
+        #expect(help.contains("固定写入资源中心-全局"))
+        #expect(help.contains("固定从资源中心-全局移除"))
+        #expect(help.contains("nolon plugin install --name xcodemcpkit"))
+        #expect(help.contains("nolon plugin install --name xcodemcpkit --provider codex") == false)
+    }
+
     @Test("remote help text renders one-parameter-per-line with comments")
     func remoteHelpTextRendersOneParameterPerLineWithComments() {
         let help = NolonCoreCLIHelpResolver.resolvedHelpText(arguments: ["remote"]) ?? ""
@@ -4272,6 +4499,12 @@ struct NolonCoreCLIKitTests {
         #expect(result.stderr.contains("\"code\":\"invalid_arguments\""))
         #expect(result.stderr.contains("Unsupported --provider-id"))
     }
+}
+
+private func makeExecutableScript(at path: String) throws {
+    let url = URL(fileURLWithPath: path)
+    try "#!/bin/sh\nexit 0\n".write(to: url, atomically: true, encoding: .utf8)
+    try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: path)
 }
 
 private struct SyncErrorMockSkillsRepositoryService: NolonSkillsRepositoryServing {

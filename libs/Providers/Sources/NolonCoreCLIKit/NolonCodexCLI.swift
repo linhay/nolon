@@ -1776,13 +1776,14 @@ public enum NolonCLIEntrypoint {
     }
 
     private static func shouldRouteToCoreCLI(arguments: [String]) -> Bool {
-        guard let root = arguments.first?
+        let forwarded = arguments.filter { $0 != "--json" }
+        guard let root = forwarded.first?
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased()
         else {
             return false
         }
-        return root == "skills" || root == "workflow" || root == "mcp" || root == "remote"
+        return root == "skills" || root == "workflow" || root == "mcp" || root == "plugin" || root == "remote"
     }
 
     private static func extractCoreOutputMode(arguments: [String]) -> (NolonCoreCLIOutputMode, [String]) {
@@ -1816,7 +1817,7 @@ public enum NolonCLIEntrypoint {
             "codex": ["auth", "binary", "status", "runtime", "provider"],
             "skills": [],
         ]
-        let rootCommands = Set(["codex", "provider", "skills", "workflow", "mcp", "remote"])
+        let rootCommands = Set(["codex", "provider", "skills", "workflow", "mcp", "plugin", "remote"])
         if normalized.count == 1, rootCommands.contains(root) {
             return normalized + ["--help"]
         }
@@ -1925,6 +1926,9 @@ public enum NolonCLIEntrypoint {
         case "mcp":
             guard arguments.count >= 2 else { return NolonMcpRootCommand.self }
             return mcpCommandType(action: arguments[1])
+        case "plugin":
+            guard arguments.count >= 2 else { return NolonPluginRootCommand.self }
+            return pluginCommandType(action: arguments[1])
         case "remote":
             guard arguments.count >= 2 else { return NolonRemoteRootCommand.self }
             return remoteCommandType(action: arguments[1])
@@ -2063,8 +2067,33 @@ public enum NolonCLIEntrypoint {
             return NolonMcpAddCommand.self
         case "remove":
             return NolonMcpRemoveCommand.self
+        case "server":
+            return NolonMcpServerRootCommand.self
+        case "cache":
+            return NolonMcpCacheRootCommand.self
         default:
             return NolonMcpRootCommand.self
+        }
+    }
+
+    private static func pluginCommandType(action: String) -> ParsableCommand.Type? {
+        switch action.lowercased() {
+        case "list":
+            return NolonPluginListCommand.self
+        case "status":
+            return NolonPluginStatusCommand.self
+        case "install":
+            return NolonPluginInstallCommand.self
+        case "uninstall":
+            return NolonPluginUninstallCommand.self
+        case "upgrade":
+            return NolonPluginUpgradeCommand.self
+        case "start":
+            return NolonPluginStartCommand.self
+        case "stop":
+            return NolonPluginStopCommand.self
+        default:
+            return NolonPluginRootCommand.self
         }
     }
 

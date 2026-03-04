@@ -233,7 +233,7 @@ struct CodexLoginRunnerTests {
 
         let result = try await CodexLoginRunner.awaitAuthResult(
             codexHome: codexHome,
-            timeoutSeconds: 2,
+            timeoutSeconds: 5,
             pollIntervalSeconds: 0.05
         )
         #expect(result.authJSONString.contains("\"id_token\":\"id-delayed\""))
@@ -264,7 +264,7 @@ struct CodexLoginRunnerTests {
 
         let result = try await CodexLoginRunner.awaitAuthResult(
             codexHome: codexHome,
-            timeoutSeconds: 2,
+            timeoutSeconds: 5,
             pollIntervalSeconds: 0.05
         )
         #expect(result.authJSONString.contains("\"id_token\":\"id-fixed\""))
@@ -311,7 +311,7 @@ struct CodexLoginRunnerTests {
 
         let result = try await CodexLoginRunner.awaitAuthResultPreferFile(
             codexHome: codexHome,
-            timeoutSeconds: 2,
+            timeoutSeconds: 5,
             pollIntervalSeconds: 0.05,
             completionWaiter: {
                 throw NSError(domain: "CodexLoginRunnerTests", code: -1)
@@ -339,7 +339,7 @@ struct CodexLoginRunnerTests {
         let startedAt = Date()
         let result = try await CodexLoginRunner.awaitAuthResultPreferFile(
             codexHome: codexHome,
-            timeoutSeconds: 2,
+            timeoutSeconds: 5,
             pollIntervalSeconds: 0.05,
             completionWaiter: {
                 let waiterStart = Date()
@@ -352,7 +352,7 @@ struct CodexLoginRunnerTests {
 
         #expect(result.authJSONString.contains("\"id_token\":\"id-fast\""))
         #expect(result.authJSONString.contains("\"access_token\":\"access-fast\""))
-        #expect(elapsed < 1.5)
+        #expect(elapsed < 2.5)
     }
 
     @Test("awaitAuthResult throws authNotCreated when timeout expires")

@@ -29,7 +29,7 @@ final class ResourceCatalogGridViewModelTests: XCTestCase {
         let plugin = viewModel.mcps.first(where: { $0.slug == "xcodemcpkit" })
         XCTAssertNotNil(plugin)
         XCTAssertEqual(plugin?.displayName, "XcodeMCPKit")
-        XCTAssertEqual(plugin?.configuration?.command, "xcode-mcp-proxy")
+        XCTAssertEqual(plugin?.configuration?.command, "xcode-mcp-server")
     }
 
     @MainActor

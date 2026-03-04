@@ -2,6 +2,7 @@ import Foundation
 import Providers
 import SKProcessRunner
 import Testing
+import CodexCLIKit
 
 @Suite("Codex (Live)")
 struct CodexLiveTests {
@@ -39,7 +40,15 @@ struct CodexLiveTests {
         guard helper.isCLIAvailable else { return }
 
         let fetcher = CodexCreditsFetcher(environment: env)
-        let snapshot = try await fetcher.fetchCredits(keepCLISessionsAlive: false)
-        #expect(snapshot.remaining.isInfinite || snapshot.remaining.isNaN || snapshot.remaining >= 0)
+        do {
+            let snapshot = try await fetcher.fetchCredits(keepCLISessionsAlive: false)
+            #expect(snapshot.remaining.isInfinite || snapshot.remaining.isNaN || snapshot.remaining >= 0)
+        } catch let error as CodexCLIError {
+            if case let .protocolError(message) = error,
+               message.localizedCaseInsensitiveContains("authentication required") {
+                return
+            }
+            throw error
+        }
     }
 }

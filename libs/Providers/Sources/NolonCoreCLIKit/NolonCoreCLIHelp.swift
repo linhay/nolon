@@ -13,6 +13,8 @@ enum NolonCoreCLIHelpResolver {
             return workflowHelpText()
         case .mcp:
             return mcpHelpText()
+        case .plugin:
+            return pluginHelpText()
         case .remote:
             return remoteHelpText()
         }
@@ -323,6 +325,47 @@ enum NolonCoreCLIHelpResolver {
               --install-method symlink|copy                # 安装方式（可选）
         """
     }
+
+    private static func pluginHelpText() -> String {
+        """
+        Usage: nolon plugin <subcommand> [options]
+
+        Subcommands:
+          list
+            列出内置插件状态（当前支持 xcodemcpkit）
+          status
+            --name xcodemcpkit                           # 插件名（可选，默认 xcodemcpkit）
+          install
+            --name xcodemcpkit                           # 插件名（可选）
+            --provider <id>                              # 兼容参数（当前固定写入资源中心-全局）
+            --version <ver>                              # 写入安装版本（可选）
+            --force                                      # 覆盖已有全局 MCP 文件
+          uninstall
+            --name xcodemcpkit                           # 插件名（可选）
+            --provider <id>                              # 兼容参数（当前固定从资源中心-全局移除）
+            --force                                      # 强制停止后卸载
+          upgrade
+            --name xcodemcpkit                           # 插件名（可选）
+            --provider <id>                              # 兼容参数（当前固定写入资源中心-全局）
+            --to-version <ver>                           # 目标版本（可选；省略时尝试拉取最新稳定版）
+            --force                                      # 覆盖已有全局 MCP 文件
+          start
+            --name xcodemcpkit                           # 插件名（可选）
+            --force-restart                              # 端口占用时尝试强制重启
+          stop
+            --name xcodemcpkit                           # 插件名（可选）
+            --force                                      # 直接 SIGKILL
+
+        场景: 安装插件
+          nolon plugin install --name xcodemcpkit
+
+        场景: 升级插件
+          nolon plugin upgrade --name xcodemcpkit
+
+        场景: 卸载插件
+          nolon plugin uninstall --name xcodemcpkit
+        """
+    }
 }
 
 private enum NolonCoreCLIHelpPath {
@@ -330,6 +373,7 @@ private enum NolonCoreCLIHelpPath {
     case skillsRepo
     case workflow
     case mcp
+    case plugin
     case remote
 
     init?(arguments: [String]) {
@@ -342,6 +386,8 @@ private enum NolonCoreCLIHelpPath {
             self = .workflow
         case ["mcp"], ["mcp", "help"], ["mcp", "-h"], ["mcp", "--help"]:
             self = .mcp
+        case ["plugin"], ["plugin", "help"], ["plugin", "-h"], ["plugin", "--help"]:
+            self = .plugin
         case ["remote"], ["remote", "help"], ["remote", "-h"], ["remote", "--help"]:
             self = .remote
         default:
