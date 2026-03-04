@@ -16,16 +16,13 @@
 <body>
   <header class="topbar">
     <a class="brand" href="#hero">Nolon</a>
-    <nav class="nav" aria-label="Primary">
+    <nav id="primary-nav" class="nav" aria-label="Primary">
       <a href="#console" data-i18n="nav.console">主控制台</a>
       <a href="#resource-center" data-i18n="nav.resource">资源中心</a>
-      <a href="#providers" data-i18n="nav.providers">Provider</a>
-      <a href="#codex" data-i18n="nav.codex">Codex 深度支持</a>
-      <a href="#plugins" data-i18n="nav.plugins">插件管理</a>
+      <a href="#capabilities" data-i18n="nav.capabilities">核心能力</a>
       <a href="#architecture" data-i18n="nav.arch">架构</a>
       <a href="#ecosystem" data-i18n="nav.ecosystem">生态模板</a>
       <a href="#download" data-i18n="nav.download">下载</a>
-      <a href="#faq" data-i18n="nav.faq">FAQ</a>
     </nav>
     <div class="lang-switch" role="group" aria-label="Language switcher">
       <button type="button" data-lang="zh" class="active">中文</button>
@@ -34,36 +31,55 @@
   </header>
 
   <main>
-    <section id="hero" class="hero section">
-      <p class="kicker" data-i18n="hero.kicker">AI 编程工具主控制台</p>
-      <h1 data-i18n="hero.title">一套资源，编排到多 Provider 的开发工作流</h1>
-      <p class="lead" data-i18n="hero.lead">Nolon 在 macOS 上提供统一的主控制台：资源编排、远程安装与 Codex 深度支持并行工作。</p>
-      <div class="hero-badges">
-        <span data-i18n="hero.badge1">统一资源编排</span>
-        <span data-i18n="hero.badge2">远程安装闭环</span>
-        <span data-i18n="hero.badge3">Codex 深度支持</span>
-      </div>
+    <section id="hero" class="hero section section-hero">
+      <div class="kicker" data-i18n="hero.kicker">AI 编程工具主控制台</div>
+      <h1 data-i18n="hero.title">让多 Provider 开发流程回到一个清晰控制台</h1>
+      <p class="lead" data-i18n="hero.lead">Nolon 把资源编排、远程安装和 Codex 工作流统一在 macOS 主界面中，让协作更快且更可控。</p>
       <div class="hero-cta">
-        <a class="btn btn-primary" href="https://github.com/linhay/nolon/releases/latest" target="_blank" rel="noopener" data-i18n="hero.ctaDownload">下载最新版本</a>
-        <a class="btn btn-secondary" href="https://github.com/linhay/nolon" target="_blank" rel="noopener" data-i18n="hero.ctaRepo">查看仓库</a>
+        <a id="main-download-btn" class="btn btn-primary" href="https://github.com/linhay/nolon/releases/download/v2.1.0/nolon-arm64.dmg" data-track="download-auto" data-i18n="hero.ctaDownload">下载最新版本</a>
+        <a class="btn btn-secondary" href="https://github.com/linhay/nolon" target="_blank" rel="noopener" data-track="repo" data-i18n="hero.ctaRepo">查看仓库</a>
+      </div>
+      <div id="download-alt" style="margin-top: 12px; font-size: 0.85rem; color: var(--muted); opacity: 0; transition: opacity 0.3s ease;">
+        <span data-i18n="hero.downloadAlt">其他版本:</span>
+        <a id="alt-download-link" href="#" style="text-decoration: underline; color: var(--muted);">Intel (x86_64)</a>
       </div>
     </section>
 
-    <section id="console" class="section">
+    <section id="trust-strip" class="section trust-strip">
+      <ul>
+        <li data-i18n="trust.item1">GPL-3.0 开源，路线透明可验证。</li>
+        <li data-i18n="trust.item2">围绕主控制台持续迭代，覆盖 7+ Provider 入口。</li>
+        <li data-i18n="trust.item3">能力下沉 SDK/CLI，App 侧专注编排与体验。</li>
+      </ul>
+    </section>
+
+    <section id="quick-start" class="section">
       <div class="section-head">
-        <h2 data-i18n="console.title">主控制台：默认三栏主页</h2>
-        <p data-i18n="console.desc">左侧 Provider、中央内容标签、右侧详情网格，形成稳定的日常操作路径。</p>
+        <h2 data-i18n="quick.title">3 步上手</h2>
+        <p data-i18n="quick.desc">从下载到日常使用，只保留必要动作。</p>
+      </div>
+      <ol class="steps">
+        <li><strong data-i18n="quick.step1Title">安装并打开 Nolon</strong><p data-i18n="quick.step1Desc">从 Release 下载最新版本，首次启动后进入主控制台。</p></li>
+        <li><strong data-i18n="quick.step2Title">连接你的 Provider</strong><p data-i18n="quick.step2Desc">按已支持模板接入 Skills / Workflows / MCP 资源。</p></li>
+        <li><strong data-i18n="quick.step3Title">在一个入口完成编排</strong><p data-i18n="quick.step3Desc">在主控制台统一查看、安装、切换与诊断，减少重复操作。</p></li>
+      </ol>
+    </section>
+
+    <section id="console" class="section section-card">
+      <div class="section-head">
+        <h2 data-i18n="console.title">主控制台：稳定的日常操作路径</h2>
+        <p data-i18n="console.desc">左侧选择 Provider，中间切换任务视图，右侧查看细节状态，路径固定更易维护。</p>
       </div>
       <figure class="shot-card">
-        <img src="assets/images/main-overview.png" alt="Nolon 主控制台三栏主界面截图" loading="lazy">
-        <figcaption data-i18n="console.caption">当前实机截图：主界面默认三栏状态。</figcaption>
+        <img src="assets/images/main-overview.png" alt="Nolon 主控制台三栏主界面截图" loading="lazy" width="1360" height="860">
+        <figcaption data-i18n="console.caption">真实界面截图：三栏结构让操作目标更清晰。</figcaption>
       </figure>
     </section>
 
     <section id="resource-center" class="section">
       <div class="section-head">
-        <h2 data-i18n="resource.title">资源中心：远程发现与安装</h2>
-        <p data-i18n="resource.desc">通过叠层资源中心统一浏览并安装 Skills、Workflows、MCP，减少跨 Provider 的重复操作。</p>
+        <h2 data-i18n="resource.title">资源中心：发现、安装、同步</h2>
+        <p data-i18n="resource.desc">把分散资源集中到一条安装路径，减少跨工具手工配置。</p>
       </div>
       <div class="card-grid three">
         <article class="card"><h3>Skills</h3><p data-i18n="resource.skills">统一管理技能资产并投射到目标 Provider。</p></article>
@@ -72,118 +88,82 @@
       </div>
     </section>
 
-    <section id="providers" class="section">
+    <section id="capabilities" class="section">
+      <div id="providers" class="legacy-anchor" aria-hidden="true"></div>
+      <div id="codex" class="legacy-anchor" aria-hidden="true"></div>
+      <div id="plugins" class="legacy-anchor" aria-hidden="true"></div>
       <div class="section-head">
-        <h2 data-i18n="providers.title">Provider 能力矩阵（7+）</h2>
-        <p data-i18n="providers.desc">内置模板覆盖 7+ Provider，基础能力与 Vendor 扩展能力按标签动态呈现。</p>
+        <h2 data-i18n="cap.title">核心能力：通用底座 + 深度扩展</h2>
+        <p data-i18n="cap.desc">先用统一底座收敛复杂度，再按 Provider 与工具能力做可控扩展。</p>
       </div>
-      <div class="card-grid two">
+      <div class="card-grid three">
         <article class="card">
-          <h3 data-i18n="providers.baseTitle">基础标签</h3>
-          <p data-i18n="providers.base">Skills / Workflows / MCP 为通用底座。</p>
+          <h3 data-i18n="cap.item1Title">Provider 能力矩阵</h3>
+          <p data-i18n="cap.item1">内置模板覆盖 7+ Provider，按能力动态呈现可用视图。</p>
         </article>
         <article class="card">
-          <h3 data-i18n="providers.vendorTitle">Vendor 扩展</h3>
-          <p data-i18n="providers.vendor">可按 Provider 能力扩展 Accounts、Usage、Binary、Advanced 等视图。</p>
-        </article>
-      </div>
-    </section>
-
-    <section id="codex" class="section highlight">
-      <div class="section-head">
-        <h2 data-i18n="codex.title">Codex 深度支持</h2>
-        <p data-i18n="codex.desc">从账号与用量到二进制与高级配置，Nolon 将 Codex 相关能力集中在可视化控制面。</p>
-      </div>
-      <div class="card-grid four">
-        <article class="card"><h3 data-i18n="codex.item1Title">账号与用量</h3><p data-i18n="codex.item1">查看账号状态、用量趋势与关键指标。</p></article>
-        <article class="card"><h3 data-i18n="codex.item2Title">Binary 管理</h3><p data-i18n="codex.item2">查看可用版本并切换使用二进制。</p></article>
-        <article class="card"><h3 data-i18n="codex.item3Title">Advanced 配置</h3><p data-i18n="codex.item3">聚合常见高级配置项，降低配置门槛。</p></article>
-        <article class="card"><h3 data-i18n="codex.item4Title">运行与诊断</h3><p data-i18n="codex.item4">结合 CLI/SDK 能力，支持更清晰的运行态排查。</p></article>
-      </div>
-    </section>
-
-    <section id="plugins" class="section">
-      <div class="section-head">
-        <h2 data-i18n="plugins.title">插件管理（独立页面）</h2>
-        <p data-i18n="plugins.desc">插件管理位于 Tools 分组，为独立页面，不属于 MCP 页面。首期内置 XcodeMCPKit，并支持版本升级检测。</p>
-      </div>
-      <div class="card-grid two">
-        <article class="card">
-          <h3>XcodeMCPKit</h3>
-          <p data-i18n="plugins.xcode">检查 GitHub 稳定版更新（忽略 pre-release），命中后显示 Upgrade 按钮。</p>
+          <h3 data-i18n="cap.item2Title">Codex 深度支持</h3>
+          <p data-i18n="cap.item2">账号、用量、二进制和高级配置集中在同一控制面板。</p>
         </article>
         <article class="card">
-          <h3 data-i18n="plugins.futureTitle">可扩展插件位</h3>
-          <p data-i18n="plugins.future">插件列表可继续扩展，不干扰现有 Provider/MCP 结构。</p>
+          <h3 data-i18n="cap.item3Title">插件管理独立演进</h3>
+          <p data-i18n="cap.item3">插件位于 Tools 独立页面，支持 XcodeMCPKit 等能力扩展。</p>
         </article>
       </div>
     </section>
 
-    <section id="architecture" class="section">
+    <section id="architecture" class="section section-card">
       <div class="section-head">
-        <h2 data-i18n="arch.title">开发流程：SDK → CLI → App</h2>
-        <p data-i18n="arch.desc">核心能力优先下沉到 SDK，再由 CLI 和 App 复用，App 侧聚焦编排与展示。</p>
+        <h2 data-i18n="arch.title">开发路径：SDK → CLI → App</h2>
+        <p data-i18n="arch.desc">核心能力优先下沉为可复用模块，避免 App 层重复造轮子。</p>
       </div>
-      <div class="flow">
-        <div class="node">SDK<br><small>NolonResourceKit / ProviderCatalog</small></div>
-        <div class="arrow">→</div>
-        <div class="node">CLI<br><small>nolon-core</small></div>
-        <div class="arrow">→</div>
-        <div class="node">App<br><small>SwiftUI Main Console</small></div>
+      <div class="flow-container">
+        <div class="flow">
+          <div class="node">SDK<br><small>NolonResourceKit</small></div>
+          <div class="arrow">→</div>
+          <div class="node">CLI<br><small>nolon-core</small></div>
+          <div class="arrow">→</div>
+          <div class="node">App<br><small>Main Console</small></div>
+        </div>
       </div>
-      <p class="note" data-i18n="arch.note">同时配合迁移助手、链接修复、漂移治理机制，保障长期可维护性。</p>
+      <p class="note" style="text-align: center; margin-top: 24px;" data-i18n="arch.note">迁移助手、链接修复和漂移治理共同保障长期可维护性。</p>
     </section>
 
     <section id="ecosystem" class="section">
       <div class="section-head">
-        <h2 data-i18n="eco.title">生态项目：Leaderboard Template</h2>
-        <p data-i18n="eco.desc">`projects/leaderboard-template` 提供可 fork 的独立榜单模板，包含提交契约、快照构建与 Pages 发布链路。</p>
-      </div>
-      <div class="hero-cta">
-        <a class="btn btn-primary" href="https://linhay.github.io/nolon-leaderboard-template/" target="_blank" rel="noopener" data-i18n="eco.ctaSite">查看模板站点</a>
-        <a class="btn btn-secondary" href="https://github.com/linhay/nolon/tree/main/projects/leaderboard-template" target="_blank" rel="noopener" data-i18n="eco.ctaRepo">查看模板源码</a>
+        <p class="kicker secondary" data-i18n="eco.badge">衍生项目</p>
+        <h2 data-i18n="eco.title">Leaderboard Template</h2>
+        <p data-i18n="eco.desc">这是可 fork 的独立模板项目，用于构建社区榜单，不属于主应用核心页面。</p>
+        <div class="hero-cta">
+          <a class="btn btn-secondary" href="https://linhay.github.io/nolon-leaderboard-template/" target="_blank" rel="noopener" data-track="ecosystem-site" data-i18n="eco.ctaSite">查看模板站点</a>
+          <a class="btn btn-secondary" href="https://github.com/linhay/nolon/tree/main/projects/leaderboard-template" target="_blank" rel="noopener" data-track="ecosystem-repo" data-i18n="eco.ctaRepo">查看模板源码</a>
+        </div>
       </div>
     </section>
 
     <section id="download" class="section">
       <div class="section-head">
         <h2 data-i18n="download.title">下载与更新</h2>
-        <p data-i18n="download.desc">支持 GitHub Releases 手动下载，也支持 Sparkle appcast 自动更新链路。</p>
+        <p data-i18n="download.desc">默认从 GitHub Releases 获取最新稳定版，应用内更新由 Sparkle appcast 提供。</p>
       </div>
       <div class="card-grid two">
-        <article class="card">
+        <article class="card highlight">
           <h3 data-i18n="download.releaseTitle">GitHub Releases</h3>
-          <p data-i18n="download.releaseDesc">最新稳定版本下载入口。</p>
-          <a href="https://github.com/linhay/nolon/releases/latest" target="_blank" rel="noopener">https://github.com/linhay/nolon/releases/latest</a>
+          <p data-i18n="download.releaseDesc">发布入口，适合手动下载与版本核对。</p>
+          <a class="btn btn-secondary" style="margin-top: 12px; width: 100%;" href="https://github.com/linhay/nolon/releases/latest" target="_blank" rel="noopener">前往 GitHub</a>
         </article>
         <article class="card">
           <h3>Sparkle Appcast</h3>
-          <p data-i18n="download.appcastDesc">应用内更新源。</p>
-          <a href="https://linhay.github.io/nolon/appcast.xml" target="_blank" rel="noopener">https://linhay.github.io/nolon/appcast.xml</a>
-        </article>
-      </div>
-    </section>
-
-    <section id="faq" class="section">
-      <div class="section-head">
-        <h2>FAQ</h2>
-      </div>
-      <div class="faq-list">
-        <article>
-          <h3 data-i18n="faq.q1">为什么写 7+ 而不是更大的数字？</h3>
-          <p data-i18n="faq.a1">官网与当前仓库内置模板口径保持一致，避免宣传与实现脱节。</p>
-        </article>
-        <article>
-          <h3 data-i18n="faq.q2">插件管理和 MCP 是同一个页面吗？</h3>
-          <p data-i18n="faq.a2">不是。插件管理是左侧 Tools 下的独立页面。</p>
-        </article>
-        <article>
-          <h3 data-i18n="faq.q3">leaderboard-template 属于主应用功能吗？</h3>
-          <p data-i18n="faq.a3">它是生态模板项目，面向可 fork 的独立站点能力。</p>
+          <p data-i18n="download.appcastDesc">应用内更新源，适合持续跟进稳定版本。</p>
+          <a class="btn btn-secondary" style="margin-top: 12px; width: 100%;" href="https://linhay.github.io/nolon/appcast.xml" target="_blank" rel="noopener">查看 Appcast</a>
         </article>
       </div>
     </section>
   </main>
+
+  <aside class="mobile-cta" aria-label="Quick action">
+    <a href="https://github.com/linhay/nolon/releases/download/v2.1.0/nolon-arm64.dmg" data-track="download-mobile" data-i18n="mobile.cta">下载最新版本 (ARM)</a>
+  </aside>
 
   <footer class="footer">
     <p>© <span id="year"></span> Nolon · GPL-3.0</p>

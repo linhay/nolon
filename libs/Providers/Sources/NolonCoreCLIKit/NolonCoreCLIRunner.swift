@@ -3443,7 +3443,23 @@ public struct NolonCoreCLIRunner: Sendable {
         }
         let args = forceRestart ? ["--force-restart"] : []
         let pid = try Self.startDetachedProcess(command: runtimeCommand, arguments: args)
-        let runningPID = try Self.waitForRunningServerPID(commandContains: runtimeCommand, timeoutMilliseconds: 800) ?? pid
+        guard let runningPID = try Self.waitForRunningServerPID(commandContains: runtimeCommand, timeoutMilliseconds: 800) else {
+            throw NolonCoreCLIError.domainFailed(
+                code: "plugin_runtime_start_failed",
+                message: "\(runtimeCommand) failed to stay running (pid=\(pid))."
+            )
+        }
+        let exitedQuickly = try Self.waitForProcessExit(
+            commandContains: runtimeCommand,
+            expectedPID: runningPID,
+            timeoutMilliseconds: 250
+        )
+        if exitedQuickly {
+            throw NolonCoreCLIError.domainFailed(
+                code: "plugin_runtime_start_failed",
+                message: "\(runtimeCommand) exited immediately after start (pid=\(runningPID))."
+            )
+        }
         return NolonPluginRuntimeResult(
             action: "start",
             name: descriptor.id,
@@ -3561,7 +3577,10 @@ public struct NolonCoreCLIRunner: Sendable {
             for line in pgrepResult.stdout.split(separator: "\n") {
                 let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
                 guard let pid = Int(trimmed), pid != currentPID else { continue }
-                return pid
+                if let commandLine = try? processCommandLine(pid: pid),
+                   matchesRuntimeCommand(commandLine, runtimeCommand: commandContains) {
+                    return pid
+                }
             }
         }
 
@@ -3585,6 +3604,17 @@ public struct NolonCoreCLIRunner: Sendable {
             }
         }
         return nil
+    }
+
+    private static func processCommandLine(pid: Int) throws -> String? {
+        var payload = SKProcessPayload.executableURL(STPath("/bin/ps").url)
+        payload.arguments = ["-p", String(pid), "-o", "command="]
+        payload.throwOnNonZeroExit = false
+        payload.timeoutMs = 5_000
+        let result = try SKProcessRunner.runSync(payload)
+        guard result.exitCode == 0 else { return nil }
+        let command = result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+        return command.isEmpty ? nil : command
     }
 
     private static func waitForRunningServerPID(commandContains: String, timeoutMilliseconds: Int) throws -> Int? {

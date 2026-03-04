@@ -8226,6 +8226,18 @@
         }
       }
     },
+    "plugin.action.logs" : {
+      "comment" : "Open plugin runtime logs",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Logs"
+          }
+        }
+      }
+    },
     "plugin.action.open_release" : {
       "comment" : "Open plugin releases",
       "extractionState" : "extracted_with_value",
@@ -8298,6 +8310,30 @@
         }
       }
     },
+    "plugin.action.uninstall" : {
+      "comment" : "Uninstall plugin",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Uninstall"
+          }
+        }
+      }
+    },
+    "plugin.action.uninstalling" : {
+      "comment" : "Uninstalling plugin",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Uninstalling..."
+          }
+        }
+      }
+    },
     "plugin.action.upgrade" : {
       "comment" : "Upgrade plugin",
       "extractionState" : "extracted_with_value",
@@ -8366,6 +8402,90 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "Not Installed"
+          }
+        }
+      }
+    },
+    "plugin.logs.auto_off" : {
+      "comment" : "Auto scroll disabled",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Auto Off"
+          }
+        }
+      }
+    },
+    "plugin.logs.auto_on" : {
+      "comment" : "Auto scroll enabled",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Auto On"
+          }
+        }
+      }
+    },
+    "plugin.logs.clear" : {
+      "comment" : "Clear logs",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Clear"
+          }
+        }
+      }
+    },
+    "plugin.logs.close" : {
+      "comment" : "Close logs sheet",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Close"
+          }
+        }
+      }
+    },
+    "plugin.logs.copy" : {
+      "comment" : "Copy logs",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Copy"
+          }
+        }
+      }
+    },
+    "plugin.logs.empty" : {
+      "comment" : "Empty runtime logs",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "No runtime output yet."
+          }
+        }
+      }
+    },
+    "plugin.logs.title" : {
+      "comment" : "Plugin runtime logs title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Runtime Logs"
           }
         }
       }
@@ -8462,6 +8582,42 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "Stopping..."
+          }
+        }
+      }
+    },
+    "plugin.version.not_installed" : {
+      "comment" : "Not installed version text",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Not Installed"
+          }
+        }
+      }
+    },
+    "plugin.version.unavailable" : {
+      "comment" : "Latest version unavailable",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Unavailable"
+          }
+        }
+      }
+    },
+    "plugin.version.unknown" : {
+      "comment" : "Installed version unknown",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Unknown"
           }
         }
       }

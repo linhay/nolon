@@ -833,6 +833,46 @@ struct NolonCoreCLIKitTests {
         #expect(stop2.stdout.contains("not running") || stop2.stdout.contains("sent SIGTERM"))
     }
 
+    @Test("runner plugin start returns error when runtime exits immediately")
+    func runnerPluginStartFailsWhenRuntimeExitsImmediately() async throws {
+        let tempRoot = try STFolder(sanbox: .temporary).folder("nolon-cli-plugin-runtime-exit-\(UUID().uuidString)").create()
+        defer { try? tempRoot.delete() }
+
+        let nolonHome = tempRoot.folder("nolon-home")
+        _ = nolonHome.createIfNotExists()
+        let binDir = tempRoot.folder("bin")
+        _ = binDir.createIfNotExists()
+        try """
+        #!/bin/sh
+        exit 0
+        """.write(to: binDir.file("xcodemcpkit").url, atomically: true, encoding: .utf8)
+        try makeExecutableScript(at: binDir.file("xcode-mcp-server").url.path)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: binDir.file("xcodemcpkit").url.path)
+
+        let backupHome = getenv("NOLON_HOME").map { String(cString: $0) }
+        let backupPath = getenv("PATH").map { String(cString: $0) } ?? ""
+        setenv("NOLON_HOME", nolonHome.url.path, 1)
+        setenv("PATH", "\(binDir.url.path):\(backupPath)", 1)
+        defer {
+            if let backupHome {
+                setenv("NOLON_HOME", backupHome, 1)
+            } else {
+                unsetenv("NOLON_HOME")
+            }
+            setenv("PATH", backupPath, 1)
+        }
+
+        let runner = NolonCoreCLIRunner(
+            service: MockSkillsRepositoryService(),
+            fileReader: { _ in "" }
+        )
+
+        let start = await runner.execute(arguments: ["plugin", "start", "--name", "xcodemcpkit"], outputMode: .json)
+
+        #expect(start.exitCode == 2)
+        #expect(start.stderr.contains("\"code\":\"plugin_runtime_start_failed\""))
+    }
+
     @Test("parse workflow bind-skill command")
     func parseWorkflowBindSkill() throws {
         let command = try NolonCoreCLIArgumentParser.parse(
