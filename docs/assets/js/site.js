@@ -60,6 +60,14 @@ const dict = {
     "faq.a2": "不是。插件管理位于 Tools 下的独立页面。",
     "faq.q3": "leaderboard-template 属于主应用功能吗？",
     "faq.a3": "不是。它是生态衍生模板项目，可独立 fork 与发布。",
+    "faq.q4": "Nolon 支持哪些 AI 工具？",
+    "faq.a4": "目前深度支持 Cursor, Windsurf, Trae, Roo-Code, Cline 等主流工具。",
+    "whatsnew.title": "最新动态 (v2.1.1)",
+    "whatsnew.item1": "XcodeMCPKit 插件管理：独立管理 Xcode 增强能力。",
+    "whatsnew.item2": "资源中心删除：支持对 Skills, MCP, Workflows 的精细化清理。",
+    "whatsnew.item3": "软链接增强：优化了非标准仓库中符号链接资源的实例化逻辑。",
+    "whatsnew.item4": "体验升级：支持全局文本选择，新增“亿”级大额 Token 单位显示。",
+    "whatsnew.item5": "GPL-3.0：正式采用 GPL-3.0 开源协议，保障开发者权益。",
     "mobile.cta": "下载最新版本"
   },
   en: {
@@ -117,12 +125,20 @@ const dict = {
     "download.releaseTitle": "GitHub Releases",
     "download.releaseDesc": "Release entry for manual download and version checks.",
     "download.appcastDesc": "In-app update feed for stable iteration.",
-    "faq.q1": "Why does the site use 7+ providers?",
-    "faq.a1": "The website matches current in-repo template coverage to keep claims accurate.",
+    "faq.q1": "Why 7+ Providers?",
+    "faq.a1": "Matching built-in templates to keep expectations accurate.",
     "faq.q2": "Is Plugin Management the same as MCP?",
-    "faq.a2": "No. Plugin Management is a standalone page under Tools.",
-    "faq.q3": "Is leaderboard-template a main app feature?",
-    "faq.a3": "No. It is an ecosystem template that can be forked and published independently.",
+    "faq.a2": "No. Plugin Management is a dedicated page under Tools.",
+    "faq.q3": "Is leaderboard-template a core feature?",
+    "faq.a3": "No. It's a forkable template for building community rankings.",
+    "faq.q4": "Which AI tools are supported?",
+    "faq.a4": "Deeply supports Cursor, Windsurf, Trae, Roo-Code, Cline, etc.",
+    "whatsnew.title": "What's New (v2.1.1)",
+    "whatsnew.item1": "XcodeMCPKit Plugin Management: Dedicated control for Xcode extensions.",
+    "whatsnew.item2": "Resource Deletion: Refined cleanup for Skills, MCPs, and Workflows.",
+    "whatsnew.item3": "Symlink Enhancements: Improved asset instantiation for non-standard repos.",
+    "whatsnew.item4": "UX Upgrade: Global text selection and 'Billion' unit for large tokens.",
+    "whatsnew.item5": "GPL-3.0: Officially adopted for better developer protection.",
     "mobile.cta": "Download Latest"
   }
 };
@@ -224,12 +240,35 @@ function initYear() {
   if (el) el.textContent = new Date().getFullYear();
 }
 
+function bindFaqToggle() {
+  document.querySelectorAll(".faq-question").forEach((q) => {
+    q.addEventListener("click", () => {
+      const item = q.parentElement;
+      const isOpen = item.classList.contains("open");
+      
+      // Close all others
+      document.querySelectorAll(".faq-item").forEach((i) => {
+        i.classList.remove("open");
+        const ans = i.querySelector(".faq-answer");
+        if (ans) ans.style.display = "none";
+      });
+      
+      if (!isOpen) {
+        item.classList.add("open");
+        const ans = item.querySelector(".faq-answer");
+        if (ans) ans.style.display = "block";
+      }
+    });
+  });
+}
+
 (function init() {
   initYear();
   bindLanguageSwitch();
   bindNavActive();
   bindMobileMenu();
   bindTracking();
+  bindFaqToggle();
   detectPlatformAndSetDownload();
   setLanguage(localStorage.getItem("lang") || "zh");
 })();
