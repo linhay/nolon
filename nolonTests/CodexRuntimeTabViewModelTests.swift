@@ -8,8 +8,22 @@ final class CodexRuntimeTabViewModelTests: XCTestCase {
         let provider = makeCodexProvider()
         let runtimeService = MockRuntimeService()
         runtimeService.runtimeListResult = .success([
-            .init(pid: 101, ppid: 1, elapsed: "00:00:03", providerHint: "codex", command: "codex --version"),
-            .init(pid: 202, ppid: 1, elapsed: "00:02:03", providerHint: "codex", command: "codex chat")
+            .init(
+                pid: 101,
+                ppid: 1,
+                elapsed: "00:00:03",
+                providerHint: "codex",
+                command: "codex --version",
+                workingDirectory: "/tmp/work-a"
+            ),
+            .init(
+                pid: 202,
+                ppid: 1,
+                elapsed: "00:02:03",
+                providerHint: "codex",
+                command: "codex chat",
+                workingDirectory: nil
+            )
         ])
         runtimeService.diagnosticsResult = .success(
             .init(
@@ -34,6 +48,7 @@ final class CodexRuntimeTabViewModelTests: XCTestCase {
 
         XCTAssertEqual(viewModel.processes.count, 2)
         XCTAssertEqual(viewModel.processes.map(\.pid), [101, 202])
+        XCTAssertEqual(viewModel.processes.first?.workingDirectory, "/tmp/work-a")
         XCTAssertEqual(viewModel.selectedPID, 101)
         XCTAssertEqual(viewModel.diagnostics?.accountCount, 2)
         XCTAssertEqual(viewModel.logsText, "line-a\nline-b")

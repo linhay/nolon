@@ -6258,12 +6258,12 @@
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "PID %d (%@) -> exited=%@"
+            "value" : "PID %1$d (%2$@) -> exited=%3$@"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "PID %d (%@) -> 已退出=%@"
           }
         }
@@ -7352,6 +7352,18 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "Close"
+          }
+        }
+      }
+    },
+    "generic.copy" : {
+      "comment" : "Copy",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Copy"
           }
         }
       }

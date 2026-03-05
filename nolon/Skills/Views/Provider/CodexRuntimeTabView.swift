@@ -18,7 +18,6 @@ struct CodexRuntimeTabView: View {
                 actionsSection
                 diagnosticsSection
                 processesSection
-                logsSection
             }
             .padding(16)
         }
@@ -279,6 +278,23 @@ struct CodexRuntimeTabView: View {
                 .lineLimit(2)
                 .textSelection(.enabled)
                 .dsSecondaryText(font: .caption)
+
+            if let workingDirectory = process.workingDirectory, !workingDirectory.isEmpty {
+                HStack(spacing: 6) {
+                    Image(systemName: "folder")
+                        .font(.caption)
+                        .dsSecondaryText(font: .caption)
+                    Text(workingDirectory)
+                        .font(.caption.monospaced())
+                        .lineLimit(1)
+                        .textSelection(.enabled)
+                        .dsSecondaryText(font: .caption)
+                }
+            }
+
+            if isSelected {
+                inlineLogsSection
+            }
         }
         .padding(10)
         .dsCard(
@@ -289,11 +305,11 @@ struct CodexRuntimeTabView: View {
         )
         .contentShape(Rectangle())
         .onTapGesture {
-            viewModel.selectProcess(pid: process.pid)
+            viewModel.selectProcess(pid: isSelected ? nil : process.pid)
         }
     }
 
-    private var logsSection: some View {
+    private var inlineLogsSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Text(NSLocalizedString("codex.runtime.logs.title", value: "PID Logs", comment: "Runtime logs title"))
@@ -315,63 +331,58 @@ struct CodexRuntimeTabView: View {
                 }
             }
 
-            if viewModel.selectedPID == nil {
-                Text(NSLocalizedString("codex.runtime.logs.select_pid", value: "Select a process to view logs.", comment: "Select process for logs"))
-                    .dsSecondaryText(font: .callout)
-            } else {
-                HStack(spacing: 10) {
-                    Button(NSLocalizedString("codex.runtime.logs.refresh", value: "Refresh Logs", comment: "Refresh logs")) {
-                        Task { await viewModel.refreshSelectedProcessLogs() }
-                    }
-                    .disabled(viewModel.isLoadingLogs)
-
-                    Button(NSLocalizedString("generic.copy", value: "Copy", comment: "Copy")) {
-                        NSPasteboard.general.clearContents()
-                        NSPasteboard.general.setString(viewModel.logsText, forType: .string)
-                    }
-                    .disabled(viewModel.logsText.isEmpty)
-
-                    Button(NSLocalizedString("codex.runtime.logs.clear", value: "Clear", comment: "Clear logs")) {
-                        viewModel.clearLogs()
-                    }
-                    .disabled(viewModel.logsText.isEmpty && viewModel.logsErrorMessage == nil)
-
-                    Spacer()
-
-                    if viewModel.isLoadingLogs {
-                        ProgressView()
-                            .controlSize(.small)
-                    }
+            HStack(spacing: 10) {
+                Button(NSLocalizedString("codex.runtime.logs.refresh", value: "Refresh Logs", comment: "Refresh logs")) {
+                    Task { await viewModel.refreshSelectedProcessLogs() }
                 }
+                .disabled(viewModel.isLoadingLogs)
 
-                if let error = viewModel.logsErrorMessage, !error.isEmpty {
-                    Text(error)
-                        .font(.caption)
-                        .foregroundStyle(DesignSystem.Colors.Status.error)
+                Button(NSLocalizedString("generic.copy", value: "Copy", comment: "Copy")) {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(viewModel.logsText, forType: .string)
                 }
+                .disabled(viewModel.logsText.isEmpty)
 
-                ScrollView {
-                    Text(viewModel.logsText.isEmpty
-                         ? NSLocalizedString("codex.runtime.logs.empty", value: "No log output in selected window.", comment: "No logs")
-                         : viewModel.logsText)
-                        .font(.system(.caption, design: .monospaced))
-                        .textSelection(.enabled)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(8)
+                Button(NSLocalizedString("codex.runtime.logs.clear", value: "Clear", comment: "Clear logs")) {
+                    viewModel.clearLogs()
                 }
-                .frame(minHeight: 160)
-                .dsCard(
-                    background: DesignSystem.Colors.Background.elevated,
-                    cornerRadius: DesignSystem.Metrics.cornerRadiusS,
-                    borderColor: DesignSystem.Colors.Component.border,
-                    borderWidth: 1
-                )
+                .disabled(viewModel.logsText.isEmpty && viewModel.logsErrorMessage == nil)
+
+                Spacer()
+
+                if viewModel.isLoadingLogs {
+                    ProgressView()
+                        .controlSize(.small)
+                }
             }
+
+            if let error = viewModel.logsErrorMessage, !error.isEmpty {
+                Text(error)
+                    .font(.caption)
+                    .foregroundStyle(DesignSystem.Colors.Status.error)
+            }
+
+            ScrollView {
+                Text(viewModel.logsText.isEmpty
+                     ? NSLocalizedString("codex.runtime.logs.empty", value: "No log output in selected window.", comment: "No logs")
+                     : viewModel.logsText)
+                    .font(.system(.caption, design: .monospaced))
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(8)
+            }
+            .frame(minHeight: 140)
+            .dsCard(
+                background: DesignSystem.Colors.Background.elevated,
+                cornerRadius: DesignSystem.Metrics.cornerRadiusS,
+                borderColor: DesignSystem.Colors.Component.border,
+                borderWidth: 1
+            )
         }
-        .padding(12)
+        .padding(.top, 2)
         .dsCard(
-            background: DesignSystem.Colors.Background.surface,
-            cornerRadius: DesignSystem.Metrics.cornerRadiusM,
+            background: DesignSystem.Colors.Background.elevated,
+            cornerRadius: DesignSystem.Metrics.cornerRadiusS,
             borderColor: DesignSystem.Colors.Component.border,
             borderWidth: 1
         )

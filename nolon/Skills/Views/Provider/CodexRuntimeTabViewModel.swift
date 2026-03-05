@@ -11,6 +11,23 @@ struct CodexRuntimeProcessItem: Identifiable, Equatable {
     let elapsed: String
     let providerHint: String?
     let command: String
+    let workingDirectory: String?
+
+    init(
+        pid: Int32,
+        ppid: Int32?,
+        elapsed: String,
+        providerHint: String?,
+        command: String,
+        workingDirectory: String? = nil
+    ) {
+        self.pid = pid
+        self.ppid = ppid
+        self.elapsed = elapsed
+        self.providerHint = providerHint
+        self.command = command
+        self.workingDirectory = workingDirectory
+    }
 
     var id: Int32 { pid }
 }
@@ -71,7 +88,8 @@ struct CodexRuntimeCLIService: CodexRuntimeTabServicing {
                 ppid: $0.ppid,
                 elapsed: $0.elapsed,
                 providerHint: $0.providerHint,
-                command: $0.command
+                command: $0.command,
+                workingDirectory: $0.workingDirectory
             )
         }
     }

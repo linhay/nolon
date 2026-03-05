@@ -479,6 +479,23 @@ public struct NolonCodexRuntimeProcessView: Codable, Sendable, Equatable {
     public let elapsed: String
     public let providerHint: String?
     public let command: String
+    public let workingDirectory: String?
+
+    public init(
+        pid: Int32,
+        ppid: Int32?,
+        elapsed: String,
+        providerHint: String?,
+        command: String,
+        workingDirectory: String? = nil
+    ) {
+        self.pid = pid
+        self.ppid = ppid
+        self.elapsed = elapsed
+        self.providerHint = providerHint
+        self.command = command
+        self.workingDirectory = workingDirectory
+    }
 }
 
 public struct NolonProviderCLIView: Codable, Sendable, Equatable {
@@ -1322,7 +1339,8 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
                     ppid: snapshot.ppid,
                     elapsed: snapshot.elapsed,
                     providerHint: Self.providerHint(from: snapshot.command),
-                    command: snapshot.command
+                    command: snapshot.command,
+                    workingDirectory: snapshot.workingDirectory
                 )
             }
         return NolonCodexRuntimeListPayload(processes: views)
@@ -2125,6 +2143,21 @@ struct NolonRuntimeProcessSnapshot: Sendable, Equatable {
     let ppid: Int32?
     let elapsed: String
     let command: String
+    let workingDirectory: String?
+
+    init(
+        pid: Int32,
+        ppid: Int32?,
+        elapsed: String,
+        command: String,
+        workingDirectory: String? = nil
+    ) {
+        self.pid = pid
+        self.ppid = ppid
+        self.elapsed = elapsed
+        self.command = command
+        self.workingDirectory = workingDirectory
+    }
 }
 
 protocol NolonCodexRuntimeProcessInspecting: Sendable {
@@ -2161,8 +2194,34 @@ struct NolonCodexRuntimeProcessInspector: NolonCodexRuntimeProcessInspecting {
                 }
                 let elapsed = String(parts[2])
                 let command = parts.dropFirst(3).joined(separator: " ")
-                return NolonRuntimeProcessSnapshot(pid: pid, ppid: ppid, elapsed: elapsed, command: command)
+                return NolonRuntimeProcessSnapshot(
+                    pid: pid,
+                    ppid: ppid,
+                    elapsed: elapsed,
+                    command: command,
+                    workingDirectory: workingDirectory(of: pid)
+                )
             }
+    }
+
+    private func workingDirectory(of pid: Int32) -> String? {
+        var payload = SKProcessPayload.executableURL(STPath("/usr/sbin/lsof").url)
+        payload.arguments = ["-a", "-p", "\(pid)", "-d", "cwd", "-Fn"]
+        payload.throwOnNonZeroExit = false
+        payload.timeoutMs = 2_000
+
+        guard let result = try? SKProcessRunner.runSync(payload), result.exitCode == 0 else {
+            return nil
+        }
+
+        let lines = result.stdout.split(separator: "\n")
+        for line in lines where line.hasPrefix("n") {
+            let path = String(line.dropFirst()).trimmingCharacters(in: .whitespacesAndNewlines)
+            if !path.isEmpty {
+                return path
+            }
+        }
+        return nil
     }
 }
 
