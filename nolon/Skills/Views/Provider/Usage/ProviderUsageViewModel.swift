@@ -27,6 +27,7 @@ final class ProviderUsageViewModel {
     private let codexTokenTrendService = CodexTokenTrendService()
     private let settingsStore = UsageMonitorSettingsStore.shared
     private let codexAuthManager = CodexAuthManager()
+    private let geminiAuthStore = GeminiAuthStore.shared
     private let codexActivateAction: CodexActivateAction
     private let postActivationLoadAction: AsyncVoidAction?
     private let codexDeleteAction: CodexDeleteAction?
@@ -71,6 +72,7 @@ final class ProviderUsageViewModel {
     var cliLoginStatus: String?
     var cliLoginPreferredAccountId: UUID?
     @ObservationIgnored private var cliLoginHandle: CodexLoginHandle?
+    @ObservationIgnored private var geminiLoginHandle: GeminiLoginHandle?
     @ObservationIgnored private var cliLoginHomeDir: URL?
 
     var isShowingActivateConfirm = false
@@ -80,6 +82,9 @@ final class ProviderUsageViewModel {
     var isShowingImportValidationConfirm = false
     var importValidationSummaryMessage: String?
     var pendingImportValidationResults: [CodexAuthManager.CodexImportValidationResult] = []
+    var isShowingGeminiImportConfirm = false
+    var detectedGeminiImportCandidate: GeminiCLIGlobalSessionImportCandidate?
+    var pendingGeminiImportCandidate: GeminiCLIGlobalSessionImportCandidate?
     var isShowingLoginURLSheet = false
     var loginURLForSheet: URL?
     var loginModeForSheet: String?
@@ -260,12 +265,18 @@ final class ProviderUsageViewModel {
         guard let usageProvider else { return }
         let now = Date()
         let intervalMinutes = settings.autoRefreshIntervalMinutes
+        let effectiveOutcomes: [ProviderAccountUsageOutcome] = {
+            if usageProvider == .codex, isMultiAccountEnabled {
+                return codexAccountOutcomes
+            }
+            return outcomes
+        }()
         let shouldRefresh = UsageRefreshPolicy.shouldRefresh(
             hasTriggeredAppearRefresh: hasTriggeredAppearRefresh,
             intervalMinutes: intervalMinutes,
             lastRefreshAt: lastUsageRefreshAt,
             now: now
-        )
+        ) || Self.shouldForceRefreshOnAppearForFailedOutcomes(effectiveOutcomes)
         hasTriggeredAppearRefresh = true
 
         guard shouldRefresh else { return }
@@ -320,6 +331,7 @@ final class ProviderUsageViewModel {
                 settings: settings,
                 costWindowDays: nil
             )
+            await refreshGeminiImportCandidateAvailabilityIfNeeded(for: usageProvider)
             lastUsageRefreshAt = Date()
         }
 
@@ -880,7 +892,49 @@ final class ProviderUsageViewModel {
         if isRunningCLILogin {
             cancelCLILoginIfNeeded()
         }
-        startCLILoginFlow()
+        if usageProvider == .codex {
+            startCLILoginFlow()
+            return
+        }
+        if usageProvider == .gemini || usageProvider == .antigravity {
+            Task { [weak self] in
+                await self?.startGeminiLoginFlowAfterImportCheck()
+            }
+        }
+    }
+
+    func presentGeminiImportConfirmation() {
+        guard let candidate = detectedGeminiImportCandidate else { return }
+        pendingGeminiImportCandidate = candidate
+        isShowingGeminiImportConfirm = true
+    }
+
+    func continueGeminiOAuthLoginWithoutImport() {
+        isShowingGeminiImportConfirm = false
+        pendingGeminiImportCandidate = nil
+        startGeminiOAuthLoginFlow()
+    }
+
+    func importGeminiGlobalSessionAfterConfirmation() async {
+        guard let usageProvider, usageProvider == .gemini || usageProvider == .antigravity else { return }
+        isShowingGeminiImportConfirm = false
+        pendingGeminiImportCandidate = nil
+
+        do {
+            let imported = try await geminiAuthStore.importFromCLIGlobalSession(
+                provider: usageProvider,
+                environment: ProcessInfo.processInfo.environment
+            )
+            if imported != nil {
+                detectedGeminiImportCandidate = nil
+                await load()
+                return
+            }
+            startGeminiOAuthLoginFlow()
+        } catch {
+            alertTitle = NSLocalizedString("codex.cli_login.title", value: "CLI Login", comment: "CLI login title")
+            alertMessage = error.localizedDescription
+        }
     }
 
     func copyLoginURL() {
@@ -1021,6 +1075,8 @@ final class ProviderUsageViewModel {
         isShowingLoginURLSheet = false
         loginURLForSheet = nil
         loginModeForSheet = nil
+        isShowingGeminiImportConfirm = false
+        pendingGeminiImportCandidate = nil
     }
 
     func handleLoginURLSheetDismissed() {
@@ -1031,6 +1087,8 @@ final class ProviderUsageViewModel {
     private func cleanupCLILoginArtifacts() {
         cliLoginHandle?.cancel()
         cliLoginHandle = nil
+        geminiLoginHandle?.cancel()
+        geminiLoginHandle = nil
         cliLoginHomeDir = nil
     }
 
@@ -1060,6 +1118,182 @@ final class ProviderUsageViewModel {
         pendingActivateCodexAccount = nil
         pendingDeleteCodexAccount = nil
         isShowingDeleteConfirm = false
+    }
+
+    var shouldShowGeminiImportAction: Bool {
+        Self.shouldShowGeminiImportAction(
+            usageProvider: usageProvider,
+            outcomes: outcomes,
+            candidateAvailable: detectedGeminiImportCandidate != nil
+        )
+    }
+
+    static func shouldShowGeminiImportAction(
+        usageProvider: UsageProvider?,
+        outcomes: [ProviderAccountUsageOutcome],
+        candidateAvailable: Bool
+    ) -> Bool {
+        _ = outcomes
+        return usageProvider == .gemini && candidateAvailable
+    }
+
+    static func shouldForceRefreshOnAppearForFailedOutcomes(
+        _ outcomes: [ProviderAccountUsageOutcome]
+    ) -> Bool {
+        outcomes.contains { outcome in
+            if case .failure = outcome.outcome.result {
+                return true
+            }
+            return false
+        }
+    }
+
+    private func refreshGeminiImportCandidateAvailabilityIfNeeded(for usageProvider: UsageProvider) async {
+        guard usageProvider == .gemini else {
+            detectedGeminiImportCandidate = nil
+            return
+        }
+
+        do {
+            detectedGeminiImportCandidate = try await geminiAuthStore.globalSessionImportCandidate(
+                provider: usageProvider,
+                environment: ProcessInfo.processInfo.environment
+            )
+        } catch {
+            detectedGeminiImportCandidate = nil
+            Self.logger.error("Gemini import candidate refresh failed: \(String(describing: error), privacy: .public)")
+        }
+    }
+
+    private func startGeminiLoginFlowAfterImportCheck() async {
+        guard let usageProvider, usageProvider == .gemini || usageProvider == .antigravity else { return }
+        guard !isRunningCLILogin else { return }
+
+        guard usageProvider == .gemini else {
+            startGeminiOAuthLoginFlow()
+            return
+        }
+
+        if let candidate = detectedGeminiImportCandidate {
+            pendingGeminiImportCandidate = candidate
+            isShowingGeminiImportConfirm = true
+            return
+        }
+
+        do {
+            if let candidate = try await geminiAuthStore.globalSessionImportCandidate(
+                provider: usageProvider,
+                environment: ProcessInfo.processInfo.environment
+            ) {
+                detectedGeminiImportCandidate = candidate
+                pendingGeminiImportCandidate = candidate
+                isShowingGeminiImportConfirm = true
+                return
+            }
+            detectedGeminiImportCandidate = nil
+        } catch {
+            detectedGeminiImportCandidate = nil
+            Self.logger.error("Gemini import candidate check failed: \(String(describing: error), privacy: .public)")
+        }
+
+        startGeminiOAuthLoginFlow()
+    }
+
+    private func startGeminiOAuthLoginFlow() {
+        guard let usageProvider, usageProvider == .gemini || usageProvider == .antigravity else { return }
+        guard !isRunningCLILogin else { return }
+
+        let sessionID = UUID()
+        cliLoginSessionId = sessionID
+        isRunningCLILogin = true
+        cliLoginStatus = NSLocalizedString("codex.accounts.add.cli.running", value: "Logging in…", comment: "CLI login running status")
+
+        cliLoginTask?.cancel()
+        cliLoginTask = Task { [weak self] in
+            guard let self else { return }
+            await self.runGeminiLoginFlow(sessionId: sessionID, usageProvider: usageProvider)
+        }
+    }
+
+    private func runGeminiLoginFlow(sessionId: UUID, usageProvider: UsageProvider) async {
+        defer {
+            finalizeCLILoginSessionIfNeeded(sessionId: sessionId)
+        }
+
+        do {
+            let accountID = UUID()
+            let runtimeHome = try await geminiAuthStore.runtimeHomeURL(provider: usageProvider, accountID: accountID)
+            let runner = GeminiLoginRunner()
+            let handle = try runner.startOAuthLogin(
+                provider: usageProvider,
+                accountID: accountID,
+                runtimeHomeURL: runtimeHome
+            )
+            geminiLoginHandle = handle
+            loginModeForSheet = "Gemini OAuth"
+            cliLoginStatus = NSLocalizedString(
+                "codex.accounts.add.cli.waiting",
+                value: "Waiting for auth.json…",
+                comment: "CLI login waiting status"
+            )
+
+            let tokenFile = runtimeHome
+                .appendingPathComponent(".gemini", isDirectory: true)
+                .appendingPathComponent("mcp-oauth-tokens-v2.json")
+            let deadline = Date().addingTimeInterval(cliLoginTimeoutSeconds)
+            let processExitGraceSeconds: TimeInterval = 4
+            var processExitedAt: Date?
+
+            while !Task.isCancelled {
+                guard cliLoginSessionId == sessionId else { return }
+
+                if FileManager.default.fileExists(atPath: tokenFile.path),
+                   let data = try? Data(contentsOf: tokenFile),
+                   !data.isEmpty {
+                    break
+                }
+
+                if let urlRaw = handle.loginURL, let url = URL(string: urlRaw) {
+                    if loginURLForSheet?.absoluteString != url.absoluteString {
+                        loginURLForSheet = url
+                        isShowingLoginURLSheet = true
+                    }
+                }
+
+                if !handle.isRunning {
+                    if processExitedAt == nil {
+                        processExitedAt = Date()
+                    } else if Date().timeIntervalSince(processExitedAt!) >= processExitGraceSeconds {
+                        throw GeminiLoginError.authNotCompleted
+                    }
+                }
+
+                if Date() >= deadline {
+                    throw GeminiLoginError.loginTimedOut
+                }
+
+                try await Task.sleep(nanoseconds: 250_000_000)
+            }
+
+            guard !Task.isCancelled else { return }
+
+            let defaultName = usageProvider == .antigravity ? "Antigravity OAuth" : "Gemini OAuth"
+            _ = try await geminiAuthStore.upsertAccount(
+                provider: usageProvider,
+                accountID: accountID,
+                name: defaultName,
+                method: .oauthPersonal,
+                markActive: true,
+                updateLastLoginAt: true
+            )
+
+            await load()
+        } catch {
+            if error is CancellationError { return }
+            guard cliLoginSessionId == sessionId else { return }
+            alertTitle = NSLocalizedString("codex.cli_login.title", value: "CLI Login", comment: "CLI login title")
+            alertMessage = error.localizedDescription
+        }
     }
 
     func startCLILoginFlow(preferredAccountId: UUID? = nil) {

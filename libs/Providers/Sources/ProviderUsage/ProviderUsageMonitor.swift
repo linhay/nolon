@@ -152,7 +152,12 @@ public actor ProviderUsageMonitorService {
             settings: settings,
             overrideCostWindowDays: costWindowDays
         )
-        let tokenAccounts: [ProviderTokenAccount] = (try? tokenAccountStore.loadAccounts()[provider]?.accounts) ?? []
+        let tokenAccounts: [ProviderTokenAccount]
+        if provider == .gemini || provider == .antigravity {
+            tokenAccounts = []
+        } else {
+            tokenAccounts = (try? tokenAccountStore.loadAccounts()[provider]?.accounts) ?? []
+        }
         var accountKinds: [ProviderAccountUsageOutcome.AccountKind] = [.default]
         accountKinds.append(contentsOf: tokenAccounts.map { .tokenAccount($0) })
 

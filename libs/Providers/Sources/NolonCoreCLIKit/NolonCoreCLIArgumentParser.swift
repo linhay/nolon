@@ -1848,10 +1848,41 @@ enum NolonCoreCLIArgumentParser {
                     resourceName: command.resourceName
                 )
             }
+        case let command as NolonGeminiAuthListCommand:
+            return .geminiAuthList(provider: command.provider)
+        case let command as NolonGeminiAuthStatusCommand:
+            return .geminiAuthStatus(provider: command.provider)
+        case let command as NolonGeminiAuthLoginCommand:
+            return .geminiAuthLogin(
+                provider: command.provider,
+                method: command.method,
+                timeoutSeconds: command.timeoutSeconds,
+                name: command.name,
+                email: command.email,
+                apiKey: command.apiKey,
+                googleAPIKey: command.googleAPIKey,
+                project: command.project,
+                location: command.location,
+                useADC: command.useADC
+            )
+        case let command as NolonGeminiAuthRefreshCommand:
+            return .geminiAuthRefresh(provider: command.provider)
+        case let command as NolonGeminiAuthActivateCommand:
+            return .geminiAuthActivate(provider: command.provider, accountID: command.accountID)
+        case let command as NolonGeminiAuthDeleteCommand:
+            return .geminiAuthDelete(provider: command.provider, accountID: command.accountID)
+        case let command as NolonGeminiAuthUsageCommand:
+            return .geminiAuthUsage(provider: command.provider)
+        case let command as NolonGeminiAuthDoctorCommand:
+            return .geminiAuthDoctor(provider: command.provider)
         case is NolonSkillsRepoGroupCommand:
             throw NolonCoreCLIError.invalidArguments("Missing command. Expected: skills repo <action> ...")
         case is NolonSkillsMigrateGroupCommand:
             throw NolonCoreCLIError.invalidArguments("Missing command. Expected: skills migrate <action> ...")
+        case is NolonGeminiRootCommand:
+            throw NolonCoreCLIError.invalidArguments("Missing command. Expected: gemini auth <action> ...")
+        case is NolonGeminiAuthGroupCommand:
+            throw NolonCoreCLIError.invalidArguments("Missing command. Expected: gemini auth <action> ...")
         case is NolonPluginRootCommand:
             throw NolonCoreCLIError.invalidArguments("Missing command. Expected: plugin <action> ...")
         default:

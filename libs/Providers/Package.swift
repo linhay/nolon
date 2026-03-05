@@ -145,6 +145,7 @@ let package = Package(
                 "CodexBarProviderCatalog",
                 "CodexProvider",
                 "CopilotProvider",
+                .product(name: "SKProcessRunner", package: "SKProcessRunner"),
                 .product(name: "STJSON", package: "STJSON"),
                 .product(name: "STFilePath", package: "STFilePath"),
             ],

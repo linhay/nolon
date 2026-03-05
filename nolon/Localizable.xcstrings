@@ -6285,6 +6285,9 @@
         }
       }
     },
+    "diagnostic: %@" : {
+
+    },
     "Documentation" : {
       "localizations" : {
         "zh-Hans" : {
@@ -6683,6 +6686,102 @@
         }
       }
     },
+    "gemini.import.confirm.import" : {
+      "comment" : "Import existing Gemini login",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Import"
+          }
+        }
+      }
+    },
+    "gemini.import.confirm.message" : {
+      "comment" : "Gemini import confirmation message",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Detected an existing Gemini CLI login (%1$@) at:\n%2$@\n\nImport it into Nolon now?"
+          }
+        }
+      }
+    },
+    "gemini.import.confirm.skip" : {
+      "comment" : "Continue OAuth login",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Continue OAuth Login"
+          }
+        }
+      }
+    },
+    "gemini.import.confirm.title" : {
+      "comment" : "Gemini import confirmation title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Import Existing Gemini Login?"
+          }
+        }
+      }
+    },
+    "gemini.import.inline.body" : {
+      "comment" : "Inline Gemini import body",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Nolon found an existing Gemini CLI session on this machine. Import it to activate this provider immediately."
+          }
+        }
+      }
+    },
+    "gemini.import.inline.import" : {
+      "comment" : "Inline Gemini import CTA",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Import Existing Login"
+          }
+        }
+      }
+    },
+    "gemini.import.inline.oauth" : {
+      "comment" : "Inline Gemini OAuth CTA",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Sign in with OAuth"
+          }
+        }
+      }
+    },
+    "gemini.import.inline.title" : {
+      "comment" : "Inline Gemini import title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Detected existing Gemini login"
+          }
+        }
+      }
+    },
     "Generate a token from your Git provider's settings with 'read_repository' scope." : {
       "comment" : "Token help",
       "localizations" : {
@@ -6821,6 +6920,18 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "保存"
+          }
+        }
+      }
+    },
+    "generic.unknown" : {
+      "comment" : "Unknown",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Unknown"
           }
         }
       }
@@ -11589,6 +11700,18 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "Sign in…"
+          }
+        }
+      }
+    },
+    "usage.monitor.metrics.unavailable" : {
+      "comment" : "Empty usage metrics hint",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "No usage metrics available for this account yet."
           }
         }
       }

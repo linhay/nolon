@@ -96,7 +96,9 @@ struct ProviderUsageSnapshotView: View {
     }
 
     private func usageContent(result: ProviderFetchResult) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
+        let hasMetrics = result.usage.primary != nil || result.usage.secondary != nil || result.usage.tertiary != nil || result.credits != nil
+
+        return VStack(alignment: .leading, spacing: 12) {
             let metadata = ProviderUsageRegistry.metadata(for: outcome.provider)
             if let primary = result.usage.primary {
                 usageRow(
@@ -117,6 +119,18 @@ struct ProviderUsageSnapshotView: View {
             if let credits = result.credits, !credits.remaining.isNaN {
                 Divider()
                 creditsRow(credits, refreshedAt: creditsRefreshedAt)
+            }
+
+            if !hasMetrics {
+                Text(
+                    NSLocalizedString(
+                        "usage.monitor.metrics.unavailable",
+                        value: "No usage metrics available for this account yet.",
+                        comment: "Empty usage metrics hint"
+                    )
+                )
+                .font(.caption)
+                .foregroundStyle(DesignSystem.Colors.Text.secondary)
             }
 
             footer(result: result)
@@ -189,13 +203,32 @@ struct ProviderUsageSnapshotView: View {
     }
 
     private func errorContent(_ error: Error) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+        let code = UsageIssueClassifier.classify(provider: outcome.provider, error: error)
+        let hints = UsageIssueClassifier.hints(provider: outcome.provider, code: code)
+
+        return VStack(alignment: .leading, spacing: 8) {
             Text(NSLocalizedString("usage.monitor.error.title", value: "Failed to load usage", comment: "Error title"))
                 .dsErrorText(font: .subheadline)
             Text(error.localizedDescription)
                 .font(.body)
                 .foregroundStyle(DesignSystem.Colors.Text.primary)
                 .textSelection(.enabled)
+            if code != .unknown {
+                Text("diagnostic: \(code.rawValue)")
+                    .font(.caption)
+                    .foregroundStyle(DesignSystem.Colors.Text.tertiary)
+                    .textSelection(.enabled)
+            }
+            if !hints.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(hints, id: \.self) { hint in
+                        Text("• \(hint)")
+                            .font(.caption)
+                            .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                            .textSelection(.enabled)
+                    }
+                }
+            }
         }
     }
 

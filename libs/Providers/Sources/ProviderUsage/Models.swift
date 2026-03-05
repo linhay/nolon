@@ -184,6 +184,8 @@ public struct ProviderFetchOutcome: Sendable {
 public enum ProviderUsageError: LocalizedError, Sendable, Equatable {
     case unsupported(UsageProvider)
     case missingToken(UsageProvider)
+    case missingAccount(UsageProvider)
+    case authExpired(UsageProvider)
 
     public var errorDescription: String? {
         switch self {
@@ -191,7 +193,57 @@ public enum ProviderUsageError: LocalizedError, Sendable, Equatable {
             return "Usage not supported for \(provider.rawValue)."
         case let .missingToken(provider):
             return "Missing token for \(provider.rawValue)."
+        case let .missingAccount(provider):
+            return "No active account for \(provider.rawValue). Please sign in."
+        case let .authExpired(provider):
+            return "Authentication expired for \(provider.rawValue). Please sign in again."
         }
+    }
+}
+
+public enum GeminiAuthMethod: String, Codable, CaseIterable, Sendable, Equatable {
+    case oauthPersonal = "oauth-personal"
+    case geminiAPIKey = "gemini-api-key"
+    case vertexAI = "vertex-ai"
+}
+
+public struct GeminiAuthAccount: Codable, Identifiable, Sendable, Equatable {
+    public let id: UUID
+    public let providerID: UsageProvider
+    public let name: String
+    public let method: GeminiAuthMethod
+    public let createdAt: Date
+    public let lastUsedAt: Date?
+    public let lastLoginAt: Date?
+    public let email: String?
+    public let project: String?
+    public let location: String?
+    public let runtimeHomeRelativePath: String
+
+    public init(
+        id: UUID,
+        providerID: UsageProvider,
+        name: String,
+        method: GeminiAuthMethod,
+        createdAt: Date,
+        lastUsedAt: Date?,
+        lastLoginAt: Date?,
+        email: String?,
+        project: String?,
+        location: String?,
+        runtimeHomeRelativePath: String
+    ) {
+        self.id = id
+        self.providerID = providerID
+        self.name = name
+        self.method = method
+        self.createdAt = createdAt
+        self.lastUsedAt = lastUsedAt
+        self.lastLoginAt = lastLoginAt
+        self.email = email
+        self.project = project
+        self.location = location
+        self.runtimeHomeRelativePath = runtimeHomeRelativePath
     }
 }
 

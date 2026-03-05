@@ -30,6 +30,15 @@ struct ProviderCatalogTemplateTests {
         #expect(ProviderTemplate.claudeCode.providerID == "claude")
     }
 
+    @Test("gemini family templates expose usage vendor tab")
+    func geminiFamilyUsageVendorTab() throws {
+        let geminiTabs = try #require(ProviderTemplate.gemini.config?.vendorTabs)
+        #expect(geminiTabs.contains("usage"))
+
+        let antigravityTabs = try #require(ProviderTemplate.antigravity.config?.vendorTabs)
+        #expect(antigravityTabs.contains("usage"))
+    }
+
     @Test("resolve providerID supports stable ids and codex-xcode aliases")
     func resolveProviderID() {
         #expect(ProviderTemplate.resolve(providerID: "codex") == .codex)

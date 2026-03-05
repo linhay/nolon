@@ -330,6 +330,152 @@ struct NolonCoreCLIKitTests {
         #expect(showFixes == true)
     }
 
+    @Test("parse gemini auth usage command")
+    func parseGeminiAuthUsage() throws {
+        let command = try NolonCoreCLIArgumentParser.parse(
+            [
+                "gemini", "auth", "usage",
+                "--provider", "gemini",
+            ]
+        )
+
+        guard case let .geminiAuthUsage(provider) = command else {
+            Issue.record("Expected .geminiAuthUsage")
+            return
+        }
+        #expect(provider == "gemini")
+    }
+
+    @Test("parse gemini auth refresh command")
+    func parseGeminiAuthRefresh() throws {
+        let command = try NolonCoreCLIArgumentParser.parse(
+            [
+                "gemini", "auth", "refresh",
+                "--provider", "antigravity",
+            ]
+        )
+
+        guard case let .geminiAuthRefresh(provider) = command else {
+            Issue.record("Expected .geminiAuthRefresh")
+            return
+        }
+        #expect(provider == "antigravity")
+    }
+
+    @Test("parse gemini auth doctor command")
+    func parseGeminiAuthDoctor() throws {
+        let command = try NolonCoreCLIArgumentParser.parse(
+            [
+                "gemini", "auth", "doctor",
+                "--provider", "gemini",
+            ]
+        )
+
+        guard case let .geminiAuthDoctor(provider) = command else {
+            Issue.record("Expected .geminiAuthDoctor")
+            return
+        }
+        #expect(provider == "gemini")
+    }
+
+    @Test("legacy gemini usage command is rejected")
+    func parseLegacyGeminiUsageCommandRejected() throws {
+        do {
+            _ = try NolonCoreCLIArgumentParser.parse(
+                [
+                    "gemini", "usage", "overview",
+                    "--provider", "gemini",
+                ]
+            )
+            Issue.record("Expected legacy command to be rejected")
+        } catch {
+            let message = (error as? NolonCoreCLIError)?.errorDescription ?? error.localizedDescription
+            #expect(message.contains("Unknown option") || message.contains("gemini auth"))
+        }
+    }
+
+    @Test("parse gemini auth usage requires provider")
+    func parseGeminiAuthUsageRequiresProvider() throws {
+        do {
+            _ = try NolonCoreCLIArgumentParser.parse(
+                [
+                    "gemini", "auth", "usage",
+                ]
+            )
+            Issue.record("Expected parse failure for missing --provider")
+        } catch {
+            let message = (error as? NolonCoreCLIError)?.errorDescription ?? error.localizedDescription
+            #expect(message.contains("--provider"))
+        }
+    }
+
+    @Test("runner renders gemini auth usage json")
+    func runnerRendersGeminiAuthUsageJSON() async throws {
+        let runner = NolonCoreCLIRunner(
+            service: MockSkillsRepositoryService(),
+            fileReader: { _ in "" }
+        )
+
+        let result = await runner.execute(
+            arguments: [
+                "gemini", "auth", "usage",
+                "--provider", "gemini",
+            ]
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("\"command\":\"gemini.auth.usage\""))
+        #expect(result.stdout.contains("\"provider\":\"gemini\""))
+        #expect(result.stdout.contains("\"entries\""))
+    }
+
+    @Test("runner renders gemini auth doctor json with classified diagnostics")
+    func runnerRendersGeminiAuthDoctorJSONWithDiagnostics() async throws {
+        let keys = [
+            "NOLON_GEMINI_USAGE_PRIMARY_USED_PERCENT",
+            "NOLON_GEMINI_USAGE_SECONDARY_USED_PERCENT",
+            "NOLON_GEMINI_USAGE_TERTIARY_USED_PERCENT",
+            "NOLON_GEMINI_USAGE_EMAIL",
+            "NOLON_GEMINI_USAGE_PLAN",
+            "NOLON_GEMINI_USAGE_ORG",
+            "NOLON_GEMINI_USAGE_LOGIN_METHOD",
+            "NOLON_GEMINI_USAGE_UPDATED_AT",
+        ]
+        let backup = keys.map { ($0, getenv($0).map { String(cString: $0) }) }
+        for key in keys {
+            unsetenv(key)
+        }
+        defer {
+            for (key, value) in backup {
+                if let value {
+                    setenv(key, value, 1)
+                } else {
+                    unsetenv(key)
+                }
+            }
+        }
+
+        let runner = NolonCoreCLIRunner(
+            service: MockSkillsRepositoryService(),
+            fileReader: { _ in "" }
+        )
+
+        let result = await runner.execute(
+            arguments: [
+                "gemini", "auth", "doctor",
+                "--provider", "gemini",
+            ]
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("\"command\":\"gemini.auth.doctor\""))
+        #expect(result.stdout.contains("\"healthy\":false"))
+        #expect(result.stdout.contains("\"diagnostics\""))
+        #expect(result.stdout.contains("\"code\":\"auth\""))
+    }
+
     @Test("parse skills search command")
     func parseSkillsSearch() throws {
         let command = try NolonCoreCLIArgumentParser.parse(

@@ -4,6 +4,20 @@ import Testing
 
 @Suite("Nolon Codex CLI Entrypoint")
 struct NolonCodexCLIEntrypointTests {
+    @Test("gemini auth commands route to core cli")
+    func geminiAuthCommandsRouteToCoreCLI() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["gemini", "auth", "status", "--provider", "gemini", "--json"],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("\"command\":\"gemini.auth.status\""))
+        #expect(result.stdout.contains("\"provider\":\"gemini\""))
+    }
+
     @Test("no arguments prints help instead of JSON error")
     func noArgumentsPrintsHelp() async {
         let mock = MockCodexCLIService()

@@ -1783,7 +1783,12 @@ public enum NolonCLIEntrypoint {
         else {
             return false
         }
-        return root == "skills" || root == "workflow" || root == "mcp" || root == "plugin" || root == "remote"
+        return root == "skills"
+            || root == "workflow"
+            || root == "mcp"
+            || root == "plugin"
+            || root == "remote"
+            || root == "gemini"
     }
 
     private static func extractCoreOutputMode(arguments: [String]) -> (NolonCoreCLIOutputMode, [String]) {

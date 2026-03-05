@@ -5,6 +5,7 @@ struct NolonRootCommand: ParsableCommand {
         commandName: "nolon",
         subcommands: [
             NolonCodexRootCommand.self,
+            NolonGeminiRootCommand.self,
             NolonProviderRootCommand.self,
             NolonSkillsRootCommand.self,
             NolonWorkflowRootCommand.self,
@@ -245,6 +246,118 @@ struct NolonCodexRuntimeStopCommand: ParsableCommand {
 
 struct NolonCodexProviderDiscoverCommand: ParsableCommand {
     static let configuration = CommandConfiguration(commandName: "discover")
+}
+
+struct NolonGeminiRootCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "gemini",
+        subcommands: [NolonGeminiAuthGroupCommand.self]
+    )
+}
+
+struct NolonGeminiAuthGroupCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "auth",
+        subcommands: [
+            NolonGeminiAuthListCommand.self,
+            NolonGeminiAuthStatusCommand.self,
+            NolonGeminiAuthLoginCommand.self,
+            NolonGeminiAuthRefreshCommand.self,
+            NolonGeminiAuthActivateCommand.self,
+            NolonGeminiAuthDeleteCommand.self,
+            NolonGeminiAuthUsageCommand.self,
+            NolonGeminiAuthDoctorCommand.self,
+        ]
+    )
+}
+
+struct NolonGeminiAuthListCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(commandName: "list")
+
+    @Option(name: .long, help: "Provider id: gemini or antigravity (required).")
+    var provider: String
+}
+
+struct NolonGeminiAuthStatusCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(commandName: "status")
+
+    @Option(name: .long, help: "Provider id: gemini or antigravity (required).")
+    var provider: String
+}
+
+struct NolonGeminiAuthLoginCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(commandName: "login")
+
+    @Option(name: .long, help: "Provider id: gemini or antigravity (required).")
+    var provider: String
+
+    @Option(name: .long, help: "Auth method: oauth-personal | gemini-api-key | vertex-ai (required).")
+    var method: String
+
+    @Option(name: .long, help: "Account display name.")
+    var name: String?
+
+    @Option(name: .long, help: "Account email.")
+    var email: String?
+
+    @Option(name: .long, help: "OAuth login timeout in seconds.")
+    var timeoutSeconds: Int = 300
+
+    @Option(name: .long, help: "Gemini API key (for gemini-api-key method).")
+    var apiKey: String?
+
+    @Option(name: .long, help: "Google API key (for vertex-ai method).")
+    var googleAPIKey: String?
+
+    @Option(name: .long, help: "Vertex project id (for vertex-ai method).")
+    var project: String?
+
+    @Option(name: .long, help: "Vertex location (for vertex-ai method).")
+    var location: String?
+
+    @Flag(name: .long, help: "Use ADC for vertex-ai method.")
+    var useADC: Bool = false
+}
+
+struct NolonGeminiAuthRefreshCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(commandName: "refresh")
+
+    @Option(name: .long, help: "Provider id: gemini or antigravity (required).")
+    var provider: String
+}
+
+struct NolonGeminiAuthActivateCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(commandName: "activate")
+
+    @Option(name: .long, help: "Provider id: gemini or antigravity (required).")
+    var provider: String
+
+    @Option(name: .long, help: "Account id UUID.")
+    var accountID: String
+}
+
+struct NolonGeminiAuthDeleteCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(commandName: "delete")
+
+    @Option(name: .long, help: "Provider id: gemini or antigravity (required).")
+    var provider: String
+
+    @Option(name: .long, help: "Account id UUID.")
+    var accountID: String
+}
+
+struct NolonGeminiAuthUsageCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(commandName: "usage")
+
+    @Option(name: .long, help: "Provider id: gemini or antigravity (required).")
+    var provider: String
+}
+
+struct NolonGeminiAuthDoctorCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(commandName: "doctor")
+
+    @Option(name: .long, help: "Provider id: gemini or antigravity (required).")
+    var provider: String
 }
 
 struct NolonProviderRootCommand: ParsableCommand {

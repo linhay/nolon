@@ -1,5 +1,7 @@
 import XCTest
 import ProviderCatalog
+import ProviderUsage
+import CodexBarProviderCatalog
 @testable import nolon
 
 @MainActor
@@ -72,5 +74,127 @@ final class CodexUsageTabPresentationTests: XCTestCase {
         let actions = ProviderUsageHeaderAction.orderedActions(for: provider)
 
         XCTAssertEqual(actions, [.login])
+    }
+
+    func testBDD_GivenGeminiProvider_WhenResolvingDashboardLoginPolicy_ThenUsesRefreshInsteadOfSignIn() {
+        let provider = Provider(
+            name: "Gemini CLI",
+            defaultSkillsPath: "~/.gemini/skills",
+            workflowPath: "~/.gemini/workflows",
+            installMethod: .copy,
+            templateId: "gemini"
+        )
+        let shouldShowSignIn = ProviderUsageLoginPolicy.shouldShowDashboardSignIn(
+            for: provider,
+            dashboardURL: URL(string: "https://gemini.google.com")
+        )
+        XCTAssertFalse(shouldShowSignIn)
+    }
+
+    func testBDD_GivenCopilotProvider_WhenResolvingDashboardLoginPolicy_ThenKeepsSignIn() {
+        let provider = Provider(
+            name: "Copilot",
+            defaultSkillsPath: "~/.copilot/skills",
+            workflowPath: "~/.copilot/prompts",
+            installMethod: .copy,
+            templateId: "copilot"
+        )
+        let shouldShowSignIn = ProviderUsageLoginPolicy.shouldShowDashboardSignIn(
+            for: provider,
+            dashboardURL: URL(string: "https://github.com/settings/copilot")
+        )
+        XCTAssertTrue(shouldShowSignIn)
+    }
+
+    func testBDD_GivenGeminiProvider_WhenResolvingCLILoginPolicy_ThenShowsLoginAction() {
+        let provider = Provider(
+            name: "Gemini CLI",
+            defaultSkillsPath: "~/.gemini/skills",
+            workflowPath: "~/.gemini/workflows",
+            installMethod: .copy,
+            templateId: "gemini"
+        )
+
+        let shouldUseCLILogin = ProviderUsageLoginPolicy.shouldUseCLILogin(for: provider)
+
+        XCTAssertTrue(shouldUseCLILogin)
+    }
+
+    func testBDD_GivenGeminiCandidate_WhenEvaluatingInlineImportPolicy_ThenShowsImportAction() {
+        let shouldShow = ProviderUsageViewModel.shouldShowGeminiImportAction(
+            usageProvider: .gemini,
+            outcomes: [],
+            candidateAvailable: true
+        )
+
+        XCTAssertTrue(shouldShow)
+    }
+
+    func testBDD_GivenGeminiWithoutCandidate_WhenEvaluatingInlineImportPolicy_ThenHidesImportAction() {
+        let shouldShow = ProviderUsageViewModel.shouldShowGeminiImportAction(
+            usageProvider: .gemini,
+            outcomes: [],
+            candidateAvailable: false
+        )
+
+        XCTAssertFalse(shouldShow)
+    }
+
+    func testBDD_GivenNonGeminiProvider_WhenEvaluatingInlineImportPolicy_ThenHidesImportAction() {
+        let outcome = ProviderAccountUsageOutcome(
+            provider: .antigravity,
+            account: .default,
+            outcome: ProviderFetchOutcome(
+                fetchKind: .cli,
+                result: .failure(ProviderUsageError.missingAccount(.antigravity))
+            )
+        )
+
+        let shouldShow = ProviderUsageViewModel.shouldShowGeminiImportAction(
+            usageProvider: .antigravity,
+            outcomes: [outcome],
+            candidateAvailable: true
+        )
+
+        XCTAssertFalse(shouldShow)
+    }
+
+    func testBDD_GivenFailedUsageOutcome_WhenEvaluatingAppearRefreshPolicy_ThenForcesRefresh() {
+        let failed = ProviderAccountUsageOutcome(
+            provider: .antigravity,
+            account: .default,
+            outcome: ProviderFetchOutcome(
+                fetchKind: .cli,
+                result: .failure(ProviderUsageError.missingAccount(.antigravity))
+            )
+        )
+
+        let shouldForce = ProviderUsageViewModel.shouldForceRefreshOnAppearForFailedOutcomes([failed])
+
+        XCTAssertTrue(shouldForce)
+    }
+
+    func testBDD_GivenSuccessfulUsageOutcome_WhenEvaluatingAppearRefreshPolicy_ThenDoesNotForceRefresh() {
+        let success = ProviderAccountUsageOutcome(
+            provider: .antigravity,
+            account: .default,
+            outcome: ProviderFetchOutcome(
+                fetchKind: .cli,
+                result: .success(
+                    ProviderFetchResult(
+                        usage: UsageSnapshot(identity: UsageIdentity(), primary: nil, secondary: nil, tertiary: nil, updatedAt: Date()),
+                        credits: nil,
+                        cost: nil,
+                        sourceLabel: "CLI",
+                        fetchKind: .cli,
+                        strategyKind: .direct
+                    )
+                )
+            )
+        )
+
+        let shouldForce = ProviderUsageViewModel.shouldForceRefreshOnAppearForFailedOutcomes([success])
+
+        XCTAssertFalse(shouldForce)
     }
 }

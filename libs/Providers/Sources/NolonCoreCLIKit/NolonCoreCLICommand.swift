@@ -330,6 +330,31 @@ public enum NolonCoreCLICommand: Sendable, Equatable {
         installMethod: NolonSkillInstallMethod,
         resourceName: String?
     )
+    case geminiAuthList(provider: String)
+    case geminiAuthStatus(provider: String)
+    case geminiAuthLogin(
+        provider: String,
+        method: String,
+        timeoutSeconds: Int,
+        name: String?,
+        email: String?,
+        apiKey: String?,
+        googleAPIKey: String?,
+        project: String?,
+        location: String?,
+        useADC: Bool
+    )
+    case geminiAuthRefresh(provider: String)
+    case geminiAuthActivate(
+        provider: String,
+        accountID: String
+    )
+    case geminiAuthDelete(
+        provider: String,
+        accountID: String
+    )
+    case geminiAuthUsage(provider: String)
+    case geminiAuthDoctor(provider: String)
 
     var commandID: String {
         switch self {
@@ -384,6 +409,14 @@ public enum NolonCoreCLICommand: Sendable, Equatable {
         case .remoteSync: "remote.sync"
         case .remoteInstallSkill, .remoteInstallResource: "remote.install"
         case .remoteSyncInstallSkill, .remoteSyncInstallResource: "remote.sync-install"
+        case .geminiAuthList: "gemini.auth.list"
+        case .geminiAuthStatus: "gemini.auth.status"
+        case .geminiAuthLogin: "gemini.auth.login"
+        case .geminiAuthRefresh: "gemini.auth.refresh"
+        case .geminiAuthActivate: "gemini.auth.activate"
+        case .geminiAuthDelete: "gemini.auth.delete"
+        case .geminiAuthUsage: "gemini.auth.usage"
+        case .geminiAuthDoctor: "gemini.auth.doctor"
         }
     }
 }

@@ -8,7 +8,11 @@ public enum ProviderUsageRegistry {
             return CodexUsageDescriptor()
         case .copilot:
             return CopilotUsageDescriptor()
-        case .claude, .cursor, .opencode, .factory, .gemini, .antigravity, .zai, .minimax, .kimi, .kiro, .vertexai, .augment, .jetbrains, .kimik2, .amp, .synthetic:
+        case .gemini:
+            return GeminiUsageDescriptor(provider: .gemini)
+        case .antigravity:
+            return GeminiUsageDescriptor(provider: .antigravity)
+        case .claude, .cursor, .opencode, .factory, .zai, .minimax, .kimi, .kiro, .vertexai, .augment, .jetbrains, .kimik2, .amp, .synthetic:
             return UnsupportedUsageDescriptor(provider: provider)
         }
     }
@@ -38,4 +42,3 @@ private struct UnsupportedUsageDescriptor: ProviderUsageDescribing {
         ProviderFetchOutcome(fetchKind: .localProbe, result: .failure(ProviderUsageError.unsupported(provider)))
     }
 }
-

@@ -94,7 +94,10 @@ enum ProviderTemplateEmbeddedJSON {
         "defaultWorkflowPath": "workflows",
         "documentationURL": "https://geminicli.com/docs/cli/skills/",
         "mcpDocumentationURL": "https://geminicli.com/docs/tools/mcp-server/",
-        "defaultMcpConfigPath": "settings.json"
+        "defaultMcpConfigPath": "settings.json",
+        "vendorTabs": [
+            "usage"
+        ]
     },
     "antigravity": {
         "displayName": "Antigravity",
@@ -107,6 +110,9 @@ enum ProviderTemplateEmbeddedJSON {
         "documentationURL": "https://antigravity.google/docs/skills",
         "mcpDocumentationURL": "https://antigravity.google/docs/mcp",
         "defaultMcpConfigPath": "mcp_config.json",
+        "vendorTabs": [
+            "usage"
+        ],
         "defaultSkillsPaths": [
             "skills",
             ".gemini/skills"

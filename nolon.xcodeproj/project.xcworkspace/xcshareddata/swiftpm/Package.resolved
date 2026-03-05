@@ -6,8 +6,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/groue/GRDB.swift.git",
       "state" : {
-        "revision" : "aa0079aeb82a4bf00324561a40bffe68c6fe1c26",
-        "version" : "7.9.0"
+        "revision" : "36e30a6f1ef10e4194f6af0cff90888526f0c115",
+        "version" : "7.10.0"
       }
     },
     {
@@ -34,16 +34,16 @@
       "location" : "https://github.com/sparkle-project/Sparkle.git",
       "state" : {
         "branch" : "2.x",
-        "revision" : "afea2cda87819c960114f26e26f369a1a0945b17"
+        "revision" : "61a100ab8962b7c31081af2a518d827c498eaad8"
       }
     },
     {
       "identity" : "stfilepath",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/linhay/STFilePath.git",
+      "location" : "https://github.com/linhay/STFilePath",
       "state" : {
-        "revision" : "3bbcb9ec909e787b473310f17257d1378e1f5b17",
-        "version" : "1.3.4"
+        "revision" : "1d2732e0b1affb46fe7ab213521fa2c9c35c5211",
+        "version" : "1.3.7"
       }
     },
     {

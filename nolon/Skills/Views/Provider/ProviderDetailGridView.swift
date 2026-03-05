@@ -388,11 +388,13 @@ struct ProviderDetailGridView: View {
         case .accounts:
             if let provider = provider {
                 ProviderUsageView(provider: provider)
+                    .id(provider.id)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
         case .usage:
             if let provider = provider {
                 ProviderUsageView(provider: provider)
+                    .id(provider.id)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
         case .none:

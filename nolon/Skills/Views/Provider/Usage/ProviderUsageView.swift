@@ -31,6 +31,29 @@ enum ProviderUsageHeaderAction: Equatable {
     }
 }
 
+enum ProviderUsageLoginPolicy {
+    static func shouldUseCLILogin(for provider: Provider) -> Bool {
+        guard let templateID = provider.templateId else { return false }
+        switch templateID {
+        case "gemini", "antigravity":
+            return true
+        default:
+            return false
+        }
+    }
+
+    static func shouldShowDashboardSignIn(for provider: Provider, dashboardURL: URL?) -> Bool {
+        guard dashboardURL != nil else { return false }
+        guard let templateID = provider.templateId else { return true }
+        switch templateID {
+        case "gemini", "antigravity":
+            return false
+        default:
+            return true
+        }
+    }
+}
+
 enum CodexUsageCardPresentationPolicy {
     static func statusKind(for state: ProviderUsageViewModel.CodexAccountDisplayState) -> CodexUsageCardStatusKind {
         switch state {
@@ -92,6 +115,11 @@ struct ProviderUsageView: View {
         .task(id: provider.id) {
             await viewModel.loadIfNeeded()
         }
+        .onChange(of: provider.id) { _, _ in
+            viewModel = ProviderUsageViewModel(provider: provider)
+            selectedTrendDate = nil
+            Task { await viewModel.loadIfNeeded() }
+        }
         .onAppear {
             Task { await viewModel.handleUsageViewAppear() }
         }
@@ -136,6 +164,29 @@ struct ProviderUsageView: View {
             }
         } message: {
             Text(viewModel.importValidationSummaryMessage ?? "")
+        }
+        .alert(
+            NSLocalizedString("gemini.import.confirm.title", value: "Import Existing Gemini Login?", comment: "Gemini import confirmation title"),
+            isPresented: $viewModel.isShowingGeminiImportConfirm
+        ) {
+            Button(
+                NSLocalizedString("gemini.import.confirm.skip", value: "Continue OAuth Login", comment: "Continue OAuth login"),
+                role: .cancel
+            ) {
+                viewModel.continueGeminiOAuthLoginWithoutImport()
+            }
+            Button(NSLocalizedString("gemini.import.confirm.import", value: "Import", comment: "Import existing Gemini login")) {
+                Task { await viewModel.importGeminiGlobalSessionAfterConfirmation() }
+            }
+        } message: {
+            let email = viewModel.pendingGeminiImportCandidate?.email ?? NSLocalizedString("generic.unknown", value: "Unknown", comment: "Unknown")
+            let path = viewModel.pendingGeminiImportCandidate?.geminiDirectoryPath ?? "~/.gemini"
+            let format = NSLocalizedString(
+                "gemini.import.confirm.message",
+                value: "Detected an existing Gemini CLI login (%@) at:\n%@\n\nImport it into Nolon now?",
+                comment: "Gemini import confirmation message"
+            )
+            Text(String(format: format, email, path))
         }
         .alert(viewModel.alertTitle ?? "", isPresented: Binding(get: {
             viewModel.alertTitle != nil || viewModel.alertMessage != nil
@@ -308,8 +359,24 @@ struct ProviderUsageView: View {
                 }
                 actionsMenu
             } else {
-                Button(NSLocalizedString("usage.monitor.login", value: "Sign in…", comment: "Sign in")) {
-                    viewModel.isShowingLogin = true
+                if ProviderUsageLoginPolicy.shouldUseCLILogin(for: provider) {
+                    Button(NSLocalizedString("codex.accounts.login", value: "登录", comment: "Codex login")) {
+                        viewModel.startLoginFlow()
+                    }
+                    .disabled(viewModel.isRunningCLILogin)
+                    Button(NSLocalizedString("usage.monitor.refresh", value: "Refresh", comment: "Refresh")) {
+                        Task { await viewModel.load() }
+                    }
+                    .disabled(viewModel.isLoading)
+                } else if ProviderUsageLoginPolicy.shouldShowDashboardSignIn(for: provider, dashboardURL: viewModel.dashboardURL) {
+                    Button(NSLocalizedString("usage.monitor.login", value: "Sign in…", comment: "Sign in")) {
+                        viewModel.isShowingLogin = true
+                    }
+                } else {
+                    Button(NSLocalizedString("usage.monitor.refresh", value: "Refresh", comment: "Refresh")) {
+                        Task { await viewModel.load() }
+                    }
+                    .disabled(viewModel.isLoading)
                 }
                 actionsMenu
             }
@@ -349,16 +416,14 @@ struct ProviderUsageView: View {
                 )
             }
 
-            if viewModel.usageProvider == .codex {
-                if viewModel.isRunningCLILogin {
-                    Button {
-                        viewModel.cancelCLILoginIfNeeded()
-                    } label: {
-                        Label(
-                            NSLocalizedString("codex.cli_login.cancel", value: "Cancel Login", comment: "Cancel CLI login"),
-                            systemImage: "xmark.circle"
-                        )
-                    }
+            if viewModel.isRunningCLILogin {
+                Button {
+                    viewModel.cancelCLILoginIfNeeded()
+                } label: {
+                    Label(
+                        NSLocalizedString("codex.cli_login.cancel", value: "Cancel Login", comment: "Cancel CLI login"),
+                        systemImage: "xmark.circle"
+                    )
                 }
             }
         } label: {
@@ -373,12 +438,57 @@ struct ProviderUsageView: View {
     private var genericUsageContent: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 12) {
+                if viewModel.shouldShowGeminiImportAction {
+                    geminiImportCallout
+                }
                 ForEach(viewModel.outcomes) { outcome in
                     ProviderUsageSnapshotView(outcome: outcome)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
+    }
+
+    private var geminiImportCallout: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(NSLocalizedString(
+                "gemini.import.inline.title",
+                value: "Detected existing Gemini login",
+                comment: "Inline Gemini import title"
+            ))
+            .font(.headline)
+
+            Text(NSLocalizedString(
+                "gemini.import.inline.body",
+                value: "Nolon found an existing Gemini CLI session on this machine. Import it to activate this provider immediately.",
+                comment: "Inline Gemini import body"
+            ))
+            .font(.subheadline)
+            .foregroundStyle(DesignSystem.Colors.Text.secondary)
+
+            HStack(spacing: 8) {
+                Button(NSLocalizedString(
+                    "gemini.import.inline.import",
+                    value: "Import Existing Login",
+                    comment: "Inline Gemini import CTA"
+                )) {
+                    viewModel.presentGeminiImportConfirmation()
+                }
+                .buttonStyle(.borderedProminent)
+
+                Button(NSLocalizedString(
+                    "gemini.import.inline.oauth",
+                    value: "Sign in with OAuth",
+                    comment: "Inline Gemini OAuth CTA"
+                )) {
+                    viewModel.continueGeminiOAuthLoginWithoutImport()
+                }
+                .buttonStyle(.bordered)
+            }
+        }
+        .padding()
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .dsCard()
     }
 
     private var codexCurrentOutcome: ProviderAccountUsageOutcome? {
