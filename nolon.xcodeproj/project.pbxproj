@@ -23,9 +23,10 @@
 		CDA190412F3DA580000DBF77 /* CodexProvider in Frameworks */ = {isa = PBXBuildFile; productRef = CDA190402F3DA580000DBF77 /* CodexProvider */; };
 		CDA190432F3DA580000DBF77 /* CopilotProvider in Frameworks */ = {isa = PBXBuildFile; productRef = CDA190422F3DA580000DBF77 /* CopilotProvider */; };
 		CDA190452F3DA580000DBF77 /* ProviderCatalog in Frameworks */ = {isa = PBXBuildFile; productRef = CDA190442F3DA580000DBF77 /* ProviderCatalog */; };
-		CDA190472F3DA580000DBF77 /* ProviderUsage in Frameworks */ = {isa = PBXBuildFile; productRef = CDA190462F3DA580000DBF77 /* ProviderUsage */; };
-		CDA190492F3DA580000DBF77 /* NolonResourceKit in Frameworks */ = {isa = PBXBuildFile; productRef = CDA190482F3DA580000DBF77 /* NolonResourceKit */; };
-		CDFA67412F3599FB0053E30A /* STFilePath in Frameworks */ = {isa = PBXBuildFile; productRef = CDFA67402F3599FB0053E30A /* STFilePath */; };
+			CDA190472F3DA580000DBF77 /* ProviderUsage in Frameworks */ = {isa = PBXBuildFile; productRef = CDA190462F3DA580000DBF77 /* ProviderUsage */; };
+			CDA190492F3DA580000DBF77 /* NolonResourceKit in Frameworks */ = {isa = PBXBuildFile; productRef = CDA190482F3DA580000DBF77 /* NolonResourceKit */; };
+			CDA1904B2F3DA580000DBF77 /* NolonCoreCLIKit in Frameworks */ = {isa = PBXBuildFile; productRef = CDA1904A2F3DA580000DBF77 /* NolonCoreCLIKit */; };
+			CDFA67412F3599FB0053E30A /* STFilePath in Frameworks */ = {isa = PBXBuildFile; productRef = CDFA67402F3599FB0053E30A /* STFilePath */; };
 		CDFA67442F359A110053E30A /* STJSON in Frameworks */ = {isa = PBXBuildFile; productRef = CDFA67432F359A110053E30A /* STJSON */; };
 /* End PBXBuildFile section */
 
@@ -95,9 +96,10 @@
 				CD447BF62F1F79890056366B /* Sparkle in Frameworks */,
 				CDA190412F3DA580000DBF77 /* CodexProvider in Frameworks */,
 				CDA190452F3DA580000DBF77 /* ProviderCatalog in Frameworks */,
-				CDA190472F3DA580000DBF77 /* ProviderUsage in Frameworks */,
-				CDA190492F3DA580000DBF77 /* NolonResourceKit in Frameworks */,
-			);
+					CDA190472F3DA580000DBF77 /* ProviderUsage in Frameworks */,
+					CDA190492F3DA580000DBF77 /* NolonResourceKit in Frameworks */,
+					CDA1904B2F3DA580000DBF77 /* NolonCoreCLIKit in Frameworks */,
+				);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		CD9EDF392F24F31E009248CB /* Frameworks */ = {
@@ -174,9 +176,10 @@
 				CDA190402F3DA580000DBF77 /* CodexProvider */,
 				CDA190422F3DA580000DBF77 /* CopilotProvider */,
 				CDA190442F3DA580000DBF77 /* ProviderCatalog */,
-				CDA190462F3DA580000DBF77 /* ProviderUsage */,
-				CDA190482F3DA580000DBF77 /* NolonResourceKit */,
-			);
+					CDA190462F3DA580000DBF77 /* ProviderUsage */,
+					CDA190482F3DA580000DBF77 /* NolonResourceKit */,
+					CDA1904A2F3DA580000DBF77 /* NolonCoreCLIKit */,
+				);
 			productName = nolon;
 			productReference = CD2B1A922F1F624900DF4A2B /* nolon.app */;
 			productType = "com.apple.product-type.application";
@@ -727,10 +730,14 @@
 			isa = XCSwiftPackageProductDependency;
 			productName = ProviderUsage;
 		};
-		CDA190482F3DA580000DBF77 /* NolonResourceKit */ = {
-			isa = XCSwiftPackageProductDependency;
-			productName = NolonResourceKit;
-		};
+			CDA190482F3DA580000DBF77 /* NolonResourceKit */ = {
+				isa = XCSwiftPackageProductDependency;
+				productName = NolonResourceKit;
+			};
+			CDA1904A2F3DA580000DBF77 /* NolonCoreCLIKit */ = {
+				isa = XCSwiftPackageProductDependency;
+				productName = NolonCoreCLIKit;
+			};
 		CDF7A1D130C5BFC7009A00A1 /* SnapshotTesting */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = CDF7A1D030C5BFC7009A00A1 /* XCRemoteSwiftPackageReference "swift-snapshot-testing" */;

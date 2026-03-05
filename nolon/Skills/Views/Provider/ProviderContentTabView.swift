@@ -130,6 +130,7 @@ enum ProviderContentTabType: String, CaseIterable, Identifiable {
     case advanced = "Advanced"
     case accounts = "Accounts"
     case usage = "Usage"
+    case runtime = "Runtime"
     
     var id: String { rawValue }
     
@@ -144,6 +145,7 @@ enum ProviderContentTabType: String, CaseIterable, Identifiable {
         case .advanced: return "slider.horizontal.3"
         case .accounts: return "person.2"
         case .usage: return "chart.bar.xaxis"
+        case .runtime: return "waveform.path.ecg.rectangle"
         }
     }
     
@@ -158,6 +160,7 @@ enum ProviderContentTabType: String, CaseIterable, Identifiable {
         case .advanced: return NSLocalizedString("tab.advanced", value: "Advanced", comment: "Advanced")
         case .accounts: return NSLocalizedString("tab.accounts", value: "Accounts", comment: "Accounts")
         case .usage: return NSLocalizedString("tab.usage", value: "Usage", comment: "Usage")
+        case .runtime: return NSLocalizedString("tab.runtime", value: "Runtime", comment: "Runtime")
         }
     }
 
@@ -196,6 +199,24 @@ enum ProviderContentTabType: String, CaseIterable, Identifiable {
                 tabs.append(tab)
             }
         }
+
+        if provider.templateId == "codex" {
+            tabs = move(tab: .runtime, after: .usage, in: tabs)
+        } else if provider.templateId == "codexXcode" {
+            tabs = move(tab: .runtime, after: .binary, in: tabs)
+        }
+        return tabs
+    }
+
+    private static func move(tab: ProviderContentTabType, after anchor: ProviderContentTabType, in source: [ProviderContentTabType]) -> [ProviderContentTabType] {
+        guard let tabIndex = source.firstIndex(of: tab), let anchorIndex = source.firstIndex(of: anchor) else {
+            return source
+        }
+        var tabs = source
+        let removed = tabs.remove(at: tabIndex)
+        let normalizedAnchorIndex = tabs.firstIndex(of: anchor) ?? min(anchorIndex, max(0, tabs.count - 1))
+        let insertIndex = min(normalizedAnchorIndex + 1, tabs.count)
+        tabs.insert(removed, at: insertIndex)
         return tabs
     }
 }
@@ -215,6 +236,8 @@ extension ProviderContentTabType {
             self = .rules
         case "agents":
             self = .agents
+        case "runtime":
+            self = .runtime
         default:
             return nil
         }
@@ -255,6 +278,7 @@ final class ProviderContentTabViewModel {
         case .advanced: return 0
         case .accounts: return 0
         case .usage: return 0
+        case .runtime: return 0
         }
     }
     

@@ -24,6 +24,15 @@ swift test --package-path libs/Providers
 ./build.sh
 ```
 
+4. Runtime Tab 定向回归
+```bash
+xcodebuild -project nolon.xcodeproj -scheme nolon-app -destination 'platform=macOS' \
+  -only-testing:nolonTests/CodexRuntimeTabConfigurationTests \
+  -only-testing:nolonTests/CodexRuntimeTabViewModelTests \
+  -only-testing:nolonTests/CodexPIDSystemLogServiceTests \
+  test
+```
+
 ## 常见故障与处理
 1. 现象：`codex` 找不到  
 原因：PATH 未包含或 `CODEX_CLI_PATH` 未设置。  
@@ -45,6 +54,10 @@ qmd status
 qmd update
 qmd embed
 ```
+
+5. 现象：Runtime Tab 显示空列表但 CLI 有进程  
+原因：provider 过滤不匹配（`codex` vs `codex-xcode`）或进程命令不含预期 hint。  
+处理：先用 `nolon codex runtime list --provider-id <id>` 对照，再检查 provider templateId 与 tab providerID 映射。
 
 ## 回归门禁
 - 必做：

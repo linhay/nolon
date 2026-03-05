@@ -182,7 +182,13 @@ final class CodexUsageTabPresentationTests: XCTestCase {
                 fetchKind: .cli,
                 result: .success(
                     ProviderFetchResult(
-                        usage: UsageSnapshot(identity: UsageIdentity(), primary: nil, secondary: nil, tertiary: nil, updatedAt: Date()),
+                        usage: UsageSnapshot(
+                            identity: UsageIdentity(accountEmail: nil, accountOrganization: nil, loginMethod: nil),
+                            primary: nil,
+                            secondary: nil,
+                            tertiary: nil,
+                            updatedAt: Date()
+                        ),
                         credits: nil,
                         cost: nil,
                         sourceLabel: "CLI",

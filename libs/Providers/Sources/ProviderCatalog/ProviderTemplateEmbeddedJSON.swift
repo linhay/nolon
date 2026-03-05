@@ -16,6 +16,7 @@ enum ProviderTemplateEmbeddedJSON {
         "defaultMcpConfigPath": "config.toml",
         "vendorTabs": [
             "usage",
+            "runtime",
             "rules",
             "binary",
             "agents"
@@ -38,6 +39,7 @@ enum ProviderTemplateEmbeddedJSON {
         "vendorTabs": [
             "rules",
             "binary",
+            "runtime",
             "agents"
         ],
         "defaultSkillsPaths": [

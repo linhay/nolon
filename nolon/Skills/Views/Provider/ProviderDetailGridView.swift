@@ -397,6 +397,12 @@ struct ProviderDetailGridView: View {
                     .id(provider.id)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
+        case .runtime:
+            if let provider = provider {
+                CodexRuntimeTabView(provider: provider)
+                    .id(provider.id)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
         case .none:
             EmptyView()
         }
@@ -468,7 +474,7 @@ struct ProviderDetailGridView: View {
     }
 
     private var quickInstallButton: some View {
-	        Button {
+        Button {
             switch selectedTab {
             case .skills:
                 viewModel.showingRemoteBrowser = .skill
@@ -491,6 +497,8 @@ struct ProviderDetailGridView: View {
             case .accounts:
                 break
             case .usage:
+                break
+            case .runtime:
                 break
             case .none:
                 break
