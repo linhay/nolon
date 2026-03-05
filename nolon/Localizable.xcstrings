@@ -5765,6 +5765,510 @@
         }
       }
     },
+    "codex.runtime.action.refresh" : {
+      "comment" : "Refresh runtime",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Refresh"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "刷新"
+          }
+        }
+      }
+    },
+    "codex.runtime.bool.false" : {
+      "comment" : "Runtime boolean false",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "false"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "否"
+          }
+        }
+      }
+    },
+    "codex.runtime.bool.true" : {
+      "comment" : "Runtime boolean true",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "true"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "是"
+          }
+        }
+      }
+    },
+    "codex.runtime.diag.accounts" : {
+      "comment" : "Runtime diagnostics accounts label",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Accounts"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "账号数"
+          }
+        }
+      }
+    },
+    "codex.runtime.diag.active" : {
+      "comment" : "Runtime diagnostics active account label",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Active"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "活跃账号"
+          }
+        }
+      }
+    },
+    "codex.runtime.diag.binary" : {
+      "comment" : "Runtime diagnostics binary label",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Binary"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "二进制版本"
+          }
+        }
+      }
+    },
+    "codex.runtime.diag.executable" : {
+      "comment" : "Runtime diagnostics executable label",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Executable"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "可执行文件"
+          }
+        }
+      }
+    },
+    "codex.runtime.diag.hint" : {
+      "comment" : "Runtime diagnostics hint label",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Hint"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "提示"
+          }
+        }
+      }
+    },
+    "codex.runtime.diag.path_active" : {
+      "comment" : "Runtime diagnostics path active label",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Path Active"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Path 生效"
+          }
+        }
+      }
+    },
+    "codex.runtime.diag.provider" : {
+      "comment" : "Runtime diagnostics provider label",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Provider"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Provider"
+          }
+        }
+      }
+    },
+    "codex.runtime.diag.running" : {
+      "comment" : "Runtime diagnostics running count label",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Running"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "运行中"
+          }
+        }
+      }
+    },
+    "codex.runtime.diagnostics.empty" : {
+      "comment" : "No diagnostics",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "No diagnostics available."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暂无诊断信息。"
+          }
+        }
+      }
+    },
+    "codex.runtime.diagnostics.title" : {
+      "comment" : "Runtime diagnostics title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Diagnostics"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "诊断信息"
+          }
+        }
+      }
+    },
+    "codex.runtime.error.title" : {
+      "comment" : "Runtime error title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Runtime Error"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "运行时错误"
+          }
+        }
+      }
+    },
+    "codex.runtime.force_stop.action" : {
+      "comment" : "Force stop action",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Force Stop PID %d"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "强制停止 PID %d"
+          }
+        }
+      }
+    },
+    "codex.runtime.force_stop.message" : {
+      "comment" : "Force stop confirmation message",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "This sends SIGKILL directly. Use only when normal stop fails."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "该操作会直接发送 SIGKILL，仅在普通停止失败时使用。"
+          }
+        }
+      }
+    },
+    "codex.runtime.force_stop.title" : {
+      "comment" : "Force stop confirmation title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Force Stop"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "强制停止"
+          }
+        }
+      }
+    },
+    "codex.runtime.logs.clear" : {
+      "comment" : "Clear logs",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Clear"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "清空"
+          }
+        }
+      }
+    },
+    "codex.runtime.logs.empty" : {
+      "comment" : "No logs",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "No log output in selected window."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当前时间窗口内没有日志输出。"
+          }
+        }
+      }
+    },
+    "codex.runtime.logs.refresh" : {
+      "comment" : "Refresh logs",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Refresh Logs"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "刷新日志"
+          }
+        }
+      }
+    },
+    "codex.runtime.logs.select_pid" : {
+      "comment" : "Select process for logs",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Select a process to view logs."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请选择一个进程查看日志。"
+          }
+        }
+      }
+    },
+    "codex.runtime.logs.title" : {
+      "comment" : "Runtime logs title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "PID Logs"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "进程日志"
+          }
+        }
+      }
+    },
+    "codex.runtime.pid.label" : {
+      "comment" : "Runtime PID label",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "PID %d"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "PID %d"
+          }
+        }
+      }
+    },
+    "codex.runtime.process.force" : {
+      "comment" : "Force stop runtime process",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Force"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "强制"
+          }
+        }
+      }
+    },
+    "codex.runtime.process.stop" : {
+      "comment" : "Stop runtime process",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Stop"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "停止"
+          }
+        }
+      }
+    },
+    "codex.runtime.processes.empty" : {
+      "comment" : "No runtime process",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "No running Codex processes."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当前没有运行中的 Codex 进程。"
+          }
+        }
+      }
+    },
+    "codex.runtime.processes.title" : {
+      "comment" : "Runtime process list title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Runtime Processes"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "运行中进程"
+          }
+        }
+      }
+    },
+    "codex.runtime.stop.summary" : {
+      "comment" : "Runtime stop summary",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "PID %d (%@) -> exited=%@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "PID %d (%@) -> 已退出=%@"
+          }
+        }
+      }
+    },
     "codex.usage.empty.desc" : {
       "comment" : "Empty description",
       "extractionState" : "stale",
@@ -9721,6 +10225,30 @@
         }
       }
     },
+    "resource.import.invalid_clawhub" : {
+      "comment" : "Invalid clawhub import URL",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "无法解析 Clawhub 技能链接，请检查后重试。"
+          }
+        }
+      }
+    },
+    "resource.import.unsupported" : {
+      "comment" : "Unsupported import URL",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "无法识别导入链接。请使用 Clawhub 技能链接或 Git 仓库链接。"
+          }
+        }
+      }
+    },
     "Reveal in Finder" : {
       "localizations" : {
         "zh-Hans" : {
@@ -11089,6 +11617,24 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "规则"
+          }
+        }
+      }
+    },
+    "tab.runtime" : {
+      "comment" : "Runtime",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Runtime"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Runtime"
           }
         }
       }
