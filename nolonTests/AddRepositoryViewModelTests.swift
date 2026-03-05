@@ -32,4 +32,28 @@ final class AddRepositoryViewModelTests: XCTestCase {
         XCTAssertNil(AddRepositoryViewModel.firstDirectoryURL(in: [fileURL]))
         XCTAssertEqual(AddRepositoryViewModel.firstDirectoryURL(in: [fileURL, folderURL]), folderURL)
     }
+
+    func testInit_WithPendingGitURL_PrefillsGitFields() throws {
+        let fixture = try TestFixture()
+        defer { fixture.cleanup() }
+
+        fixture.providerSettings.pendingImportURL = "https://github.com/acme/repo"
+        let viewModel = AddRepositoryViewModel(settings: fixture.providerSettings)
+
+        XCTAssertEqual(viewModel.selectedTemplate, .git)
+        XCTAssertEqual(viewModel.newGitURL, "https://github.com/acme/repo.git")
+        XCTAssertEqual(viewModel.newRepoName, "repo")
+    }
+
+    func testInit_WithPendingClawhubURL_DoesNotPrefillGitFields() throws {
+        let fixture = try TestFixture()
+        defer { fixture.cleanup() }
+
+        fixture.providerSettings.pendingImportURL = "https://clawhub.ai/steipete/gemini"
+        let viewModel = AddRepositoryViewModel(settings: fixture.providerSettings)
+
+        XCTAssertEqual(viewModel.selectedTemplate, .git)
+        XCTAssertEqual(viewModel.newGitURL, "")
+        XCTAssertEqual(viewModel.newRepoName, "")
+    }
 }

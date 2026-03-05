@@ -304,16 +304,22 @@ struct RemoteRepositorySidebarView: View {
                 selectedRepository = orderedRepositories.first
             }
             // Check for pending import immediately on appear
-            if settings.pendingImportURL != nil {
+            if shouldOpenAddRepositorySheet(for: settings.pendingImportURL) {
                 viewModel.showingAddRepository = true
             }
         }
         .onChange(of: settings.pendingImportURL) { _, newValue in
-            if newValue != nil {
+            if shouldOpenAddRepositorySheet(for: newValue) {
                 viewModel.showingAddRepository = true
             }
         }
 
+    }
+
+    private func shouldOpenAddRepositorySheet(for pendingURL: String?) -> Bool {
+        guard let pendingURL else { return false }
+        let intent = RepositoryDraftService().parseImportIntent(from: pendingURL)
+        return intent.kind == .gitRepository
     }
     
     private func gitStatusRow(_ repo: RemoteRepository) -> some View {

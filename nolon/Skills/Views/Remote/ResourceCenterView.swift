@@ -15,6 +15,7 @@ final class ResourceCenterViewModel {
     var installedSlugs: Set<String> = []
     var installedWorkflowSlugs: Set<String> = []
     var installedMcpSlugs: Set<String> = []
+    var importErrorMessage: String?
     var refreshTrigger: Int = 0
     private let statusService = InstalledResourceStatusService()
     
@@ -83,6 +84,7 @@ struct ResourceCenterView: View {
     
     @State private var viewModel = ResourceCenterViewModel()
     @Environment(\.dismiss) private var dismiss
+    private let draftService = RepositoryDraftService()
     
     init(
         settings: ProviderSettings,
@@ -117,6 +119,41 @@ struct ResourceCenterView: View {
         viewModel.refreshInstalledWorkflows(targetProvider: targetProvider)
         viewModel.refreshInstalledMCPs(targetProvider: targetProvider)
         viewModel.refreshTrigger += 1
+    }
+
+    private func handlePendingImportURLIfNeeded() {
+        guard let pendingImportURL = settings.pendingImportURL else { return }
+        let intent = draftService.parseImportIntent(from: pendingImportURL)
+
+        switch intent.kind {
+        case .clawhubSkill:
+            guard let query = intent.slug, !query.isEmpty else {
+                viewModel.importErrorMessage = NSLocalizedString(
+                    "resource.import.invalid_clawhub",
+                    value: "无法解析 Clawhub 技能链接，请检查后重试。",
+                    comment: "Invalid clawhub import URL"
+                )
+                settings.pendingImportURL = nil
+                return
+            }
+            if let clawdhubRepository = settings.remoteRepositories.first(where: { $0.templateType == .clawdhub }) {
+                viewModel.selectedRepository = clawdhubRepository
+            }
+            viewModel.selectedTab = .skills
+            viewModel.searchText = query
+            viewModel.importErrorMessage = nil
+            settings.pendingImportURL = nil
+        case .gitRepository:
+            // Keep existing Git import flow handled by sidebar/add-repository sheet.
+            viewModel.importErrorMessage = nil
+        case .unknown:
+            viewModel.importErrorMessage = NSLocalizedString(
+                "resource.import.unsupported",
+                value: "无法识别导入链接。请使用 Clawhub 技能链接或 Git 仓库链接。",
+                comment: "Unsupported import URL"
+            )
+            settings.pendingImportURL = nil
+        }
     }
     
     var body: some View {
@@ -247,12 +284,50 @@ struct ResourceCenterView: View {
                 .navigationSplitViewStyle(.balanced)
             }
         }
+        .overlay(alignment: .top) {
+            if let importErrorMessage = viewModel.importErrorMessage, !importErrorMessage.isEmpty {
+                HStack(alignment: .top, spacing: 8) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(DesignSystem.Colors.Status.warning)
+                    Text(importErrorMessage)
+                        .font(.callout)
+                        .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                        .textSelection(.enabled)
+                    Spacer()
+                    Button {
+                        viewModel.importErrorMessage = nil
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .background(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(DesignSystem.Colors.Status.warning.opacity(0.10))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .stroke(DesignSystem.Colors.Status.warning.opacity(0.28), lineWidth: 1)
+                )
+                .padding(.horizontal, 16)
+                .padding(.top, 10)
+            }
+        }
         .textSelection(.enabled)
         .onAppear {
+            handlePendingImportURLIfNeeded()
             refreshData()
             if viewModel.selectedRepository?.templateType == .clawdhub {
                 viewModel.selectedTab = .skills
             }
+        }
+        .onChange(of: settings.pendingImportURL) { _, newValue in
+            guard newValue != nil else { return }
+            handlePendingImportURLIfNeeded()
         }
         .onChange(of: viewModel.selectedRepository) { _, repository in
             if repository?.templateType == .clawdhub {

@@ -39,7 +39,45 @@ public struct ImportedRepositoryDraft: Sendable, Equatable {
     }
 }
 
+public struct ImportedResourceIntent: Sendable, Equatable {
+    public enum Kind: Sendable, Equatable {
+        case clawhubSkill
+        case gitRepository
+        case unknown
+    }
+
+    public let kind: Kind
+    public let host: String?
+    public let owner: String?
+    public let slug: String?
+    public let normalizedGitURL: String?
+    public let reason: String?
+
+    public init(
+        kind: Kind,
+        host: String? = nil,
+        owner: String? = nil,
+        slug: String? = nil,
+        normalizedGitURL: String? = nil,
+        reason: String? = nil
+    ) {
+        self.kind = kind
+        self.host = host
+        self.owner = owner
+        self.slug = slug
+        self.normalizedGitURL = normalizedGitURL
+        self.reason = reason
+    }
+}
+
 public struct RepositoryDraftService: Sendable {
+    private static let clawhubHosts: Set<String> = [
+        "clawhub.ai",
+        "www.clawhub.ai",
+        "clawdhub.com",
+        "www.clawdhub.com",
+    ]
+
     public init() {}
 
     public func defaultTemplate(hasClawdhubRepository: Bool) -> RepositoryTemplate {
@@ -61,6 +99,82 @@ public struct RepositoryDraftService: Sendable {
 
     public func inferredRepositoryName(from gitURL: String) -> String {
         RemoteRepository.extractRepoName(from: gitURL)
+    }
+
+    public func parseImportIntent(from rawURL: String) -> ImportedResourceIntent {
+        let trimmed = rawURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            return ImportedResourceIntent(kind: .unknown, reason: "Empty import URL")
+        }
+
+        guard let candidateURL = parseURLAllowingSchemeLessHost(trimmed),
+              let host = candidateURL.host?.lowercased()
+        else {
+            let normalizedGitURL = RemoteRepository.normalizeGitURL(trimmed)
+            if RemoteRepository.extractURLComponents(from: normalizedGitURL) != nil {
+                return ImportedResourceIntent(kind: .gitRepository, normalizedGitURL: normalizedGitURL)
+            }
+            return ImportedResourceIntent(kind: .unknown, reason: "Invalid import URL")
+        }
+
+        let segments = candidateURL.path
+            .split(separator: "/")
+            .map(String.init)
+            .filter { !$0.isEmpty }
+
+        if Self.clawhubHosts.contains(host) {
+            guard segments.count >= 2 else {
+                return ImportedResourceIntent(
+                    kind: .unknown,
+                    host: host,
+                    reason: "Unsupported Clawhub URL path"
+                )
+            }
+            let owner = segments[0]
+            let slug = segments[1]
+                .replacingOccurrences(of: ".git", with: "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !owner.isEmpty, !slug.isEmpty else {
+                return ImportedResourceIntent(
+                    kind: .unknown,
+                    host: host,
+                    reason: "Invalid Clawhub skill URL"
+                )
+            }
+            return ImportedResourceIntent(
+                kind: .clawhubSkill,
+                host: host,
+                owner: owner,
+                slug: slug
+            )
+        }
+
+        let normalizedGitURL = RemoteRepository.normalizeGitURL(trimmed)
+        if RemoteRepository.extractURLComponents(from: normalizedGitURL) != nil {
+            return ImportedResourceIntent(kind: .gitRepository, host: host, normalizedGitURL: normalizedGitURL)
+        }
+
+        return ImportedResourceIntent(kind: .unknown, host: host, reason: "Unsupported import URL")
+    }
+
+    /// Extract search query from a Clawhub skill URL.
+    /// Supports:
+    /// - https://clawhub.ai/{owner}/{slug}
+    /// - https://clawdhub.com/{owner}/{slug}
+    public func clawhubSkillQuery(from rawURL: String) -> String? {
+        let intent = parseImportIntent(from: rawURL)
+        guard intent.kind == .clawhubSkill else { return nil }
+        return intent.slug
+    }
+
+    private func parseURLAllowingSchemeLessHost(_ raw: String) -> URL? {
+        if let url = URL(string: raw), url.host != nil {
+            return url
+        }
+        guard raw.contains("://") == false else { return nil }
+        let prefixed = "https://\(raw)"
+        guard let url = URL(string: prefixed), url.host != nil else { return nil }
+        return url
     }
 
     public func validate(_ input: RepositoryDraftInput) -> String? {

@@ -63,14 +63,7 @@ final class AddRepositoryViewModel {
             // Handle pending URL import
             if let importURL = settings.pendingImportURL {
                 Self.logger.info("Handling pending import URL: \(importURL, privacy: .public)")
-                let draft = draftService.importedDraft(from: importURL)
-                selectedTemplate = draft.template
-                preferredSkillsPaths = draft.skillsPaths
-                newGitURL = draft.normalizedGitURL
-                if !draft.name.isEmpty {
-                    newRepoName = draft.name
-                }
-                Self.logger.info("Normalized URL: \(draft.normalizedGitURL, privacy: .public), name: \(self.newRepoName, privacy: .public)")
+                applyPendingImportURL(importURL)
                 
                 validateInput()
                 
@@ -140,14 +133,7 @@ final class AddRepositoryViewModel {
         guard let importURL = settings.pendingImportURL else { return }
         
         Self.logger.info("checkPendingImportURL: \(importURL, privacy: .public)")
-        let draft = draftService.importedDraft(from: importURL)
-        selectedTemplate = draft.template
-        preferredSkillsPaths = draft.skillsPaths
-        newGitURL = draft.normalizedGitURL
-        if !draft.name.isEmpty {
-            newRepoName = draft.name
-        }
-        Self.logger.info("Loaded URL: \(draft.normalizedGitURL, privacy: .public), name: \(self.newRepoName, privacy: .public)")
+        applyPendingImportURL(importURL)
         
         validateInput()
         
@@ -155,6 +141,23 @@ final class AddRepositoryViewModel {
         Task { @MainActor in
             settings.pendingImportURL = nil
         }
+    }
+
+    private func applyPendingImportURL(_ importURL: String) {
+        let intent = draftService.parseImportIntent(from: importURL)
+        guard intent.kind == .gitRepository else {
+            Self.logger.info("Skip AddRepositorySheet pending import handling for non-git URL: \(importURL, privacy: .public)")
+            return
+        }
+
+        let draft = draftService.importedDraft(from: importURL)
+        selectedTemplate = draft.template
+        preferredSkillsPaths = draft.skillsPaths
+        newGitURL = intent.normalizedGitURL ?? draft.normalizedGitURL
+        if !draft.name.isEmpty {
+            newRepoName = draft.name
+        }
+        Self.logger.info("Loaded git URL: \(self.newGitURL, privacy: .public), name: \(self.newRepoName, privacy: .public)")
     }
     
     func resetAddForm() {
@@ -344,6 +347,7 @@ struct AddRepositorySheet: View {
             footerView
         }
         .frame(width: 640, height: 600)
+        .textSelection(.enabled)
         .dsGlassPanel()
         .overlay {
             if viewModel.isAddingRepository {
@@ -367,6 +371,7 @@ struct AddRepositorySheet: View {
                 Text(error)
                     .dsErrorText(font: .system(size: 12))
                     .lineLimit(2)
+                    .textSelection(.enabled)
             }
             
             Spacer()

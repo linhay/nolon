@@ -1164,6 +1164,45 @@ struct NolonResourceKitTests {
         #expect(imported.skillsPaths == ["tree/main/skills"])
     }
 
+    @Test("RepositoryDraftService extracts Clawhub skill query from marketplace URL")
+    func repositoryDraftServiceExtractsClawhubSkillQuery() {
+        let service = RepositoryDraftService()
+
+        #expect(service.clawhubSkillQuery(from: "https://clawhub.ai/steipete/gemini") == "gemini")
+        #expect(service.clawhubSkillQuery(from: "https://clawhub.ai/steipete/gemini.git") == "gemini")
+        #expect(service.clawhubSkillQuery(from: "https://clawdhub.com/steipete/gemini") == "gemini")
+        #expect(service.clawhubSkillQuery(from: "https://github.com/steipete/gemini") == nil)
+        #expect(service.clawhubSkillQuery(from: "https://clawhub.ai") == nil)
+    }
+
+    @Test("RepositoryDraftService parses import intent for Clawhub and Git URLs")
+    func repositoryDraftServiceParsesImportIntent() {
+        let service = RepositoryDraftService()
+
+        let clawhubIntent = service.parseImportIntent(from: "https://clawhub.ai/steipete/gemini")
+        #expect(clawhubIntent.kind == .clawhubSkill)
+        #expect(clawhubIntent.host == "clawhub.ai")
+        #expect(clawhubIntent.owner == "steipete")
+        #expect(clawhubIntent.slug == "gemini")
+        #expect(clawhubIntent.normalizedGitURL == nil)
+
+        let clawhubIntentWithoutScheme = service.parseImportIntent(from: "clawhub.ai/steipete/gemini.git")
+        #expect(clawhubIntentWithoutScheme.kind == .clawhubSkill)
+        #expect(clawhubIntentWithoutScheme.slug == "gemini")
+
+        let gitIntent = service.parseImportIntent(from: "https://github.com/acme/repo")
+        #expect(gitIntent.kind == .gitRepository)
+        #expect(gitIntent.host == "github.com")
+        #expect(gitIntent.normalizedGitURL == "https://github.com/acme/repo.git")
+
+        let sshGitIntent = service.parseImportIntent(from: "git@github.com:acme/repo.git")
+        #expect(sshGitIntent.kind == .gitRepository)
+        #expect(sshGitIntent.normalizedGitURL == "git@github.com:acme/repo.git")
+
+        let unknownIntent = service.parseImportIntent(from: "https://clawhub.ai")
+        #expect(unknownIntent.kind == .unknown)
+    }
+
     @Test("RemoteCatalogPagingStore keeps page limits and cache-buster behavior")
     func remoteCatalogPagingStoreTracksPagingState() {
         let store = RemoteCatalogPagingStore(pageSize: 20, maxLimit: 60)
