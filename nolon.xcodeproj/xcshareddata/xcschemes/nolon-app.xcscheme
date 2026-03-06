@@ -21,6 +21,20 @@
                ReferencedContainer = "container:nolon.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
+         <BuildActionEntry
+            buildForTesting = "YES"
+            buildForRunning = "NO"
+            buildForProfiling = "NO"
+            buildForArchiving = "NO"
+            buildForAnalyzing = "YES">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "B55FA475C32AF3215AD08091"
+               BuildableName = "nolonUITests.xctest"
+               BlueprintName = "nolonUITests"
+               ReferencedContainer = "container:nolon.xcodeproj">
+            </BuildableReference>
+         </BuildActionEntry>
       </BuildActionEntries>
    </BuildAction>
    <TestAction
@@ -29,6 +43,15 @@
       selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
       shouldUseLaunchSchemeArgsEnv = "YES"
       shouldAutocreateTestPlan = "YES">
+      <MacroExpansion>
+         <BuildableReference
+            BuildableIdentifier = "primary"
+            BlueprintIdentifier = "CD2B1A912F1F624900DF4A2B"
+            BuildableName = "nolon.app"
+            BlueprintName = "nolon"
+            ReferencedContainer = "container:nolon.xcodeproj">
+         </BuildableReference>
+      </MacroExpansion>
       <EnvironmentVariables>
          <EnvironmentVariable
             key = "IDEPreferLogStreaming"
@@ -45,6 +68,16 @@
                BlueprintIdentifier = "CD9EDF3B2F24F31E009248CB"
                BuildableName = "nolonTests.xctest"
                BlueprintName = "nolonTests"
+               ReferencedContainer = "container:nolon.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
+         <TestableReference
+            skipped = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "B55FA475C32AF3215AD08091"
+               BuildableName = "nolonUITests.xctest"
+               BlueprintName = "nolonUITests"
                ReferencedContainer = "container:nolon.xcodeproj">
             </BuildableReference>
          </TestableReference>

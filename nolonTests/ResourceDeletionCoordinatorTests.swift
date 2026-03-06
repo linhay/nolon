@@ -18,18 +18,25 @@ final class ResourceDeletionCoordinatorTests: XCTestCase {
     func testBDD_GivenSingleProvider_WhenDeleteProviderTarget_ThenOnlyOneAttemptAndSuccess() async {
         let providerA = fixture.createProvider(name: "A", method: .symlink)
         let providerB = fixture.createProvider(name: "B", method: .symlink)
+        let plan = ResourceDeletionExecutionPlan.make(
+            providerIndex: 0,
+            removeGlobalCache: false,
+            providers: [providerA, providerB]
+        )
+        let providerTargets = plan.resolveProviderTargets(from: [providerA, providerB])
 
         let coordinator = ResourceDeletionCoordinator(
             uninstallAction: { _, _, _ in
             },
-            removeGlobalAction: { _, _ in false }
+            removeGlobalAction: { _, _, _ in false }
         )
 
         let result = await coordinator.execute(
             resourceSlug: "demo-skill",
             resourceType: .skill,
-            target: .provider(providerA.id),
-            providers: [providerA, providerB]
+            providerTargets: providerTargets,
+            removeGlobalCache: plan.removeGlobalCache,
+            globalCachePathHint: plan.globalCachePathHint
         )
 
         XCTAssertEqual(result.attemptedCount, 1)
@@ -41,11 +48,17 @@ final class ResourceDeletionCoordinatorTests: XCTestCase {
     func testBDD_GivenAllProviders_WhenDeleteAllTarget_ThenGlobalCacheAlsoRemoved() async {
         let providerA = fixture.createProvider(name: "A", method: .symlink)
         let providerB = fixture.createProvider(name: "B", method: .symlink)
+        let plan = ResourceDeletionExecutionPlan.make(
+            providerIndex: nil,
+            removeGlobalCache: true,
+            providers: [providerA, providerB]
+        )
+        let providerTargets = plan.resolveProviderTargets(from: [providerA, providerB])
 
         let coordinator = ResourceDeletionCoordinator(
             uninstallAction: { _, _, _ in
             },
-            removeGlobalAction: { _, _ in
+            removeGlobalAction: { _, _, _ in
                 return true
             }
         )
@@ -53,8 +66,9 @@ final class ResourceDeletionCoordinatorTests: XCTestCase {
         let result = await coordinator.execute(
             resourceSlug: "demo-workflow",
             resourceType: .workflow,
-            target: .allProvidersAndGlobalCache,
-            providers: [providerA, providerB]
+            providerTargets: providerTargets,
+            removeGlobalCache: plan.removeGlobalCache,
+            globalCachePathHint: plan.globalCachePathHint
         )
 
         XCTAssertEqual(result.attemptedCount, 2)
@@ -67,11 +81,17 @@ final class ResourceDeletionCoordinatorTests: XCTestCase {
         let providerA = fixture.createProvider(name: "A", method: .symlink)
         let providerB = fixture.createProvider(name: "B", method: .symlink)
         let providerC = fixture.createProvider(name: "C", method: .symlink)
+        let plan = ResourceDeletionExecutionPlan.make(
+            providerIndex: nil,
+            removeGlobalCache: true,
+            providers: [providerA, providerB, providerC]
+        )
+        let providerTargets = plan.resolveProviderTargets(from: [providerA, providerB, providerC])
 
         let coordinator = ResourceDeletionCoordinator(
             uninstallAction: { _, _, _ in
             },
-            removeGlobalAction: { _, _ in
+            removeGlobalAction: { _, _, _ in
                 throw NSError(domain: "ResourceDeletionCoordinatorTests", code: 2, userInfo: [NSLocalizedDescriptionKey: "global remove failed"])
             }
         )
@@ -79,8 +99,9 @@ final class ResourceDeletionCoordinatorTests: XCTestCase {
         let result = await coordinator.execute(
             resourceSlug: "demo-mcp",
             resourceType: .mcp,
-            target: .allProvidersAndGlobalCache,
-            providers: [providerA, providerB, providerC]
+            providerTargets: providerTargets,
+            removeGlobalCache: plan.removeGlobalCache,
+            globalCachePathHint: plan.globalCachePathHint
         )
 
         XCTAssertEqual(result.attemptedCount, 3)

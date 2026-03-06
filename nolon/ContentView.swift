@@ -12,7 +12,7 @@ struct ContentView: View {
     
     var body: some View {
         Group {
-            if hasCompletedOnboarding {
+            if hasCompletedOnboarding || UITestSupport.shouldSkipOnboarding {
                 MainSplitView()
             } else {
                 OnboardingView {
@@ -27,4 +27,3 @@ struct ContentView: View {
 #Preview {
     ContentView()
 }
-

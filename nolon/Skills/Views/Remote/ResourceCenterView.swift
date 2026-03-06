@@ -4,6 +4,7 @@ import NolonResourceKit
 import Observation
 import OSLog
 
+@MainActor
 @Observable
 final class ResourceCenterViewModel {
     private static let logger = Logger(subsystem: "nolon", category: "ResourceCenter")
@@ -18,6 +19,37 @@ final class ResourceCenterViewModel {
     var importErrorMessage: String?
     var refreshTrigger: Int = 0
     private let statusService = InstalledResourceStatusService()
+
+    init(selectedTab: ResourceContentTabType? = .skills) {
+        self.selectedTab = selectedTab
+    }
+
+    func effectiveTargetProvider(
+        for repository: RemoteRepository?,
+        fallback targetProvider: Provider?
+    ) -> Provider? {
+        guard repository?.templateType != .globalSkills else {
+            return nil
+        }
+        return targetProvider
+    }
+
+    @MainActor
+    func refreshInstalledResources(
+        repository: SkillRepository,
+        selectedRepository: RemoteRepository?,
+        fallbackTargetProvider: Provider?,
+        settings: ProviderSettings
+    ) {
+        let effectiveTargetProvider = effectiveTargetProvider(
+            for: selectedRepository,
+            fallback: fallbackTargetProvider
+        )
+        refreshInstalledSkills(repository: repository, targetProvider: effectiveTargetProvider, settings: settings)
+        refreshInstalledWorkflows(targetProvider: effectiveTargetProvider)
+        refreshInstalledMCPs(targetProvider: effectiveTargetProvider)
+        refreshTrigger += 1
+    }
     
     /// 刷新已安装技能列表
     /// - Parameters:
@@ -78,9 +110,8 @@ struct ResourceCenterView: View {
     let onInstall: (RemoteSkill, Provider) -> Void
     let onInstallWorkflow: ((RemoteWorkflow, Provider) -> Void)?
     let onInstallMCP: ((RemoteMCP, Provider) -> Void)?
-    let onDeleteSkill: ((RemoteSkill, ResourceDeleteTarget) async -> ResourceDeleteExecutionResult)?
-    let onDeleteWorkflow: ((RemoteWorkflow, ResourceDeleteTarget) async -> ResourceDeleteExecutionResult)?
-    let onDeleteMCP: ((RemoteMCP, ResourceDeleteTarget) async -> ResourceDeleteExecutionResult)?
+    let onRegisterDeleteRequest: ((String, RemoteContentType, Int?, Bool, String?) -> Int)?
+    let onMakeDeleteRequestExecutor: ((Int) -> ResourceCatalogGridViewModel.DeleteRequestExecutor)?
     
     @State private var viewModel = ResourceCenterViewModel()
     @Environment(\.dismiss) private var dismiss
@@ -94,9 +125,8 @@ struct ResourceCenterView: View {
         onInstall: @escaping (RemoteSkill, Provider) -> Void,
         onInstallWorkflow: ((RemoteWorkflow, Provider) -> Void)? = nil,
         onInstallMCP: ((RemoteMCP, Provider) -> Void)? = nil,
-        onDeleteSkill: ((RemoteSkill, ResourceDeleteTarget) async -> ResourceDeleteExecutionResult)? = nil,
-        onDeleteWorkflow: ((RemoteWorkflow, ResourceDeleteTarget) async -> ResourceDeleteExecutionResult)? = nil,
-        onDeleteMCP: ((RemoteMCP, ResourceDeleteTarget) async -> ResourceDeleteExecutionResult)? = nil
+        onRegisterDeleteRequest: ((String, RemoteContentType, Int?, Bool, String?) -> Int)? = nil,
+        onMakeDeleteRequestExecutor: ((Int) -> ResourceCatalogGridViewModel.DeleteRequestExecutor)? = nil
     ) {
         self.settings = settings
         self.repository = repository
@@ -104,21 +134,18 @@ struct ResourceCenterView: View {
         self.onInstall = onInstall
         self.onInstallWorkflow = onInstallWorkflow
         self.onInstallMCP = onInstallMCP
-        self.onDeleteSkill = onDeleteSkill
-        self.onDeleteWorkflow = onDeleteWorkflow
-        self.onDeleteMCP = onDeleteMCP
-        self._viewModel = State(initialValue: {
-            let vm = ResourceCenterViewModel()
-            vm.selectedTab = selectedTab
-            return vm
-        }())
+        self.onRegisterDeleteRequest = onRegisterDeleteRequest
+        self.onMakeDeleteRequestExecutor = onMakeDeleteRequestExecutor
+        self._viewModel = State(initialValue: ResourceCenterViewModel(selectedTab: selectedTab))
     }
     
     private func refreshData() {
-        viewModel.refreshInstalledSkills(repository: repository, targetProvider: targetProvider, settings: settings)
-        viewModel.refreshInstalledWorkflows(targetProvider: targetProvider)
-        viewModel.refreshInstalledMCPs(targetProvider: targetProvider)
-        viewModel.refreshTrigger += 1
+        viewModel.refreshInstalledResources(
+            repository: repository,
+            selectedRepository: viewModel.selectedRepository,
+            fallbackTargetProvider: targetProvider,
+            settings: settings
+        )
     }
 
     private func handlePendingImportURLIfNeeded() {
@@ -155,9 +182,55 @@ struct ResourceCenterView: View {
             settings.pendingImportURL = nil
         }
     }
+
+    private func applyUITestInitialStateIfNeeded() {
+        guard UITestSupport.isEnabled else { return }
+
+        if let template = UITestSupport.initialRepositoryTemplate {
+            if let selectedRepository = settings.remoteRepositories.first(where: { $0.templateType == template }) {
+                viewModel.selectedRepository = selectedRepository
+            } else {
+                switch template {
+                case .globalSkills:
+                    viewModel.selectedRepository = .globalSkills
+                case .clawdhub:
+                    viewModel.selectedRepository = .clawdhub
+                case .localFolder, .git:
+                    break
+                }
+            }
+        }
+
+        if let query = UITestSupport.initialSearchQuery {
+            viewModel.selectedTab = .skills
+            viewModel.searchText = query
+        }
+    }
+
+    private func executeUITestGlobalSkillDelete(slug: String) {
+        guard let onRegisterDeleteRequest, let onMakeDeleteRequestExecutor else { return }
+        Task {
+            let requestID = onRegisterDeleteRequest(
+                slug,
+                .skill,
+                nil,
+                true,
+                nil
+            )
+            let executeDeleteRequest = onMakeDeleteRequestExecutor(requestID)
+            _ = await executeDeleteRequest()
+            await MainActor.run {
+                refreshData()
+            }
+        }
+    }
     
     var body: some View {
         let isClawdhub = viewModel.selectedRepository?.templateType == .clawdhub
+        let effectiveTargetProvider = viewModel.effectiveTargetProvider(
+            for: viewModel.selectedRepository,
+            fallback: targetProvider
+        )
         Group {
             if isClawdhub {
                 NavigationSplitView {
@@ -180,12 +253,16 @@ struct ResourceCenterView: View {
                         installedMcpSlugs: viewModel.installedMcpSlugs,
                         providers: settings.providers,
                         refreshTrigger: viewModel.refreshTrigger,
-                        targetProvider: targetProvider,
+                        targetProvider: effectiveTargetProvider,
                         onInstall: { skill, provider in
                             onInstall(skill, provider)
                             // Refresh after install attempt
                             DispatchQueue.main.asyncAfter(deadline: .now() + RemoteRefreshPolicy.installPropagationDelay) {
-                                viewModel.refreshInstalledSkills(repository: repository, targetProvider: targetProvider, settings: settings)
+                                let effectiveTargetProvider = viewModel.effectiveTargetProvider(
+                                    for: viewModel.selectedRepository,
+                                    fallback: targetProvider
+                                )
+                                viewModel.refreshInstalledSkills(repository: repository, targetProvider: effectiveTargetProvider, settings: settings)
                                 viewModel.refreshTrigger += 1
                             }
                         },
@@ -193,7 +270,11 @@ struct ResourceCenterView: View {
                             onInstallWorkflow?(workflow, provider)
                             // Refresh after install attempt
                             DispatchQueue.main.asyncAfter(deadline: .now() + RemoteRefreshPolicy.installPropagationDelay) {
-                                viewModel.refreshInstalledWorkflows(targetProvider: targetProvider)
+                                let effectiveTargetProvider = viewModel.effectiveTargetProvider(
+                                    for: viewModel.selectedRepository,
+                                    fallback: targetProvider
+                                )
+                                viewModel.refreshInstalledWorkflows(targetProvider: effectiveTargetProvider)
                                 viewModel.refreshTrigger += 1
                             }
                         },
@@ -201,13 +282,16 @@ struct ResourceCenterView: View {
                             onInstallMCP?(mcp, provider)
                             // Refresh after install attempt
                             DispatchQueue.main.asyncAfter(deadline: .now() + RemoteRefreshPolicy.installPropagationDelay) {
-                                viewModel.refreshInstalledMCPs(targetProvider: targetProvider)
+                                let effectiveTargetProvider = viewModel.effectiveTargetProvider(
+                                    for: viewModel.selectedRepository,
+                                    fallback: targetProvider
+                                )
+                                viewModel.refreshInstalledMCPs(targetProvider: effectiveTargetProvider)
                                 viewModel.refreshTrigger += 1
                             }
                         },
-                        onDeleteSkill: onDeleteSkill,
-                        onDeleteWorkflow: onDeleteWorkflow,
-                        onDeleteMCP: onDeleteMCP,
+                        onRegisterDeleteRequest: onRegisterDeleteRequest,
+                        onMakeDeleteRequestExecutor: onMakeDeleteRequestExecutor,
                         onRefresh: {
                             refreshData()
                         },
@@ -245,12 +329,16 @@ struct ResourceCenterView: View {
                         installedMcpSlugs: viewModel.installedMcpSlugs,
                         providers: settings.providers,
                         refreshTrigger: viewModel.refreshTrigger,
-                        targetProvider: targetProvider,
+                        targetProvider: effectiveTargetProvider,
                         onInstall: { skill, provider in
                             onInstall(skill, provider)
                             // Refresh after install attempt
                             DispatchQueue.main.asyncAfter(deadline: .now() + RemoteRefreshPolicy.installPropagationDelay) {
-                                viewModel.refreshInstalledSkills(repository: repository, targetProvider: targetProvider, settings: settings)
+                                let effectiveTargetProvider = viewModel.effectiveTargetProvider(
+                                    for: viewModel.selectedRepository,
+                                    fallback: targetProvider
+                                )
+                                viewModel.refreshInstalledSkills(repository: repository, targetProvider: effectiveTargetProvider, settings: settings)
                                 viewModel.refreshTrigger += 1
                             }
                         },
@@ -258,7 +346,11 @@ struct ResourceCenterView: View {
                             onInstallWorkflow?(workflow, provider)
                             // Refresh after install attempt
                             DispatchQueue.main.asyncAfter(deadline: .now() + RemoteRefreshPolicy.installPropagationDelay) {
-                                viewModel.refreshInstalledWorkflows(targetProvider: targetProvider)
+                                let effectiveTargetProvider = viewModel.effectiveTargetProvider(
+                                    for: viewModel.selectedRepository,
+                                    fallback: targetProvider
+                                )
+                                viewModel.refreshInstalledWorkflows(targetProvider: effectiveTargetProvider)
                                 viewModel.refreshTrigger += 1
                             }
                         },
@@ -266,13 +358,16 @@ struct ResourceCenterView: View {
                             onInstallMCP?(mcp, provider)
                             // Refresh after install attempt
                             DispatchQueue.main.asyncAfter(deadline: .now() + RemoteRefreshPolicy.installPropagationDelay) {
-                                viewModel.refreshInstalledMCPs(targetProvider: targetProvider)
+                                let effectiveTargetProvider = viewModel.effectiveTargetProvider(
+                                    for: viewModel.selectedRepository,
+                                    fallback: targetProvider
+                                )
+                                viewModel.refreshInstalledMCPs(targetProvider: effectiveTargetProvider)
                                 viewModel.refreshTrigger += 1
                             }
                         },
-                        onDeleteSkill: onDeleteSkill,
-                        onDeleteWorkflow: onDeleteWorkflow,
-                        onDeleteMCP: onDeleteMCP,
+                        onRegisterDeleteRequest: onRegisterDeleteRequest,
+                        onMakeDeleteRequestExecutor: onMakeDeleteRequestExecutor,
                         onRefresh: {
                             refreshData()
                         },
@@ -317,8 +412,23 @@ struct ResourceCenterView: View {
                 .padding(.top, 10)
             }
         }
+        .overlay(alignment: .topTrailing) {
+            if UITestSupport.isEnabled,
+               let slug = UITestSupport.fixtureGlobalSkillSlug,
+               onRegisterDeleteRequest != nil,
+               onMakeDeleteRequestExecutor != nil {
+                Button("Delete \(slug)") {
+                    executeUITestGlobalSkillDelete(slug: slug)
+                }
+                .buttonStyle(.borderedProminent)
+                .padding(.top, 12)
+                .padding(.trailing, 16)
+                .accessibilityIdentifier("uitest.delete-global-skill.\(slug)")
+            }
+        }
         .textSelection(.enabled)
         .onAppear {
+            applyUITestInitialStateIfNeeded()
             handlePendingImportURLIfNeeded()
             refreshData()
             if viewModel.selectedRepository?.templateType == .clawdhub {
@@ -337,6 +447,7 @@ struct ResourceCenterView: View {
                     viewModel.selectedTab = .skills
                 }
             }
+            refreshData()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }

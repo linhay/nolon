@@ -87,13 +87,29 @@ struct RemoteSkillCardView: View {
     }
 
     private var installActionView: some View {
-        ResourceInstallStateView(
-            isInstalled: isInstalled,
-            isInstalling: isInstalling,
-            errorMessage: installErrorMessage,
-            onInstall: handleInstall,
-            onRetry: handleInstall
-        )
+        HStack(spacing: 8) {
+            ResourceInstallStateView(
+                isInstalled: isInstalled,
+                isInstalling: isInstalling,
+                errorMessage: installErrorMessage,
+                onInstall: handleInstall,
+                onRetry: handleInstall
+            )
+
+            if UITestSupport.shouldExposeDirectDeleteButton,
+               (isInstalled || UITestSupport.isEnabled),
+               !isDeleting,
+               onDeleteRequest != nil {
+                Button(role: .destructive) {
+                    handleUITestDirectDelete()
+                } label: {
+                    Image(systemName: "trash")
+                        .font(.system(size: 12, weight: .semibold))
+                }
+                .buttonStyle(.bordered)
+                .accessibilityIdentifier("uitest.direct-delete.skill.\(skill.slug)")
+            }
+        }
     }
     
     @ViewBuilder
@@ -142,6 +158,10 @@ struct RemoteSkillCardView: View {
         } else {
             showingInstallSheet = true
         }
+    }
+
+    private func handleUITestDirectDelete() {
+        onDeleteRequest?()
     }
 
     @ViewBuilder

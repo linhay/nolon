@@ -1,8 +1,10 @@
 import SwiftUI
 import ProviderCatalog
 import NolonResourceKit
+import OSLog
 
 struct ResourceDeleteTargetSheet: View {
+    private static let logger = Logger(subsystem: "com.nolon", category: "ResourceDeleteTargetSheet")
     let resourceName: String
     let resourceType: RemoteContentType
     let providers: [Provider]
@@ -100,8 +102,10 @@ struct ResourceDeleteTargetSheet: View {
 
                 Button(NSLocalizedString("action.delete", value: "Delete", comment: "Delete action"), role: .destructive) {
                     if deleteAll {
+                        Self.logger.info("Delete sheet primary action routed to delete-all confirmation. providers=\(self.providers.count, privacy: .public)")
                         showingConfirmDeleteAll = true
                     } else if let providerID = selectedProviderID {
+                        Self.logger.info("Delete sheet primary action routed to single-provider delete. hasProviderSelection=\(providerID.isEmpty == false, privacy: .public)")
                         onConfirm(.provider(providerID))
                         dismiss()
                     }
@@ -114,7 +118,22 @@ struct ResourceDeleteTargetSheet: View {
         }
         .frame(width: 460, height: 540)
         .onAppear {
-            selectedProviderID = preferredProvider?.id ?? providers.first?.id
+            let initialState = ResourceDeleteTargetSheetState.initial(
+                preferredProvider: preferredProvider,
+                providers: providers
+            )
+            selectedProviderID = initialState.selectedProviderID
+            deleteAll = initialState.deleteAll
+            Self.logger.info(
+                "Delete sheet appeared. providers=\(self.providers.count, privacy: .public) hasPreferredProvider=\(self.preferredProvider != nil, privacy: .public) deleteAll=\(initialState.deleteAll, privacy: .public) hasSelectedProvider=\(initialState.selectedProviderID != nil, privacy: .public)"
+            )
+        }
+        .onChange(of: deleteAll) { _, isDeletingAll in
+            guard !isDeletingAll, selectedProviderID == nil else { return }
+            selectedProviderID = ResourceDeleteTargetSheetState.providerSelection(
+                preferredProvider: preferredProvider,
+                providers: providers
+            )
         }
         .confirmationDialog(
             NSLocalizedString(
@@ -126,6 +145,7 @@ struct ResourceDeleteTargetSheet: View {
             titleVisibility: .visible
         ) {
             Button(NSLocalizedString("action.delete", value: "Delete", comment: "Delete action"), role: .destructive) {
+                Self.logger.info("Delete sheet confirmed delete-all path.")
                 onConfirm(.allProvidersAndGlobalCache)
                 dismiss()
             }

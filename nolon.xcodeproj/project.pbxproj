@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		884533C077E316D7F34C88F3 /* GlobalSkillDeletionUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA35295FA3E270778EF4E1B7 /* GlobalSkillDeletionUITests.swift */; };
+		90B6C9DC20DF7E28E3E8F607 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D959A527C9BF92468F647E82 /* Cocoa.framework */; };
 		CD36A3782F56E32D004ADF28 /* SnapshotTesting in Frameworks */ = {isa = PBXBuildFile; productRef = CDF7A1D130C5BFC7009A00A1 /* SnapshotTesting */; };
 		CD447BF32F1F79890056366B /* MarkdownUI in Frameworks */ = {isa = PBXBuildFile; productRef = CD447BF22F1F79890056366B /* MarkdownUI */; };
 		CD447BF62F1F79890056366B /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = CD447BF52F1F79890056366B /* Sparkle */; };
@@ -23,10 +25,10 @@
 		CDA190412F3DA580000DBF77 /* CodexProvider in Frameworks */ = {isa = PBXBuildFile; productRef = CDA190402F3DA580000DBF77 /* CodexProvider */; };
 		CDA190432F3DA580000DBF77 /* CopilotProvider in Frameworks */ = {isa = PBXBuildFile; productRef = CDA190422F3DA580000DBF77 /* CopilotProvider */; };
 		CDA190452F3DA580000DBF77 /* ProviderCatalog in Frameworks */ = {isa = PBXBuildFile; productRef = CDA190442F3DA580000DBF77 /* ProviderCatalog */; };
-			CDA190472F3DA580000DBF77 /* ProviderUsage in Frameworks */ = {isa = PBXBuildFile; productRef = CDA190462F3DA580000DBF77 /* ProviderUsage */; };
-			CDA190492F3DA580000DBF77 /* NolonResourceKit in Frameworks */ = {isa = PBXBuildFile; productRef = CDA190482F3DA580000DBF77 /* NolonResourceKit */; };
-			CDA1904B2F3DA580000DBF77 /* NolonCoreCLIKit in Frameworks */ = {isa = PBXBuildFile; productRef = CDA1904A2F3DA580000DBF77 /* NolonCoreCLIKit */; };
-			CDFA67412F3599FB0053E30A /* STFilePath in Frameworks */ = {isa = PBXBuildFile; productRef = CDFA67402F3599FB0053E30A /* STFilePath */; };
+		CDA190472F3DA580000DBF77 /* ProviderUsage in Frameworks */ = {isa = PBXBuildFile; productRef = CDA190462F3DA580000DBF77 /* ProviderUsage */; };
+		CDA190492F3DA580000DBF77 /* NolonResourceKit in Frameworks */ = {isa = PBXBuildFile; productRef = CDA190482F3DA580000DBF77 /* NolonResourceKit */; };
+		CDA1904B2F3DA580000DBF77 /* NolonCoreCLIKit in Frameworks */ = {isa = PBXBuildFile; productRef = CDA1904A2F3DA580000DBF77 /* NolonCoreCLIKit */; };
+		CDFA67412F3599FB0053E30A /* STFilePath in Frameworks */ = {isa = PBXBuildFile; productRef = CDFA67402F3599FB0053E30A /* STFilePath */; };
 		CDFA67442F359A110053E30A /* STJSON in Frameworks */ = {isa = PBXBuildFile; productRef = CDFA67432F359A110053E30A /* STJSON */; };
 /* End PBXBuildFile section */
 
@@ -38,11 +40,21 @@
 			remoteGlobalIDString = CD2B1A912F1F624900DF4A2B;
 			remoteInfo = nolon;
 		};
+		D9A6C38DC0C670C1E37ABBD9 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = CD2B1A8A2F1F624900DF4A2B /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = CD2B1A912F1F624900DF4A2B;
+			remoteInfo = nolon;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		8A66B8791493C61D673BA71D /* nolonUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = nolonUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		CD2B1A922F1F624900DF4A2B /* nolon.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = nolon.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		CD9EDF3C2F24F31E009248CB /* nolonTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = nolonTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		D959A527C9BF92468F647E82 /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.0.sdk/System/Library/Frameworks/Cocoa.framework; sourceTree = DEVELOPER_DIR; };
+		EA35295FA3E270778EF4E1B7 /* GlobalSkillDeletionUITests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GlobalSkillDeletionUITests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -69,12 +81,22 @@
 		};
 		CD9EDF3D2F24F31E009248CB /* nolonTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
 			path = nolonTests;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		314A20B86B9A7FF9570CFC22 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				90B6C9DC20DF7E28E3E8F607 /* Cocoa.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		CD2B1A8F2F1F624900DF4A2B /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -96,10 +118,10 @@
 				CD447BF62F1F79890056366B /* Sparkle in Frameworks */,
 				CDA190412F3DA580000DBF77 /* CodexProvider in Frameworks */,
 				CDA190452F3DA580000DBF77 /* ProviderCatalog in Frameworks */,
-					CDA190472F3DA580000DBF77 /* ProviderUsage in Frameworks */,
-					CDA190492F3DA580000DBF77 /* NolonResourceKit in Frameworks */,
-					CDA1904B2F3DA580000DBF77 /* NolonCoreCLIKit in Frameworks */,
-				);
+				CDA190472F3DA580000DBF77 /* ProviderUsage in Frameworks */,
+				CDA190492F3DA580000DBF77 /* NolonResourceKit in Frameworks */,
+				CDA1904B2F3DA580000DBF77 /* NolonCoreCLIKit in Frameworks */,
+			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		CD9EDF392F24F31E009248CB /* Frameworks */ = {
@@ -113,6 +135,15 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		B455D52DBBDBCE75AA78766A /* nolonUITests */ = {
+			isa = PBXGroup;
+			children = (
+				EA35295FA3E270778EF4E1B7 /* GlobalSkillDeletionUITests.swift */,
+			);
+			name = nolonUITests;
+			path = nolonUITests;
+			sourceTree = "<group>";
+		};
 		CD2B1A892F1F624900DF4A2B = {
 			isa = PBXGroup;
 			children = (
@@ -120,6 +151,7 @@
 				CD9EDF3D2F24F31E009248CB /* nolonTests */,
 				CD68A73F2F37AA4E008772E7 /* Frameworks */,
 				CD2B1A932F1F624900DF4A2B /* Products */,
+				B455D52DBBDBCE75AA78766A /* nolonUITests */,
 			);
 			sourceTree = "<group>";
 		};
@@ -128,6 +160,7 @@
 			children = (
 				CD2B1A922F1F624900DF4A2B /* nolon.app */,
 				CD9EDF3C2F24F31E009248CB /* nolonTests.xctest */,
+				8A66B8791493C61D673BA71D /* nolonUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -135,13 +168,40 @@
 		CD68A73F2F37AA4E008772E7 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				D8B053EE5D44ED23124C5BAA /* OS X */,
 			);
 			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		D8B053EE5D44ED23124C5BAA /* OS X */ = {
+			isa = PBXGroup;
+			children = (
+				D959A527C9BF92468F647E82 /* Cocoa.framework */,
+			);
+			name = "OS X";
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		B55FA475C32AF3215AD08091 /* nolonUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 121F48E2EBD3FD595DA02A53 /* Build configuration list for PBXNativeTarget "nolonUITests" */;
+			buildPhases = (
+				98CDBC01EFE79D56A6ED92C3 /* Sources */,
+				314A20B86B9A7FF9570CFC22 /* Frameworks */,
+				2D74CCF4443CBD910A2E530B /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				EC901525A3BD33F36231F3E4 /* PBXTargetDependency */,
+			);
+			name = nolonUITests;
+			productName = nolonUITests;
+			productReference = 8A66B8791493C61D673BA71D /* nolonUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 		CD2B1A912F1F624900DF4A2B /* nolon */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = CD2B1A9D2F1F624A00DF4A2B /* Build configuration list for PBXNativeTarget "nolon" */;
@@ -176,10 +236,10 @@
 				CDA190402F3DA580000DBF77 /* CodexProvider */,
 				CDA190422F3DA580000DBF77 /* CopilotProvider */,
 				CDA190442F3DA580000DBF77 /* ProviderCatalog */,
-					CDA190462F3DA580000DBF77 /* ProviderUsage */,
-					CDA190482F3DA580000DBF77 /* NolonResourceKit */,
-					CDA1904A2F3DA580000DBF77 /* NolonCoreCLIKit */,
-				);
+				CDA190462F3DA580000DBF77 /* ProviderUsage */,
+				CDA190482F3DA580000DBF77 /* NolonResourceKit */,
+				CDA1904A2F3DA580000DBF77 /* NolonCoreCLIKit */,
+			);
 			productName = nolon;
 			productReference = CD2B1A922F1F624900DF4A2B /* nolon.app */;
 			productType = "com.apple.product-type.application";
@@ -218,6 +278,10 @@
 				LastSwiftUpdateCheck = 2620;
 				LastUpgradeCheck = 2630;
 				TargetAttributes = {
+					B55FA475C32AF3215AD08091 = {
+						CreatedOnToolsVersion = 26.2;
+						TestTargetID = CD2B1A912F1F624900DF4A2B;
+					};
 					CD2B1A912F1F624900DF4A2B = {
 						CreatedOnToolsVersion = 26.2;
 					};
@@ -247,7 +311,7 @@
 				CDFA673F2F3599FB0053E30A /* XCRemoteSwiftPackageReference "STFilePath" */,
 				CDFA67422F359A110053E30A /* XCRemoteSwiftPackageReference "STJSON" */,
 				CD68A7062F371C8E008772E7 /* XCRemoteSwiftPackageReference "SKProcessRunner" */,
-				CDA190392F3DA580000DBF77 /* XCLocalSwiftPackageReference "libs/Providers" */,
+				CDA190392F3DA580000DBF77 /* XCLocalSwiftPackageReference "Providers" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = CD2B1A932F1F624900DF4A2B /* Products */;
@@ -256,11 +320,19 @@
 			targets = (
 				CD2B1A912F1F624900DF4A2B /* nolon */,
 				CD9EDF3B2F24F31E009248CB /* nolonTests */,
+				B55FA475C32AF3215AD08091 /* nolonUITests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		2D74CCF4443CBD910A2E530B /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		CD2B1A902F1F624900DF4A2B /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -278,6 +350,14 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		98CDBC01EFE79D56A6ED92C3 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				884533C077E316D7F34C88F3 /* GlobalSkillDeletionUITests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		CD2B1A8E2F1F624900DF4A2B /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -300,9 +380,35 @@
 			target = CD2B1A912F1F624900DF4A2B /* nolon */;
 			targetProxy = CD9EDF402F24F31E009248CB /* PBXContainerItemProxy */;
 		};
+		EC901525A3BD33F36231F3E4 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = nolon;
+			target = CD2B1A912F1F624900DF4A2B /* nolon */;
+			targetProxy = D9A6C38DC0C670C1E37ABBD9 /* PBXContainerItemProxy */;
+		};
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
+		8B44F813BCD66F96EE96815C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 202603041926;
+				DEVELOPMENT_TEAM = 3L8RM3MDLS;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 2.1.1;
+				PRODUCT_BUNDLE_IDENTIFIER = nolon.overloaded.com.nolonUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
 		CD2B1A9B2F1F624A00DF4A2B /* Debug */ = {
 			isa = XCBuildConfiguration;
 			baseConfigurationReferenceAnchor = CD2B1A942F1F624900DF4A2B /* nolon */;
@@ -545,9 +651,38 @@
 			};
 			name = Release;
 		};
+		F1E41E3ACA9ADCD68D8B46F0 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 202603041926;
+				DEVELOPMENT_TEAM = 3L8RM3MDLS;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 2.1.1;
+				PRODUCT_BUNDLE_IDENTIFIER = nolon.overloaded.com.nolonUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		121F48E2EBD3FD595DA02A53 /* Build configuration list for PBXNativeTarget "nolonUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F1E41E3ACA9ADCD68D8B46F0 /* Release */,
+				8B44F813BCD66F96EE96815C /* Debug */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		CD2B1A8D2F1F624900DF4A2B /* Build configuration list for PBXProject "nolon" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -578,7 +713,7 @@
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
-		CDA190392F3DA580000DBF77 /* XCLocalSwiftPackageReference "libs/Providers" */ = {
+		CDA190392F3DA580000DBF77 /* XCLocalSwiftPackageReference "Providers" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = libs/Providers;
 		};
@@ -730,14 +865,14 @@
 			isa = XCSwiftPackageProductDependency;
 			productName = ProviderUsage;
 		};
-			CDA190482F3DA580000DBF77 /* NolonResourceKit */ = {
-				isa = XCSwiftPackageProductDependency;
-				productName = NolonResourceKit;
-			};
-			CDA1904A2F3DA580000DBF77 /* NolonCoreCLIKit */ = {
-				isa = XCSwiftPackageProductDependency;
-				productName = NolonCoreCLIKit;
-			};
+		CDA190482F3DA580000DBF77 /* NolonResourceKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = NolonResourceKit;
+		};
+		CDA1904A2F3DA580000DBF77 /* NolonCoreCLIKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = NolonCoreCLIKit;
+		};
 		CDF7A1D130C5BFC7009A00A1 /* SnapshotTesting */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = CDF7A1D030C5BFC7009A00A1 /* XCRemoteSwiftPackageReference "swift-snapshot-testing" */;

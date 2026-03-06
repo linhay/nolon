@@ -2,6 +2,7 @@ import SwiftUI
 import ProviderCatalog
 import NolonResourceKit
 import Observation
+import OSLog
 #if os(macOS)
 import AppKit
 #endif
@@ -21,6 +22,8 @@ extension RemoteCatalogQueryService: RemoteCatalogQueryServing {}
 @MainActor
 @Observable
 final class ResourceCatalogGridViewModel {
+    private static let logger = Logger(subsystem: "com.nolon", category: "ResourceCatalogGridViewModel")
+    typealias DeleteRequestExecutor = @MainActor () async -> ResourceDeleteExecutionResult
     var skills: [RemoteSkill] = []
     var workflows: [RemoteWorkflow] = []
     var mcps: [RemoteMCP] = []
@@ -32,6 +35,13 @@ final class ResourceCatalogGridViewModel {
     var selectedSkillForDetail: RemoteSkill?
     var selectedWorkflowForDetail: RemoteWorkflow?
     var selectedMCPForDetail: RemoteMCP?
+    var deleteRequest: ResourceDeleteRequest?
+    var directDeleteConfirmationRequest: ResourceDeleteRequest?
+    var deleteResultMessage = ""
+    var isShowingDeleteResultAlert = false
+    var pendingSkillDeletes: Set<String> = []
+    var pendingWorkflowDeletes: Set<String> = []
+    var pendingMcpDeletes: Set<String> = []
 
     private var currentLoadID: UUID?
     private let queryService: any RemoteCatalogQueryServing
@@ -368,10 +378,250 @@ final class ResourceCatalogGridViewModel {
         )
         return result
     }
+
+    func requestDelete(skill: RemoteSkill, repositoryTemplateType: RepositoryTemplate?) {
+        requestDelete(
+            ResourceDeleteRequest(
+                skill: skill,
+                defaultTarget: repositoryTemplateType == .globalSkills ? .allProvidersAndGlobalCache : nil
+            )
+        )
+    }
+
+    func requestDelete(workflow: RemoteWorkflow, repositoryTemplateType: RepositoryTemplate?) {
+        requestDelete(
+            ResourceDeleteRequest(
+                workflow: workflow,
+                defaultTarget: repositoryTemplateType == .globalSkills ? .allProvidersAndGlobalCache : nil
+            )
+        )
+    }
+
+    func requestDelete(mcp: RemoteMCP, repositoryTemplateType: RepositoryTemplate?) {
+        requestDelete(
+            ResourceDeleteRequest(
+                mcp: mcp,
+                defaultTarget: repositoryTemplateType == .globalSkills ? .allProvidersAndGlobalCache : nil
+            )
+        )
+    }
+
+    private func requestDelete(_ request: ResourceDeleteRequest) {
+        if request.defaultTarget != nil {
+            directDeleteConfirmationRequest = request
+            deleteRequest = nil
+        } else {
+            deleteRequest = request
+            directDeleteConfirmationRequest = nil
+        }
+    }
+
+    func executeDelete(
+        resourceSlug: String,
+        resourceType: RemoteContentType,
+        target: ResourceDeleteTarget,
+        globalCachePathHint: String? = nil,
+        providers: [Provider],
+        onRegisterDeleteRequest: ((String, RemoteContentType, Int?, Bool, String?) -> Int)?,
+        onMakeDeleteRequestExecutor: ((Int) -> DeleteRequestExecutor)?,
+        onRefresh: (() -> Void)? = nil,
+        localized: (_ key: String, _ fallback: String) -> String = { key, fallback in
+            NSLocalizedString(key, value: fallback, comment: "")
+        },
+        preferredLanguages: () -> [String] = { Locale.preferredLanguages }
+    ) async {
+        let flattenedTarget = Self.flattenDeleteTarget(target, providers: providers)
+        Self.logger.info(
+            "Execute delete requested. resourceType=\(resourceType.rawValue, privacy: .public) providers=\(providers.count, privacy: .public) providerIndex=\(flattenedTarget.providerIndex.map(String.init) ?? "nil", privacy: .public) removeGlobalCache=\(flattenedTarget.removeGlobalCache, privacy: .public) hasPathHint=\(globalCachePathHint != nil, privacy: .public)"
+        )
+        guard let onRegisterDeleteRequest, let onMakeDeleteRequestExecutor else { return }
+        let requestID = onRegisterDeleteRequest(
+            resourceSlug,
+            resourceType,
+            flattenedTarget.providerIndex,
+            flattenedTarget.removeGlobalCache,
+            globalCachePathHint
+        )
+        let executeDeleteRequest = onMakeDeleteRequestExecutor(requestID)
+        switch resourceType {
+        case .skill:
+            pendingSkillDeletes.insert(resourceSlug)
+            defer { pendingSkillDeletes.remove(resourceSlug) }
+            let result = await executeDeleteRequest()
+            presentDeleteResult(
+                result,
+                requestedSlug: resourceSlug,
+                localized: localized,
+                preferredLanguages: preferredLanguages
+            )
+        case .workflow:
+            pendingWorkflowDeletes.insert(resourceSlug)
+            defer { pendingWorkflowDeletes.remove(resourceSlug) }
+            let result = await executeDeleteRequest()
+            presentDeleteResult(
+                result,
+                requestedSlug: resourceSlug,
+                localized: localized,
+                preferredLanguages: preferredLanguages
+            )
+        case .mcp:
+            pendingMcpDeletes.insert(resourceSlug)
+            defer { pendingMcpDeletes.remove(resourceSlug) }
+            let result = await executeDeleteRequest()
+            presentDeleteResult(
+                result,
+                requestedSlug: resourceSlug,
+                localized: localized,
+                preferredLanguages: preferredLanguages
+            )
+        }
+
+        onRefresh?()
+    }
+
+    private static func flattenDeleteTarget(
+        _ target: ResourceDeleteTarget,
+        providers: [Provider]
+    ) -> (providerIndex: Int?, removeGlobalCache: Bool) {
+        switch target {
+        case let .provider(providerID):
+            let providerIndex = providers.firstIndex { $0.id == providerID }
+            return (providerIndex, false)
+        case .allProvidersAndGlobalCache:
+            return (nil, true)
+        }
+    }
+
+    func presentDeleteResult(
+        _ result: ResourceDeleteExecutionResult,
+        requestedSlug: String,
+        localized: (_ key: String, _ fallback: String) -> String = { key, fallback in
+            NSLocalizedString(key, value: fallback, comment: "")
+        },
+        preferredLanguages: () -> [String] = { Locale.preferredLanguages }
+    ) {
+        let typeName = localizedTypeName(for: result.resourceType, localized: localized)
+        deleteResultMessage = Self.buildDeleteResultMessage(
+            resourceSlug: requestedSlug,
+            result: result,
+            typeName: typeName,
+            localized: localized,
+            preferredLanguages: preferredLanguages
+        )
+        isShowingDeleteResultAlert = true
+    }
+
+    private func localizedTypeName(
+        for resourceType: RemoteContentType,
+        localized: (_ key: String, _ fallback: String) -> String
+    ) -> String {
+        switch resourceType {
+        case .skill:
+            return localized("tab.skills", "Skills")
+        case .workflow:
+            return localized("tab.workflows", "Workflows")
+        case .mcp:
+            return localized("tab.mcps", "MCPs")
+        }
+    }
+
+    nonisolated static func buildDeleteResultMessage(
+        resourceSlug: String,
+        result: ResourceDeleteExecutionResult,
+        typeName: String,
+        localized: (_ key: String, _ fallback: String) -> String,
+        preferredLanguages: () -> [String]
+    ) -> String {
+        let localTypeName = String(typeName)
+        let localResourceSlug = String(resourceSlug)
+        let localPreferredLanguages = preferredLanguages()
+        let localSuccessCount = String(result.successCount)
+        let localAttemptedCount = String(result.attemptedCount)
+
+        if result.failures.isEmpty {
+            let localizedMarker = localized(
+                "resource.delete.result.success",
+                "%1$@ \"%2$@\" deleted. Removed from %3$ld provider(s)."
+            )
+            if usesChineseDeleteMessage(localizedMarker: localizedMarker, preferredLanguages: localPreferredLanguages) {
+                return [
+                    "已删除",
+                    localTypeName,
+                    "“",
+                    localResourceSlug,
+                    "”。已从 ",
+                    localSuccessCount,
+                    " 个 Provider 中移除。"
+                ].joined()
+            }
+            return [
+                localTypeName,
+                " \"",
+                localResourceSlug,
+                "\" deleted. Removed from ",
+                localSuccessCount,
+                " provider(s)."
+            ].joined()
+        }
+
+        let localFailures = result.failures
+            .map { [String($0.targetName), ": ", String($0.reason)].joined() }
+            .joined(separator: "\n")
+        let localizedMarker = localized(
+            "resource.delete.result.partial",
+            "%1$@ \"%2$@\" deleted with partial failures.\nSuccess: %3$ld/%4$ld\n%5$@"
+        )
+        if usesChineseDeleteMessage(localizedMarker: localizedMarker, preferredLanguages: localPreferredLanguages) {
+            return [
+                "已删除",
+                localTypeName,
+                "“",
+                localResourceSlug,
+                "”，但部分目标失败。\n成功：",
+                localSuccessCount,
+                "/",
+                localAttemptedCount,
+                "\n",
+                localFailures
+            ].joined()
+        }
+        return [
+            localTypeName,
+            " \"",
+            localResourceSlug,
+            "\" deleted with partial failures.\nSuccess: ",
+            localSuccessCount,
+            "/",
+            localAttemptedCount,
+            "\n",
+            localFailures
+        ].joined()
+    }
+
+    private nonisolated static func usesChineseDeleteMessage(
+        localizedMarker: String,
+        preferredLanguages: [String]
+    ) -> Bool {
+        if preferredLanguages.contains(where: { $0.lowercased().hasPrefix("zh") }) {
+            return true
+        }
+
+        return localizedMarker.unicodeScalars.contains { scalar in
+            switch scalar.value {
+            case 0x4E00...0x9FFF, 0x3400...0x4DBF, 0x20000...0x2A6DF:
+                return true
+            default:
+                return false
+            }
+        }
+    }
 }
 
 /// Detail 区域 - Grid 布局显示资源中心内容
 struct ResourceCatalogGridView: View {
+    private static let logger = Logger(subsystem: "com.nolon", category: "ResourceCatalogGrid")
+    private static let installTimeoutNanoseconds: UInt64 = 45_000_000_000
+
     let repository: RemoteRepository?
     let selectedTab: ResourceContentTabType?
     @Binding var searchText: String
@@ -384,9 +634,8 @@ struct ResourceCatalogGridView: View {
     let onInstall: (RemoteSkill, Provider) -> Void
     let onInstallWorkflow: ((RemoteWorkflow, Provider) -> Void)?
     let onInstallMCP: ((RemoteMCP, Provider) -> Void)?
-    let onDeleteSkill: ((RemoteSkill, ResourceDeleteTarget) async -> ResourceDeleteExecutionResult)?
-    let onDeleteWorkflow: ((RemoteWorkflow, ResourceDeleteTarget) async -> ResourceDeleteExecutionResult)?
-    let onDeleteMCP: ((RemoteMCP, ResourceDeleteTarget) async -> ResourceDeleteExecutionResult)?
+    let onRegisterDeleteRequest: ((String, RemoteContentType, Int?, Bool, String?) -> Int)?
+    let onMakeDeleteRequestExecutor: ((Int) -> ResourceCatalogGridViewModel.DeleteRequestExecutor)?
     let onRefresh: (() -> Void)?
     let onClose: (() -> Void)?
     
@@ -402,12 +651,6 @@ struct ResourceCatalogGridView: View {
     @State private var skillInstallErrors: [String: String] = [:]
     @State private var workflowInstallErrors: [String: String] = [:]
     @State private var mcpInstallErrors: [String: String] = [:]
-    @State private var pendingSkillDeletes: Set<String> = []
-    @State private var pendingWorkflowDeletes: Set<String> = []
-    @State private var pendingMcpDeletes: Set<String> = []
-    @State private var deleteRequest: DeleteRequest?
-    @State private var deleteResultMessage: String = ""
-    @State private var showingDeleteResultAlert = false
     
     init(
         repository: RemoteRepository?,
@@ -422,15 +665,15 @@ struct ResourceCatalogGridView: View {
         onInstall: @escaping (RemoteSkill, Provider) -> Void,
         onInstallWorkflow: ((RemoteWorkflow, Provider) -> Void)? = nil,
         onInstallMCP: ((RemoteMCP, Provider) -> Void)? = nil,
-        onDeleteSkill: ((RemoteSkill, ResourceDeleteTarget) async -> ResourceDeleteExecutionResult)? = nil,
-        onDeleteWorkflow: ((RemoteWorkflow, ResourceDeleteTarget) async -> ResourceDeleteExecutionResult)? = nil,
-        onDeleteMCP: ((RemoteMCP, ResourceDeleteTarget) async -> ResourceDeleteExecutionResult)? = nil,
+        onRegisterDeleteRequest: ((String, RemoteContentType, Int?, Bool, String?) -> Int)? = nil,
+        onMakeDeleteRequestExecutor: ((Int) -> ResourceCatalogGridViewModel.DeleteRequestExecutor)? = nil,
         onRefresh: (() -> Void)? = nil,
         onClose: (() -> Void)? = nil
     ) {
         self.repository = repository
         self.selectedTab = selectedTab
         self._searchText = searchText
+        self._debouncedSearchText = State(initialValue: searchText.wrappedValue)
         self.installedSlugs = installedSlugs
         self.installedWorkflowSlugs = installedWorkflowSlugs
         self.installedMcpSlugs = installedMcpSlugs
@@ -440,9 +683,8 @@ struct ResourceCatalogGridView: View {
         self.onInstall = onInstall
         self.onInstallWorkflow = onInstallWorkflow
         self.onInstallMCP = onInstallMCP
-        self.onDeleteSkill = onDeleteSkill
-        self.onDeleteWorkflow = onDeleteWorkflow
-        self.onDeleteMCP = onDeleteMCP
+        self.onRegisterDeleteRequest = onRegisterDeleteRequest
+        self.onMakeDeleteRequestExecutor = onMakeDeleteRequestExecutor
         self.onRefresh = onRefresh
         self.onClose = onClose
     }
@@ -456,7 +698,24 @@ struct ResourceCatalogGridView: View {
     }
 
     private var normalizedSearchQuery: String {
-        isClawdhub ? debouncedSearchText : ""
+        Self.resolveSearchQuery(
+            isClawdhub: isClawdhub,
+            debouncedSearchText: debouncedSearchText,
+            searchText: searchText
+        )
+    }
+
+    static func resolveSearchQuery(
+        isClawdhub: Bool,
+        debouncedSearchText: String,
+        searchText: String
+    ) -> String {
+        guard isClawdhub else { return "" }
+        let debounced = debouncedSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !debounced.isEmpty {
+            return debounced
+        }
+        return searchText.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private var isSearching: Bool {
@@ -476,36 +735,6 @@ struct ResourceCatalogGridView: View {
         "\(repository?.id ?? "")-\(selectedTab?.rawValue ?? "")-\(cacheBuster)"
     }
 
-    private enum DeleteRequest: Identifiable {
-        case skill(RemoteSkill)
-        case workflow(RemoteWorkflow)
-        case mcp(RemoteMCP)
-
-        var id: String {
-            switch self {
-            case let .skill(skill): return "skill-\(skill.slug)"
-            case let .workflow(workflow): return "workflow-\(workflow.slug)"
-            case let .mcp(mcp): return "mcp-\(mcp.slug)"
-            }
-        }
-
-        var displayName: String {
-            switch self {
-            case let .skill(skill): skill.displayName
-            case let .workflow(workflow): workflow.displayName
-            case let .mcp(mcp): mcp.displayName
-            }
-        }
-
-        var resourceType: RemoteContentType {
-            switch self {
-            case .skill: .skill
-            case .workflow: .workflow
-            case .mcp: .mcp
-            }
-        }
-    }
-    
     var body: some View {
         contentWithDetailSheets
             .textSelection(.enabled)
@@ -626,7 +855,9 @@ struct ResourceCatalogGridView: View {
                 .frame(minWidth: 920, idealWidth: 1100, maxWidth: .infinity,
                        minHeight: 620, idealHeight: 720, maxHeight: .infinity)
             }
-            .sheet(item: $deleteRequest) { request in
+            .sheet(item: $viewModel.deleteRequest) { request in
+                let resourceSlug = request.resourceSlug
+                let resourceType = request.resourceType
                 ResourceDeleteTargetSheet(
                     resourceName: request.displayName,
                     resourceType: request.resourceType,
@@ -634,17 +865,69 @@ struct ResourceCatalogGridView: View {
                     preferredProvider: targetProvider
                 ) { target in
                     Task {
-                        await handleDeleteRequest(request, target: target)
+                        await handleDeleteRequest(
+                            resourceSlug: resourceSlug,
+                            resourceType: resourceType,
+                            target: target,
+                            globalCachePathHint: request.localPath
+                        )
                     }
                 }
             }
+            .confirmationDialog(
+                NSLocalizedString(
+                    "resource.delete.confirm.title",
+                    value: "Delete from all providers?",
+                    comment: "Delete all confirmation title"
+                ),
+                isPresented: isShowingDirectDeleteConfirmation,
+                titleVisibility: .visible,
+                presenting: viewModel.directDeleteConfirmationRequest
+            ) { request in
+                Button(NSLocalizedString("action.delete", value: "Delete", comment: "Delete action"), role: .destructive) {
+                    viewModel.directDeleteConfirmationRequest = nil
+                    Task {
+                        await handleDeleteRequest(
+                            resourceSlug: request.resourceSlug,
+                            resourceType: request.resourceType,
+                            target: request.defaultTarget ?? .allProvidersAndGlobalCache,
+                            globalCachePathHint: request.localPath
+                        )
+                    }
+                }
+                Button(NSLocalizedString("Cancel", comment: "Cancel"), role: .cancel) {
+                    viewModel.directDeleteConfirmationRequest = nil
+                }
+            } message: { _ in
+                Text(
+                    NSLocalizedString(
+                        "resource.delete.confirm.message",
+                        value: "This will remove the resource from all providers and delete global cache files.",
+                        comment: "Delete all confirmation message"
+                    )
+                )
+            }
             .alert(
                 NSLocalizedString("action.delete", value: "Delete", comment: "Delete action"),
-                isPresented: $showingDeleteResultAlert
+                isPresented: $viewModel.isShowingDeleteResultAlert
             ) {
                 Button(NSLocalizedString("ok", value: "OK", comment: "OK")) {}
             } message: {
-                Text(deleteResultMessage)
+                Text(viewModel.deleteResultMessage)
+            }
+            .onChange(of: viewModel.directDeleteConfirmationRequest) { _, request in
+                guard UITestSupport.shouldAutoConfirmDelete,
+                      let request,
+                      let target = request.defaultTarget else { return }
+                viewModel.directDeleteConfirmationRequest = nil
+                Task {
+                    await handleDeleteRequest(
+                        resourceSlug: request.resourceSlug,
+                        resourceType: request.resourceType,
+                        target: target,
+                        globalCachePathHint: request.localPath
+                    )
+                }
             }
     }
 
@@ -660,11 +943,24 @@ struct ResourceCatalogGridView: View {
         )
     }
 
+    private var isShowingDirectDeleteConfirmation: Binding<Bool> {
+        SwiftUI.Binding(
+            get: { viewModel.directDeleteConfirmationRequest != nil },
+            set: { isPresented in
+                if !isPresented {
+                    viewModel.directDeleteConfirmationRequest = nil
+                }
+            }
+        )
+    }
+
     @ViewBuilder
     private var contentBody: some View {
         let hasAnyContent = !(viewModel.skills.isEmpty && viewModel.workflows.isEmpty && viewModel.mcps.isEmpty)
         if viewModel.isLoading && !hasAnyContent {
-            ProgressView()
+            Image(systemName: "arrow.triangle.2.circlepath")
+                .font(.system(size: 16, weight: .medium))
+                .foregroundStyle(DesignSystem.Colors.Status.info)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if let error = viewModel.errorMessage, !hasAnyContent {
             ContentUnavailableView {
@@ -878,9 +1174,12 @@ struct ResourceCatalogGridView: View {
                                             onInstall(skill, provider)
                                         },
                                         onDeleteRequest: {
-                                            deleteRequest = .skill(skill)
+                                            viewModel.requestDelete(
+                                                skill: skill,
+                                                repositoryTemplateType: repository?.templateType
+                                            )
                                         },
-                                        isDeleting: pendingSkillDeletes.contains(skill.slug),
+                                        isDeleting: viewModel.pendingSkillDeletes.contains(skill.slug),
                                         onTap: {
                                             viewModel.selectedSkillForDetail = skill
                                         }
@@ -978,9 +1277,12 @@ struct ResourceCatalogGridView: View {
                                             onInstallWorkflow?(workflow, provider)
                                         },
                                         onDeleteRequest: {
-                                            deleteRequest = .workflow(workflow)
+                                            viewModel.requestDelete(
+                                                workflow: workflow,
+                                                repositoryTemplateType: repository?.templateType
+                                            )
                                         },
-                                        isDeleting: pendingWorkflowDeletes.contains(workflow.slug),
+                                        isDeleting: viewModel.pendingWorkflowDeletes.contains(workflow.slug),
                                         onTap: {
                                             viewModel.selectedWorkflowForDetail = workflow
                                         }
@@ -1078,9 +1380,12 @@ struct ResourceCatalogGridView: View {
                                             onInstallMCP?(mcp, provider)
                                         },
                                         onDeleteRequest: {
-                                            deleteRequest = .mcp(mcp)
+                                            viewModel.requestDelete(
+                                                mcp: mcp,
+                                                repositoryTemplateType: repository?.templateType
+                                            )
                                         },
-                                        isDeleting: pendingMcpDeletes.contains(mcp.slug),
+                                        isDeleting: viewModel.pendingMcpDeletes.contains(mcp.slug),
                                         onTap: {
                                             viewModel.selectedMCPForDetail = mcp
                                         }
@@ -1187,8 +1492,9 @@ struct ResourceCatalogGridView: View {
                 } label: {
                     HStack(spacing: 8) {
                         if viewModel.isLoadingMore {
-                            ProgressView()
-                                .controlSize(.small)
+                            Image(systemName: "arrow.triangle.2.circlepath")
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundStyle(DesignSystem.Colors.Status.info)
                         }
                         Text(
                             viewModel.isLoadingMore
@@ -1235,14 +1541,20 @@ struct ResourceCatalogGridView: View {
     }
 
     private func beginSkillInstall(_ skill: RemoteSkill, provider: Provider) {
+        Self.logger.info(
+            "UI install click(skill). slug=\(skill.slug, privacy: .public) provider=\(provider.id, privacy: .public)"
+        )
         skillInstallErrors.removeValue(forKey: skill.slug)
         pendingSkillInstalls.insert(skill.slug)
         onInstall(skill, provider)
         Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 15_000_000_000)
+            try? await Task.sleep(nanoseconds: Self.installTimeoutNanoseconds)
             guard pendingSkillInstalls.contains(skill.slug) else { return }
             pendingSkillInstalls.remove(skill.slug)
             if !installedSlugs.contains(skill.slug) {
+                Self.logger.error(
+                    "UI install timeout(skill). slug=\(skill.slug, privacy: .public) provider=\(provider.id, privacy: .public)"
+                )
                 skillInstallErrors[skill.slug] = NSLocalizedString(
                     "remote.install.failed.hint",
                     value: "Install timed out. Click Retry.",
@@ -1253,14 +1565,20 @@ struct ResourceCatalogGridView: View {
     }
 
     private func beginWorkflowInstall(_ workflow: RemoteWorkflow, provider: Provider) {
+        Self.logger.info(
+            "UI install click(workflow). slug=\(workflow.slug, privacy: .public) provider=\(provider.id, privacy: .public)"
+        )
         workflowInstallErrors.removeValue(forKey: workflow.slug)
         pendingWorkflowInstalls.insert(workflow.slug)
         onInstallWorkflow?(workflow, provider)
         Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 15_000_000_000)
+            try? await Task.sleep(nanoseconds: Self.installTimeoutNanoseconds)
             guard pendingWorkflowInstalls.contains(workflow.slug) else { return }
             pendingWorkflowInstalls.remove(workflow.slug)
             if !installedWorkflowSlugs.contains(workflow.slug) {
+                Self.logger.error(
+                    "UI install timeout(workflow). slug=\(workflow.slug, privacy: .public) provider=\(provider.id, privacy: .public)"
+                )
                 workflowInstallErrors[workflow.slug] = NSLocalizedString(
                     "remote.install.failed.hint",
                     value: "Install timed out. Click Retry.",
@@ -1271,14 +1589,20 @@ struct ResourceCatalogGridView: View {
     }
 
     private func beginMCPInstall(_ mcp: RemoteMCP, provider: Provider) {
+        Self.logger.info(
+            "UI install click(mcp). slug=\(mcp.slug, privacy: .public) provider=\(provider.id, privacy: .public)"
+        )
         mcpInstallErrors.removeValue(forKey: mcp.slug)
         pendingMcpInstalls.insert(mcp.slug)
         onInstallMCP?(mcp, provider)
         Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 15_000_000_000)
+            try? await Task.sleep(nanoseconds: Self.installTimeoutNanoseconds)
             guard pendingMcpInstalls.contains(mcp.slug) else { return }
             pendingMcpInstalls.remove(mcp.slug)
             if !installedMcpSlugs.contains(mcp.slug) {
+                Self.logger.error(
+                    "UI install timeout(mcp). slug=\(mcp.slug, privacy: .public) provider=\(provider.id, privacy: .public)"
+                )
                 mcpInstallErrors[mcp.slug] = NSLocalizedString(
                     "remote.install.failed.hint",
                     value: "Install timed out. Click Retry.",
@@ -1289,70 +1613,22 @@ struct ResourceCatalogGridView: View {
     }
 
     @MainActor
-    private func handleDeleteRequest(_ request: DeleteRequest, target: ResourceDeleteTarget) async {
-        switch request {
-        case let .skill(skill):
-            guard let onDeleteSkill else { return }
-            pendingSkillDeletes.insert(skill.slug)
-            defer { pendingSkillDeletes.remove(skill.slug) }
-            let result = await onDeleteSkill(skill, target)
-            showDeleteResult(result)
-        case let .workflow(workflow):
-            guard let onDeleteWorkflow else { return }
-            pendingWorkflowDeletes.insert(workflow.slug)
-            defer { pendingWorkflowDeletes.remove(workflow.slug) }
-            let result = await onDeleteWorkflow(workflow, target)
-            showDeleteResult(result)
-        case let .mcp(mcp):
-            guard let onDeleteMCP else { return }
-            pendingMcpDeletes.insert(mcp.slug)
-            defer { pendingMcpDeletes.remove(mcp.slug) }
-            let result = await onDeleteMCP(mcp, target)
-            showDeleteResult(result)
-        }
-    }
-
-    @MainActor
-    private func showDeleteResult(_ result: ResourceDeleteExecutionResult) {
-        let typeName: String
-        switch result.resourceType {
-        case .skill:
-            typeName = NSLocalizedString("tab.skills", comment: "Skills")
-        case .workflow:
-            typeName = NSLocalizedString("tab.workflows", comment: "Workflows")
-        case .mcp:
-            typeName = NSLocalizedString("tab.mcps", comment: "MCPs")
-        }
-
-        if result.failures.isEmpty {
-            deleteResultMessage = String(
-                format: NSLocalizedString(
-                    "resource.delete.result.success",
-                    value: "%@ \"%@\" deleted. Removed from %d provider(s).",
-                    comment: "Delete success message"
-                ),
-                typeName, result.resourceSlug, result.successCount
-            )
-        } else {
-            let failures = result.failures
-                .map { "\($0.targetName): \($0.reason)" }
-                .joined(separator: "\n")
-            deleteResultMessage = String(
-                format: NSLocalizedString(
-                    "resource.delete.result.partial",
-                    value: "%@ \"%@\" deleted with partial failures.\nSuccess: %d/%d\n%@",
-                    comment: "Delete partial failure message"
-                ),
-                typeName,
-                result.resourceSlug,
-                result.successCount,
-                result.attemptedCount,
-                failures
-            )
-        }
-
-        showingDeleteResultAlert = true
-        onRefresh?()
+    private func handleDeleteRequest(
+        resourceSlug: String,
+        resourceType: RemoteContentType,
+        target: ResourceDeleteTarget,
+        globalCachePathHint: String? = nil
+    ) async {
+        await viewModel.executeDelete(
+            resourceSlug: resourceSlug,
+            resourceType: resourceType,
+            target: target,
+            globalCachePathHint: globalCachePathHint,
+            providers: providers,
+            onRegisterDeleteRequest: onRegisterDeleteRequest,
+            onMakeDeleteRequestExecutor: onMakeDeleteRequestExecutor,
+            onRefresh: onRefresh
+        )
     }
 }
 
