@@ -202,17 +202,33 @@ struct ResourceCenterView: View {
         }
 
         if let query = UITestSupport.initialSearchQuery {
-            viewModel.selectedTab = .skills
+            if let initialTab = UITestSupport.initialResourceTab {
+                viewModel.selectedTab = initialTab
+            } else {
+                viewModel.selectedTab = .skills
+            }
             viewModel.searchText = query
         }
     }
 
     private func executeUITestGlobalSkillDelete(slug: String) {
+        executeUITestDelete(slug: slug, resourceType: .skill)
+    }
+
+    private func executeUITestGlobalWorkflowDelete(slug: String) {
+        executeUITestDelete(slug: slug, resourceType: .workflow)
+    }
+
+    private func executeUITestGlobalMCPDelete(slug: String) {
+        executeUITestDelete(slug: slug, resourceType: .mcp)
+    }
+
+    private func executeUITestDelete(slug: String, resourceType: RemoteContentType) {
         guard let onRegisterDeleteRequest, let onMakeDeleteRequestExecutor else { return }
         Task {
             let requestID = onRegisterDeleteRequest(
                 slug,
-                .skill,
+                resourceType,
                 nil,
                 true,
                 nil
@@ -414,16 +430,33 @@ struct ResourceCenterView: View {
         }
         .overlay(alignment: .topTrailing) {
             if UITestSupport.isEnabled,
-               let slug = UITestSupport.fixtureGlobalSkillSlug,
                onRegisterDeleteRequest != nil,
                onMakeDeleteRequestExecutor != nil {
-                Button("Delete \(slug)") {
-                    executeUITestGlobalSkillDelete(slug: slug)
+                VStack(alignment: .trailing, spacing: 8) {
+                    if let slug = UITestSupport.fixtureGlobalSkillSlug {
+                        Button("Delete \(slug)") {
+                            executeUITestGlobalSkillDelete(slug: slug)
+                        }
+                        .accessibilityIdentifier("uitest.delete-global-skill.\(slug)")
+                    }
+
+                    if let slug = UITestSupport.fixtureGlobalWorkflowSlug {
+                        Button("Delete workflow \(slug)") {
+                            executeUITestGlobalWorkflowDelete(slug: slug)
+                        }
+                        .accessibilityIdentifier("uitest.delete-global-workflow.\(slug)")
+                    }
+
+                    if let slug = UITestSupport.fixtureGlobalMCPSlug {
+                        Button("Delete MCP \(slug)") {
+                            executeUITestGlobalMCPDelete(slug: slug)
+                        }
+                        .accessibilityIdentifier("uitest.delete-global-mcp.\(slug)")
+                    }
                 }
                 .buttonStyle(.borderedProminent)
                 .padding(.top, 12)
                 .padding(.trailing, 16)
-                .accessibilityIdentifier("uitest.delete-global-skill.\(slug)")
             }
         }
         .textSelection(.enabled)

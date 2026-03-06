@@ -27,6 +27,24 @@ enum UITestSupport {
         return raw
     }
 
+    static var initialResourceTab: ResourceContentTabType? {
+        guard let raw = environment["NOLON_UI_TEST_RESOURCE_TAB"]?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased() else {
+            return nil
+        }
+        switch raw {
+        case "skills":
+            return .skills
+        case "workflows":
+            return .workflows
+        case "mcps":
+            return .mcps
+        default:
+            return nil
+        }
+    }
+
     static var shouldExposeDirectDeleteButton: Bool {
         environment["NOLON_UI_TEST_DIRECT_DELETE"] == "1"
     }
@@ -37,6 +55,24 @@ enum UITestSupport {
 
     static var fixtureGlobalSkillSlug: String? {
         guard let raw = environment["NOLON_UI_TEST_FIXTURE_GLOBAL_SKILL_SLUG"]?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+              !raw.isEmpty else {
+            return nil
+        }
+        return raw
+    }
+
+    static var fixtureGlobalWorkflowSlug: String? {
+        guard let raw = environment["NOLON_UI_TEST_FIXTURE_GLOBAL_WORKFLOW_SLUG"]?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+              !raw.isEmpty else {
+            return nil
+        }
+        return raw
+    }
+
+    static var fixtureGlobalMCPSlug: String? {
+        guard let raw = environment["NOLON_UI_TEST_FIXTURE_GLOBAL_MCP_SLUG"]?
             .trimmingCharacters(in: .whitespacesAndNewlines),
               !raw.isEmpty else {
             return nil
