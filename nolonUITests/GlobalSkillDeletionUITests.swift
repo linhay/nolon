@@ -40,7 +40,7 @@ final class GlobalSkillDeletionUITests: XCTestCase {
             "App 窗口未在预期时间内出现。"
         )
 
-        let deleteButton = app.buttons.matching(identifier: "uitest.delete-global-skill.gemini").firstMatch
+        let deleteButton = app.buttons["uitest.delete-global-skill.gemini"]
         let deleteButtonExists = deleteButton.waitForExistence(timeout: 20)
         if !deleteButtonExists {
             XCTFail("未找到 global gemini delete button。\nUI Tree:\n\(app.debugDescription)")
@@ -71,7 +71,7 @@ final class GlobalSkillDeletionUITests: XCTestCase {
             "App 窗口未在预期时间内出现。"
         )
 
-        let deleteButton = app.buttons.matching(identifier: "uitest.delete-global-workflow.daily-sync").firstMatch
+        let deleteButton = app.buttons["uitest.delete-global-workflow.daily-sync"]
         let deleteButtonExists = deleteButton.waitForExistence(timeout: 20)
         if !deleteButtonExists {
             XCTFail("未找到 global daily-sync workflow delete button。\nUI Tree:\n\(app.debugDescription)")
@@ -102,7 +102,7 @@ final class GlobalSkillDeletionUITests: XCTestCase {
             "App 窗口未在预期时间内出现。"
         )
 
-        let deleteButton = app.buttons.matching(identifier: "uitest.delete-global-mcp.xcode").firstMatch
+        let deleteButton = app.buttons["uitest.delete-global-mcp.xcode"]
         let deleteButtonExists = deleteButton.waitForExistence(timeout: 20)
         if !deleteButtonExists {
             XCTFail("未找到 global xcode MCP delete button。\nUI Tree:\n\(app.debugDescription)")

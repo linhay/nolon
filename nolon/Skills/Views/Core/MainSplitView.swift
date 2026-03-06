@@ -612,10 +612,6 @@ public struct MainSplitView: View {
         .onReceive(viewModel.settings.$providers) { _ in
             viewModel.updateResourceMonitoring()
         }
-        .overlay(alignment: .topTrailing) {
-            uiTestDeleteOverlay
-        }
-
     }
 
     @ViewBuilder
@@ -667,28 +663,6 @@ public struct MainSplitView: View {
         }
     }
 
-    @ViewBuilder
-    private var uiTestDeleteOverlay: some View {
-        if UITestSupport.isEnabled,
-           let slug = UITestSupport.fixtureGlobalSkillSlug {
-            Button("Delete \(slug)") {
-                Task {
-                    let requestID = viewModel.registerDeleteRequest(
-                        slug: slug,
-                        resourceType: .skill,
-                        providerIndex: nil,
-                        removeGlobalCache: true,
-                        globalCachePathHint: nil
-                    )
-                    _ = await viewModel.executeRegisteredDeleteRequest(id: requestID)
-                }
-            }
-            .buttonStyle(.borderedProminent)
-            .padding(.top, 12)
-            .padding(.trailing, 16)
-            .accessibilityIdentifier("uitest.delete-global-skill.\(slug)")
-        }
-    }
 }
 
 private struct PluginManagementNavigationView: View {
