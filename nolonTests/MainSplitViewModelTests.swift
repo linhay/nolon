@@ -92,6 +92,48 @@ final class MainSplitViewModelTests: XCTestCase {
         XCTAssertFalse(fixture.fileManager.fileExists(atPath: hintedSkillFolder.path))
     }
 
+    func testBDD_GivenGlobalWorkflow_WhenDeleteRemoteWorkflowWithGlobalCachePlan_ThenFileDisappears() async throws {
+        let workflowURL = fixture.nolonManager.userWorkflowsURL.appendingPathComponent("daily-sync.md")
+        try "# Daily Sync\n".write(to: workflowURL, atomically: true, encoding: .utf8)
+
+        let viewModel = MainSplitViewModel(
+            settings: fixture.providerSettings,
+            repository: SkillRepository(nolonManager: fixture.nolonManager),
+            nolonManager: fixture.nolonManager
+        )
+
+        let result = await viewModel.deleteRemoteWorkflow(
+            slug: "daily-sync",
+            providerIndex: nil,
+            removeGlobalCache: true,
+            globalCachePathHint: nil
+        )
+
+        XCTAssertTrue(result.removedGlobalCache)
+        XCTAssertFalse(fixture.fileManager.fileExists(atPath: workflowURL.path))
+    }
+
+    func testBDD_GivenGlobalMCP_WhenDeleteRemoteMCPWithGlobalCachePlan_ThenFileDisappears() async throws {
+        let mcpURL = fixture.nolonManager.mcpsURL.appendingPathComponent("xcode.json")
+        try "{}".write(to: mcpURL, atomically: true, encoding: .utf8)
+
+        let viewModel = MainSplitViewModel(
+            settings: fixture.providerSettings,
+            repository: SkillRepository(nolonManager: fixture.nolonManager),
+            nolonManager: fixture.nolonManager
+        )
+
+        let result = await viewModel.deleteRemoteMCP(
+            slug: "xcode",
+            providerIndex: nil,
+            removeGlobalCache: true,
+            globalCachePathHint: nil
+        )
+
+        XCTAssertTrue(result.removedGlobalCache)
+        XCTAssertFalse(fixture.fileManager.fileExists(atPath: mcpURL.path))
+    }
+
     func testBDD_GivenRegisteredGlobalDeleteRequest_WhenExecuteRegisteredDeleteRequest_ThenFolderDisappears() async throws {
         let source = try fixture.createSampleSkill(id: "gemini", name: "Gemini")
         let repository = SkillRepository(nolonManager: fixture.nolonManager)
@@ -115,6 +157,54 @@ final class MainSplitViewModelTests: XCTestCase {
 
         XCTAssertTrue(result.removedGlobalCache)
         XCTAssertFalse(fixture.fileManager.fileExists(atPath: fixture.nolonManager.skillsURL.appendingPathComponent("gemini").path))
+    }
+
+    func testBDD_GivenRegisteredGlobalWorkflowDeleteRequest_WhenExecuteRegisteredDeleteRequest_ThenWorkflowFileDisappears() async throws {
+        let workflowURL = fixture.nolonManager.userWorkflowsURL.appendingPathComponent("daily-sync.md")
+        try "# Daily Sync\n".write(to: workflowURL, atomically: true, encoding: .utf8)
+
+        let viewModel = MainSplitViewModel(
+            settings: fixture.providerSettings,
+            repository: SkillRepository(nolonManager: fixture.nolonManager),
+            nolonManager: fixture.nolonManager
+        )
+
+        let requestID = viewModel.registerDeleteRequest(
+            slug: "daily-sync",
+            resourceType: .workflow,
+            providerIndex: nil,
+            removeGlobalCache: true,
+            globalCachePathHint: nil
+        )
+
+        let result = await viewModel.executeRegisteredDeleteRequest(id: requestID)
+
+        XCTAssertTrue(result.removedGlobalCache)
+        XCTAssertFalse(fixture.fileManager.fileExists(atPath: workflowURL.path))
+    }
+
+    func testBDD_GivenRegisteredGlobalMCPDeleteRequest_WhenExecuteRegisteredDeleteRequest_ThenMCPFileDisappears() async throws {
+        let mcpURL = fixture.nolonManager.mcpsURL.appendingPathComponent("xcode.json")
+        try "{}".write(to: mcpURL, atomically: true, encoding: .utf8)
+
+        let viewModel = MainSplitViewModel(
+            settings: fixture.providerSettings,
+            repository: SkillRepository(nolonManager: fixture.nolonManager),
+            nolonManager: fixture.nolonManager
+        )
+
+        let requestID = viewModel.registerDeleteRequest(
+            slug: "xcode",
+            resourceType: .mcp,
+            providerIndex: nil,
+            removeGlobalCache: true,
+            globalCachePathHint: nil
+        )
+
+        let result = await viewModel.executeRegisteredDeleteRequest(id: requestID)
+
+        XCTAssertTrue(result.removedGlobalCache)
+        XCTAssertFalse(fixture.fileManager.fileExists(atPath: mcpURL.path))
     }
 
     func testBDD_GivenExecutedDeleteRequest_WhenExecuteRegisteredDeleteRequestAgain_ThenReusePreviousResult() async throws {
