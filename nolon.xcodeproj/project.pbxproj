@@ -7,7 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		884533C077E316D7F34C88F3 /* GlobalSkillDeletionUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA35295FA3E270778EF4E1B7 /* GlobalSkillDeletionUITests.swift */; };
+		884533C077E316D7F34C88F3 /* ResourceDeletionUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA35295FA3E270778EF4E1B7 /* ResourceDeletionUITests.swift */; };
+		8858B1CB1A8D4D90B1A6F001 /* ResourceDeletionUITestSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8858B1CA1A8D4D90B1A6F001 /* ResourceDeletionUITestSupport.swift */; };
 		90B6C9DC20DF7E28E3E8F607 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D959A527C9BF92468F647E82 /* Cocoa.framework */; };
 		CD36A3782F56E32D004ADF28 /* SnapshotTesting in Frameworks */ = {isa = PBXBuildFile; productRef = CDF7A1D130C5BFC7009A00A1 /* SnapshotTesting */; };
 		CD447BF32F1F79890056366B /* MarkdownUI in Frameworks */ = {isa = PBXBuildFile; productRef = CD447BF22F1F79890056366B /* MarkdownUI */; };
@@ -54,7 +55,8 @@
 		CD2B1A922F1F624900DF4A2B /* nolon.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = nolon.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		CD9EDF3C2F24F31E009248CB /* nolonTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = nolonTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		D959A527C9BF92468F647E82 /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.0.sdk/System/Library/Frameworks/Cocoa.framework; sourceTree = DEVELOPER_DIR; };
-		EA35295FA3E270778EF4E1B7 /* GlobalSkillDeletionUITests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GlobalSkillDeletionUITests.swift; sourceTree = "<group>"; };
+		8858B1CA1A8D4D90B1A6F001 /* ResourceDeletionUITestSupport.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ResourceDeletionUITestSupport.swift; sourceTree = "<group>"; };
+		EA35295FA3E270778EF4E1B7 /* ResourceDeletionUITests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ResourceDeletionUITests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -138,7 +140,8 @@
 		B455D52DBBDBCE75AA78766A /* nolonUITests */ = {
 			isa = PBXGroup;
 			children = (
-				EA35295FA3E270778EF4E1B7 /* GlobalSkillDeletionUITests.swift */,
+				EA35295FA3E270778EF4E1B7 /* ResourceDeletionUITests.swift */,
+				8858B1CA1A8D4D90B1A6F001 /* ResourceDeletionUITestSupport.swift */,
 			);
 			name = nolonUITests;
 			path = nolonUITests;
@@ -354,7 +357,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				884533C077E316D7F34C88F3 /* GlobalSkillDeletionUITests.swift in Sources */,
+				884533C077E316D7F34C88F3 /* ResourceDeletionUITests.swift in Sources */,
+				8858B1CB1A8D4D90B1A6F001 /* ResourceDeletionUITestSupport.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
