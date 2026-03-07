@@ -212,7 +212,7 @@ struct NolonSkillsSearchCommand: ParsableCommand {
     var limit: Int = 20
 
     @Option(name: .long)
-    var baseURL: String = "https://clawdhub.com"
+    var baseURL: String = "https://clawhub.ai"
 
     @Flag(name: .long, help: "Install matched skill(s); if multiple results, use --pick <index> to choose one.")
     var install: Bool = false
@@ -339,7 +339,7 @@ struct NolonSkillsAddCommand: ParsableCommand {
     var version: String?
 
     @Option(name: .long)
-    var baseURL: String = "https://clawdhub.com"
+    var baseURL: String = "https://clawhub.ai"
 
     @Option(name: .long)
     var installMethod: NolonSkillInstallMethod = .symlink
@@ -536,7 +536,7 @@ struct NolonWorkflowSearchCommand: ParsableCommand {
     var limit: Int = 20
 
     @Option(name: .long)
-    var baseURL: String = "https://clawdhub.com"
+    var baseURL: String = "https://clawhub.ai"
 
     @Flag(name: .long)
     var install: Bool = false
@@ -610,7 +610,7 @@ struct NolonWorkflowAddCommand: ParsableCommand {
     var version: String?
 
     @Option(name: .long)
-    var baseURL: String = "https://clawdhub.com"
+    var baseURL: String = "https://clawhub.ai"
 
     @Option(name: .long)
     var installMethod: NolonSkillInstallMethod = .symlink
@@ -839,7 +839,7 @@ struct NolonMcpSearchCommand: ParsableCommand {
     var limit: Int = 20
 
     @Option(name: .long)
-    var baseURL: String = "https://clawdhub.com"
+    var baseURL: String = "https://clawhub.ai"
 
     @Flag(name: .long)
     var install: Bool = false
@@ -913,7 +913,7 @@ struct NolonMcpAddCommand: ParsableCommand {
     var version: String?
 
     @Option(name: .long)
-    var baseURL: String = "https://clawdhub.com"
+    var baseURL: String = "https://clawhub.ai"
 
     @Option(name: .long)
     var installMethod: NolonSkillInstallMethod = .symlink
@@ -1289,7 +1289,7 @@ struct NolonRemoteListCommand: ParsableCommand {
     var limit: Int = 20
 
     @Option(name: .long)
-    var baseURL: String = "https://clawdhub.com"
+    var baseURL: String = "https://clawhub.ai"
 }
 
 struct NolonRemoteDownloadCommand: ParsableCommand {
@@ -1305,7 +1305,7 @@ struct NolonRemoteDownloadCommand: ParsableCommand {
     var version: String?
 
     @Option(name: .long)
-    var baseURL: String = "https://clawdhub.com"
+    var baseURL: String = "https://clawhub.ai"
 }
 
 struct NolonRemoteSyncCommand: ParsableCommand {
@@ -1343,7 +1343,7 @@ struct NolonRemoteInstallCommand: ParsableCommand {
     var version: String?
 
     @Option(name: .long)
-    var baseURL: String = "https://clawdhub.com"
+    var baseURL: String = "https://clawhub.ai"
 
     @Option(name: .long)
     var providerPath: String?

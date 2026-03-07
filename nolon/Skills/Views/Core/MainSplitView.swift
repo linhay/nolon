@@ -66,6 +66,10 @@ final class MainSplitViewModel {
         resourceMonitor = ProviderResourceMonitor { [weak self] in
             self?.refreshTrigger += 1
         }
+        if let uiTestProviderIndex = UITestSupport.initialSelectedProviderIndex,
+           settings.providers.indices.contains(uiTestProviderIndex) {
+            selectedSidebarItem = .provider(settings.providers[uiTestProviderIndex].id)
+        }
         updateResourceMonitoring()
         Task {
             _ = try? await CodexBinaryManager.shared.discoverXcodeAgentVersions()

@@ -57,13 +57,18 @@ struct CodexLoginURLSheet: View {
 
     @Environment(\.dismiss) private var dismiss
 
+    static var dismissActionTitle: String {
+        NSLocalizedString("codex.login.sheet.cancel", value: "取消登录", comment: "Cancel login")
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Text(NSLocalizedString("codex.login.sheet.title", value: "登录中", comment: "Codex login sheet title"))
                     .font(.headline)
                 Spacer()
-                Button(NSLocalizedString("generic.close", value: "Close", comment: "Close")) {
+                Button(Self.dismissActionTitle) {
+                    onCancel()
                     dismiss()
                 }
             }
@@ -87,10 +92,6 @@ struct CodexLoginURLSheet: View {
                     onOpen()
                 }
                 Spacer()
-                Button(NSLocalizedString("codex.login.sheet.cancel", value: "取消登录", comment: "Cancel login")) {
-                    onCancel()
-                    dismiss()
-                }
             }
         }
         .padding(16)

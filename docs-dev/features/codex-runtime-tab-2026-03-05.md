@@ -10,6 +10,7 @@
   - UI 新增 `CodexRuntimeTabView`
   - Runtime 进程诊断与操作 ViewModel
   - PID 日志读取能力（`/usr/bin/log show`）
+  - Runtime 进程列表每 5 秒自动轮询（用于观察进程增删）
 - 不包含：
   - runtime inspect/restart
   - 跨机器或远程运行时管理
@@ -20,6 +21,7 @@
 3. Given runtime 列表可用，When 进入 Runtime Tab，Then 展示进程列表、诊断信息、日志区域。
 4. Given 用户对 PID 执行 stop/force stop，When 命令完成，Then 页面刷新并显示执行结果摘要。
 5. Given PID 日志查询失败，When 刷新日志，Then 仅日志区域报错，不影响进程列表与诊断展示。
+6. Given Runtime Tab 保持打开，When 后台进程增删，Then 5 秒内列表自动更新并保持选中 PID 合法。
 
 ## 测试要求
 - 新增/更新单测并通过：

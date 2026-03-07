@@ -166,7 +166,7 @@ public actor SkillLockFileManager {
             return InferredSourceInfo(
                 source: "clawdhub/\(slug)",
                 sourceType: "clawdhub",
-                sourceUrl: "https://clawdhub.com/skills/\(slug)",
+                sourceUrl: "https://clawhub.ai/skills/\(slug)",
                 skillPath: nil
             )
         }

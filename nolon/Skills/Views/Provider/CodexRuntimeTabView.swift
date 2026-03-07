@@ -16,13 +16,17 @@ struct CodexRuntimeTabView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 actionsSection
-                diagnosticsSection
                 processesSection
             }
             .padding(16)
         }
         .task(id: provider.id) {
+            viewModel.stopProcessPolling()
             await viewModel.refresh()
+            viewModel.startProcessPolling()
+        }
+        .onDisappear {
+            viewModel.stopProcessPolling()
         }
         .onChange(of: viewModel.selectedPID) { _, _ in
             Task { await viewModel.refreshSelectedProcessLogs() }
@@ -101,112 +105,6 @@ struct CodexRuntimeTabView: View {
 
             Spacer()
         }
-    }
-
-    private var diagnosticsSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(NSLocalizedString("codex.runtime.diagnostics.title", value: "Diagnostics", comment: "Runtime diagnostics title"))
-                .font(.headline)
-
-            if let diagnostics = viewModel.diagnostics {
-                Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 6) {
-                    GridRow {
-                        diagnosticLabel(
-                            NSLocalizedString(
-                                "codex.runtime.diag.provider",
-                                value: "Provider",
-                                comment: "Runtime diagnostics provider label"
-                            )
-                        )
-                        diagnosticValue(diagnostics.providerID)
-                        diagnosticLabel(
-                            NSLocalizedString(
-                                "codex.runtime.diag.accounts",
-                                value: "Accounts",
-                                comment: "Runtime diagnostics accounts label"
-                            )
-                        )
-                        diagnosticValue("\(diagnostics.accountCount)")
-                    }
-                    GridRow {
-                        diagnosticLabel(
-                            NSLocalizedString(
-                                "codex.runtime.diag.active",
-                                value: "Active",
-                                comment: "Runtime diagnostics active account label"
-                            )
-                        )
-                        diagnosticValue(diagnostics.activeAccountID ?? "-")
-                        diagnosticLabel(
-                            NSLocalizedString(
-                                "codex.runtime.diag.running",
-                                value: "Running",
-                                comment: "Runtime diagnostics running count label"
-                            )
-                        )
-                        diagnosticValue("\(diagnostics.runtimeCount)")
-                    }
-                    GridRow {
-                        diagnosticLabel(
-                            NSLocalizedString(
-                                "codex.runtime.diag.binary",
-                                value: "Binary",
-                                comment: "Runtime diagnostics binary label"
-                            )
-                        )
-                        diagnosticValue(diagnostics.currentVersion ?? "-")
-                        diagnosticLabel(
-                            NSLocalizedString(
-                                "codex.runtime.diag.path_active",
-                                value: "Path Active",
-                                comment: "Runtime diagnostics path active label"
-                            )
-                        )
-                        diagnosticValue(
-                            diagnostics.pathActive
-                                ? NSLocalizedString(
-                                    "codex.runtime.bool.true",
-                                    value: "true",
-                                    comment: "Runtime boolean true"
-                                )
-                                : NSLocalizedString(
-                                    "codex.runtime.bool.false",
-                                    value: "false",
-                                    comment: "Runtime boolean false"
-                                )
-                        )
-                    }
-                    GridRow {
-                        diagnosticLabel(
-                            NSLocalizedString(
-                                "codex.runtime.diag.executable",
-                                value: "Executable",
-                                comment: "Runtime diagnostics executable label"
-                            )
-                        )
-                        diagnosticValue(diagnostics.resolvedExecutable ?? "-")
-                        diagnosticLabel(
-                            NSLocalizedString(
-                                "codex.runtime.diag.hint",
-                                value: "Hint",
-                                comment: "Runtime diagnostics hint label"
-                            )
-                        )
-                        diagnosticValue(diagnostics.probeHint ?? diagnostics.probeWarning ?? "-")
-                    }
-                }
-            } else {
-                Text(NSLocalizedString("codex.runtime.diagnostics.empty", value: "No diagnostics available.", comment: "No diagnostics"))
-                    .dsSecondaryText(font: .callout)
-            }
-        }
-        .padding(12)
-        .dsCard(
-            background: DesignSystem.Colors.Background.surface,
-            cornerRadius: DesignSystem.Metrics.cornerRadiusM,
-            borderColor: DesignSystem.Colors.Component.border,
-            borderWidth: 1
-        )
     }
 
     private var processesSection: some View {
@@ -293,6 +191,7 @@ struct CodexRuntimeTabView: View {
             }
 
             if isSelected {
+                processDiagnosticsSection(process: process)
                 inlineLogsSection
             }
         }
@@ -306,6 +205,34 @@ struct CodexRuntimeTabView: View {
         .contentShape(Rectangle())
         .onTapGesture {
             viewModel.selectProcess(pid: isSelected ? nil : process.pid)
+        }
+    }
+
+    @ViewBuilder
+    private func processDiagnosticsSection(process: CodexRuntimeProcessItem) -> some View {
+        let rows = viewModel.processDiagnosticsRows(for: process)
+        if !rows.isEmpty {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(NSLocalizedString("codex.runtime.diagnostics.title", value: "Diagnostics", comment: "Runtime diagnostics title"))
+                    .font(.caption)
+                    .dsSecondaryText(font: .caption)
+
+                ForEach(rows, id: \.key.rawValue) { row in
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        diagnosticLabel(localizedDiagnosticLabel(for: row.key))
+                            .frame(width: 90, alignment: .leading)
+                        diagnosticValue(row.value)
+                            .lineLimit(1)
+                    }
+                }
+            }
+            .padding(8)
+            .dsCard(
+                background: DesignSystem.Colors.Background.elevated,
+                cornerRadius: DesignSystem.Metrics.cornerRadiusS,
+                borderColor: DesignSystem.Colors.Component.border,
+                borderWidth: 1
+            )
         }
     }
 
@@ -398,5 +325,26 @@ struct CodexRuntimeTabView: View {
         Text(value)
             .font(.callout.monospaced())
             .textSelection(.enabled)
+    }
+
+    private func localizedDiagnosticLabel(for key: CodexRuntimeProcessDiagnosticField.Key) -> String {
+        switch key {
+        case .provider:
+            return NSLocalizedString("codex.runtime.diag.provider", value: "Provider", comment: "Runtime diagnostics provider label")
+        case .accounts:
+            return NSLocalizedString("codex.runtime.diag.accounts", value: "Accounts", comment: "Runtime diagnostics accounts label")
+        case .active:
+            return NSLocalizedString("codex.runtime.diag.active", value: "Active", comment: "Runtime diagnostics active account label")
+        case .running:
+            return NSLocalizedString("codex.runtime.diag.running", value: "Running", comment: "Runtime diagnostics running count label")
+        case .binary:
+            return NSLocalizedString("codex.runtime.diag.binary", value: "Binary", comment: "Runtime diagnostics binary label")
+        case .pathActive:
+            return NSLocalizedString("codex.runtime.diag.path_active", value: "Path Active", comment: "Runtime diagnostics path active label")
+        case .executable:
+            return NSLocalizedString("codex.runtime.diag.executable", value: "Executable", comment: "Runtime diagnostics executable label")
+        case .hint:
+            return NSLocalizedString("codex.runtime.diag.hint", value: "Hint", comment: "Runtime diagnostics hint label")
+        }
     }
 }

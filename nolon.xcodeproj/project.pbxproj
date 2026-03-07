@@ -51,11 +51,11 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		8858B1CA1A8D4D90B1A6F001 /* ResourceDeletionUITestSupport.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ResourceDeletionUITestSupport.swift; sourceTree = "<group>"; };
 		8A66B8791493C61D673BA71D /* nolonUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = nolonUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		CD2B1A922F1F624900DF4A2B /* nolon.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = nolon.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		CD9EDF3C2F24F31E009248CB /* nolonTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = nolonTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		D959A527C9BF92468F647E82 /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.0.sdk/System/Library/Frameworks/Cocoa.framework; sourceTree = DEVELOPER_DIR; };
-		8858B1CA1A8D4D90B1A6F001 /* ResourceDeletionUITestSupport.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ResourceDeletionUITestSupport.swift; sourceTree = "<group>"; };
 		EA35295FA3E270778EF4E1B7 /* ResourceDeletionUITests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ResourceDeletionUITests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -83,8 +83,6 @@
 		};
 		CD9EDF3D2F24F31E009248CB /* nolonTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-			);
 			path = nolonTests;
 			sourceTree = "<group>";
 		};
@@ -143,7 +141,6 @@
 				EA35295FA3E270778EF4E1B7 /* ResourceDeletionUITests.swift */,
 				8858B1CA1A8D4D90B1A6F001 /* ResourceDeletionUITestSupport.swift */,
 			);
-			name = nolonUITests;
 			path = nolonUITests;
 			sourceTree = "<group>";
 		};
@@ -314,7 +311,7 @@
 				CDFA673F2F3599FB0053E30A /* XCRemoteSwiftPackageReference "STFilePath" */,
 				CDFA67422F359A110053E30A /* XCRemoteSwiftPackageReference "STJSON" */,
 				CD68A7062F371C8E008772E7 /* XCRemoteSwiftPackageReference "SKProcessRunner" */,
-				CDA190392F3DA580000DBF77 /* XCLocalSwiftPackageReference "Providers" */,
+				CDA190392F3DA580000DBF77 /* XCLocalSwiftPackageReference "libs/Providers" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = CD2B1A932F1F624900DF4A2B /* Products */;
@@ -717,7 +714,7 @@
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
-		CDA190392F3DA580000DBF77 /* XCLocalSwiftPackageReference "Providers" */ = {
+		CDA190392F3DA580000DBF77 /* XCLocalSwiftPackageReference "libs/Providers" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = libs/Providers;
 		};

@@ -24,6 +24,7 @@ public enum CodexLoginError: LocalizedError, Sendable, Equatable {
     case authNotCreated
     case authInvalidUTF8
     case loginTimedOut
+    case invalidSuccessCallbackURL(String)
 
     public var errorDescription: String? {
         switch self {
@@ -37,6 +38,8 @@ public enum CodexLoginError: LocalizedError, Sendable, Equatable {
             "Login created auth.json but content is not UTF-8."
         case .loginTimedOut:
             "Timed out waiting for auth.json."
+        case let .invalidSuccessCallbackURL(message):
+            "Invalid Codex success callback URL: \(message)"
         }
     }
 }
@@ -129,6 +132,111 @@ public final class CodexLoginHandle: @unchecked Sendable {
 
 public struct CodexLoginRunner: Sendable {
     public init() {}
+
+    public static func authJSONString(fromSuccessCallbackURLString raw: String) throws -> String {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty,
+              let url = URL(string: trimmed),
+              let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+        else {
+            throw CodexLoginError.invalidSuccessCallbackURL("Malformed URL")
+        }
+
+        let host = components.host?.lowercased()
+        let path = components.path.lowercased()
+        guard components.scheme?.lowercased() == "http",
+              (host == "localhost" || host == "127.0.0.1" || host == "::1"),
+              path == "/success" || path == "/auth/callback"
+        else {
+            throw CodexLoginError.invalidSuccessCallbackURL("Expected localhost callback URL at /success or /auth/callback")
+        }
+
+        let queryItems = Dictionary(uniqueKeysWithValues: (components.queryItems ?? []).map { ($0.name, $0.value) })
+        let queryValue: (String) -> String? = { key in
+            guard let maybeValue = queryItems[key],
+                  let value = maybeValue?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !value.isEmpty
+            else { return nil }
+            return value
+        }
+        let idToken = queryValue("id_token")
+        let accessToken = queryValue("access_token")
+        let refreshToken = queryValue("refresh_token")
+
+        guard let idToken, !idToken.isEmpty else {
+            throw CodexLoginError.invalidSuccessCallbackURL("Missing id_token")
+        }
+        let payload = decodeJWTPayload(idToken)
+        let accountID = [
+            nestedString(payload, path: ["https://api.openai.com/auth", "chatgpt_account_id"]),
+            nestedString(payload, path: ["auth", "chatgpt_account_id"]),
+            queryValue("account_id"),
+        ]
+            .compactMap { $0 }
+            .first
+        let email = [
+            nestedString(payload, path: ["email"]),
+            nestedString(payload, path: ["https://api.openai.com/profile", "email"]),
+            queryValue("email"),
+        ]
+            .compactMap { $0 }
+            .first
+        let authMode = refreshToken?.isEmpty == false ? "chatgpt" : "chatgptAuthTokens"
+        let lastRefresh = ISO8601DateFormatter().string(from: Date())
+
+        var root: [String: Any] = [
+            "auth_mode": authMode,
+            "OPENAI_API_KEY": NSNull(),
+            "last_refresh": lastRefresh,
+            "tokens": [
+                "id_token": idToken,
+                "access_token": accessToken?.isEmpty == false ? accessToken as Any : NSNull(),
+                "refresh_token": refreshToken?.isEmpty == false ? refreshToken as Any : NSNull(),
+                "account_id": accountID ?? NSNull(),
+            ],
+        ]
+        if let email {
+            root["email"] = email
+        }
+
+        let data = try JSONSerialization.data(withJSONObject: root, options: [.sortedKeys])
+        guard let authJSONString = String(data: data, encoding: .utf8) else {
+            throw CodexLoginError.authInvalidUTF8
+        }
+        return authJSONString
+    }
+
+    private static func decodeJWTPayload(_ jwt: String) -> [String: Any]? {
+        let parts = jwt.split(separator: ".", omittingEmptySubsequences: false)
+        guard parts.count >= 2,
+              let data = base64URLDecode(String(parts[1])),
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else { return nil }
+        return object
+    }
+
+    private static func nestedString(_ object: [String: Any]?, path: [String]) -> String? {
+        guard let object, !path.isEmpty else { return nil }
+        var current: Any = object
+        for key in path.dropLast() {
+            guard let next = (current as? [String: Any])?[key] else { return nil }
+            current = next
+        }
+        guard let string = (current as? [String: Any])?[path[path.count - 1]] as? String else { return nil }
+        let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    private static func base64URLDecode(_ raw: String) -> Data? {
+        var normalized = raw
+            .replacingOccurrences(of: "-", with: "+")
+            .replacingOccurrences(of: "_", with: "/")
+        let remainder = normalized.count % 4
+        if remainder != 0 {
+            normalized += String(repeating: "=", count: 4 - remainder)
+        }
+        return Data(base64Encoded: normalized)
+    }
 
     public static func awaitAuthResult(
         codexHome: STFolder,

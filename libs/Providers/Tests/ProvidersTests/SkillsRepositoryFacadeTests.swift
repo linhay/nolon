@@ -204,7 +204,7 @@ struct SkillsRepositoryFacadeTests {
           ]
         }
         """
-        let base = URL(string: "https://clawdhub.com")!
+        let base = URL(string: "https://clawhub.ai")!
 
         let result = try await SkillsRepositoryFacade.listRemoteResources(
             kind: .skill,
@@ -240,7 +240,7 @@ struct SkillsRepositoryFacadeTests {
           ]
         }
         """
-        let base = URL(string: "https://clawdhub.com")!
+        let base = URL(string: "https://clawhub.ai")!
 
         let result = try await SkillsRepositoryFacade.listRemoteResources(
             kind: .workflow,
@@ -261,47 +261,34 @@ struct SkillsRepositoryFacadeTests {
         #expect(result.items.first?.latestVersion == "0.9.0")
     }
 
-    @Test("list remote resources retries with clawhub.ai when clawdhub.com TLS fails")
-    func listRemoteResourcesFallbackToClawhubAIOnTLSFailure() async throws {
-        let payload = """
-        {
-          "results": [
-            {
-              "slug": "gemini",
-              "displayName": "Gemini",
-              "summary": "Gemini skill",
-              "version": "1.0.0",
-              "updatedAt": 1739366400000
-            }
-          ]
-        }
-        """
+    @Test("list remote resources does not mirror fallback on TLS failure")
+    func listRemoteResourcesNoMirrorFallbackOnTLSFailure() async throws {
         let calledHosts = CalledHostsStore()
 
-        let result = try await SkillsRepositoryFacade.listRemoteResources(
-            kind: .skill,
-            query: "gemini",
-            limit: 20,
-            baseURL: "https://clawdhub.com",
-            loader: { url in
-                let attempt = await calledHosts.append(url.host ?? "")
-                if attempt == 1 {
+        do {
+            _ = try await SkillsRepositoryFacade.listRemoteResources(
+                kind: .skill,
+                query: "gemini",
+                limit: 20,
+                baseURL: "https://clawhub.ai",
+                loader: { url in
+                    _ = await calledHosts.append(url.host ?? "")
                     throw URLError(.secureConnectionFailed)
                 }
-                #expect(url.host == "clawhub.ai")
-                let response = HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)!
-                return (Data(payload.utf8), response)
-            }
-        )
+            )
+            Issue.record("expected secureConnectionFailed error")
+        } catch let error as URLError {
+            #expect(error.code == .secureConnectionFailed)
+        } catch {
+            Issue.record("unexpected error: \(error)")
+        }
 
-        #expect(await calledHosts.snapshot() == ["clawdhub.com", "clawhub.ai"])
-        #expect(result.items.count == 1)
-        #expect(result.items.first?.slug == "gemini")
+        #expect(await calledHosts.snapshot() == ["clawhub.ai"])
     }
 
     @Test("download remote skill uses skill endpoint and preserves extension")
     func downloadRemoteSkill() async throws {
-        let base = URL(string: "https://clawdhub.com")!
+        let base = URL(string: "https://clawhub.ai")!
         let tempRoot = try makeTempRoot("facade-download-skill")
         defer { try? tempRoot.delete() }
 
@@ -329,7 +316,7 @@ struct SkillsRepositoryFacadeTests {
 
     @Test("download remote workflow uses workflow endpoint")
     func downloadRemoteWorkflow() async throws {
-        let base = URL(string: "https://clawdhub.com")!
+        let base = URL(string: "https://clawhub.ai")!
         let tempRoot = try makeTempRoot("facade-download-workflow")
         defer { try? tempRoot.delete() }
 
@@ -354,24 +341,99 @@ struct SkillsRepositoryFacadeTests {
         #expect(STPath(result).isExists)
     }
 
-    @Test("download remote resource retries with clawhub.ai when clawdhub.com TLS fails")
-    func downloadRemoteResourceFallbackToClawhubAIOnTLSFailure() async throws {
+    @Test("download remote resource does not mirror fallback on TLS failure")
+    func downloadRemoteResourceNoMirrorFallbackOnTLSFailure() async throws {
         let tempRoot = try makeTempRoot("facade-download-fallback")
+        defer { try? tempRoot.delete() }
+        let calledHosts = CalledHostsStore()
+
+        do {
+            _ = try await SkillsRepositoryFacade.downloadRemoteResource(
+                kind: .skill,
+                slug: "gemini",
+                version: "1.0.0",
+                baseURL: "https://clawhub.ai",
+                downloader: { url in
+                    _ = await calledHosts.append(url.host ?? "")
+                    throw URLError(.secureConnectionFailed)
+                },
+                temporaryDirectory: tempRoot.url
+            )
+            Issue.record("expected secureConnectionFailed error")
+        } catch let error as URLError {
+            #expect(error.code == .secureConnectionFailed)
+        } catch {
+            Issue.record("unexpected error: \(error)")
+        }
+
+        #expect(await calledHosts.snapshot() == ["clawhub.ai"])
+    }
+
+    @Test("download remote resource returns 429 after same-host retry exhaustion")
+    func downloadRemoteResourceFailsAfterRateLimitRetryExhausted() async throws {
+        let tempRoot = try makeTempRoot("facade-download-rate-limit-fallback")
+        defer { try? tempRoot.delete() }
+        let calledHosts = CalledHostsStore()
+
+        do {
+            _ = try await SkillsRepositoryFacade.downloadRemoteResource(
+                kind: .skill,
+                slug: "gemini",
+                version: nil,
+                baseURL: "https://clawhub.ai",
+                downloader: { url in
+                    _ = await calledHosts.append(url.host ?? "")
+                    let source = tempRoot.file("source-429.zip").url
+                    try Data("zip".utf8).write(to: source)
+                    let response = HTTPURLResponse(
+                        url: url,
+                        statusCode: 429,
+                        httpVersion: nil,
+                        headerFields: ["Retry-After": "0"]
+                    )!
+                    return (source, response)
+                },
+                temporaryDirectory: tempRoot.url
+            )
+            Issue.record("expected 429 error")
+        } catch let error as SkillsRepositoryFacade.SyncError {
+            guard case let .commandFailed(message) = error else {
+                Issue.record("unexpected sync error: \(error)")
+                return
+            }
+            #expect(message.contains("429"))
+        } catch {
+            Issue.record("unexpected error: \(error)")
+        }
+
+        #expect(await calledHosts.snapshot() == ["clawhub.ai", "clawhub.ai", "clawhub.ai"])
+    }
+
+    @Test("download remote resource retries once on same host after 429")
+    func downloadRemoteResourceRetryOnceOnSameHostAfterRateLimited() async throws {
+        let tempRoot = try makeTempRoot("facade-download-rate-limit-retry")
         defer { try? tempRoot.delete() }
         let calledHosts = CalledHostsStore()
 
         let result = try await SkillsRepositoryFacade.downloadRemoteResource(
             kind: .skill,
             slug: "gemini",
-            version: "1.0.0",
-            baseURL: "https://clawdhub.com",
+            version: nil,
+            baseURL: "https://clawhub.ai",
             downloader: { url in
                 let attempt = await calledHosts.append(url.host ?? "")
                 if attempt == 1 {
-                    throw URLError(.secureConnectionFailed)
+                    let source = tempRoot.file("source-429.zip").url
+                    try Data("zip".utf8).write(to: source)
+                    let response = HTTPURLResponse(
+                        url: url,
+                        statusCode: 429,
+                        httpVersion: nil,
+                        headerFields: ["Retry-After": "0"]
+                    )!
+                    return (source, response)
                 }
-                #expect(url.host == "clawhub.ai")
-                let source = tempRoot.file("source.zip").url
+                let source = tempRoot.file("source-ok.zip").url
                 try Data("zip".utf8).write(to: source)
                 let response = HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)!
                 return (source, response)
@@ -379,7 +441,7 @@ struct SkillsRepositoryFacadeTests {
             temporaryDirectory: tempRoot.url
         )
 
-        #expect(await calledHosts.snapshot() == ["clawdhub.com", "clawhub.ai"])
+        #expect(await calledHosts.snapshot() == ["clawhub.ai", "clawhub.ai"])
         #expect(result.pathExtension == "zip")
         #expect(STPath(result).isExists)
     }
@@ -391,7 +453,7 @@ struct SkillsRepositoryFacadeTests {
                 kind: .mcp,
                 slug: "filesystem",
                 version: nil,
-                baseURL: "https://clawdhub.com",
+                baseURL: "https://clawhub.ai",
                 downloader: { url in
                     let folder = STFolder("/tmp")
                         .folder("noop-\(UUID().uuidString)")

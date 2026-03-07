@@ -13,8 +13,11 @@ public struct RemoteCatalogQueryResult: Sendable, Equatable {
 
 public struct RemoteCatalogQueryService: Sendable {
     private let mapper = RemoteCatalogItemMapper()
+    private let environment: [String: String]
 
-    public init() {}
+    public init(environment: [String: String] = ProcessInfo.processInfo.environment) {
+        self.environment = environment
+    }
 
     public func query(
         repository: RemoteRepository,
@@ -38,7 +41,14 @@ public struct RemoteCatalogQueryService: Sendable {
             items = result.items
         case .globalSkills:
             let cache = GlobalCacheRepository()
-            items = try await queryFromGlobalCache(cache: cache, kind: kind, query: effectiveQuery, limit: safeLimit)
+            let cachedItems = try await queryFromGlobalCache(cache: cache, kind: kind, query: effectiveQuery, limit: safeLimit)
+            items = appendUITestFixtureIfNeeded(
+                to: cachedItems,
+                repository: repository,
+                kind: kind,
+                query: effectiveQuery,
+                limit: safeLimit
+            )
         case .localFolder:
             let paths = repository.effectiveSkillsPaths
             guard !paths.isEmpty else {
@@ -121,5 +131,52 @@ private extension RemoteCatalogQueryService {
 
     func toCatalogItem(_ mcp: RemoteMCP) -> SkillsRepositoryFacade.RemoteCatalogItem {
         mapper.toCatalogItem(mcp)
+    }
+
+    func appendUITestFixtureIfNeeded(
+        to items: [SkillsRepositoryFacade.RemoteCatalogItem],
+        repository: RemoteRepository,
+        kind: SkillsRepositoryFacade.RemoteCatalogKind,
+        query: String?,
+        limit: Int
+    ) -> [SkillsRepositoryFacade.RemoteCatalogItem] {
+        guard repository.templateType == .globalSkills,
+              kind == .skill,
+              let slug = environment["NOLON_UI_TEST_FIXTURE_GLOBAL_SKILL_SLUG"]?
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+              !slug.isEmpty
+        else {
+            return items
+        }
+
+        let lowercaseQuery = query?.lowercased()
+        if let lowercaseQuery,
+           !slug.lowercased().contains(lowercaseQuery),
+           !"Gemini".lowercased().contains(lowercaseQuery) {
+            return items
+        }
+
+        if items.contains(where: { $0.slug == slug }) {
+            return items
+        }
+
+        let localPath = environment["NOLON_HOME"]
+            .map { URL(fileURLWithPath: $0).appendingPathComponent("skills/\(slug)").path }
+
+        let fixture = mapper.toCatalogItem(
+            RemoteSkill(
+                slug: slug,
+                displayName: "Gemini",
+                summary: "UI test fixture",
+                latestVersion: "1.0.0",
+                updatedAt: nil,
+                downloads: nil,
+                stars: nil,
+                localPath: localPath
+            ),
+            installs: nil
+        )
+
+        return Array(([fixture] + items).prefix(limit))
     }
 }

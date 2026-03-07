@@ -5,10 +5,17 @@ import CodexProvider
 public struct CodexUsageDescriptor: ProviderUsageDescribing {
     public let provider: UsageProvider = .codex
     public let fetchPlan = ProviderFetchPlan(sourceModes: [.auto, .cli])
+    private let fetchHTTPUsageResult: @Sendable (_ context: ProviderFetchContext) async throws -> ProviderFetchResult?
     private let fetchRateLimitsAndAccountInfo: @Sendable (_ context: ProviderFetchContext) async throws -> (CodexHelper.RateLimitsSnapshot, CodexHelper.AccountInfo?)
     private let fetchStatusSnapshot: @Sendable (_ environment: [String: String]) async throws -> CodexStatusSnapshot
 
     public init() {
+        self.fetchHTTPUsageResult = { context in
+            try await CodexHTTPUsageQueryExecutor().executeIfConfigured(
+                environment: context.environment,
+                includeCredits: context.includeCredits
+            )
+        }
         self.fetchRateLimitsAndAccountInfo = { context in
             let helper = CodexHelper(codexBinary: nil, environment: context.environment)
             async let rateLimitsTask = helper.fetchRateLimits()
@@ -23,14 +30,24 @@ public struct CodexUsageDescriptor: ProviderUsageDescribing {
     }
 
     init(
+        fetchHTTPUsageResult: @escaping @Sendable (_ context: ProviderFetchContext) async throws -> ProviderFetchResult? = { _ in nil },
         fetchRateLimitsAndAccountInfo: @escaping @Sendable (_ context: ProviderFetchContext) async throws -> (CodexHelper.RateLimitsSnapshot, CodexHelper.AccountInfo?),
         fetchStatusSnapshot: @escaping @Sendable (_ environment: [String: String]) async throws -> CodexStatusSnapshot
     ) {
+        self.fetchHTTPUsageResult = fetchHTTPUsageResult
         self.fetchRateLimitsAndAccountInfo = fetchRateLimitsAndAccountInfo
         self.fetchStatusSnapshot = fetchStatusSnapshot
     }
 
     public func fetchOutcome(context: ProviderFetchContext) async -> ProviderFetchOutcome {
+        do {
+            if let httpResult = try await fetchHTTPUsageResult(context) {
+                return ProviderFetchOutcome(fetchKind: .web, result: .success(httpResult))
+            }
+        } catch {
+            return ProviderFetchOutcome(fetchKind: .web, result: .failure(error))
+        }
+
         let fetchKind: ProviderFetchKind = .cli
 
         do {

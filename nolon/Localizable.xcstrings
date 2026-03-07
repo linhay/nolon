@@ -1303,6 +1303,102 @@
         }
       }
     },
+    "codex.accounts.action.clear_selection" : {
+      "comment" : "Clear Codex selection",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "清空选择"
+          }
+        }
+      }
+    },
+    "codex.accounts.action.done_selecting" : {
+      "comment" : "Done selecting Codex accounts",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "完成"
+          }
+        }
+      }
+    },
+    "codex.accounts.action.edit" : {
+      "comment" : "Edit configured account",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Edit"
+          }
+        }
+      }
+    },
+    "codex.accounts.action.export_zip" : {
+      "comment" : "Export selected Codex accounts to ZIP",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "导出 ZIP"
+          }
+        }
+      }
+    },
+    "codex.accounts.action.multi_select" : {
+      "comment" : "Enter Codex multi-select mode",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "进入多选"
+          }
+        }
+      }
+    },
+    "codex.accounts.action.new_api_key" : {
+      "comment" : "New API key account",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "新增 API Key"
+          }
+        }
+      }
+    },
+    "codex.accounts.action.new_relay" : {
+      "comment" : "New relay account",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "新增 Relay"
+          }
+        }
+      }
+    },
+    "codex.accounts.action.validate" : {
+      "comment" : "Validate configured account",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Validate"
+          }
+        }
+      }
+    },
     "codex.accounts.activate.message" : {
       "comment" : "Activate account message",
       "extractionState" : "extracted_with_value",
@@ -1627,6 +1723,336 @@
         }
       }
     },
+    "codex.accounts.config.advanced" : {
+      "comment" : "Advanced config section title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Advanced"
+          }
+        }
+      }
+    },
+    "codex.accounts.config.advanced.footer" : {
+      "comment" : "Advanced config footer",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "One key=value pair per line."
+          }
+        }
+      }
+    },
+    "codex.accounts.config.api_key" : {
+      "comment" : "Codex API key",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "API Key"
+          }
+        }
+      }
+    },
+    "codex.accounts.config.base_url" : {
+      "comment" : "Codex relay base URL",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Base URL"
+          }
+        }
+      }
+    },
+    "codex.accounts.config.basic" : {
+      "comment" : "Basic config section",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Basic"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "基础信息"
+          }
+        }
+      }
+    },
+    "codex.accounts.config.basic.footer.api_key" : {
+      "comment" : "API key basic footer",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "只填名称和 API Key 就可以先创建可用卡片。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "只填名称和 API Key 就可以先创建可用卡片。"
+          }
+        }
+      }
+    },
+    "codex.accounts.config.basic.footer.relay" : {
+      "comment" : "Relay basic footer",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "先完成连接信息，保存后就能作为一张可切换的 Relay 卡使用。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "先完成连接信息，保存后就能作为一张可切换的 Relay 卡使用。"
+          }
+        }
+      }
+    },
+    "codex.accounts.config.edit" : {
+      "comment" : "Edit config title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Edit Config"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "编辑配置"
+          }
+        }
+      }
+    },
+    "codex.accounts.config.error.api_key_required" : {
+      "comment" : "Codex config missing API key",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "API Key is required."
+          }
+        }
+      }
+    },
+    "codex.accounts.config.error.relay_required" : {
+      "comment" : "Codex relay required fields",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Relay requires both Base URL and Model Provider."
+          }
+        }
+      }
+    },
+    "codex.accounts.config.headers" : {
+      "comment" : "Relay headers",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "header=value"
+          }
+        }
+      }
+    },
+    "codex.accounts.config.model_provider" : {
+      "comment" : "Codex relay model provider",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Model Provider"
+          }
+        }
+      }
+    },
+    "codex.accounts.config.name" : {
+      "comment" : "Codex config name",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Name"
+          }
+        }
+      }
+    },
+    "codex.accounts.config.new_api_key" : {
+      "comment" : "New API key title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "New API Key"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新增 API Key"
+          }
+        }
+      }
+    },
+    "codex.accounts.config.new_relay" : {
+      "comment" : "New relay title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "New Relay"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新增 Relay"
+          }
+        }
+      }
+    },
+    "codex.accounts.config.query_params" : {
+      "comment" : "Relay query params",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "query=value"
+          }
+        }
+      }
+    },
+    "codex.accounts.config.relay" : {
+      "comment" : "Relay section title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Relay"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Relay"
+          }
+        }
+      }
+    },
+    "codex.accounts.config.relay.footer" : {
+      "comment" : "Relay config footer",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "通常只需要 Base URL 和 Provider；query/header 属于高级选项。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "通常只需要 Base URL 和 Provider；query/header 属于高级选项。"
+          }
+        }
+      }
+    },
+    "codex.accounts.config.subtitle.api_key" : {
+      "comment" : "API key config subtitle",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "先填名称和 API Key。其他配置可以之后再补。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "先完成最小可用配置；如果需要，再补 HTTP 用量映射。"
+          }
+        }
+      }
+    },
+    "codex.accounts.config.subtitle.edit" : {
+      "comment" : "Edit config subtitle",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "优先修改基础连接信息，HTTP 用量查询和高级项按需展开。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "基础连接信息放在前面，HTTP 用量配置只在你需要时再展开。"
+          }
+        }
+      }
+    },
+    "codex.accounts.config.subtitle.relay" : {
+      "comment" : "Relay config subtitle",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "先填名称、API Key、Base URL 和 Provider。HTTP 用量查询与高级项都是可选的。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "先填 Base URL 和 Provider；query、header、HTTP 用量映射都属于可选高级项。"
+          }
+        }
+      }
+    },
+    "codex.accounts.config.title" : {
+      "comment" : "Codex config title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Codex Config"
+          }
+        }
+      }
+    },
     "codex.accounts.copy_error" : {
       "comment" : "Copy account error",
       "extractionState" : "extracted_with_value",
@@ -1861,6 +2287,432 @@
         }
       }
     },
+    "codex.accounts.export.error.no_selection" : {
+      "comment" : "No selected Codex accounts for export",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "请先选择要导出的账号卡片。"
+          }
+        }
+      }
+    },
+    "codex.accounts.export.success" : {
+      "comment" : "Codex export success",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "已导出 %d 个账号到 ZIP。"
+          }
+        }
+      }
+    },
+    "codex.accounts.group.unknown" : {
+      "comment" : "Unknown codex account group",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Unknown"
+          }
+        }
+      }
+    },
+    "codex.accounts.grouping.none" : {
+      "comment" : "No grouping",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "无分组"
+          }
+        }
+      }
+    },
+    "codex.accounts.grouping.title" : {
+      "comment" : "Grouping title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "分组"
+          }
+        }
+      }
+    },
+    "codex.accounts.grouping.type_info" : {
+      "comment" : "Group by type info",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "按套餐/提供商分组"
+          }
+        }
+      }
+    },
+    "codex.accounts.http_usage.body" : {
+      "comment" : "HTTP usage body",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Optional body"
+          }
+        }
+      }
+    },
+    "codex.accounts.http_usage.credentials" : {
+      "comment" : "HTTP usage credentials",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Credentials Override"
+          }
+        }
+      }
+    },
+    "codex.accounts.http_usage.enabled" : {
+      "comment" : "Enable HTTP usage query",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Enable HTTP Usage Query"
+          }
+        }
+      }
+    },
+    "codex.accounts.http_usage.error.mapping_required" : {
+      "comment" : "HTTP usage mapping required",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "At least one HTTP usage mapping path is required."
+          }
+        }
+      }
+    },
+    "codex.accounts.http_usage.error.timeout" : {
+      "comment" : "HTTP usage timeout validation",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "HTTP usage timeout must be a number."
+          }
+        }
+      }
+    },
+    "codex.accounts.http_usage.error.url_required" : {
+      "comment" : "HTTP usage URL required",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "HTTP usage request URL is required."
+          }
+        }
+      }
+    },
+    "codex.accounts.http_usage.headers" : {
+      "comment" : "HTTP usage headers",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Header=Value"
+          }
+        }
+      }
+    },
+    "codex.accounts.http_usage.mapping" : {
+      "comment" : "HTTP usage mapping",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Mapping"
+          }
+        }
+      }
+    },
+    "codex.accounts.http_usage.mapping.cost_30d" : {
+      "comment" : "30D cost path",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "30D Cost Path"
+          }
+        }
+      }
+    },
+    "codex.accounts.http_usage.mapping.cost_today" : {
+      "comment" : "Today cost path",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Today Cost Path"
+          }
+        }
+      }
+    },
+    "codex.accounts.http_usage.mapping.credits" : {
+      "comment" : "Credits remaining path",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Credits Remaining Path"
+          }
+        }
+      }
+    },
+    "codex.accounts.http_usage.mapping.error" : {
+      "comment" : "Error message path",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Error Message Path"
+          }
+        }
+      }
+    },
+    "codex.accounts.http_usage.mapping.plan" : {
+      "comment" : "Plan path",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Plan Path"
+          }
+        }
+      }
+    },
+    "codex.accounts.http_usage.mapping.total" : {
+      "comment" : "Total path",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Total Path"
+          }
+        }
+      }
+    },
+    "codex.accounts.http_usage.mapping.used" : {
+      "comment" : "Used path",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Used Path"
+          }
+        }
+      }
+    },
+    "codex.accounts.http_usage.method" : {
+      "comment" : "HTTP usage method",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Method"
+          }
+        }
+      }
+    },
+    "codex.accounts.http_usage.override.access_token" : {
+      "comment" : "Override access token",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Override Access Token"
+          }
+        }
+      }
+    },
+    "codex.accounts.http_usage.override.api_key" : {
+      "comment" : "Override API key",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Override API Key"
+          }
+        }
+      }
+    },
+    "codex.accounts.http_usage.override.base_url" : {
+      "comment" : "Override base URL",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Override Base URL"
+          }
+        }
+      }
+    },
+    "codex.accounts.http_usage.override.user_id" : {
+      "comment" : "Override user ID",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Override User ID"
+          }
+        }
+      }
+    },
+    "codex.accounts.http_usage.section" : {
+      "comment" : "HTTP usage section",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "HTTP Usage Query"
+          }
+        }
+      }
+    },
+    "codex.accounts.http_usage.summary" : {
+      "comment" : "HTTP usage summary",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "可选。只有在你想覆盖默认 CLI 用量来源时才需要配置。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "可选。只有在你想覆盖默认 CLI 用量来源时才需要配置。"
+          }
+        }
+      }
+    },
+    "codex.accounts.http_usage.test" : {
+      "comment" : "Test HTTP usage request",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Test Request"
+          }
+        }
+      }
+    },
+    "codex.accounts.http_usage.test.error" : {
+      "comment" : "Latest HTTP usage error",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Latest Error"
+          }
+        }
+      }
+    },
+    "codex.accounts.http_usage.test.missing" : {
+      "comment" : "Missing HTTP usage query test config",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Enable HTTP usage query and fill the request before testing."
+          }
+        }
+      }
+    },
+    "codex.accounts.http_usage.test.result" : {
+      "comment" : "Latest HTTP usage test",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Latest Test"
+          }
+        }
+      }
+    },
+    "codex.accounts.http_usage.test.success" : {
+      "comment" : "HTTP usage test success",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "HTTP usage query succeeded."
+          }
+        }
+      }
+    },
+    "codex.accounts.http_usage.timeout" : {
+      "comment" : "HTTP usage timeout",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "15"
+          }
+        }
+      }
+    },
+    "codex.accounts.http_usage.url" : {
+      "comment" : "HTTP usage URL",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "https://…"
+          }
+        }
+      }
+    },
     "codex.accounts.import" : {
       "comment" : "Codex import",
       "extractionState" : "extracted_with_value",
@@ -1917,6 +2769,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "复制账号 ID"
+          }
+        }
+      }
+    },
+    "codex.accounts.menu.copy_auth_json" : {
+      "comment" : "Copy auth json",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Copy Auth JSON"
           }
         }
       }
@@ -1983,6 +2847,78 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "重新登录"
+          }
+        }
+      }
+    },
+    "codex.accounts.selection.count" : {
+      "comment" : "Selected Codex account count",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "已选 %d"
+          }
+        }
+      }
+    },
+    "codex.accounts.sorting.expiry_time" : {
+      "comment" : "Sort by expiry time",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "按到期时间"
+          }
+        }
+      }
+    },
+    "codex.accounts.sorting.name" : {
+      "comment" : "Sort by name",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "按名称"
+          }
+        }
+      }
+    },
+    "codex.accounts.sorting.remaining_credits" : {
+      "comment" : "Sort by remaining credits",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "按剩余额度"
+          }
+        }
+      }
+    },
+    "codex.accounts.sorting.title" : {
+      "comment" : "Sorting title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "排序"
+          }
+        }
+      }
+    },
+    "codex.accounts.sorting.window_remaining" : {
+      "comment" : "Sort by remaining percent in a quota window",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "按 %@ 剩余比例"
           }
         }
       }
@@ -5645,26 +6581,338 @@
         }
       }
     },
-    "codex.import.apply_valid" : {
-      "comment" : "Import valid files",
+    "codex.import.sheet.deselect_all" : {
+      "comment" : "Deselect all import candidates",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "Import Valid Files"
+            "value" : "取消全选"
           }
         }
       }
     },
-    "codex.import.validate.title" : {
-      "comment" : "Import validation title",
+    "codex.import.sheet.drop.subtitle" : {
+      "comment" : "Codex import drop subtitle",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "Import Validation"
+            "value" : "支持 .json / .zip，也可以直接粘贴 auth JSON 或 localhost 登录回调链接。"
+          }
+        }
+      }
+    },
+    "codex.import.sheet.drop.title" : {
+      "comment" : "Codex import drop title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "拖拽 auth.json 或 ZIP 到这里"
+          }
+        }
+      }
+    },
+    "codex.import.sheet.empty.subtitle" : {
+      "comment" : "Empty import candidates subtitle",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "拖拽或选择 auth.json / ZIP 后，候选账号会先显示在这里。"
+          }
+        }
+      }
+    },
+    "codex.import.sheet.empty.title" : {
+      "comment" : "Empty import candidates title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "还没有候选账号"
+          }
+        }
+      }
+    },
+    "codex.import.sheet.error.empty_pasteboard" : {
+      "comment" : "Empty clipboard import error",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "剪贴板里没有可解析的账号数据。"
+          }
+        }
+      }
+    },
+    "codex.import.sheet.error.none_selected" : {
+      "comment" : "No selected import candidates",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "请先选择至少一个可导入的账号。"
+          }
+        }
+      }
+    },
+    "codex.import.sheet.group.count" : {
+      "comment" : "Selected count in import group",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$d / %2$d 已选"
+          }
+        }
+      }
+    },
+    "codex.import.sheet.group.deselect" : {
+      "comment" : "Deselect group import candidates",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "取消全选"
+          }
+        }
+      }
+    },
+    "codex.import.sheet.group.select" : {
+      "comment" : "Select group import candidates",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "全选"
+          }
+        }
+      }
+    },
+    "codex.import.sheet.import_selected" : {
+      "comment" : "Import selected Codex accounts",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "导入选中"
+          }
+        }
+      }
+    },
+    "codex.import.sheet.import_selected_count" : {
+      "comment" : "Import selected Codex accounts with count",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "导入 %d 个账号"
+          }
+        }
+      }
+    },
+    "codex.import.sheet.paste" : {
+      "comment" : "Paste import content",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "粘贴"
+          }
+        }
+      }
+    },
+    "codex.import.sheet.pick_files" : {
+      "comment" : "Pick import files",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "选择文件"
+          }
+        }
+      }
+    },
+    "codex.import.sheet.progress.testing" : {
+      "comment" : "Codex import testing progress",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "正在测试连接..."
+          }
+        }
+      }
+    },
+    "codex.import.sheet.progress.validating" : {
+      "comment" : "Codex import validating progress",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "正在校验账号文件..."
+          }
+        }
+      }
+    },
+    "codex.import.sheet.remove" : {
+      "comment" : "Remove import candidate",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "移除"
+          }
+        }
+      }
+    },
+    "codex.import.sheet.retry_all" : {
+      "comment" : "Retry all Codex import tests",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "重新测试全部"
+          }
+        }
+      }
+    },
+    "codex.import.sheet.retry_single" : {
+      "comment" : "Retry single import test",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "重试"
+          }
+        }
+      }
+    },
+    "codex.import.sheet.select_all" : {
+      "comment" : "Select all import candidates",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "全选"
+          }
+        }
+      }
+    },
+    "codex.import.sheet.source_group_count" : {
+      "comment" : "Codex import source group count",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%d 个来源组"
+          }
+        }
+      }
+    },
+    "codex.import.sheet.status.connected" : {
+      "comment" : "Connected import status",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "已联通"
+          }
+        }
+      }
+    },
+    "codex.import.sheet.status.failed" : {
+      "comment" : "Failed import status",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "失败"
+          }
+        }
+      }
+    },
+    "codex.import.sheet.status.idle" : {
+      "comment" : "Idle import test status",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "待测试"
+          }
+        }
+      }
+    },
+    "codex.import.sheet.status.invalid" : {
+      "comment" : "Invalid import status",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "无效"
+          }
+        }
+      }
+    },
+    "codex.import.sheet.status.testing" : {
+      "comment" : "Testing import status",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "测试中"
+          }
+        }
+      }
+    },
+    "codex.import.sheet.subtitle" : {
+      "comment" : "Codex import sheet subtitle",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "把账号文件先放进来，再决定导入哪些账号。"
+          }
+        }
+      }
+    },
+    "codex.import.sheet.title" : {
+      "comment" : "Codex import sheet title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "导入账号"
           }
         }
       }
@@ -5965,7 +7213,7 @@
     },
     "codex.runtime.diagnostics.empty" : {
       "comment" : "No diagnostics",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -6127,7 +7375,7 @@
     },
     "codex.runtime.logs.select_pid" : {
       "comment" : "Select process for logs",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -6702,6 +7950,18 @@
       }
     },
     "Current: %@" : {
+
+    },
+    "Delete %@" : {
+
+    },
+    "Delete MCP %@" : {
+
+    },
+    "Delete provider skill %@" : {
+
+    },
+    "Delete workflow %@" : {
 
     },
     "Description" : {
@@ -7364,6 +8624,24 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "Copy"
+          }
+        }
+      }
+    },
+    "generic.create" : {
+      "comment" : "Create",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Create"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "创建"
           }
         }
       }
@@ -10179,24 +11457,36 @@
     },
     "resource.delete.result.partial" : {
       "comment" : "Delete partial failure message",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$@ \"%2$@\" deleted with partial failures.\nSuccess: %3$d/%4$d\n%5$@"
+            "state" : "translated",
+            "value" : "%1$@ \"%2$@\" deleted with partial failures.\nSuccess: %3$ld/%4$ld\n%5$@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已删除%1$@“%2$@”，但部分目标失败。\n成功：%3$ld/%4$ld\n%5$@"
           }
         }
       }
     },
     "resource.delete.result.success" : {
       "comment" : "Delete success message",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$@ \"%2$@\" deleted. Removed from %3$d provider(s)."
+            "state" : "translated",
+            "value" : "%1$@ \"%2$@\" deleted. Removed from %3$ld provider(s)."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已删除%1$@“%2$@”。已从 %3$ld 个 Provider 中移除。"
           }
         }
       }

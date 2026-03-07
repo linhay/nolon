@@ -43,6 +43,8 @@ struct CodexRuntimeDiagnosticsSnapshot: Equatable {
     let providerID: String
     let accountCount: Int
     let activeAccountID: String?
+    let activeAccountName: String?
+    let activeAccountEmail: String?
     let selectedVersionID: String?
     let currentVersion: String?
     let pathActive: Bool
@@ -56,6 +58,8 @@ struct CodexRuntimeDiagnosticsSnapshot: Equatable {
             providerID: providerID,
             accountCount: 0,
             activeAccountID: nil,
+            activeAccountName: nil,
+            activeAccountEmail: nil,
             selectedVersionID: nil,
             currentVersion: nil,
             pathActive: false,
@@ -65,6 +69,22 @@ struct CodexRuntimeDiagnosticsSnapshot: Equatable {
             probeHint: nil
         )
     }
+}
+
+struct CodexRuntimeProcessDiagnosticField: Equatable {
+    enum Key: String, Equatable {
+        case provider
+        case accounts
+        case active
+        case running
+        case binary
+        case pathActive = "path_active"
+        case executable
+        case hint
+    }
+
+    let key: Key
+    let value: String
 }
 
 protocol CodexRuntimeTabServicing {
@@ -106,6 +126,7 @@ struct CodexRuntimeCLIService: CodexRuntimeTabServicing {
 
     func diagnostics(providerID: String) async throws -> CodexRuntimeDiagnosticsSnapshot {
         async let auth = codexService.authStatus(providerID: providerID)
+        async let authList = codexService.authList(providerID: providerID)
         async let binary = codexService.binaryDoctor()
         async let runtime = codexService.runtimeList(providerID: providerID)
 
@@ -119,13 +140,20 @@ struct CodexRuntimeCLIService: CodexRuntimeTabServicing {
         }
 
         let authPayload = try await auth
+        let authListPayload = try await authList
         let binaryPayload = try await binary
         let runtimePayload = try await runtime
+        let activeID = authPayload.activeAccountID ?? authListPayload.activeAccountID
+        let activeAccount = activeID.flatMap { id in
+            authListPayload.accounts.first(where: { $0.id == id })
+        }
 
         return CodexRuntimeDiagnosticsSnapshot(
             providerID: providerID,
             accountCount: authPayload.accountCount,
-            activeAccountID: authPayload.activeAccountID?.uuidString,
+            activeAccountID: activeID?.uuidString,
+            activeAccountName: Self.normalizedNonEmpty(activeAccount?.name),
+            activeAccountEmail: Self.normalizedNonEmpty(activeAccount?.email),
             selectedVersionID: binaryPayload.selectedVersionID,
             currentVersion: binaryPayload.currentVersion,
             pathActive: binaryPayload.pathActive,
@@ -134,6 +162,13 @@ struct CodexRuntimeCLIService: CodexRuntimeTabServicing {
             probeWarning: probe?.probeWarning ?? probeFallbackWarning,
             probeHint: probe?.probeHint
         )
+    }
+
+    private static func normalizedNonEmpty(_ raw: String?) -> String? {
+        guard let trimmed = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else {
+            return nil
+        }
+        return trimmed
     }
 }
 
@@ -188,7 +223,7 @@ struct CodexPIDSystemLogService: CodexPIDSystemLogServicing {
         return lines.suffix(maxLines).joined(separator: "\n")
     }
 
-    private static func liveCommandRunner(pid: Int32, lastSeconds: Int) throws -> String {
+    nonisolated private static func liveCommandRunner(pid: Int32, lastSeconds: Int) throws -> String {
         var payload = SKProcessPayload.command("/usr/bin/log")
         payload.arguments = [
             "show",
@@ -235,15 +270,20 @@ final class CodexRuntimeTabViewModel {
 
     private let runtimeService: any CodexRuntimeTabServicing
     private let logService: any CodexPIDSystemLogServicing
+    private let pollingIntervalNanoseconds: UInt64
+    private var pollingTask: Task<Void, Never>?
+    private var isPollingProcessList = false
 
     init(
         provider: Provider,
-        runtimeService: any CodexRuntimeTabServicing = CodexRuntimeCLIService(),
-        logService: any CodexPIDSystemLogServicing = CodexPIDSystemLogService()
+        runtimeService: (any CodexRuntimeTabServicing)? = nil,
+        logService: (any CodexPIDSystemLogServicing)? = nil,
+        pollingIntervalNanoseconds: UInt64 = 5_000_000_000
     ) {
         self.provider = provider
-        self.runtimeService = runtimeService
-        self.logService = logService
+        self.runtimeService = runtimeService ?? CodexRuntimeCLIService()
+        self.logService = logService ?? CodexPIDSystemLogService()
+        self.pollingIntervalNanoseconds = pollingIntervalNanoseconds
     }
 
     func refresh() async {
@@ -358,11 +398,97 @@ final class CodexRuntimeTabViewModel {
         await stop(pid: pid, force: true, timeoutSeconds: timeoutSeconds)
     }
 
+    func startProcessPolling() {
+        guard pollingTask == nil else { return }
+
+        pollingTask = Task { [weak self] in
+            guard let self else { return }
+
+            while !Task.isCancelled {
+                do {
+                    try await Task.sleep(nanoseconds: self.pollingIntervalNanoseconds)
+                } catch {
+                    break
+                }
+                if Task.isCancelled {
+                    break
+                }
+                await self.pollProcessesOnly()
+            }
+        }
+    }
+
+    func stopProcessPolling() {
+        pollingTask?.cancel()
+        pollingTask = nil
+    }
+
     var canonicalProviderID: String {
         if provider.templateId == "codexXcode" {
             return "codex-xcode"
         }
         return "codex"
+    }
+
+    func processDiagnosticsRows(for process: CodexRuntimeProcessItem) -> [CodexRuntimeProcessDiagnosticField] {
+        guard let diagnostics else { return [] }
+
+        let providerValue: String = {
+            let trimmed = process.providerHint?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            return trimmed.isEmpty ? diagnostics.providerID : trimmed
+        }()
+
+        return [
+            .init(key: .provider, value: providerValue),
+            .init(key: .accounts, value: "\(diagnostics.accountCount)"),
+            .init(key: .active, value: activeAccountDisplayText(for: diagnostics)),
+            .init(key: .running, value: "\(diagnostics.runtimeCount)"),
+            .init(key: .binary, value: diagnostics.currentVersion ?? "-"),
+            .init(key: .pathActive, value: diagnostics.pathActive ? "true" : "false"),
+            .init(key: .executable, value: diagnostics.resolvedExecutable ?? "-"),
+            .init(key: .hint, value: diagnostics.probeHint ?? diagnostics.probeWarning ?? "-")
+        ]
+    }
+
+    private func activeAccountDisplayText(for diagnostics: CodexRuntimeDiagnosticsSnapshot) -> String {
+        let id = Self.normalizedNonEmpty(diagnostics.activeAccountID)
+        let name = Self.normalizedNonEmpty(diagnostics.activeAccountName)
+        let email = Self.normalizedNonEmpty(diagnostics.activeAccountEmail)
+
+        guard id != nil || name != nil || email != nil else { return "-" }
+
+        let identity: String? = {
+            if let name, let email {
+                return "\(name) (\(email))"
+            }
+            if let email {
+                return email
+            }
+            return name
+        }()
+
+        if let identity, let id {
+            return "\(identity) [id: \(abbreviatedID(id))]"
+        }
+        if let identity {
+            return identity
+        }
+        if let id {
+            return id
+        }
+        return "-"
+    }
+
+    private func abbreviatedID(_ raw: String) -> String {
+        guard raw.count > 8 else { return raw }
+        return "\(raw.prefix(4))...\(raw.suffix(4))"
+    }
+
+    private static func normalizedNonEmpty(_ raw: String?) -> String? {
+        guard let trimmed = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else {
+            return nil
+        }
+        return trimmed
     }
 
     private static func formattedError(_ error: Error) -> String {
@@ -379,5 +505,26 @@ final class CodexRuntimeTabViewModel {
             }
         }
         return error.localizedDescription
+    }
+
+    private func pollProcessesOnly() async {
+        guard !isRefreshing, !isStopping, !isPollingProcessList else { return }
+        isPollingProcessList = true
+        defer { isPollingProcessList = false }
+
+        do {
+            let latest = try await runtimeService.runtimeList(providerID: canonicalProviderID)
+            processes = latest.sorted(by: { $0.pid < $1.pid })
+
+            if let selectedPID, !processes.contains(where: { $0.pid == selectedPID }) {
+                self.selectedPID = processes.first?.pid
+                await refreshSelectedProcessLogs()
+            } else if selectedPID == nil, !processes.isEmpty {
+                selectedPID = processes.first?.pid
+                await refreshSelectedProcessLogs()
+            }
+        } catch {
+            Self.logger.error("Runtime process polling failed: \(error.localizedDescription, privacy: .public)")
+        }
     }
 }

@@ -30,6 +30,8 @@ final class CodexRuntimeTabViewModelTests: XCTestCase {
                 providerID: "codex",
                 accountCount: 2,
                 activeAccountID: "active",
+                activeAccountName: "Lin",
+                activeAccountEmail: "lin@company.com",
                 selectedVersionID: "1.0.0",
                 currentVersion: "1.0.0",
                 pathActive: true,
@@ -124,6 +126,74 @@ final class CodexRuntimeTabViewModelTests: XCTestCase {
         XCTAssertNil(viewModel.alertMessage)
     }
 
+    func testBDD_GivenPollingEnabled_WhenRuntimeProcessesChange_ThenProcessesTrackAddRemove() async throws {
+        let provider = makeCodexProvider()
+        let runtimeService = MockRuntimeService()
+        runtimeService.runtimeListResponses = [
+            [.init(pid: 11, ppid: 1, elapsed: "00:01", providerHint: nil, command: "codex")],
+            [
+                .init(pid: 11, ppid: 1, elapsed: "00:02", providerHint: nil, command: "codex"),
+                .init(pid: 22, ppid: 1, elapsed: "00:00", providerHint: nil, command: "codex new")
+            ],
+            [.init(pid: 22, ppid: 1, elapsed: "00:01", providerHint: nil, command: "codex new")]
+        ]
+        runtimeService.diagnosticsResult = .success(.empty(providerID: "codex"))
+
+        let viewModel = CodexRuntimeTabViewModel(
+            provider: provider,
+            runtimeService: runtimeService,
+            logService: MockLogService(),
+            pollingIntervalNanoseconds: 20_000_000
+        )
+        await viewModel.refresh()
+        XCTAssertEqual(viewModel.processes.map { $0.pid }, [Int32(11)])
+
+        viewModel.startProcessPolling()
+        try await Task.sleep(nanoseconds: 70_000_000)
+        viewModel.stopProcessPolling()
+
+        XCTAssertEqual(viewModel.processes.map { $0.pid }, [Int32(22)])
+        XCTAssertGreaterThanOrEqual(runtimeService.runtimeListCallCount, 3)
+    }
+
+    func testBDD_GivenDiagnosticsAndProcess_WhenBuildingProcessDiagnosticRows_ThenIncludesExpectedFields() async {
+        let provider = makeCodexProvider()
+        let runtimeService = MockRuntimeService()
+        runtimeService.runtimeListResult = .success([
+            .init(pid: 101, ppid: 1, elapsed: "00:01", providerHint: "codex", command: "codex chat")
+        ])
+        runtimeService.diagnosticsResult = .success(
+            .init(
+                providerID: "codex",
+                accountCount: 3,
+                activeAccountID: "7F1A1234-ABCD-4321-9F00-111122229C2D",
+                activeAccountName: "Lin",
+                activeAccountEmail: "lin@company.com",
+                selectedVersionID: "1.15.0",
+                currentVersion: "1.15.0",
+                pathActive: true,
+                runtimeCount: 2,
+                resolvedExecutable: "/usr/local/bin/codex",
+                probeWarning: nil,
+                probeHint: "ok"
+            )
+        )
+
+        let viewModel = CodexRuntimeTabViewModel(provider: provider, runtimeService: runtimeService, logService: MockLogService())
+        await viewModel.refresh()
+        let rows = viewModel.processDiagnosticsRows(for: viewModel.processes[0])
+
+        XCTAssertEqual(rows.count, 8)
+        XCTAssertEqual(rows.first(where: { $0.key == .provider })?.value, "codex")
+        XCTAssertEqual(rows.first(where: { $0.key == .accounts })?.value, "3")
+        XCTAssertEqual(rows.first(where: { $0.key == .active })?.value, "Lin (lin@company.com) [id: 7F1A...9C2D]")
+        XCTAssertEqual(rows.first(where: { $0.key == .running })?.value, "2")
+        XCTAssertEqual(rows.first(where: { $0.key == .binary })?.value, "1.15.0")
+        XCTAssertEqual(rows.first(where: { $0.key == .pathActive })?.value, "true")
+        XCTAssertEqual(rows.first(where: { $0.key == .executable })?.value, "/usr/local/bin/codex")
+        XCTAssertEqual(rows.first(where: { $0.key == .hint })?.value, "ok")
+    }
+
     private func makeCodexProvider() -> Provider {
         Provider(
             name: "Codex",
@@ -137,12 +207,24 @@ final class CodexRuntimeTabViewModelTests: XCTestCase {
 
 private final class MockRuntimeService: CodexRuntimeTabServicing {
     var runtimeListResult: Result<[CodexRuntimeProcessItem], Error> = .success([])
+    var runtimeListResponses: [[CodexRuntimeProcessItem]] = []
+    var runtimeListCallCount: Int = 0
+    private var stickyRuntimeListResponse: [CodexRuntimeProcessItem]?
     var runtimeStopResult: Result<CodexRuntimeStopResult, Error> = .success(.init(pid: 0, requestedSignal: "term", didEscalateToKill: false, exited: true))
     var diagnosticsResult: Result<CodexRuntimeDiagnosticsSnapshot, Error> = .success(.empty(providerID: "codex"))
     var stopCalls: [(pid: Int32, force: Bool, timeoutSeconds: Int)] = []
 
     func runtimeList(providerID: String?) async throws -> [CodexRuntimeProcessItem] {
         _ = providerID
+        runtimeListCallCount += 1
+        if !runtimeListResponses.isEmpty {
+            let next = runtimeListResponses.removeFirst()
+            stickyRuntimeListResponse = next
+            return next
+        }
+        if let stickyRuntimeListResponse {
+            return stickyRuntimeListResponse
+        }
         return try runtimeListResult.get()
     }
 

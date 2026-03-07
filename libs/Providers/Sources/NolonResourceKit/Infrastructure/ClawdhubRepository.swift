@@ -26,21 +26,21 @@ public actor ClawdhubRepository: RemoteResourceRepository {
     public init() {
         self.id = "clawdhub"
         self.name = "Clawdhub"
-        self.baseURL = URL(string: "https://clawdhub.com")!
+        self.baseURL = URL(string: "https://clawhub.ai")!
     }
     
     /// Initializer with custom base URL for supporting other repositories
     public init(id: String = "clawdhub", name: String = "Clawdhub", baseURL: String) {
         self.id = id
         self.name = name
-        self.baseURL = URL(string: baseURL) ?? URL(string: "https://clawdhub.com")!
+        self.baseURL = URL(string: baseURL) ?? URL(string: "https://clawhub.ai")!
     }
     
     /// Initializer with RemoteRepository
     public init(repository: RemoteRepository) {
         self.id = repository.id
         self.name = repository.name
-        self.baseURL = URL(string: repository.baseURL) ?? URL(string: "https://clawdhub.com")!
+        self.baseURL = URL(string: repository.baseURL) ?? URL(string: "https://clawhub.ai")!
     }
     
     // MARK: - Skills API

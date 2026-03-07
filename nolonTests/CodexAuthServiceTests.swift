@@ -376,6 +376,49 @@ final class ProviderUsageViewModelCLILoginTests: XCTestCase {
         XCTAssertNil(viewModel.loginModeForSheet)
     }
 
+    func testBDD_GivenCLILoginRunning_WhenClosingLoginURLSheet_ThenLoginFlowCancelsImmediately() {
+        let provider = Provider(
+            name: "Codex",
+            defaultSkillsPath: "/tmp/codex-skills",
+            workflowPath: "/tmp/codex-prompts",
+            installMethod: .symlink,
+            templateId: "codex"
+        )
+        let viewModel = ProviderUsageViewModel(provider: provider)
+        viewModel.isRunningCLILogin = true
+        viewModel.isShowingLoginURLSheet = true
+        viewModel.loginURLForSheet = URL(string: "https://auth.openai.com/oauth/authorize?foo=bar")
+        viewModel.loginModeForSheet = "CLI(AppServer)"
+
+        viewModel.closeCLILoginSheet()
+
+        XCTAssertFalse(viewModel.isRunningCLILogin)
+        XCTAssertFalse(viewModel.isShowingLoginURLSheet)
+        XCTAssertNil(viewModel.loginURLForSheet)
+        XCTAssertNil(viewModel.loginModeForSheet)
+    }
+
+    func testBDD_GivenAppServerLoginFailure_WhenHandled_ThenShowsErrorWithoutDirectOAuthFallback() {
+        let provider = Provider(
+            name: "Codex",
+            defaultSkillsPath: "/tmp/codex-skills",
+            workflowPath: "/tmp/codex-prompts",
+            installMethod: .symlink,
+            templateId: "codex"
+        )
+        let viewModel = ProviderUsageViewModel(provider: provider)
+        viewModel.loginModeForSheet = "CLI(AppServer)"
+
+        viewModel.handleAppServerLoginFailure(UsageViewModelTestError(message: "app-server login failed"))
+
+        XCTAssertEqual(
+            viewModel.alertTitle,
+            NSLocalizedString("codex.cli_login.title", value: "CLI Login", comment: "CLI login title")
+        )
+        XCTAssertEqual(viewModel.alertMessage, "app-server login failed")
+        XCTAssertEqual(viewModel.loginModeForSheet, "CLI(AppServer)")
+    }
+
     func testBDD_Given401Unauthorized_WhenCheckingAuthFailure_ThenReturnsTrue() {
         let error = UsageViewModelTestError(message: "Codex protocol error: 401 Unauthorized")
         XCTAssertTrue(ProviderUsageViewModel.isAuthFailure(error: error))

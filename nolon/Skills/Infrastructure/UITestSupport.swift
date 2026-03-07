@@ -79,4 +79,23 @@ enum UITestSupport {
         }
         return raw
     }
+
+    static var fixtureProviderSkillSlug: String? {
+        guard let raw = environment["NOLON_UI_TEST_FIXTURE_PROVIDER_SKILL_SLUG"]?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+              !raw.isEmpty else {
+            return nil
+        }
+        return raw
+    }
+
+    static var initialSelectedProviderIndex: Int? {
+        guard let raw = environment["NOLON_UI_TEST_SELECTED_PROVIDER_INDEX"]?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+              let value = Int(raw),
+              value >= 0 else {
+            return nil
+        }
+        return value
+    }
 }

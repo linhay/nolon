@@ -18,19 +18,6 @@ enum CodexUsageCardActionLayout: Equatable {
     case dualEqualWidth
 }
 
-enum ProviderUsageHeaderAction: Equatable {
-    case refreshAll
-    case login
-    case importAuth
-
-    static func orderedActions(for provider: Provider) -> [ProviderUsageHeaderAction] {
-        if provider.templateId == "codex" || provider.templateId == "codexXcode" {
-            return [.refreshAll, .login, .importAuth]
-        }
-        return [.login]
-    }
-}
-
 enum ProviderUsageLoginPolicy {
     static func shouldUseCLILogin(for provider: Provider) -> Bool {
         guard let templateID = provider.templateId else { return false }
@@ -142,28 +129,72 @@ struct ProviderUsageView: View {
         }
         .fileImporter(
             isPresented: $viewModel.isShowingAuthFileImporter,
-            allowedContentTypes: [.json, .data],
+            allowedContentTypes: [.json, .data, .zip],
             allowsMultipleSelection: true
         ) { result in
             switch result {
             case .success(let urls):
-                Task { await viewModel.validateImportedAuthFiles(urls) }
+                Task { await viewModel.handleCodexImportURLs(urls) }
             case .failure:
                 viewModel.importedAuthFileURLs = []
-                viewModel.pendingImportValidationResults = []
-                viewModel.importValidationSummaryMessage = nil
             }
         }
-        .alert(
-            NSLocalizedString("codex.import.validate.title", value: "Import Validation", comment: "Import validation title"),
-            isPresented: $viewModel.isShowingImportValidationConfirm
-        ) {
-            Button(NSLocalizedString("generic.cancel", value: "Cancel", comment: "Cancel"), role: .cancel) {}
-            Button(NSLocalizedString("codex.import.apply_valid", value: "Import Valid Files", comment: "Import valid files")) {
-                Task { await viewModel.applyValidatedImports() }
-            }
-        } message: {
-            Text(viewModel.importValidationSummaryMessage ?? "")
+        .sheet(isPresented: $viewModel.isShowingCodexImportSheet, onDismiss: {
+            viewModel.dismissCodexImportSheet()
+        }) {
+            CodexImportSheet(
+                sections: viewModel.codexImportCandidateSections,
+                isRunningValidation: viewModel.isRunningCodexImportValidation,
+                isRunningConnectionTests: viewModel.isRunningCodexImportConnectionTests,
+                isTargetingDropZone: Binding(
+                    get: { viewModel.isTargetingCodexImportDropZone },
+                    set: { viewModel.isTargetingCodexImportDropZone = $0 }
+                ),
+                globalErrorMessage: viewModel.codexImportGlobalErrorMessage,
+                onPickFiles: { viewModel.presentCodexImportFilePicker() },
+                onPaste: {
+                    Task { await viewModel.pasteCodexImportFromClipboard() }
+                },
+                onDropFiles: { urls in
+                    Task { await viewModel.handleCodexImportURLs(urls) }
+                },
+                onToggleSelection: { id, selected in
+                    viewModel.setCodexImportCandidateSelected(selected, id: id)
+                },
+                onToggleGroupSelection: { groupID, selected in
+                    viewModel.setCodexImportCandidatesSelected(selected, sourceGroupID: groupID)
+                },
+                onSelectAll: { viewModel.setAllCodexImportCandidatesSelected(true) },
+                onDeselectAll: { viewModel.setAllCodexImportCandidatesSelected(false) },
+                onRetry: { id in
+                    Task { await viewModel.retryCodexImportConnectionTest(id: id) }
+                },
+                onRetryAll: {
+                    Task { await viewModel.retryAllCodexImportConnectionTests() }
+                },
+                onRemove: { id in
+                    viewModel.removeCodexImportCandidate(id: id)
+                },
+                onImport: {
+                    Task { await viewModel.applySelectedCodexImports() }
+                },
+                onCancel: { viewModel.dismissCodexImportSheet() }
+            )
+        }
+        .sheet(isPresented: $viewModel.isShowingCodexConfigEditor) {
+            CodexConfigEditorSheet(
+                draft: Binding(
+                    get: { viewModel.codexConfigEditorDraft },
+                    set: { viewModel.codexConfigEditorDraft = $0 }
+                ),
+                errorMessage: viewModel.codexConfigEditorErrorMessage,
+                testSuccessMessage: viewModel.codexUsageQueryTestSuccessMessage,
+                testErrorMessage: viewModel.codexUsageQueryTestErrorMessage,
+                isTestingUsageQuery: viewModel.isTestingCodexUsageQuery,
+                onCancel: { viewModel.dismissCodexConfigEditor() },
+                onTest: { Task { await viewModel.testCodexUsageQueryDraft() } },
+                onSave: { Task { await viewModel.saveCodexConfigEditor() } }
+            )
         }
         .alert(
             NSLocalizedString("gemini.import.confirm.title", value: "Import Existing Gemini Login?", comment: "Gemini import confirmation title"),
@@ -339,7 +370,29 @@ struct ProviderUsageView: View {
             Spacer()
 
             if viewModel.usageProvider == .codex {
-                ForEach(ProviderUsageHeaderAction.orderedActions(for: provider), id: \.self) { action in
+                if viewModel.isCodexMultiSelectionEnabled {
+                    Text(String(
+                        format: NSLocalizedString(
+                            "codex.accounts.selection.count",
+                            value: "已选 %d",
+                            comment: "Selected Codex account count"
+                        ),
+                        viewModel.codexSelectedAccountCount
+                    ))
+                    .font(.caption)
+                    .foregroundStyle(DesignSystem.Colors.Text.secondary)
+
+                    Button(NSLocalizedString("codex.accounts.action.export_zip", value: "导出 ZIP", comment: "Export selected Codex accounts to ZIP")) {
+                        Task { await viewModel.exportSelectedCodexAccountsAsZIP() }
+                    }
+                    .disabled(!viewModel.canExportSelectedCodexAccounts)
+
+                    Button(NSLocalizedString("codex.accounts.action.done_selecting", value: "完成", comment: "Done selecting Codex accounts")) {
+                        viewModel.setCodexMultiSelectionEnabled(false)
+                    }
+                }
+
+                ForEach(viewModel.codexPrimaryHeaderActions) { action in
                     switch action {
                     case .refreshAll:
                         Button(NSLocalizedString("codex.accounts.refresh_all", value: "刷新", comment: "Codex refresh all")) {
@@ -355,6 +408,19 @@ struct ProviderUsageView: View {
                         Button(NSLocalizedString("codex.accounts.import", value: "导入", comment: "Codex import")) {
                             viewModel.beginImportAuthFiles()
                         }
+                    case .editConfig:
+                        Button(NSLocalizedString("codex.accounts.action.edit", value: "Edit", comment: "Edit configured account")) {
+                            viewModel.beginEditActiveCodexConfiguredAccount()
+                        }
+                        .disabled(!viewModel.codexAccountSupportsEditing(accountID: viewModel.activeCodexAccountId))
+                    case .validateConfig:
+                        Button(NSLocalizedString("codex.accounts.action.validate", value: "Validate", comment: "Validate configured account")) {
+                            viewModel.validateActiveCodexConfiguredAccount()
+                        }
+                        .disabled({
+                            guard let activeID = viewModel.activeCodexAccountId else { return true }
+                            return viewModel.codexRefreshingAccountIds.contains(activeID)
+                        }())
                     }
                 }
                 actionsMenu
@@ -400,6 +466,109 @@ struct ProviderUsageView: View {
                     Task { await viewModel.load() }
                 } label: {
                     Label(NSLocalizedString("usage.monitor.refresh", value: "Refresh", comment: "Refresh"), systemImage: "arrow.clockwise")
+                }
+
+                Divider()
+            }
+
+            if viewModel.usageProvider == .codex {
+                Picker(
+                    selection: Binding(
+                        get: { viewModel.codexAccountGroupingOption },
+                        set: { viewModel.codexAccountGroupingOption = $0 }
+                    )
+                ) {
+                    Text(NSLocalizedString("codex.accounts.grouping.none", value: "无分组", comment: "No grouping"))
+                        .tag(ProviderUsageViewModel.CodexAccountGroupingOption.none)
+                    Text(NSLocalizedString("codex.accounts.grouping.type_info", value: "按套餐/提供商分组", comment: "Group by type info"))
+                        .tag(ProviderUsageViewModel.CodexAccountGroupingOption.typeInfo)
+                } label: {
+                    Label(
+                        NSLocalizedString("codex.accounts.grouping.title", value: "分组", comment: "Grouping title"),
+                        systemImage: "square.grid.2x2"
+                    )
+                }
+
+                Menu {
+                    ForEach(viewModel.codexSortMenuOptions) { option in
+                        Button {
+                            viewModel.selectCodexSortOption(option)
+                        } label: {
+                            let isSelected = viewModel.codexAccountSortOption == option
+                            HStack {
+                                Text(
+                                    ProviderUsageViewModel.codexSortMenuItemTitle(
+                                        for: option,
+                                        direction: isSelected ? viewModel.codexDirection(for: option) : nil
+                                    )
+                                )
+                                if isSelected {
+                                    Spacer(minLength: 8)
+                                    Image(systemName: "checkmark")
+                                }
+                            }
+                        }
+                    }
+                } label: {
+                    Label(
+                        NSLocalizedString("codex.accounts.sorting.title", value: "排序", comment: "Sorting title"),
+                        systemImage: "arrow.up.arrow.down"
+                    )
+                }
+
+                Divider()
+
+                Button {
+                    viewModel.toggleCodexMultiSelectionMode()
+                } label: {
+                    Label(
+                        viewModel.isCodexMultiSelectionEnabled
+                            ? NSLocalizedString("codex.accounts.action.done_selecting", value: "完成", comment: "Done selecting Codex accounts")
+                            : NSLocalizedString("codex.accounts.action.multi_select", value: "进入多选", comment: "Enter Codex multi-select mode"),
+                        systemImage: viewModel.isCodexMultiSelectionEnabled ? "checkmark.circle" : "checklist"
+                    )
+                }
+
+                if viewModel.isCodexMultiSelectionEnabled {
+                    Button {
+                        Task { await viewModel.exportSelectedCodexAccountsAsZIP() }
+                    } label: {
+                        Label(
+                            NSLocalizedString("codex.accounts.action.export_zip", value: "导出 ZIP", comment: "Export selected Codex accounts to ZIP"),
+                            systemImage: "square.and.arrow.up"
+                        )
+                    }
+                    .disabled(!viewModel.canExportSelectedCodexAccounts)
+
+                    Button {
+                        viewModel.selectedCodexAccountIDs.removeAll()
+                    } label: {
+                        Label(
+                            NSLocalizedString("codex.accounts.action.clear_selection", value: "清空选择", comment: "Clear Codex selection"),
+                            systemImage: "xmark.circle"
+                        )
+                    }
+                    .disabled(viewModel.selectedCodexAccountIDs.isEmpty)
+
+                    Divider()
+                }
+
+                Button {
+                    viewModel.beginNewCodexAPIKeyAccount()
+                } label: {
+                    Label(
+                        NSLocalizedString("codex.accounts.action.new_api_key", value: "新增 API Key", comment: "New API key account"),
+                        systemImage: "key"
+                    )
+                }
+
+                Button {
+                    viewModel.beginNewCodexRelayAccount()
+                } label: {
+                    Label(
+                        NSLocalizedString("codex.accounts.action.new_relay", value: "新增 Relay", comment: "New relay account"),
+                        systemImage: "point.3.connected.trianglepath.dotted"
+                    )
                 }
 
                 Divider()
@@ -532,12 +701,40 @@ struct ProviderUsageView: View {
                     )
                 }
 
-                LazyVGrid(columns: codexAccountColumns, alignment: .leading, spacing: 12) {
-                    ForEach(viewModel.codexAccountOutcomes) { outcome in
-                        codexOutcomeCard(outcome: outcome)
+                ForEach(viewModel.codexAccountDisplaySections) { section in
+                    VStack(alignment: .leading, spacing: 10) {
+                        if let title = section.title {
+                            Button {
+                                viewModel.toggleCodexSection(section.id)
+                            } label: {
+                                HStack(spacing: 8) {
+                                    Image(systemName: viewModel.isCodexSectionCollapsed(section.id) ? "chevron.right" : "chevron.down")
+                                        .font(.caption)
+                                        .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                                    Text(title)
+                                        .font(.headline)
+                                        .foregroundStyle(DesignSystem.Colors.Text.primary)
+                                    Text("\(section.items.count)")
+                                        .font(.caption)
+                                        .foregroundStyle(DesignSystem.Colors.Text.tertiary)
+                                    Spacer(minLength: 0)
+                                }
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                        }
+
+                        if !viewModel.isCodexSectionCollapsed(section.id) {
+                            LazyVGrid(columns: codexAccountColumns, alignment: .leading, spacing: 12) {
+                                ForEach(section.items) { outcome in
+                                    codexOutcomeCard(outcome: outcome)
+                                }
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        }
                     }
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .animation(.snappy(duration: 0.2), value: viewModel.collapsedCodexSectionIDs)
 
                 if viewModel.isLoading && viewModel.codexAccountOutcomes.isEmpty {
                     HStack {
@@ -934,7 +1131,9 @@ struct ProviderUsageView: View {
             return viewModel.isActiveCodexAccount(saved)
         }()
 
-        let isSelected = isActive || isPending
+        let isBatchSelected = viewModel.isCodexAccountSelected(id: accountId)
+
+        let isSelected = isActive || isPending || isBatchSelected
         let borderColor = isSelected ? DesignSystem.Colors.primary : DesignSystem.Colors.Component.border.opacity(0.6)
         let borderStyle = StrokeStyle(
             lineWidth: isSelected ? 2 : 1,
@@ -942,13 +1141,14 @@ struct ProviderUsageView: View {
         )
         let summary = accountId.flatMap { viewModel.codexAccountSummaries[$0] }
         let isRefreshing = accountId.map { viewModel.codexRefreshingAccountIds.contains($0) } ?? false
-        let canLogin = accountId != nil
+        let canLogin = viewModel.codexAccountSupportsLogin(accountID: accountId)
+        let canEdit = viewModel.codexAccountSupportsEditing(accountID: accountId)
         let isLoggingIn = accountId != nil
             && viewModel.isRunningCLILogin
             && viewModel.cliLoginPreferredAccountId == accountId
-        let onLogin: (() -> Void)? = accountId.map { id in
+        let onLogin: (() -> Void)? = canLogin ? accountId.map { id in
             { viewModel.requestLoginForCodexAccount(id: id) }
-        }
+        } : nil
         let displayState = viewModel.displayState(accountID: accountId, outcome: outcome, summary: summary)
         let statusTitle = codexAccountStatusTitle(for: displayState)
         let lastSync = summary?.lastSyncSucceededAt
@@ -967,7 +1167,7 @@ struct ProviderUsageView: View {
                 return ProviderUsageViewModel.errorSummaryText(error: liveFailureError)
             }
             if let failureDetail {
-                if CodexAuthFailureClassifier.isAuthFailure(errorText: failureDetail) {
+                if canLogin, CodexAuthFailureClassifier.isAuthFailure(errorText: failureDetail) {
                     return NSLocalizedString(
                         "codex.accounts.error.auth_expired",
                         value: "Authentication expired. Please sign in again.",
@@ -996,11 +1196,19 @@ struct ProviderUsageView: View {
                     borderColor,
                     style: borderStyle
                 )
+                .overlay(alignment: .topTrailing) {
+                    if viewModel.isCodexMultiSelectionEnabled, isBatchSelected {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.title3)
+                            .foregroundStyle(DesignSystem.Colors.primary)
+                            .padding(10)
+                    }
+                }
         }
         .background {
             if isSelected {
                 RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusL, style: .continuous)
-                    .fill(DesignSystem.Colors.primary.opacity(isActive ? 0.16 : 0.1))
+                    .fill(DesignSystem.Colors.primary.opacity(isActive ? 0.16 : (isBatchSelected ? 0.14 : 0.1)))
             } else {
                 RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusL, style: .continuous)
                     .fill(DesignSystem.Colors.Background.elevated)
@@ -1008,7 +1216,12 @@ struct ProviderUsageView: View {
         }
         .contentShape(RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusL, style: .continuous))
         .onTapGesture {
-            guard let accountId, !isActive else { return }
+            guard let accountId else { return }
+            if viewModel.isCodexMultiSelectionEnabled {
+                viewModel.toggleCodexAccountSelection(id: accountId)
+                return
+            }
+            guard !isActive else { return }
             viewModel.requestActivateCodexAccount(id: accountId)
         }
         .contextMenu {
@@ -1067,7 +1280,18 @@ struct ProviderUsageView: View {
                     }
                 }
 
-                if let onLogin {
+                if canEdit {
+                    Button {
+                        viewModel.beginEditCodexConfiguredAccount(id: accountId)
+                    } label: {
+                        Label(
+                            NSLocalizedString("codex.accounts.action.edit", value: "Edit", comment: "Edit configured account"),
+                            systemImage: "pencil"
+                        )
+                    }
+                }
+
+                if let onLogin, canLogin {
                     Button {
                         onLogin()
                     } label: {
@@ -1077,6 +1301,18 @@ struct ProviderUsageView: View {
                         )
                     }
                     .disabled(!canLogin || isLoggingIn)
+                }
+
+                if canEdit {
+                    Button {
+                        viewModel.refreshCodexAccount(id: accountId)
+                    } label: {
+                        Label(
+                            NSLocalizedString("codex.accounts.action.validate", value: "Validate", comment: "Validate configured account"),
+                            systemImage: "checkmark.shield"
+                        )
+                    }
+                    .disabled(isRefreshing)
                 }
 
                 if let failureDetail {
@@ -1114,6 +1350,15 @@ struct ProviderUsageView: View {
                     Label(
                         NSLocalizedString("codex.accounts.menu.copy_account_id", value: "Copy Account ID", comment: "Copy account id"),
                         systemImage: "number"
+                    )
+                }
+
+                Button {
+                    viewModel.copyCodexAccountAuthJSON(id: accountId)
+                } label: {
+                    Label(
+                        NSLocalizedString("codex.accounts.menu.copy_auth_json", value: "Copy Auth JSON", comment: "Copy auth json"),
+                        systemImage: "doc.on.doc"
                     )
                 }
 
@@ -1237,7 +1482,7 @@ struct ProviderUsageView: View {
                 return ProviderUsageViewModel.errorSummaryText(error: liveFailureError)
             }
             if let failureDetail {
-                if CodexAuthFailureClassifier.isAuthFailure(errorText: failureDetail) {
+                if onLogin != nil, CodexAuthFailureClassifier.isAuthFailure(errorText: failureDetail) {
                     return NSLocalizedString(
                         "codex.accounts.error.auth_expired",
                         value: "Authentication expired. Please sign in again.",

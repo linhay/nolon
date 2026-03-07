@@ -2,10 +2,12 @@ import Combine
 import Foundation
 import STFilePath
 import ProviderCatalog
+import OSLog
 
 @MainActor
 public class ProviderSettings: ObservableObject {
     public static let shared = ProviderSettings()
+    private static let logger = Logger(subsystem: "com.nolon", category: "ProviderSettings")
     
     private let userDefaults: UserDefaults
     private let nolonManager: NolonManager
@@ -152,6 +154,7 @@ public class ProviderSettings: ObservableObject {
             !decodedRepos.isEmpty
         {
             var repos = decodedRepos
+            repos = migrateRemoteRepositories(repos)
             // Ensure globalSkills is present
             if !repos.contains(where: { $0.templateType == .globalSkills }) {
                 repos.insert(.globalSkills, at: 0)
@@ -173,9 +176,41 @@ public class ProviderSettings: ObservableObject {
             // Default with Global Skills and Clawdhub
             self.remoteRepositories = [.globalSkills, .clawdhub]
         }
+
+        if let clawhubRepo = remoteRepositories.first(where: { $0.templateType == .clawdhub }) {
+            Self.logger.info(
+                "Loaded clawhub repository config. id=\(clawhubRepo.id, privacy: .public) baseURL=\(clawhubRepo.baseURL, privacy: .public)"
+            )
+        }
         
         // Sync with templates to ensure new fields (like additionalSkillsPaths) are populated
         syncWithTemplates()
+    }
+
+    private func migrateRemoteRepositories(_ repositories: [RemoteRepository]) -> [RemoteRepository] {
+        var migratedCount = 0
+        let migrated = repositories.map { repository in
+            guard repository.templateType == .clawdhub else { return repository }
+
+            var updated = repository
+            let expectedBaseURL = RepositoryTemplate.clawdhub.defaultBaseURL
+            if updated.baseURL != expectedBaseURL {
+                updated.baseURL = expectedBaseURL
+                migratedCount += 1
+            }
+
+            let expectedLogoName = RepositoryTemplate.clawdhub.logoName
+            if updated.logoName != expectedLogoName {
+                updated.logoName = expectedLogoName
+                migratedCount += 1
+            }
+
+            return updated
+        }
+        if migratedCount > 0 {
+            Self.logger.info("Migrated clawhub repository config fields. changes=\(migratedCount, privacy: .public)")
+        }
+        return migrated
     }
     
     private func syncWithTemplates() {

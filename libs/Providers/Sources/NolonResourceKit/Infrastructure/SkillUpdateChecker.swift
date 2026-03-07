@@ -9,7 +9,7 @@ public actor SkillUpdateChecker {
     public init() {
         self.lockFileManager = SkillLockFileManager()
         self.gitHubAPI = GitHubAPIService()
-        self.remoteBaseURL = "https://clawdhub.com"
+        self.remoteBaseURL = "https://clawhub.ai"
     }
     
     public init(

@@ -1170,7 +1170,7 @@ struct NolonResourceKitTests {
 
         #expect(service.clawhubSkillQuery(from: "https://clawhub.ai/steipete/gemini") == "gemini")
         #expect(service.clawhubSkillQuery(from: "https://clawhub.ai/steipete/gemini.git") == "gemini")
-        #expect(service.clawhubSkillQuery(from: "https://clawdhub.com/steipete/gemini") == "gemini")
+        #expect(service.clawhubSkillQuery(from: "https://clawhub.ai/steipete/gemini") == "gemini")
         #expect(service.clawhubSkillQuery(from: "https://github.com/steipete/gemini") == nil)
         #expect(service.clawhubSkillQuery(from: "https://clawhub.ai") == nil)
     }
@@ -1249,14 +1249,14 @@ struct NolonResourceKitTests {
     func remoteSearchTextPresenterRenders() {
         let presenter = RemoteSearchTextPresenter()
         let empty = presenter.render(
-            .init(kind: .workflow, baseURL: "https://clawdhub.com", query: "abc", items: [])
+            .init(kind: .workflow, baseURL: "https://clawhub.ai", query: "abc", items: [])
         )
         #expect(empty.contains("未找到匹配 workflow"))
 
         let nonEmpty = presenter.render(
             .init(
                 kind: .mcp,
-                baseURL: "https://clawdhub.com",
+                baseURL: "https://clawhub.ai",
                 query: "playwright",
                 items: [
                     .init(slug: "playwright-mcp", summary: "browser automation", latestVersion: "1.0.0", updatedAt: Date(timeIntervalSince1970: 1_700_000_000)),

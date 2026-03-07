@@ -1,10 +1,13 @@
 import Foundation
 import SKProcessRunner
 import STFilePath
+import OSLog
 
 /// Unified SDK facade for remote skill repositories.
 /// This keeps app-layer orchestration thin and reusable for future CLI entrypoints.
 public enum SkillsRepositoryFacade {
+    private static let logger = Logger(subsystem: "com.nolon", category: "SkillsRepositoryFacade")
+
     public enum GitHostingProvider: String, Sendable, Equatable {
         case github
         case gitlab
@@ -450,7 +453,109 @@ public enum SkillsRepositoryFacade {
         baseURL: String,
         loader: RemoteDataLoader? = nil
     ) async throws -> RemoteListResult {
-        let base = URL(string: baseURL) ?? URL(string: "https://clawdhub.com")!
+        let base = URL(string: baseURL) ?? URL(string: "https://clawhub.ai")!
+        let load = loader ?? defaultRemoteDataLoader
+        logger.info(
+            "Remote list start. kind=\(kind.rawValue, privacy: .public) query=\((query ?? ""), privacy: .public) limit=\(limit, privacy: .public) baseURL=\(base.absoluteString, privacy: .public)"
+        )
+        do {
+            let result = try await performListRemoteResourcesRequest(
+                kind: kind,
+                query: query,
+                limit: limit,
+                base: base,
+                loader: load
+            )
+            logger.info(
+                "Remote list success. kind=\(kind.rawValue, privacy: .public) items=\(result.items.count, privacy: .public) baseURL=\(result.baseURL, privacy: .public)"
+            )
+            return result
+        } catch {
+            guard shouldRetryOnClawhubMirror(error: error),
+                  let mirrorBase = clawhubMirrorBaseURL(for: base)
+            else {
+                logger.error(
+                    "Remote list failed. kind=\(kind.rawValue, privacy: .public) baseURL=\(base.absoluteString, privacy: .public) error=\(String(describing: error), privacy: .public)"
+                )
+                throw error
+            }
+            logger.error(
+                "Remote list failed, retrying with mirror. kind=\(kind.rawValue, privacy: .public) baseURL=\(base.absoluteString, privacy: .public) mirror=\(mirrorBase.absoluteString, privacy: .public) error=\(String(describing: error), privacy: .public)"
+            )
+            let result = try await performListRemoteResourcesRequest(
+                kind: kind,
+                query: query,
+                limit: limit,
+                base: mirrorBase,
+                loader: load
+            )
+            logger.info(
+                "Remote list success on mirror. kind=\(kind.rawValue, privacy: .public) items=\(result.items.count, privacy: .public) baseURL=\(result.baseURL, privacy: .public)"
+            )
+            return result
+        }
+    }
+
+    public static func downloadRemoteResource(
+        kind: RemoteCatalogKind,
+        slug: String,
+        version: String?,
+        baseURL: String,
+        downloader: RemoteDownloadLoader? = nil,
+        temporaryDirectory: URL? = nil
+    ) async throws -> URL {
+        let base = URL(string: baseURL) ?? URL(string: "https://clawhub.ai")!
+        let download = downloader ?? defaultRemoteDownloadLoader
+        logger.info(
+            "Remote download start. kind=\(kind.rawValue, privacy: .public) slug=\(slug, privacy: .public) version=\((version ?? "latest"), privacy: .public) baseURL=\(base.absoluteString, privacy: .public)"
+        )
+        do {
+            let result = try await performDownloadRemoteResourceRequest(
+                kind: kind,
+                slug: slug,
+                version: version,
+                base: base,
+                downloader: download,
+                temporaryDirectory: temporaryDirectory
+            )
+            logger.info(
+                "Remote download success. kind=\(kind.rawValue, privacy: .public) slug=\(slug, privacy: .public) file=\(result.lastPathComponent, privacy: .public)"
+            )
+            return result
+        } catch {
+            guard shouldRetryOnClawhubMirror(error: error),
+                  let mirrorBase = clawhubMirrorBaseURL(for: base)
+            else {
+                logger.error(
+                    "Remote download failed. kind=\(kind.rawValue, privacy: .public) slug=\(slug, privacy: .public) baseURL=\(base.absoluteString, privacy: .public) error=\(String(describing: error), privacy: .public)"
+                )
+                throw error
+            }
+            logger.error(
+                "Remote download failed, retrying with mirror. kind=\(kind.rawValue, privacy: .public) slug=\(slug, privacy: .public) baseURL=\(base.absoluteString, privacy: .public) mirror=\(mirrorBase.absoluteString, privacy: .public) error=\(String(describing: error), privacy: .public)"
+            )
+            let result = try await performDownloadRemoteResourceRequest(
+                kind: kind,
+                slug: slug,
+                version: version,
+                base: mirrorBase,
+                downloader: download,
+                temporaryDirectory: temporaryDirectory
+            )
+            logger.info(
+                "Remote download success on mirror. kind=\(kind.rawValue, privacy: .public) slug=\(slug, privacy: .public) file=\(result.lastPathComponent, privacy: .public)"
+            )
+            return result
+        }
+    }
+
+    private static func performListRemoteResourcesRequest(
+        kind: RemoteCatalogKind,
+        query: String?,
+        limit: Int,
+        base: URL,
+        loader: RemoteDataLoader
+    ) async throws -> RemoteListResult {
         let trimmed = query?.trimmingCharacters(in: .whitespacesAndNewlines)
         let hasQuery = trimmed?.isEmpty == false
         let url: URL
@@ -481,8 +586,7 @@ public enum SkillsRepositoryFacade {
             ])
         }
 
-        let load = loader ?? defaultRemoteDataLoader
-        let (data, response) = try await load(url)
+        let (data, response) = try await loader(url)
         guard (200..<300).contains(response.statusCode) else {
             throw SyncError.commandFailed("Remote list failed with status \(response.statusCode)")
         }
@@ -557,15 +661,15 @@ public enum SkillsRepositoryFacade {
         return RemoteListResult(kind: kind, baseURL: base.absoluteString, query: trimmed, limit: limit, items: items)
     }
 
-    public static func downloadRemoteResource(
+    private static func performDownloadRemoteResourceRequest(
         kind: RemoteCatalogKind,
         slug: String,
         version: String?,
-        baseURL: String,
-        downloader: RemoteDownloadLoader? = nil,
-        temporaryDirectory: URL? = nil
+        base: URL,
+        downloader: RemoteDownloadLoader,
+        temporaryDirectory: URL?
     ) async throws -> URL {
-        let base = URL(string: baseURL) ?? URL(string: "https://clawdhub.com")!
+        let maxRateLimitAttempts = 3
         let path: String = {
             switch kind {
             case .skill:
@@ -585,9 +689,31 @@ public enum SkillsRepositoryFacade {
         }
 
         let url = try buildRemoteURL(base: base, path: path, queryItems: queryItems)
-        let download = downloader ?? defaultRemoteDownloadLoader
-        let (downloadedURL, response) = try await download(url)
+        logger.info(
+            "Remote download request. kind=\(kind.rawValue, privacy: .public) slug=\(slug, privacy: .public) url=\(url.absoluteString, privacy: .public)"
+        )
+        var attempt = 1
+        var (downloadedURL, response) = try await downloader(url)
+        while response.statusCode == 429, attempt < maxRateLimitAttempts {
+            let retryAfter = rateLimitRetryDelaySeconds(from: response)
+            logger.error(
+                "Remote download rate limited. kind=\(kind.rawValue, privacy: .public) slug=\(slug, privacy: .public) status=429 retryAfter=\(retryAfter, privacy: .public) attempt=\(attempt, privacy: .public)"
+            )
+            if retryAfter > 0 {
+                try? await Task.sleep(nanoseconds: UInt64(retryAfter) * 1_000_000_000)
+            }
+            let retryResult = try await downloader(url)
+            downloadedURL = retryResult.0
+            response = retryResult.1
+            attempt += 1
+            logger.info(
+                "Remote download retry completed. kind=\(kind.rawValue, privacy: .public) slug=\(slug, privacy: .public) status=\(response.statusCode, privacy: .public) attempt=\(attempt, privacy: .public)"
+            )
+        }
         guard (200..<300).contains(response.statusCode) else {
+            logger.error(
+                "Remote download non-2xx. kind=\(kind.rawValue, privacy: .public) slug=\(slug, privacy: .public) status=\(response.statusCode, privacy: .public) url=\(url.absoluteString, privacy: .public)"
+            )
             throw SyncError.commandFailed("Remote download failed with status \(response.statusCode)")
         }
 
@@ -935,20 +1061,108 @@ public enum SkillsRepositoryFacade {
         return url
     }
 
-    private static func defaultRemoteDataLoader(url: URL) async throws -> (Data, HTTPURLResponse) {
-        let (data, response) = try await URLSession.shared.data(from: url)
-        guard let http = response as? HTTPURLResponse else {
-            throw SyncError.commandFailed("Invalid HTTP response")
+    private static func clawhubMirrorBaseURL(for base: URL) -> URL? {
+        // Domain has been migrated to clawhub.ai; no mirror fallback is needed.
+        _ = base
+        return nil
+    }
+
+    private static func shouldRetryOnClawhubMirror(error: Error) -> Bool {
+        if isInvalidReuseAfterInitializationFailure(error: error) {
+            return true
         }
-        return (data, http)
+
+        if shouldRetryOnMirrorForRemoteStatus(error: error) {
+            return true
+        }
+
+        if let urlError = error as? URLError {
+            switch urlError.code {
+            case .secureConnectionFailed, .cannotConnectToHost, .cannotFindHost,
+                 .dnsLookupFailed, .networkConnectionLost, .timedOut:
+                return true
+            default:
+                return false
+            }
+        }
+
+        let nsError = error as NSError
+        guard nsError.domain == NSURLErrorDomain else { return false }
+        switch nsError.code {
+        case NSURLErrorSecureConnectionFailed, NSURLErrorCannotConnectToHost,
+             NSURLErrorCannotFindHost, NSURLErrorDNSLookupFailed,
+             NSURLErrorNetworkConnectionLost, NSURLErrorTimedOut:
+            return true
+        default:
+            return false
+        }
+    }
+
+    private static func shouldRetryOnMirrorForRemoteStatus(error: Error) -> Bool {
+        guard let syncError = error as? SyncError else { return false }
+        guard case let .commandFailed(message) = syncError else { return false }
+        return message.contains("status 429")
+    }
+
+    private static func rateLimitRetryDelaySeconds(from response: HTTPURLResponse) -> Int {
+        let value = response.value(forHTTPHeaderField: "Retry-After")?.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let value, let seconds = Int(value) else { return 1 }
+        return max(1, min(seconds, 30))
+    }
+
+    private static func defaultRemoteDataLoader(url: URL) async throws -> (Data, HTTPURLResponse) {
+        do {
+            let (data, response) = try await URLSession.shared.data(from: url)
+            guard let http = response as? HTTPURLResponse else {
+                throw SyncError.commandFailed("Invalid HTTP response")
+            }
+            return (data, http)
+        } catch {
+            guard isInvalidReuseAfterInitializationFailure(error: error) else {
+                throw error
+            }
+            logger.error(
+                "URLSession.shared.data failed with invalid reuse; retrying with ephemeral session. url=\(url.absoluteString, privacy: .public)"
+            )
+            let config = URLSessionConfiguration.ephemeral
+            let session = URLSession(configuration: config)
+            defer { session.invalidateAndCancel() }
+            let (data, response) = try await session.data(from: url)
+            guard let http = response as? HTTPURLResponse else {
+                throw SyncError.commandFailed("Invalid HTTP response")
+            }
+            return (data, http)
+        }
     }
 
     private static func defaultRemoteDownloadLoader(url: URL) async throws -> (URL, HTTPURLResponse) {
-        let (downloadedURL, response) = try await URLSession.shared.download(from: url)
-        guard let http = response as? HTTPURLResponse else {
-            throw SyncError.commandFailed("Invalid HTTP response")
+        do {
+            let (downloadedURL, response) = try await URLSession.shared.download(from: url)
+            guard let http = response as? HTTPURLResponse else {
+                throw SyncError.commandFailed("Invalid HTTP response")
+            }
+            return (downloadedURL, http)
+        } catch {
+            guard isInvalidReuseAfterInitializationFailure(error: error) else {
+                throw error
+            }
+            logger.error(
+                "URLSession.shared.download failed with invalid reuse; retrying with ephemeral session. url=\(url.absoluteString, privacy: .public)"
+            )
+            let config = URLSessionConfiguration.ephemeral
+            let session = URLSession(configuration: config)
+            defer { session.invalidateAndCancel() }
+            let (downloadedURL, response) = try await session.download(from: url)
+            guard let http = response as? HTTPURLResponse else {
+                throw SyncError.commandFailed("Invalid HTTP response")
+            }
+            return (downloadedURL, http)
         }
-        return (downloadedURL, http)
+    }
+
+    private static func isInvalidReuseAfterInitializationFailure(error: Error) -> Bool {
+        let lower = error.localizedDescription.lowercased()
+        return lower.contains("invalid reuse after initialization failure")
     }
 }
 

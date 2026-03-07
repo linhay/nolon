@@ -109,6 +109,13 @@ public struct CodexCommandExecutor: Sendable {
         return resolved
     }
 
+    public func requireResolvedExecutableAsync() async throws -> String {
+        guard let resolved = await resolveExecutableAsync() else {
+            throw CodexCLIError.executableNotFound(executable)
+        }
+        return resolved
+    }
+
     public func readVersion() throws -> CodexVersion {
         let result = try executeSync(args: ["--version"], timeout: 10)
         let line = result.stdout.split(whereSeparator: \.isNewline).first.map(String.init) ?? ""

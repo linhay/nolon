@@ -6,6 +6,72 @@ import STFilePath
 
 @Suite("CodexLoginRunner")
 struct CodexLoginRunnerTests {
+    @Test("success callback URL can be converted into auth json")
+    func successCallbackURLCanBuildAuthJSON() throws {
+        let callback = "http://localhost:1455/success?id_token=\(Self.makeJWT(email: "callback@example.com", accountID: "acct-callback"))&access_token=access-callback&refresh_token=refresh-callback"
+
+        let raw = try CodexLoginRunner.authJSONString(fromSuccessCallbackURLString: callback)
+        let data = try #require(raw.data(using: .utf8))
+        let object = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let tokens = try #require(object["tokens"] as? [String: Any])
+
+        #expect(object["auth_mode"] as? String == "chatgpt")
+        #expect(object["last_refresh"] as? String != nil)
+        #expect(tokens["id_token"] as? String != nil)
+        #expect(tokens["access_token"] as? String == "access-callback")
+        #expect(tokens["refresh_token"] as? String == "refresh-callback")
+        #expect(tokens["account_id"] as? String == "acct-callback")
+        #expect(raw.contains("\"email\":\"callback@example.com\""))
+    }
+
+    @Test("success callback URL accepts id token only external auth payload")
+    func successCallbackURLAcceptsIDTokenOnly() throws {
+        let callback = "http://localhost:1455/success?id_token=\(Self.makeJWT(email: "callback-only@example.com", accountID: "acct-callback-only"))"
+
+        let raw = try CodexLoginRunner.authJSONString(fromSuccessCallbackURLString: callback)
+        let data = try #require(raw.data(using: .utf8))
+        let object = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let tokens = try #require(object["tokens"] as? [String: Any])
+
+        #expect(object["auth_mode"] as? String == "chatgptAuthTokens")
+        #expect(object["last_refresh"] as? String != nil)
+        #expect(tokens["id_token"] as? String != nil)
+        #expect(tokens["access_token"] is NSNull)
+        #expect(tokens["refresh_token"] is NSNull)
+        #expect(tokens["account_id"] as? String == "acct-callback-only")
+    }
+
+    @Test("auth callback URL with tokens can be converted into auth json")
+    func authCallbackURLCanBuildAuthJSON() throws {
+        let callback = "http://localhost:1789/auth/callback?id_token=\(Self.makeJWT(email: "callback-auth@example.com", accountID: "acct-auth-callback"))&access_token=access-auth-callback"
+
+        let raw = try CodexLoginRunner.authJSONString(fromSuccessCallbackURLString: callback)
+        let data = try #require(raw.data(using: .utf8))
+        let object = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let tokens = try #require(object["tokens"] as? [String: Any])
+
+        #expect(object["auth_mode"] as? String == "chatgptAuthTokens")
+        #expect(tokens["access_token"] as? String == "access-auth-callback")
+        #expect(tokens["account_id"] as? String == "acct-auth-callback")
+    }
+
+    @Test("callback URL requires id token")
+    func successCallbackURLRequiresIDToken() throws {
+        let callback = "http://localhost:1455/success?plan_type=team"
+
+        do {
+            _ = try CodexLoginRunner.authJSONString(fromSuccessCallbackURLString: callback)
+            Issue.record("Expected invalid callback URL error")
+        } catch let error as CodexLoginError {
+            switch error {
+            case .invalidSuccessCallbackURL:
+                break
+            default:
+                Issue.record("Expected invalidSuccessCallbackURL, got \(error)")
+            }
+        }
+    }
+
     @Test("startLogin prefers CODEX_CLI_PATH and injects CODEX_HOME")
     func startLoginPrefersEnvBinaryOverride() throws {
         let tempRoot = STFolder("/tmp").folder("codex-login-runner-\(UUID().uuidString)")
@@ -394,5 +460,26 @@ struct CodexLoginRunnerTests {
             handle.cancel()
         }
         return try String(contentsOf: marker, encoding: .utf8)
+    }
+
+    private static func makeJWT(email: String, accountID: String) -> String {
+        let header = #"{"alg":"none","typ":"JWT"}"#
+        let payload = """
+        {
+          "email":"\(email)",
+          "https://api.openai.com/auth":{
+            "chatgpt_account_id":"\(accountID)"
+          }
+        }
+        """
+        return "\(base64URLEncode(header)).\(base64URLEncode(payload))."
+    }
+
+    private static func base64URLEncode(_ raw: String) -> String {
+        Data(raw.utf8)
+            .base64EncodedString()
+            .replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "=", with: "")
     }
 }

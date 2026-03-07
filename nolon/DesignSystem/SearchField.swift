@@ -28,17 +28,16 @@ struct SearchField: View {
                     .buttonStyle(.plain)
                     .accessibilityLabel(NSLocalizedString("Clear", comment: "Clear"))
                 }
-                if showSearching {
-                    HStack(spacing: 6) {
-                        ProgressView()
-                            .controlSize(.small)
-                            .frame(width: 14, height: 14)
-                        Text(NSLocalizedString("remote.searching", value: "Searching...", comment: "Searching indicator"))
-                            .dsSecondaryText(font: .callout)
-                    }
-                    .fixedSize(horizontal: true, vertical: false)
-                    .transition(.opacity)
+                HStack(spacing: 6) {
+                    Image(systemName: "arrow.triangle.2.circlepath")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(DesignSystem.Colors.Status.info)
+                        .frame(width: 16, height: 16)
+                    Text(NSLocalizedString("remote.searching", value: "Searching...", comment: "Searching indicator"))
+                        .dsSecondaryText(font: .callout)
                 }
+                .opacity(showSearching ? 1 : 0)
+                .accessibilityHidden(!showSearching)
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)

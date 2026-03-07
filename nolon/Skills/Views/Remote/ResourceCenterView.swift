@@ -223,6 +223,24 @@ struct ResourceCenterView: View {
         executeUITestDelete(slug: slug, resourceType: .mcp)
     }
 
+    private func executeUITestProviderSkillDelete(slug: String, providerIndex: Int) {
+        guard let onRegisterDeleteRequest, let onMakeDeleteRequestExecutor else { return }
+        Task {
+            let requestID = onRegisterDeleteRequest(
+                slug,
+                .skill,
+                providerIndex,
+                false,
+                nil
+            )
+            let executeDeleteRequest = onMakeDeleteRequestExecutor(requestID)
+            _ = await executeDeleteRequest()
+            await MainActor.run {
+                refreshData()
+            }
+        }
+    }
+
     private func executeUITestDelete(slug: String, resourceType: RemoteContentType) {
         guard let onRegisterDeleteRequest, let onMakeDeleteRequestExecutor else { return }
         Task {
@@ -452,6 +470,14 @@ struct ResourceCenterView: View {
                             executeUITestGlobalMCPDelete(slug: slug)
                         }
                         .accessibilityIdentifier("uitest.delete-global-mcp.\(slug)")
+                    }
+
+                    if let slug = UITestSupport.fixtureProviderSkillSlug,
+                       let providerIndex = UITestSupport.initialSelectedProviderIndex {
+                        Button("Delete provider skill \(slug)") {
+                            executeUITestProviderSkillDelete(slug: slug, providerIndex: providerIndex)
+                        }
+                        .accessibilityIdentifier("uitest.delete-provider-skill.\(slug)")
                     }
                 }
                 .buttonStyle(.borderedProminent)

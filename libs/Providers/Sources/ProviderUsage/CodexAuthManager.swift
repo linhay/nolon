@@ -8,6 +8,25 @@ import STJSON
 import ProvidersShared
 
 public actor CodexAuthManager {
+    public struct ConfiguredRelay: Sendable, Equatable, Codable {
+        public let baseURL: String
+        public let modelProvider: String
+        public let queryParams: [String: String]
+        public let headers: [String: String]
+
+        public init(
+            baseURL: String,
+            modelProvider: String,
+            queryParams: [String: String] = [:],
+            headers: [String: String] = [:]
+        ) {
+            self.baseURL = baseURL
+            self.modelProvider = modelProvider
+            self.queryParams = queryParams
+            self.headers = headers
+        }
+    }
+
     public struct CodexManagementStatus: Sendable, Equatable {
         public let hasProviderAuthFile: Bool
         public let providerAuthIsSymlink: Bool
@@ -47,6 +66,8 @@ public actor CodexAuthManager {
     public struct CodexImportValidationResult: Sendable, Equatable, Identifiable {
         public let id: UUID
         public let fileURL: URL
+        public let sourceGroupID: String
+        public let sourceGroupLabel: String
         public let isValid: Bool
         public let reason: String?
         public let suggestedName: String?
@@ -56,6 +77,8 @@ public actor CodexAuthManager {
         public init(
             id: UUID = UUID(),
             fileURL: URL,
+            sourceGroupID: String? = nil,
+            sourceGroupLabel: String? = nil,
             isValid: Bool,
             reason: String?,
             suggestedName: String?,
@@ -64,6 +87,8 @@ public actor CodexAuthManager {
         ) {
             self.id = id
             self.fileURL = fileURL
+            self.sourceGroupID = sourceGroupID ?? fileURL.standardizedFileURL.deletingLastPathComponent().path
+            self.sourceGroupLabel = sourceGroupLabel ?? fileURL.lastPathComponent
             self.isValid = isValid
             self.reason = reason
             self.suggestedName = suggestedName
@@ -247,7 +272,6 @@ public actor CodexAuthManager {
             relativeAuthPath: relativePath,
             authJSONString: authJSONString,
             preferredId: UUID(),
-            preferredName: name,
             preferredCreatedAt: Date()
         )
         return try loadAccount(file: file, relativeAuthPath: relativePath)
@@ -261,9 +285,108 @@ public actor CodexAuthManager {
             relativeAuthPath: account.relativeAuthPath,
             authJSONString: authJSONString,
             preferredId: account.id,
-            preferredName: account.name,
             preferredCreatedAt: account.createdAt
         )
+    }
+
+    public func addConfiguredAccount(
+        name: String,
+        apiKey: String,
+        relay: ConfiguredRelay?,
+        usageQuery: CodexHTTPUsageQuery? = nil
+    ) async throws -> CodexAuthAccount {
+        try await migrateLegacyIfNeeded()
+
+        _ = nolonCodexAuthFolder().createIfNotExists()
+
+        let preferredName = sanitizedConfiguredAccountName(name: name, relay: relay)
+        let fileName = uniqueAuthFileName(for: preferredName, existing: existingAuthRelativePaths())
+        let relativePath = "auth/\(fileName)"
+        let file = nolonCodexRootFolder().file(relativePath)
+        let payload = try makeConfiguredAccountPayload(
+            name: preferredName,
+            apiKey: apiKey,
+            relay: relay,
+            usageQuery: usageQuery,
+            preferredId: UUID(),
+            relativeAuthPath: relativePath,
+            createdAt: Date(),
+            updatedAt: Date()
+        )
+        try file.overlay(with: payload)
+        return try loadAccount(file: file, relativeAuthPath: relativePath)
+    }
+
+    public func updateConfiguredAccount(
+        _ account: CodexAuthAccount,
+        name: String,
+        apiKey: String,
+        relay: ConfiguredRelay?,
+        usageQuery: CodexHTTPUsageQuery? = nil
+    ) async throws {
+        try await migrateLegacyIfNeeded()
+        let file = accountAuthFile(account)
+        let payload = try makeConfiguredAccountPayload(
+            name: sanitizedConfiguredAccountName(name: name, relay: relay),
+            apiKey: apiKey,
+            relay: relay,
+            usageQuery: usageQuery,
+            preferredId: account.id,
+            relativeAuthPath: account.relativeAuthPath,
+            createdAt: account.createdAt,
+            updatedAt: Date(),
+            existingRootObject: (try? file.data()).flatMap { Self.decodeJSONObject(from: $0) }
+        )
+        try file.overlay(with: payload)
+    }
+
+    @discardableResult
+    public func exportAccountsArchive(accountIDs: [UUID], destinationURL: URL) async throws -> Int {
+        try await migrateLegacyIfNeeded()
+
+        let selectedIDs = Set(accountIDs)
+        guard !selectedIDs.isEmpty else {
+            throw NSError(
+                domain: "CodexAuthManager.Export",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "No accounts selected for export."]
+            )
+        }
+
+        let accounts = try loadAccountsFromAuthFolder()
+        let selectedAccounts = accounts.filter { selectedIDs.contains($0.id) }
+        guard !selectedAccounts.isEmpty else {
+            throw NSError(
+                domain: "CodexAuthManager.Export",
+                code: 2,
+                userInfo: [NSLocalizedDescriptionKey: "Selected accounts could not be found."]
+            )
+        }
+
+        let fileManager = FileManager.default
+        let stagingRoot = fileManager.temporaryDirectory.appendingPathComponent("codex-export-\(UUID().uuidString)", isDirectory: true)
+        let stagingFolder = stagingRoot.appendingPathComponent("auth", isDirectory: true)
+        try fileManager.createDirectory(at: stagingFolder, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: stagingRoot) }
+
+        var usedNames: Set<String> = []
+        for account in selectedAccounts {
+            let sourceURL = accountAuthFile(account).url
+            let preferredName = URL(fileURLWithPath: account.relativeAuthPath).deletingPathExtension().lastPathComponent
+            let fileName = uniqueExportFileName(preferred: preferredName, usedNames: &usedNames)
+            let destination = stagingFolder.appendingPathComponent(fileName)
+            if fileManager.fileExists(atPath: destination.path) {
+                try fileManager.removeItem(at: destination)
+            }
+            try fileManager.copyItem(at: sourceURL, to: destination)
+        }
+
+        if fileManager.fileExists(atPath: destinationURL.path) {
+            try fileManager.removeItem(at: destinationURL)
+        }
+
+        try runDitto(arguments: ["-c", "-k", "--keepParent", stagingRoot.path, destinationURL.path])
+        return selectedAccounts.count
     }
 
     public func findAccountByEmail(_ email: String) async throws -> CodexAuthAccount? {
@@ -465,12 +588,8 @@ public actor CodexAuthManager {
             ?? trimmed(authJSON["tokens"]["accessToken"].string)
             ?? trimmed(authJSON["access_token"].string)
             ?? trimmed(authJSON["accessToken"].string)
-        let chatgptAccountID = trimmed(authJSON["tokens"]["account_id"].string)
-            ?? trimmed(authJSON["tokens"]["accountId"].string)
-            ?? trimmed(authJSON["chatgpt_account_id"].string)
-            ?? trimmed(authJSON["chatgptAccountId"].string)
-            ?? trimmed(authJSON["account_id"].string)
-            ?? trimmed(authJSON["accountId"].string)
+        let payload = idToken.flatMap(CodexAuthSummary.decodeJWTPayloadJSON)
+        let chatgptAccountID = CodexAuthSummary.canonicalAccountID(json: authJSON, payload: payload)
 
         guard let idToken, let accessToken else { return nil }
         return (idToken: idToken, accessToken: accessToken, chatgptAccountID: chatgptAccountID)
@@ -688,13 +807,15 @@ public actor CodexAuthManager {
         results.reserveCapacity(urls.count)
         for url in urls {
             do {
-                let data = try Data(contentsOf: url)
-                guard let raw = String(data: data, encoding: .utf8) else {
+                let candidates = try importCandidates(for: url)
+                guard !candidates.isEmpty else {
                     results.append(
                         CodexImportValidationResult(
                             fileURL: url,
+                            sourceGroupID: url.standardizedFileURL.path,
+                            sourceGroupLabel: url.lastPathComponent,
                             isValid: false,
-                            reason: "Invalid UTF-8",
+                            reason: "No auth JSON files found in archive",
                             suggestedName: nil,
                             email: nil,
                             authJSONString: nil
@@ -702,33 +823,56 @@ public actor CodexAuthManager {
                     )
                     continue
                 }
-                guard hasImportableCredentials(authJSONString: raw) else {
+                for (candidateURL, sourceGroupID, sourceGroupLabel, data) in candidates {
+                    guard let raw = String(data: data, encoding: .utf8) else {
+                        results.append(
+                            CodexImportValidationResult(
+                                fileURL: candidateURL,
+                                sourceGroupID: sourceGroupID,
+                                sourceGroupLabel: sourceGroupLabel,
+                                isValid: false,
+                                reason: "Invalid UTF-8",
+                                suggestedName: nil,
+                                email: nil,
+                                authJSONString: nil
+                            )
+                        )
+                        continue
+                    }
+                    guard hasImportableCredentials(authJSONString: raw) else {
+                        results.append(
+                            CodexImportValidationResult(
+                                fileURL: candidateURL,
+                                sourceGroupID: sourceGroupID,
+                                sourceGroupLabel: sourceGroupLabel,
+                                isValid: false,
+                                reason: "Missing required credentials",
+                                suggestedName: nil,
+                                email: nil,
+                                authJSONString: nil
+                            )
+                        )
+                        continue
+                    }
                     results.append(
                         CodexImportValidationResult(
-                            fileURL: url,
-                            isValid: false,
-                            reason: "Missing required credentials",
-                            suggestedName: nil,
-                            email: nil,
-                            authJSONString: nil
+                            fileURL: candidateURL,
+                            sourceGroupID: sourceGroupID,
+                            sourceGroupLabel: sourceGroupLabel,
+                            isValid: true,
+                            reason: nil,
+                            suggestedName: deriveAccountName(fromAuthJSONString: raw),
+                            email: deriveEmail(fromAuthJSONString: raw),
+                            authJSONString: raw
                         )
                     )
-                    continue
                 }
-                results.append(
-                    CodexImportValidationResult(
-                        fileURL: url,
-                        isValid: true,
-                        reason: nil,
-                        suggestedName: deriveAccountName(fromAuthJSONString: raw),
-                        email: deriveEmail(fromAuthJSONString: raw),
-                        authJSONString: raw
-                    )
-                )
             } catch {
                 results.append(
                     CodexImportValidationResult(
                         fileURL: url,
+                        sourceGroupID: url.standardizedFileURL.path,
+                        sourceGroupLabel: url.lastPathComponent,
                         isValid: false,
                         reason: error.localizedDescription,
                         suggestedName: nil,
@@ -901,6 +1045,18 @@ public actor CodexAuthManager {
         return collapsed.isEmpty ? "account" : collapsed.lowercased()
     }
 
+    private func uniqueExportFileName(preferred: String, usedNames: inout Set<String>) -> String {
+        let base = sanitizeFileStem(preferred)
+        var candidate = "\(base).json"
+        var index = 2
+        while usedNames.contains(candidate) {
+            candidate = "\(base)-\(index).json"
+            index += 1
+        }
+        usedNames.insert(candidate)
+        return candidate
+    }
+
     private func sanitizeEmailFileComponent(_ email: String) -> String {
         sanitizeSnapshotFileComponent(
             email,
@@ -988,7 +1144,6 @@ public actor CodexAuthManager {
                 relativeAuthPath: relativePath,
                 authJSONString: item.authJSONString,
                 preferredId: item.id,
-                preferredName: item.name,
                 preferredCreatedAt: item.createdAt
             )
             used.insert(relativePath)
@@ -1002,15 +1157,7 @@ public actor CodexAuthManager {
 
     public nonisolated func deriveAccountName(fromAuthJSONString authJSONString: String) -> String {
         let summary = CodexAuthSummary.fromJSONString(authJSONString)
-        if let email = summary.email?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !email.isEmpty
-        {
-            return email
-        }
-        if let suffix = summary.apiKeySuffix, !suffix.isEmpty {
-            return "key-\(suffix)"
-        }
-        return "account"
+        return summary.preferredDisplayName()
     }
 
     public nonisolated func deriveEmail(fromAuthJSONString authJSONString: String) -> String? {
@@ -1042,11 +1189,67 @@ public actor CodexAuthManager {
             return true
         }
 
+        let authMode = trimmed(json["auth_mode"].string)
+        if idToken != nil, authMode == "chatgptAuthTokens" {
+            return true
+        }
+
         let apiKey = trimmed(json["OPENAI_API_KEY"].string)
             ?? trimmed(json["openai_api_key"].string)
             ?? trimmed(json["api_key"].string)
             ?? trimmed(json["apiKey"].string)
         return apiKey != nil
+    }
+
+    private func importCandidates(for url: URL) throws -> [(candidateURL: URL, sourceGroupID: String, sourceGroupLabel: String, data: Data)] {
+        if url.pathExtension.lowercased() == "zip" {
+            return try importCandidatesFromArchive(url)
+        }
+        return [(url, url.standardizedFileURL.path, url.lastPathComponent, try Data(contentsOf: url))]
+    }
+
+    private func importCandidatesFromArchive(_ archiveURL: URL) throws -> [(candidateURL: URL, sourceGroupID: String, sourceGroupLabel: String, data: Data)] {
+        let fileManager = FileManager.default
+        let extractionRoot = fileManager.temporaryDirectory.appendingPathComponent("codex-import-\(UUID().uuidString)", isDirectory: true)
+        try fileManager.createDirectory(at: extractionRoot, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: extractionRoot) }
+
+        try runDitto(arguments: ["-x", "-k", archiveURL.path, extractionRoot.path])
+
+        guard let enumerator = fileManager.enumerator(at: extractionRoot, includingPropertiesForKeys: nil) else {
+            return []
+        }
+
+        let sourceGroupID = archiveURL.standardizedFileURL.path
+        let sourceGroupLabel = archiveURL.lastPathComponent
+        var candidates: [(candidateURL: URL, sourceGroupID: String, sourceGroupLabel: String, data: Data)] = []
+        for case let fileURL as URL in enumerator {
+            guard fileURL.pathExtension.lowercased() == "json" else { continue }
+            candidates.append((fileURL, sourceGroupID, sourceGroupLabel, try Data(contentsOf: fileURL)))
+        }
+        return candidates.sorted { $0.candidateURL.lastPathComponent < $1.candidateURL.lastPathComponent }
+    }
+
+    private func runDitto(arguments: [String]) throws {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
+        process.arguments = arguments
+
+        let stderr = Pipe()
+        process.standardError = stderr
+
+        try process.run()
+        process.waitUntilExit()
+
+        guard process.terminationStatus == 0 else {
+            let message = String(data: stderr.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            throw NSError(
+                domain: "CodexAuthManager.Ditto",
+                code: Int(process.terminationStatus),
+                userInfo: [NSLocalizedDescriptionKey: message?.isEmpty == false ? message! : "ditto failed"]
+            )
+        }
     }
 }
 
@@ -1325,7 +1528,6 @@ private extension CodexAuthManager {
                 relativeAuthPath: matched.relativeAuthPath,
                 authJSONString: raw,
                 preferredId: matched.id,
-                preferredName: matched.name,
                 preferredCreatedAt: matched.createdAt
             )
             return try loadAccount(
@@ -1644,6 +1846,29 @@ private extension CodexAuthManager {
         dict[key] = child
     }
 
+    private func removeValue(path: [String], dict: inout JSONObject) {
+        guard let key = path.first else { return }
+        if path.count == 1 {
+            dict.removeValue(forKey: key)
+            return
+        }
+        guard var child = dict[key] as? JSONObject else { return }
+        removeValue(path: Array(path.dropFirst()), dict: &child)
+        if child.isEmpty {
+            dict.removeValue(forKey: key)
+        } else {
+            dict[key] = child
+        }
+    }
+
+    private func encodeJSONObjectObject<T: Encodable>(_ value: T) throws -> JSONObject {
+        let data = try JSONEncoder().encode(value)
+        guard let object = try JSONSerialization.jsonObject(with: data) as? JSONObject else {
+            throw CocoaError(.coderInvalidValue)
+        }
+        return object
+    }
+
     private func loadAccountSnapshots(for accounts: [CodexAuthAccount]) -> [AccountSnapshot] {
         var snapshots: [AccountSnapshot] = []
         snapshots.reserveCapacity(accounts.count)
@@ -1827,7 +2052,6 @@ private extension CodexAuthManager {
             relativeAuthPath: relativePath,
             authJSONString: authJSONString,
             preferredId: UUID(),
-            preferredName: name,
             preferredCreatedAt: Date()
         )
         return try loadAccount(file: file, relativeAuthPath: relativePath)
@@ -1868,6 +2092,13 @@ private extension CodexAuthManager {
             changed = true
         }
 
+        let existingUpdatedAt = getString(rootObject, path: ["nolon", "account", "updatedAt"]).flatMap { Self.makeISOFormatter().date(from: $0) }
+        let updatedAt = existingUpdatedAt ?? max(file.attributes.modificationDate, createdAt)
+        if existingUpdatedAt == nil {
+            setValue(Self.makeISOFormatter().string(from: updatedAt), path: ["nolon", "account", "updatedAt"], dict: &rootObject)
+            changed = true
+        }
+
         let derivedEmail = deriveEmail(from: rootJSON)
         let existingEmail = getString(rootObject, path: ["nolon", "account", "email"])?.trimmingCharacters(in: .whitespacesAndNewlines)
         let email = (existingEmail?.isEmpty == false ? existingEmail : nil) ?? derivedEmail
@@ -1882,13 +2113,22 @@ private extension CodexAuthManager {
             changed = true
         }
 
-        let existingName = getString(rootObject, path: ["nolon", "account", "name"])?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let name = (existingName?.isEmpty == false ? existingName : nil)
-            ?? email
-            ?? deriveAccountName(fromAuthJSONString: String(data: data, encoding: .utf8) ?? "")
+        let legacyName = getString(rootObject, path: ["nolon", "account", "name"])?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let fallbackFileStem = URL(fileURLWithPath: relativeAuthPath).deletingPathExtension().lastPathComponent
+        let summary = CodexAuthSummary.fromJSONData(data)
+        let name = summary.preferredDisplayName(fallbackFileStem: fallbackFileStem)
 
-        if existingName == nil || existingName?.isEmpty == true {
-            setValue(name, path: ["nolon", "account", "name"], dict: &rootObject)
+        if legacyName != nil {
+            removeValue(path: ["nolon", "account", "name"], dict: &rootObject)
+            changed = true
+        }
+
+        let existingKind = getString(rootObject, path: ["nolon", "account", "kind"])?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let derivedKind = deriveAccountKind(from: rootJSON)
+        if (existingKind == nil || existingKind?.isEmpty == true),
+           let derivedKind
+        {
+            setValue(derivedKind, path: ["nolon", "account", "kind"], dict: &rootObject)
             changed = true
         }
 
@@ -1920,7 +2160,6 @@ private extension CodexAuthManager {
                     relativeAuthPath: account.relativeAuthPath,
                     authJSONString: raw,
                     preferredId: newID,
-                    preferredName: account.name,
                     preferredCreatedAt: account.createdAt
                 )
                 let reloaded = try loadAccount(file: file, relativeAuthPath: account.relativeAuthPath)
@@ -2049,7 +2288,6 @@ private extension CodexAuthManager {
                     relativeAuthPath: expectedRelativePath,
                     authJSONString: movedRaw,
                     preferredId: account.id,
-                    preferredName: account.name,
                     preferredCreatedAt: account.createdAt
                 )
                 let reloaded = try loadAccount(file: targetFile, relativeAuthPath: expectedRelativePath)
@@ -2074,7 +2312,6 @@ private extension CodexAuthManager {
         relativeAuthPath: String,
         authJSONString: String,
         preferredId: UUID,
-        preferredName: String,
         preferredCreatedAt: Date
     ) throws {
         guard let data = authJSONString.data(using: .utf8),
@@ -2086,9 +2323,14 @@ private extension CodexAuthManager {
         var rootObject = rootJSON.dictionaryObject ?? [:]
 
         setValue(preferredId.uuidString, path: ["nolon", "account", "id"], dict: &rootObject)
-        setValue(preferredName, path: ["nolon", "account", "name"], dict: &rootObject)
+        removeValue(path: ["nolon", "account", "name"], dict: &rootObject)
         setValue(Self.makeISOFormatter().string(from: preferredCreatedAt), path: ["nolon", "account", "createdAt"], dict: &rootObject)
+        setValue(Self.makeISOFormatter().string(from: Date()), path: ["nolon", "account", "updatedAt"], dict: &rootObject)
         setValue(relativeAuthPath, path: ["nolon", "account", "relativeAuthPath"], dict: &rootObject)
+
+        if let derivedKind = deriveAccountKind(from: rootJSON) {
+            setValue(derivedKind, path: ["nolon", "account", "kind"], dict: &rootObject)
+        }
 
         if let email = deriveEmail(from: rootJSON) {
             if getString(rootObject, path: ["nolon", "account", "email"]) == nil {
@@ -2132,7 +2374,6 @@ private extension CodexAuthManager {
                         for: authFile,
                         relativeAuthPath: account.relativeAuthPath,
                         preferredId: account.id,
-                        preferredName: account.name,
                         preferredCreatedAt: account.createdAt
                     )
                 } catch {
@@ -2148,7 +2389,6 @@ private extension CodexAuthManager {
         for file: STFile,
         relativeAuthPath: String,
         preferredId: UUID,
-        preferredName: String,
         preferredCreatedAt: Date
     ) throws {
         let data = try file.data()
@@ -2161,16 +2401,26 @@ private extension CodexAuthManager {
             setValue(preferredId.uuidString, path: ["nolon", "account", "id"], dict: &rootObject)
             changed = true
         }
-        if getString(rootObject, path: ["nolon", "account", "name"]) == nil {
-            setValue(preferredName, path: ["nolon", "account", "name"], dict: &rootObject)
+        if getString(rootObject, path: ["nolon", "account", "name"]) != nil {
+            removeValue(path: ["nolon", "account", "name"], dict: &rootObject)
             changed = true
         }
         if getString(rootObject, path: ["nolon", "account", "createdAt"]) == nil {
             setValue(Self.makeISOFormatter().string(from: preferredCreatedAt), path: ["nolon", "account", "createdAt"], dict: &rootObject)
             changed = true
         }
+        if getString(rootObject, path: ["nolon", "account", "updatedAt"]) == nil {
+            setValue(Self.makeISOFormatter().string(from: preferredCreatedAt), path: ["nolon", "account", "updatedAt"], dict: &rootObject)
+            changed = true
+        }
         if getString(rootObject, path: ["nolon", "account", "relativeAuthPath"]) == nil {
             setValue(relativeAuthPath, path: ["nolon", "account", "relativeAuthPath"], dict: &rootObject)
+            changed = true
+        }
+        if getString(rootObject, path: ["nolon", "account", "kind"]) == nil,
+           let derivedKind = deriveAccountKind(from: rootJSON)
+        {
+            setValue(derivedKind, path: ["nolon", "account", "kind"], dict: &rootObject)
             changed = true
         }
 
@@ -2198,5 +2448,94 @@ private extension CodexAuthManager {
 
         return trimmed(authJSON["email"].string)
             ?? trimmed(authJSON["nolon"]["account"]["email"].string)
+    }
+
+    private func makeConfiguredAccountPayload(
+        name: String,
+        apiKey: String,
+        relay: ConfiguredRelay?,
+        usageQuery: CodexHTTPUsageQuery?,
+        preferredId: UUID,
+        relativeAuthPath: String,
+        createdAt: Date,
+        updatedAt: Date,
+        existingRootObject: JSONObject? = nil
+    ) throws -> Data {
+        let trimmedAPIKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedAPIKey.isEmpty else {
+            throw CocoaError(.validationMissingMandatoryProperty)
+        }
+
+        var rootObject: JSONObject = existingRootObject ?? [:]
+        rootObject["auth_mode"] = "apikey"
+        rootObject["OPENAI_API_KEY"] = trimmedAPIKey
+        rootObject["tokens"] = NSNull()
+        rootObject["last_refresh"] = NSNull()
+
+        setValue(preferredId.uuidString, path: ["nolon", "account", "id"], dict: &rootObject)
+        setValue(relay == nil ? "officialAPIKey" : "relayProfile", path: ["nolon", "account", "kind"], dict: &rootObject)
+        removeValue(path: ["nolon", "account", "name"], dict: &rootObject)
+        setValue(Self.makeISOFormatter().string(from: createdAt), path: ["nolon", "account", "createdAt"], dict: &rootObject)
+        setValue(Self.makeISOFormatter().string(from: updatedAt), path: ["nolon", "account", "updatedAt"], dict: &rootObject)
+        setValue(relativeAuthPath, path: ["nolon", "account", "relativeAuthPath"], dict: &rootObject)
+
+        if let relay {
+            var relayObject: JSONObject = [
+                "base_url": relay.baseURL.trimmingCharacters(in: .whitespacesAndNewlines),
+                "model_provider": relay.modelProvider.trimmingCharacters(in: .whitespacesAndNewlines),
+            ]
+            if !relay.queryParams.isEmpty {
+                relayObject["query_params"] = relay.queryParams
+            }
+            if !relay.headers.isEmpty {
+                relayObject["headers"] = relay.headers
+            }
+            setValue(relayObject, path: ["nolon", "relay"], dict: &rootObject)
+        } else {
+            removeValue(path: ["nolon", "relay"], dict: &rootObject)
+        }
+
+        if let usageQuery {
+            setValue(try encodeJSONObjectObject(usageQuery), path: ["nolon", "usage_query"], dict: &rootObject)
+        } else {
+            removeValue(path: ["nolon", "usage_query"], dict: &rootObject)
+        }
+
+        return try Self.encodeJSONObject(rootObject)
+    }
+
+    private func sanitizedConfiguredAccountName(name: String, relay: ConfiguredRelay?) -> String {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty {
+            return trimmed
+        }
+        if let relay {
+            let modelProvider = relay.modelProvider.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !modelProvider.isEmpty {
+                return modelProvider
+            }
+            if let host = URL(string: relay.baseURL)?.host, !host.isEmpty {
+                return host
+            }
+        }
+        return "OpenAI Direct"
+    }
+
+    private func deriveAccountKind(from authJSON: JSON) -> String? {
+        if let explicit = authJSON["nolon"]["account"]["kind"].string?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+           !explicit.isEmpty
+        {
+            return explicit
+        }
+
+        let authMode = authJSON["auth_mode"].string?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if authMode == "apikey" {
+            return authJSON["nolon"]["relay"] != JSON.null ? "relayProfile" : "officialAPIKey"
+        }
+        if authMode == "chatgpt" || authMode == "chatgptAuthTokens" {
+            return "chatgptAccount"
+        }
+        return nil
     }
 }

@@ -84,4 +84,43 @@ struct CodexCLIKitEnvironmentTests {
         let executor = CodexCommandExecutor(executable: fakeCLI.url.path, environment: [:])
         #expect(await executor.resolveExecutableAsync() == fakeCLI.url.path)
     }
+
+    @Test("async required resolver returns executable path")
+    func requireResolvedExecutableAsyncReturnsPath() async throws {
+        let tempRoot = STFolder("/tmp")
+            .folder("codex-cli-require-async-\(UUID().uuidString)")
+        _ = tempRoot.createIfNotExists()
+        defer { try? tempRoot.delete() }
+
+        let fakeCLI = tempRoot.file("codex")
+        try fakeCLI.overlay(with: "#!/bin/sh\nexit 0\n")
+        try fakeCLI.set(permissions: .default)
+
+        let executor = CodexCommandExecutor(executable: "codex", environment: ["CODEX_CLI_PATH": fakeCLI.url.path])
+        let resolved = try await executor.requireResolvedExecutableAsync()
+        #expect(resolved == fakeCLI.url.path)
+    }
+
+    @Test("async required resolver throws when executable is missing")
+    func requireResolvedExecutableAsyncThrowsWhenMissing() async {
+        let missingExecutable = "codex-missing-\(UUID().uuidString)"
+        let executor = CodexCommandExecutor(
+            executable: missingExecutable,
+            environment: ["PATH": "/definitely/missing/path", "HOME": "/tmp"]
+        )
+
+        do {
+            _ = try await executor.requireResolvedExecutableAsync()
+            Issue.record("Expected executableNotFound error")
+        } catch let error as CodexCLIError {
+            switch error {
+            case let .executableNotFound(name):
+                #expect(name == missingExecutable)
+            default:
+                Issue.record("Expected executableNotFound, got: \(error)")
+            }
+        } catch {
+            Issue.record("Expected CodexCLIError, got: \(error)")
+        }
+    }
 }

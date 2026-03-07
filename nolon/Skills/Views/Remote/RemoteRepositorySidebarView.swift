@@ -325,9 +325,9 @@ struct RemoteRepositorySidebarView: View {
     private func gitStatusRow(_ repo: RemoteRepository) -> some View {
         Group {
             if viewModel.isSyncing, viewModel.syncingRepositoryID == repo.id {
-                ProgressView()
-                    .controlSize(.mini)
-                    .tint(DesignSystem.Colors.Status.info)
+                Image(systemName: "arrow.triangle.2.circlepath")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(DesignSystem.Colors.Status.info)
             } else if let syncDate = repo.lastSyncDate {
                 Text(syncDate, style: .time)
                     .font(.caption2)
@@ -494,9 +494,9 @@ struct RemoteRepositorySidebarView: View {
                         subtitle: viewModel.syncingRepositoryName,
                         style: .info
                     ) {
-                        ProgressView()
-                            .controlSize(.small)
-                            .tint(DesignSystem.Colors.Status.info)
+                        Image(systemName: "arrow.triangle.2.circlepath")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(DesignSystem.Colors.Status.info)
                     }
                 } else if let message = viewModel.syncCompletionMessage {
                     let completionStyle = viewModel.syncCompletionStyle ?? .success

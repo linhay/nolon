@@ -13,6 +13,19 @@ struct CodexAuthManagerTests {
         return root
     }
 
+    private static func makeJWT(payload: String) -> String {
+        func encode(_ string: String) -> String {
+            Data(string.utf8)
+                .base64EncodedString()
+                .replacingOccurrences(of: "+", with: "-")
+                .replacingOccurrences(of: "/", with: "_")
+                .replacingOccurrences(of: "=", with: "")
+        }
+
+        let header = #"{"alg":"RS256","typ":"JWT"}"#
+        return "\(encode(header)).\(encode(payload)).signature"
+    }
+
     @Test("Given NOLON_HOME env, when manager uses default root, then snapshots root is isolated to env path")
     func defaultRootRespectsNolonHomeEnv() async throws {
         let isolatedRoot = STFolder("/tmp")
@@ -582,6 +595,76 @@ struct CodexAuthManagerTests {
         #expect(matched?.id == accountIDMatch.id)
     }
 
+    @Test("Given same email and same JWT chatgpt account id but stale token account id, when recording login snapshot then updates existing snapshot instead of creating duplicate")
+    func recordCLILoginSnapshotPrefersJWTAccountIDOverStaleTokenAccountID() async throws {
+        let root = try makeTempRoot("codex-auth-login-jwt-account-id")
+        defer { try? root.delete() }
+
+        let manager = CodexAuthManager(rootURL: root.url)
+        let canonicalJWT = Self.makeJWT(payload: """
+        {
+          "email": "same-user@example.com",
+          "https://api.openai.com/auth": {
+            "chatgpt_account_id": "acct-team"
+          }
+        }
+        """)
+        let staleJWT = Self.makeJWT(payload: """
+        {
+          "email": "same-user@example.com",
+          "https://api.openai.com/auth": {
+            "chatgpt_account_id": "acct-team"
+          }
+        }
+        """)
+
+        let existing = try await manager.addAccount(
+            name: "team",
+            authJSONString: #"""
+            {
+              "auth_mode": "chatgpt",
+              "email": "same-user@example.com",
+              "tokens": {
+                "id_token": "\#(canonicalJWT)",
+                "access_token": "access-old",
+                "account_id": "acct-team"
+              }
+            }
+            """#
+        )
+
+        let updated = try await manager.recordCLILoginSnapshot(
+            authJSONString: #"""
+            {
+              "auth_mode": "chatgpt",
+              "email": "same-user@example.com",
+              "tokens": {
+                "id_token": "\#(staleJWT)",
+                "access_token": "access-new",
+                "account_id": "acct-stale"
+              }
+            }
+            """#,
+            preferredAccountID: nil
+        )
+
+        let accounts = try await manager.loadAccounts()
+        var matching: [CodexAuthAccount] = []
+        for account in accounts {
+            guard let data = try? await manager.accountAuthFile(account).data() else { continue }
+            let summary = CodexAuthSummary.fromJSONData(data)
+            if summary.email == "same-user@example.com" {
+                matching.append(account)
+            }
+        }
+
+        #expect(updated.id == existing.id)
+        #expect(matching.count == 1)
+        let updatedPair = try await manager.readTokenPair(for: updated)
+        #expect(updatedPair?.chatgptAccountID == "acct-team")
+        #expect(updatedPair?.accessToken == "access-new")
+    }
+
     @Test("Given two snapshots share api key suffix, when recording login snapshot, then exact api key account is updated without drifting into newer file")
     func recordCLILoginSnapshotMatchesExactAPIKeyWithoutSuffixDrift() async throws {
         let root = try makeTempRoot("codex-auth-match-exact-api-key")
@@ -698,18 +781,18 @@ struct CodexAuthManagerTests {
         let manager = CodexAuthManager(rootURL: root.url)
         let canonical = try await manager.addAccount(
             name: "linhan",
-            authJSONString: #"{"tokens":{"id_token":"id-1","access_token":"access-1"},"email":"linhan.bigl055@gmail.com"}"#
+            authJSONString: #"{"tokens":{"id_token":"id-1","access_token":"access-1"},"email":"canonical@example.com"}"#
         )
         let duplicate = try await manager.addAccount(
             name: "robbins",
-            authJSONString: #"{"tokens":{"id_token":"id-2","access_token":"access-2"},"email":"robbinsterry3456@gmail.com"}"#
+            authJSONString: #"{"tokens":{"id_token":"id-2","access_token":"access-2"},"email":"duplicate@example.com"}"#
         )
 
         let canonicalFile = await manager.accountAuthFile(canonical)
         let duplicateFile = await manager.accountAuthFile(duplicate)
         let canonicalRaw = try canonicalFile.read()
         let polluted = canonicalRaw
-            .replacingOccurrences(of: "linhan.bigl055@gmail.com", with: "robbinsterry3456@gmail.com")
+            .replacingOccurrences(of: "canonical@example.com", with: "duplicate@example.com")
             .replacingOccurrences(of: "\"id-1\"", with: "\"id-2\"")
             .replacingOccurrences(of: "\"access-1\"", with: "\"access-2\"")
         try duplicateFile.overlay(with: Data(polluted.utf8))
@@ -725,8 +808,8 @@ struct CodexAuthManagerTests {
             }
         }
 
-        let canonicalAfter = try #require(accountByEmail["linhan.bigl055@gmail.com"])
-        let duplicateAfter = try #require(accountByEmail["robbinsterry3456@gmail.com"])
+        let canonicalAfter = try #require(accountByEmail["canonical@example.com"])
+        let duplicateAfter = try #require(accountByEmail["duplicate@example.com"])
         #expect(canonicalAfter.id == canonical.id)
         #expect(duplicateAfter.id != canonical.id)
 
@@ -744,11 +827,11 @@ struct CodexAuthManagerTests {
         let manager = CodexAuthManager(rootURL: root.url)
         let canonical = try await manager.addAccount(
             name: "linhan",
-            authJSONString: #"{"tokens":{"id_token":"id-1","access_token":"access-1"},"email":"linhan.bigl055@gmail.com"}"#
+            authJSONString: #"{"tokens":{"id_token":"id-1","access_token":"access-1"},"email":"canonical@example.com"}"#
         )
         let duplicate = try await manager.addAccount(
             name: "robbins",
-            authJSONString: #"{"tokens":{"id_token":"id-2","access_token":"access-2"},"email":"robbinsterry3456@gmail.com"}"#
+            authJSONString: #"{"tokens":{"id_token":"id-2","access_token":"access-2"},"email":"duplicate@example.com"}"#
         )
 
         let canonicalFile = await manager.accountAuthFile(canonical)
@@ -759,7 +842,7 @@ struct CodexAuthManagerTests {
         #expect(accounts.count == 1)
         let kept = try #require(accounts.first)
         let keptSummary = CodexAuthSummary.fromJSONData((try? await manager.accountAuthFile(kept).data()) ?? Data())
-        #expect(keptSummary.email?.lowercased() == "linhan.bigl055@gmail.com")
+        #expect(keptSummary.email?.lowercased() == "canonical@example.com")
         #expect(duplicateFile.isExists == false)
     }
 
@@ -770,8 +853,8 @@ struct CodexAuthManagerTests {
 
         let manager = CodexAuthManager(rootURL: root.url)
         let account = try await manager.addAccount(
-            name: "dzurillaisadore@gmail.com",
-            authJSONString: #"{"email":"linhan.bigl055@gmail.com","tokens":{"account_id":"acct-123","id_token":"id-1","access_token":"access-1"}}"#
+            name: "placeholder@example.com",
+            authJSONString: #"{"email":"canonical@example.com","tokens":{"account_id":"acct-123","id_token":"id-1","access_token":"access-1"}}"#
         )
 
         let oldPath = account.relativeAuthPath
@@ -780,7 +863,7 @@ struct CodexAuthManagerTests {
 
         let accounts = try await manager.loadAccounts()
         let aligned = try #require(accounts.first(where: { $0.id == account.id }))
-        #expect(aligned.relativeAuthPath == "auth/linhan.bigl055@gmail.com(acct-123).json")
+        #expect(aligned.relativeAuthPath == "auth/canonical@example.com(acct-123).json")
 
         let newFile = await manager.accountAuthFile(aligned)
         #expect(newFile.isExists == true)
@@ -788,7 +871,7 @@ struct CodexAuthManagerTests {
 
         let json = try #require(try? JSON(data: newFile.data()))
         #expect(json["nolon"]["account"]["relativeAuthPath"].string == aligned.relativeAuthPath)
-        #expect((json["email"].string ?? "").lowercased() == "linhan.bigl055@gmail.com")
+        #expect((json["email"].string ?? "").lowercased() == "canonical@example.com")
         #expect(oldPath != aligned.relativeAuthPath)
     }
 

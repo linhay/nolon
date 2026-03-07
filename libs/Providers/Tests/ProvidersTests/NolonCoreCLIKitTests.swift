@@ -84,7 +84,7 @@ struct NolonCoreCLIKitTests {
         #expect(result.exitCode == 0)
         #expect(result.stderr.isEmpty)
 
-        let expected = #"{"command":"remote.list","data":{"result":{"base_url":"https:\/\/clawdhub.com","items":[],"kind":"skill","limit":20}},"ok":true}"#
+        let expected = #"{"command":"remote.list","data":{"result":{"base_url":"https:\/\/clawhub.ai","items":[],"kind":"skill","limit":20}},"ok":true}"#
         #expect(try canonicalJSON(result.stdout) == expected)
     }
 
@@ -483,7 +483,7 @@ struct NolonCoreCLIKitTests {
                 "skills", "search",
                 "--query", "agent",
                 "--limit", "9",
-                "--base-url", "https://clawdhub.com",
+                "--base-url", "https://clawhub.ai",
             ]
         )
 
@@ -493,7 +493,7 @@ struct NolonCoreCLIKitTests {
         }
         #expect(query == "agent")
         #expect(limit == 9)
-        #expect(baseURL == "https://clawdhub.com")
+        #expect(baseURL == "https://clawhub.ai")
         #expect(install == false)
         #expect(provider == nil)
         #expect(installMethod == .symlink)
@@ -517,7 +517,7 @@ struct NolonCoreCLIKitTests {
         }
         #expect(query == "xcode")
         #expect(limit == 9)
-        #expect(baseURL == "https://clawdhub.com")
+        #expect(baseURL == "https://clawhub.ai")
         #expect(install == false)
         #expect(provider == nil)
         #expect(installMethod == .symlink)
@@ -544,7 +544,7 @@ struct NolonCoreCLIKitTests {
         }
         #expect(query == "xcode")
         #expect(limit == 20)
-        #expect(baseURL == "https://clawdhub.com")
+        #expect(baseURL == "https://clawhub.ai")
         #expect(install == true)
         #expect(provider == "codex")
         #expect(installMethod == .copy)
@@ -1090,7 +1090,7 @@ struct NolonCoreCLIKitTests {
         #expect(slug == "xcode")
         #expect(provider == "codex")
         #expect(version == "1.0.0")
-        #expect(baseURL == "https://clawdhub.com")
+        #expect(baseURL == "https://clawhub.ai")
         #expect(installMethod == .copy)
         #expect(!repositoriesRoot.isEmpty)
         #expect(dryRun == false)
@@ -3025,7 +3025,7 @@ struct NolonCoreCLIKitTests {
                 "--kind", "skill",
                 "--query", "react",
                 "--limit", "15",
-                "--base-url", "https://clawdhub.com",
+                "--base-url", "https://clawhub.ai",
             ]
         )
         guard case let .remoteList(kind, query, limit, baseURL) = command else {
@@ -3035,7 +3035,7 @@ struct NolonCoreCLIKitTests {
         #expect(kind == .skill)
         #expect(query == "react")
         #expect(limit == 15)
-        #expect(baseURL == "https://clawdhub.com")
+        #expect(baseURL == "https://clawhub.ai")
     }
 
     @Test("parse remote download command")
@@ -3055,7 +3055,7 @@ struct NolonCoreCLIKitTests {
         #expect(kind == .workflow)
         #expect(slug == "daily-review")
         #expect(version == "1.2.0")
-        #expect(baseURL == "https://clawdhub.com")
+        #expect(baseURL == "https://clawhub.ai")
     }
 
     @Test("parse remote sync command")
@@ -3265,7 +3265,7 @@ struct NolonCoreCLIKitTests {
         }
         #expect(slug == "react-best-practices")
         #expect(version == nil)
-        #expect(baseURL == "https://clawdhub.com")
+        #expect(baseURL == "https://clawhub.ai")
         #expect(providerPath == "/tmp/provider")
         #expect(providerID == nil)
         #expect(installMethod == .copy)
@@ -3290,7 +3290,7 @@ struct NolonCoreCLIKitTests {
         #expect(kind == .workflow)
         #expect(slug == "daily-review")
         #expect(version == nil)
-        #expect(baseURL == "https://clawdhub.com")
+        #expect(baseURL == "https://clawhub.ai")
         #expect(targetPath == "/tmp/provider/workflows")
         #expect(providerID == nil)
         #expect(installMethod == .symlink)
@@ -3313,7 +3313,7 @@ struct NolonCoreCLIKitTests {
         }
         #expect(slug == "react-best-practices")
         #expect(version == nil)
-        #expect(baseURL == "https://clawdhub.com")
+        #expect(baseURL == "https://clawhub.ai")
         #expect(providerPath == nil)
         #expect(providerID == "codex")
         #expect(installMethod == .symlink)
@@ -3337,7 +3337,7 @@ struct NolonCoreCLIKitTests {
         #expect(kind == .workflow)
         #expect(slug == "daily-review")
         #expect(version == nil)
-        #expect(baseURL == "https://clawdhub.com")
+        #expect(baseURL == "https://clawhub.ai")
         #expect(targetPath == nil)
         #expect(providerID == "opencode")
         #expect(installMethod == .symlink)

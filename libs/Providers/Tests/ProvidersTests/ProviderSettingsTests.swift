@@ -36,4 +36,34 @@ struct ProviderSettingsTests {
         #expect(folder.url.standardizedFileURL.path == "/tmp/custom-provider/skills")
         #expect(url.standardizedFileURL.path == folder.url.standardizedFileURL.path)
     }
+
+    @Test("ProviderSettings migrates legacy clawdhub base URL to clawhub.ai")
+    func migratesLegacyClawdhubBaseURL() throws {
+        let root = STFolder("/tmp").folder("provider-settings-migrate-\(UUID().uuidString)")
+        _ = root.createIfNotExists()
+        defer { try? root.deleteIncludingBrokenSymlink() }
+
+        let defaultsSuite = "provider-settings-migrate-tests-\(UUID().uuidString)"
+        let userDefaults = UserDefaults(suiteName: defaultsSuite)!
+        userDefaults.removePersistentDomain(forName: defaultsSuite)
+        defer {
+            userDefaults.removePersistentDomain(forName: defaultsSuite)
+        }
+
+        var legacyClawdhub = RemoteRepository.clawdhub
+        legacyClawdhub.baseURL = "https://clawdhub.com"
+        let encoded = try JSONEncoder().encode([legacyClawdhub])
+        userDefaults.set(encoded, forKey: "remote_repositories")
+
+        let manager = NolonManager(rootURL: root.url)
+        let settings = ProviderSettings(userDefaults: userDefaults, nolonManager: manager)
+
+        let clawdhub = try #require(settings.remoteRepositories.first(where: { $0.templateType == .clawdhub }))
+        #expect(clawdhub.baseURL == "https://clawhub.ai")
+
+        let storedData = try #require(userDefaults.data(forKey: "remote_repositories"))
+        let storedRepos = try JSONDecoder().decode([RemoteRepository].self, from: storedData)
+        let storedClawdhub = try #require(storedRepos.first(where: { $0.templateType == .clawdhub }))
+        #expect(storedClawdhub.baseURL == "https://clawhub.ai")
+    }
 }

@@ -74,8 +74,6 @@ public struct RepositoryDraftService: Sendable {
     private static let clawhubHosts: Set<String> = [
         "clawhub.ai",
         "www.clawhub.ai",
-        "clawdhub.com",
-        "www.clawdhub.com",
     ]
 
     public init() {}
@@ -160,7 +158,6 @@ public struct RepositoryDraftService: Sendable {
     /// Extract search query from a Clawhub skill URL.
     /// Supports:
     /// - https://clawhub.ai/{owner}/{slug}
-    /// - https://clawdhub.com/{owner}/{slug}
     public func clawhubSkillQuery(from rawURL: String) -> String? {
         let intent = parseImportIntent(from: rawURL)
         guard intent.kind == .clawhubSkill else { return nil }

@@ -549,7 +549,7 @@ public enum NolonCoreCLICommandParser {
                 guard limit <= 200 else {
                     throw NolonCoreCLIError.invalidArguments("--limit must be less than or equal to 200.")
                 }
-                let baseURL = readOption("--base-url", in: source) ?? "https://clawdhub.com"
+                let baseURL = readOption("--base-url", in: source) ?? "https://clawhub.ai"
                 let install = source.contains("--install")
                 let assumeYes = source.contains("--yes")
                 let provider = readOption("--provider", in: source)
@@ -619,7 +619,7 @@ public enum NolonCoreCLICommandParser {
                     throw NolonCoreCLIError.invalidArguments("Use either --provider or --provider-id, not both with different values.")
                 }
                 let version = readOption("--version", in: source)
-                let baseURL = readOption("--base-url", in: source) ?? "https://clawdhub.com"
+                let baseURL = readOption("--base-url", in: source) ?? "https://clawhub.ai"
                 let installMethod = try parseInstallMethod(readOption("--install-method", in: source) ?? "symlink")
                 let repositoriesRoot = readOption("--repositories-root", in: source)
                     ?? NolonCoreCLIPathDefaults.repositoriesRootPath()
@@ -815,7 +815,7 @@ public enum NolonCoreCLICommandParser {
         if action == "search" {
             let query = readOption("--query", in: options) ?? arguments.dropFirst(1).first
             let limit = Int(readOption("--limit", in: options) ?? "20") ?? 20
-            let baseURL = readOption("--base-url", in: options) ?? "https://clawdhub.com"
+            let baseURL = readOption("--base-url", in: options) ?? "https://clawhub.ai"
             let install = readFlag("--install", in: options)
             let provider = readOption("--provider", in: options) ?? readOption("--provider-id", in: options)
             let installMethod = try parseInstallMethod(readOption("--install-method", in: options) ?? "symlink")
@@ -840,7 +840,7 @@ public enum NolonCoreCLICommandParser {
             }
             let provider = readOption("--provider", in: options) ?? readOption("--provider-id", in: options)
             let version = readOption("--version", in: options)
-            let baseURL = readOption("--base-url", in: options) ?? "https://clawdhub.com"
+            let baseURL = readOption("--base-url", in: options) ?? "https://clawhub.ai"
             let installMethod = try parseInstallMethod(readOption("--install-method", in: options) ?? "symlink")
             let repositoriesRoot = readOption("--repositories-root", in: options) ?? NolonCoreCLIPathDefaults.repositoriesRootPath()
             let dryRun = readFlag("--dry-run", in: options)
@@ -996,7 +996,7 @@ public enum NolonCoreCLICommandParser {
         if action == "search" {
             let query = readOption("--query", in: options) ?? arguments.dropFirst(1).first
             let limit = Int(readOption("--limit", in: options) ?? "20") ?? 20
-            let baseURL = readOption("--base-url", in: options) ?? "https://clawdhub.com"
+            let baseURL = readOption("--base-url", in: options) ?? "https://clawhub.ai"
             let install = readFlag("--install", in: options)
             let provider = readOption("--provider", in: options) ?? readOption("--provider-id", in: options)
             let installMethod = try parseInstallMethod(readOption("--install-method", in: options) ?? "symlink")
@@ -1021,7 +1021,7 @@ public enum NolonCoreCLICommandParser {
             }
             let provider = readOption("--provider", in: options) ?? readOption("--provider-id", in: options)
             let version = readOption("--version", in: options)
-            let baseURL = readOption("--base-url", in: options) ?? "https://clawdhub.com"
+            let baseURL = readOption("--base-url", in: options) ?? "https://clawhub.ai"
             let installMethod = try parseInstallMethod(readOption("--install-method", in: options) ?? "symlink")
             let repositoriesRoot = readOption("--repositories-root", in: options) ?? NolonCoreCLIPathDefaults.repositoriesRootPath()
             let dryRun = readFlag("--dry-run", in: options)
@@ -1116,14 +1116,14 @@ public enum NolonCoreCLICommandParser {
             let kind = try parseRemoteKind(try readRequiredOption("--kind", in: options))
             let query = readOption("--query", in: options)
             let limit = Int(readOption("--limit", in: options) ?? "20") ?? 20
-            let baseURL = readOption("--base-url", in: options) ?? "https://clawdhub.com"
+            let baseURL = readOption("--base-url", in: options) ?? "https://clawhub.ai"
             return .remoteList(kind: kind, query: query, limit: limit, baseURL: baseURL)
         }
         if action == "download" {
             let kind = try parseRemoteKind(try readRequiredOption("--kind", in: options))
             let slug = try readRequiredOption("--slug", in: options)
             let version = readOption("--version", in: options)
-            let baseURL = readOption("--base-url", in: options) ?? "https://clawdhub.com"
+            let baseURL = readOption("--base-url", in: options) ?? "https://clawhub.ai"
             return .remoteDownload(kind: kind, slug: slug, version: version, baseURL: baseURL)
         }
         if action == "sync" {
@@ -1148,7 +1148,7 @@ public enum NolonCoreCLICommandParser {
             let kind = try parseRemoteKind(try readRequiredOption("--kind", in: options))
             let slug = try readRequiredOption("--slug", in: options)
             let version = readOption("--version", in: options)
-            let baseURL = readOption("--base-url", in: options) ?? "https://clawdhub.com"
+            let baseURL = readOption("--base-url", in: options) ?? "https://clawhub.ai"
             let installMethod = try parseInstallMethod(readOption("--install-method", in: options) ?? "symlink")
             let providerID = readOption("--provider-id", in: options)
             switch kind {

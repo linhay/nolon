@@ -39,10 +39,13 @@ public struct CodexStatusProbe {
     }
 
     public func fetch() async throws -> CodexStatusSnapshot {
-        guard let resolved = CodexCommandExecutor(
-            executable: self.codexBinary,
-            environment: self.environment
-        ).resolveExecutable() else {
+        let resolved: String
+        do {
+            resolved = try await CodexCommandExecutor(
+                executable: self.codexBinary,
+                environment: self.environment
+            ).requireResolvedExecutableAsync()
+        } catch CodexCLIError.executableNotFound {
             throw CodexStatusProbeError.codexNotInstalled
         }
 

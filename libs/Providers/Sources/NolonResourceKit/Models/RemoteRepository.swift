@@ -123,7 +123,7 @@ public enum RepositoryTemplate: String, CaseIterable, Identifiable, Codable, Sen
 
     public var defaultBaseURL: String {
         switch self {
-        case .clawdhub: return "https://clawdhub.com"
+        case .clawdhub: return "https://clawhub.ai"
         case .globalSkills, .localFolder, .git: return ""
         }
     }

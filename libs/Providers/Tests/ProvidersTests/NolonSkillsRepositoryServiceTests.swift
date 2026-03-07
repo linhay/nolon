@@ -28,7 +28,7 @@ struct NolonSkillsRepositoryServiceTests {
         _ = try await service.remoteInstallSkill(
             slug: "react-best-practices",
             version: "1.0.0",
-            baseURL: "https://clawdhub.com",
+            baseURL: "https://clawhub.ai",
             providerPath: providerPath,
             skillID: nil,
             installMethod: .symlink
@@ -48,7 +48,7 @@ struct NolonSkillsRepositoryServiceTests {
         let result = try await service.remoteInstallSkill(
             slug: "react-best-practices",
             version: "1.0.0",
-            baseURL: "https://clawdhub.com",
+            baseURL: "https://clawhub.ai",
             providerPath: STFolder("/tmp/provider-skills"),
             skillID: nil,
             installMethod: .copy
@@ -69,7 +69,7 @@ struct NolonSkillsRepositoryServiceTests {
             kind: .workflow,
             slug: "review-agent",
             version: nil,
-            baseURL: "https://clawdhub.com",
+            baseURL: "https://clawhub.ai",
             targetPath: STFolder("/tmp/provider-workflows"),
             resourceName: "review.md",
             installMethod: .symlink
