@@ -484,6 +484,84 @@ h3 {
   color: #fff;
 }
 
+.node small {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.8rem;
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.shot-card {
+  margin: 0;
+  padding: 16px;
+  border-radius: var(--radius-lg);
+  background: var(--bg-soft);
+  text-align: center;
+}
+
+.shot-card img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 12px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.1);
+}
+
+.shot-card figcaption {
+  margin-top: 16px;
+  font-size: 0.9rem;
+  font-style: italic;
+}
+
+.shot-grid {
+  margin-top: 20px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.legacy-anchor {
+  position: relative;
+  top: -100px;
+  height: 0;
+}
+
+.arrow {
+  font-weight: 700;
+  color: var(--brand);
+}
+
+.faq-list {
+  display: grid;
+  gap: 12px;
+}
+
+.faq-list article {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px;
+  background: #fbfdff;
+}
+
+.mobile-cta {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  bottom: 10px;
+  z-index: 45;
+  display: none;
+}
+
+.mobile-cta a {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  background: var(--brand);
+  color: #fff;
+}
+
 .lang-switch button:hover:not(.active) {
   background: var(--bg-soft);
 }
@@ -495,7 +573,33 @@ h3 {
   .section-card {
     padding: 32px 20px;
   }
-  .steps, .card-grid.three {
+  .lang-switch {
+    grid-area: lang;
+    justify-self: end;
+  }
+
+  .menu-toggle {
+    grid-area: menu;
+    display: inline-flex;
+    justify-content: center;
+  }
+
+  .nav {
+    grid-area: nav;
+    display: none;
+    justify-content: flex-start;
+  }
+
+  body.nav-open .nav {
+    display: flex;
+  }
+
+  .trust-strip ul,
+  .steps,
+  .card-grid.one,
+  .card-grid.two,
+  .card-grid.three,
+  .shot-grid {
     grid-template-columns: 1fr;
   }
 }
