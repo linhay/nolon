@@ -4,6 +4,12 @@
     "" : {
 
     },
+    "(%@)" : {
+
+    },
+    "%@ 更新" : {
+
+    },
     "%@: %@" : {
       "localizations" : {
         "en" : {
@@ -7698,7 +7704,7 @@
       }
     },
     "codex.usage.range.7d" : {
-      "comment" : "7D\nCodex usage trend range 7 days",
+      "comment" : "Codex usage trend range 7 days",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
@@ -7716,7 +7722,7 @@
       }
     },
     "codex.usage.range.30d" : {
-      "comment" : "30D\nCodex usage trend range 30 days",
+      "comment" : "Codex usage trend range 30 days",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
@@ -7734,7 +7740,7 @@
       }
     },
     "codex.usage.range.all" : {
-      "comment" : "ALL\nCodex usage trend range all",
+      "comment" : "Codex usage trend range all",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
@@ -7771,7 +7777,7 @@
     },
     "codex.usage.range.today" : {
       "comment" : "Today",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -7837,18 +7843,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "总 Tokens"
-          }
-        }
-      }
-    },
-    "codex.usage.trend.title" : {
-      "comment" : "Codex usage trend title",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Token Trend"
           }
         }
       }
@@ -8696,6 +8690,18 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "确定"
+          }
+        }
+      }
+    },
+    "generic.refresh" : {
+      "comment" : "Refresh button\nRetry button",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Refresh"
           }
         }
       }
@@ -13800,6 +13806,138 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "回退"
+          }
+        }
+      }
+    },
+    "usage.token_trend.chart" : {
+      "comment" : "Daily trend chart title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Daily Trend"
+          }
+        }
+      }
+    },
+    "usage.token_trend.empty" : {
+      "comment" : "Empty token trend state",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "No token history yet."
+          }
+        }
+      }
+    },
+    "usage.token_trend.loading" : {
+      "comment" : "Loading token trend",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Loading token history…"
+          }
+        }
+      }
+    },
+    "usage.token_trend.subtitle" : {
+      "comment" : "Token trend section subtitle",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "按日聚合输入、输出与缓存命中 token。"
+          }
+        }
+      }
+    },
+    "usage.token_trend.summary.7d" : {
+      "comment" : "7 day tokens",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "7 Days"
+          }
+        }
+      }
+    },
+    "usage.token_trend.summary.30d" : {
+      "comment" : "30 day tokens",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "30 Days"
+          }
+        }
+      }
+    },
+    "usage.token_trend.summary.latest" : {
+      "comment" : "Latest point",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Latest"
+          }
+        }
+      }
+    },
+    "usage.token_trend.summary.today" : {
+      "comment" : "Today tokens",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Today"
+          }
+        }
+      }
+    },
+    "usage.token_trend.summary.trailing" : {
+      "comment" : "Trailing total",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Trailing total"
+          }
+        }
+      }
+    },
+    "usage.token_trend.table" : {
+      "comment" : "Daily breakdown table",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Daily Breakdown"
+          }
+        }
+      }
+    },
+    "usage.token_trend.title" : {
+      "comment" : "Token trend section title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "历史 Token 消耗"
           }
         }
       }

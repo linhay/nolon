@@ -25,10 +25,12 @@ final class ProviderUsageViewModel {
     typealias CodexOutcomeFetchAction = @Sendable (CodexAuthAccount, UsageMonitorProviderSettings, URL) async -> ProviderAccountUsageOutcome
     typealias CodexUsageQueryTestAction = @MainActor @Sendable (CodexHTTPUsageQueryResolvedConfiguration, Bool) async throws -> ProviderFetchResult
     typealias CodexImportConnectionTestAction = @Sendable (CodexAuthManager.CodexImportValidationResult, UsageMonitorProviderSettings) async -> ProviderAccountUsageOutcome
+    typealias GeminiTokenTrendFetchAction = @Sendable (UsageProvider, Int?) async throws -> ProviderTokenTrendSnapshot?
     typealias AsyncVoidAction = @MainActor @Sendable () async -> Void
 
     private let usageMonitor: ProviderUsageMonitorService
     private let codexTokenTrendService = CodexTokenTrendService()
+    private let geminiTokenTrendFetchAction: GeminiTokenTrendFetchAction
     private let settingsStore = UsageMonitorSettingsStore.shared
     private let codexAuthManager = CodexAuthManager()
     private let geminiAuthStore = GeminiAuthStore.shared
@@ -65,10 +67,10 @@ final class ProviderUsageViewModel {
     var currentCodexAuthHashHex: String?
     var codexAuthFilePath: String?
     var activeCodexAccountId: UUID?
-    var codexTrendRange: CodexTrendRange = .days30
-    var codexTrendSnapshot: CodexTokenTrendSnapshot?
-    var codexTrendErrorMessage: String?
-    var isLoadingCodexTrend = false
+    var tokenTrendRange: TokenTrendRange = .days30
+    var tokenTrendSnapshot: ProviderTokenTrendSnapshot?
+    var tokenTrendErrorMessage: String?
+    var isLoadingTokenTrend = false
     var codexAccountGroupingOption: CodexAccountGroupingOption = .typeInfo
     var codexAccountSortOption: CodexAccountSortOption = .remainingCredits
     var codexCurrentSortDirection: CodexSortDirection = .descending
@@ -356,6 +358,7 @@ final class ProviderUsageViewModel {
         codexOutcomeFetchAction: CodexOutcomeFetchAction? = nil,
         codexUsageQueryTestAction: CodexUsageQueryTestAction? = nil,
         codexImportConnectionTestAction: CodexImportConnectionTestAction? = nil,
+        geminiTokenTrendFetchAction: GeminiTokenTrendFetchAction? = nil,
         postDeleteLoadAction: AsyncVoidAction? = nil
     ) {
         let tokenStore = FileTokenAccountStore(fileURL: ProviderUsagePaths.defaultTokenAccountsFileURL())
@@ -383,6 +386,9 @@ final class ProviderUsageViewModel {
         }
         self.codexImportConnectionTestAction = codexImportConnectionTestAction ?? { validationResult, settings in
             await Self.testCodexImportConnectionDetached(validationResult: validationResult, settings: settings)
+        }
+        self.geminiTokenTrendFetchAction = geminiTokenTrendFetchAction ?? { provider, trailingDays in
+            try await GeminiTokenTrendService().fetchActiveSnapshot(provider: provider, trailingDays: trailingDays)
         }
         self.postDeleteLoadAction = postDeleteLoadAction
         self.updateSupportedModes()
@@ -423,7 +429,7 @@ final class ProviderUsageViewModel {
         }
     }
 
-    enum CodexTrendRange: String, CaseIterable, Identifiable {
+    enum TokenTrendRange: String, CaseIterable, Identifiable {
         case days7
         case days30
         case all
@@ -566,12 +572,18 @@ final class ProviderUsageViewModel {
             lastUsageRefreshAt = Date()
         }
 
-        guard usageProvider == .codex else {
+        guard usageProvider == .codex || usageProvider == .gemini else {
             await updateUsageFileWatcher()
             return
         }
         let trendRefreshTask = Task { [weak self] in
-            await self?.refreshCodexTokenTrend()
+            await self?.refreshTokenTrend()
+        }
+
+        guard usageProvider == .codex else {
+            await trendRefreshTask.value
+            await updateUsageFileWatcher()
+            return
         }
         do {
             codexAuthFilePath = await codexAuthManager.authFile(for: provider)?.url.path
@@ -721,31 +733,49 @@ final class ProviderUsageViewModel {
         orderedAccounts(activeId: activeCodexAccountId)
     }
 
-    func setCodexTrendRange(_ range: CodexTrendRange) {
-        guard codexTrendRange != range else { return }
-        codexTrendRange = range
+    func setTokenTrendRange(_ range: TokenTrendRange) {
+        guard tokenTrendRange != range else { return }
+        tokenTrendRange = range
+        refreshTokenTrendNow()
     }
 
-    func refreshCodexTokenTrendNow() {
+    func refreshTokenTrendNow() {
         Task { [weak self] in
-            await self?.refreshCodexTokenTrend()
+            await self?.refreshTokenTrend()
         }
     }
 
-    private func refreshCodexTokenTrend() async {
-        guard usageProvider == .codex else { return }
-        isLoadingCodexTrend = true
-        codexTrendErrorMessage = nil
-        defer { isLoadingCodexTrend = false }
+    func refreshTokenTrendForTesting() async {
+        await refreshTokenTrend()
+    }
+
+    private func refreshTokenTrend() async {
+        guard let usageProvider else { return }
+        guard usageProvider == .codex || usageProvider == .gemini else { return }
+
+        isLoadingTokenTrend = true
+        tokenTrendErrorMessage = nil
+        defer { isLoadingTokenTrend = false }
         do {
-            let snapshot = try await codexTokenTrendService.fetchGlobalSnapshot(
-                trailingDays: nil,
-                environment: ProcessInfo.processInfo.environment
-            )
-            codexTrendSnapshot = snapshot
+            let snapshot: ProviderTokenTrendSnapshot?
+            switch usageProvider {
+            case .codex:
+                snapshot = try await codexTokenTrendService.fetchGlobalSnapshot(
+                    trailingDays: tokenTrendRange.trailingDays,
+                    environment: ProcessInfo.processInfo.environment
+                )
+            case .gemini:
+                snapshot = try await geminiTokenTrendFetchAction(
+                    usageProvider,
+                    tokenTrendRange.trailingDays
+                )
+            default:
+                snapshot = nil
+            }
+            tokenTrendSnapshot = snapshot
         } catch {
-            codexTrendSnapshot = nil
-            codexTrendErrorMessage = error.localizedDescription
+            tokenTrendSnapshot = nil
+            tokenTrendErrorMessage = error.localizedDescription
         }
     }
 
@@ -2825,13 +2855,42 @@ final class ProviderUsageViewModel {
     }
 
     private func mergeUsageSnapshot(live: UsageSnapshot, cached: UsageSnapshot) -> UsageSnapshot {
-        UsageSnapshot(
+        let mergedWindows = mergeUsageWindows(live: live, cached: cached)
+        return UsageSnapshot(
             identity: live.identity ?? cached.identity,
+            windows: mergedWindows,
             primary: mergeRateWindow(live: live.primary, cached: cached.primary),
             secondary: mergeRateWindow(live: live.secondary, cached: cached.secondary),
             tertiary: mergeRateWindow(live: live.tertiary, cached: cached.tertiary),
             updatedAt: live.updatedAt
         )
+    }
+
+    private func mergeUsageWindows(live: UsageSnapshot, cached: UsageSnapshot) -> [UsageWindow] {
+        guard !live.windows.isEmpty || !cached.windows.isEmpty else {
+            return []
+        }
+
+        var mergedByID = Dictionary(uniqueKeysWithValues: cached.windows.map { ($0.id, $0) })
+        for item in live.windows {
+            if let cachedItem = mergedByID[item.id] {
+                mergedByID[item.id] = UsageWindow(
+                    id: item.id,
+                    title: item.title,
+                    window: mergeRateWindow(live: item.window, cached: cachedItem.window) ?? item.window
+                )
+            } else {
+                mergedByID[item.id] = item
+            }
+        }
+
+        var ordered: [UsageWindow] = []
+        var seen = Set<String>()
+        for item in live.windows + cached.windows {
+            guard let merged = mergedByID[item.id], seen.insert(item.id).inserted else { continue }
+            ordered.append(merged)
+        }
+        return ordered
     }
 
     private func mergeRateWindow(live: RateWindow?, cached: RateWindow?) -> RateWindow? {
@@ -3324,17 +3383,16 @@ final class ProviderUsageViewModel {
         windowMinutes: Int
     ) -> Double? {
         guard case let .success(result) = outcome.outcome.result else { return nil }
-        let windows = [result.usage.primary, result.usage.secondary, result.usage.tertiary]
+        let windows = result.usage.allWindows.map(\.window)
         return windows
-            .compactMap { $0 }
             .first(where: { $0.windowMinutes == windowMinutes })?
             .remainingPercent
     }
 
     private static func expirySortDate(from outcome: ProviderAccountUsageOutcome) -> Date? {
         guard case let .success(result) = outcome.outcome.result else { return nil }
-        let windows = [result.usage.primary, result.usage.secondary, result.usage.tertiary]
-        return windows.compactMap { $0?.resetsAt }.min()
+        let windows = result.usage.allWindows.map(\.window)
+        return windows.compactMap(\.resetsAt).min()
     }
 
     private static func availableQuotaWindowSortOptions(
@@ -3342,8 +3400,9 @@ final class ProviderUsageViewModel {
     ) -> [CodexAccountSortOption] {
         let values = outcomes.compactMap { outcome -> [Int]? in
             guard case let .success(result) = outcome.outcome.result else { return nil }
-            return [result.usage.primary, result.usage.secondary, result.usage.tertiary]
-                .compactMap { $0?.windowMinutes }
+            return result.usage.allWindows
+                .map(\.window.windowMinutes)
+                .compactMap { $0 }
                 .filter { $0 > 0 }
         }
 

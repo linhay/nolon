@@ -65,23 +65,10 @@ struct ProviderUsageView: View {
     let provider: Provider
     let isEmbedded: Bool
     @State private var viewModel: ProviderUsageViewModel
-    @State private var codexTrendSortKey: CodexTrendSortKey = .date
-    @State private var codexTrendSortAscending = false
-    @State private var selectedTrendDate: String?
 
     private let codexAccountColumns: [GridItem] = [
         GridItem(.adaptive(minimum: 240, maximum: 340), spacing: 12, alignment: .topLeading)
     ]
-
-    private enum CodexTrendSortKey: String, CaseIterable, Identifiable {
-        case date
-        case total
-        case input
-        case output
-        case cache
-
-        var id: String { rawValue }
-    }
 
     init(provider: Provider, isEmbedded: Bool = false) {
         self.provider = provider
@@ -104,7 +91,6 @@ struct ProviderUsageView: View {
         }
         .onChange(of: provider.id) { _, _ in
             viewModel = ProviderUsageViewModel(provider: provider)
-            selectedTrendDate = nil
             Task { await viewModel.loadIfNeeded() }
         }
         .onAppear {
@@ -613,6 +599,9 @@ struct ProviderUsageView: View {
                 ForEach(viewModel.outcomes) { outcome in
                     ProviderUsageSnapshotView(outcome: outcome)
                 }
+                if viewModel.usageProvider == .gemini {
+                    tokenTrendSection
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -746,7 +735,7 @@ struct ProviderUsageView: View {
                     }
                 }
 
-                codexTrendSection
+                tokenTrendSection
             }
             .padding(.trailing, 12)
             .padding(.vertical, 2)
@@ -778,335 +767,15 @@ struct ProviderUsageView: View {
         }
     }
 
-    @ViewBuilder
-    private var codexTrendSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .center, spacing: 12) {
-                Text(NSLocalizedString("codex.usage.trend.title", value: "Token Trend", comment: "Codex usage trend title"))
-                    .font(.headline)
-
-                Spacer()
-
-                Picker("", selection: Binding(
-                    get: { viewModel.codexTrendRange },
-                    set: { viewModel.setCodexTrendRange($0) }
-                )) {
-                    ForEach(ProviderUsageViewModel.CodexTrendRange.allCases) { range in
-                        Text(range.title).tag(range)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .frame(width: 220)
-
-                Button {
-                    viewModel.refreshCodexTokenTrendNow()
-                } label: {
-                    Image(systemName: "arrow.clockwise")
-                }
-                .help(NSLocalizedString("usage.monitor.refresh", value: "Refresh", comment: "Refresh"))
-                .dsBorderlessButton()
-            }
-
-            if viewModel.isLoadingCodexTrend {
-                ProgressView()
-                    .controlSize(.small)
-            } else if let errorMessage = viewModel.codexTrendErrorMessage, !errorMessage.isEmpty {
-                Text(errorMessage)
-                    .font(.caption)
-                    .foregroundStyle(DesignSystem.Colors.Status.error)
-            } else if let snapshot = viewModel.codexTrendSnapshot, !snapshot.points.isEmpty {
-                codexTrendSummaryRow(snapshot: snapshot)
-                codexTrendStackedBarChart(points: filteredTrendPoints(from: snapshot))
-                codexTrendTable(points: filteredTrendPoints(from: snapshot))
-            } else {
-                Text(NSLocalizedString("usage.monitor.empty.desc", value: "No provider data available yet.", comment: "Empty description"))
-                    .font(.caption)
-                    .foregroundStyle(DesignSystem.Colors.Text.tertiary)
-            }
-        }
-        .padding(12)
-        .dsCard()
-    }
-
-    private func codexTrendSummaryRow(snapshot: CodexTokenTrendSnapshot) -> some View {
-        HStack(spacing: 16) {
-            summaryPill(
-                title: NSLocalizedString("codex.usage.range.today", value: "Today", comment: "Today"),
-                value: formatTokenCountCompact(snapshot.todayTokens)
-            )
-            summaryPill(
-                title: NSLocalizedString("codex.usage.range.7d", value: "7D", comment: "7D"),
-                value: formatTokenCountCompact(snapshot.last7DaysTokens)
-            )
-            summaryPill(
-                title: NSLocalizedString("codex.usage.range.30d", value: "30D", comment: "30D"),
-                value: formatTokenCountCompact(snapshot.last30DaysTokens)
-            )
-            summaryPill(
-                title: NSLocalizedString("codex.usage.range.all", value: "ALL", comment: "ALL"),
-                value: formatTokenCountCompact(snapshot.points.reduce(0) { $0 + $1.totalTokens })
-            )
-            Spacer()
-        }
-    }
-
-    private func summaryPill(title: String, value: String) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(title)
-                .font(.caption2)
-                .foregroundStyle(DesignSystem.Colors.Text.tertiary)
-            Text(value)
-                .font(.caption)
-                .monospacedDigit()
-                .foregroundStyle(DesignSystem.Colors.Text.primary)
-        }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 6)
-        .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(DesignSystem.Colors.Background.elevated)
+    private var tokenTrendSection: some View {
+        ProviderTokenTrendSection(
+            snapshot: viewModel.tokenTrendSnapshot,
+            isLoading: viewModel.isLoadingTokenTrend,
+            errorMessage: viewModel.tokenTrendErrorMessage,
+            range: viewModel.tokenTrendRange,
+            onRangeChange: { viewModel.setTokenTrendRange($0) },
+            onRefresh: { viewModel.refreshTokenTrendNow() }
         )
-    }
-
-    private func codexTrendStackedBarChart(points: [CodexTokenTrendPoint]) -> some View {
-        let sortedPoints = points.sorted { $0.date < $1.date }
-        let maxTotal = max(sortedPoints.map(\.totalTokens).max() ?? 1, 1)
-
-        return VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 12) {
-                legendMark(title: "Input", color: DesignSystem.Colors.primary)
-                legendMark(title: "Output", color: DesignSystem.Colors.Status.success)
-                legendMark(title: "Cache", color: DesignSystem.Colors.Status.warning)
-                Spacer()
-            }
-            .font(.caption2)
-
-            ScrollViewReader { proxy in
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(alignment: .bottom, spacing: 8) {
-                        ForEach(sortedPoints, id: \.date) { point in
-                            let isSelected = selectedTrendDate == point.date
-                            VStack(spacing: 6) {
-                                VStack(spacing: 0) {
-                                    segmentBlock(height: stackHeight(total: point.totalTokens, part: point.inputTokens, maxTotal: maxTotal), color: DesignSystem.Colors.primary)
-                                    segmentBlock(height: stackHeight(total: point.totalTokens, part: point.outputTokens, maxTotal: maxTotal), color: DesignSystem.Colors.Status.success)
-                                    segmentBlock(height: stackHeight(total: point.totalTokens, part: point.cacheReadTokens, maxTotal: maxTotal), color: DesignSystem.Colors.Status.warning)
-                                }
-                                .frame(width: 22)
-                                .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
-                                .overlay {
-                                    if isSelected {
-                                        RoundedRectangle(cornerRadius: 3, style: .continuous)
-                                            .stroke(DesignSystem.Colors.primary, lineWidth: 2)
-                                    }
-                                }
-                                .frame(width: 28, height: 124, alignment: .bottom)
-                                .opacity(selectedTrendDate == nil || isSelected ? 1 : 0.55)
-
-                                Text(shortDateLabel(point.date))
-                                    .font(.caption2)
-                                    .foregroundStyle(DesignSystem.Colors.Text.tertiary)
-                            }
-                            .id(point.date)
-                            .contentShape(Rectangle())
-                            .onTapGesture {
-                                if selectedTrendDate == point.date {
-                                    selectedTrendDate = nil
-                                } else {
-                                    selectedTrendDate = point.date
-                                }
-                            }
-                        }
-                    }
-                    .padding(.vertical, 4)
-                }
-                .onChange(of: selectedTrendDate) { _, newValue in
-                    guard let newValue else { return }
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        proxy.scrollTo(newValue, anchor: .center)
-                    }
-                }
-                .onAppear {
-                    guard let selectedTrendDate else { return }
-                    DispatchQueue.main.async {
-                        withAnimation(.easeInOut(duration: 0.2)) {
-                            proxy.scrollTo(selectedTrendDate, anchor: .center)
-                        }
-                    }
-                }
-                .onChange(of: viewModel.codexTrendRange) { _, _ in
-                    guard let selectedTrendDate else { return }
-                    DispatchQueue.main.async {
-                        withAnimation(.easeInOut(duration: 0.2)) {
-                            proxy.scrollTo(selectedTrendDate, anchor: .center)
-                        }
-                    }
-                }
-                .onChange(of: sortedPoints.map(\.date)) { _, dates in
-                    guard let selectedTrendDate, dates.contains(selectedTrendDate) else {
-                        if let selectedTrendDate, !dates.contains(selectedTrendDate) {
-                            self.selectedTrendDate = nil
-                        }
-                        return
-                    }
-                    DispatchQueue.main.async {
-                        withAnimation(.easeInOut(duration: 0.2)) {
-                            proxy.scrollTo(selectedTrendDate, anchor: .center)
-                        }
-                    }
-                }
-            }
-            .onChange(of: selectedTrendDate) { _, newValue in
-                guard let newValue else { return }
-                if !sortedPoints.contains(where: { $0.date == newValue }) {
-                    selectedTrendDate = nil
-                }
-            }
-        }
-    }
-
-    private func legendMark(title: String, color: Color) -> some View {
-        HStack(spacing: 4) {
-            RoundedRectangle(cornerRadius: 3, style: .continuous)
-                .fill(color)
-                .frame(width: 10, height: 10)
-            Text(title)
-        }
-    }
-
-    private func segmentBlock(height: CGFloat, color: Color) -> some View {
-        Rectangle()
-            .fill(color)
-            .frame(height: max(0, height))
-    }
-
-    private func stackHeight(total: Int, part: Int, maxTotal: Int) -> CGFloat {
-        guard total > 0, part > 0, maxTotal > 0 else { return 0 }
-        let fullHeight = CGFloat(total) / CGFloat(maxTotal) * 120
-        return fullHeight * CGFloat(part) / CGFloat(total)
-    }
-
-    private func codexTrendTable(points: [CodexTokenTrendPoint]) -> some View {
-        let rows = sortedTrendRows(points)
-        return VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 0) {
-                trendHeaderCell(title: "Date", key: .date, width: 96)
-                trendHeaderCell(title: "Total", key: .total, width: 108)
-                trendHeaderCell(title: "Input", key: .input, width: 108)
-                trendHeaderCell(title: "Output", key: .output, width: 108)
-                trendHeaderCell(title: "Cache", key: .cache, width: 108)
-                Spacer(minLength: 0)
-            }
-            .padding(.vertical, 6)
-            .background(DesignSystem.Colors.Background.elevated)
-
-            ForEach(Array(rows.enumerated()), id: \.offset) { index, row in
-                let isSelected = selectedTrendDate == row.date
-                HStack(spacing: 0) {
-                    trendValueCell(row.date, width: 96, isDate: true)
-                    trendValueCell(formatTokenCompact(row.totalTokens), width: 108)
-                    trendValueCell(formatTokenCompact(row.inputTokens), width: 108)
-                    trendValueCell(formatTokenCompact(row.outputTokens), width: 108)
-                    trendValueCell(formatTokenCompact(row.cacheReadTokens), width: 108)
-                    Spacer(minLength: 0)
-                }
-                .padding(.vertical, 6)
-                .background(
-                    isSelected
-                    ? DesignSystem.Colors.primary.opacity(0.14)
-                    : (index.isMultiple(of: 2) ? DesignSystem.Colors.Background.surface : Color.clear)
-                )
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    if selectedTrendDate == row.date {
-                        selectedTrendDate = nil
-                    } else {
-                        selectedTrendDate = row.date
-                    }
-                }
-            }
-        }
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-    }
-
-    private func trendHeaderCell(title: String, key: CodexTrendSortKey, width: CGFloat) -> some View {
-        Button {
-            if codexTrendSortKey == key {
-                codexTrendSortAscending.toggle()
-            } else {
-                codexTrendSortKey = key
-                codexTrendSortAscending = false
-            }
-        } label: {
-            HStack(spacing: 4) {
-                Text(title)
-                if codexTrendSortKey == key {
-                    Image(systemName: codexTrendSortAscending ? "arrow.up" : "arrow.down")
-                        .font(.body)
-                }
-            }
-            .frame(width: width, alignment: .center)
-            .font(.body)
-            .foregroundStyle(DesignSystem.Colors.Text.secondary)
-        }
-        .buttonStyle(.plain)
-    }
-
-    private func trendValueCell(_ value: String, width: CGFloat, isDate: Bool = false) -> some View {
-        Text(value)
-            .frame(width: width, alignment: .center)
-            .font(.body)
-            .foregroundStyle(DesignSystem.Colors.Text.primary)
-            .monospacedDigit()
-            .if(isDate == false) { view in
-                view
-                    .textSelection(.enabled)
-            }
-    }
-
-    private func sortedTrendRows(_ rows: [CodexTokenTrendPoint]) -> [CodexTokenTrendPoint] {
-        rows.sorted { lhs, rhs in
-            let ascending = codexTrendSortAscending
-            switch codexTrendSortKey {
-            case .date:
-                return ascending ? (lhs.date < rhs.date) : (lhs.date > rhs.date)
-            case .total:
-                return ascending ? (lhs.totalTokens < rhs.totalTokens) : (lhs.totalTokens > rhs.totalTokens)
-            case .input:
-                return ascending ? (lhs.inputTokens < rhs.inputTokens) : (lhs.inputTokens > rhs.inputTokens)
-            case .output:
-                return ascending ? (lhs.outputTokens < rhs.outputTokens) : (lhs.outputTokens > rhs.outputTokens)
-            case .cache:
-                return ascending ? (lhs.cacheReadTokens < rhs.cacheReadTokens) : (lhs.cacheReadTokens > rhs.cacheReadTokens)
-            }
-        }
-    }
-
-    private func formatTokenCountCompact(_ value: Int?) -> String {
-        guard let value else { return "-" }
-        return formatTokenCompact(value)
-    }
-
-    private func formatTokenCompact(_ value: Int) -> String {
-        TokenCountCompactFormatter.format(value)
-    }
-
-    private func shortDateLabel(_ value: String) -> String {
-        let parts = value.split(separator: "-")
-        guard parts.count == 3 else { return value }
-        return "\(parts[1])/\(parts[2])"
-    }
-
-    private func filteredTrendPoints(from snapshot: CodexTokenTrendSnapshot) -> [CodexTokenTrendPoint] {
-        let sorted = snapshot.points.sorted { $0.date > $1.date }
-        switch viewModel.codexTrendRange {
-        case .days7:
-            return Array(sorted.prefix(7))
-        case .days30:
-            return Array(sorted.prefix(30))
-        case .all:
-            return sorted
-        }
     }
 
     @ViewBuilder
@@ -1541,28 +1210,13 @@ struct ProviderUsageView: View {
                         .lineLimit(1)
                 }
 
-                let metadata = ProviderUsageRegistry.metadata(for: outcome.provider)
-                if shouldShowUsageMetrics, result.usage.primary != nil || result.usage.secondary != nil || result.usage.tertiary != nil {
+                let displayWindows = usageWindows(for: result, provider: outcome.provider)
+                if shouldShowUsageMetrics, !displayWindows.isEmpty {
                     VStack(alignment: .leading, spacing: 8) {
-                        if let primary = result.usage.primary {
+                        ForEach(displayWindows) { item in
                             codexQuotaRow(
-                                title: metadata?.sessionLabel
-                                    ?? NSLocalizedString("usage.metric.session", value: "Session", comment: "Session"),
-                                window: primary
-                            )
-                        }
-                        if let secondary = result.usage.secondary {
-                            codexQuotaRow(
-                                title: metadata?.weeklyLabel
-                                    ?? NSLocalizedString("usage.metric.weekly", value: "Weekly", comment: "Weekly"),
-                                window: secondary
-                            )
-                        }
-                        if let tertiary = result.usage.tertiary {
-                            codexQuotaRow(
-                                title: metadata?.opusLabel
-                                    ?? NSLocalizedString("usage.metric.third", value: "Other", comment: "Other"),
-                                window: tertiary
+                                title: item.title,
+                                window: item.window
                             )
                         }
                     }
@@ -1711,6 +1365,37 @@ struct ProviderUsageView: View {
                 .lineLimit(1)
             }
         }
+    }
+
+    private func usageWindows(for result: ProviderFetchResult, provider: UsageProvider) -> [UsageWindow] {
+        if !result.usage.windows.isEmpty {
+            return result.usage.windows
+        }
+
+        let metadata = ProviderUsageRegistry.metadata(for: provider)
+        var items: [UsageWindow] = []
+        if let primary = result.usage.primary {
+            items.append(UsageWindow(
+                id: "primary",
+                title: metadata?.sessionLabel ?? NSLocalizedString("usage.metric.session", value: "Session", comment: "Session"),
+                window: primary
+            ))
+        }
+        if let secondary = result.usage.secondary {
+            items.append(UsageWindow(
+                id: "secondary",
+                title: metadata?.weeklyLabel ?? NSLocalizedString("usage.metric.weekly", value: "Weekly", comment: "Weekly"),
+                window: secondary
+            ))
+        }
+        if let tertiary = result.usage.tertiary {
+            items.append(UsageWindow(
+                id: "tertiary",
+                title: metadata?.opusLabel ?? NSLocalizedString("usage.metric.third", value: "Other", comment: "Other"),
+                window: tertiary
+            ))
+        }
+        return items
     }
 
     private func codexResetCountdownText(resetsAt: Date?) -> String? {

@@ -2,53 +2,6 @@ import Foundation
 import CodexBarProviderCatalog
 import CodexProvider
 
-public struct CodexTokenTrendPoint: Codable, Sendable, Equatable {
-    public let date: String
-    public let totalTokens: Int
-    public let inputTokens: Int
-    public let outputTokens: Int
-    public let cacheReadTokens: Int
-
-    public init(
-        date: String,
-        totalTokens: Int,
-        inputTokens: Int,
-        outputTokens: Int,
-        cacheReadTokens: Int
-    ) {
-        self.date = date
-        self.totalTokens = totalTokens
-        self.inputTokens = inputTokens
-        self.outputTokens = outputTokens
-        self.cacheReadTokens = cacheReadTokens
-    }
-}
-
-public struct CodexTokenTrendSnapshot: Codable, Sendable, Equatable {
-    public let points: [CodexTokenTrendPoint]
-    public let todayTokens: Int?
-    public let last7DaysTokens: Int?
-    public let last30DaysTokens: Int?
-    public let updatedAt: Date
-    public let sourceLabel: String
-
-    public init(
-        points: [CodexTokenTrendPoint],
-        todayTokens: Int?,
-        last7DaysTokens: Int?,
-        last30DaysTokens: Int?,
-        updatedAt: Date,
-        sourceLabel: String
-    ) {
-        self.points = points
-        self.todayTokens = todayTokens
-        self.last7DaysTokens = last7DaysTokens
-        self.last30DaysTokens = last30DaysTokens
-        self.updatedAt = updatedAt
-        self.sourceLabel = sourceLabel
-    }
-}
-
 public struct CodexTokenTrendService: Sendable {
     public typealias SnapshotLoader = @Sendable (
         _ provider: UsageProvider,
@@ -73,7 +26,7 @@ public struct CodexTokenTrendService: Sendable {
     public func fetchGlobalSnapshot(
         trailingDays: Int? = 30,
         environment: [String: String] = ProcessInfo.processInfo.environment
-    ) async throws -> CodexTokenTrendSnapshot {
+    ) async throws -> ProviderTokenTrendSnapshot {
         var globalEnvironment = environment
         globalEnvironment.removeValue(forKey: "CODEX_HOME")
 
@@ -84,7 +37,7 @@ public struct CodexTokenTrendService: Sendable {
                 let output = max(0, entry.outputTokens ?? 0)
                 let cache = max(0, entry.cacheReadTokens ?? 0)
                 let total = max(0, entry.totalTokens ?? (input + output))
-                return CodexTokenTrendPoint(
+                return ProviderTokenTrendPoint(
                     date: entry.date,
                     totalTokens: total,
                     inputTokens: input,
@@ -98,7 +51,7 @@ public struct CodexTokenTrendService: Sendable {
         let last7 = sumTrailing(points: points, days: 7)
         let last30 = sumTrailing(points: points, days: 30)
 
-        return CodexTokenTrendSnapshot(
+        return ProviderTokenTrendSnapshot(
             points: points,
             todayTokens: today,
             last7DaysTokens: last7,
