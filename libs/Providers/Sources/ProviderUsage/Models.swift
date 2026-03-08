@@ -51,6 +51,18 @@ public struct RateWindow: Codable, Sendable, Equatable {
     }
 }
 
+public struct UsageWindow: Codable, Sendable, Equatable, Identifiable {
+    public let id: String
+    public let title: String
+    public let window: RateWindow
+
+    public init(id: String, title: String, window: RateWindow) {
+        self.id = id
+        self.title = title
+        self.window = window
+    }
+}
+
 public struct UsageIdentity: Codable, Sendable, Equatable {
     public let accountEmail: String?
     public let accountOrganization: String?
@@ -71,6 +83,7 @@ public struct UsageIdentity: Codable, Sendable, Equatable {
 
 public struct UsageSnapshot: Codable, Sendable, Equatable {
     public let identity: UsageIdentity?
+    public let windows: [UsageWindow]
     public let primary: RateWindow?
     public let secondary: RateWindow?
     public let tertiary: RateWindow?
@@ -78,16 +91,67 @@ public struct UsageSnapshot: Codable, Sendable, Equatable {
 
     public init(
         identity: UsageIdentity?,
+        windows: [UsageWindow] = [],
         primary: RateWindow?,
         secondary: RateWindow?,
         tertiary: RateWindow?,
         updatedAt: Date = Date()
     ) {
         self.identity = identity
+        self.windows = windows
         self.primary = primary
         self.secondary = secondary
         self.tertiary = tertiary
         self.updatedAt = updatedAt
+    }
+
+    public var allWindows: [UsageWindow] {
+        if !windows.isEmpty {
+            return windows
+        }
+
+        var legacy: [UsageWindow] = []
+        if let primary {
+            legacy.append(UsageWindow(id: "primary", title: "primary", window: primary))
+        }
+        if let secondary {
+            legacy.append(UsageWindow(id: "secondary", title: "secondary", window: secondary))
+        }
+        if let tertiary {
+            legacy.append(UsageWindow(id: "tertiary", title: "tertiary", window: tertiary))
+        }
+        return legacy
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case identity
+        case windows
+        case primary
+        case secondary
+        case tertiary
+        case updatedAt
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        identity = try container.decodeIfPresent(UsageIdentity.self, forKey: .identity)
+        windows = try container.decodeIfPresent([UsageWindow].self, forKey: .windows) ?? []
+        primary = try container.decodeIfPresent(RateWindow.self, forKey: .primary)
+        secondary = try container.decodeIfPresent(RateWindow.self, forKey: .secondary)
+        tertiary = try container.decodeIfPresent(RateWindow.self, forKey: .tertiary)
+        updatedAt = try container.decode(Date.self, forKey: .updatedAt)
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encodeIfPresent(identity, forKey: .identity)
+        if !windows.isEmpty {
+            try container.encode(windows, forKey: .windows)
+        }
+        try container.encodeIfPresent(primary, forKey: .primary)
+        try container.encodeIfPresent(secondary, forKey: .secondary)
+        try container.encodeIfPresent(tertiary, forKey: .tertiary)
+        try container.encode(updatedAt, forKey: .updatedAt)
     }
 }
 

@@ -96,24 +96,15 @@ struct ProviderUsageSnapshotView: View {
     }
 
     private func usageContent(result: ProviderFetchResult) -> some View {
-        let hasMetrics = result.usage.primary != nil || result.usage.secondary != nil || result.usage.tertiary != nil || result.credits != nil
+        let displayWindows = usageWindows(for: result)
+        let hasMetrics = !displayWindows.isEmpty || result.credits != nil
 
         return VStack(alignment: .leading, spacing: 12) {
-            let metadata = ProviderUsageRegistry.metadata(for: outcome.provider)
-            if let primary = result.usage.primary {
+            ForEach(displayWindows) { item in
                 usageRow(
-                    title: metadata?.sessionLabel ?? NSLocalizedString("usage.metric.session", value: "Session", comment: "Session"),
-                    window: primary)
-            }
-            if let secondary = result.usage.secondary {
-                usageRow(
-                    title: metadata?.weeklyLabel ?? NSLocalizedString("usage.metric.weekly", value: "Weekly", comment: "Weekly"),
-                    window: secondary)
-            }
-            if let tertiary = result.usage.tertiary {
-                usageRow(
-                    title: metadata?.opusLabel ?? NSLocalizedString("usage.metric.third", value: "Other", comment: "Other"),
-                    window: tertiary)
+                    title: item.title,
+                    window: item.window
+                )
             }
 
             if let credits = result.credits, !credits.remaining.isNaN {
@@ -135,6 +126,37 @@ struct ProviderUsageSnapshotView: View {
 
             footer(result: result)
         }
+    }
+
+    private func usageWindows(for result: ProviderFetchResult) -> [UsageWindow] {
+        if !result.usage.windows.isEmpty {
+            return result.usage.windows
+        }
+
+        let metadata = ProviderUsageRegistry.metadata(for: outcome.provider)
+        var items: [UsageWindow] = []
+        if let primary = result.usage.primary {
+            items.append(UsageWindow(
+                id: "primary",
+                title: metadata?.sessionLabel ?? NSLocalizedString("usage.metric.session", value: "Session", comment: "Session"),
+                window: primary
+            ))
+        }
+        if let secondary = result.usage.secondary {
+            items.append(UsageWindow(
+                id: "secondary",
+                title: metadata?.weeklyLabel ?? NSLocalizedString("usage.metric.weekly", value: "Weekly", comment: "Weekly"),
+                window: secondary
+            ))
+        }
+        if let tertiary = result.usage.tertiary {
+            items.append(UsageWindow(
+                id: "tertiary",
+                title: metadata?.opusLabel ?? NSLocalizedString("usage.metric.third", value: "Other", comment: "Other"),
+                window: tertiary
+            ))
+        }
+        return items
     }
 
     private func usageRow(title: String, window: RateWindow) -> some View {
