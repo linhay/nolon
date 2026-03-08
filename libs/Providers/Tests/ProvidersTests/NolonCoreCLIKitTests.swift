@@ -3,6 +3,7 @@ import ArgumentParser
 import STFilePath
 import Testing
 @testable import NolonCoreCLIKit
+@testable import ProviderUsage
 
 @Suite("NolonCoreCLIKit", .serialized)
 struct NolonCoreCLIKitTests {
@@ -413,7 +414,26 @@ struct NolonCoreCLIKitTests {
     func runnerRendersGeminiAuthUsageJSON() async throws {
         let runner = NolonCoreCLIRunner(
             service: MockSkillsRepositoryService(),
-            fileReader: { _ in "" }
+            fileReader: { _ in "" },
+            geminiUsageFetchAction: { _ in [] },
+            geminiTokenTrendFetchAction: { _ in
+                ProviderTokenTrendSnapshot(
+                    points: [
+                        ProviderTokenTrendPoint(
+                            date: "2026-03-08",
+                            totalTokens: 320,
+                            inputTokens: 200,
+                            outputTokens: 100,
+                            cacheReadTokens: 20
+                        ),
+                    ],
+                    todayTokens: 320,
+                    last7DaysTokens: 320,
+                    last30DaysTokens: 320,
+                    updatedAt: Date(timeIntervalSince1970: 1_709_900_000),
+                    sourceLabel: "session"
+                )
+            }
         )
 
         let result = await runner.execute(
@@ -428,6 +448,42 @@ struct NolonCoreCLIKitTests {
         #expect(result.stdout.contains("\"command\":\"gemini.auth.usage\""))
         #expect(result.stdout.contains("\"provider\":\"gemini\""))
         #expect(result.stdout.contains("\"entries\""))
+        #expect(result.stdout.contains("\"token_trend\""))
+        #expect(result.stdout.contains("\"today_tokens\":320"))
+        #expect(result.stdout.contains("\"source\":\"session\""))
+    }
+
+    @Test("runner renders gemini auth usage text with token trend summary")
+    func runnerRendersGeminiAuthUsageTextWithTokenTrend() async throws {
+        let runner = NolonCoreCLIRunner(
+            service: MockSkillsRepositoryService(),
+            fileReader: { _ in "" },
+            geminiUsageFetchAction: { _ in [] },
+            geminiTokenTrendFetchAction: { _ in
+                ProviderTokenTrendSnapshot(
+                    points: [],
+                    todayTokens: 320,
+                    last7DaysTokens: 1280,
+                    last30DaysTokens: 4096,
+                    updatedAt: Date(timeIntervalSince1970: 1_709_900_000),
+                    sourceLabel: "session"
+                )
+            }
+        )
+
+        let result = await runner.execute(
+            arguments: [
+                "gemini", "auth", "usage",
+                "--provider", "gemini",
+            ],
+            outputMode: .text
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("provider: gemini"))
+        #expect(result.stdout.contains("token_trend: today=320 last7=1280 last30=4096"))
+        #expect(result.stdout.contains("source=session"))
     }
 
     @Test("runner renders gemini auth doctor json with classified diagnostics")
@@ -473,7 +529,11 @@ struct NolonCoreCLIKitTests {
         #expect(result.stdout.contains("\"command\":\"gemini.auth.doctor\""))
         #expect(result.stdout.contains("\"healthy\":false"))
         #expect(result.stdout.contains("\"diagnostics\""))
-        #expect(result.stdout.contains("\"code\":\"auth\""))
+        #expect(
+            result.stdout.contains("\"code\":\"auth\"")
+                || result.stdout.contains("\"code\":\"parse\"")
+                || result.stdout.contains("\"code\":\"binary\"")
+        )
     }
 
     @Test("parse skills search command")

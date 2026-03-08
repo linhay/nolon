@@ -13,6 +13,8 @@ public enum NolonCoreCLIOutputMode: Sendable {
 
 public struct NolonCoreCLIRunner: Sendable {
     public typealias FileReader = @Sendable (String) throws -> String
+    public typealias GeminiUsageFetchAction = @Sendable (UsageProvider) async -> [ProviderAccountUsageOutcome]
+    public typealias GeminiTokenTrendFetchAction = @Sendable (UsageProvider) async throws -> ProviderTokenTrendSnapshot?
 
     private static let pluginDescriptors: [PluginDescriptor] = [
         PluginDescriptor(
@@ -29,16 +31,26 @@ public struct NolonCoreCLIRunner: Sendable {
 
     private let service: any NolonSkillsRepositoryServing
     private let fileReader: FileReader
+    private let geminiUsageFetchAction: GeminiUsageFetchAction
+    private let geminiTokenTrendFetchAction: GeminiTokenTrendFetchAction
     private let installedStatusService = InstalledResourceStatusService()
 
     public init(
         service: any NolonSkillsRepositoryServing = NolonLiveSkillsRepositoryService(),
         fileReader: @escaping FileReader = { path in
             try STFile(path).read()
-        }
+        },
+        geminiUsageFetchAction: GeminiUsageFetchAction? = nil,
+        geminiTokenTrendFetchAction: GeminiTokenTrendFetchAction? = nil
     ) {
         self.service = service
         self.fileReader = fileReader
+        self.geminiUsageFetchAction = geminiUsageFetchAction ?? { provider in
+            await Self.defaultFetchGeminiUsage(provider: provider)
+        }
+        self.geminiTokenTrendFetchAction = geminiTokenTrendFetchAction ?? { provider in
+            try await GeminiTokenTrendService().fetchActiveSnapshot(provider: provider, trailingDays: nil)
+        }
     }
 
     public func execute(arguments: [String]) async -> NolonCLIExecutionResult {
@@ -756,13 +768,15 @@ public struct NolonCoreCLIRunner: Sendable {
             let provider = try resolveGeminiAuthProvider(providerID)
             let _ = try await touchActiveGeminiAccount(provider: provider)
             let result = await fetchGeminiUsage(provider: provider)
+            let tokenTrend = await fetchGeminiTokenTrend(provider: provider)
             return try encodeSuccess(
                 command: command.commandID,
                 data: GeminiUsagePayload(
                     provider: provider.rawValue,
                     refreshed: true,
                     activeAccountID: try await activeGeminiAccountID(provider: provider)?.uuidString.lowercased(),
-                    entries: makeGeminiUsageEntries(result)
+                    entries: makeGeminiUsageEntries(result),
+                    tokenTrend: tokenTrend.map(makeGeminiTokenTrendEntry)
                 )
             )
 
@@ -779,13 +793,15 @@ public struct NolonCoreCLIRunner: Sendable {
         case let .geminiAuthUsage(providerID):
             let provider = try resolveGeminiAuthProvider(providerID)
             let result = await fetchGeminiUsage(provider: provider)
+            let tokenTrend = await fetchGeminiTokenTrend(provider: provider)
             return try encodeSuccess(
                 command: command.commandID,
                 data: GeminiUsagePayload(
                     provider: provider.rawValue,
                     refreshed: false,
                     activeAccountID: try await activeGeminiAccountID(provider: provider)?.uuidString.lowercased(),
-                    entries: makeGeminiUsageEntries(result)
+                    entries: makeGeminiUsageEntries(result),
+                    tokenTrend: tokenTrend.map(makeGeminiTokenTrendEntry)
                 )
             )
 
@@ -1311,7 +1327,12 @@ public struct NolonCoreCLIRunner: Sendable {
             let provider = try resolveGeminiAuthProvider(providerID)
             let _ = try await touchActiveGeminiAccount(provider: provider)
             let result = await fetchGeminiUsage(provider: provider)
-            return formatGeminiUsageText(provider: provider, entries: makeGeminiUsageEntries(result))
+            let tokenTrend = await fetchGeminiTokenTrend(provider: provider)
+            return formatGeminiUsageText(
+                provider: provider,
+                entries: makeGeminiUsageEntries(result),
+                tokenTrend: tokenTrend.map(makeGeminiTokenTrendEntry)
+            )
         case let .geminiAuthActivate(providerID, accountID):
             let provider = try resolveGeminiAuthProvider(providerID)
             let mutation = try await geminiAuthActivate(provider: provider, accountID: accountID)
@@ -1323,7 +1344,12 @@ public struct NolonCoreCLIRunner: Sendable {
         case let .geminiAuthUsage(providerID):
             let provider = try resolveGeminiAuthProvider(providerID)
             let result = await fetchGeminiUsage(provider: provider)
-            return formatGeminiUsageText(provider: provider, entries: makeGeminiUsageEntries(result))
+            let tokenTrend = await fetchGeminiTokenTrend(provider: provider)
+            return formatGeminiUsageText(
+                provider: provider,
+                entries: makeGeminiUsageEntries(result),
+                tokenTrend: tokenTrend.map(makeGeminiTokenTrendEntry)
+            )
         case let .geminiAuthDoctor(providerID):
             let provider = try resolveGeminiAuthProvider(providerID)
             let result = await fetchGeminiUsage(provider: provider)
@@ -1552,17 +1578,25 @@ public struct NolonCoreCLIRunner: Sendable {
         return trimmed.isEmpty ? nil : trimmed
     }
 
-    private func fetchGeminiUsage(provider: UsageProvider) async -> [ProviderAccountUsageOutcome] {
+    private static func defaultFetchGeminiUsage(provider: UsageProvider) async -> [ProviderAccountUsageOutcome] {
         let tokenStore = FileTokenAccountStore(fileURL: ProviderUsagePaths.defaultTokenAccountsFileURL())
         let monitor = ProviderUsageMonitorService(tokenAccountStore: tokenStore)
         let settings = ProviderUsageMonitorSettings(
-            sourceMode: .auto,
+            sourceMode: .cli,
             includeCredits: false,
             webTimeoutSeconds: 15,
             autoRefreshIntervalMinutes: 0,
             costWindowDays: nil
         )
         return await monitor.fetchOutcomes(provider: provider, settings: settings, costWindowDays: nil)
+    }
+
+    private func fetchGeminiUsage(provider: UsageProvider) async -> [ProviderAccountUsageOutcome] {
+        await geminiUsageFetchAction(provider)
+    }
+
+    private func fetchGeminiTokenTrend(provider: UsageProvider) async -> ProviderTokenTrendSnapshot? {
+        try? await geminiTokenTrendFetchAction(provider)
     }
 
     private func makeGeminiUsageEntries(_ outcomes: [ProviderAccountUsageOutcome]) -> [GeminiUsageEntry] {
@@ -1583,6 +1617,15 @@ public struct NolonCoreCLIRunner: Sendable {
                     account: accountLabel,
                     status: "ok",
                     source: result.sourceLabel,
+                    windows: result.usage.allWindows.map { window in
+                        GeminiUsageWindowEntry(
+                            id: window.id,
+                            title: window.title,
+                            usedPercent: window.window.usedPercent,
+                            remainingPercent: window.window.remainingPercent,
+                            resetsAt: window.window.resetsAt.map(formatter.string)
+                        )
+                    },
                     primaryUsedPercent: result.usage.primary?.usedPercent,
                     secondaryUsedPercent: result.usage.secondary?.usedPercent,
                     updatedAt: formatter.string(from: result.usage.updatedAt),
@@ -1594,6 +1637,7 @@ public struct NolonCoreCLIRunner: Sendable {
                     account: accountLabel,
                     status: "failed",
                     source: nil,
+                    windows: nil,
                     primaryUsedPercent: nil,
                     secondaryUsedPercent: nil,
                     updatedAt: nil,
@@ -1602,6 +1646,25 @@ public struct NolonCoreCLIRunner: Sendable {
                 )
             }
         }
+    }
+
+    private func makeGeminiTokenTrendEntry(_ snapshot: ProviderTokenTrendSnapshot) -> GeminiTokenTrendEntry {
+        GeminiTokenTrendEntry(
+            todayTokens: snapshot.todayTokens,
+            last7DaysTokens: snapshot.last7DaysTokens,
+            last30DaysTokens: snapshot.last30DaysTokens,
+            updatedAt: ISO8601DateFormatter().string(from: snapshot.updatedAt),
+            source: snapshot.sourceLabel,
+            points: snapshot.points.map { point in
+                GeminiTokenTrendPointEntry(
+                    date: point.date,
+                    totalTokens: point.totalTokens,
+                    inputTokens: point.inputTokens,
+                    outputTokens: point.outputTokens,
+                    cacheReadTokens: point.cacheReadTokens
+                )
+            }
+        )
     }
 
     private func geminiUsageErrorCode(_ error: Error) -> String? {
@@ -1759,9 +1822,19 @@ public struct NolonCoreCLIRunner: Sendable {
         ].joined(separator: "\n")
     }
 
-    private func formatGeminiUsageText(provider: UsageProvider, entries: [GeminiUsageEntry]) -> String {
+    private func formatGeminiUsageText(
+        provider: UsageProvider,
+        entries: [GeminiUsageEntry],
+        tokenTrend: GeminiTokenTrendEntry?
+    ) -> String {
         var lines: [String] = []
         lines.append("provider: \(provider.rawValue)")
+        if let tokenTrend {
+            let today = tokenTrend.todayTokens.map(String.init) ?? "-"
+            let last7 = tokenTrend.last7DaysTokens.map(String.init) ?? "-"
+            let last30 = tokenTrend.last30DaysTokens.map(String.init) ?? "-"
+            lines.append("token_trend: today=\(today) last7=\(last7) last30=\(last30) updated_at=\(tokenTrend.updatedAt) source=\(tokenTrend.source)")
+        }
         if entries.isEmpty {
             lines.append("status: no data")
             return lines.joined(separator: "\n")
@@ -1772,6 +1845,13 @@ public struct NolonCoreCLIRunner: Sendable {
             let updatedAt = entry.updatedAt ?? "-"
             let suffix = entry.error.map { " error=\($0)" } ?? ""
             lines.append("[\(entry.status)] account=\(entry.account) primary=\(primary) secondary=\(secondary) updated_at=\(updatedAt)\(suffix)")
+            if let windows = entry.windows, !windows.isEmpty {
+                for window in windows {
+                    let remaining = String(format: "%.0f%%", window.remainingPercent)
+                    let reset = window.resetsAt ?? "-"
+                    lines.append("  - \(window.title): remaining=\(remaining) resets_at=\(reset)")
+                }
+            }
         }
         return lines.joined(separator: "\n")
     }
@@ -4524,6 +4604,7 @@ private struct GeminiUsageEntry: Encodable, Sendable {
     let account: String
     let status: String
     let source: String?
+    let windows: [GeminiUsageWindowEntry]?
     let primaryUsedPercent: Double?
     let secondaryUsedPercent: Double?
     let updatedAt: String?
@@ -4534,11 +4615,62 @@ private struct GeminiUsageEntry: Encodable, Sendable {
         case account
         case status
         case source
+        case windows
         case primaryUsedPercent = "primary_used_percent"
         case secondaryUsedPercent = "secondary_used_percent"
         case updatedAt = "updated_at"
         case errorCode = "error_code"
         case error
+    }
+}
+
+private struct GeminiUsageWindowEntry: Encodable, Sendable {
+    let id: String
+    let title: String
+    let usedPercent: Double
+    let remainingPercent: Double
+    let resetsAt: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case title
+        case usedPercent = "used_percent"
+        case remainingPercent = "remaining_percent"
+        case resetsAt = "resets_at"
+    }
+}
+
+private struct GeminiTokenTrendEntry: Encodable, Sendable {
+    let todayTokens: Int?
+    let last7DaysTokens: Int?
+    let last30DaysTokens: Int?
+    let updatedAt: String
+    let source: String
+    let points: [GeminiTokenTrendPointEntry]
+
+    enum CodingKeys: String, CodingKey {
+        case todayTokens = "today_tokens"
+        case last7DaysTokens = "last_7_days_tokens"
+        case last30DaysTokens = "last_30_days_tokens"
+        case updatedAt = "updated_at"
+        case source
+        case points
+    }
+}
+
+private struct GeminiTokenTrendPointEntry: Encodable, Sendable {
+    let date: String
+    let totalTokens: Int
+    let inputTokens: Int
+    let outputTokens: Int
+    let cacheReadTokens: Int
+
+    enum CodingKeys: String, CodingKey {
+        case date
+        case totalTokens = "total_tokens"
+        case inputTokens = "input_tokens"
+        case outputTokens = "output_tokens"
+        case cacheReadTokens = "cache_read_tokens"
     }
 }
 
@@ -4609,12 +4741,14 @@ private struct GeminiUsagePayload: Encodable, Sendable {
     let refreshed: Bool
     let activeAccountID: String?
     let entries: [GeminiUsageEntry]
+    let tokenTrend: GeminiTokenTrendEntry?
 
     enum CodingKeys: String, CodingKey {
         case provider
         case refreshed
         case activeAccountID = "active_account_id"
         case entries
+        case tokenTrend = "token_trend"
     }
 }
 
