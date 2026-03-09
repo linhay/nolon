@@ -58,7 +58,15 @@ struct CodexUsageDescriptorTests {
     @Test("Prefers HTTP usage query when configured and skips CLI fetch")
     func prefersHTTPUsageQuery() async {
         let descriptor = CodexUsageDescriptor(
-            fetchHTTPUsageResult: { _ in
+            resolveHTTPUsageConfiguration: { _ in
+                CodexHTTPUsageQueryResolvedConfiguration(
+                    query: CodexHTTPUsageQuery(enabled: true),
+                    defaultCredentials: .init(),
+                    cardKind: .relayProfile,
+                    source: .explicit
+                )
+            },
+            executeHTTPUsageQuery: { _, _ in
                 ProviderFetchResult(
                     usage: UsageSnapshot(
                         identity: UsageIdentity(accountEmail: nil, accountOrganization: nil, loginMethod: "relay", plan: "Enterprise"),
@@ -109,7 +117,15 @@ struct CodexUsageDescriptorTests {
     @Test("Returns HTTP failure without falling back to CLI when query is enabled")
     func returnsHTTPFailureWithoutCLIFallback() async {
         let descriptor = CodexUsageDescriptor(
-            fetchHTTPUsageResult: { _ in
+            resolveHTTPUsageConfiguration: { _ in
+                CodexHTTPUsageQueryResolvedConfiguration(
+                    query: CodexHTTPUsageQuery(enabled: true),
+                    defaultCredentials: .init(),
+                    cardKind: .relayProfile,
+                    source: .explicit
+                )
+            },
+            executeHTTPUsageQuery: { _, _ in
                 throw CodexHTTPUsageQueryError.httpStatus(401, message: "unauthorized")
             },
             fetchRateLimitsAndAccountInfo: { _ in
@@ -139,6 +155,61 @@ struct CodexUsageDescriptorTests {
         case let .failure(error):
             #expect(outcome.fetchKind == ProviderFetchKind.web)
             #expect(error as? CodexHTTPUsageQueryError == .httpStatus(401, message: "unauthorized"))
+        }
+    }
+
+    @Test("Falls back to CLI when synthesized chatgpt HTTP query fails")
+    func fallsBackToCLIWhenDefaultChatGPTHTTPFails() async {
+        let descriptor = CodexUsageDescriptor(
+            resolveHTTPUsageConfiguration: { _ in
+                CodexHTTPUsageQueryResolvedConfiguration(
+                    query: CodexHTTPUsageQuery(enabled: true),
+                    defaultCredentials: .init(accessToken: "access", userID: "acct-123"),
+                    cardKind: .chatgptAccount,
+                    source: .defaultChatGPT
+                )
+            },
+            executeHTTPUsageQuery: { _, _ in
+                throw CodexHTTPUsageQueryError.httpStatus(503, message: "backend unavailable")
+            },
+            fetchRateLimitsAndAccountInfo: { _ in
+                (
+                    CodexHelper.RateLimitsSnapshot(
+                        primary: .init(usedPercent: 42, windowDurationMins: 60, resetsAt: Date(timeIntervalSince1970: 1_735_689_600)),
+                        secondary: .init(usedPercent: 5, windowDurationMins: 1440, resetsAt: Date(timeIntervalSince1970: 1_735_693_200)),
+                        updatedAt: Date(timeIntervalSince1970: 1_735_689_500)
+                    ),
+                    CodexHelper.AccountInfo(email: "cli@example.com", plan: "plus")
+                )
+            },
+            fetchStatusSnapshot: { _ in
+                Issue.record("Status probe should not run when CLI provides reset times")
+                return CodexStatusSnapshot(credits: nil, fiveHourPercentLeft: nil, weeklyPercentLeft: nil, fiveHourResetDescription: nil, weeklyResetDescription: nil, rawText: "")
+            }
+        )
+
+        let context = ProviderFetchContext(
+            provider: .codex,
+            sourceMode: .auto,
+            includeCredits: false,
+            timeout: 20,
+            costWindowDays: 30,
+            environment: [:],
+            token: nil
+        )
+
+        let outcome = await descriptor.fetchOutcome(context: context)
+        switch outcome.result {
+        case let .success(result):
+            #expect(outcome.fetchKind == .cli)
+            #expect(result.fetchKind == .cli)
+            #expect(result.sourceLabel == "CLI")
+            #expect(result.usage.identity?.accountEmail == "cli@example.com")
+            #expect(result.usage.identity?.plan == "plus")
+            #expect(result.usage.primary?.usedPercent == 42)
+            #expect(result.usage.secondary?.usedPercent == 5)
+        case let .failure(error):
+            Issue.record("Expected CLI fallback success, got failure: \(error)")
         }
     }
 }

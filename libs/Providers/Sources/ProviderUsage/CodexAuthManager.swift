@@ -536,15 +536,14 @@ public actor CodexAuthManager {
 
     private func loadAccountsFromAuthFolder() throws -> [CodexAuthAccount] {
         let folder = nolonCodexAuthFolder()
-        let files = ((try? folder.files()) ?? [])
-            .sorted(by: { $0.attributes.name < $1.attributes.name })
+        let fileNames = stableAuthSnapshotFileNames(in: folder)
 
         var accounts: [CodexAuthAccount] = []
-        accounts.reserveCapacity(files.count)
+        accounts.reserveCapacity(fileNames.count)
 
-        for file in files where file.attributes.nameComponents.extension?.lowercased() == "json" {
-            let fileName = file.attributes.name
+        for fileName in fileNames {
             let relativeAuthPath = "auth/\(fileName)"
+            let file = folder.file(fileName)
             do {
                 let account = try loadAccount(file: file, relativeAuthPath: relativeAuthPath)
                 accounts.append(account)
@@ -558,6 +557,13 @@ public actor CodexAuthManager {
         accounts = try alignSnapshotFileNamesWithEmailIfNeeded(accounts)
         accounts.sort(by: { $0.createdAt > $1.createdAt })
         return accounts
+    }
+
+    private nonisolated func stableAuthSnapshotFileNames(in folder: STFolder) -> [String] {
+        let names = (try? FileManager.default.contentsOfDirectory(atPath: folder.url.path)) ?? []
+        return names
+            .filter { URL(fileURLWithPath: $0).pathExtension.lowercased() == "json" }
+            .sorted()
     }
 
     public func readAuthJSONString(from provider: Provider) throws -> String? {
@@ -2068,7 +2074,8 @@ private extension CodexAuthManager {
         }
 
         var rootObject = rootJSON.dictionaryObject ?? [:]
-        let fallbackCreatedAt = max(file.attributes.creationDate, file.attributes.modificationDate)
+        let fileDates = safeFileDates(for: file)
+        let fallbackCreatedAt = max(fileDates.creationDate, fileDates.modificationDate)
         var changed = false
 
         let existingId = getString(rootObject, path: ["nolon", "account", "id"]).flatMap(UUID.init(uuidString:))
@@ -2093,7 +2100,7 @@ private extension CodexAuthManager {
         }
 
         let existingUpdatedAt = getString(rootObject, path: ["nolon", "account", "updatedAt"]).flatMap { Self.makeISOFormatter().date(from: $0) }
-        let updatedAt = existingUpdatedAt ?? max(file.attributes.modificationDate, createdAt)
+        let updatedAt = existingUpdatedAt ?? max(fileDates.modificationDate, createdAt)
         if existingUpdatedAt == nil {
             setValue(Self.makeISOFormatter().string(from: updatedAt), path: ["nolon", "account", "updatedAt"], dict: &rootObject)
             changed = true
@@ -2137,6 +2144,14 @@ private extension CodexAuthManager {
         }
 
         return CodexAuthAccount(id: id, name: name, createdAt: createdAt, relativeAuthPath: relativeAuthPath)
+    }
+
+    private nonisolated func safeFileDates(for file: STFile) -> (creationDate: Date, modificationDate: Date) {
+        let fallback = Date()
+        let values = try? file.url.resourceValues(forKeys: [.creationDateKey, .contentModificationDateKey])
+        let creationDate = values?.creationDate ?? values?.contentModificationDate ?? fallback
+        let modificationDate = values?.contentModificationDate ?? values?.creationDate ?? fallback
+        return (creationDate, modificationDate)
     }
 
     func healDuplicateAccountIDsIfNeeded(_ accounts: [CodexAuthAccount]) throws -> [CodexAuthAccount] {

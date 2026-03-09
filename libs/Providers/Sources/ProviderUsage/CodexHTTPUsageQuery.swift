@@ -102,6 +102,12 @@ public struct CodexHTTPUsageQueryMapping: Sendable, Codable, Equatable {
     public var creditsRemainingPath: String?
     public var usageUsedPath: String?
     public var usageTotalPath: String?
+    public var primaryUsedPercentPath: String?
+    public var primaryResetAtPath: String?
+    public var primaryWindowSecondsPath: String?
+    public var secondaryUsedPercentPath: String?
+    public var secondaryResetAtPath: String?
+    public var secondaryWindowSecondsPath: String?
     public var costTodayUSDPath: String?
     public var costLast30DaysUSDPath: String?
     public var errorMessagePath: String?
@@ -111,6 +117,12 @@ public struct CodexHTTPUsageQueryMapping: Sendable, Codable, Equatable {
         creditsRemainingPath: String? = nil,
         usageUsedPath: String? = nil,
         usageTotalPath: String? = nil,
+        primaryUsedPercentPath: String? = nil,
+        primaryResetAtPath: String? = nil,
+        primaryWindowSecondsPath: String? = nil,
+        secondaryUsedPercentPath: String? = nil,
+        secondaryResetAtPath: String? = nil,
+        secondaryWindowSecondsPath: String? = nil,
         costTodayUSDPath: String? = nil,
         costLast30DaysUSDPath: String? = nil,
         errorMessagePath: String? = nil
@@ -119,10 +131,21 @@ public struct CodexHTTPUsageQueryMapping: Sendable, Codable, Equatable {
         self.creditsRemainingPath = creditsRemainingPath
         self.usageUsedPath = usageUsedPath
         self.usageTotalPath = usageTotalPath
+        self.primaryUsedPercentPath = primaryUsedPercentPath
+        self.primaryResetAtPath = primaryResetAtPath
+        self.primaryWindowSecondsPath = primaryWindowSecondsPath
+        self.secondaryUsedPercentPath = secondaryUsedPercentPath
+        self.secondaryResetAtPath = secondaryResetAtPath
+        self.secondaryWindowSecondsPath = secondaryWindowSecondsPath
         self.costTodayUSDPath = costTodayUSDPath
         self.costLast30DaysUSDPath = costLast30DaysUSDPath
         self.errorMessagePath = errorMessagePath
     }
+}
+
+public enum CodexHTTPUsageQueryConfigurationSource: Sendable, Equatable {
+    case explicit
+    case defaultChatGPT
 }
 
 public enum CodexHTTPUsageQueryError: LocalizedError, Sendable, Equatable {
@@ -161,15 +184,18 @@ public struct CodexHTTPUsageQueryResolvedConfiguration: Sendable, Equatable {
     public let query: CodexHTTPUsageQuery
     public let defaultCredentials: CodexHTTPUsageQueryCredentials
     public let cardKind: CodexAuthSummary.CardKind?
+    public let source: CodexHTTPUsageQueryConfigurationSource
 
     public init(
         query: CodexHTTPUsageQuery,
         defaultCredentials: CodexHTTPUsageQueryCredentials,
-        cardKind: CodexAuthSummary.CardKind?
+        cardKind: CodexAuthSummary.CardKind?,
+        source: CodexHTTPUsageQueryConfigurationSource
     ) {
         self.query = query
         self.defaultCredentials = defaultCredentials
         self.cardKind = cardKind
+        self.source = source
     }
 }
 
@@ -276,16 +302,6 @@ public struct CodexHTTPUsageQueryExecutor: Sendable {
         guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             throw CodexHTTPUsageQueryError.invalidJSON("Codex auth.json is not a JSON object.")
         }
-        guard let nolon = root["nolon"] as? [String: Any],
-              let queryObject = nolon["usage_query"]
-        else {
-            return nil
-        }
-
-        let queryData = try JSONSerialization.data(withJSONObject: queryObject)
-        let decoder = JSONDecoder()
-        let query = try decoder.decode(CodexHTTPUsageQuery.self, from: queryData)
-
         let summary = CodexAuthSummary.fromJSONData(data)
         let tokens = root["tokens"] as? [String: Any]
         let accountID = stringValue(tokens?["account_id"])
@@ -300,10 +316,68 @@ public struct CodexHTTPUsageQueryExecutor: Sendable {
             userID: accountID
         )
 
+        if let nolon = root["nolon"] as? [String: Any],
+           let queryObject = nolon["usage_query"]
+        {
+            let queryData = try JSONSerialization.data(withJSONObject: queryObject)
+            let decoder = JSONDecoder()
+            let query = try decoder.decode(CodexHTTPUsageQuery.self, from: queryData)
+
+            return CodexHTTPUsageQueryResolvedConfiguration(
+                query: query,
+                defaultCredentials: credentials,
+                cardKind: summary.cardKind,
+                source: .explicit
+            )
+        }
+
+        guard summary.cardKind == .chatgptAccount,
+              let query = makeDefaultChatGPTQuery(defaultCredentials: credentials)
+        else {
+            return nil
+        }
+
         return CodexHTTPUsageQueryResolvedConfiguration(
             query: query,
             defaultCredentials: credentials,
-            cardKind: summary.cardKind
+            cardKind: summary.cardKind,
+            source: .defaultChatGPT
+        )
+    }
+
+    private static func makeDefaultChatGPTQuery(
+        defaultCredentials: CodexHTTPUsageQueryCredentials
+    ) -> CodexHTTPUsageQuery? {
+        guard trimmedNonEmpty(defaultCredentials.accessToken) != nil,
+              trimmedNonEmpty(defaultCredentials.userID) != nil
+        else {
+            return nil
+        }
+
+        let baseURL = "https://chatgpt.com/backend-api"
+        return CodexHTTPUsageQuery(
+            enabled: true,
+            timeoutSeconds: 15,
+            request: .init(
+                method: .get,
+                url: "{{baseURL}}/wham/usage",
+                headers: [
+                    "Authorization": "Bearer {{accessToken}}",
+                    "chatgpt-account-id": "{{userID}}",
+                    "Accept": "application/json",
+                ]
+            ),
+            credentials: .init(baseURL: baseURL),
+            mapping: .init(
+                planPath: "plan_type",
+                creditsRemainingPath: "credits.balance",
+                primaryUsedPercentPath: "rate_limit.primary_window.used_percent",
+                primaryResetAtPath: "rate_limit.primary_window.reset_at",
+                primaryWindowSecondsPath: "rate_limit.primary_window.limit_window_seconds",
+                secondaryUsedPercentPath: "rate_limit.secondary_window.used_percent",
+                secondaryResetAtPath: "rate_limit.secondary_window.reset_at",
+                secondaryWindowSecondsPath: "rate_limit.secondary_window.limit_window_seconds"
+            )
         )
     }
 
@@ -354,11 +428,28 @@ public struct CodexHTTPUsageQueryExecutor: Sendable {
                 throw CodexHTTPUsageQueryError.mappingFailed("usageTotal must be greater than zero.")
             }
             primaryWindow = RateWindow(usedPercent: min(100, max(0, (usageUsed / usageTotal) * 100)))
+        } else if let primaryUsedPercent = mappedDoubleValue(path: mapping.primaryUsedPercentPath, in: jsonObject) {
+            primaryWindow = makeWindow(
+                usedPercent: primaryUsedPercent,
+                resetAtUnix: mappedDoubleValue(path: mapping.primaryResetAtPath, in: jsonObject),
+                windowSeconds: mappedDoubleValue(path: mapping.primaryWindowSecondsPath, in: jsonObject)
+            )
         } else if usageUsed != nil || usageTotal != nil {
             primaryWindow = nil
         } else {
             primaryWindow = nil
         }
+
+        let secondaryWindow: RateWindow? = {
+            guard let usedPercent = mappedDoubleValue(path: mapping.secondaryUsedPercentPath, in: jsonObject) else {
+                return nil
+            }
+            return makeWindow(
+                usedPercent: usedPercent,
+                resetAtUnix: mappedDoubleValue(path: mapping.secondaryResetAtPath, in: jsonObject),
+                windowSeconds: mappedDoubleValue(path: mapping.secondaryWindowSecondsPath, in: jsonObject)
+            )
+        }()
 
         let credits = creditsRemaining.map { CreditsSnapshot(remaining: $0, updatedAt: Date()) }
         let cost: CostSnapshot? = (costToday != nil || costLast30Days != nil)
@@ -374,12 +465,12 @@ public struct CodexHTTPUsageQueryExecutor: Sendable {
         let usage = UsageSnapshot(
             identity: identity.plan == nil && identity.loginMethod == nil ? nil : identity,
             primary: primaryWindow,
-            secondary: nil,
+            secondary: secondaryWindow,
             tertiary: nil,
             updatedAt: Date()
         )
 
-        guard credits != nil || primaryWindow != nil || cost != nil || plan != nil else {
+        guard credits != nil || primaryWindow != nil || secondaryWindow != nil || cost != nil || plan != nil else {
             throw CodexHTTPUsageQueryError.mappingFailed("No usable usage fields found.")
         }
 
@@ -390,6 +481,28 @@ public struct CodexHTTPUsageQueryExecutor: Sendable {
             sourceLabel: NSLocalizedString("usage.source.http", value: "HTTP", comment: "HTTP"),
             fetchKind: .web,
             strategyKind: .direct
+        )
+    }
+
+    private func makeWindow(
+        usedPercent: Double,
+        resetAtUnix: Double?,
+        windowSeconds: Double?
+    ) -> RateWindow {
+        let normalizedUsedPercent = min(100, max(0, usedPercent))
+        let resetsAt = resetAtUnix.map { Date(timeIntervalSince1970: $0) }
+        let resetDescription = resetsAt.map {
+            String(
+                format: NSLocalizedString("usage.metric.resets_at", value: "Resets %@", comment: "Resets label"),
+                $0.formatted(date: .abbreviated, time: .shortened)
+            )
+        }
+        let windowMinutes = windowSeconds.map { Int(($0 / 60.0).rounded()) }
+        return RateWindow(
+            usedPercent: normalizedUsedPercent,
+            resetDescription: resetDescription,
+            resetsAt: resetsAt,
+            windowMinutes: windowMinutes
         )
     }
 

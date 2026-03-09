@@ -96,119 +96,16 @@ struct ProviderUsageSnapshotView: View {
     }
 
     private func usageContent(result: ProviderFetchResult) -> some View {
-        let displayWindows = usageWindows(for: result)
-        let hasMetrics = !displayWindows.isEmpty || result.credits != nil
-
         return VStack(alignment: .leading, spacing: 12) {
-            ForEach(displayWindows) { item in
-                usageRow(
-                    title: item.title,
-                    window: item.window
-                )
-            }
-
-            if let credits = result.credits, !credits.remaining.isNaN {
-                Divider()
-                creditsRow(credits, refreshedAt: creditsRefreshedAt)
-            }
-
-            if !hasMetrics {
-                Text(
-                    NSLocalizedString(
-                        "usage.monitor.metrics.unavailable",
-                        value: "No usage metrics available for this account yet.",
-                        comment: "Empty usage metrics hint"
-                    )
-                )
-                .font(.caption)
-                .foregroundStyle(DesignSystem.Colors.Text.secondary)
-            }
+            ProviderQuotaSection(
+                provider: outcome.provider,
+                usage: result.usage,
+                credits: result.credits,
+                creditsRefreshedAt: creditsRefreshedAt,
+                showsEmptyState: true
+            )
 
             footer(result: result)
-        }
-    }
-
-    private func usageWindows(for result: ProviderFetchResult) -> [UsageWindow] {
-        if !result.usage.windows.isEmpty {
-            return result.usage.windows
-        }
-
-        let metadata = ProviderUsageRegistry.metadata(for: outcome.provider)
-        var items: [UsageWindow] = []
-        if let primary = result.usage.primary {
-            items.append(UsageWindow(
-                id: "primary",
-                title: metadata?.sessionLabel ?? NSLocalizedString("usage.metric.session", value: "Session", comment: "Session"),
-                window: primary
-            ))
-        }
-        if let secondary = result.usage.secondary {
-            items.append(UsageWindow(
-                id: "secondary",
-                title: metadata?.weeklyLabel ?? NSLocalizedString("usage.metric.weekly", value: "Weekly", comment: "Weekly"),
-                window: secondary
-            ))
-        }
-        if let tertiary = result.usage.tertiary {
-            items.append(UsageWindow(
-                id: "tertiary",
-                title: metadata?.opusLabel ?? NSLocalizedString("usage.metric.third", value: "Other", comment: "Other"),
-                window: tertiary
-            ))
-        }
-        return items
-    }
-
-    private func usageRow(title: String, window: RateWindow) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Text(title)
-                    .font(.subheadline)
-                    .dsSecondaryText(font: .subheadline)
-                Spacer()
-                Text(String(format: "%.0f%%", window.remainingPercent))
-                    .font(.subheadline)
-                    .monospacedDigit()
-            }
-
-            ProgressView(value: min(100, max(0, window.remainingPercent)), total: 100)
-                .tint(DesignSystem.Colors.primary)
-
-            if let detail = resetText(window: window), !detail.isEmpty {
-                Text(detail)
-                    .font(.caption)
-                    .dsTertiaryText(font: .caption)
-            }
-        }
-    }
-
-    private func creditsRow(_ credits: CreditsSnapshot, refreshedAt: Date?) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Text(NSLocalizedString("usage.metric.credits", value: "Credits", comment: "Credits"))
-                    .font(.subheadline)
-                    .dsSecondaryText(font: .subheadline)
-                Spacer()
-                Text(creditsText(credits.remaining))
-                    .font(.subheadline)
-                    .monospacedDigit()
-            }
-            Text(credits.updatedAt.formatted(date: .abbreviated, time: .shortened))
-                .font(.caption)
-                .dsTertiaryText(font: .caption)
-
-            if let refreshedAt {
-                Text(String(
-                    format: NSLocalizedString(
-                        "usage.metric.refreshed_at",
-                        value: "Refreshed %@",
-                        comment: "Credits refreshed time"
-                    ),
-                    refreshedAt.formatted(date: .abbreviated, time: .shortened)
-                ))
-                .font(.caption)
-                .dsTertiaryText(font: .caption)
-            }
         }
     }
 
@@ -252,53 +149,6 @@ struct ProviderUsageSnapshotView: View {
                 }
             }
         }
-    }
-
-    private func resetText(window: RateWindow) -> String? {
-        if let resetDescription = window.resetDescription, !resetDescription.isEmpty {
-            return resetDescription
-        }
-        if let resetsAt = window.resetsAt {
-            if let countdown = resetCountdownText(resetsAt: resetsAt) {
-                return String(
-                    format: NSLocalizedString(
-                        "usage.metric.resets_in",
-                        value: "Resets in %@",
-                        comment: "Resets countdown label"
-                    ),
-                    countdown
-                )
-            }
-            if resetsAt <= Date() {
-                return NSLocalizedString("usage.metric.resets_now", value: "Resets now", comment: "Resets now label")
-            }
-            return String(
-                format: NSLocalizedString("usage.metric.resets_at", value: "Resets %@", comment: "Resets label"),
-                resetsAt.formatted(date: .abbreviated, time: .shortened))
-        }
-        if let minutes = window.windowMinutes {
-            return String(
-                format: NSLocalizedString("usage.metric.window_minutes", value: "Window %d min", comment: "Window minutes"),
-                minutes)
-        }
-        return nil
-    }
-
-    private func resetCountdownText(resetsAt: Date) -> String? {
-        let remaining = max(0, resetsAt.timeIntervalSinceNow)
-        if remaining <= 0 { return nil }
-        let formatter = DateComponentsFormatter()
-        formatter.allowedUnits = [.day, .hour, .minute]
-        formatter.unitsStyle = .abbreviated
-        formatter.maximumUnitCount = 2
-        formatter.zeroFormattingBehavior = [.dropLeading, .dropTrailing]
-        return formatter.string(from: remaining)
-    }
-
-    private func creditsText(_ value: Double) -> String {
-        if value.isInfinite { return NSLocalizedString("usage.metric.unlimited", value: "Unlimited", comment: "Unlimited") }
-        if value.isNaN { return NSLocalizedString("usage.metric.unknown", value: "Unknown", comment: "Unknown") }
-        return String(format: "%.0f", value)
     }
 
 }

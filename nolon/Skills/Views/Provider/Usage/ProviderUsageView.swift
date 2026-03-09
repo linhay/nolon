@@ -93,9 +93,6 @@ struct ProviderUsageView: View {
             viewModel = ProviderUsageViewModel(provider: provider)
             Task { await viewModel.loadIfNeeded() }
         }
-        .onAppear {
-            Task { await viewModel.handleUsageViewAppear() }
-        }
         .onChange(of: viewModel.settings) { _, _ in
             Task { await viewModel.load() }
         }
@@ -809,7 +806,10 @@ struct ProviderUsageView: View {
             dash: isPending && !isActive ? [6, 4] : []
         )
         let summary = accountId.flatMap { viewModel.codexAccountSummaries[$0] }
-        let isRefreshing = accountId.map { viewModel.codexRefreshingAccountIds.contains($0) } ?? false
+        let isRefreshing: Bool = {
+            guard let id = accountId else { return false }
+            return viewModel.codexRefreshingAccountIds.contains(id)
+        }()
         let canLogin = viewModel.codexAccountSupportsLogin(accountID: accountId)
         let canEdit = viewModel.codexAccountSupportsEditing(accountID: accountId)
         let isLoggingIn = accountId != nil
@@ -1089,46 +1089,28 @@ struct ProviderUsageView: View {
         let lastSync = summary?.lastSyncSucceededAt
         let loginInlineText: String? = {
             guard let lastLogin else { return nil }
-            return String(
-                format: NSLocalizedString(
-                    "codex.accounts.time.login.inline",
-                    value: "Login %@",
-                    comment: "Inline login time"
-                ),
-                CodexAccountInlineTimeFormatter.loginTimestamp(lastLogin)
-            )
+            let isChinese = Locale.current.language.languageCode?.identifier.hasPrefix("zh") ?? false
+            let prefix = isChinese ? "登录于 " : "Logged in at "
+            return "\(prefix)\(CodexAccountInlineTimeFormatter.loginTimestamp(lastLogin))"
         }()
         let syncInlineText: String? = {
             guard let lastSync else { return nil }
+            let isChinese = Locale.current.language.languageCode?.identifier.hasPrefix("zh") ?? false
             let syncDisplay = CodexAccountInlineTimeFormatter.syncDisplay(
                 since: lastSync,
-                isChinese: isChineseLocale
+                isChinese: isChinese
             )
             switch syncDisplay {
             case .justNow:
                 return NSLocalizedString(
                     "codex.accounts.time.sync.just_now",
-                    value: "Synced just now",
+                    value: "刚刚同步",
                     comment: "Inline sync just now text"
                 )
             case let .relative(relativeText):
-                return String(
-                    format: NSLocalizedString(
-                        "codex.accounts.time.sync.inline",
-                        value: "Synced %@ ago",
-                        comment: "Inline sync ago time"
-                    ),
-                    relativeText
-                )
+                return isChinese ? "\(relativeText)前同步" : "Synced \(relativeText) ago"
             case let .absolute(absoluteText):
-                return String(
-                    format: NSLocalizedString(
-                        "codex.accounts.time.sync.absolute",
-                        value: "Synced %@",
-                        comment: "Inline absolute sync time"
-                    ),
-                    absoluteText
-                )
+                return isChinese ? "\(absoluteText)同步" : "Synced \(absoluteText)"
             }
         }()
         let inlineTimeLineText = CodexAccountInlineTimeFormatter.joinInlineTimeLine(
@@ -1210,16 +1192,12 @@ struct ProviderUsageView: View {
                         .lineLimit(1)
                 }
 
-                let displayWindows = usageWindows(for: result, provider: outcome.provider)
+                let displayWindows = ProviderQuotaSection.displayWindows(for: result.usage, provider: outcome.provider)
                 if shouldShowUsageMetrics, !displayWindows.isEmpty {
-                    VStack(alignment: .leading, spacing: 8) {
-                        ForEach(displayWindows) { item in
-                            codexQuotaRow(
-                                title: item.title,
-                                window: item.window
-                            )
-                        }
-                    }
+                    ProviderQuotaSection(
+                        provider: outcome.provider,
+                        usage: result.usage
+                    )
                 }
             case .failure:
                 if let subtitle = codexSubtitleText(title: title, email: fallbackEmail, plan: fallbackPlan) {
@@ -1325,134 +1303,14 @@ struct ProviderUsageView: View {
         return parts.isEmpty ? nil : parts.joined(separator: " • ")
     }
 
-    private func codexQuotaRow(title: String, window: RateWindow) -> some View {
-        let percent = min(100, max(0, window.remainingPercent))
-
-        return VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 8) {
-                Text(title)
-                    .font(.caption)
-                    .foregroundStyle(DesignSystem.Colors.Text.tertiary)
-
-                Spacer()
-
-                Text(String(format: "%.0f%%", percent))
-                    .font(.caption)
-                    .foregroundStyle(DesignSystem.Colors.Text.tertiary)
-                    .monospacedDigit()
-            }
-
-            ProgressView(value: percent, total: 100)
-                .tint(DesignSystem.Colors.primary)
-                .controlSize(.small)
-
-            let periodText = codexWindowPeriodText(window.windowMinutes)
-            let countdownText = codexResetCountdownText(resetsAt: window.resetsAt)
-            if periodText != nil || countdownText != nil {
-                HStack(spacing: 8) {
-                    if let periodText {
-                        Text(periodText)
-                    }
-
-                    Spacer()
-
-                    if let countdownText {
-                        Text(countdownText)
-                    }
-                }
-                .font(.caption)
-                .foregroundStyle(DesignSystem.Colors.Text.tertiary)
-                .lineLimit(1)
-            }
+    private func codexCreditsText(_ value: Double) -> String {
+        if value.isInfinite {
+            return NSLocalizedString("usage.metric.unlimited", value: "Unlimited", comment: "Unlimited")
         }
-    }
-
-    private func usageWindows(for result: ProviderFetchResult, provider: UsageProvider) -> [UsageWindow] {
-        if !result.usage.windows.isEmpty {
-            return result.usage.windows
+        if value.isNaN {
+            return NSLocalizedString("usage.metric.unknown", value: "Unknown", comment: "Unknown")
         }
-
-        let metadata = ProviderUsageRegistry.metadata(for: provider)
-        var items: [UsageWindow] = []
-        if let primary = result.usage.primary {
-            items.append(UsageWindow(
-                id: "primary",
-                title: metadata?.sessionLabel ?? NSLocalizedString("usage.metric.session", value: "Session", comment: "Session"),
-                window: primary
-            ))
-        }
-        if let secondary = result.usage.secondary {
-            items.append(UsageWindow(
-                id: "secondary",
-                title: metadata?.weeklyLabel ?? NSLocalizedString("usage.metric.weekly", value: "Weekly", comment: "Weekly"),
-                window: secondary
-            ))
-        }
-        if let tertiary = result.usage.tertiary {
-            items.append(UsageWindow(
-                id: "tertiary",
-                title: metadata?.opusLabel ?? NSLocalizedString("usage.metric.third", value: "Other", comment: "Other"),
-                window: tertiary
-            ))
-        }
-        return items
-    }
-
-    private func codexResetCountdownText(resetsAt: Date?) -> String? {
-        guard let resetsAt else { return nil }
-        let remaining = max(0, resetsAt.timeIntervalSinceNow)
-        if remaining <= 0 { return nil }
-        let seconds = Int(remaining.rounded(.down))
-        let minutes = max(0, seconds / 60)
-        let days = minutes / (60 * 24)
-        let hours = (minutes % (60 * 24)) / 60
-        let mins = minutes % 60
-
-        let isChinese = isChineseLocale
-        let dayUnit = isChinese ? "天" : "d"
-        let hourUnit = isChinese ? "小时" : "h"
-        let minuteUnit = isChinese ? "分钟" : "m"
-
-        var parts: [String] = []
-        if days > 0 { parts.append("\(days)\(dayUnit)") }
-        if hours > 0 { parts.append("\(hours)\(hourUnit)") }
-        if parts.isEmpty, mins > 0 { parts.append("\(mins)\(minuteUnit)") }
-        if parts.count < 2, mins > 0, days == 0, hours > 0 {
-            parts.append("\(mins)\(minuteUnit)")
-        }
-        let countdown = parts.joined()
-        if countdown.isEmpty { return nil }
-
-        return String(
-            format: NSLocalizedString(
-                "usage.metric.resets_in_compact",
-                value: "resets in %@",
-                comment: "Compact resets countdown label"
-            ),
-            countdown
-        )
-    }
-
-    private func codexWindowPeriodText(_ windowMinutes: Int?) -> String? {
-        guard let windowMinutes, windowMinutes > 0 else { return nil }
-
-        let weekMinutes = 60 * 24 * 7
-        let dayMinutes = 60 * 24
-        let isChinese = isChineseLocale
-
-        if windowMinutes % weekMinutes == 0 {
-            let value = windowMinutes / weekMinutes
-            return isChinese ? "\(value)周" : "\(value)w"
-        }
-        if windowMinutes % dayMinutes == 0 {
-            let value = windowMinutes / dayMinutes
-            return isChinese ? "\(value)天" : "\(value)d"
-        }
-        if windowMinutes % 60 == 0 {
-            let value = windowMinutes / 60
-            return isChinese ? "\(value)小时" : "\(value)h"
-        }
-        return isChinese ? "\(windowMinutes)分钟" : "\(windowMinutes)m"
+        return String(format: "%.0f", value)
     }
 
     private var isChineseLocale: Bool {
@@ -1462,16 +1320,6 @@ struct ProviderUsageView: View {
             }
         }
         return Locale.current.identifier.hasPrefix("zh")
-    }
-
-    private func codexCreditsText(_ value: Double) -> String {
-        if value.isInfinite {
-            return NSLocalizedString("usage.metric.unlimited", value: "Unlimited", comment: "Unlimited")
-        }
-        if value.isNaN {
-            return NSLocalizedString("usage.metric.unknown", value: "Unknown", comment: "Unknown")
-        }
-        return String(format: "%.0f", value)
     }
 
 }

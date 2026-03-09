@@ -27,7 +27,8 @@ struct CodexHTTPUsageQueryExecutorTests {
         let resolved = CodexHTTPUsageQueryResolvedConfiguration(
             query: query,
             defaultCredentials: .init(baseURL: "https://relay.example.com/v1", apiKey: "rk-live-123"),
-            cardKind: .relayProfile
+            cardKind: .relayProfile,
+            source: .explicit
         )
         let executor = CodexHTTPUsageQueryExecutor { request in
             #expect(request.url?.absoluteString == "https://relay.example.com/v1/billing/usage")
@@ -63,7 +64,8 @@ struct CodexHTTPUsageQueryExecutorTests {
         let resolved = CodexHTTPUsageQueryResolvedConfiguration(
             query: query,
             defaultCredentials: .init(),
-            cardKind: .officialAPIKey
+            cardKind: .officialAPIKey,
+            source: .explicit
         )
         let executor = CodexHTTPUsageQueryExecutor { _ in
             Issue.record("Network should not be reached for unsafe URLs")
@@ -85,7 +87,8 @@ struct CodexHTTPUsageQueryExecutorTests {
         let resolved = CodexHTTPUsageQueryResolvedConfiguration(
             query: query,
             defaultCredentials: .init(),
-            cardKind: .officialAPIKey
+            cardKind: .officialAPIKey,
+            source: .explicit
         )
         let executor = CodexHTTPUsageQueryExecutor { request in
             let response = HTTPURLResponse(
@@ -147,6 +150,7 @@ struct CodexHTTPUsageQueryExecutorTests {
         #expect(resolved?.defaultCredentials.apiKey == "rk-live-5678")
         #expect(resolved?.defaultCredentials.baseURL == "https://relay.example.com/v1")
         #expect(resolved?.cardKind == .relayProfile)
+        #expect(resolved?.source == .explicit)
     }
 
     @Test("Given callback-imported chatgpt auth tokens, when resolving configuration, then userID comes from persisted tokens.account_id")
@@ -183,6 +187,47 @@ struct CodexHTTPUsageQueryExecutorTests {
         let resolved = try #require(resolvedConfiguration)
 
         #expect(resolved.defaultCredentials.userID == "acct-http-callback")
+        #expect(resolved.source == .explicit)
+    }
+
+    @Test("Given chatgpt auth without explicit usage query, when resolving configuration, then synthesizes default HTTP usage query")
+    func resolveConfigurationSynthesizesDefaultChatGPTQuery() throws {
+        let folder = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("codex-http-query-default-chatgpt-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+
+        let raw = #"""
+        {
+          "auth_mode": "chatgpt",
+          "email": "default-http@example.com",
+          "tokens": {
+            "id_token": "\#(Self.makeJWT(email: "default-http@example.com", accountID: "acct-default-http"))",
+            "access_token": "access-default-http",
+            "account_id": "acct-default-http"
+          }
+        }
+        """#
+        let authURL = folder.appendingPathComponent("auth.json")
+        try Data(raw.utf8).write(to: authURL)
+
+        let resolvedConfiguration = try CodexHTTPUsageQueryExecutor.resolveConfiguration(
+            from: [CodexHTTPUsageQueryExecutor.authSourcePathEnvironmentKey: authURL.path]
+        )
+        let resolved = try #require(resolvedConfiguration)
+
+        #expect(resolved.source == .defaultChatGPT)
+        #expect(resolved.cardKind == .chatgptAccount)
+        #expect(resolved.defaultCredentials.accessToken != nil)
+        #expect(resolved.defaultCredentials.userID == "acct-default-http")
+        #expect(resolved.query.request?.method == .get)
+        #expect(resolved.query.request?.url == "{{baseURL}}/wham/usage")
+        #expect(resolved.query.request?.headers?["Authorization"] == "Bearer {{accessToken}}")
+        #expect(resolved.query.request?.headers?["chatgpt-account-id"] == "{{userID}}")
+        #expect(resolved.query.credentials?.baseURL == "https://chatgpt.com/backend-api")
+        #expect(resolved.query.mapping?.planPath == "plan_type")
+        #expect(resolved.query.mapping?.creditsRemainingPath == "credits.balance")
+        #expect(resolved.query.mapping?.primaryUsedPercentPath == "rate_limit.primary_window.used_percent")
     }
 
     private static func makeJWT(email: String, accountID: String) -> String {

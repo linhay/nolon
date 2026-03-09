@@ -12,12 +12,13 @@
 ## 核心规则
 1. `usageQuery` 跟随每张 Codex 卡存储，写入现有 auth 文件的 `nolon.usage_query`。
 2. 查询顺序固定为：
-   - 若当前 active 卡启用了 `usageQuery`，先执行 HTTP 查询
-   - 若未配置或未启用，继续走现有 CLI / 本地状态逻辑
+   - 若当前 active 卡启用了显式 `usageQuery`，先执行 HTTP 查询
+   - 若是 `chatgptAccount` 且未配置显式 `usageQuery`，运行时合成默认 ChatGPT HTTP 查询并优先执行
+   - 其他场景继续走现有 CLI / 本地状态逻辑
 3. HTTP 失败时：
-   - 不自动回退 CLI
-   - 不覆盖上次成功结果
-   - 页面显示最近失败摘要
+   - 显式 `usageQuery` 失败时，不自动回退 CLI
+   - 默认 `chatgptAccount` HTTP 查询失败时，自动回退 CLI / app-server 用量链路
+   - 显式 HTTP 失败不覆盖上次成功结果，页面显示最近失败摘要
 4. 首版只支持：
    - `GET` / `POST`
    - JSON 响应
@@ -51,18 +52,35 @@
 - `credentials.userID` / `{{userID}}` 严格对齐 Codex：执行阶段只读取持久化的 `tokens.account_id` 或顶层 `account_id`。
 - 不在 HTTP usage query 执行阶段从 JWT claims 临时回退推导 `userID`。
 - callback/import 流程若能从 token/callback 恢复账号标识，必须在生成 `auth.json` 时就把 `tokens.account_id` 写完整。
+- 默认 `chatgptAccount` HTTP 模板不写回 `auth.json`，仅在运行时合成：
+  - `GET {{baseURL}}/wham/usage`
+  - 默认 `baseURL = https://chatgpt.com/backend-api`
+  - headers:
+    - `Authorization: Bearer {{accessToken}}`
+    - `chatgpt-account-id: {{userID}}`
+  - mapping:
+    - `plan_type`
+    - `credits.balance`
+    - `rate_limit.primary_window.*`
+    - `rate_limit.secondary_window.*`
+- 刷新调度补充：
+  - `chatgptAccount` 即使带有旧的 `lastSyncFailedAt / lastSyncFailureMessage`，也仍允许再次刷新；
+  - 仅配置型卡片（API Key / Relay）在已有失败元数据时继续保留 `failed_before` 跳过策略。
 
 ## BDD 验收
 1. Given relay 卡配置了 HTTP 余额接口，When 刷新用量页，Then 页面优先显示 HTTP 返回结果。
 2. Given 官方 API key 卡未配置 `usageQuery`，When 刷新，Then 继续走现有 CLI / 本地状态逻辑。
-3. Given `usageQuery` 返回 `used` 和 `total`，When 映射成功，Then 页面显示进度信息。
-4. Given HTTP 返回 401，When 页面刷新，Then 显示错误摘要且不提示重新登录。
-5. Given HTTP 返回 200 但核心字段缺失，When 映射失败，Then 不覆盖旧成功结果。
-6. Given 测试请求使用草稿配置，When 点击测试按钮，Then 请求不落盘且结果仅在编辑器内反馈。
+3. Given `chatgptAccount` 未配置显式 `usageQuery`，When 刷新，Then 页面优先使用默认 ChatGPT HTTP 模板查询 `/wham/usage`。
+4. Given 默认 ChatGPT HTTP 查询失败，When 页面刷新，Then 自动回退 CLI / app-server 结果。
+5. Given `chatgptAccount` 上一次刷新失败并留下失败元数据，When 再次刷新，Then 不应因 `failed_before` 被跳过，而应继续尝试默认 HTTP。
+6. Given `usageQuery` 返回 `used` 和 `total`，When 映射成功，Then 页面显示进度信息。
+7. Given HTTP 返回 401，When 页面刷新，Then 显示错误摘要且不提示重新登录。
+8. Given HTTP 返回 200 但核心字段缺失，When 映射失败，Then 不覆盖旧成功结果。
+9. Given 测试请求使用草稿配置，When 点击测试按钮，Then 请求不落盘且结果仅在编辑器内反馈。
 
 ## 影响实现点
 - `ProviderUsage`：新增 `CodexHTTPUsageQuery*` 模型与执行器。
-- `CodexUsageDescriptor`：插入 HTTP 优先分支。
+- `CodexUsageDescriptor`：区分显式 HTTP 失败与默认 ChatGPT HTTP 失败的回退策略。
 - `CodexAuthManager`：保存 / 更新 `nolon.usage_query`。
 - `ProviderUsageViewModel`：支持草稿测试、旧成功结果保留和 HTTP 错误摘要。
 - `CodexConfigEditorSheet`：新增 HTTP 用量查询配置区块和测试入口。

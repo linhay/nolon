@@ -316,6 +316,42 @@ for line in sys.stdin:
         }
     }
 
+    @Test("TDD: Given server closes stdin immediately when requesting then session returns transport error instead of crashing on SIGPIPE")
+    func closedStdinDuringSendReturnsTransportError() async throws {
+        guard STPath("/usr/bin/python3").permission.contains(.executable) else {
+            return
+        }
+
+        let script = """
+import sys
+import time
+
+sys.stdin.close()
+time.sleep(0.2)
+"""
+
+        let session = JsonRPCLineProcessSession(
+            executableURL: URL(fileURLWithPath: "/usr/bin/python3"),
+            startupArguments: ["-u", "-c", script]
+        ) { message in
+            TestError(message: message)
+        }
+        defer { Task { await session.shutdown() } }
+
+        do {
+            _ = try await session.request(method: "echo")
+            Issue.record("Expected transport failure when child stdin is closed")
+        } catch let error as JsonRPCSessionError {
+            guard case let .transport(message) = error else {
+                Issue.record("Expected transport error, got: \(error)")
+                return
+            }
+            #expect(message.contains("stdin") || message.contains("terminated"))
+        } catch {
+            Issue.record("Expected JsonRPCSessionError, got: \(error)")
+        }
+    }
+
     @Test("BDD: Given response missing jsonrpc field when parsing then session accepts legacy payload")
     func responseMissingJSONRPCFieldIsAccepted() async throws {
         guard STPath("/usr/bin/python3").permission.contains(.executable) else {

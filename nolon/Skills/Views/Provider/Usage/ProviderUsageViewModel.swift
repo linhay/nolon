@@ -19,6 +19,7 @@ import UniformTypeIdentifiers
 final class ProviderUsageViewModel {
     private static let logger = Logger(subsystem: "com.nolon", category: "ProviderUsageViewModel")
     private static var codexInitialFullRefreshProviderIDs: Set<String> = []
+    private static let codexOfficialAPIBaseURL = "https://api.openai.com/v1"
     typealias CodexActivateAction = @MainActor @Sendable (CodexAuthAccount, Provider) async throws -> CodexAuthActivationResult
     typealias CodexDeleteAction = @MainActor @Sendable (UUID) async throws -> Void
     typealias CodexRefreshAllAction = @MainActor @Sendable ([CodexAuthAccount]) async -> Void
@@ -134,6 +135,7 @@ final class ProviderUsageViewModel {
     private var didStartInitialLoad = false
     private var lastUsageRefreshAt: Date?
     private let cliLoginTimeoutSeconds: TimeInterval = 10 * 60
+    private let codexRefreshTimeoutGraceSeconds: TimeInterval = 5
     @ObservationIgnored private var codexHeaderRefreshTask: Task<Void, Never>?
     private var codexHeaderRefreshSessionID: UUID?
     var isCodexHeaderRefreshing = false
@@ -499,48 +501,7 @@ final class ProviderUsageViewModel {
     }
 
     func handleUsageViewAppear() async {
-        guard let usageProvider else { return }
-        let now = Date()
-        let intervalMinutes = settings.autoRefreshIntervalMinutes
-        let effectiveOutcomes: [ProviderAccountUsageOutcome] = {
-            if usageProvider == .codex, isMultiAccountEnabled {
-                return codexAccountOutcomes
-            }
-            return outcomes
-        }()
-        let shouldRefresh = UsageRefreshPolicy.shouldRefresh(
-            hasTriggeredAppearRefresh: hasTriggeredAppearRefresh,
-            intervalMinutes: intervalMinutes,
-            lastRefreshAt: lastUsageRefreshAt,
-            now: now
-        ) || Self.shouldForceRefreshOnAppearForFailedOutcomes(effectiveOutcomes)
-        hasTriggeredAppearRefresh = true
-
-        guard shouldRefresh else { return }
-
-        Self.logger.debug(
-            "Usage view appear refresh. provider=\(usageProvider.rawValue, privacy: .public) interval=\(intervalMinutes, privacy: .public)m last=\(String(describing: self.lastUsageRefreshAt), privacy: .public)"
-        )
-        if await loadIfNeeded() {
-            return
-        }
-        guard !isLoading else { return }
-
-        if usageProvider == .codex, isMultiAccountEnabled {
-            if codexAccounts.isEmpty {
-                await load()
-                return
-            }
-
-            if let account = activeCodexAccountForRefresh() {
-                await refreshCodexAccountOutcome(account)
-            } else {
-                await load()
-            }
-            return
-        }
-
-        await load()
+        // Tab switching should not implicitly refresh usage cards.
     }
 
     func load() async {
@@ -1236,7 +1197,7 @@ final class ProviderUsageViewModel {
             mode: .newAPIKey,
             name: "",
             apiKey: "",
-            baseURL: "",
+            baseURL: Self.codexOfficialAPIBaseURL,
             modelProvider: "",
             queryParamsText: "",
             headersText: "",
@@ -1362,6 +1323,16 @@ final class ProviderUsageViewModel {
     func saveCodexConfigEditor() async {
         guard let draft = codexConfigEditorDraft else { return }
 
+        let name = draft.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else {
+            codexConfigEditorErrorMessage = NSLocalizedString(
+                "codex.accounts.config.error.name_required",
+                value: "Name is required.",
+                comment: "Codex config missing name"
+            )
+            return
+        }
+
         let apiKey = draft.apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !apiKey.isEmpty else {
             codexConfigEditorErrorMessage = NSLocalizedString(
@@ -1414,7 +1385,7 @@ final class ProviderUsageViewModel {
             switch draft.mode {
             case .newAPIKey, .newRelay:
                 _ = try await codexAuthManager.addConfiguredAccount(
-                    name: draft.name,
+                    name: name,
                     apiKey: apiKey,
                     relay: relay,
                     usageQuery: usageQuery
@@ -1423,7 +1394,7 @@ final class ProviderUsageViewModel {
                 guard let account = codexAccounts.first(where: { $0.id == accountID }) else { return }
                 try await codexAuthManager.updateConfiguredAccount(
                     account,
-                    name: draft.name,
+                    name: name,
                     apiKey: apiKey,
                     relay: relay,
                     usageQuery: usageQuery
@@ -1950,7 +1921,7 @@ final class ProviderUsageViewModel {
         case .newAPIKey:
             return NSLocalizedString(
                 "codex.accounts.config.subtitle.api_key",
-                value: "先填名称和 API Key。其他配置可以之后再补。",
+                value: "先填名称和 API Key。Base URL 默认官方地址，其他配置都是可选的。",
                 comment: "API key config subtitle"
             )
         case .newRelay:
@@ -2156,7 +2127,8 @@ final class ProviderUsageViewModel {
         return CodexHTTPUsageQueryResolvedConfiguration(
             query: query,
             defaultCredentials: defaultCredentials,
-            cardKind: cardKind
+            cardKind: cardKind,
+            source: .explicit
         )
     }
 
@@ -2956,7 +2928,7 @@ final class ProviderUsageViewModel {
         }
 
         let authURL = codexAuthManager.accountAuthFile(relativeAuthPath: account.relativeAuthPath).url
-        let outcome = await codexOutcomeFetchAction(account, settings, authURL)
+        let outcome = await fetchCodexOutcomeWithTimeout(account: account, settings: settings, authURL: authURL)
         codexRefreshingAccountIds.remove(accountId)
         isRefreshingCleared = true
         await applyRefreshedCodexOutcome(outcome, for: account)
@@ -2990,7 +2962,7 @@ final class ProviderUsageViewModel {
         for account in targets {
             let authURL = codexAuthManager.accountAuthFile(relativeAuthPath: account.relativeAuthPath).url
             tasks[account.id] = Task(priority: .userInitiated) {
-                await self.codexOutcomeFetchAction(account, settingsSnapshot, authURL)
+                await self.fetchCodexOutcomeWithTimeout(account: account, settings: settingsSnapshot, authURL: authURL)
             }
         }
 
@@ -3184,6 +3156,61 @@ final class ProviderUsageViewModel {
 
     private func updateCodexOutcome(_ outcome: ProviderAccountUsageOutcome, for account: CodexAuthAccount) {
         replaceCodexOutcome(outcome, for: account.id)
+    }
+
+    private func fetchCodexOutcomeWithTimeout(
+        account: CodexAuthAccount,
+        settings: UsageMonitorProviderSettings,
+        authURL: URL
+    ) async -> ProviderAccountUsageOutcome {
+        let timeoutSeconds = max(3, TimeInterval(settings.webTimeoutSeconds)) + codexRefreshTimeoutGraceSeconds
+
+        return await withTaskGroup(of: ProviderAccountUsageOutcome.self) { group in
+            group.addTask { [codexOutcomeFetchAction] in
+                await codexOutcomeFetchAction(account, settings, authURL)
+            }
+            group.addTask {
+                let sleepSeconds = max(0.1, timeoutSeconds)
+                try? await Task.sleep(nanoseconds: UInt64(sleepSeconds * 1_000_000_000))
+                return Self.codexTimedOutOutcome(for: account, timeoutSeconds: timeoutSeconds)
+            }
+
+            let first = await group.next() ?? Self.codexTimedOutOutcome(for: account, timeoutSeconds: timeoutSeconds)
+            group.cancelAll()
+            return first
+        }
+    }
+
+    nonisolated private static func codexTimedOutOutcome(
+        for account: CodexAuthAccount,
+        timeoutSeconds: TimeInterval
+    ) -> ProviderAccountUsageOutcome {
+        let tokenAccount = ProviderTokenAccount(
+            id: account.id,
+            label: account.name,
+            token: "",
+            addedAt: account.createdAt.timeIntervalSince1970,
+            lastUsed: nil
+        )
+        let error = NSError(
+            domain: "ProviderUsageViewModel.CodexRefresh",
+            code: 408,
+            userInfo: [
+                NSLocalizedDescriptionKey: String(
+                    format: NSLocalizedString(
+                        "usage.monitor.codex.refresh_timeout",
+                        value: "Codex refresh timed out after %.0f seconds.",
+                        comment: "Codex refresh timeout message"
+                    ),
+                    timeoutSeconds
+                )
+            ]
+        )
+        return ProviderAccountUsageOutcome(
+            provider: .codex,
+            account: .tokenAccount(tokenAccount),
+            outcome: ProviderFetchOutcome(fetchKind: .cli, result: .failure(error))
+        )
     }
 
     func replaceCodexOutcome(_ outcome: ProviderAccountUsageOutcome, for accountID: UUID) {

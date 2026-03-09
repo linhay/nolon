@@ -19,6 +19,9 @@ public enum CodexAuthFailureClassifier {
     }
 
     public static func shouldSkipRefresh(summary: CodexAuthSummary) -> Bool {
+        if summary.cardKind == .chatgptAccount {
+            return false
+        }
         if summary.lastSyncFailedAt != nil {
             return true
         }
@@ -26,4 +29,3 @@ public enum CodexAuthFailureClassifier {
         return !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 }
-

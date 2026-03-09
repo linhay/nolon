@@ -1765,6 +1765,24 @@
         }
       }
     },
+    "codex.accounts.config.api_key_advanced.footer" : {
+      "comment" : "API key advanced footer",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "可选。默认使用 OpenAI 官方地址 https://api.openai.com/v1。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "可选。默认使用 OpenAI 官方地址 https://api.openai.com/v1。"
+          }
+        }
+      }
+    },
     "codex.accounts.config.base_url" : {
       "comment" : "Codex relay base URL",
       "extractionState" : "extracted_with_value",
@@ -1802,13 +1820,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "只填名称和 API Key 就可以先创建可用卡片。"
+            "value" : "名称和 API Key 必填。Base URL 默认官方地址，其它配置都可以之后再补。"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "needs_review",
-            "value" : "只填名称和 API Key 就可以先创建可用卡片。"
+            "value" : "名称和 API Key 必填。Base URL 默认官方地址，其它配置都可以之后再补。"
           }
         }
       }
@@ -1857,6 +1875,30 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "API Key is required."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "API Key 为必填项。"
+          }
+        }
+      }
+    },
+    "codex.accounts.config.error.name_required" : {
+      "comment" : "Codex config missing name",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Name is required."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "名称为必填项。"
           }
         }
       }
@@ -2000,13 +2042,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "先填名称和 API Key。其他配置可以之后再补。"
+            "value" : "先填名称和 API Key。Base URL 默认官方地址，其他配置都是可选的。"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "needs_review",
-            "value" : "先完成最小可用配置；如果需要，再补 HTTP 用量映射。"
+            "value" : "先填名称和 API Key。Base URL 默认官方地址，其他配置都是可选的。"
           }
         }
       }
@@ -13206,7 +13248,7 @@
     },
     "usage.metric.refreshed_at" : {
       "comment" : "Credits refreshed time",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -13223,20 +13265,26 @@
       }
     },
     "usage.metric.resets_at" : {
-      "comment" : "Resets label",
-      "extractionState" : "extracted_with_value",
+      "comment" : "Absolute reset time label",
+      "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
             "value" : "Resets %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重置于 %@"
           }
         }
       }
     },
     "usage.metric.resets_in" : {
-      "comment" : "Resets countdown label",
-      "extractionState" : "extracted_with_value",
+      "comment" : "Resets countdown",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -13254,7 +13302,7 @@
     },
     "usage.metric.resets_in_compact" : {
       "comment" : "Compact resets countdown label",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -13271,13 +13319,13 @@
       }
     },
     "usage.metric.resets_now" : {
-      "comment" : "Resets now label",
+      "comment" : "Resets now",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "Resets now"
+            "value" : "即将重置"
           }
         },
         "zh-Hans" : {
@@ -13390,6 +13438,24 @@
         }
       }
     },
+    "usage.metric.updated_at" : {
+      "comment" : "Credits snapshot time",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Snapshot %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "快照于 %@"
+          }
+        }
+      }
+    },
     "usage.metric.weekly" : {
       "comment" : "Weekly",
       "extractionState" : "extracted_with_value",
@@ -13398,18 +13464,6 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "Weekly"
-          }
-        }
-      }
-    },
-    "usage.metric.window_minutes" : {
-      "comment" : "Window minutes",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Window %d min"
           }
         }
       }
@@ -13510,14 +13564,32 @@
         }
       }
     },
+    "usage.monitor.codex.refresh_timeout" : {
+      "comment" : "Codex refresh timeout message",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Codex refresh timed out after %.0f seconds."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Codex 刷新在 %.0f 秒后超时。"
+          }
+        }
+      }
+    },
     "usage.monitor.empty.desc" : {
-      "comment" : "Empty description",
+      "comment" : "Empty data\nEmpty description",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "No provider data available yet."
+            "value" : "No data available."
           }
         }
       }
@@ -13565,7 +13637,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "No usage metrics available for this account yet."
+            "value" : "No usage metrics available yet."
           }
         }
       }

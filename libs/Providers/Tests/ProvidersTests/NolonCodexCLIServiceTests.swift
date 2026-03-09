@@ -390,6 +390,118 @@ struct NolonCodexCLIServiceTests {
         #expect(payload.summary.avgWeeklyRemainingPercent == 50)
     }
 
+    @Test("auth usage refresh retries chatgpt accounts even when they have prior sync failure metadata")
+    func authUsageRefreshRetriesChatGPTAccountsAfterPreviousFailure() async throws {
+        let root = try makeTempRoot("nolon-codex-cli-refresh-chatgpt-retry")
+        defer { try? root.delete() }
+
+        let authManager = CodexAuthManager(rootURL: root.url)
+        let account = try await authManager.addAccount(
+            name: "chatgpt",
+            authJSONString: #"""
+            {
+              "auth_mode": "chatgpt",
+              "email": "chatgpt@example.com",
+              "tokens": {
+                "access_token": "access-token",
+                "account_id": "acct-chatgpt"
+              },
+              "nolon": {
+                "account": {
+                  "lastSyncFailedAt": "2026-03-09T03:48:26.705Z",
+                  "lastSyncFailureMessage": "Codex 刷新在 35 秒后超时。"
+                }
+              }
+            }
+            """#
+        )
+
+        let service = NolonLiveCodexCLIService(
+            authManager: authManager,
+            binaryManager: CodexBinaryManager(homeURL: root.url),
+            loginRunner: .init(),
+            environment: [:],
+            usageOutcomeFetcher: { _ in
+                let result = ProviderFetchResult(
+                    usage: UsageSnapshot(
+                        identity: UsageIdentity(
+                            accountEmail: "chatgpt@example.com",
+                            accountOrganization: nil,
+                            loginMethod: "oauth",
+                            plan: "free"
+                        ),
+                        primary: RateWindow(usedPercent: 100),
+                        secondary: nil,
+                        tertiary: nil,
+                        updatedAt: Date(timeIntervalSince1970: 1_741_492_800)
+                    ),
+                    credits: nil,
+                    cost: nil,
+                    sourceLabel: "HTTP",
+                    fetchKind: .web,
+                    strategyKind: .direct
+                )
+                return ProviderFetchOutcome(fetchKind: .web, result: .success(result))
+            },
+            runtimeProcessInspector: StubRuntimeProcessInspector(snapshots: []),
+            runtimeSignalController: StubRuntimeSignalController(),
+            currentPIDProvider: { 999_999 },
+            sleep: { _ in }
+        )
+
+        let payload = try await service.authUsageRefresh(providerID: "codex", accountID: account.id)
+
+        let row = try #require(payload.accounts.first(where: { $0.id == account.id }))
+        #expect(row.isSkipped == false)
+        #expect(row.status == .healthy)
+        #expect(row.usageSource == "HTTP")
+
+        let refreshedAccount = try #require((try await authManager.loadAccounts()).first(where: { $0.id == account.id }))
+        let cache = try #require(try await authManager.loadUsageCache(for: refreshedAccount))
+        #expect(cache.fetchKind == .web)
+        #expect(cache.sourceLabel == "HTTP")
+    }
+
+    @Test("auth usage refresh still skips configured accounts after previous sync failure")
+    func authUsageRefreshStillSkipsConfiguredAccountsAfterPreviousFailure() async throws {
+        let root = try makeTempRoot("nolon-codex-cli-refresh-configured-skip")
+        defer { try? root.delete() }
+
+        let authManager = CodexAuthManager(rootURL: root.url)
+        let account = try await authManager.addConfiguredAccount(
+            name: "OpenAI Direct",
+            apiKey: "sk-live-12345678",
+            relay: nil
+        )
+        try await authManager.updateSyncFailure(
+            for: account,
+            message: "401 Unauthorized",
+            date: Date(timeIntervalSince1970: 1_741_492_706)
+        )
+
+        let service = NolonLiveCodexCLIService(
+            authManager: authManager,
+            binaryManager: CodexBinaryManager(homeURL: root.url),
+            loginRunner: .init(),
+            environment: [:],
+            usageOutcomeFetcher: { _ in
+                Issue.record("Configured account should remain skipped after previous failure")
+                return ProviderFetchOutcome(fetchKind: .web, result: .failure(CodexHTTPUsageQueryError.httpStatus(401, message: "unauthorized")))
+            },
+            runtimeProcessInspector: StubRuntimeProcessInspector(snapshots: []),
+            runtimeSignalController: StubRuntimeSignalController(),
+            currentPIDProvider: { 999_999 },
+            sleep: { _ in }
+        )
+
+        let payload = try await service.authUsageRefresh(providerID: "codex", accountID: account.id)
+
+        let row = try #require(payload.accounts.first(where: { $0.id == account.id }))
+        #expect(row.isSkipped == true)
+        #expect(row.status == .skipped)
+        #expect(payload.skippedAccounts.contains(where: { $0.accountID == account.id && $0.reason == "failed_before" }))
+    }
+
     @Test("auth status includes usage summary fields")
     func authStatusIncludesUsageSummary() async throws {
         let root = try makeTempRoot("nolon-codex-cli")

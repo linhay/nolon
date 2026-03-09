@@ -69,6 +69,11 @@ final class MainSplitViewModel {
         if let uiTestProviderIndex = UITestSupport.initialSelectedProviderIndex,
            settings.providers.indices.contains(uiTestProviderIndex) {
             selectedSidebarItem = .provider(settings.providers[uiTestProviderIndex].id)
+            if let provider = selectedProvider,
+               let initialTab = UITestSupport.initialSelectedProviderTab,
+               ProviderContentTabType.availableTabs(for: provider).contains(initialTab) {
+                selectedTab = initialTab
+            }
         }
         updateResourceMonitoring()
         Task {

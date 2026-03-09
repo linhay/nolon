@@ -1,5 +1,6 @@
 import XCTest
 import NolonResourceKit
+import ProviderCatalog
 @testable import nolon
 
 @MainActor
@@ -8,9 +9,11 @@ final class MainSplitViewModelTests: XCTestCase {
 
     override func setUpWithError() throws {
         fixture = try TestFixture()
+        UITestSupport.environmentOverride = nil
     }
 
     override func tearDownWithError() throws {
+        UITestSupport.environmentOverride = nil
         fixture.cleanup()
     }
 
@@ -281,5 +284,25 @@ final class MainSplitViewModelTests: XCTestCase {
         XCTAssertEqual(result.successCount, 0)
         XCTAssertFalse(result.removedGlobalCache)
         XCTAssertEqual(result.failures.first?.targetName, "Delete Request")
+    }
+
+    func testBDD_GivenUITestLaunchSelection_WhenSetupRuns_ThenSelectedProviderAndUsageTabAreApplied() {
+        let codexIndex = fixture.providerSettings.providers.firstIndex { $0.templateId == "codex" }
+        XCTAssertNotNil(codexIndex)
+        UITestSupport.environmentOverride = [
+            "NOLON_UI_TEST_SELECTED_PROVIDER_INDEX": String(codexIndex!),
+            "NOLON_UI_TEST_SELECTED_PROVIDER_TAB": "usage"
+        ]
+
+        let viewModel = MainSplitViewModel(
+            settings: fixture.providerSettings,
+            repository: SkillRepository(nolonManager: fixture.nolonManager),
+            nolonManager: fixture.nolonManager
+        )
+
+        viewModel.setup()
+
+        XCTAssertEqual(viewModel.selectedProvider?.templateId, "codex")
+        XCTAssertEqual(viewModel.selectedTab, .usage)
     }
 }

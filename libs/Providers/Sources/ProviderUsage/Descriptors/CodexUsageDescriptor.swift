@@ -5,16 +5,17 @@ import CodexProvider
 public struct CodexUsageDescriptor: ProviderUsageDescribing {
     public let provider: UsageProvider = .codex
     public let fetchPlan = ProviderFetchPlan(sourceModes: [.auto, .cli])
-    private let fetchHTTPUsageResult: @Sendable (_ context: ProviderFetchContext) async throws -> ProviderFetchResult?
+    private let resolveHTTPUsageConfiguration: @Sendable (_ context: ProviderFetchContext) throws -> CodexHTTPUsageQueryResolvedConfiguration?
+    private let executeHTTPUsageQuery: @Sendable (_ resolved: CodexHTTPUsageQueryResolvedConfiguration, _ includeCredits: Bool) async throws -> ProviderFetchResult
     private let fetchRateLimitsAndAccountInfo: @Sendable (_ context: ProviderFetchContext) async throws -> (CodexHelper.RateLimitsSnapshot, CodexHelper.AccountInfo?)
     private let fetchStatusSnapshot: @Sendable (_ environment: [String: String]) async throws -> CodexStatusSnapshot
 
     public init() {
-        self.fetchHTTPUsageResult = { context in
-            try await CodexHTTPUsageQueryExecutor().executeIfConfigured(
-                environment: context.environment,
-                includeCredits: context.includeCredits
-            )
+        self.resolveHTTPUsageConfiguration = { context in
+            try CodexHTTPUsageQueryExecutor.resolveConfiguration(from: context.environment)
+        }
+        self.executeHTTPUsageQuery = { resolved, includeCredits in
+            try await CodexHTTPUsageQueryExecutor().execute(resolved, includeCredits: includeCredits)
         }
         self.fetchRateLimitsAndAccountInfo = { context in
             let helper = CodexHelper(codexBinary: nil, environment: context.environment)
@@ -30,19 +31,30 @@ public struct CodexUsageDescriptor: ProviderUsageDescribing {
     }
 
     init(
-        fetchHTTPUsageResult: @escaping @Sendable (_ context: ProviderFetchContext) async throws -> ProviderFetchResult? = { _ in nil },
+        resolveHTTPUsageConfiguration: @escaping @Sendable (_ context: ProviderFetchContext) throws -> CodexHTTPUsageQueryResolvedConfiguration? = { _ in nil },
+        executeHTTPUsageQuery: @escaping @Sendable (_ resolved: CodexHTTPUsageQueryResolvedConfiguration, _ includeCredits: Bool) async throws -> ProviderFetchResult = { _, _ in
+            throw ProviderUsageError.unsupported(.codex)
+        },
         fetchRateLimitsAndAccountInfo: @escaping @Sendable (_ context: ProviderFetchContext) async throws -> (CodexHelper.RateLimitsSnapshot, CodexHelper.AccountInfo?),
         fetchStatusSnapshot: @escaping @Sendable (_ environment: [String: String]) async throws -> CodexStatusSnapshot
     ) {
-        self.fetchHTTPUsageResult = fetchHTTPUsageResult
+        self.resolveHTTPUsageConfiguration = resolveHTTPUsageConfiguration
+        self.executeHTTPUsageQuery = executeHTTPUsageQuery
         self.fetchRateLimitsAndAccountInfo = fetchRateLimitsAndAccountInfo
         self.fetchStatusSnapshot = fetchStatusSnapshot
     }
 
     public func fetchOutcome(context: ProviderFetchContext) async -> ProviderFetchOutcome {
         do {
-            if let httpResult = try await fetchHTTPUsageResult(context) {
-                return ProviderFetchOutcome(fetchKind: .web, result: .success(httpResult))
+            if let resolved = try resolveHTTPUsageConfiguration(context) {
+                do {
+                    let httpResult = try await executeHTTPUsageQuery(resolved, context.includeCredits)
+                    return ProviderFetchOutcome(fetchKind: .web, result: .success(httpResult))
+                } catch {
+                    if resolved.source == .explicit {
+                        return ProviderFetchOutcome(fetchKind: .web, result: .failure(error))
+                    }
+                }
             }
         } catch {
             return ProviderFetchOutcome(fetchKind: .web, result: .failure(error))

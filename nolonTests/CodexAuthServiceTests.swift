@@ -59,6 +59,30 @@ final class CodexAuthManagerTests: XCTestCase {
         let json = try JSON(data: data)
         XCTAssertNotEqual(json["nolon"]["usage_cache"], JSON.null)
     }
+
+    func testBDD_GivenAuthFolderContainsTransientArtifacts_WhenLoadingAccounts_ThenOnlyStableJSONSnapshotsAreReturned() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codex-auth-folder-reload-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let service = CodexAuthManager(rootURL: root)
+        let account = try await service.addAccount(
+            name: "stable",
+            authJSONString: #"{"tokens":{"id_token":"id","access_token":"access"},"user":{"email":"stable@example.com"}}"#
+        )
+
+        let authFolder = await service.nolonCodexAuthFolder().url
+        let tempArtifactURL = authFolder.appendingPathComponent(".dat.nosync2F9A.Hb0Ce3")
+        let orphanedJSONURL = authFolder.appendingPathComponent("orphaned.json")
+        try Data("temp".utf8).write(to: tempArtifactURL)
+        try Data("not-json".utf8).write(to: orphanedJSONURL)
+
+        let loadedAccounts = try await service.loadAccounts()
+
+        XCTAssertEqual(loadedAccounts.map(\.id), [account.id])
+        XCTAssertEqual(loadedAccounts.map(\.name), [account.name])
+    }
 }
 
 final class CodexAuthChangeSuppressionStoreTests: XCTestCase {
@@ -760,6 +784,49 @@ final class ProviderUsageViewModelDeleteTests: XCTestCase {
 
 @MainActor
 final class ProviderUsageViewModelManualRefreshTests: XCTestCase {
+    func testBDD_GivenUsageViewAppearsAgain_WhenHandlingAppear_ThenDoesNotTriggerCodexRefresh() async {
+        let provider = Provider(
+            name: "Codex",
+            defaultSkillsPath: "/tmp/codex-skills",
+            workflowPath: "/tmp/codex-prompts",
+            installMethod: .symlink,
+            templateId: "codex"
+        )
+
+        let account = CodexAuthAccount(name: "test", relativeAuthPath: "auth/test.json")
+        let refreshCount = LockedBox<Int>(0)
+        let viewModel = ProviderUsageViewModel(
+            provider: provider,
+            codexOutcomeFetchAction: { account, _, _ in
+                await refreshCount.set((await refreshCount.value()) + 1)
+                return ProviderAccountUsageOutcome(
+                    provider: .codex,
+                    account: .tokenAccount(
+                        .init(
+                            id: account.id,
+                            label: account.name,
+                            token: "",
+                            addedAt: account.createdAt.timeIntervalSince1970,
+                            lastUsed: nil
+                        )
+                    ),
+                    outcome: ProviderFetchOutcome(
+                        fetchKind: .cli,
+                        result: .failure(UsageViewModelTestError(message: "should not refresh on appear"))
+                    )
+                )
+            }
+        )
+        viewModel.codexAccounts = [account]
+        viewModel.activeCodexAccountId = account.id
+
+        await viewModel.handleUsageViewAppear()
+
+        let count = await refreshCount.value()
+        XCTAssertEqual(count, 0)
+        XCTAssertTrue(viewModel.codexRefreshingAccountIds.isEmpty)
+    }
+
     func testBDD_GivenHeaderRefresh_WhenCodexMultiAccount_ThenRefreshActionRunsForAllAccounts() async {
         let provider = Provider(
             name: "Codex",
@@ -865,6 +932,59 @@ final class ProviderUsageViewModelManualRefreshTests: XCTestCase {
         try await waitUntil { viewModel.codexRefreshingAccountIds.contains(account.id) }
         try await waitUntil { !viewModel.codexRefreshingAccountIds.contains(account.id) }
         XCTAssertFalse(viewModel.codexRefreshingAccountIds.contains(account.id))
+    }
+
+    func testBDD_GivenAccountRefreshHangs_WhenRefreshingCodexAccount_ThenRefreshingStateClearsAfterTimeout() async throws {
+        let provider = Provider(
+            name: "Codex",
+            defaultSkillsPath: "/tmp/codex-skills",
+            workflowPath: "/tmp/codex-prompts",
+            installMethod: .symlink,
+            templateId: "codex"
+        )
+        let account = CodexAuthAccount(name: "test", relativeAuthPath: "auth/test.json")
+        let viewModel = ProviderUsageViewModel(
+            provider: provider,
+            codexOutcomeFetchAction: { account, _, _ in
+                try? await Task.sleep(nanoseconds: 5_000_000_000)
+                let outcome = ProviderFetchOutcome(fetchKind: .cli, result: .failure(UsageViewModelTestError(message: "late result")))
+                return ProviderAccountUsageOutcome(
+                    provider: .codex,
+                    account: .tokenAccount(
+                        .init(
+                            id: account.id,
+                            label: account.name,
+                            token: "",
+                            addedAt: account.createdAt.timeIntervalSince1970,
+                            lastUsed: nil
+                        )
+                    ),
+                    outcome: outcome
+                )
+            }
+        )
+        viewModel.settings.webTimeoutSeconds = 1
+        viewModel.codexAccounts = [account]
+
+        viewModel.refreshCodexAccount(id: account.id)
+
+        try await waitUntil { viewModel.codexRefreshingAccountIds.contains(account.id) }
+        try await waitUntil(timeout: 3.0) { !viewModel.codexRefreshingAccountIds.contains(account.id) }
+        XCTAssertFalse(viewModel.codexRefreshingAccountIds.contains(account.id))
+
+        let refreshed = try XCTUnwrap(
+            viewModel.codexAccountOutcomes.first(where: {
+                if case let .tokenAccount(tokenAccount) = $0.account {
+                    return tokenAccount.id == account.id
+                }
+                return false
+            })
+        )
+        if case let .failure(error) = refreshed.outcome.result {
+            XCTAssertTrue(error.localizedDescription.contains("timed out"))
+        } else {
+            XCTFail("Expected timeout failure outcome")
+        }
     }
 
     func testBDD_GivenHeaderRefreshInProgress_WhenTappingRefreshAgain_ThenCanInterruptAndRefreshAgain() async throws {

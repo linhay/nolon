@@ -1,4 +1,5 @@
 import Foundation
+import Darwin
 import STJSON
 
 public actor JsonRPCLineProcessSession {
@@ -19,6 +20,9 @@ public actor JsonRPCLineProcessSession {
     private var pending: [JsonRPCID: CheckedContinuation<JsonRPCResponseMessage, Error>] = [:]
     private var notificationHandler: NotificationHandler?
     private var serverRequestHandler: ServerRequestHandler?
+    private static let globallyIgnoreSIGPIPE: Void = {
+        signal(SIGPIPE, SIG_IGN)
+    }()
 
     public init(
         executableURL: URL,
@@ -101,6 +105,7 @@ public actor JsonRPCLineProcessSession {
 
         self.process = process
         self.stdinHandle = stdinPipe.fileHandleForWriting
+        Self.configureSIGPIPEProtectionIfPossible(for: stdinPipe.fileHandleForWriting.fileDescriptor)
         self.stdoutLines = stream
 
         readerTask = Task {
@@ -119,10 +124,7 @@ public actor JsonRPCLineProcessSession {
         stdinHandle = nil
         stdoutLines = nil
 
-        for (_, continuation) in pending {
-            continuation.resume(throwing: JsonRPCSessionError.shutdown)
-        }
-        pending.removeAll()
+        failPendingRequests(with: JsonRPCSessionError.shutdown)
     }
 
     public func request(method: String, paramsData: Data = Data("{}".utf8)) async throws -> JsonRPCResponseMessage {
@@ -158,8 +160,46 @@ public actor JsonRPCLineProcessSession {
         guard let stdinHandle else {
             throw JsonRPCSessionError.transport("JSON-RPC stdin unavailable")
         }
-        stdinHandle.write(data)
-        stdinHandle.write(Data([0x0A]))
+        try Self.writeAll(data, to: stdinHandle.fileDescriptor)
+        try Self.writeAll(Data([0x0A]), to: stdinHandle.fileDescriptor)
+    }
+
+    private nonisolated static func configureSIGPIPEProtectionIfPossible(for fileDescriptor: Int32) {
+        _ = globallyIgnoreSIGPIPE
+#if os(macOS)
+        _ = fcntl(fileDescriptor, F_SETNOSIGPIPE, 1)
+#endif
+    }
+
+    private nonisolated static func writeAll(_ data: Data, to fileDescriptor: Int32) throws {
+        if data.isEmpty { return }
+
+        try data.withUnsafeBytes { rawBuffer in
+            guard let baseAddress = rawBuffer.baseAddress else { return }
+
+            var totalWritten = 0
+            while totalWritten < rawBuffer.count {
+                let pointer = baseAddress.advanced(by: totalWritten)
+                let remaining = rawBuffer.count - totalWritten
+                let written = Darwin.write(fileDescriptor, pointer, remaining)
+
+                if written > 0 {
+                    totalWritten += written
+                    continue
+                }
+
+                if written == 0 {
+                    throw JsonRPCSessionError.transport("JSON-RPC stdin closed unexpectedly")
+                }
+
+                if errno == EINTR {
+                    continue
+                }
+
+                let message = String(cString: strerror(errno))
+                throw JsonRPCSessionError.transport("JSON-RPC stdin write failed: \(message)")
+            }
+        }
     }
 
     private func readLoop() async {
@@ -170,6 +210,21 @@ public actor JsonRPCLineProcessSession {
             } catch {
                 continue
             }
+        }
+
+        stdinHandle = nil
+        stdoutLines = nil
+        if process?.isRunning == false {
+            process = nil
+        }
+        failPendingRequests(with: JsonRPCSessionError.transport("JSON-RPC process terminated"))
+    }
+
+    private func failPendingRequests(with error: Error) {
+        let continuations = pending
+        pending.removeAll()
+        for (_, continuation) in continuations {
+            continuation.resume(throwing: error)
         }
     }
 

@@ -173,6 +173,82 @@ final class CodexUsageTabPresentationTests: XCTestCase {
         XCTAssertEqual(viewModel.codexConfigEditorDraft?.httpUsageTimeoutSeconds, "15")
     }
 
+    func testBDD_GivenNewAPIKeyDraft_WhenOpeningConfigEditor_ThenOfficialBaseURLIsPreloaded() {
+        let viewModel = ProviderUsageViewModel(provider: Provider(
+            name: "Codex",
+            defaultSkillsPath: "~/.codex/skills",
+            workflowPath: "~/.codex/prompts",
+            installMethod: .symlink,
+            templateId: "codex"
+        ))
+
+        viewModel.beginNewCodexAPIKeyAccount()
+
+        XCTAssertEqual(viewModel.codexConfigEditorDraft?.baseURL, "https://api.openai.com/v1")
+        XCTAssertEqual(viewModel.codexConfigEditorDraft?.apiKey, "")
+        XCTAssertEqual(viewModel.codexConfigEditorDraft?.name, "")
+    }
+
+    func testBDD_GivenNewAPIKeyMode_WhenResolvingConfigPresentation_ThenSubtitleExplainsOptionalDefaults() {
+        let subtitle = ProviderUsageViewModel.codexConfigEditorSubtitle(for: .newAPIKey)
+
+        XCTAssertEqual(
+            subtitle,
+            NSLocalizedString(
+                "codex.accounts.config.subtitle.api_key",
+                value: "先填名称和 API Key。Base URL 默认官方地址，其他配置都是可选的。",
+                comment: "API key config subtitle"
+            )
+        )
+    }
+
+    func testBDD_GivenAPIKeyDraftWithoutName_WhenSavingConfig_ThenShowsNameRequiredError() async {
+        let viewModel = ProviderUsageViewModel(provider: Provider(
+            name: "Codex",
+            defaultSkillsPath: "~/.codex/skills",
+            workflowPath: "~/.codex/prompts",
+            installMethod: .symlink,
+            templateId: "codex"
+        ))
+        viewModel.codexConfigEditorDraft = .init(
+            mode: .newAPIKey,
+            name: "   ",
+            apiKey: "sk-live-123",
+            baseURL: "https://api.openai.com/v1",
+            modelProvider: "",
+            queryParamsText: "",
+            headersText: "",
+            httpUsageEnabled: false,
+            httpUsageMethod: .get,
+            httpUsageURL: "",
+            httpUsageHeadersText: "",
+            httpUsageBody: "",
+            httpUsageTimeoutSeconds: "15",
+            httpUsageOverrideBaseURL: "",
+            httpUsageOverrideAPIKey: "",
+            httpUsageOverrideAccessToken: "",
+            httpUsageOverrideUserID: "",
+            httpUsagePlanPath: "",
+            httpUsageCreditsRemainingPath: "",
+            httpUsageUsedPath: "",
+            httpUsageTotalPath: "",
+            httpUsageCostTodayPath: "",
+            httpUsageCostLast30DaysPath: "",
+            httpUsageErrorMessagePath: ""
+        )
+
+        await viewModel.saveCodexConfigEditor()
+
+        XCTAssertEqual(
+            viewModel.codexConfigEditorErrorMessage,
+            NSLocalizedString(
+                "codex.accounts.config.error.name_required",
+                value: "Name is required.",
+                comment: "Codex config missing name"
+            )
+        )
+    }
+
     func testBDD_GivenHTTPUsageDraft_WhenTesting_ThenUsesDraftConfigurationAndStoresSummary() async {
         let provider = Provider(
             name: "Codex",

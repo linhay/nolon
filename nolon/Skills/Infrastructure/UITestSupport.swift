@@ -2,7 +2,11 @@ import Foundation
 import NolonResourceKit
 
 enum UITestSupport {
-    private static let environment = ProcessInfo.processInfo.environment
+    static var environmentOverride: [String: String]?
+
+    private static var environment: [String: String] {
+        environmentOverride ?? ProcessInfo.processInfo.environment
+    }
 
     static var isEnabled: Bool {
         environment["NOLON_UI_TEST_MODE"] == "1"
@@ -97,5 +101,14 @@ enum UITestSupport {
             return nil
         }
         return value
+    }
+
+    static var initialSelectedProviderTab: ProviderContentTabType? {
+        guard let raw = environment["NOLON_UI_TEST_SELECTED_PROVIDER_TAB"]?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+              !raw.isEmpty else {
+            return nil
+        }
+        return ProviderContentTabType(vendorTabId: raw) ?? ProviderContentTabType(rawValue: raw)
     }
 }

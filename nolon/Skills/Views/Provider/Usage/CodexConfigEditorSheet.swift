@@ -12,6 +12,7 @@ struct CodexConfigEditorSheet: View {
     let onSave: () -> Void
 
     @State private var isRelayAdvancedExpanded = false
+    @State private var isAPIKeyAdvancedExpanded = false
     @State private var isHTTPUsageExpanded = false
     @State private var isHTTPCredentialsExpanded = false
     @State private var isHTTPMappingExpanded = false
@@ -64,6 +65,12 @@ struct CodexConfigEditorSheet: View {
             return false
         }
         return !draft.httpUsageURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var canSaveDraft: Bool {
+        guard let draft = currentDraft else { return false }
+        return !draft.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && !draft.apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     private func binding(_ keyPath: WritableKeyPath<ProviderUsageViewModel.CodexConfigEditorDraft, String>) -> Binding<String> {
@@ -131,10 +138,34 @@ struct CodexConfigEditorSheet: View {
                             )
                             : NSLocalizedString(
                                 "codex.accounts.config.basic.footer.api_key",
-                                value: "只填名称和 API Key 就可以先创建可用卡片。",
+                                value: "名称和 API Key 必填。Base URL 默认官方地址，其它配置都可以之后再补。",
                                 comment: "API key basic footer"
                             )
                         )
+                    }
+
+                    if !isRelayMode {
+                        Section {
+                            DisclosureGroup(
+                                NSLocalizedString("codex.accounts.config.advanced", value: "Advanced", comment: "Advanced config section title"),
+                                isExpanded: $isAPIKeyAdvancedExpanded
+                            ) {
+                                TextField(
+                                    NSLocalizedString("codex.accounts.config.base_url", value: "Base URL", comment: "Codex relay base URL"),
+                                    text: binding(\.baseURL)
+                                )
+
+                                Text(
+                                    NSLocalizedString(
+                                        "codex.accounts.config.api_key_advanced.footer",
+                                        value: "可选。默认使用 OpenAI 官方地址 https://api.openai.com/v1。",
+                                        comment: "API key advanced footer"
+                                    )
+                                )
+                                .font(.caption)
+                                .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                            }
+                        }
                     }
 
                     if isRelayMode {
@@ -346,7 +377,7 @@ struct CodexConfigEditorSheet: View {
                     onSave()
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(currentDraft == nil)
+                .disabled(!canSaveDraft)
             }
             .padding(.horizontal, SheetLayout.footerHorizontalPadding)
             .padding(.vertical, SheetLayout.footerVerticalPadding)
@@ -355,6 +386,8 @@ struct CodexConfigEditorSheet: View {
         .onAppear {
             if isRelayMode {
                 isRelayAdvancedExpanded = false
+            } else {
+                isAPIKeyAdvancedExpanded = false
             }
             if currentDraft?.httpUsageEnabled == true {
                 isHTTPUsageExpanded = true
