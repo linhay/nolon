@@ -4,6 +4,9 @@
     "" : {
 
     },
+    "· %@" : {
+
+    },
     "(%@)" : {
 
     },
@@ -13144,6 +13147,30 @@
         }
       }
     },
+    "usage.account.unknown" : {
+      "comment" : "Unknown account",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Unknown Account"
+          }
+        }
+      }
+    },
+    "usage.error.title" : {
+      "comment" : "Error title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Sync Failed"
+          }
+        }
+      }
+    },
     "usage.metric.account" : {
       "comment" : "Account label",
       "extractionState" : "extracted_with_value",
@@ -13217,7 +13244,7 @@
       }
     },
     "usage.metric.credits" : {
-      "comment" : "Credits",
+      "comment" : "Credits label",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
@@ -13320,7 +13347,7 @@
     },
     "usage.metric.resets_now" : {
       "comment" : "Resets now",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -13332,30 +13359,6 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "即将重置"
-          }
-        }
-      }
-    },
-    "usage.metric.session" : {
-      "comment" : "Session",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Session"
-          }
-        }
-      }
-    },
-    "usage.metric.third" : {
-      "comment" : "Other",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Other"
           }
         }
       }
@@ -13452,18 +13455,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "快照于 %@"
-          }
-        }
-      }
-    },
-    "usage.metric.weekly" : {
-      "comment" : "Weekly",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Weekly"
           }
         }
       }
@@ -13630,18 +13621,6 @@
         }
       }
     },
-    "usage.monitor.metrics.unavailable" : {
-      "comment" : "Empty usage metrics hint",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "No usage metrics available yet."
-          }
-        }
-      }
-    },
     "usage.monitor.refresh" : {
       "comment" : "Refresh",
       "extractionState" : "extracted_with_value",
@@ -13774,6 +13753,30 @@
         }
       }
     },
+    "usage.reset.now" : {
+      "comment" : "reset now",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "now"
+          }
+        }
+      }
+    },
+    "usage.reset.suffix" : {
+      "comment" : "reset suffix",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%@ left"
+          }
+        }
+      }
+    },
     "usage.source.api_token" : {
       "comment" : "API token",
       "extractionState" : "extracted_with_value",
@@ -13878,6 +13881,30 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "回退"
+          }
+        }
+      }
+    },
+    "usage.sync.login" : {
+      "comment" : "Login time",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "LoggedIn %@"
+          }
+        }
+      }
+    },
+    "usage.sync.synced" : {
+      "comment" : "Sync time",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Synced %@"
           }
         }
       }
