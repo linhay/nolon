@@ -1091,41 +1091,8 @@ struct ProviderUsageView: View {
             defaultName: outcome.displayName,
             accountID: accountId
         )
-        let fallbackEmail = summary?.email?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let fallbackPlan = summary?.plan?.trimmingCharacters(in: .whitespacesAndNewlines)
         let creditsRefreshedAt = creditsRefreshedAt(for: outcome)
         let lastLogin = summary?.lastLoginAt
-        let lastSync = summary?.lastSyncSucceededAt
-        let loginInlineText: String? = {
-            guard let lastLogin else { return nil }
-            let isChinese = Locale.current.language.languageCode?.identifier.hasPrefix("zh") ?? false
-            let prefix = isChinese ? "登录于 " : "Logged in at "
-            return "\(prefix)\(CodexAccountInlineTimeFormatter.loginTimestamp(lastLogin))"
-        }()
-        let syncInlineText: String? = {
-            guard let lastSync else { return nil }
-            let isChinese = Locale.current.language.languageCode?.identifier.hasPrefix("zh") ?? false
-            let syncDisplay = CodexAccountInlineTimeFormatter.syncDisplay(
-                since: lastSync,
-                isChinese: isChinese
-            )
-            switch syncDisplay {
-            case .justNow:
-                return NSLocalizedString(
-                    "codex.accounts.time.sync.just_now",
-                    value: "刚刚同步",
-                    comment: "Inline sync just now text"
-                )
-            case let .relative(relativeText):
-                return isChinese ? "\(relativeText)前同步" : "Synced \(relativeText) ago"
-            case let .absolute(absoluteText):
-                return isChinese ? "\(absoluteText)同步" : "Synced \(absoluteText)"
-            }
-        }()
-        let inlineTimeLineText = CodexAccountInlineTimeFormatter.joinInlineTimeLine(
-            loginSegment: loginInlineText,
-            syncSegment: syncInlineText
-        )
         let displayState = viewModel.displayState(accountID: accountId, outcome: outcome, summary: summary)
         let liveFailureError: Error? = {
             if case let .failure(error) = outcome.outcome.result { return error }
@@ -1154,9 +1121,6 @@ struct ProviderUsageView: View {
             return nil
         }()
         let needsReauth = displayState == .needsReauth
-        let shouldShowUsageMetrics = failureSummary == nil && (displayState == .healthy || displayState == .pending)
-        let statusKind = CodexUsageCardPresentationPolicy.statusKind(for: displayState)
-        let statusColor = statusColor(for: statusKind)
 
         VStack(alignment: .leading, spacing: 8) {
             switch outcome.outcome.result {

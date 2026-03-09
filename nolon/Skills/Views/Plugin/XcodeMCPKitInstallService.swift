@@ -213,7 +213,7 @@ struct XcodeMCPKitInstallService: XcodeMCPKitInstallServicing {
         Self.logger.info("Installed binary \(targetName, privacy: .public): \(sourceURL.path, privacy: .public) -> \(targetURL.path, privacy: .public)")
     }
 
-    private static func defaultBinarySigner(binaryURL: URL) throws {
+    private nonisolated static func defaultBinarySigner(binaryURL: URL) throws {
         var payload = SKProcessPayload.executableURL(URL(fileURLWithPath: "/usr/bin/codesign"))
         payload = payload.arguments(["--force", "--sign", "-", binaryURL.path])
         let result: SKProcessResult
