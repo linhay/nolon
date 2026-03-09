@@ -23,6 +23,7 @@ final class ProviderUsageViewModel {
     typealias CodexActivateAction = @MainActor @Sendable (CodexAuthAccount, Provider) async throws -> CodexAuthActivationResult
     typealias CodexDeleteAction = @MainActor @Sendable (UUID) async throws -> Void
     typealias CodexRefreshAllAction = @MainActor @Sendable ([CodexAuthAccount]) async -> Void
+    typealias CodexPreflightAction = @MainActor @Sendable (Provider, Bool, String) async throws -> CodexAuthAccount?
     typealias CodexOutcomeFetchAction = @Sendable (CodexAuthAccount, UsageMonitorProviderSettings, URL) async -> ProviderAccountUsageOutcome
     typealias CodexUsageQueryTestAction = @MainActor @Sendable (CodexHTTPUsageQueryResolvedConfiguration, Bool) async throws -> ProviderFetchResult
     typealias CodexImportConnectionTestAction = @Sendable (CodexAuthManager.CodexImportValidationResult, UsageMonitorProviderSettings) async -> ProviderAccountUsageOutcome
@@ -40,6 +41,7 @@ final class ProviderUsageViewModel {
     private let codexDeleteAction: CodexDeleteAction?
     private let postDeleteLoadAction: AsyncVoidAction?
     private let codexRefreshAllAction: CodexRefreshAllAction?
+    private let codexPreflightAction: CodexPreflightAction?
     private let codexOutcomeFetchAction: CodexOutcomeFetchAction
     private let codexUsageQueryTestAction: CodexUsageQueryTestAction
     private let codexImportConnectionTestAction: CodexImportConnectionTestAction
@@ -357,6 +359,7 @@ final class ProviderUsageViewModel {
         postActivationLoadAction: AsyncVoidAction? = nil,
         codexDeleteAction: CodexDeleteAction? = nil,
         codexRefreshAllAction: CodexRefreshAllAction? = nil,
+        codexPreflightAction: CodexPreflightAction? = nil,
         codexOutcomeFetchAction: CodexOutcomeFetchAction? = nil,
         codexUsageQueryTestAction: CodexUsageQueryTestAction? = nil,
         codexImportConnectionTestAction: CodexImportConnectionTestAction? = nil,
@@ -380,6 +383,7 @@ final class ProviderUsageViewModel {
         self.postActivationLoadAction = postActivationLoadAction
         self.codexDeleteAction = codexDeleteAction
         self.codexRefreshAllAction = codexRefreshAllAction
+        self.codexPreflightAction = codexPreflightAction
         self.codexOutcomeFetchAction = codexOutcomeFetchAction ?? { account, settings, authSourceURL in
             await Self.fetchCodexOutcomeDetached(for: account, settings: settings, authSourceURL: authSourceURL)
         }
@@ -513,15 +517,6 @@ final class ProviderUsageViewModel {
 
         Self.logger.info("Loading usage. provider=\(usageProvider.rawValue, privacy: .public) multiAccount=\(self.isMultiAccountEnabled, privacy: .public)")
         if usageProvider == .codex, isMultiAccountEnabled {
-            do {
-                _ = try await codexAuthManager.preflightManagedAuthIfNeeded(
-                    for: provider,
-                    forceBackup: true,
-                    reason: "usage_load"
-                )
-            } catch {
-                Self.logger.error("Codex preflight failed on load: \(String(describing: error), privacy: .public)")
-            }
             outcomes = []
         } else {
             outcomes = await usageMonitor.fetchOutcomes(
@@ -568,12 +563,16 @@ final class ProviderUsageViewModel {
                 return
             }
 
-            codexAccounts = loadedAccounts
-            reconcileCodexSelections()
-            codexAccountSummaries = loadCodexAccountSummaries(accounts: codexAccounts)
-            activeCodexAccountId = await codexAuthManager.activeAccountId(for: provider)
-            codexAccountOutcomes = await loadCachedCodexAccountOutcomes(accounts: codexAccounts)
-            reorderCodexAccountOutcomesForDisplay()
+            await applyCodexAccountsForDisplay(loadedAccounts)
+
+            do {
+                _ = try await runCodexPreflight(forceBackup: true, reason: "usage_load")
+                let refreshedAccounts = try await codexAuthManager.loadAccounts()
+                await applyCodexAccountsForDisplay(refreshedAccounts)
+            } catch {
+                Self.logger.error("Codex preflight failed on load: \(String(describing: error), privacy: .public)")
+            }
+
             if Self.codexInitialFullRefreshProviderIDs.contains(provider.id) {
                 if let account = activeCodexAccountForRefresh(),
                    !shouldSkipRefresh(accountID: account.id, summaries: codexAccountSummaries) {
@@ -602,11 +601,7 @@ final class ProviderUsageViewModel {
 
         if usageProvider == .codex, isMultiAccountEnabled {
             do {
-                _ = try await codexAuthManager.preflightManagedAuthIfNeeded(
-                    for: provider,
-                    forceBackup: false,
-                    reason: "usage_auto_refresh"
-                )
+                _ = try await runCodexPreflight(forceBackup: false, reason: "usage_auto_refresh")
             } catch {
                 Self.logger.error("Codex preflight failed on auto refresh: \(String(describing: error), privacy: .public)")
             }
@@ -631,11 +626,7 @@ final class ProviderUsageViewModel {
 
         if usageProvider == .codex, isMultiAccountEnabled {
             do {
-                _ = try await codexAuthManager.preflightManagedAuthIfNeeded(
-                    for: provider,
-                    forceBackup: true,
-                    reason: "header_refresh"
-                )
+                _ = try await runCodexPreflight(forceBackup: true, reason: "header_refresh")
             } catch {
                 Self.logger.error("Codex preflight failed from header refresh: \(String(describing: error), privacy: .public)")
             }
@@ -888,6 +879,26 @@ final class ProviderUsageViewModel {
 
     private func normalizedPath(_ path: String) -> String {
         URL(fileURLWithPath: path).standardizedFileURL.path
+    }
+
+    private func runCodexPreflight(forceBackup: Bool, reason: String) async throws -> CodexAuthAccount? {
+        if let codexPreflightAction {
+            return try await codexPreflightAction(provider, forceBackup, reason)
+        }
+        return try await codexAuthManager.preflightManagedAuthIfNeeded(
+            for: provider,
+            forceBackup: forceBackup,
+            reason: reason
+        )
+    }
+
+    private func applyCodexAccountsForDisplay(_ accounts: [CodexAuthAccount]) async {
+        codexAccounts = accounts
+        reconcileCodexSelections()
+        codexAccountSummaries = loadCodexAccountSummaries(accounts: codexAccounts)
+        activeCodexAccountId = await codexAuthManager.activeAccountId(for: provider)
+        codexAccountOutcomes = await loadCachedCodexAccountOutcomes(accounts: codexAccounts)
+        reorderCodexAccountOutcomesForDisplay()
     }
 
     private func shouldIgnoreTemporaryFileChange(path: String) -> Bool {

@@ -7,6 +7,21 @@ import ProviderCatalog
 import CodexBarProviderCatalog
 @testable import nolon
 
+actor AsyncGate {
+    private var continuation: CheckedContinuation<Void, Never>?
+
+    func wait() async {
+        await withCheckedContinuation { continuation in
+            self.continuation = continuation
+        }
+    }
+
+    func open() {
+        continuation?.resume()
+        continuation = nil
+    }
+}
+
 @MainActor
 final class CodexAuthManagerTests: XCTestCase {
     func testBDD_GivenAppAuthManagerType_WhenCheckingMigrationBoundary_ThenUsesProviderUsageManagerType() {
@@ -784,6 +799,132 @@ final class ProviderUsageViewModelDeleteTests: XCTestCase {
 
 @MainActor
 final class ProviderUsageViewModelManualRefreshTests: XCTestCase {
+    func testBDD_GivenCachedCodexUsage_WhenLoadStarts_ThenCachedCardsAppearBeforePreflightFinishes() async throws {
+        let isolatedRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("nolon-codex-cached-load-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: isolatedRoot, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: isolatedRoot) }
+
+        let previousNolonHome = getenv("NOLON_HOME").map { String(cString: $0) }
+        setenv("NOLON_HOME", isolatedRoot.path, 1)
+        defer {
+            if let previousNolonHome {
+                setenv("NOLON_HOME", previousNolonHome, 1)
+            } else {
+                unsetenv("NOLON_HOME")
+            }
+        }
+
+        let provider = Provider(
+            name: "Codex",
+            defaultSkillsPath: isolatedRoot.appendingPathComponent("provider/skills").path,
+            workflowPath: isolatedRoot.appendingPathComponent("provider/prompts").path,
+            installMethod: .symlink,
+            templateId: "codex"
+        )
+        let service = CodexAuthManager(rootURL: isolatedRoot)
+        let added = try await service.addAccount(
+            name: "cached",
+            authJSONString: #"{"tokens":{"id_token":"cached-id","access_token":"cached-access"},"user":{"email":"cached@example.com"}}"#
+        )
+        let loadedAccounts = try await service.loadAccounts()
+        let account = try XCTUnwrap(loadedAccounts.first(where: { $0.id == added.id }))
+        let cache = CodexAuthUsageCache(
+            cachedAt: Date(),
+            creditsRefreshedAt: nil,
+            fetchKind: .web,
+            strategyKind: .direct,
+            sourceLabel: "HTTP",
+            usage: UsageSnapshot(
+                identity: UsageIdentity(
+                    accountEmail: "cached@example.com",
+                    accountOrganization: nil,
+                    loginMethod: "oauth",
+                    plan: "free"
+                ),
+                primary: RateWindow(usedPercent: 30, windowMinutes: 60),
+                secondary: nil,
+                tertiary: nil,
+                updatedAt: Date()
+            ),
+            credits: CreditsSnapshot(remaining: 12, updatedAt: Date()),
+            cost: nil
+        )
+        try await service.storeUsageCache(cache, for: account)
+
+        let gate = AsyncGate()
+        let viewModel = ProviderUsageViewModel(
+            provider: provider,
+            codexPreflightAction: { _, forceBackup, reason in
+                XCTAssertTrue(forceBackup)
+                XCTAssertEqual(reason, "usage_load")
+                await gate.wait()
+                return nil
+            },
+            codexOutcomeFetchAction: { account, _, _ in
+                ProviderAccountUsageOutcome(
+                    provider: .codex,
+                    account: .tokenAccount(
+                        .init(
+                            id: account.id,
+                            label: account.name,
+                            token: "",
+                            addedAt: account.createdAt.timeIntervalSince1970,
+                            lastUsed: nil
+                        )
+                    ),
+                    outcome: ProviderFetchOutcome(
+                        fetchKind: .web,
+                        result: .success(
+                            .init(
+                                usage: UsageSnapshot(
+                                    identity: UsageIdentity(
+                                        accountEmail: "fresh@example.com",
+                                        accountOrganization: nil,
+                                        loginMethod: "oauth",
+                                        plan: "free"
+                                    ),
+                                    primary: RateWindow(usedPercent: 10, windowMinutes: 60),
+                                    secondary: nil,
+                                    tertiary: nil,
+                                    updatedAt: Date()
+                                ),
+                                credits: CreditsSnapshot(remaining: 24, updatedAt: Date()),
+                                cost: nil,
+                                sourceLabel: "HTTP",
+                                fetchKind: .web,
+                                strategyKind: .direct
+                            )
+                        )
+                    )
+                )
+            }
+        )
+
+        let loadTask = Task { await viewModel.load() }
+
+        try await waitUntil { !viewModel.codexAccountOutcomes.isEmpty }
+        XCTAssertTrue(viewModel.isLoading)
+        let cachedOutcome = try XCTUnwrap(viewModel.codexAccountOutcomes.first)
+        guard case let .success(cachedResult) = cachedOutcome.outcome.result else {
+            return XCTFail("Expected cached success outcome before preflight finished")
+        }
+        XCTAssertEqual(cachedResult.usage.identity?.accountEmail, "cached@example.com")
+        XCTAssertEqual(cachedResult.credits?.remaining, 12)
+        XCTAssertEqual(cachedResult.fetchKind, .web)
+
+        await gate.open()
+        await loadTask.value
+
+        let refreshedOutcome = try XCTUnwrap(viewModel.codexAccountOutcomes.first)
+        guard case let .success(refreshedResult) = refreshedOutcome.outcome.result else {
+            return XCTFail("Expected refreshed success outcome after load finished")
+        }
+        XCTAssertEqual(refreshedResult.usage.identity?.accountEmail, "fresh@example.com")
+        XCTAssertEqual(refreshedResult.credits?.remaining, 24)
+        XCTAssertFalse(viewModel.isLoading)
+    }
+
     func testBDD_GivenUsageViewAppearsAgain_WhenHandlingAppear_ThenDoesNotTriggerCodexRefresh() async {
         let provider = Provider(
             name: "Codex",

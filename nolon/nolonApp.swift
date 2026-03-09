@@ -77,6 +77,10 @@ final class URLSchemeHandler: ObservableObject {
 class AppDelegate: NSObject, NSApplicationDelegate {
     private let logger = Logger(subsystem: "com.nolon.app", category: "AppDelegate")
 
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+        false
+    }
+
     func application(_ application: NSApplication, open urls: [URL]) {
         logger.info("Received URL count: \(urls.count, privacy: .public)")
         for url in urls {
