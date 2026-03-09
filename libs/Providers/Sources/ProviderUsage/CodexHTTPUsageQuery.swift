@@ -98,6 +98,7 @@ public struct CodexHTTPUsageQueryCredentials: Sendable, Codable, Equatable {
 }
 
 public struct CodexHTTPUsageQueryMapping: Sendable, Codable, Equatable {
+    public var accountEmailPath: String?
     public var planPath: String?
     public var creditsRemainingPath: String?
     public var usageUsedPath: String?
@@ -113,6 +114,7 @@ public struct CodexHTTPUsageQueryMapping: Sendable, Codable, Equatable {
     public var errorMessagePath: String?
 
     public init(
+        accountEmailPath: String? = nil,
         planPath: String? = nil,
         creditsRemainingPath: String? = nil,
         usageUsedPath: String? = nil,
@@ -127,6 +129,7 @@ public struct CodexHTTPUsageQueryMapping: Sendable, Codable, Equatable {
         costLast30DaysUSDPath: String? = nil,
         errorMessagePath: String? = nil
     ) {
+        self.accountEmailPath = accountEmailPath
         self.planPath = planPath
         self.creditsRemainingPath = creditsRemainingPath
         self.usageUsedPath = usageUsedPath
@@ -369,6 +372,7 @@ public struct CodexHTTPUsageQueryExecutor: Sendable {
             ),
             credentials: .init(baseURL: baseURL),
             mapping: .init(
+                accountEmailPath: "email",
                 planPath: "plan_type",
                 creditsRemainingPath: "credits.balance",
                 primaryUsedPercentPath: "rate_limit.primary_window.used_percent",
@@ -408,6 +412,7 @@ public struct CodexHTTPUsageQueryExecutor: Sendable {
         includeCredits: Bool,
         cardKind: CodexAuthSummary.CardKind?
     ) throws -> ProviderFetchResult {
+        let accountEmail = mappedStringValue(path: mapping.accountEmailPath, in: jsonObject)
         let plan = mappedStringValue(path: mapping.planPath, in: jsonObject)
         let creditsRemaining = includeCredits ? mappedDoubleValue(path: mapping.creditsRemainingPath, in: jsonObject) : nil
         let usageUsed = mappedDoubleValue(path: mapping.usageUsedPath, in: jsonObject)
@@ -416,7 +421,7 @@ public struct CodexHTTPUsageQueryExecutor: Sendable {
         let costLast30Days = mappedDoubleValue(path: mapping.costLast30DaysUSDPath, in: jsonObject)
 
         let identity = UsageIdentity(
-            accountEmail: nil,
+            accountEmail: accountEmail,
             accountOrganization: nil,
             loginMethod: loginMethod(for: cardKind),
             plan: plan

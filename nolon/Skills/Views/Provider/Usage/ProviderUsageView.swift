@@ -1082,9 +1082,18 @@ struct ProviderUsageView: View {
                 return account.id
             }
         }()
-        let title = outcome.displayName
+        let savedAccount = accountId.flatMap { id in
+            viewModel.codexAccounts.first(where: { $0.id == id })
+        }
+        let title = CodexAccountDisplayNameResolver.resolve(
+            summary: summary,
+            relativeAuthPath: savedAccount?.relativeAuthPath,
+            defaultName: outcome.displayName,
+            accountID: accountId
+        )
         let fallbackEmail = summary?.email?.trimmingCharacters(in: .whitespacesAndNewlines)
         let fallbackPlan = summary?.plan?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let creditsRefreshedAt = creditsRefreshedAt(for: outcome)
         let lastLogin = summary?.lastLoginAt
         let lastSync = summary?.lastSyncSucceededAt
         let loginInlineText: String? = {
@@ -1150,62 +1159,28 @@ struct ProviderUsageView: View {
         let statusColor = statusColor(for: statusKind)
 
         VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Circle()
-                    .fill(statusColor)
-                    .frame(width: 6, height: 6)
-                Text(title)
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(isSelected ? DesignSystem.Colors.primary : DesignSystem.Colors.Text.primary)
-                    .lineLimit(1)
-
-                Spacer()
-
-                if let onRefresh {
-                    Button {
-                        onRefresh()
-                    } label: {
-                        if isRefreshing {
-                            ProgressView()
-                                .controlSize(.mini)
-                        } else {
-                            Image(systemName: "arrow.clockwise")
-                                .dsIconButton(size: 18, foreground: DesignSystem.Colors.Text.secondary)
-                        }
-                    }
-                    .dsBorderlessButton()
-                    .help(NSLocalizedString("usage.monitor.refresh", value: "Refresh", comment: "Refresh"))
-                }
-            }
-
             switch outcome.outcome.result {
             case let .success(result):
-                let identity = result.usage.identity?.scoped(to: outcome.provider)
-                let email = (identity?.accountEmail?.trimmingCharacters(in: .whitespacesAndNewlines)).flatMap { $0.isEmpty ? nil : $0 } ?? fallbackEmail
-                let plan = (identity?.plan?.trimmingCharacters(in: .whitespacesAndNewlines)).flatMap { $0.isEmpty ? nil : $0 } ?? fallbackPlan
-
-                if let subtitle = codexSubtitleText(title: title, email: email, plan: plan) {
-                    Text(subtitle)
-                        .font(.caption)
-                        .dsSecondaryText(font: .caption)
-                        .lineLimit(1)
-                }
-
-                let displayWindows = ProviderQuotaSection.displayWindows(for: result.usage, provider: outcome.provider)
-                if shouldShowUsageMetrics, !displayWindows.isEmpty {
-                    ProviderQuotaSection(
-                        provider: outcome.provider,
-                        usage: result.usage
-                    )
-                }
+                ProviderQuotaSection(
+                    provider: outcome.provider,
+                    accountTitle: title,
+                    usage: result.usage,
+                    credits: result.credits,
+                    creditsRefreshedAt: creditsRefreshedAt,
+                    loginAt: lastLogin,
+                    syncedAt: result.usage.updatedAt,
+                    isLoading: isRefreshing,
+                    onRefresh: { onRefresh?() }
+                )
             case .failure:
-                if let subtitle = codexSubtitleText(title: title, email: fallbackEmail, plan: fallbackPlan) {
-                    Text(subtitle)
-                        .font(.caption)
-                        .dsSecondaryText(font: .caption)
-                        .lineLimit(1)
-                }
+                ProviderQuotaSection(
+                    provider: outcome.provider,
+                    accountTitle: title,
+                    usage: nil,
+                    isLoading: isRefreshing,
+                    errorMessage: failureDetail,
+                    onRefresh: { onRefresh?() }
+                )
             }
 
             if let failureSummary, let failureDetail {
@@ -1262,22 +1237,8 @@ struct ProviderUsageView: View {
                 }
             }
 
-            if let inlineTimeLineText {
-                Text(inlineTimeLineText)
-                    .font(.caption)
-                    .foregroundStyle(DesignSystem.Colors.Text.secondary)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .frame(maxWidth: .infinity, alignment: .trailing)
-                    .multilineTextAlignment(.trailing)
-            }
-
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .frame(maxWidth: .infinity, minHeight: 104, alignment: .topLeading)
         .textSelection(.enabled)
-        .dsCard(background: .clear, borderColor: nil, borderWidth: 0)
     }
 
     private func statusColor(for statusKind: CodexUsageCardStatusKind) -> Color {

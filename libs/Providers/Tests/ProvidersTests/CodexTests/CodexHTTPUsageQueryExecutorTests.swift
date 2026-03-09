@@ -16,6 +16,7 @@ struct CodexHTTPUsageQueryExecutorTests {
                 headers: ["Authorization": "Bearer {{apiKey}}"]
             ),
             mapping: .init(
+                accountEmailPath: "data.email",
                 planPath: "data.plan",
                 creditsRemainingPath: "data.balance.remaining",
                 usageUsedPath: "data.usage.used",
@@ -39,13 +40,14 @@ struct CodexHTTPUsageQueryExecutorTests {
                 httpVersion: nil,
                 headerFields: nil
             )!
-            let body = #"{"data":{"plan":"Enterprise","balance":{"remaining":42.5},"usage":{"used":25,"total":100},"cost":{"today":1.2,"last30Days":9.8}}}"#
+            let body = #"{"data":{"email":"relay@example.com","plan":"Enterprise","balance":{"remaining":42.5},"usage":{"used":25,"total":100},"cost":{"today":1.2,"last30Days":9.8}}}"#
             return (Data(body.utf8), response)
         }
 
         let result = try await executor.execute(resolved, includeCredits: true)
 
         #expect(result.sourceLabel == "HTTP")
+        #expect(result.usage.identity?.accountEmail == "relay@example.com")
         #expect(result.usage.identity?.plan == "Enterprise")
         #expect(result.usage.identity?.loginMethod == "relay")
         #expect(result.credits?.remaining == 42.5)
@@ -225,6 +227,7 @@ struct CodexHTTPUsageQueryExecutorTests {
         #expect(resolved.query.request?.headers?["Authorization"] == "Bearer {{accessToken}}")
         #expect(resolved.query.request?.headers?["chatgpt-account-id"] == "{{userID}}")
         #expect(resolved.query.credentials?.baseURL == "https://chatgpt.com/backend-api")
+        #expect(resolved.query.mapping?.accountEmailPath == "email")
         #expect(resolved.query.mapping?.planPath == "plan_type")
         #expect(resolved.query.mapping?.creditsRemainingPath == "credits.balance")
         #expect(resolved.query.mapping?.primaryUsedPercentPath == "rate_limit.primary_window.used_percent")

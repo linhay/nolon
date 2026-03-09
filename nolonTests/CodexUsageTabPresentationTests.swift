@@ -312,6 +312,48 @@ final class CodexUsageTabPresentationTests: XCTestCase {
         XCTAssertNil(viewModel.codexUsageQueryTestErrorMessage)
     }
 
+    func testBDD_GivenChatGPTSummaryWithEmail_WhenResolvingCardDisplayName_ThenEmailWinsOverLegacyDefaultName() {
+        let title = CodexAccountDisplayNameResolver.resolve(
+            summary: CodexAuthSummary(
+                email: "vpn2linhey@gmail.com",
+                accountID: "acct-123",
+                name: "Legacy Name",
+                cardKind: .chatgptAccount
+            ),
+            relativeAuthPath: "auth/personal.json",
+            defaultName: "Personal",
+            accountID: UUID(uuidString: "11111111-1111-1111-1111-111111111111")
+        )
+
+        XCTAssertEqual(title, "vpn2linhey@gmail.com")
+    }
+
+    func testBDD_GivenConfiguredCardWithoutEmail_WhenResolvingCardDisplayName_ThenUsesProviderOrFileStemInsteadOfStoredName() {
+        let relayTitle = CodexAccountDisplayNameResolver.resolve(
+            summary: CodexAuthSummary(
+                name: "Stored Relay Name",
+                cardKind: .relayProfile,
+                relayBaseURL: "https://openrouter.ai/api/v1",
+                relayModelProvider: "OpenRouter"
+            ),
+            relativeAuthPath: "auth/work-relay.json",
+            defaultName: "Work Relay",
+            accountID: UUID(uuidString: "22222222-2222-2222-2222-222222222222")
+        )
+        XCTAssertEqual(relayTitle, "OpenRouter")
+
+        let apiKeyFallbackTitle = CodexAccountDisplayNameResolver.resolve(
+            summary: CodexAuthSummary(
+                name: "Stored API Key Name",
+                cardKind: .officialAPIKey
+            ),
+            relativeAuthPath: "auth/openai-direct.json",
+            defaultName: "OpenAI Direct",
+            accountID: UUID(uuidString: "33333333-3333-3333-3333-333333333333")
+        )
+        XCTAssertEqual(apiKeyFallbackTitle, "openai-direct")
+    }
+
     func testBDD_GivenImportSheetOpened_WhenInitialized_ThenStartsWithEmptyCandidates() {
         let viewModel = ProviderUsageViewModel(provider: Self.makeCodexProvider())
 

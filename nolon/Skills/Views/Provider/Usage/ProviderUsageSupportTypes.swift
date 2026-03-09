@@ -123,6 +123,92 @@ enum CodexAccountInlineTimeFormatter {
     }
 }
 
+enum CodexAccountDisplayNameResolver {
+    static func resolve(
+        summary: CodexAuthSummary?,
+        relativeAuthPath: String?,
+        defaultName: String,
+        accountID: UUID?
+    ) -> String {
+        if let summary {
+            let email = summary.email?.trimmingCharacters(in: .whitespacesAndNewlines)
+            if let email, !email.isEmpty {
+                return email
+            }
+
+            switch summary.cardKind {
+            case .chatgptAccount:
+                let summaryAccountID = summary.accountID?.trimmingCharacters(in: .whitespacesAndNewlines)
+                if let summaryAccountID, !summaryAccountID.isEmpty {
+                    return summaryAccountID
+                }
+            case .officialAPIKey:
+                if let suffix = normalizedKeySuffix(summary.apiKeySuffix) {
+                    return "key-\(suffix)"
+                }
+            case .relayProfile:
+                let provider = summary.relayModelProvider?.trimmingCharacters(in: .whitespacesAndNewlines)
+                if let provider, !provider.isEmpty {
+                    return provider
+                }
+                if let host = relayHost(summary.relayBaseURL) {
+                    return host
+                }
+                if let suffix = normalizedKeySuffix(summary.apiKeySuffix) {
+                    return "key-\(suffix)"
+                }
+            case .none:
+                if let suffix = normalizedKeySuffix(summary.apiKeySuffix) {
+                    return "key-\(suffix)"
+                }
+            }
+        }
+
+        if let fallbackStem = fallbackFileStem(relativeAuthPath) {
+            return fallbackStem
+        }
+
+        let normalizedDefaultName = defaultName.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !normalizedDefaultName.isEmpty {
+            return normalizedDefaultName
+        }
+
+        if let accountID {
+            return accountID.uuidString
+        }
+        return "account"
+    }
+
+    private static func fallbackFileStem(_ relativeAuthPath: String?) -> String? {
+        guard let relativeAuthPath else { return nil }
+        let trimmed = relativeAuthPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        let stem = URL(fileURLWithPath: trimmed).deletingPathExtension().lastPathComponent
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return stem.isEmpty ? nil : stem
+    }
+
+    private static func relayHost(_ baseURL: String?) -> String? {
+        guard let baseURL = baseURL?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !baseURL.isEmpty,
+              let host = URL(string: baseURL)?.host?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !host.isEmpty
+        else {
+            return nil
+        }
+        return host
+    }
+
+    private static func normalizedKeySuffix(_ suffix: String?) -> String? {
+        guard let suffix = suffix?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !suffix.isEmpty
+        else {
+            return nil
+        }
+        return suffix
+    }
+}
+
 enum TokenCountCompactFormatter {
     static func format(_ value: Int) -> String {
         if value >= 100_000_000 {

@@ -5,6 +5,27 @@ import CodexBarProviderCatalog
 @testable import nolon
 
 final class ProviderQuotaSectionViewDataTests: XCTestCase {
+    func testBDD_GivenExplicitAccountTitle_WhenResolvingHeaderTitle_ThenUsesExplicitTitleInsteadOfUsageEmail() {
+        let section = ProviderQuotaSection(
+            provider: .codex,
+            accountTitle: "key-abcd",
+            usage: UsageSnapshot(
+                identity: UsageIdentity(
+                    accountEmail: "user@example.com",
+                    accountOrganization: nil,
+                    loginMethod: "api_key",
+                    plan: nil
+                ),
+                primary: nil,
+                secondary: nil,
+                tertiary: nil,
+                updatedAt: Date()
+            )
+        )
+
+        XCTAssertEqual(section.resolvedAccountTitle, "key-abcd")
+    }
+
     func testBDD_GivenCreditsRefreshTime_WhenResolvingDisplayedTimestamp_ThenPrefersRefreshTime() {
         let refreshedAt = Date(timeIntervalSince1970: 1_710_000_000)
         let credits = CreditsSnapshot(
