@@ -69,6 +69,9 @@ struct ProviderUsageView: View {
     private let codexAccountColumns: [GridItem] = [
         GridItem(.adaptive(minimum: 240, maximum: 340), spacing: 12, alignment: .topLeading)
     ]
+    private let claudeAccountColumns: [GridItem] = [
+        GridItem(.adaptive(minimum: 260, maximum: 380), spacing: 12, alignment: .topLeading)
+    ]
 
     init(provider: Provider, isEmbedded: Bool = false) {
         self.provider = provider
@@ -110,18 +113,6 @@ struct ProviderUsageView: View {
                 onCancel: { viewModel.cancelCLILoginIfNeeded() }
             )
         }
-        .fileImporter(
-            isPresented: $viewModel.isShowingAuthFileImporter,
-            allowedContentTypes: [.json, .data, .zip],
-            allowsMultipleSelection: true
-        ) { result in
-            switch result {
-            case .success(let urls):
-                Task { await viewModel.handleCodexImportURLs(urls) }
-            case .failure:
-                viewModel.importedAuthFileURLs = []
-            }
-        }
         .sheet(isPresented: $viewModel.isShowingCodexImportSheet, onDismiss: {
             viewModel.dismissCodexImportSheet()
         }) {
@@ -134,7 +125,9 @@ struct ProviderUsageView: View {
                     set: { viewModel.isTargetingCodexImportDropZone = $0 }
                 ),
                 globalErrorMessage: viewModel.codexImportGlobalErrorMessage,
-                onPickFiles: { viewModel.presentCodexImportFilePicker() },
+                onPickFiles: {
+                    Task { await viewModel.presentCodexImportFilePicker() }
+                },
                 onPaste: {
                     Task { await viewModel.pasteCodexImportFromClipboard() }
                 },
@@ -142,13 +135,25 @@ struct ProviderUsageView: View {
                     Task { await viewModel.handleCodexImportURLs(urls) }
                 },
                 onToggleSelection: { id, selected in
-                    viewModel.setCodexImportCandidateSelected(selected, id: id)
+                    Task { @MainActor in
+                        viewModel.setCodexImportCandidateSelected(selected, id: id)
+                    }
                 },
                 onToggleGroupSelection: { groupID, selected in
-                    viewModel.setCodexImportCandidatesSelected(selected, sourceGroupID: groupID)
+                    Task { @MainActor in
+                        viewModel.setCodexImportCandidatesSelected(selected, sourceGroupID: groupID)
+                    }
                 },
-                onSelectAll: { viewModel.setAllCodexImportCandidatesSelected(true) },
-                onDeselectAll: { viewModel.setAllCodexImportCandidatesSelected(false) },
+                onSelectAll: {
+                    Task { @MainActor in
+                        viewModel.setAllCodexImportCandidatesSelected(true)
+                    }
+                },
+                onDeselectAll: {
+                    Task { @MainActor in
+                        viewModel.setAllCodexImportCandidatesSelected(false)
+                    }
+                },
                 onRetry: { id in
                     Task { await viewModel.retryCodexImportConnectionTest(id: id) }
                 },
@@ -315,9 +320,11 @@ struct ProviderUsageView: View {
             )
         } else if viewModel.usageProvider == .codex {
             codexContent
+        } else if viewModel.usageProvider == .claude {
+            claudeContent
         } else if viewModel.outcomes.isEmpty {
             if viewModel.isLoading {
-                loadingOverlay
+                genericUsageLoadingContent
             } else {
                 ContentUnavailableView(
                     NSLocalizedString("usage.monitor.empty.title", value: "No usage data", comment: "Empty title"),
@@ -328,21 +335,7 @@ struct ProviderUsageView: View {
             }
         } else {
             genericUsageContent
-                .overlay {
-                    if viewModel.isLoading {
-                        loadingOverlay
-                    }
-                }
         }
-    }
-
-    private var loadingOverlay: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(DesignSystem.Colors.Background.surface.opacity(0.45))
-            ProgressView()
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private var header: some View {
@@ -408,7 +401,17 @@ struct ProviderUsageView: View {
                 }
                 actionsMenu
             } else {
-                if ProviderUsageLoginPolicy.shouldUseCLILogin(for: provider) {
+                if viewModel.usageProvider == .claude {
+                    Button(NSLocalizedString("claude.accounts.migrate", value: "迁移", comment: "Migrate Claude accounts")) {
+                        Task { await viewModel.migrateClaudeFromCurrentSettings() }
+                    }
+                    .disabled(viewModel.isLoading)
+                    if ProviderUsageLoginPolicy.shouldShowDashboardSignIn(for: provider, dashboardURL: viewModel.dashboardURL) {
+                        Button(NSLocalizedString("usage.monitor.login", value: "Sign in…", comment: "Sign in")) {
+                            viewModel.isShowingLogin = true
+                        }
+                    }
+                } else if ProviderUsageLoginPolicy.shouldUseCLILogin(for: provider) {
                     Button(NSLocalizedString("codex.accounts.login", value: "登录", comment: "Codex login")) {
                         viewModel.startLoginFlow()
                     }
@@ -449,6 +452,28 @@ struct ProviderUsageView: View {
                     Task { await viewModel.load() }
                 } label: {
                     Label(NSLocalizedString("usage.monitor.refresh", value: "Refresh", comment: "Refresh"), systemImage: "arrow.clockwise")
+                }
+
+                if viewModel.usageProvider == .claude {
+                    Divider()
+
+                    Button {
+                        Task { await viewModel.migrateClaudeFromCurrentSettings() }
+                    } label: {
+                        Label(
+                            NSLocalizedString("claude.accounts.migrate.current", value: "迁移当前配置", comment: "Migrate Claude from current settings"),
+                            systemImage: "tray.and.arrow.down"
+                        )
+                    }
+
+                    Button {
+                        Task { await viewModel.importClaudeFromCCSwitch() }
+                    } label: {
+                        Label(
+                            NSLocalizedString("claude.accounts.migrate.cc_switch", value: "从 cc-switch 导入", comment: "Import Claude from cc-switch"),
+                            systemImage: "square.and.arrow.down"
+                        )
+                    }
                 }
 
                 Divider()
@@ -594,13 +619,131 @@ struct ProviderUsageView: View {
                     geminiImportCallout
                 }
                 ForEach(viewModel.outcomes) { outcome in
-                    ProviderUsageSnapshotView(outcome: outcome)
+                    ProviderUsageSnapshotView(outcome: outcome, isLoading: viewModel.isLoading)
                 }
                 if viewModel.usageProvider == .gemini {
                     tokenTrendSection
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private var genericUsageLoadingContent: some View {
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 12) {
+                ForEach(0..<ProviderUsageSkeletonPolicy.genericCardCount(for: provider), id: \.self) { _ in
+                    ProviderQuotaSection(
+                        provider: viewModel.usageProvider ?? .codex,
+                        usage: nil,
+                        isLoading: true,
+                        showsEmptyState: true
+                    )
+                }
+
+                if viewModel.usageProvider == .gemini {
+                    tokenTrendSection
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private var claudeContent: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                if viewModel.claudeAccounts.isEmpty {
+                    ContentUnavailableView(
+                        NSLocalizedString("claude.accounts.empty.title", value: "No Claude accounts", comment: "Empty Claude accounts title"),
+                        systemImage: "person.crop.circle.badge.exclamationmark",
+                        description: Text(
+                            NSLocalizedString(
+                                "claude.accounts.empty.desc",
+                                value: "Use \"迁移\" or \"从 cc-switch 导入\" to add accounts.",
+                                comment: "Empty Claude accounts description"
+                            )
+                        )
+                        .dsSecondaryText(font: .body)
+                    )
+                } else {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text(NSLocalizedString("claude.accounts.title", value: "Claude Accounts", comment: "Claude accounts title"))
+                            .font(.headline)
+
+                        LazyVGrid(columns: claudeAccountColumns, alignment: .leading, spacing: 12) {
+                            ForEach(viewModel.claudeAccounts, id: \.id) { account in
+                                claudeAccountCard(account: account)
+                            }
+                        }
+                    }
+                }
+
+                let usageOutcomes = viewModel.outcomes.filter { outcome in
+                    if case let .failure(error) = outcome.outcome.result,
+                       let usageError = error as? ProviderUsageError,
+                       usageError == .unsupported(.claude) {
+                        return false
+                    }
+                    return true
+                }
+                ForEach(usageOutcomes) { outcome in
+                    ProviderUsageSnapshotView(outcome: outcome)
+                }
+            }
+            .padding(.trailing, 12)
+            .padding(.vertical, 2)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private func claudeAccountCard(account: ClaudeAccount) -> some View {
+        let isActive = viewModel.isActiveClaudeAccount(account)
+        return AccountSummaryCard(presentation: .claude(isActive: isActive)) {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 8) {
+                    Text(account.name)
+                        .font(.headline)
+                        .foregroundStyle(DesignSystem.Colors.Text.primary)
+                        .lineLimit(1)
+
+                    Spacer(minLength: 6)
+
+                    if isActive {
+                        Text(NSLocalizedString("claude.accounts.active", value: "已激活", comment: "Claude active badge"))
+                            .font(.caption2.weight(.semibold))
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .background(
+                                Capsule(style: .continuous)
+                                    .fill(DesignSystem.Colors.primary.opacity(0.2))
+                            )
+                            .foregroundStyle(DesignSystem.Colors.primary)
+                    }
+                }
+
+                Text(account.baseURL)
+                    .font(.caption)
+                    .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                    .textSelection(.enabled)
+
+                HStack(spacing: 8) {
+                    Text(account.source.rawValue)
+                        .font(.caption2)
+                        .foregroundStyle(DesignSystem.Colors.Text.tertiary)
+                    Spacer(minLength: 0)
+                    Text(account.updatedAt.formatted(date: .abbreviated, time: .shortened))
+                        .font(.caption2)
+                        .foregroundStyle(DesignSystem.Colors.Text.tertiary)
+                }
+
+                if !isActive {
+                    Button(NSLocalizedString("claude.accounts.action.activate", value: "激活", comment: "Activate Claude account")) {
+                        Task { await viewModel.activateClaudeAccount(id: account.id) }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                }
+            }
         }
     }
 
@@ -674,7 +817,7 @@ struct ProviderUsageView: View {
             VStack(alignment: .leading, spacing: 16) {
                 codexManagementCard
 
-                if viewModel.codexAccounts.isEmpty {
+                if viewModel.codexAccounts.isEmpty && !viewModel.isLoading {
                     ContentUnavailableView(
                         NSLocalizedString("codex.accounts.empty.title", value: "No accounts", comment: "Empty state title"),
                         systemImage: "person.crop.circle.badge.plus",
@@ -687,49 +830,53 @@ struct ProviderUsageView: View {
                     )
                 }
 
-                ForEach(viewModel.codexAccountDisplaySections) { section in
-                    VStack(alignment: .leading, spacing: 10) {
-                        if let title = section.title {
-                            Button {
-                                viewModel.toggleCodexSection(section.id)
-                            } label: {
-                                HStack(spacing: 8) {
-                                    Image(systemName: viewModel.isCodexSectionCollapsed(section.id) ? "chevron.right" : "chevron.down")
-                                        .font(.caption)
-                                        .foregroundStyle(DesignSystem.Colors.Text.secondary)
-                                    Text(title)
-                                        .font(.headline)
-                                        .foregroundStyle(DesignSystem.Colors.Text.primary)
-                                    Text("\(section.items.count)")
-                                        .font(.caption)
-                                        .foregroundStyle(DesignSystem.Colors.Text.tertiary)
-                                    Spacer(minLength: 0)
-                                }
-                                .contentShape(Rectangle())
-                            }
-                            .buttonStyle(.plain)
-                        }
-
-                        if !viewModel.isCodexSectionCollapsed(section.id) {
-                            LazyVGrid(columns: codexAccountColumns, alignment: .leading, spacing: 12) {
-                                ForEach(section.items) { outcome in
-                                    codexOutcomeCard(outcome: outcome)
-                                }
-                            }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        }
-                    }
-                }
-                .animation(.snappy(duration: 0.2), value: viewModel.collapsedCodexSectionIDs)
-
                 if viewModel.isLoading && viewModel.codexAccountOutcomes.isEmpty {
-                    HStack {
-                        ProgressView()
-                            .controlSize(.small)
-                        Text(NSLocalizedString("usage.monitor.refreshing", value: "Refreshing…", comment: "Refreshing status"))
-                            .font(.caption)
-                            .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                    LazyVGrid(columns: codexAccountColumns, alignment: .leading, spacing: 12) {
+                        ForEach(0..<ProviderUsageSkeletonPolicy.codexCardCount, id: \.self) { _ in
+                            ProviderQuotaSection(
+                                provider: .codex,
+                                usage: nil,
+                                isLoading: true,
+                                showsEmptyState: true
+                            )
+                        }
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                } else {
+                    ForEach(viewModel.codexAccountDisplaySections) { section in
+                        VStack(alignment: .leading, spacing: 10) {
+                            if let title = section.title {
+                                Button {
+                                    viewModel.toggleCodexSection(section.id)
+                                } label: {
+                                    HStack(spacing: 8) {
+                                        Image(systemName: viewModel.isCodexSectionCollapsed(section.id) ? "chevron.right" : "chevron.down")
+                                            .font(.caption)
+                                            .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                                        Text(title)
+                                            .font(.headline)
+                                            .foregroundStyle(DesignSystem.Colors.Text.primary)
+                                        Text("\(section.items.count)")
+                                            .font(.caption)
+                                            .foregroundStyle(DesignSystem.Colors.Text.tertiary)
+                                        Spacer(minLength: 0)
+                                    }
+                                    .contentShape(Rectangle())
+                                }
+                                .buttonStyle(.plain)
+                            }
+
+                            if !viewModel.isCodexSectionCollapsed(section.id) {
+                                LazyVGrid(columns: codexAccountColumns, alignment: .leading, spacing: 12) {
+                                    ForEach(section.items) { outcome in
+                                        codexOutcomeCard(outcome: outcome)
+                                    }
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                        }
+                    }
+                    .animation(.snappy(duration: 0.2), value: viewModel.collapsedCodexSectionIDs)
                 }
 
                 tokenTrendSection
@@ -800,10 +947,10 @@ struct ProviderUsageView: View {
         let isBatchSelected = viewModel.isCodexAccountSelected(id: accountId)
 
         let isSelected = isActive || isPending || isBatchSelected
-        let borderColor = isSelected ? DesignSystem.Colors.primary : DesignSystem.Colors.Component.border.opacity(0.6)
-        let borderStyle = StrokeStyle(
-            lineWidth: isSelected ? 2 : 1,
-            dash: isPending && !isActive ? [6, 4] : []
+        let cardPresentation = AccountCardPresentation.codex(
+            isActive: isActive,
+            isPending: isPending,
+            isBatchSelected: isBatchSelected
         )
         let summary = accountId.flatMap { viewModel.codexAccountSummaries[$0] }
         let isRefreshing: Bool = {
@@ -850,7 +997,7 @@ struct ProviderUsageView: View {
 
         codexCompactSnapshotView(
             outcome: outcome,
-            isSelected: isSelected,
+            presentation: cardPresentation,
             isRefreshing: isRefreshing,
             summary: summary,
             onRefresh: accountId.map { id in
@@ -859,31 +1006,6 @@ struct ProviderUsageView: View {
             onLogin: onLogin,
             isLoggingIn: isLoggingIn
         )
-        .overlay {
-            RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusL, style: .continuous)
-                .strokeBorder(
-                    borderColor,
-                    style: borderStyle
-                )
-                .overlay(alignment: .topTrailing) {
-                    if viewModel.isCodexMultiSelectionEnabled, isBatchSelected {
-                        Image(systemName: "checkmark.circle.fill")
-                            .font(.title3)
-                            .foregroundStyle(DesignSystem.Colors.primary)
-                            .padding(10)
-                    }
-                }
-        }
-        .background {
-            if isSelected {
-                RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusL, style: .continuous)
-                    .fill(DesignSystem.Colors.primary.opacity(isActive ? 0.16 : (isBatchSelected ? 0.14 : 0.1)))
-            } else {
-                RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusL, style: .continuous)
-                    .fill(DesignSystem.Colors.Background.elevated)
-            }
-        }
-        .contentShape(RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusL, style: .continuous))
         .onTapGesture {
             guard let accountId else { return }
             if viewModel.isCodexMultiSelectionEnabled {
@@ -1067,7 +1189,7 @@ struct ProviderUsageView: View {
     @ViewBuilder
     private func codexCompactSnapshotView(
         outcome: ProviderAccountUsageOutcome,
-        isSelected: Bool,
+        presentation: AccountCardPresentation,
         isRefreshing: Bool,
         summary: CodexAuthSummary?,
         onRefresh: (() -> Void)?,
@@ -1122,44 +1244,69 @@ struct ProviderUsageView: View {
         }()
         let needsReauth = displayState == .needsReauth
 
-        VStack(alignment: .leading, spacing: 8) {
-            switch outcome.outcome.result {
-            case let .success(result):
-                ProviderQuotaSection(
-                    provider: outcome.provider,
-                    accountTitle: title,
-                    usage: result.usage,
-                    credits: result.credits,
-                    creditsRefreshedAt: creditsRefreshedAt,
-                    loginAt: lastLogin,
-                    syncedAt: result.usage.updatedAt,
-                    isLoading: isRefreshing,
-                    onRefresh: { onRefresh?() }
-                )
-            case .failure:
-                ProviderQuotaSection(
-                    provider: outcome.provider,
-                    accountTitle: title,
-                    usage: nil,
-                    isLoading: isRefreshing,
-                    errorMessage: failureDetail,
-                    onRefresh: { onRefresh?() }
-                )
-            }
-
-            if let failureSummary, let failureDetail {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(failureSummary)
-                        .font(.caption)
-                        .foregroundStyle(DesignSystem.Colors.Text.primary)
-                        .lineLimit(2)
-
-                    let actionLayout = CodexUsageCardPresentationPolicy.actionLayout(
-                        needsReauth: needsReauth,
-                        hasLoginAction: onLogin != nil
+        AccountSummaryCard(presentation: presentation) {
+            VStack(alignment: .leading, spacing: 8) {
+                switch outcome.outcome.result {
+                case let .success(result):
+                    ProviderQuotaSection(
+                        provider: outcome.provider,
+                        accountTitle: title,
+                        usage: result.usage,
+                        credits: result.credits,
+                        creditsRefreshedAt: creditsRefreshedAt,
+                        loginAt: lastLogin,
+                        syncedAt: result.usage.updatedAt,
+                        isLoading: isRefreshing,
+                        onRefresh: { onRefresh?() },
+                        usesCardChrome: false
                     )
-                    if actionLayout == .dualEqualWidth, let onLogin {
-                        HStack(spacing: 8) {
+                case .failure:
+                    ProviderQuotaSection(
+                        provider: outcome.provider,
+                        accountTitle: title,
+                        usage: nil,
+                        isLoading: isRefreshing,
+                        errorMessage: failureDetail,
+                        onRefresh: { onRefresh?() },
+                        usesCardChrome: false
+                    )
+                }
+
+                if let failureSummary, let failureDetail {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(failureSummary)
+                            .font(.caption)
+                            .foregroundStyle(DesignSystem.Colors.Text.primary)
+                            .lineLimit(2)
+
+                        let actionLayout = CodexUsageCardPresentationPolicy.actionLayout(
+                            needsReauth: needsReauth,
+                            hasLoginAction: onLogin != nil
+                        )
+                        if actionLayout == .dualEqualWidth, let onLogin {
+                            HStack(spacing: 8) {
+                                Button {
+                                    viewModel.copyErrorText(failureDetail)
+                                } label: {
+                                    Text(NSLocalizedString("codex.accounts.copy_error", value: "Copy error", comment: "Copy account error"))
+                                        .frame(maxWidth: .infinity)
+                                }
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
+                                .frame(maxWidth: .infinity)
+
+                                Button {
+                                    onLogin()
+                                } label: {
+                                    Text(NSLocalizedString("codex.accounts.relogin", value: "Re-login", comment: "Re-login account"))
+                                        .frame(maxWidth: .infinity)
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .controlSize(.small)
+                                .frame(maxWidth: .infinity)
+                                .disabled(isLoggingIn)
+                            }
+                        } else {
                             Button {
                                 viewModel.copyErrorText(failureDetail)
                             } label: {
@@ -1169,38 +1316,16 @@ struct ProviderUsageView: View {
                             .buttonStyle(.bordered)
                             .controlSize(.small)
                             .frame(maxWidth: .infinity)
-
-                            Button {
-                                onLogin()
-                            } label: {
-                                Text(NSLocalizedString("codex.accounts.relogin", value: "Re-login", comment: "Re-login account"))
-                                    .frame(maxWidth: .infinity)
-                            }
-                            .buttonStyle(.borderedProminent)
-                            .controlSize(.small)
-                            .frame(maxWidth: .infinity)
-                            .disabled(isLoggingIn)
                         }
-                    } else {
-                        Button {
-                            viewModel.copyErrorText(failureDetail)
-                        } label: {
-                            Text(NSLocalizedString("codex.accounts.copy_error", value: "Copy error", comment: "Copy account error"))
-                                .frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
-                        .frame(maxWidth: .infinity)
-                    }
 
-                    if isLoggingIn {
-                        Text(NSLocalizedString("codex.accounts.add.cli.running", value: "Logging in…", comment: "CLI login running status"))
-                            .font(.caption2)
-                            .foregroundStyle(DesignSystem.Colors.Text.tertiary)
+                        if isLoggingIn {
+                            Text(NSLocalizedString("codex.accounts.add.cli.running", value: "Logging in…", comment: "CLI login running status"))
+                                .font(.caption2)
+                                .foregroundStyle(DesignSystem.Colors.Text.tertiary)
+                        }
                     }
                 }
             }
-
         }
         .textSelection(.enabled)
     }

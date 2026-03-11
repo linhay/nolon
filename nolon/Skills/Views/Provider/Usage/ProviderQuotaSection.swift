@@ -1,6 +1,7 @@
 import SwiftUI
 import ProviderUsage
 import CodexBarProviderCatalog
+import Shimmer
 
 struct ProviderQuotaSection: View {
     struct MetadataLine: Equatable {
@@ -19,8 +20,8 @@ struct ProviderQuotaSection: View {
     let showsEmptyState: Bool
     let errorMessage: String?
     let onRefresh: (() -> Void)?
-
-    @State private var shimmerPhase: Double = 0
+    let usesCardChrome: Bool
+    let showsHeader: Bool
 
     init(
         provider: UsageProvider,
@@ -33,7 +34,9 @@ struct ProviderQuotaSection: View {
         isLoading: Bool = false,
         showsEmptyState: Bool = false,
         errorMessage: String? = nil,
-        onRefresh: (() -> Void)? = nil
+        onRefresh: (() -> Void)? = nil,
+        usesCardChrome: Bool = true,
+        showsHeader: Bool = true
     ) {
         self.provider = provider
         self.accountTitle = accountTitle
@@ -46,11 +49,15 @@ struct ProviderQuotaSection: View {
         self.showsEmptyState = showsEmptyState
         self.errorMessage = errorMessage
         self.onRefresh = onRefresh
+        self.usesCardChrome = usesCardChrome
+        self.showsHeader = showsHeader
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            header
+            if showsHeader {
+                header
+            }
             
             if isLoading {
                 loadingSkeleton
@@ -66,12 +73,18 @@ struct ProviderQuotaSection: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
-        .background(DesignSystem.Colors.Background.surface)
-        .clipShape(RoundedRectangle(cornerRadius: 14))
-        .overlay(
-            RoundedRectangle(cornerRadius: 14)
-                .stroke(DesignSystem.Colors.Background.elevated.opacity(0.3), lineWidth: 1)
-        )
+        .background {
+            if usesCardChrome {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(DesignSystem.Colors.Background.surface)
+            }
+        }
+        .overlay {
+            if usesCardChrome {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(DesignSystem.Colors.Background.elevated.opacity(0.3), lineWidth: 1)
+            }
+        }
     }
 
     // MARK: - 1. Header (LED + Account + Refresh)
@@ -231,30 +244,21 @@ struct ProviderQuotaSection: View {
     }
 
     private var loadingSkeleton: some View {
-        VStack(spacing: 2) {
-            ForEach(0..<2) { _ in
+        VStack(alignment: .leading, spacing: 2) {
+            ForEach(0..<2, id: \.self) { index in
                 RoundedRectangle(cornerRadius: 6)
-                    .fill(DesignSystem.Colors.Background.elevated.opacity(0.2))
+                    .fill(DesignSystem.Colors.Background.elevated.opacity(0.28))
                     .frame(height: 28)
-                    .overlay(shimmerOverlay)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .overlay(alignment: .leading) {
+                        RoundedRectangle(cornerRadius: 6)
+                            .fill(statusColor(for: 100).opacity(index == 0 ? 0.12 : 0.08))
+                            .frame(width: index == 0 ? 148 : 116)
+                    }
             }
         }
-        .onAppear {
-            withAnimation(.linear(duration: 1.5).repeatForever(autoreverses: false)) {
-                shimmerPhase = 1
-            }
-        }
-    }
-
-    private var shimmerOverlay: some View {
-        GeometryReader { proxy in
-            Color.white.opacity(0.05)
-                .mask(
-                    Rectangle()
-                        .fill(LinearGradient(gradient: Gradient(colors: [.clear, .white.opacity(0.1), .clear]), startPoint: .leading, endPoint: .trailing))
-                        .offset(x: -proxy.size.width + (proxy.size.width * 2 * shimmerPhase))
-                )
-        }
+        .redacted(reason: .placeholder)
+        .shimmering(active: true, bandSize: 0.32)
     }
 
     // MARK: - Helpers
