@@ -1754,5 +1754,55 @@
                        xml:lang="en" />
         </item>
 
+    
+        <item>
+            <title>2.1.4</title>
+            <pubDate>Thu, 12 Mar 2026 19:55:47 +0800</pubDate>
+            <sparkle:version>202603121947</sparkle:version>
+            <sparkle:shortVersionString>2.1.4</sparkle:shortVersionString>
+            <link>https://github.com/linhay/nolon/releases/download/v2.1.4/nolon-arm64.dmg</link>
+            <description><![CDATA[<div style="white-space: pre-wrap; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;">## nolon 2.1.4
+
+### Changes
+- 提交剩余全部改动
+- 统一账号切换与骨架并共享 ProviderUsageViewModel
+
+### Downloads
+
+| Platform | Architecture | Download |
+|----------|--------------|----------|
+| macOS | Apple Silicon (M1/M2/M3) | `nolon-arm64.dmg` |
+| macOS | Intel | `nolon-x86_64.dmg` |
+
+### Installation
+1. Download the appropriate DMG for your Mac
+   - **Apple Silicon** (M1, M2, M3 chips): `nolon-arm64.dmg`
+   - **Intel** (older Macs): `nolon-x86_64.dmg`
+2. Open the DMG and drag nolon to Applications
+3. Launch nolon from Applications
+
+### System Requirements
+- macOS 14.0 or later
+
+---
+*Built on 2026-03-12*</div>]]></description>
+            <enclosure url="https://github.com/linhay/nolon/releases/download/v2.1.4/nolon-arm64.dmg"
+                       sparkle:version="202603121947"
+                       sparkle:shortVersionString="2.1.4"
+                       sparkle:edSignature="1b4PcLltFlcMWK0ujG3pxIwTiDMIajpQv/JkE49O3XM4Q5NOxKacrxqkzMK4OIUoYYcrk0fOTOIhOtWZK4kWCw=="
+                       length="17243562"
+                       type="application/x-apple-diskimage"
+                       sparkle:os="macos"
+                       xml:lang="en" />
+            <enclosure url="https://github.com/linhay/nolon/releases/download/v2.1.4/nolon-x86_64.dmg"
+                       sparkle:version="202603121947"
+                       sparkle:shortVersionString="2.1.4"
+                       sparkle:edSignature="SrxpeaQxybrP62Q/Nfoz+z81eP7R5fTW3Ky66S6xBlve9Vb2Wi6SsFLeSRi+ehTPn3fsJTuPdy3wCAz/iV2EDQ=="
+                       length="17848317"
+                       type="application/x-apple-diskimage"
+                       sparkle:os="macos"
+                       xml:lang="en" />
+        </item>
+
     </channel>
 </rss>
