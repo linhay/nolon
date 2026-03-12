@@ -510,7 +510,7 @@ struct PluginManagementView: View {
                     }
                     .onAppear {
                         guard logsAutoScroll else { return }
-                        DispatchQueue.main.async {
+                        Task { @MainActor in
                             proxy.scrollTo("runtime-log-bottom", anchor: .bottom)
                         }
                     }

@@ -1,53 +1,55 @@
 import SwiftUI
-import Observation
+import Combine
 import os.log
 import STFilePath
 import NolonResourceKit
 
-@Observable
-final class RemoteRepositorySidebarViewModel {
+@MainActor
+final class RemoteRepositorySidebarViewModel: ObservableObject {
 
     private let logger = Logger(subsystem: "com.nolon", category: "RemoteRepositorySidebarViewModel")
     
     // Directory selection for Git repos
-    var showingDirectoryPicker = false
-    var pendingRepository: RemoteRepository?
-    var detectedCandidates: [GitRepository.SkillsDirectoryCandidate] = []
-    var selectedDirectoryIndices: Set<Int> = []
+    @Published var showingDirectoryPicker = false
+    @Published var pendingRepository: RemoteRepository?
+    @Published var detectedCandidates: [GitRepository.SkillsDirectoryCandidate] = []
+    @Published var selectedDirectoryIndices: Set<Int> = []
     
     // Token input for SSH-unavailable repos
-    var showingTokenInput = false
-    var tokenInputRepository: RemoteRepository?
-    var tokenInputHost: String = ""
-    var inputToken: String = ""
+    @Published var showingTokenInput = false
+    @Published var tokenInputRepository: RemoteRepository?
+    @Published var tokenInputHost: String = ""
+    @Published var inputToken: String = ""
     
     // Repository management
-    var showingAddRepository = false
-    var editingRepository: RemoteRepository?  // For edit mode
-    var isSyncing = false
-    var syncingRepositoryID: String?
-    var syncingRepositoryName: String?
-    var syncCompletionMessage: String?
-    var syncCompletionRepositoryName: String?
-    var syncCompletionStyle: SyncCompletionStyle?
+    @Published var showingAddRepository = false
+    @Published var editingRepository: RemoteRepository?  // For edit mode
+    @Published var isSyncing = false
+    @Published var syncingRepositoryID: String?
+    @Published var syncingRepositoryName: String?
+    @Published var syncCompletionMessage: String?
+    @Published var syncCompletionRepositoryName: String?
+    @Published var syncCompletionStyle: SyncCompletionStyle?
 
-    @ObservationIgnored
     private var syncCompletionToken: UUID?
+    private var repositorySelectionTask: Task<Void, Never>?
+    private var syncCompletionDismissTask: Task<Void, Never>?
 
-    @ObservationIgnored
     private let syncSuccessDisplayDuration: TimeInterval = 1.6
 
-    @ObservationIgnored
     private let syncFailureDisplayDuration: TimeInterval = 2.6
-    @ObservationIgnored
     private let syncOrchestrator = RepositorySyncOrchestrator()
 
     enum SyncCompletionStyle {
         case success
         case failure
     }
+
+    deinit {
+        repositorySelectionTask?.cancel()
+        syncCompletionDismissTask?.cancel()
+    }
     
-    @MainActor
     func handleDirectoryCandidatesFound(repo: RemoteRepository, candidates: [GitRepository.SkillsDirectoryCandidate]) {
         pendingRepository = repo
         detectedCandidates = candidates
@@ -61,12 +63,14 @@ final class RemoteRepositorySidebarViewModel {
                 }
             )
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + RemoteRefreshPolicy.repositorySelectionDelay) {
+        repositorySelectionTask?.cancel()
+        repositorySelectionTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(RemoteRefreshPolicy.repositorySelectionDelay))
+            guard let self, !Task.isCancelled else { return }
             self.showingDirectoryPicker = true
         }
     }
     
-    @MainActor
     func syncRepository(_ repo: RemoteRepository, settings: ProviderSettings) async {
         guard repo.templateType == .git else { return }
         
@@ -122,7 +126,6 @@ final class RemoteRepositorySidebarViewModel {
         }
     }
 
-    @MainActor
     private func showSyncCompletion(message: String, style: SyncCompletionStyle, repositoryName: String) {
         let token = UUID()
         syncCompletionToken = token
@@ -135,7 +138,9 @@ final class RemoteRepositorySidebarViewModel {
         }
 
         let duration = style == .success ? syncSuccessDisplayDuration : syncFailureDisplayDuration
-        DispatchQueue.main.asyncAfter(deadline: .now() + duration) { [weak self] in
+        syncCompletionDismissTask?.cancel()
+        syncCompletionDismissTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(duration))
             guard let self, self.syncCompletionToken == token else { return }
             withAnimation(.easeInOut(duration: 0.2)) {
                 self.syncCompletionMessage = nil
@@ -145,7 +150,6 @@ final class RemoteRepositorySidebarViewModel {
         }
     }
     
-    @MainActor
     func removeRepository(_ repo: RemoteRepository, settings: ProviderSettings) async {
         // For Git repos, also delete the cloned directory
         if repo.templateType == .git {
@@ -165,7 +169,6 @@ final class RemoteRepositorySidebarViewModel {
         NSWorkspace.shared.activateFileViewerSelecting(paths)
     }
     
-    @MainActor
     func confirmDirectorySelection(settings: ProviderSettings) {
         guard var repo = pendingRepository else { return }
         
@@ -182,7 +185,6 @@ final class RemoteRepositorySidebarViewModel {
         selectedDirectoryIndices = []
     }
     
-    @MainActor
     func confirmTokenInput(settings: ProviderSettings) {
         guard var repo = tokenInputRepository else { return }
         
@@ -206,7 +208,7 @@ struct RemoteRepositorySidebarView: View {
     var showsHeader: Bool = true
     var title: String? = nil
     
-    @State private var viewModel = RemoteRepositorySidebarViewModel()
+    @StateObject private var viewModel = RemoteRepositorySidebarViewModel()
     @State private var collapsedSectionIDs: Set<String> = []
     @Environment(\.dismiss) private var dismiss
     

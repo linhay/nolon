@@ -166,7 +166,7 @@ final class CodexAdvancedConfigRoleDraftTests: XCTestCase {
         XCTAssertTrue(patched.contains("undo = false"))
     }
 
-    func testTDD_GivenViewModelNotLoaded_WhenSchedulingStructuredSave_ThenDoesNotMutateConfigFile() throws {
+    func testTDD_GivenViewModelNotLoaded_WhenSchedulingStructuredSave_ThenDoesNotMutateConfigFile() async throws {
         // Given
         let provider = try makeTemporaryCodexProvider(config: """
         model = "gpt-5-codex"
@@ -183,11 +183,7 @@ final class CodexAdvancedConfigRoleDraftTests: XCTestCase {
 
         // When
         viewModel.scheduleStructuredSaveIfReady()
-        let expectation = XCTestExpectation(description: "wait for unexpected save")
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-            expectation.fulfill()
-        }
-        wait(for: [expectation], timeout: 1.0)
+        try await Task.sleep(for: .milliseconds(200))
 
         // Then
         XCTAssertEqual(try String(contentsOf: configURL, encoding: .utf8), original)

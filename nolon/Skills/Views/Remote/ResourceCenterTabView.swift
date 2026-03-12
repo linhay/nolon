@@ -66,7 +66,7 @@ struct ResourceCenterTabView: View {
         let cacheBuster = "\(refreshTrigger)-\(repoSyncToken)"
         VStack(spacing: 0) {
             compactHeader
-            if let repository = repository {
+            if repository != nil {
                 List(selection: $selectedTab) {
                     ForEach(ResourceContentTabType.allCases) { tab in
                         HStack {

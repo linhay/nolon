@@ -21,6 +21,32 @@ final class MainSplitViewModelTests: XCTestCase {
         XCTAssertEqual(ResourceCenterOverlayLayout.outerInset, 40)
     }
 
+    func testBDD_GivenFixtureProviders_WhenLookingUpCodexIndex_ThenLookupSucceedsWithoutSetup() {
+        let codexIndex = fixture.providerSettings.providers.firstIndex { $0.templateId == "codex" }
+        XCTAssertNotNil(codexIndex)
+    }
+
+    func testBDD_GivenUITestLaunchSelection_WhenEnvironmentOverrideIsAssigned_ThenAssignmentSucceeds() {
+        let codexIndex = fixture.providerSettings.providers.firstIndex { $0.templateId == "codex" }
+        XCTAssertNotNil(codexIndex)
+
+        UITestSupport.environmentOverride = [
+            "NOLON_UI_TEST_SELECTED_PROVIDER_INDEX": String(codexIndex!),
+            "NOLON_UI_TEST_SELECTED_PROVIDER_TAB": "usage"
+        ]
+
+        XCTAssertEqual(UITestSupport.initialSelectedProviderIndex, codexIndex)
+        XCTAssertEqual(UITestSupport.initialSelectedProviderTab, .usage)
+    }
+
+    func testBDD_GivenFixtureDependencies_WhenSkillInstallerConstructs_ThenConstructionSucceeds() {
+        _ = SkillInstaller(
+            repository: SkillRepository(nolonManager: fixture.nolonManager),
+            settings: fixture.providerSettings,
+            nolonManager: fixture.nolonManager
+        )
+    }
+
     func testBDD_GivenGlobalSkill_WhenDeleteRemoteSkillWithGlobalCachePlan_ThenFolderAndInstalledStateDisappear() async throws {
         let source = try fixture.createSampleSkill(id: "gemini", name: "Gemini")
         let repository = SkillRepository(nolonManager: fixture.nolonManager)
@@ -258,7 +284,7 @@ final class MainSplitViewModelTests: XCTestCase {
 
         async let firstResult = viewModel.executeRegisteredDeleteRequest(id: requestID)
         async let secondResult = viewModel.executeRegisteredDeleteRequest(id: requestID)
-        let results = try await [firstResult, secondResult]
+        let results = await [firstResult, secondResult]
 
         XCTAssertEqual(results[0], results[1])
         XCTAssertTrue(results[0].removedGlobalCache)
@@ -286,7 +312,7 @@ final class MainSplitViewModelTests: XCTestCase {
         XCTAssertEqual(result.failures.first?.targetName, "Delete Request")
     }
 
-    func testBDD_GivenUITestLaunchSelection_WhenSetupRuns_ThenSelectedProviderAndUsageTabAreApplied() {
+    func testBDD_GivenUITestLaunchSelection_WhenResolved_ThenSelectedProviderAndUsageTabAreApplied() {
         let codexIndex = fixture.providerSettings.providers.firstIndex { $0.templateId == "codex" }
         guard let codexIndex else {
             XCTFail("Missing codex provider fixture")
@@ -297,16 +323,15 @@ final class MainSplitViewModelTests: XCTestCase {
             "NOLON_UI_TEST_SELECTED_PROVIDER_TAB": "usage"
         ]
 
-        let viewModel = MainSplitViewModel(
-            settings: fixture.providerSettings,
-            repository: SkillRepository(nolonManager: fixture.nolonManager),
-            nolonManager: fixture.nolonManager
+        let selection = MainSplitViewModel.resolveInitialLaunchSelection(
+            providers: fixture.providerSettings.providers,
+            selectedProviderIndex: UITestSupport.initialSelectedProviderIndex,
+            initialTab: UITestSupport.initialSelectedProviderTab,
+            isRunningUnitTests: true
         )
 
-        viewModel.setup()
-
-        XCTAssertEqual(viewModel.selectedProvider?.templateId, "codex")
-        XCTAssertEqual(viewModel.selectedTab, .usage)
+        XCTAssertEqual(selection?.provider.templateId, "codex")
+        XCTAssertEqual(selection?.tab, .usage)
     }
 
 }

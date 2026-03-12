@@ -16,13 +16,13 @@ final class ProviderSidebarViewModel {
     }
     
     @MainActor
-    func deleteProvider(_ provider: Provider, currentSelection: Binding<MainSidebarSelection?>) {
+    func deleteProvider(_ provider: Provider, currentSelectionKey: Binding<String?>) {
         settings.removeProvider(provider)
-        if currentSelection.wrappedValue == .provider(provider.id) {
+        if currentSelectionKey.wrappedValue == MainSidebarSelection.provider(provider.id).storageKey {
             if let firstProvider = settings.providers.first {
-                currentSelection.wrappedValue = .provider(firstProvider.id)
+                currentSelectionKey.wrappedValue = MainSidebarSelection.provider(firstProvider.id).storageKey
             } else {
-                currentSelection.wrappedValue = .accounts
+                currentSelectionKey.wrappedValue = MainSidebarSelection.accounts.storageKey
             }
         }
     }
@@ -61,12 +61,12 @@ final class ProviderSidebarViewModel {
     }
     
     @MainActor
-    func selectFirstProviderIfNone(selection: Binding<MainSidebarSelection?>) {
-        if selection.wrappedValue == nil {
+    func selectFirstProviderIfNone(selectionKey: Binding<String?>) {
+        if selectionKey.wrappedValue == nil {
             if let firstProvider = settings.providers.first {
-                selection.wrappedValue = .provider(firstProvider.id)
+                selectionKey.wrappedValue = MainSidebarSelection.provider(firstProvider.id).storageKey
             } else {
-                selection.wrappedValue = .accounts
+                selectionKey.wrappedValue = MainSidebarSelection.accounts.storageKey
             }
         }
     }
@@ -90,7 +90,7 @@ final class ProviderSidebarViewModel {
 /// Displays the unified list of all providers with selection state
 @MainActor
 public struct ProviderSidebarView: View {
-    @Binding var selectedItem: MainSidebarSelection?
+    @Binding var selectedItemKey: String?
     @ObservedObject var settings: ProviderSettings
     @State private var viewModel: ProviderSidebarViewModel
     @State private var showingAddSheet = false
@@ -100,28 +100,28 @@ public struct ProviderSidebarView: View {
     }
     
     public init(
-        selectedItem: Binding<MainSidebarSelection?>,
+        selectedItemKey: Binding<String?>,
         settings: ProviderSettings
     ) {
-        self._selectedItem = selectedItem
+        self._selectedItemKey = selectedItemKey
         self.settings = settings
         self._viewModel = State(initialValue: ProviderSidebarViewModel(settings: settings))
     }
     
     public var body: some View {
-        List(selection: $selectedItem) {
+        List(selection: $selectedItemKey) {
             ForEach(providerSections) { section in
                 Section {
                     ForEach(section.providers) { provider in
                         ProviderRowView(
                             provider: provider,
-                            isSelected: selectedItem == .provider(provider.id),
+                            isSelected: selectedItemKey == MainSidebarSelection.provider(provider.id).storageKey,
                             onShowInFinder: { viewModel.showInFinder(provider) },
                             onViewOfficialDocumentation: { viewModel.openOfficialDocumentation(for: provider) },
                             onEdit: { viewModel.editingProvider = provider },
-                            onDelete: { viewModel.deleteProvider(provider, currentSelection: $selectedItem) }
+                            onDelete: { viewModel.deleteProvider(provider, currentSelectionKey: $selectedItemKey) }
                         )
-                        .tag(MainSidebarSelection.provider(provider.id))
+                        .tag(MainSidebarSelection.provider(provider.id).storageKey)
                     }
                     .onDelete { offsets in
                         let idsToDelete = Set(offsets.map { section.providers[$0].id })
@@ -162,13 +162,13 @@ public struct ProviderSidebarView: View {
                     NSLocalizedString("sidebar.tools.accounts", value: "Accounts", comment: "Accounts sidebar item"),
                     systemImage: "person.crop.circle.badge.checkmark"
                 )
-                .tag(MainSidebarSelection.accounts)
+                .tag(MainSidebarSelection.accounts.storageKey)
 
                 Label(
                     NSLocalizedString("sidebar.plugins.management", value: "Plugin Management", comment: "Plugin management sidebar item"),
                     systemImage: "puzzlepiece.extension"
                 )
-                .tag(MainSidebarSelection.pluginManagement)
+                .tag(MainSidebarSelection.pluginManagement.storageKey)
             } header: {
                 Text(NSLocalizedString("sidebar.section.tools", value: "Tools", comment: "Tools section"))
             }
@@ -180,7 +180,7 @@ public struct ProviderSidebarView: View {
             EditProviderSheet(settings: viewModel.settings, provider: provider)
         }
         .onAppear {
-            viewModel.selectFirstProviderIfNone(selection: $selectedItem)
+            viewModel.selectFirstProviderIfNone(selectionKey: $selectedItemKey)
         }
         .toolbar {
             ToolbarItem(placement: .primaryAction) {

@@ -84,7 +84,7 @@ final class CodexAuthManagerTests: XCTestCase {
             authJSONString: #"{"tokens":{"id_token":"id","access_token":"access"},"user":{"email":"stable@example.com"}}"#
         )
 
-        let authFolder = await service.nolonCodexAuthFolder().url
+        let authFolder = service.nolonCodexAuthFolder().url
         let tempArtifactURL = authFolder.appendingPathComponent(".dat.nosync2F9A.Hb0Ce3")
         let orphanedJSONURL = authFolder.appendingPathComponent("orphaned.json")
         try Data("temp".utf8).write(to: tempArtifactURL)
@@ -1099,18 +1099,23 @@ final class ProviderUsageViewModelManualRefreshTests: XCTestCase {
                     ),
                     outcome: outcome
                 )
-            }
+            },
+            codexRefreshTimeoutGraceSeconds: 0,
+            initialSettingsOverride: UsageMonitorProviderSettings(
+                sourceMode: .auto,
+                includeCredits: false,
+                webTimeoutSeconds: 1,
+                autoRefreshIntervalMinutes: 0,
+                costWindowDays: 30
+            )
         )
-        viewModel.settings.webTimeoutSeconds = 1
         viewModel.codexAccounts = [account]
 
-        viewModel.refreshCodexAccount(id: account.id)
+        await viewModel.refreshCodexAccountImmediately(id: account.id)
 
-        try await waitUntil { viewModel.codexRefreshingAccountIds.contains(account.id) }
-        try await waitUntil(timeout: 3.0) { !viewModel.codexRefreshingAccountIds.contains(account.id) }
         XCTAssertFalse(viewModel.codexRefreshingAccountIds.contains(account.id))
 
-        let refreshed = try XCTUnwrap(
+        let refreshed: ProviderAccountUsageOutcome = try XCTUnwrap(
             viewModel.codexAccountOutcomes.first(where: {
                 if case let .tokenAccount(tokenAccount) = $0.account {
                     return tokenAccount.id == account.id
@@ -1119,7 +1124,9 @@ final class ProviderUsageViewModelManualRefreshTests: XCTestCase {
             })
         )
         if case let .failure(error) = refreshed.outcome.result {
-            XCTAssertTrue(error.localizedDescription.contains("timed out"))
+            let nsError = error as NSError
+            XCTAssertEqual(nsError.domain, "ProviderUsageViewModel.CodexRefresh")
+            XCTAssertEqual(nsError.code, 408)
         } else {
             XCTFail("Expected timeout failure outcome")
         }
@@ -1329,6 +1336,7 @@ final class ProviderUsageViewModelOutcomeOrderingTests: XCTestCase {
     }
 }
 
+@MainActor
 final class CodexUsageCardPresentationPolicyTests: XCTestCase {
     func testBDD_GivenHealthyState_WhenMappingStatusKind_ThenReturnsHealthy() {
         let kind = CodexUsageCardPresentationPolicy.statusKind(for: .healthy)

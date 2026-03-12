@@ -16,7 +16,7 @@ final class SkillDetailViewModelTests: XCTestCase {
             description: "A sample skill for testing",
             version: "1.0.0",
             globalPath: skillURL.path,
-            content: try String(contentsOf: skillURL.appendingPathComponent("SKILL.md")),
+            content: try String(contentsOf: skillURL.appendingPathComponent("SKILL.md"), encoding: .utf8),
             referenceCount: 1,
             scriptCount: 1
         )

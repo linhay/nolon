@@ -4,11 +4,23 @@ import ProviderUsage
 import CodexBarProviderCatalog
 @testable import nolon
 
+actor GeminiUsageCallRecorder {
+    private var calls: [(UsageProvider, Int?)] = []
+
+    func record(_ usageProvider: UsageProvider, trailingDays: Int?) {
+        calls.append((usageProvider, trailingDays))
+    }
+
+    func allCalls() -> [(UsageProvider, Int?)] {
+        calls
+    }
+}
+
 @MainActor
 final class GeminiUsageTokenTrendViewModelTests: XCTestCase {
     func testBDD_GivenGeminiProvider_WhenRefreshingTokenTrend_ThenUsesSelectedRangeAndPublishesSnapshot() async throws {
         let provider = try XCTUnwrap(ProviderTemplate(rawValue: "gemini")).createProvider()
-        var receivedCalls: [(UsageProvider, Int?)] = []
+        let recorder = GeminiUsageCallRecorder()
         let expected = ProviderTokenTrendSnapshot(
             points: [
                 ProviderTokenTrendPoint(
@@ -30,7 +42,7 @@ final class GeminiUsageTokenTrendViewModelTests: XCTestCase {
         let viewModel = ProviderUsageViewModel(
             provider: provider,
             geminiTokenTrendFetchAction: { usageProvider, trailingDays in
-                receivedCalls.append((usageProvider, trailingDays))
+                await recorder.record(usageProvider, trailingDays: trailingDays)
                 return expected
             }
         )
@@ -38,6 +50,7 @@ final class GeminiUsageTokenTrendViewModelTests: XCTestCase {
 
         await viewModel.refreshTokenTrendForTesting()
 
+        let receivedCalls = await recorder.allCalls()
         XCTAssertEqual(receivedCalls.count, 1)
         XCTAssertEqual(receivedCalls.first?.0, .gemini)
         XCTAssertEqual(receivedCalls.first?.1, 7)

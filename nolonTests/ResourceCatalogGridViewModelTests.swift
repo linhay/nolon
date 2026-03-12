@@ -89,32 +89,29 @@ final class ResourceCatalogGridViewModelTests: XCTestCase {
 
     @MainActor
     func testExecuteDelete_Skill_TracksPendingStateAndPresentsResult() async {
-        let viewModel = ResourceCatalogGridViewModel()
         let providers = [Self.makeProvider(id: "provider-a", name: "Provider A")]
-        var refreshed = false
-        var capturedRequestID: Int?
-        var nextRequestID = 40
+        var capturedSlug: String?
+        var capturedResourceType: RemoteContentType?
+        var capturedProviderIndex: Int?
+        var capturedRemoveGlobalCache: Bool?
+        var capturedGlobalCachePathHint: String?
+        let expectedRequestID = 40
 
-        await viewModel.executeDelete(
+        let preview = await ResourceCatalogGridViewModel.previewDeleteExecution(
             resourceSlug: "gemini",
             resourceType: .skill,
             target: .provider("provider-a"),
             providers: providers,
             onRegisterDeleteRequest: { slug, resourceType, providerIndex, removeGlobalCache, globalCachePathHint in
-                XCTAssertEqual(slug, "gemini")
-                XCTAssertEqual(resourceType, .skill)
-                XCTAssertEqual(providerIndex, 0)
-                XCTAssertFalse(removeGlobalCache)
-                XCTAssertNil(globalCachePathHint)
-                let requestID = nextRequestID
-                nextRequestID += 1
-                capturedRequestID = requestID
-                return requestID
+                capturedSlug = slug
+                capturedResourceType = resourceType
+                capturedProviderIndex = providerIndex
+                capturedRemoveGlobalCache = removeGlobalCache
+                capturedGlobalCachePathHint = globalCachePathHint
+                return expectedRequestID
             },
             onMakeDeleteRequestExecutor: { requestID in
-                XCTAssertEqual(requestID, capturedRequestID)
                 return {
-                    XCTAssertTrue(viewModel.pendingSkillDeletes.contains("gemini"))
                     return ResourceDeleteExecutionResult(
                         resourceSlug: "",
                         resourceType: .skill,
@@ -124,9 +121,6 @@ final class ResourceCatalogGridViewModelTests: XCTestCase {
                         failures: []
                     )
                 }
-            },
-            onRefresh: {
-                refreshed = true
             },
             localized: { key, fallback in
                 switch key {
@@ -141,15 +135,20 @@ final class ResourceCatalogGridViewModelTests: XCTestCase {
             preferredLanguages: { ["en"] }
         )
 
-        XCTAssertFalse(viewModel.pendingSkillDeletes.contains("gemini"))
-        XCTAssertEqual(viewModel.deleteResultMessage, "Skills \"gemini\" deleted. Removed from 1 provider(s).")
-        XCTAssertTrue(viewModel.isShowingDeleteResultAlert)
-        XCTAssertTrue(refreshed)
+        XCTAssertEqual(capturedSlug, "gemini")
+        XCTAssertEqual(capturedResourceType, .skill)
+        XCTAssertEqual(capturedProviderIndex, 0)
+        XCTAssertEqual(capturedRemoveGlobalCache, false)
+        XCTAssertNil(capturedGlobalCachePathHint)
+        XCTAssertEqual(preview.requestID, expectedRequestID)
+        XCTAssertTrue(preview.pendingStateBecameActive)
+        XCTAssertEqual(preview.resultMessage, "Skills \"gemini\" deleted. Removed from 1 provider(s).")
+        XCTAssertTrue(preview.shouldShowDeleteResultAlert)
+        XCTAssertTrue(preview.didRefresh)
     }
 
     @MainActor
-    func testBDD_GivenGlobalSkillsRepositoryDelete_WhenRequestDelete_ThenUseDirectGlobalConfirmationAndKeepPathHint() async {
-        let viewModel = ResourceCatalogGridViewModel()
+    func testBDD_GivenGlobalSkillsRepositoryDelete_WhenRequestDelete_ThenUseDirectGlobalConfirmationAndKeepPathHint() {
         let skill = RemoteSkill(
             slug: "gemini",
             displayName: "Gemini CLI",
@@ -161,12 +160,16 @@ final class ResourceCatalogGridViewModelTests: XCTestCase {
             localPath: "/tmp/.nolon/skills/gemini"
         )
 
-        viewModel.requestDelete(skill: skill, repositoryTemplateType: .globalSkills)
+        let request = ResourceCatalogGridViewModel.makeDeleteRequest(
+            skill: skill,
+            repositoryTemplateType: .globalSkills
+        )
+        let presentation = ResourceCatalogGridViewModel.makeDeleteRequestPresentation(for: request)
 
-        XCTAssertNil(viewModel.deleteRequest)
-        XCTAssertEqual(viewModel.directDeleteConfirmationRequest?.resourceSlug, "gemini")
-        XCTAssertEqual(viewModel.directDeleteConfirmationRequest?.localPath, "/tmp/.nolon/skills/gemini")
-        XCTAssertEqual(viewModel.directDeleteConfirmationRequest?.defaultTarget, .allProvidersAndGlobalCache)
+        XCTAssertNil(presentation.sheetRequest)
+        XCTAssertEqual(presentation.directConfirmationRequest?.resourceSlug, "gemini")
+        XCTAssertEqual(presentation.directConfirmationRequest?.localPath, "/tmp/.nolon/skills/gemini")
+        XCTAssertEqual(presentation.directConfirmationRequest?.defaultTarget, .allProvidersAndGlobalCache)
     }
 
     @MainActor

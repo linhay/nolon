@@ -1,6 +1,7 @@
 import XCTest
 @testable import nolon
 
+@MainActor
 final class XcodeMCPKitInstallServiceTests: XCTestCase {
     override func tearDown() {
         URLProtocol.unregisterClass(MockURLProtocol.self)

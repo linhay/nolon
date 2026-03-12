@@ -8,6 +8,11 @@ import OSLog
 @Observable
 final class ResourceCenterViewModel {
     private static let logger = Logger(subsystem: "nolon", category: "ResourceCenter")
+    enum PostInstallRefreshKind: Hashable {
+        case skill
+        case workflow
+        case mcp
+    }
 
     var selectedRepository: RemoteRepository?
     var selectedTab: ResourceContentTabType? = .skills
@@ -19,9 +24,15 @@ final class ResourceCenterViewModel {
     var importErrorMessage: String?
     var refreshTrigger: Int = 0
     private let statusService = InstalledResourceStatusService()
+    @ObservationIgnored
+    private var postInstallRefreshTasks: [PostInstallRefreshKind: Task<Void, Never>] = [:]
 
     init(selectedTab: ResourceContentTabType? = .skills) {
         self.selectedTab = selectedTab
+    }
+
+    deinit {
+        postInstallRefreshTasks.values.forEach { $0.cancel() }
     }
 
     func effectiveTargetProvider(
@@ -83,6 +94,42 @@ final class ResourceCenterViewModel {
     @MainActor
     func refreshInstalledMCPs(targetProvider: Provider?) {
         installedMcpSlugs = statusService.installedMcpIDs(provider: targetProvider)
+    }
+
+    @MainActor
+    func schedulePostInstallRefresh(
+        kind: PostInstallRefreshKind,
+        repository: SkillRepository,
+        selectedRepository: RemoteRepository?,
+        fallbackTargetProvider: Provider?,
+        settings: ProviderSettings
+    ) {
+        postInstallRefreshTasks[kind]?.cancel()
+        postInstallRefreshTasks[kind] = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(RemoteRefreshPolicy.installPropagationDelay))
+            guard let self, !Task.isCancelled else { return }
+
+            let effectiveTargetProvider = self.effectiveTargetProvider(
+                for: selectedRepository,
+                fallback: fallbackTargetProvider
+            )
+
+            switch kind {
+            case .skill:
+                self.refreshInstalledSkills(
+                    repository: repository,
+                    targetProvider: effectiveTargetProvider,
+                    settings: settings
+                )
+            case .workflow:
+                self.refreshInstalledWorkflows(targetProvider: effectiveTargetProvider)
+            case .mcp:
+                self.refreshInstalledMCPs(targetProvider: effectiveTargetProvider)
+            }
+
+            self.refreshTrigger += 1
+            self.postInstallRefreshTasks[kind] = nil
+        }
     }
 
     /// 根据搜索文本过滤技能
@@ -292,39 +339,33 @@ struct ResourceCenterView: View {
                         targetProvider: effectiveTargetProvider,
                         onInstall: { skill, provider in
                             onInstall(skill, provider)
-                            // Refresh after install attempt
-                            DispatchQueue.main.asyncAfter(deadline: .now() + RemoteRefreshPolicy.installPropagationDelay) {
-                                let effectiveTargetProvider = viewModel.effectiveTargetProvider(
-                                    for: viewModel.selectedRepository,
-                                    fallback: targetProvider
-                                )
-                                viewModel.refreshInstalledSkills(repository: repository, targetProvider: effectiveTargetProvider, settings: settings)
-                                viewModel.refreshTrigger += 1
-                            }
+                            viewModel.schedulePostInstallRefresh(
+                                kind: .skill,
+                                repository: repository,
+                                selectedRepository: viewModel.selectedRepository,
+                                fallbackTargetProvider: targetProvider,
+                                settings: settings
+                            )
                         },
                         onInstallWorkflow: { workflow, provider in
                             onInstallWorkflow?(workflow, provider)
-                            // Refresh after install attempt
-                            DispatchQueue.main.asyncAfter(deadline: .now() + RemoteRefreshPolicy.installPropagationDelay) {
-                                let effectiveTargetProvider = viewModel.effectiveTargetProvider(
-                                    for: viewModel.selectedRepository,
-                                    fallback: targetProvider
-                                )
-                                viewModel.refreshInstalledWorkflows(targetProvider: effectiveTargetProvider)
-                                viewModel.refreshTrigger += 1
-                            }
+                            viewModel.schedulePostInstallRefresh(
+                                kind: .workflow,
+                                repository: repository,
+                                selectedRepository: viewModel.selectedRepository,
+                                fallbackTargetProvider: targetProvider,
+                                settings: settings
+                            )
                         },
                         onInstallMCP: { mcp, provider in
                             onInstallMCP?(mcp, provider)
-                            // Refresh after install attempt
-                            DispatchQueue.main.asyncAfter(deadline: .now() + RemoteRefreshPolicy.installPropagationDelay) {
-                                let effectiveTargetProvider = viewModel.effectiveTargetProvider(
-                                    for: viewModel.selectedRepository,
-                                    fallback: targetProvider
-                                )
-                                viewModel.refreshInstalledMCPs(targetProvider: effectiveTargetProvider)
-                                viewModel.refreshTrigger += 1
-                            }
+                            viewModel.schedulePostInstallRefresh(
+                                kind: .mcp,
+                                repository: repository,
+                                selectedRepository: viewModel.selectedRepository,
+                                fallbackTargetProvider: targetProvider,
+                                settings: settings
+                            )
                         },
                         onRegisterDeleteRequest: onRegisterDeleteRequest,
                         onMakeDeleteRequestExecutor: onMakeDeleteRequestExecutor,
@@ -366,39 +407,33 @@ struct ResourceCenterView: View {
                         targetProvider: effectiveTargetProvider,
                         onInstall: { skill, provider in
                             onInstall(skill, provider)
-                            // Refresh after install attempt
-                            DispatchQueue.main.asyncAfter(deadline: .now() + RemoteRefreshPolicy.installPropagationDelay) {
-                                let effectiveTargetProvider = viewModel.effectiveTargetProvider(
-                                    for: viewModel.selectedRepository,
-                                    fallback: targetProvider
-                                )
-                                viewModel.refreshInstalledSkills(repository: repository, targetProvider: effectiveTargetProvider, settings: settings)
-                                viewModel.refreshTrigger += 1
-                            }
+                            viewModel.schedulePostInstallRefresh(
+                                kind: .skill,
+                                repository: repository,
+                                selectedRepository: viewModel.selectedRepository,
+                                fallbackTargetProvider: targetProvider,
+                                settings: settings
+                            )
                         },
                         onInstallWorkflow: { workflow, provider in
                             onInstallWorkflow?(workflow, provider)
-                            // Refresh after install attempt
-                            DispatchQueue.main.asyncAfter(deadline: .now() + RemoteRefreshPolicy.installPropagationDelay) {
-                                let effectiveTargetProvider = viewModel.effectiveTargetProvider(
-                                    for: viewModel.selectedRepository,
-                                    fallback: targetProvider
-                                )
-                                viewModel.refreshInstalledWorkflows(targetProvider: effectiveTargetProvider)
-                                viewModel.refreshTrigger += 1
-                            }
+                            viewModel.schedulePostInstallRefresh(
+                                kind: .workflow,
+                                repository: repository,
+                                selectedRepository: viewModel.selectedRepository,
+                                fallbackTargetProvider: targetProvider,
+                                settings: settings
+                            )
                         },
                         onInstallMCP: { mcp, provider in
                             onInstallMCP?(mcp, provider)
-                            // Refresh after install attempt
-                            DispatchQueue.main.asyncAfter(deadline: .now() + RemoteRefreshPolicy.installPropagationDelay) {
-                                let effectiveTargetProvider = viewModel.effectiveTargetProvider(
-                                    for: viewModel.selectedRepository,
-                                    fallback: targetProvider
-                                )
-                                viewModel.refreshInstalledMCPs(targetProvider: effectiveTargetProvider)
-                                viewModel.refreshTrigger += 1
-                            }
+                            viewModel.schedulePostInstallRefresh(
+                                kind: .mcp,
+                                repository: repository,
+                                selectedRepository: viewModel.selectedRepository,
+                                fallbackTargetProvider: targetProvider,
+                                settings: settings
+                            )
                         },
                         onRegisterDeleteRequest: onRegisterDeleteRequest,
                         onMakeDeleteRequestExecutor: onMakeDeleteRequestExecutor,

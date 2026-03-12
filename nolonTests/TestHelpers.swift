@@ -29,10 +29,14 @@ final class TestFixture {
         self.nolonManager = NolonManager(rootURL: tempRoot)
         self.providerSettings = ProviderSettings(userDefaults: testUserDefaults, nolonManager: nolonManager)
     }
+
+    deinit {
+        try? fileManager.removeItem(at: tempRoot)
+    }
     
     func cleanup() {
-        try? fileManager.removeItem(at: tempRoot)
-        testUserDefaults.removePersistentDomain(forName: suiteName)
+        // Cleanup happens in deinit so ProviderSettings/NolonManager are already gone
+        // before we remove the temporary filesystem backing this fixture.
     }
     
     func createSampleSkill(id: String, name: String) throws -> URL {

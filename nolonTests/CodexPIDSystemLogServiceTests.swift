@@ -1,6 +1,7 @@
 import XCTest
 @testable import nolon
 
+@MainActor
 final class CodexPIDSystemLogServiceTests: XCTestCase {
     func testBDD_GivenLongLogs_WhenFetching_ThenKeepsOnlyTailLines() async throws {
         let service = CodexPIDSystemLogService(commandRunner: { _, _ in

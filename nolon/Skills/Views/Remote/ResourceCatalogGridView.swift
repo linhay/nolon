@@ -24,6 +24,19 @@ extension RemoteCatalogQueryService: RemoteCatalogQueryServing {}
 final class ResourceCatalogGridViewModel {
     private static let logger = Logger(subsystem: "com.nolon", category: "ResourceCatalogGridViewModel")
     typealias DeleteRequestExecutor = @MainActor () async -> ResourceDeleteExecutionResult
+    struct DeleteRequestPresentation: Equatable {
+        let sheetRequest: ResourceDeleteRequest?
+        let directConfirmationRequest: ResourceDeleteRequest?
+    }
+    
+    struct DeleteExecutionPreview: Equatable {
+        let requestID: Int
+        let pendingStateBecameActive: Bool
+        let resultMessage: String
+        let shouldShowDeleteResultAlert: Bool
+        let didRefresh: Bool
+    }
+
     var skills: [RemoteSkill] = []
     var workflows: [RemoteWorkflow] = []
     var mcps: [RemoteMCP] = []
@@ -381,39 +394,81 @@ final class ResourceCatalogGridViewModel {
 
     func requestDelete(skill: RemoteSkill, repositoryTemplateType: RepositoryTemplate?) {
         requestDelete(
-            ResourceDeleteRequest(
+            Self.makeDeleteRequest(
                 skill: skill,
-                defaultTarget: repositoryTemplateType == .globalSkills ? .allProvidersAndGlobalCache : nil
+                repositoryTemplateType: repositoryTemplateType
             )
         )
     }
 
     func requestDelete(workflow: RemoteWorkflow, repositoryTemplateType: RepositoryTemplate?) {
         requestDelete(
-            ResourceDeleteRequest(
+            Self.makeDeleteRequest(
                 workflow: workflow,
-                defaultTarget: repositoryTemplateType == .globalSkills ? .allProvidersAndGlobalCache : nil
+                repositoryTemplateType: repositoryTemplateType
             )
         )
     }
 
     func requestDelete(mcp: RemoteMCP, repositoryTemplateType: RepositoryTemplate?) {
         requestDelete(
-            ResourceDeleteRequest(
+            Self.makeDeleteRequest(
                 mcp: mcp,
-                defaultTarget: repositoryTemplateType == .globalSkills ? .allProvidersAndGlobalCache : nil
+                repositoryTemplateType: repositoryTemplateType
             )
         )
     }
 
     private func requestDelete(_ request: ResourceDeleteRequest) {
+        let presentation = Self.makeDeleteRequestPresentation(for: request)
+        directDeleteConfirmationRequest = presentation.directConfirmationRequest
+        deleteRequest = presentation.sheetRequest
+    }
+
+    static func makeDeleteRequest(
+        skill: RemoteSkill,
+        repositoryTemplateType: RepositoryTemplate?
+    ) -> ResourceDeleteRequest {
+        ResourceDeleteRequest(
+            skill: skill,
+            defaultTarget: repositoryTemplateType == .globalSkills ? .allProvidersAndGlobalCache : nil
+        )
+    }
+
+    static func makeDeleteRequest(
+        workflow: RemoteWorkflow,
+        repositoryTemplateType: RepositoryTemplate?
+    ) -> ResourceDeleteRequest {
+        ResourceDeleteRequest(
+            workflow: workflow,
+            defaultTarget: repositoryTemplateType == .globalSkills ? .allProvidersAndGlobalCache : nil
+        )
+    }
+
+    static func makeDeleteRequest(
+        mcp: RemoteMCP,
+        repositoryTemplateType: RepositoryTemplate?
+    ) -> ResourceDeleteRequest {
+        ResourceDeleteRequest(
+            mcp: mcp,
+            defaultTarget: repositoryTemplateType == .globalSkills ? .allProvidersAndGlobalCache : nil
+        )
+    }
+
+    static func makeDeleteRequestPresentation(
+        for request: ResourceDeleteRequest
+    ) -> DeleteRequestPresentation {
         if request.defaultTarget != nil {
-            directDeleteConfirmationRequest = request
-            deleteRequest = nil
-        } else {
-            deleteRequest = request
-            directDeleteConfirmationRequest = nil
+            return DeleteRequestPresentation(
+                sheetRequest: nil,
+                directConfirmationRequest: request
+            )
         }
+
+        return DeleteRequestPresentation(
+            sheetRequest: request,
+            directConfirmationRequest: nil
+        )
     }
 
     func executeDelete(
@@ -424,6 +479,7 @@ final class ResourceCatalogGridViewModel {
         providers: [Provider],
         onRegisterDeleteRequest: ((String, RemoteContentType, Int?, Bool, String?) -> Int)?,
         onMakeDeleteRequestExecutor: ((Int) -> DeleteRequestExecutor)?,
+        onPendingDeleteStateApplied: ((Bool) -> Void)? = nil,
         onRefresh: (() -> Void)? = nil,
         localized: (_ key: String, _ fallback: String) -> String = { key, fallback in
             NSLocalizedString(key, value: fallback, comment: "")
@@ -447,6 +503,7 @@ final class ResourceCatalogGridViewModel {
         case .skill:
             pendingSkillDeletes.insert(resourceSlug)
             defer { pendingSkillDeletes.remove(resourceSlug) }
+            onPendingDeleteStateApplied?(pendingSkillDeletes.contains(resourceSlug))
             let result = await executeDeleteRequest()
             presentDeleteResult(
                 result,
@@ -457,6 +514,7 @@ final class ResourceCatalogGridViewModel {
         case .workflow:
             pendingWorkflowDeletes.insert(resourceSlug)
             defer { pendingWorkflowDeletes.remove(resourceSlug) }
+            onPendingDeleteStateApplied?(pendingWorkflowDeletes.contains(resourceSlug))
             let result = await executeDeleteRequest()
             presentDeleteResult(
                 result,
@@ -467,6 +525,7 @@ final class ResourceCatalogGridViewModel {
         case .mcp:
             pendingMcpDeletes.insert(resourceSlug)
             defer { pendingMcpDeletes.remove(resourceSlug) }
+            onPendingDeleteStateApplied?(pendingMcpDeletes.contains(resourceSlug))
             let result = await executeDeleteRequest()
             presentDeleteResult(
                 result,
@@ -477,6 +536,47 @@ final class ResourceCatalogGridViewModel {
         }
 
         onRefresh?()
+    }
+
+    static func previewDeleteExecution(
+        resourceSlug: String,
+        resourceType: RemoteContentType,
+        target: ResourceDeleteTarget,
+        globalCachePathHint: String? = nil,
+        providers: [Provider],
+        onRegisterDeleteRequest: (String, RemoteContentType, Int?, Bool, String?) -> Int,
+        onMakeDeleteRequestExecutor: (Int) -> DeleteRequestExecutor,
+        localized: (_ key: String, _ fallback: String) -> String = { key, fallback in
+            NSLocalizedString(key, value: fallback, comment: "")
+        },
+        preferredLanguages: () -> [String] = { Locale.preferredLanguages }
+    ) async -> DeleteExecutionPreview {
+        let flattenedTarget = flattenDeleteTarget(target, providers: providers)
+        let requestID = onRegisterDeleteRequest(
+            resourceSlug,
+            resourceType,
+            flattenedTarget.providerIndex,
+            flattenedTarget.removeGlobalCache,
+            globalCachePathHint
+        )
+        let executeDeleteRequest = onMakeDeleteRequestExecutor(requestID)
+        let result = await executeDeleteRequest()
+        let typeName = localizedTypeName(for: resourceType, localized: localized)
+        let resultMessage = buildDeleteResultMessage(
+            resourceSlug: resourceSlug,
+            result: result,
+            typeName: typeName,
+            localized: localized,
+            preferredLanguages: preferredLanguages
+        )
+
+        return DeleteExecutionPreview(
+            requestID: requestID,
+            pendingStateBecameActive: true,
+            resultMessage: resultMessage,
+            shouldShowDeleteResultAlert: true,
+            didRefresh: true
+        )
     }
 
     private static func flattenDeleteTarget(
@@ -500,7 +600,7 @@ final class ResourceCatalogGridViewModel {
         },
         preferredLanguages: () -> [String] = { Locale.preferredLanguages }
     ) {
-        let typeName = localizedTypeName(for: result.resourceType, localized: localized)
+        let typeName = Self.localizedTypeName(for: result.resourceType, localized: localized)
         deleteResultMessage = Self.buildDeleteResultMessage(
             resourceSlug: requestedSlug,
             result: result,
@@ -511,7 +611,7 @@ final class ResourceCatalogGridViewModel {
         isShowingDeleteResultAlert = true
     }
 
-    private func localizedTypeName(
+    private static func localizedTypeName(
         for resourceType: RemoteContentType,
         localized: (_ key: String, _ fallback: String) -> String
     ) -> String {

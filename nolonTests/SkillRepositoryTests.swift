@@ -85,7 +85,7 @@ final class SkillRepositoryTests: XCTestCase {
         
         // Then
         XCTAssertTrue(fixture.fileManager.fileExists(atPath: workflowPath))
-        let content = try String(contentsOfFile: workflowPath)
+        let content = try String(contentsOfFile: workflowPath, encoding: .utf8)
         XCTAssertTrue(content.contains("Workflow Skill"))
     }
 

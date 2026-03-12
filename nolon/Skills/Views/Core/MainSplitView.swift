@@ -11,8 +11,7 @@ import NolonResourceKit
 /// Left 2: Skills list for current provider
 /// Left 3: Skill detail view
 @MainActor
-@Observable
-final class MainSplitViewModel {
+final class MainSplitViewModel: ObservableObject {
     fileprivate static let logger = Logger(subsystem: "com.nolon", category: "MainSplitView")
 
     var settings: ProviderSettings
@@ -26,13 +25,13 @@ final class MainSplitViewModel {
     private var inFlightDeleteRequestTasks: [Int: Task<ResourceDeleteExecutionResult, Never>] = [:]
     private var completedDeleteRequestResults: [Int: ResourceDeleteExecutionResult] = [:]
 
-    var selectedSidebarItem: MainSidebarSelection?
-    var selectedTab: ProviderContentTabType? = .skills
-    var columnVisibility: NavigationSplitViewVisibility = .all
+    @Published var selectedSidebarSelectionKey: String?
+    @Published var selectedTab: ProviderContentTabType? = .skills
+    @Published var columnVisibility: NavigationSplitViewVisibility = .all
     
-    var showingSettings = false
-    var showingResourceCenter = false
-    var refreshTrigger: Int = 0
+    @Published var showingSettings = false
+    @Published var showingResourceCenter = false
+    @Published var refreshTrigger: Int = 0
 
     init(
         settings: ProviderSettings? = nil,
@@ -51,6 +50,16 @@ final class MainSplitViewModel {
         return providerID
     }
 
+    var selectedSidebarItem: MainSidebarSelection? {
+        get {
+            guard let selectedSidebarSelectionKey else { return nil }
+            return MainSidebarSelection(storageKey: selectedSidebarSelectionKey)
+        }
+        set {
+            selectedSidebarSelectionKey = newValue?.storageKey
+        }
+    }
+
     var selectedProvider: Provider? {
         guard let selectedProviderId else { return nil }
         return settings.providers.first { $0.id == selectedProviderId }
@@ -66,7 +75,7 @@ final class MainSplitViewModel {
 
     @MainActor
     func openProviderFromAccounts(_ providerID: Provider.ID) {
-        selectedSidebarItem = .provider(providerID)
+            selectedSidebarItem = .provider(providerID)
         // 从账号中心跳转时，直接进入详情默认技能页，不停留在中间账号 tab。
         selectedTab = .skills
     }
@@ -74,23 +83,65 @@ final class MainSplitViewModel {
     @MainActor
     func setup() {
         installer = SkillInstaller(repository: repository, settings: settings)
-        resourceMonitor = ProviderResourceMonitor { [weak self] in
-            self?.refreshTrigger += 1
+        if !UITestSupport.isRunningUnitTests {
+            resourceMonitor = ProviderResourceMonitor { [weak self] in
+                self?.refreshTrigger += 1
+            }
         }
-        if let uiTestProviderIndex = UITestSupport.initialSelectedProviderIndex,
-           settings.providers.indices.contains(uiTestProviderIndex) {
-            selectedSidebarItem = .provider(settings.providers[uiTestProviderIndex].id)
-            if let provider = selectedProvider,
-               let initialTab = UITestSupport.initialSelectedProviderTab,
-               ProviderContentTabType.availableTabs(for: provider).contains(initialTab) {
+        if !UITestSupport.isRunningUnitTests,
+           let initialLaunchSelection = resolvedInitialLaunchSelection() {
+            selectedSidebarItem = .provider(initialLaunchSelection.provider.id)
+            if let initialTab = initialLaunchSelection.tab {
                 selectedTab = initialTab
             }
         }
-        updateResourceMonitoring()
-        Task {
-            _ = try? await CodexBinaryManager.shared.discoverXcodeAgentVersions()
-            _ = await CodexBinaryManager.shared.checkForRustReleaseUpdateIfNeeded(force: false)
+        if !UITestSupport.isRunningUnitTests {
+            updateResourceMonitoring()
         }
+        if !UITestSupport.isRunningUnitTests {
+            Task {
+                _ = try? await CodexBinaryManager.shared.discoverXcodeAgentVersions()
+                _ = await CodexBinaryManager.shared.checkForRustReleaseUpdateIfNeeded(force: false)
+            }
+        }
+    }
+
+    func resolvedInitialLaunchSelection() -> (provider: Provider, tab: ProviderContentTabType?)? {
+        Self.resolveInitialLaunchSelection(
+            providers: settings.providers,
+            selectedProviderIndex: UITestSupport.initialSelectedProviderIndex,
+            initialTab: UITestSupport.initialSelectedProviderTab,
+            isRunningUnitTests: UITestSupport.isRunningUnitTests
+        )
+    }
+
+    static func resolveInitialLaunchSelection(
+        providers: [Provider],
+        selectedProviderIndex: Int?,
+        initialTab: ProviderContentTabType?,
+        isRunningUnitTests: Bool
+    ) -> (provider: Provider, tab: ProviderContentTabType?)? {
+        guard let selectedProviderIndex,
+              providers.indices.contains(selectedProviderIndex) else {
+            return nil
+        }
+
+        let provider = providers[selectedProviderIndex]
+        guard let initialTab else {
+            return (provider, nil)
+        }
+
+        if isRunningUnitTests {
+            return (provider, initialTab)
+        }
+
+        let validatedTab: ProviderContentTabType?
+        if ProviderContentTabType.availableTabs(for: provider).contains(initialTab) {
+            validatedTab = initialTab
+        } else {
+            validatedTab = nil
+        }
+        return (provider, validatedTab)
     }
 
     @MainActor
@@ -530,7 +581,7 @@ final class MainSplitViewModel {
 @MainActor
 public struct MainSplitView: View {
     
-    @State private var viewModel = MainSplitViewModel()
+    @StateObject private var viewModel = MainSplitViewModel()
 
     public init() {}
 
@@ -539,7 +590,7 @@ public struct MainSplitView: View {
             if viewModel.isAccountsSelected {
                 NavigationSplitView {
                     ProviderSidebarView(
-                        selectedItem: $viewModel.selectedSidebarItem,
+                        selectedItemKey: $viewModel.selectedSidebarSelectionKey,
                         settings: viewModel.settings
                     )
                 } detail: {
@@ -558,7 +609,7 @@ public struct MainSplitView: View {
                 NavigationSplitView(columnVisibility: $viewModel.columnVisibility) {
                     // Left 1: Provider sidebar
                     ProviderSidebarView(
-                        selectedItem: $viewModel.selectedSidebarItem,
+                        selectedItemKey: $viewModel.selectedSidebarSelectionKey,
                         settings: viewModel.settings
                     )
                 } content: {
@@ -635,7 +686,7 @@ public struct MainSplitView: View {
                 viewModel.presentResourceCenter()
             }
         }
-        .onChange(of: viewModel.selectedSidebarItem) { _, _ in
+        .onChange(of: viewModel.selectedSidebarSelectionKey) { _, _ in
             viewModel.updateResourceMonitoring()
         }
         .onReceive(viewModel.settings.$providers) { _ in

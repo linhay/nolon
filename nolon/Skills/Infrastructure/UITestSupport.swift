@@ -8,6 +8,10 @@ enum UITestSupport {
         environmentOverride ?? ProcessInfo.processInfo.environment
     }
 
+    static var isRunningUnitTests: Bool {
+        ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+    }
+
     static var isEnabled: Bool {
         environment["NOLON_UI_TEST_MODE"] == "1"
     }

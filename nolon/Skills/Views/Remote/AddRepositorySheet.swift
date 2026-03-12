@@ -39,12 +39,19 @@ final class AddRepositoryViewModel {
     var validationError: String?
     var isAddingRepository = false
     
-    var settings: ProviderSettings
+    @ObservationIgnored var settings: ProviderSettings
     
-    var onDirectoryCandidatesFound: ((RemoteRepository, [GitRepository.SkillsDirectoryCandidate]) -> Void)?
-    var onDismiss: (() -> Void)?
-    private let syncOrchestrator = RepositorySyncOrchestrator()
-    private let draftService = RepositoryDraftService()
+    @ObservationIgnored var onDirectoryCandidatesFound: ((RemoteRepository, [GitRepository.SkillsDirectoryCandidate]) -> Void)?
+    @ObservationIgnored var onDismiss: (() -> Void)?
+    @ObservationIgnored private let syncOrchestrator = RepositorySyncOrchestrator()
+    @ObservationIgnored private let draftService = RepositoryDraftService()
+
+    struct PendingImportPrefill: Equatable {
+        let template: RepositoryTemplate
+        let name: String
+        let normalizedGitURL: String
+        let skillsPaths: [String]
+    }
     
     init(settings: ProviderSettings, repositoryToEdit: RemoteRepository? = nil) {
         self.settings = settings
@@ -59,19 +66,6 @@ final class AddRepositoryViewModel {
             preferredSkillsPaths = repo.skillsPaths
         } else {
             resetAddForm()
-            
-            // Handle pending URL import
-            if let importURL = settings.pendingImportURL {
-                Self.logger.info("Handling pending import URL: \(importURL, privacy: .public)")
-                applyPendingImportURL(importURL)
-                
-                validateInput()
-                
-                // Consume the pending URL asynchronously to avoid "Publishing changes from within view updates"
-                Task { @MainActor in
-                    settings.pendingImportURL = nil
-                }
-            }
         }
     }
 
@@ -133,31 +127,37 @@ final class AddRepositoryViewModel {
         guard let importURL = settings.pendingImportURL else { return }
         
         Self.logger.info("checkPendingImportURL: \(importURL, privacy: .public)")
-        applyPendingImportURL(importURL)
-        
+        guard applyPendingImportURL(importURL) else { return }
         validateInput()
-        
-        // Consume the pending URL asynchronously
-        Task { @MainActor in
-            settings.pendingImportURL = nil
-        }
+        consumePendingImportURL(afterViewUpdate: true)
     }
 
-    private func applyPendingImportURL(_ importURL: String) {
-        let intent = draftService.parseImportIntent(from: importURL)
-        guard intent.kind == .gitRepository else {
-            Self.logger.info("Skip AddRepositorySheet pending import handling for non-git URL: \(importURL, privacy: .public)")
+    private func consumePendingImportURL(afterViewUpdate: Bool) {
+        if afterViewUpdate, !UITestSupport.isRunningUnitTests {
+            Task { @MainActor [weak settings] in
+                settings?.pendingImportURL = nil
+            }
             return
         }
 
-        let draft = draftService.importedDraft(from: importURL)
-        selectedTemplate = draft.template
-        preferredSkillsPaths = draft.skillsPaths
-        newGitURL = intent.normalizedGitURL ?? draft.normalizedGitURL
-        if !draft.name.isEmpty {
-            newRepoName = draft.name
+        settings.pendingImportURL = nil
+    }
+
+    @discardableResult
+    private func applyPendingImportURL(_ importURL: String) -> Bool {
+        guard let prefill = Self.pendingImportPrefill(for: importURL, draftService: draftService) else {
+            Self.logger.info("Skip AddRepositorySheet pending import handling for non-git URL: \(importURL, privacy: .public)")
+            return false
+        }
+
+        selectedTemplate = prefill.template
+        preferredSkillsPaths = prefill.skillsPaths
+        newGitURL = prefill.normalizedGitURL
+        if !prefill.name.isEmpty {
+            newRepoName = prefill.name
         }
         Self.logger.info("Loaded git URL: \(self.newGitURL, privacy: .public), name: \(self.newRepoName, privacy: .public)")
+        return true
     }
     
     func resetAddForm() {
@@ -211,6 +211,22 @@ final class AddRepositoryViewModel {
         guard let raw else { return nil }
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
+    }
+
+    static func pendingImportPrefill(
+        for importURL: String,
+        draftService: RepositoryDraftService = RepositoryDraftService()
+    ) -> PendingImportPrefill? {
+        let intent = draftService.parseImportIntent(from: importURL)
+        guard intent.kind == .gitRepository else { return nil }
+
+        let draft = draftService.importedDraft(from: importURL)
+        return PendingImportPrefill(
+            template: draft.template,
+            name: draft.name,
+            normalizedGitURL: intent.normalizedGitURL ?? draft.normalizedGitURL,
+            skillsPaths: draft.skillsPaths
+        )
     }
 
     @MainActor

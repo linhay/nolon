@@ -105,6 +105,7 @@ final class CodexAuthBackgroundPoller {
     private init() {}
 
     func start() {
+        guard !UITestSupport.isRunningUnitTests else { return }
         guard pollTask == nil else { return }
         pollTask = Task { [weak self] in
             guard let self else { return }
@@ -185,7 +186,9 @@ struct nolonApp: App {
                     URLSchemeHandler.shared.handleURL(url)
                 }
                 .task {
-                    CodexAuthBackgroundPoller.shared.start()
+                    if !UITestSupport.isRunningUnitTests {
+                        CodexAuthBackgroundPoller.shared.start()
+                    }
                 }
         }
         .handlesExternalEvents(matching: [])  // Prevent new windows from URL events

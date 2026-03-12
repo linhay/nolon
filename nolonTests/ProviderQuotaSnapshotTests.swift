@@ -8,7 +8,7 @@ final class ProviderQuotaSnapshotTests: XCTestCase {
     
     @MainActor
     func testCaptureSnapshots() {
-        let healthyView = ProviderQuotaSection(
+        _ = ProviderQuotaSection(
             provider: .codex,
             usage: UsageSnapshot(
                 identity: UsageIdentity(accountEmail: "zolplay@nolon.ai", accountOrganization: nil, loginMethod: nil, plan: "Pro Plan"),

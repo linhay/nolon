@@ -150,7 +150,7 @@ final class ProviderUsageViewModel {
     private var didStartInitialLoad = false
     private var lastUsageRefreshAt: Date?
     private let cliLoginTimeoutSeconds: TimeInterval = 10 * 60
-    private let codexRefreshTimeoutGraceSeconds: TimeInterval = 5
+    private let codexRefreshTimeoutGraceSeconds: TimeInterval
     @ObservationIgnored private var codexHeaderRefreshTask: Task<Void, Never>?
     private var codexHeaderRefreshSessionID: UUID?
     var isCodexHeaderRefreshing = false
@@ -393,13 +393,16 @@ final class ProviderUsageViewModel {
         codexImportExportArchiveAction: CodexImportExportArchiveAction? = nil,
         codexImportExportSub2APIAction: CodexImportExportSub2APIAction? = nil,
         geminiTokenTrendFetchAction: GeminiTokenTrendFetchAction? = nil,
-        postDeleteLoadAction: AsyncVoidAction? = nil
+        postDeleteLoadAction: AsyncVoidAction? = nil,
+        codexRefreshTimeoutGraceSeconds: TimeInterval = 5,
+        initialSettingsOverride: UsageMonitorProviderSettings? = nil
     ) {
         let tokenStore = FileTokenAccountStore(fileURL: ProviderUsagePaths.defaultTokenAccountsFileURL())
         self.usageMonitor = usageMonitor ?? ProviderUsageMonitorService(tokenAccountStore: tokenStore)
         self.provider = provider
         self.usageProvider = ProviderUsageViewModel.mapToUsageProvider(provider)
-        let initialSettings = settingsStore.settings(for: provider)
+        self.codexRefreshTimeoutGraceSeconds = codexRefreshTimeoutGraceSeconds
+        let initialSettings = initialSettingsOverride ?? settingsStore.settings(for: provider)
         self.settings = initialSettings
         if ProviderUsageViewModel.mapToUsageProvider(provider) == .codex {
             self.isMultiAccountEnabled = true
@@ -3325,11 +3328,15 @@ final class ProviderUsageViewModel {
     }
 
     func refreshCodexAccount(id: UUID) {
-        guard let account = codexAccounts.first(where: { $0.id == id }) else { return }
         Task { [weak self] in
             guard let self else { return }
-            await self.refreshCodexAccountOutcome(account)
+            await self.refreshCodexAccountImmediately(id: id)
         }
+    }
+
+    func refreshCodexAccountImmediately(id: UUID) async {
+        guard let account = codexAccounts.first(where: { $0.id == id }) else { return }
+        await refreshCodexAccountOutcome(account)
     }
 
     private func refreshCodexAccountsIfNeeded(activeId: UUID?, summaries: [UUID: CodexAuthSummary]) async {

@@ -3,6 +3,18 @@ import ProviderCatalog
 import NolonResourceKit
 @testable import nolon
 
+actor DownloadCallCounter {
+    private var value = 0
+
+    func increment() {
+        value += 1
+    }
+
+    func count() -> Int {
+        value
+    }
+}
+
 @MainActor
 final class RemoteInstallOrchestratorTests: XCTestCase {
     var fixture: TestFixture!
@@ -26,10 +38,10 @@ final class RemoteInstallOrchestratorTests: XCTestCase {
     func testBDD_GivenLocalSkill_WhenInstallSkill_ThenSkipRemoteDownload() async throws {
         let localSkillURL = try fixture.createSampleSkill(id: "local-skill", name: "Local Skill")
         let provider = fixture.createProvider(name: "Cursor", method: .symlink)
-        var downloadCallCount = 0
+        let downloadCallCounter = DownloadCallCounter()
         let orchestrator = RemoteInstallOrchestrator(
             downloadRemoteResource: { _, _, _, _ in
-                downloadCallCount += 1
+                await downloadCallCounter.increment()
                 return URL(fileURLWithPath: "/tmp/should-not-be-called.zip")
             }
         )
@@ -51,6 +63,7 @@ final class RemoteInstallOrchestratorTests: XCTestCase {
             remoteBaseURL: "https://clawdhub.com"
         )
 
+        let downloadCallCount = await downloadCallCounter.count()
         XCTAssertEqual(downloadCallCount, 0)
         XCTAssertTrue(fixture.fileManager.fileExists(atPath: "\(provider.defaultSkillsPath)/local-skill"))
     }
@@ -69,10 +82,10 @@ final class RemoteInstallOrchestratorTests: XCTestCase {
         # Review
         """.write(to: remoteFile, atomically: true, encoding: .utf8)
 
-        var downloadCallCount = 0
+        let downloadCallCounter = DownloadCallCounter()
         let orchestrator = RemoteInstallOrchestrator(
             downloadRemoteResource: { kind, slug, _, _ in
-                downloadCallCount += 1
+                await downloadCallCounter.increment()
                 XCTAssertEqual(kind, .workflow)
                 XCTAssertEqual(slug, "remote-review")
                 return remoteFile
@@ -97,6 +110,7 @@ final class RemoteInstallOrchestratorTests: XCTestCase {
             remoteBaseURL: "https://clawdhub.com"
         )
 
+        let downloadCallCount = await downloadCallCounter.count()
         XCTAssertEqual(downloadCallCount, 1)
         XCTAssertTrue(fixture.fileManager.fileExists(atPath: "\(provider.workflowPath)/remote-review.md"))
     }

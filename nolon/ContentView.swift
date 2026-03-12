@@ -12,7 +12,9 @@ struct ContentView: View {
     
     var body: some View {
         Group {
-            if hasCompletedOnboarding || UITestSupport.shouldSkipOnboarding {
+            if UITestSupport.isRunningUnitTests {
+                Color.clear
+            } else if hasCompletedOnboarding || UITestSupport.shouldSkipOnboarding {
                 MainSplitView()
             } else {
                 OnboardingView {

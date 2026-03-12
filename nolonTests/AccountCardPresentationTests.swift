@@ -1,6 +1,7 @@
 import XCTest
 @testable import nolon
 
+@MainActor
 final class AccountCardPresentationTests: XCTestCase {
     func testBDD_GivenCodexActiveAccount_WhenBuildingPresentation_ThenUsesActiveHighlightWithoutSelectionBadge() {
         let presentation = AccountCardPresentation.codex(

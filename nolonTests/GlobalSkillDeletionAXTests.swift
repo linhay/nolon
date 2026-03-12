@@ -87,7 +87,7 @@ final class GlobalSkillDeletionAXTests: XCTestCase {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
             if let runningApp = NSRunningApplication(processIdentifier: pid) {
-                runningApp.activate(options: [.activateAllWindows, .activateIgnoringOtherApps])
+                runningApp.activate(options: [.activateAllWindows])
                 return AXUIElementCreateApplication(pid)
             }
             RunLoop.current.run(until: Date().addingTimeInterval(0.1))
