@@ -81,6 +81,7 @@ public struct CodexAuthSummary: Hashable, Sendable {
         }
 
         var email = (json["email"].string
+            ?? json["user"]["email"].string
             ?? json["nolon"]["account"]["email"].string
         )?.trimmingCharacters(in: .whitespacesAndNewlines)
         if email?.isEmpty == true { email = nil }
@@ -155,6 +156,7 @@ public struct CodexAuthSummary: Hashable, Sendable {
         guard let json = try? JSON(data: data) else { return CodexAuthSummary() }
 
         var email = (json["email"].string
+            ?? json["user"]["email"].string
             ?? json["nolon"]["account"]["email"].string
         )?.trimmingCharacters(in: .whitespacesAndNewlines)
         if email?.isEmpty == true { email = nil }

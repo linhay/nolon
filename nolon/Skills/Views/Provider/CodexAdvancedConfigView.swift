@@ -5,7 +5,6 @@ import SwiftUI
 import STFilePath
 import CodexProvider
 import NolonResourceKit
-import TOML
 
 enum CodexLinkFolder: String, CaseIterable, Identifiable, Hashable {
     case prompts
@@ -34,6 +33,427 @@ struct CodexConfigDocLink: Identifiable, Sendable {
     let id: String
     let title: String
     let url: String
+}
+
+struct CodexAdvancedStructuredDraft: Sendable {
+    let approvalPolicy: String?
+    let sandboxMode: String?
+    let webSearch: String?
+    let modelProvider: String?
+    let profile: String?
+    let personality: String?
+    let reasoningSummary: String?
+    let verbosity: String?
+    let featureValues: [String: Bool]
+    let agentsMaxThreads: Int?
+    let agentsMaxDepth: Int?
+    let roleDrafts: [CodexAgentRoleDraft]
+}
+
+struct CodexStructuredConfigPatchService: Sendable {
+    private struct SectionBlock: Equatable {
+        let name: String
+        let header: String
+        var body: [String]
+
+        var renderedLines: [String] { [header] + body }
+    }
+
+    private struct Document: Equatable {
+        var preamble: [String]
+        var sections: [SectionBlock]
+        let hasTrailingNewline: Bool
+    }
+
+    private let controlledTopLevelKeys: [String] = [
+        "approval_policy",
+        "sandbox_mode",
+        "web_search",
+        "model_provider",
+        "profile",
+        "personality",
+        "model_reasoning_summary",
+        "model_verbosity"
+    ]
+
+    private let controlledRoleKeys: [String] = [
+        "description",
+        "config_file",
+        "model",
+        "model_reasoning_effort",
+        "model_reasoning_summary",
+        "model_verbosity",
+        "approval_policy",
+        "sandbox_mode",
+        "personality",
+        "web_search"
+    ]
+
+    func patch(original: String, draft: CodexAdvancedStructuredDraft) throws -> String {
+        var document = parseDocument(original.replacingOccurrences(of: "\r\n", with: "\n"))
+        patchTopLevel(in: &document, draft: draft)
+        patchFeatures(in: &document, draft: draft)
+        patchAgents(in: &document, draft: draft)
+        return renderDocument(document)
+    }
+
+    func extractDraft(from original: String) -> CodexAdvancedStructuredDraft {
+        let document = parseDocument(original.replacingOccurrences(of: "\r\n", with: "\n"))
+        let topLevel = Dictionary(uniqueKeysWithValues: document.preamble.compactMap { line -> (String, String)? in
+            guard let key = parseAssignmentKey(from: line), let value = parseStringValue(from: line) else { return nil }
+            return (key, value)
+        })
+
+        let featureValues = document.sections
+            .first(where: { $0.name == "features" })
+            .map(parseBooleanAssignments(in:)) ?? [:]
+
+        let agentsSection = document.sections.first(where: { $0.name == "agents" })
+        let roles = document.sections
+            .filter { $0.name.hasPrefix("agents.") }
+            .map { section -> CodexAgentRoleDraft in
+                let roleName = String(section.name.dropFirst("agents.".count))
+                let values = parseAssignments(in: section)
+                return CodexAgentRoleDraft(
+                    name: roleName,
+                    description: values["description"] ?? "",
+                    configFile: values["config_file"] ?? "",
+                    model: values["model"] ?? "",
+                    modelReasoningEffort: values["model_reasoning_effort"] ?? "",
+                    sandboxMode: values["sandbox_mode"] ?? "",
+                    approvalPolicy: values["approval_policy"] ?? ""
+                )
+            }
+
+        return CodexAdvancedStructuredDraft(
+            approvalPolicy: topLevel["approval_policy"],
+            sandboxMode: topLevel["sandbox_mode"],
+            webSearch: topLevel["web_search"],
+            modelProvider: topLevel["model_provider"],
+            profile: topLevel["profile"],
+            personality: topLevel["personality"],
+            reasoningSummary: topLevel["model_reasoning_summary"],
+            verbosity: topLevel["model_verbosity"],
+            featureValues: featureValues,
+            agentsMaxThreads: agentsSection.flatMap { parseIntegerValue(for: "max_threads", in: $0) },
+            agentsMaxDepth: agentsSection.flatMap { parseIntegerValue(for: "max_depth", in: $0) },
+            roleDrafts: roles
+        )
+    }
+
+    private func parseDocument(_ text: String) -> Document {
+        let lines = text.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+        var preamble: [String] = []
+        var sections: [SectionBlock] = []
+        var currentSectionName: String?
+        var currentSectionHeader: String?
+        var currentBody: [String] = []
+
+        func flushCurrentSection() {
+            guard let currentSectionName, let currentSectionHeader else { return }
+            sections.append(
+                SectionBlock(
+                    name: currentSectionName,
+                    header: currentSectionHeader,
+                    body: currentBody
+                )
+            )
+        }
+
+        for line in lines {
+            if let sectionName = parseSectionName(from: line) {
+                flushCurrentSection()
+                currentSectionName = sectionName
+                currentSectionHeader = line
+                currentBody = []
+                continue
+            }
+
+            if currentSectionName == nil {
+                preamble.append(line)
+            } else {
+                currentBody.append(line)
+            }
+        }
+        flushCurrentSection()
+        return Document(
+            preamble: preamble,
+            sections: sections,
+            hasTrailingNewline: text.hasSuffix("\n")
+        )
+    }
+
+    private func renderDocument(_ document: Document) -> String {
+        var lines = document.preamble
+        for section in document.sections {
+            lines.append(contentsOf: section.renderedLines)
+        }
+        var output = lines.joined(separator: "\n")
+        if document.hasTrailingNewline || !output.isEmpty {
+            output += "\n"
+        }
+        return output
+    }
+
+    private func patchTopLevel(in document: inout Document, draft: CodexAdvancedStructuredDraft) {
+        let generated = [
+            stringAssignmentLine(key: "approval_policy", value: draft.approvalPolicy),
+            stringAssignmentLine(key: "sandbox_mode", value: draft.sandboxMode),
+            stringAssignmentLine(key: "web_search", value: draft.webSearch),
+            stringAssignmentLine(key: "model_provider", value: draft.modelProvider),
+            stringAssignmentLine(key: "profile", value: draft.profile),
+            stringAssignmentLine(key: "personality", value: draft.personality),
+            stringAssignmentLine(key: "model_reasoning_summary", value: draft.reasoningSummary),
+            stringAssignmentLine(key: "model_verbosity", value: draft.verbosity)
+        ].compactMap { $0 }
+
+        var filtered: [String] = []
+        for line in document.preamble {
+            guard let key = parseAssignmentKey(from: line), controlledTopLevelKeys.contains(key) else {
+                filtered.append(line)
+                continue
+            }
+        }
+        document.preamble = appendGeneratedLines(generated, to: filtered)
+    }
+
+    private func patchFeatures(in document: inout Document, draft: CodexAdvancedStructuredDraft) {
+        let controlledKeys = Set(draft.featureValues.keys)
+        let generated = draft.featureValues
+            .sorted { $0.key < $1.key }
+            .map { boolAssignmentLine(key: $0.key, value: $0.value) }
+
+        let sectionIndex = document.sections.firstIndex(where: { $0.name == "features" })
+        let existingBody = sectionIndex.map { document.sections[$0].body } ?? []
+        let filteredBody = patchBody(
+            existingBody,
+            removingKeys: controlledKeys,
+            generatedLines: generated
+        )
+
+        if !sectionHasMeaningfulContent(filteredBody) {
+            if let sectionIndex {
+                document.sections.remove(at: sectionIndex)
+            }
+            return
+        }
+
+        let section = SectionBlock(name: "features", header: "[features]", body: filteredBody)
+        if let sectionIndex {
+            document.sections[sectionIndex] = section
+        } else {
+            document.sections.append(section)
+        }
+    }
+
+    private func patchAgents(in document: inout Document, draft: CodexAdvancedStructuredDraft) {
+        let agentsIndices = document.sections.indices.filter {
+            let name = document.sections[$0].name
+            return name == "agents" || name.hasPrefix("agents.")
+        }
+        let firstAgentsIndex = agentsIndices.first
+        let existingSections = agentsIndices.map { document.sections[$0] }
+        let existingParentSection = existingSections.first(where: { $0.name == "agents" })
+        let existingRoleSections = existingSections.filter { $0.name.hasPrefix("agents.") }
+
+        let parentGenerated = [
+            intAssignmentLine(key: "max_threads", value: draft.agentsMaxThreads),
+            intAssignmentLine(key: "max_depth", value: draft.agentsMaxDepth)
+        ].compactMap { $0 }
+        let patchedParentBody = patchBody(
+            existingParentSection?.body ?? [],
+            removingKeys: ["max_threads", "max_depth"],
+            generatedLines: parentGenerated
+        )
+
+        var patchedCluster: [SectionBlock] = []
+        let roleDraftsByName = Dictionary(uniqueKeysWithValues: draft.roleDrafts.compactMap { role -> (String, CodexAgentRoleDraft)? in
+            let name = role.name.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !name.isEmpty else { return nil }
+            return (name, role)
+        })
+
+        if sectionHasMeaningfulContent(patchedParentBody) || !roleDraftsByName.isEmpty {
+            patchedCluster.append(
+                SectionBlock(
+                    name: "agents",
+                    header: "[agents]",
+                    body: patchedParentBody
+                )
+            )
+        }
+
+        var existingRoleNames = Set<String>()
+        for section in existingRoleSections {
+            let roleName = String(section.name.dropFirst("agents.".count))
+            guard let roleDraft = roleDraftsByName[roleName] else { continue }
+            existingRoleNames.insert(roleName)
+            patchedCluster.append(
+                SectionBlock(
+                    name: section.name,
+                    header: section.header,
+                    body: patchRoleBody(section.body, role: roleDraft)
+                )
+            )
+        }
+
+        for role in draft.roleDrafts {
+            let roleName = role.name.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !roleName.isEmpty, !existingRoleNames.contains(roleName) else { continue }
+            patchedCluster.append(
+                SectionBlock(
+                    name: "agents.\(roleName)",
+                    header: "[agents.\(roleName)]",
+                    body: patchRoleBody([], role: role)
+                )
+            )
+        }
+
+        for index in agentsIndices.sorted(by: >) {
+            document.sections.remove(at: index)
+        }
+
+        guard !patchedCluster.isEmpty else { return }
+        let insertionIndex = firstAgentsIndex ?? document.sections.count
+        document.sections.insert(contentsOf: patchedCluster, at: insertionIndex)
+    }
+
+    private func patchRoleBody(_ body: [String], role: CodexAgentRoleDraft) -> [String] {
+        let generated = [
+            stringAssignmentLine(key: "description", value: normalized(role.description)),
+            stringAssignmentLine(key: "config_file", value: normalized(role.configFile)),
+            stringAssignmentLine(key: "model", value: normalized(role.model)),
+            stringAssignmentLine(key: "model_reasoning_effort", value: normalized(role.modelReasoningEffort)),
+            stringAssignmentLine(key: "approval_policy", value: normalized(role.approvalPolicy)),
+            stringAssignmentLine(key: "sandbox_mode", value: normalized(role.sandboxMode))
+        ].compactMap { $0 }
+
+        return patchBody(
+            body,
+            removingKeys: Set(controlledRoleKeys),
+            generatedLines: generated
+        )
+    }
+
+    private func patchBody(
+        _ body: [String],
+        removingKeys: Set<String>,
+        generatedLines: [String]
+    ) -> [String] {
+        var filtered: [String] = []
+        for line in body {
+            guard let key = parseAssignmentKey(from: line), removingKeys.contains(key) else {
+                filtered.append(line)
+                continue
+            }
+        }
+        return appendGeneratedLines(generatedLines, to: filtered)
+    }
+
+    private func appendGeneratedLines(_ generatedLines: [String], to existingLines: [String]) -> [String] {
+        guard !generatedLines.isEmpty else { return existingLines }
+        var lines = existingLines
+        while lines.last?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == true {
+            lines.removeLast()
+        }
+        if let last = lines.last, !last.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            lines.append("")
+        }
+        lines.append(contentsOf: generatedLines)
+        return lines
+    }
+
+    private func parseSectionName(from line: String) -> String? {
+        let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.hasPrefix("["), trimmed.hasSuffix("]"), !trimmed.hasPrefix("[[") else { return nil }
+        return String(trimmed.dropFirst().dropLast())
+    }
+
+    private func parseAssignmentKey(from line: String) -> String? {
+        let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard
+            !trimmed.isEmpty,
+            !trimmed.hasPrefix("#"),
+            let equalIndex = trimmed.firstIndex(of: "=")
+        else {
+            return nil
+        }
+        let key = trimmed[..<equalIndex].trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !key.isEmpty, !key.contains("[") else { return nil }
+        return String(key)
+    }
+
+    private func parseAssignments(in section: SectionBlock) -> [String: String] {
+        Dictionary(uniqueKeysWithValues: section.body.compactMap { line -> (String, String)? in
+            guard let key = parseAssignmentKey(from: line), let value = parseStringValue(from: line) else { return nil }
+            return (key, value)
+        })
+    }
+
+    private func parseBooleanAssignments(in section: SectionBlock) -> [String: Bool] {
+        Dictionary(uniqueKeysWithValues: section.body.compactMap { line -> (String, Bool)? in
+            guard let key = parseAssignmentKey(from: line), let value = parseBooleanValue(from: line) else { return nil }
+            return (key, value)
+        })
+    }
+
+    private func parseIntegerValue(for key: String, in section: SectionBlock) -> Int? {
+        for line in section.body {
+            guard parseAssignmentKey(from: line) == key else { continue }
+            guard let equalIndex = line.firstIndex(of: "=") else { continue }
+            let rawValue = line[line.index(after: equalIndex)...].trimmingCharacters(in: .whitespacesAndNewlines)
+            return Int(rawValue)
+        }
+        return nil
+    }
+
+    private func parseStringValue(from line: String) -> String? {
+        guard let equalIndex = line.firstIndex(of: "=") else { return nil }
+        let rawValue = line[line.index(after: equalIndex)...].trimmingCharacters(in: .whitespacesAndNewlines)
+        guard rawValue.hasPrefix("\""), rawValue.hasSuffix("\""), rawValue.count >= 2 else { return nil }
+        let inner = rawValue.dropFirst().dropLast()
+        return inner
+            .replacingOccurrences(of: "\\\"", with: "\"")
+            .replacingOccurrences(of: "\\\\", with: "\\")
+    }
+
+    private func parseBooleanValue(from line: String) -> Bool? {
+        guard let equalIndex = line.firstIndex(of: "=") else { return nil }
+        let rawValue = line[line.index(after: equalIndex)...].trimmingCharacters(in: .whitespacesAndNewlines)
+        switch rawValue {
+        case "true": return true
+        case "false": return false
+        default: return nil
+        }
+    }
+
+    private func sectionHasMeaningfulContent(_ body: [String]) -> Bool {
+        body.contains { line in
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            return !trimmed.isEmpty && !trimmed.hasPrefix("#")
+        }
+    }
+
+    private func normalized(_ value: String) -> String? {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    private func stringAssignmentLine(key: String, value: String?) -> String? {
+        guard let value, !value.isEmpty else { return nil }
+        let escaped = value.replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+        return "\(key) = \"\(escaped)\""
+    }
+
+    private func boolAssignmentLine(key: String, value: Bool) -> String {
+        "\(key) = \(value ? "true" : "false")"
+    }
+
+    private func intAssignmentLine(key: String, value: Int?) -> String? {
+        guard let value else { return nil }
+        return "\(key) = \(value)"
+    }
 }
 
 struct CodexFeatureDefinition: Identifiable, Sendable {
@@ -77,7 +497,7 @@ private enum CodexFeatureSourceTag: String, CaseIterable {
     }
 }
 
-struct CodexAgentRoleDraft: Identifiable, Equatable {
+struct CodexAgentRoleDraft: Identifiable, Equatable, Sendable {
     let id = UUID()
     var name: String
     var description: String
@@ -150,6 +570,9 @@ final class CodexAdvancedConfigViewModel {
     private let manager: CodexBinaryManager
     private let linkService: CodexLinkService
     private let modelPreferenceService: CodexModelPreferenceService
+    private let patchService = CodexStructuredConfigPatchService()
+    private var isHydratingStructuredDraft = false
+    private var hasLoadedStructuredDraft = false
 
     nonisolated deinit {}
 
@@ -500,14 +923,18 @@ final class CodexAdvancedConfigViewModel {
         defer { isSavingConfig = false }
 
         do {
-            let base = loadConfigFromFile(configFile) ?? CodexConfigToml()
-            let merged = mergeDraft(into: base)
-            let data = try TOMLEncoder().encode(merged)
-            try configFile.overlay(with: String(decoding: data, as: UTF8.self))
+            let original = (try? configFile.read()) ?? ""
+            let patched = try patchService.patch(original: original, draft: makeStructuredDraft())
+            try configFile.overlay(with: patched)
             loadConfigDraft()
         } catch {
             configErrorMessage = error.localizedDescription
         }
+    }
+
+    func scheduleStructuredSaveIfReady() {
+        guard hasLoadedStructuredDraft, !isHydratingStructuredDraft else { return }
+        Task { await saveStructuredConfig() }
     }
 
     func reloadConfigDraft() {
@@ -518,101 +945,29 @@ final class CodexAdvancedConfigViewModel {
         modelPreferenceService.resolvedConfigFile(for: provider)
     }
 
-    private func loadConfigFromFile(_ configFile: STFile) -> CodexConfigToml? {
-        guard configFile.isExists else { return nil }
-        guard let data = try? Data(contentsOf: configFile.url), !data.isEmpty else { return nil }
-        return try? CodexGeneratedFilesParser.parseConfigToml(data: data)
-    }
-
     private func loadConfigDraft() {
         guard let configFile = resolvedConfigFile() else { return }
+        isHydratingStructuredDraft = true
+        defer {
+            isHydratingStructuredDraft = false
+            hasLoadedStructuredDraft = true
+        }
         configFileURL = configFile.url
-        let config = loadConfigFromFile(configFile) ?? CodexConfigToml()
+        let original = (try? configFile.read()) ?? ""
+        let draft = patchService.extractDraft(from: original)
 
-        approvalPolicyDraft = config.approvalPolicy ?? ""
-        sandboxModeDraft = config.sandboxMode ?? ""
-        webSearchDraft = config.webSearch ?? ""
-        modelProviderDraft = config.modelProvider ?? ""
-        profileDraft = config.profile ?? ""
-        personalityDraft = config.personality ?? ""
-        reasoningSummaryDraft = config.modelReasoningSummary ?? ""
-        verbosityDraft = config.modelVerbosity ?? ""
-        agentsMaxThreadsDraft = config.agents?.maxThreads.map(String.init) ?? ""
-        agentsMaxDepthDraft = config.agents?.maxDepth.map(String.init) ?? ""
-        featureValues = config.features ?? [:]
-        roleDrafts = (config.agents?.roles ?? [:]).keys.sorted().compactMap { key in
-            guard let role = config.agents?.roles[key] else { return nil }
-            return CodexAgentRoleDraft(
-                name: key,
-                description: role.description ?? "",
-                configFile: role.configFile ?? "",
-                model: role.model ?? "",
-                modelReasoningEffort: role.modelReasoningEffort ?? "",
-                sandboxMode: role.sandboxMode ?? "",
-                approvalPolicy: role.approvalPolicy ?? ""
-            )
-        }
-    }
-
-    private func mergeDraft(into base: CodexConfigToml) -> CodexConfigToml {
-        var roles: [String: CodexConfigToml.AgentRole] = [:]
-        for role in roleDrafts {
-            let name = role.name.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !name.isEmpty else { continue }
-            roles[name] = .init(
-                description: role.description.nonEmpty,
-                configFile: role.configFile.nonEmpty,
-                model: role.model.nonEmpty,
-                modelReasoningEffort: role.modelReasoningEffort.nonEmpty,
-                modelReasoningSummary: nil,
-                modelVerbosity: nil,
-                approvalPolicy: role.approvalPolicy.nonEmpty,
-                sandboxMode: role.sandboxMode.nonEmpty,
-                personality: nil,
-                webSearch: nil
-            )
-        }
-
-        let maxThreads = Int(agentsMaxThreadsDraft.trimmingCharacters(in: .whitespacesAndNewlines))
-        let maxDepth = Int(agentsMaxDepthDraft.trimmingCharacters(in: .whitespacesAndNewlines))
-        let agents = (!roles.isEmpty || maxThreads != nil || maxDepth != nil)
-            ? CodexConfigToml.Agents(maxThreads: maxThreads, maxDepth: maxDepth, roles: roles)
-            : nil
-        let normalizedFeatures = featureValues.filter { $0.value || (base.features?[$0.key] != nil) }
-
-        return CodexConfigToml(
-            model: base.model,
-            reviewModel: base.reviewModel,
-            modelProvider: modelProviderDraft.nonEmpty,
-            modelContextWindow: base.modelContextWindow,
-            modelAutoCompactTokenLimit: base.modelAutoCompactTokenLimit,
-            profile: profileDraft.nonEmpty,
-            approvalPolicy: approvalPolicyDraft.nonEmpty,
-            sandboxMode: sandboxModeDraft.nonEmpty,
-            sandboxWorkspaceWrite: base.sandboxWorkspaceWrite,
-            notify: base.notify,
-            instructions: base.instructions,
-            developerInstructions: base.developerInstructions,
-            compactPrompt: base.compactPrompt,
-            modelReasoningEffort: base.modelReasoningEffort,
-            modelReasoningSummary: reasoningSummaryDraft.nonEmpty,
-            modelVerbosity: verbosityDraft.nonEmpty,
-            modelSupportsReasoningSummaries: base.modelSupportsReasoningSummaries,
-            personality: personalityDraft.nonEmpty,
-            chatgptBaseURL: base.chatgptBaseURL,
-            webSearch: webSearchDraft.nonEmpty,
-            tools: base.tools,
-            agents: agents,
-            features: normalizedFeatures.isEmpty ? nil : normalizedFeatures,
-            suppressUnstableFeaturesWarning: base.suppressUnstableFeaturesWarning,
-            checkForUpdateOnStartup: base.checkForUpdateOnStartup,
-            hideAgentReasoning: base.hideAgentReasoning,
-            showRawAgentReasoning: base.showRawAgentReasoning,
-            ossProvider: base.ossProvider,
-            history: base.history,
-            mcpServers: base.mcpServers,
-            profiles: base.profiles
-        )
+        approvalPolicyDraft = draft.approvalPolicy ?? ""
+        sandboxModeDraft = draft.sandboxMode ?? ""
+        webSearchDraft = draft.webSearch ?? ""
+        modelProviderDraft = draft.modelProvider ?? ""
+        profileDraft = draft.profile ?? ""
+        personalityDraft = draft.personality ?? ""
+        reasoningSummaryDraft = draft.reasoningSummary ?? ""
+        verbosityDraft = draft.verbosity ?? ""
+        agentsMaxThreadsDraft = draft.agentsMaxThreads.map(String.init) ?? ""
+        agentsMaxDepthDraft = draft.agentsMaxDepth.map(String.init) ?? ""
+        featureValues = draft.featureValues
+        roleDrafts = draft.roleDrafts
     }
 
     private func loadSelectionsFromConfig() {
@@ -658,6 +1013,23 @@ final class CodexAdvancedConfigViewModel {
         case .rules: return .rules
         case .skills: return .skills
         }
+    }
+
+    private func makeStructuredDraft() -> CodexAdvancedStructuredDraft {
+        CodexAdvancedStructuredDraft(
+            approvalPolicy: approvalPolicyDraft.nonEmpty,
+            sandboxMode: sandboxModeDraft.nonEmpty,
+            webSearch: webSearchDraft.nonEmpty,
+            modelProvider: modelProviderDraft.nonEmpty,
+            profile: profileDraft.nonEmpty,
+            personality: personalityDraft.nonEmpty,
+            reasoningSummary: reasoningSummaryDraft.nonEmpty,
+            verbosity: verbosityDraft.nonEmpty,
+            featureValues: featureValues,
+            agentsMaxThreads: Int(agentsMaxThreadsDraft.trimmingCharacters(in: .whitespacesAndNewlines)),
+            agentsMaxDepth: Int(agentsMaxDepthDraft.trimmingCharacters(in: .whitespacesAndNewlines)),
+            roleDrafts: roleDrafts
+        )
     }
 }
 
@@ -1001,7 +1373,7 @@ struct CodexAdvancedConfigView: View {
                             get: { viewModel.featureEnabled(feature.key) },
                             set: { newValue in
                                 viewModel.setFeature(feature.key, enabled: newValue)
-                                Task { await viewModel.saveStructuredConfig() }
+                                viewModel.scheduleStructuredSaveIfReady()
                             }
                         )
                     )
@@ -1195,7 +1567,7 @@ struct CodexAdvancedConfigView: View {
                         get: { viewModel.featureEnabled("multi_agent") },
                         set: { newValue in
                             viewModel.setFeature("multi_agent", enabled: newValue)
-                            Task { await viewModel.saveStructuredConfig() }
+                            viewModel.scheduleStructuredSaveIfReady()
                         }
                     )
                 )
@@ -1471,7 +1843,7 @@ struct CodexAdvancedConfigView: View {
         alignedConfigRow(label: title, description: description) {
             TextField(title, text: text)
                 .onChange(of: text.wrappedValue) { _, _ in
-                    Task { await viewModel.saveStructuredConfig() }
+                    viewModel.scheduleStructuredSaveIfReady()
                 }
                 .textFieldStyle(.roundedBorder)
                 .multilineTextAlignment(.trailing)
@@ -1510,7 +1882,7 @@ struct CodexAdvancedConfigView: View {
                 }
             }
             .onChange(of: selection.wrappedValue) { _, _ in
-                Task { await viewModel.saveStructuredConfig() }
+                viewModel.scheduleStructuredSaveIfReady()
             }
             .pickerStyle(.menu)
             .labelsHidden()
@@ -1527,7 +1899,7 @@ struct CodexAdvancedConfigView: View {
                         text.wrappedValue = filtered
                         return
                     }
-                    Task { await viewModel.saveStructuredConfig() }
+                    viewModel.scheduleStructuredSaveIfReady()
                 }
                 .textFieldStyle(.roundedBorder)
                 .multilineTextAlignment(.trailing)
@@ -1548,7 +1920,7 @@ struct CodexAdvancedConfigView: View {
                 }
             }
             .onChange(of: selection.wrappedValue) { _, _ in
-                Task { await viewModel.saveStructuredConfig() }
+                viewModel.scheduleStructuredSaveIfReady()
             }
             .pickerStyle(.menu)
             .labelsHidden()

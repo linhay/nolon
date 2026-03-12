@@ -59,6 +59,17 @@ final class MainSplitViewModel {
     var isPluginManagementSelected: Bool {
         selectedSidebarItem == .pluginManagement
     }
+
+    var isAccountsSelected: Bool {
+        selectedSidebarItem == .accounts
+    }
+
+    @MainActor
+    func openProviderFromAccounts(_ providerID: Provider.ID) {
+        selectedSidebarItem = .provider(providerID)
+        // 从账号中心跳转时，直接进入详情默认技能页，不停留在中间账号 tab。
+        selectedTab = .skills
+    }
     
     @MainActor
     func setup() {
@@ -525,56 +536,65 @@ public struct MainSplitView: View {
 
     public var body: some View {
         ZStack {
-            NavigationSplitView(columnVisibility: $viewModel.columnVisibility) {
-                // Left 1: Provider sidebar
-                ProviderSidebarView(
-                    selectedItem: $viewModel.selectedSidebarItem,
-                    settings: viewModel.settings
-                )
-            } content: {
-                if viewModel.isPluginManagementSelected {
-                    PluginManagementNavigationView()
-                } else {
-                    // Left 2: Skills/Workflows tab navigation
-                    ProviderContentTabView(
-                        provider: viewModel.selectedProvider,
-                        selectedTab: $viewModel.selectedTab,
-                        settings: viewModel.settings,
-                        refreshTrigger: viewModel.refreshTrigger
+            if viewModel.isAccountsSelected {
+                NavigationSplitView {
+                    ProviderSidebarView(
+                        selectedItem: $viewModel.selectedSidebarItem,
+                        settings: viewModel.settings
                     )
-                }
-            } detail: {
-                if viewModel.isPluginManagementSelected {
-                    PluginManagementView()
-                } else {
-                    // Left 3: Grid cards (skills or workflows)
-                    ProviderDetailGridView(
-                        provider: viewModel.selectedProvider,
-                        selectedTab: viewModel.selectedTab,
+                } detail: {
+                    NolonAccountsView(
                         settings: viewModel.settings,
-                        refreshTrigger: viewModel.refreshTrigger,
                         onSelectProvider: { providerID in
-                            viewModel.selectedSidebarItem = .provider(providerID)
-                        },
-                        onSelectTab: { tab in
-                            viewModel.selectedTab = tab
+                            viewModel.openProviderFromAccounts(providerID)
                         }
                     )
                 }
-            }
-            .navigationSplitViewStyle(.balanced)
-            .toolbar {
-                ToolbarItemGroup(placement: .primaryAction) {
-                    // Resource Center button
-                    Button {
-                        viewModel.presentResourceCenter()
-                    } label: {
-                        Label(
-                            NSLocalizedString("toolbar.clawdhub", comment: "Clawdhub"),
-                            systemImage: "cloud"
+                .navigationSplitViewStyle(.balanced)
+                .toolbar {
+                    resourceCenterToolbar
+                }
+            } else {
+                NavigationSplitView(columnVisibility: $viewModel.columnVisibility) {
+                    // Left 1: Provider sidebar
+                    ProviderSidebarView(
+                        selectedItem: $viewModel.selectedSidebarItem,
+                        settings: viewModel.settings
+                    )
+                } content: {
+                    if viewModel.isPluginManagementSelected {
+                        PluginManagementNavigationView()
+                    } else {
+                        // Left 2: Skills/Workflows tab navigation
+                        ProviderContentTabView(
+                            provider: viewModel.selectedProvider,
+                            selectedTab: $viewModel.selectedTab,
+                            settings: viewModel.settings,
+                            refreshTrigger: viewModel.refreshTrigger
                         )
                     }
-                    .help("Browse and install resources from Clawdhub")
+                } detail: {
+                    if viewModel.isPluginManagementSelected {
+                        PluginManagementView()
+                    } else {
+                        // Left 3: Grid cards (skills or workflows)
+                        ProviderDetailGridView(
+                            provider: viewModel.selectedProvider,
+                            selectedTab: viewModel.selectedTab,
+                            settings: viewModel.settings,
+                            refreshTrigger: viewModel.refreshTrigger,
+                            onSelectProvider: { providerID in
+                                viewModel.selectedSidebarItem = .provider(providerID)
+                            },
+                            onSelectTab: { tab in
+                                viewModel.selectedTab = tab
+                            }
+                        )
+                    }
+                }
+                .navigationSplitViewStyle(.balanced)
+                .toolbar {
+                    resourceCenterToolbar
                 }
             }
 
@@ -623,6 +643,21 @@ public struct MainSplitView: View {
         }
     }
 
+    @ToolbarContentBuilder
+    private var resourceCenterToolbar: some ToolbarContent {
+        ToolbarItemGroup(placement: .primaryAction) {
+            Button {
+                viewModel.presentResourceCenter()
+            } label: {
+                Label(
+                    NSLocalizedString("toolbar.clawdhub", comment: "Clawdhub"),
+                    systemImage: "cloud"
+                )
+            }
+            .help("Browse and install resources from Clawdhub")
+        }
+    }
+
     @ViewBuilder
     private var resourceCenterOverlay: some View {
         ZStack {
@@ -637,6 +672,9 @@ public struct MainSplitView: View {
                 repository: viewModel.repository,
                 targetProvider: viewModel.selectedProvider,
                 selectedTab: .skills,
+                onClose: {
+                    viewModel.dismissResourceCenter()
+                },
                 onInstall: { skill, provider in
                     Task {
                         await viewModel.installRemoteSkill(skill, to: provider)

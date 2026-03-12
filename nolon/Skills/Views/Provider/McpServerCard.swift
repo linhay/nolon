@@ -19,7 +19,7 @@ struct McpServerCard: View {
     @State private var showingDeleteConfirmation = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: DesignSystem.Metrics.spacingM) {
             // 1. 标题 | 更多菜单
             HStack(alignment: .center) {
                 ProviderLogoView(
@@ -36,7 +36,7 @@ struct McpServerCard: View {
             }
 
             // 2. 命令详情 (替代描述区)
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: DesignSystem.Metrics.spacingXS) {
                 if let dict = mcp.json.value as? [String: Any],
                    let command = dict["command"] as? String {
                     HighlightedText(text: command, query: searchText)
@@ -60,14 +60,14 @@ struct McpServerCard: View {
                     Button {
                         onUnlinkWorkflow()
                     } label: {
-                        HStack(spacing: 6) {
+                        HStack(spacing: DesignSystem.Metrics.spacingS - 2) {
                             Image(systemName: "arrow.triangle.branch")
                             Text(NSLocalizedString("mcp.workflow", value: "Workflow", comment: "Workflow badge"))
                         }
                         .fontWeight(.semibold)
                         .dsBadge(
                             foreground: DesignSystem.Colors.primary,
-                            background: DesignSystem.Colors.primary.opacity(0.10),
+                            background: DesignSystem.Colors.primary.opacity(DesignSystem.Colors.Opacity.subtle),
                             horizontalPadding: 10,
                             verticalPadding: 6,
                             cornerRadius: DesignSystem.Metrics.cornerRadiusS
@@ -78,7 +78,7 @@ struct McpServerCard: View {
                     Button {
                         onLinkWorkflow()
                     } label: {
-                        HStack(spacing: 6) {
+                        HStack(spacing: DesignSystem.Metrics.spacingS - 2) {
                             Image(systemName: "plus.circle")
                             Text(NSLocalizedString("action.link_workflow", comment: "Link to Workflow"))
                         }
@@ -96,14 +96,14 @@ struct McpServerCard: View {
 
                 if cacheState == .notMigrated {
                     Button(action: onMigrateToNolon) {
-                        HStack(spacing: 6) {
+                        HStack(spacing: DesignSystem.Metrics.spacingS - 2) {
                             Image(systemName: "tray.and.arrow.down")
                             Text(NSLocalizedString("action.migrate", value: "Migrate", comment: "Migrate"))
                         }
                         .fontWeight(.semibold)
                         .dsBadge(
                             foreground: DesignSystem.Colors.primary,
-                            background: DesignSystem.Colors.primary.opacity(0.10),
+                            background: DesignSystem.Colors.primary.opacity(DesignSystem.Colors.Opacity.subtle),
                             horizontalPadding: 10,
                             verticalPadding: 6,
                             cornerRadius: DesignSystem.Metrics.cornerRadiusS
@@ -112,14 +112,14 @@ struct McpServerCard: View {
                 .dsLinkButton()
                 } else if cacheState == .migratedNeedsUpdate {
                     Button(action: onUpdateNolonCache) {
-                        HStack(spacing: 6) {
+                        HStack(spacing: DesignSystem.Metrics.spacingS - 2) {
                             Image(systemName: "arrow.triangle.2.circlepath")
                             Text(NSLocalizedString("action.update", value: "Update", comment: "Update"))
                         }
                         .fontWeight(.semibold)
                         .dsBadge(
                             foreground: DesignSystem.Colors.primary,
-                            background: DesignSystem.Colors.primary.opacity(0.10),
+                            background: DesignSystem.Colors.primary.opacity(DesignSystem.Colors.Opacity.subtle),
                             horizontalPadding: 10,
                             verticalPadding: 6,
                             cornerRadius: DesignSystem.Metrics.cornerRadiusS
@@ -131,7 +131,7 @@ struct McpServerCard: View {
                 Button {
                     onSetEnabled(!mcp.isEnabled)
                 } label: {
-                    HStack(spacing: 6) {
+                    HStack(spacing: DesignSystem.Metrics.spacingS - 2) {
                         Image(systemName: mcp.isEnabled ? "pause.circle" : "play.circle")
                         Text(
                             mcp.isEnabled
@@ -142,7 +142,7 @@ struct McpServerCard: View {
                     .fontWeight(.semibold)
                     .dsBadge(
                         foreground: mcp.isEnabled ? DesignSystem.Colors.Text.secondary : DesignSystem.Colors.primary,
-                        background: mcp.isEnabled ? DesignSystem.Colors.Component.controlFillSubtle : DesignSystem.Colors.primary.opacity(0.10),
+                        background: mcp.isEnabled ? DesignSystem.Colors.Component.controlFillSubtle : DesignSystem.Colors.primary.opacity(DesignSystem.Colors.Opacity.subtle),
                         horizontalPadding: 10,
                         verticalPadding: 6,
                         cornerRadius: DesignSystem.Metrics.cornerRadiusS
@@ -153,7 +153,7 @@ struct McpServerCard: View {
                 Spacer()
             }
         }
-        .padding(16)
+        .padding(DesignSystem.Metrics.spacingL)
         .frame(maxWidth: .infinity, alignment: .leading)
         .frame(minHeight: 140)
         .providerTabCardStyle()

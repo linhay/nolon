@@ -288,9 +288,12 @@ final class MainSplitViewModelTests: XCTestCase {
 
     func testBDD_GivenUITestLaunchSelection_WhenSetupRuns_ThenSelectedProviderAndUsageTabAreApplied() {
         let codexIndex = fixture.providerSettings.providers.firstIndex { $0.templateId == "codex" }
-        XCTAssertNotNil(codexIndex)
+        guard let codexIndex else {
+            XCTFail("Missing codex provider fixture")
+            return
+        }
         UITestSupport.environmentOverride = [
-            "NOLON_UI_TEST_SELECTED_PROVIDER_INDEX": String(codexIndex!),
+            "NOLON_UI_TEST_SELECTED_PROVIDER_INDEX": String(codexIndex),
             "NOLON_UI_TEST_SELECTED_PROVIDER_TAB": "usage"
         ]
 
@@ -305,4 +308,5 @@ final class MainSplitViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.selectedProvider?.templateId, "codex")
         XCTAssertEqual(viewModel.selectedTab, .usage)
     }
+
 }

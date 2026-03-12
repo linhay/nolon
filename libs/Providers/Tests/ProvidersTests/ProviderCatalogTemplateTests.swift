@@ -27,6 +27,7 @@ struct ProviderCatalogTemplateTests {
         #expect(ProviderTemplate.codex.cliName == "codex")
         #expect(ProviderTemplate.gemini.cliName == "gemini")
         #expect(ProviderTemplate.opencode.cliName == "opencode")
+        #expect(ProviderTemplate.pi.cliName == "pi")
         #expect(ProviderTemplate.claudeCode.providerID == "claude")
     }
 
@@ -37,6 +38,9 @@ struct ProviderCatalogTemplateTests {
 
         let antigravityTabs = try #require(ProviderTemplate.antigravity.config?.vendorTabs)
         #expect(antigravityTabs.contains("usage"))
+
+        let claudeTabs = try #require(ProviderTemplate.claudeCode.config?.vendorTabs)
+        #expect(claudeTabs.contains("usage"))
     }
 
     @Test("resolve providerID supports stable ids and codex-xcode aliases")
@@ -99,5 +103,74 @@ struct ProviderCatalogTemplateTests {
         #expect(provider.additionalPaths == [STPath("/tmp/a/skills2"), STPath("/tmp/a/skills3")])
         #expect(provider.pathURL.path == provider.path.url.path)
         #expect(provider.additionalPathURLs.map(\.path) == provider.additionalPaths.map(\.url.path))
+    }
+
+    @Test("vendor templates expose vendor category and template capabilities")
+    func vendorTemplateCapabilities() {
+        #expect(ProviderTemplate.codex.vendorCategory == .original)
+        #expect(ProviderTemplate.codexXcode.vendorCategory == .integrated)
+        #expect(ProviderTemplate.gemini.vendorCategory == .original)
+        #expect(ProviderTemplate.opencode.vendorCategory == .integrated)
+        #expect(ProviderTemplate.pi.vendorCategory == .integrated)
+
+        #expect(ProviderTemplate.codex.supportsNativeMcpConfig == true)
+        #expect(ProviderTemplate.codex.supportsAccounts == true)
+        #expect(ProviderTemplate.codexXcode.supportsAccounts == false)
+        #expect(ProviderTemplate.claudeCode.supportsAccounts == true)
+        #expect(ProviderTemplate.claudeCode.supportsMultiAccount == true)
+        #expect(ProviderTemplate.pi.supportsNativeMcpConfig == false)
+        #expect(ProviderTemplate.pi.supportsAccounts == true)
+        #expect(ProviderTemplate.pi.supportsMultiAccount == false)
+        #expect(ProviderTemplate.pi.secondaryResourceKind == .prompts)
+        #expect(ProviderTemplate.pi.secondaryResourceLabelLocalizationKey == "provider.secondary_resource.prompts")
+        #expect(ProviderTemplate.pi.secondaryResourceLabelFallback == "Prompt Folder")
+        #expect(ProviderTemplate.opencode.secondaryResourceKind == .commands)
+        #expect(ProviderTemplate.codex.secondaryResourceKind == .prompts)
+    }
+
+    @Test("pi template uses official coding agent paths")
+    func piTemplatePaths() {
+        let home = NSHomeDirectory()
+        let template = ProviderTemplate.pi
+        #expect(template.defaultSkillsPath.path.hasPrefix(home))
+        #expect(template.defaultSkillsPath.path.hasSuffix(".pi/agent/skills"))
+        #expect(template.defaultWorkflowPath.path.hasSuffix(".pi/agent/prompts"))
+        #expect(template.skillsPath(forProjectRoot: URL(fileURLWithPath: "/tmp/demo")).path == "/tmp/demo/.pi/skills")
+        #expect(template.workflowPath(forProjectRoot: URL(fileURLWithPath: "/tmp/demo")).path == "/tmp/demo/.pi/prompts")
+    }
+
+    @Test("provider decodes missing vendor category from template defaults")
+    func providerDecodesVendorCategoryFromTemplate() throws {
+        let json = #"""
+        {
+          "id": "p1",
+          "kind": "vendor",
+          "name": "Codex",
+          "defaultSkillsPath": "/tmp/codex/skills",
+          "workflowPath": "/tmp/codex/prompts",
+          "iconName": "terminal",
+          "installMethod": "symlink",
+          "templateId": "codex"
+        }
+        """#
+        let provider = try JSONDecoder().decode(Provider.self, from: Data(json.utf8))
+        #expect(provider.vendorCategory == .original)
+    }
+
+    @Test("provider decodes unknown vendor category as integrated fallback")
+    func providerDecodesUnknownVendorCategoryFallback() throws {
+        let json = #"""
+        {
+          "id": "p1",
+          "kind": "vendor",
+          "name": "Unknown",
+          "defaultSkillsPath": "/tmp/unknown/skills",
+          "workflowPath": "/tmp/unknown/workflows",
+          "iconName": "terminal",
+          "installMethod": "symlink"
+        }
+        """#
+        let provider = try JSONDecoder().decode(Provider.self, from: Data(json.utf8))
+        #expect(provider.vendorCategory == .integrated)
     }
 }

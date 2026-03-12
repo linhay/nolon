@@ -57,6 +57,8 @@ enum NolonCodexCLIExecutor {
             return try await executeAuthUsageTrend(command: command, context: context, outputMode: outputMode)
         case let command as NolonCodexAuthStatusCommand:
             return try await executeAuthStatus(command: command, context: context, outputMode: outputMode)
+        case let command as NolonCodexAuthExportCommand:
+            return try await executeAuthExport(command: command, context: context, outputMode: outputMode)
         case let command as NolonCodexAuthRefreshCommand:
             return try await executeAuthRefresh(command: command, context: context, outputMode: outputMode)
         case let command as NolonCodexAuthActivateCommand:
@@ -177,6 +179,31 @@ enum NolonCodexCLIExecutor {
         }
         let payload = try await context.codexService().authStatus(providerID: providerID)
         return try renderOutput(command: .authStatus, payload: payload, outputMode: outputMode, textFormatter: formatAuthStatus)
+    }
+
+    private static func executeAuthExport(command: NolonCodexAuthExportCommand, context: NolonCLIExecutionContext, outputMode: OutputMode) async throws -> String {
+        let providerID = try parseCodexProviderID(command.provider)
+        let format = try parseAuthExportFormat(command.format)
+        let outputPath = command.output.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !outputPath.isEmpty else {
+            throw NolonCoreCLIError.invalidArguments("Invalid --output: value cannot be empty")
+        }
+
+        let accountIDs = try await resolveExportAccountIDs(
+            providerID: providerID,
+            all: command.all,
+            accountIDs: command.accountID,
+            emails: command.email,
+            context: context
+        )
+
+        let payload = try await context.codexService().authExport(
+            providerID: providerID,
+            format: format,
+            accountIDs: accountIDs,
+            outputPath: outputPath
+        )
+        return try renderOutput(command: .authExport, payload: payload, outputMode: outputMode, textFormatter: formatAuthExport)
     }
 
     private static func executeAuthUsageTrend(command: NolonCodexAuthUsageTrendCommand, context: NolonCLIExecutionContext, outputMode: OutputMode) async throws -> String {
@@ -543,7 +570,7 @@ enum NolonCodexCLIExecutor {
         guard root == "codex" else { return }
         let group = arguments[1].trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         let supportedByGroup: [String: Set<String>] = [
-            "auth": ["list", "usage", "usage-trend", "status", "refresh", "activate", "login", "delete"],
+            "auth": ["list", "usage", "usage-trend", "status", "export", "refresh", "activate", "login", "delete"],
             "binary": ["list", "current", "install", "use", "available", "switch", "doctor"],
             "status": ["probe", "doctor"],
             "runtime": ["list", "stop"],
@@ -574,6 +601,78 @@ enum NolonCodexCLIExecutor {
             throw NolonCoreCLIError.invalidArguments("Invalid \(option): value cannot be empty")
         }
         return trimmed
+    }
+
+    private static func parseAuthExportFormat(_ raw: String) throws -> NolonCodexAuthExportFormat {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard let format = NolonCodexAuthExportFormat(rawValue: trimmed) else {
+            throw NolonCoreCLIError.invalidArguments("Invalid --format: \(raw). Supported values: sub2api")
+        }
+        return format
+    }
+
+    private static func resolveExportAccountIDs(
+        providerID: String,
+        all: Bool,
+        accountIDs rawAccountIDs: [String],
+        emails rawEmails: [String],
+        context: NolonCLIExecutionContext
+    ) async throws -> [UUID] {
+        let parsedAccountIDs = try rawAccountIDs.map { raw in
+            guard let parsed = UUID(uuidString: raw) else {
+                throw NolonCoreCLIError.invalidArguments("Invalid --account-id: \(raw)")
+            }
+            return parsed
+        }
+        let emails = rawEmails
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        let hasExplicitTargets = !parsedAccountIDs.isEmpty || !emails.isEmpty
+        if all == hasExplicitTargets {
+            throw NolonCoreCLIError.invalidArguments("Use either --all or --account-id/--email targets.")
+        }
+
+        let list = try await context.codexService().authList(providerID: providerID)
+        if all {
+            guard !list.accounts.isEmpty else {
+                throw NolonCoreCLIError.domainFailed(
+                    code: "codex_auth_account_not_found",
+                    message: "No Codex accounts available for export."
+                )
+            }
+            return list.accounts.map(\.id)
+        }
+
+        var resolved: [UUID] = []
+        var seen: Set<UUID> = []
+        for accountID in parsedAccountIDs {
+            if seen.insert(accountID).inserted {
+                resolved.append(accountID)
+            }
+        }
+
+        for email in emails {
+            guard let matched = list.accounts.first(where: { account in
+                guard let candidate = account.email?.trimmingCharacters(in: .whitespacesAndNewlines), !candidate.isEmpty else {
+                    return false
+                }
+                return candidate.caseInsensitiveCompare(email) == .orderedSame
+            }) else {
+                throw NolonCoreCLIError.domainFailed(
+                    code: "codex_auth_account_not_found",
+                    message: "Codex account not found for email: \(email)"
+                )
+            }
+            if seen.insert(matched.id).inserted {
+                resolved.append(matched.id)
+            }
+        }
+
+        guard !resolved.isEmpty else {
+            throw NolonCoreCLIError.invalidArguments("Select at least one export target via --all, --account-id, or --email.")
+        }
+        return resolved
     }
 
     private static func canonicalCodexProviderID(_ providerID: String) throws -> String {
@@ -765,6 +864,21 @@ enum NolonCodexCLIExecutor {
         return rows.map { key, value in
             "\(padRight(key, to: keyWidth)) | \(value)"
         }.joined(separator: "\n")
+    }
+
+    private static func formatAuthExport(_ payload: NolonCodexAuthExportPayload) -> String {
+        var lines = [
+            "provider: \(payload.providerID)",
+            "format: \(payload.format.rawValue)",
+            "output_path: \(payload.outputPath)",
+            "exported_count: \(payload.exportedCount)",
+            "skipped_relay_count: \(payload.skippedRelayCount)",
+            "skipped_unsupported_count: \(payload.skippedUnsupportedCount)",
+        ]
+        if payload.skippedRelayCount > 0 {
+            lines.append("note: relay accounts were skipped because sub2api export only supports OAuth and official OpenAI API keys.")
+        }
+        return lines.joined(separator: "\n")
     }
 
     private static func formatAuthOverview(
@@ -1282,6 +1396,7 @@ private struct NolonCodexCommandPath: RawRepresentable, ExpressibleByStringLiter
     static let authUsage: Self = "codex.auth.usage"
     static let authUsageTrend: Self = "codex.auth.usage-trend"
     static let authStatus: Self = "codex.auth.status"
+    static let authExport: Self = "codex.auth.export"
     static let authRefresh: Self = "codex.auth.refresh"
     static let authActivate: Self = "codex.auth.activate"
     static let authLogin: Self = "codex.auth.login"

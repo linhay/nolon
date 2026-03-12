@@ -10,18 +10,14 @@
     "(%@)" : {
 
     },
-    "%@ 更新" : {
+    "#%@" : {
 
     },
-    "%@: %@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$@: %2$@"
-          }
-        }
-      }
+    "%@ loading" : {
+
+    },
+    "%@ 更新" : {
+
     },
     "%@=%@" : {
       "localizations" : {
@@ -45,6 +41,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld"
+          }
+        }
+      }
+    },
+    "%lld %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld %2$@"
           }
         }
       }
@@ -153,6 +159,7 @@
 
     },
     "About" : {
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -164,11 +171,432 @@
     },
     "About this skill" : {
       "comment" : "About this skill",
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "关于此 Skill"
+          }
+        }
+      }
+    },
+    "accounts.account.default" : {
+      "comment" : "Default account label",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Default"
+          }
+        }
+      }
+    },
+    "accounts.action.add_account" : {
+      "comment" : "Add account action",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "+ Add Account"
+          }
+        }
+      }
+    },
+    "accounts.action.open_provider" : {
+      "comment" : "Open provider",
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Open Provider"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打开 Provider"
+          }
+        }
+      }
+    },
+    "accounts.action.refresh" : {
+      "comment" : "Refresh accounts",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Refresh All"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "刷新"
+          }
+        }
+      }
+    },
+    "accounts.dashboard.ranking" : {
+      "comment" : "Provider ranking panel",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Provider Ranking"
+          }
+        }
+      }
+    },
+    "accounts.dashboard.today" : {
+      "comment" : "Today label",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Today"
+          }
+        }
+      }
+    },
+    "accounts.dashboard.trend" : {
+      "comment" : "Aggregated trend panel",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Aggregated Usage Trend"
+          }
+        }
+      }
+    },
+    "accounts.empty.description" : {
+      "comment" : "Accounts subtitle",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Manage supported provider accounts from one place."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在一个页面集中管理支持账号能力的 Provider。"
+          }
+        }
+      }
+    },
+    "accounts.empty.title" : {
+      "comment" : "No account providers",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "No account providers"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暂无可管理账号的 Provider"
+          }
+        }
+      }
+    },
+    "accounts.provider.method" : {
+      "comment" : "Account method",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Method"
+          }
+        }
+      }
+    },
+    "accounts.provider.pi.auth_invalid" : {
+      "comment" : "Pi auth file invalid",
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "~/.pi/agent/auth.json is unreadable or invalid"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "~/.pi/agent/auth.json 无法读取或格式无效"
+          }
+        }
+      }
+    },
+    "accounts.provider.pi.auth_missing" : {
+      "comment" : "Pi auth file missing",
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "~/.pi/agent/auth.json not found"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未找到 ~/.pi/agent/auth.json"
+          }
+        }
+      }
+    },
+    "accounts.provider.pi.auth_path" : {
+      "comment" : "Pi auth file path",
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "~/.pi/agent/auth.json"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "~/.pi/agent/auth.json"
+          }
+        }
+      }
+    },
+    "accounts.provider.project" : {
+      "comment" : "Account project",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Project"
+          }
+        }
+      }
+    },
+    "accounts.provider.readonly" : {
+      "comment" : "Read-only summary",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Read-only summary"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "只读摘要"
+          }
+        }
+      }
+    },
+    "accounts.provider.runtime_home" : {
+      "comment" : "Runtime home",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Runtime Home"
+          }
+        }
+      }
+    },
+    "accounts.provider.source" : {
+      "comment" : "Account source",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Source"
+          }
+        }
+      }
+    },
+    "accounts.provider.unsupported" : {
+      "comment" : "No aggregated usage data",
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "No aggregated usage data"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暂无聚合用量数据"
+          }
+        }
+      }
+    },
+    "accounts.section.accounts" : {
+      "comment" : "accounts unit",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "accounts"
+          }
+        }
+      }
+    },
+    "accounts.section.accounts_count" : {
+      "comment" : "Accounts count in provider group",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%d accounts"
+          }
+        }
+      }
+    },
+    "accounts.summary.active" : {
+      "comment" : "Active badge",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "已激活"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "当前账号"
+          }
+        }
+      }
+    },
+    "accounts.summary.none" : {
+      "comment" : "No account",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "No account"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暂无账号"
+          }
+        }
+      }
+    },
+    "accounts.summary.readonly" : {
+      "comment" : "Read-only account status",
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Read-only"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "只读"
+          }
+        }
+      }
+    },
+    "accounts.title" : {
+      "comment" : "Accounts title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Account Panorama"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "账号"
+          }
+        }
+      }
+    },
+    "accounts.usage.aggregate" : {
+      "comment" : "Aggregated usage summary",
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$d total • %2$d success • %3$d failed"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "总计 %d • 成功 %d • 失败 %d"
+          }
+        }
+      }
+    },
+    "accounts.usage.primary_used" : {
+      "comment" : "Primary usage percentage",
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Primary used %.0f%%"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主窗口已用 %.0f%%"
+          }
+        }
+      }
+    },
+    "accounts.usage.updated_at" : {
+      "comment" : "Aggregated usage updated at",
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Updated %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更新于 %@"
           }
         }
       }
@@ -854,18 +1282,6 @@
         }
       }
     },
-    "add_provider.no_workflow_folder" : {
-      "comment" : "No workflow folder selected",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "No workflow folder selected"
-          }
-        }
-      }
-    },
     "add_provider.project_folder_label" : {
       "comment" : "Project Folder",
       "extractionState" : "extracted_with_value",
@@ -909,18 +1325,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "设置"
-          }
-        }
-      }
-    },
-    "add_provider.workflow_folder_label" : {
-      "comment" : "Workflow Folder",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Workflow Folder"
           }
         }
       }
@@ -1055,6 +1459,9 @@
         }
       }
     },
+    "AI will use this skill in %@'s workflow." : {
+
+    },
     "app.title" : {
       "comment" : "nolon",
       "localizations" : {
@@ -1134,6 +1541,7 @@
       }
     },
     "Associate this skill with a workflow in **%@**." : {
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -1200,6 +1608,9 @@
         }
       }
     },
+    "CAPABILITIES" : {
+
+    },
     "Changelog" : {
       "localizations" : {
         "zh-Hans" : {
@@ -1239,6 +1650,138 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "选择..."
+          }
+        }
+      }
+    },
+    "claude.accounts.action.activate" : {
+      "comment" : "Activate Claude account",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "激活"
+          }
+        }
+      }
+    },
+    "claude.accounts.cc_switch.empty" : {
+      "comment" : "No Claude accounts found in cc-switch",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "No Claude accounts were found in cc-switch."
+          }
+        }
+      }
+    },
+    "claude.accounts.cc_switch.report" : {
+      "comment" : "Claude cc-switch import report",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Imported %1$d, replaced %2$d, skipped %3$d."
+          }
+        }
+      }
+    },
+    "claude.accounts.empty.desc" : {
+      "comment" : "Empty Claude accounts description",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Use \"迁移\" or \"从 cc-switch 导入\" to add accounts."
+          }
+        }
+      }
+    },
+    "claude.accounts.empty.title" : {
+      "comment" : "Empty Claude accounts title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "No Claude accounts"
+          }
+        }
+      }
+    },
+    "claude.accounts.migrate" : {
+      "comment" : "Migrate Claude accounts",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "迁移"
+          }
+        }
+      }
+    },
+    "claude.accounts.migrate.cc_switch" : {
+      "comment" : "Import Claude from cc-switch",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "从 cc-switch 导入"
+          }
+        }
+      }
+    },
+    "claude.accounts.migrate.current" : {
+      "comment" : "Migrate Claude from current settings",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "迁移当前配置"
+          }
+        }
+      }
+    },
+    "claude.accounts.migrate.empty" : {
+      "comment" : "No Claude settings found to migrate",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "No Claude settings were found to migrate."
+          }
+        }
+      }
+    },
+    "claude.accounts.migrate.success" : {
+      "comment" : "Claude migration success message",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Migration completed and the imported account is now active."
+          }
+        }
+      }
+    },
+    "claude.accounts.title" : {
+      "comment" : "Claude accounts title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Claude Accounts"
           }
         }
       }
@@ -1344,6 +1887,18 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "Edit"
+          }
+        }
+      }
+    },
+    "codex.accounts.action.export_sub2api" : {
+      "comment" : "Export selected Codex accounts to sub2api",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "导出 sub2api"
           }
         }
       }
@@ -2338,6 +2893,42 @@
         }
       }
     },
+    "codex.accounts.export_sub2api.error.no_supported_accounts" : {
+      "comment" : "No supported sub2api accounts",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "所选账号中没有可导出的 sub2api 账号。"
+          }
+        }
+      }
+    },
+    "codex.accounts.export_sub2api.partial_success" : {
+      "comment" : "Codex sub2api partial export success",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "已导出 %1$d 个账号为 sub2api，跳过 %2$d 个 relay 账号。"
+          }
+        }
+      }
+    },
+    "codex.accounts.export_sub2api.success" : {
+      "comment" : "Codex sub2api export success",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "已导出 %d 个账号为 sub2api。"
+          }
+        }
+      }
+    },
     "codex.accounts.export.error.no_selection" : {
       "comment" : "No selected Codex accounts for export",
       "extractionState" : "extracted_with_value",
@@ -2824,18 +3415,6 @@
         }
       }
     },
-    "codex.accounts.menu.copy_auth_json" : {
-      "comment" : "Copy auth json",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Copy Auth JSON"
-          }
-        }
-      }
-    },
     "codex.accounts.menu.copy_auth_path" : {
       "comment" : "Copy auth path",
       "extractionState" : "manual",
@@ -2994,7 +3573,7 @@
     },
     "codex.accounts.status.normal" : {
       "comment" : "Account status normal",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -3066,6 +3645,7 @@
     },
     "codex.accounts.sync.success" : {
       "comment" : "Last sync label",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -6632,6 +7212,30 @@
         }
       }
     },
+    "codex.import.sheet.action.export_sub2api" : {
+      "comment" : "Export selected import candidates to sub2api",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "导出 sub2api"
+          }
+        }
+      }
+    },
+    "codex.import.sheet.action.export_zip" : {
+      "comment" : "Export selected import candidates to ZIP",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "导出 ZIP"
+          }
+        }
+      }
+    },
     "codex.import.sheet.deselect_all" : {
       "comment" : "Deselect all import candidates",
       "extractionState" : "extracted_with_value",
@@ -6716,6 +7320,54 @@
         }
       }
     },
+    "codex.import.sheet.export_sub2api.partial_success" : {
+      "comment" : "Codex import sub2api partial export success",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "已导出 %1$d 个候选账号为 sub2api，跳过 %2$d 个 relay 账号。"
+          }
+        }
+      }
+    },
+    "codex.import.sheet.export_sub2api.success" : {
+      "comment" : "Codex import sub2api export success",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "已导出 %d 个候选账号为 sub2api。"
+          }
+        }
+      }
+    },
+    "codex.import.sheet.export_zip.success" : {
+      "comment" : "Codex import ZIP export success",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "已导出 %d 个候选账号到 ZIP。"
+          }
+        }
+      }
+    },
+    "codex.import.sheet.export.error.none_selected" : {
+      "comment" : "No selected import candidates for export",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "请先选择至少一个可导出的账号。"
+          }
+        }
+      }
+    },
     "codex.import.sheet.group.count" : {
       "comment" : "Selected count in import group",
       "extractionState" : "extracted_with_value",
@@ -6772,6 +7424,18 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "导入 %d 个账号"
+          }
+        }
+      }
+    },
+    "codex.import.sheet.open_panel.message" : {
+      "comment" : "Codex import open panel message",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "选择要导入的 auth.json 或 ZIP 文件。"
           }
         }
       }
@@ -6856,6 +7520,42 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "重试"
+          }
+        }
+      }
+    },
+    "codex.import.sheet.search.empty.subtitle" : {
+      "comment" : "Empty search result subtitle",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "换个关键字试试，或者清空搜索后查看全部候选项。"
+          }
+        }
+      }
+    },
+    "codex.import.sheet.search.empty.title" : {
+      "comment" : "Empty search result title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "没有匹配的候选账号"
+          }
+        }
+      }
+    },
+    "codex.import.sheet.search.placeholder" : {
+      "comment" : "Search import candidates placeholder",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "搜索邮箱、名称或文件名"
           }
         }
       }
@@ -6952,6 +7652,18 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "把账号文件先放进来，再决定导入哪些账号。"
+          }
+        }
+      }
+    },
+    "codex.import.sheet.test.skipped.no_explicit_http" : {
+      "comment" : "Skipped import online test because no explicit HTTP usage query is configured",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "未配置 HTTP 用量查询，已跳过在线测试；仍可继续导入。"
           }
         }
       }
@@ -7748,6 +8460,24 @@
         }
       }
     },
+    "codex.usage.range.1d" : {
+      "comment" : "Codex usage trend range 1 day",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "1D"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "今日"
+          }
+        }
+      }
+    },
     "codex.usage.range.7d" : {
       "comment" : "Codex usage trend range 7 days",
       "extractionState" : "extracted_with_value",
@@ -8195,18 +8925,6 @@
         }
       }
     },
-    "edit_provider.no_workflow_folder" : {
-      "comment" : "No workflow folder selected",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "No workflow folder selected"
-          }
-        }
-      }
-    },
     "edit_provider.title" : {
       "comment" : "Edit Provider",
       "extractionState" : "stale",
@@ -8219,19 +8937,29 @@
         }
       }
     },
-    "edit_provider.workflow_folder_label" : {
-      "comment" : "Workflow Folder",
+    "edit_provider.vendor_category" : {
+      "comment" : "Vendor category",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "Workflow Folder"
+            "value" : "Vendor Category"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "厂商分类"
           }
         }
       }
     },
+    "Enable Sync" : {
+
+    },
     "Enable Workflow" : {
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -8871,6 +9599,7 @@
     },
     "Install to %@" : {
       "comment" : "Install to provider",
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -8937,6 +9666,7 @@
       }
     },
     "Installations" : {
+      "comment" : "Installations",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -9507,6 +10237,7 @@
     },
     "Metadata" : {
       "comment" : "Metadata",
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -9561,6 +10292,7 @@
     },
     "No file selected" : {
       "comment" : "No file selected",
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -10133,8 +10865,14 @@
         }
       }
     },
+    "Overview" : {
+      "comment" : "Remote skill overview title"
+    },
     "Paste" : {
 
+    },
+    "Path" : {
+      "comment" : "Path"
     },
     "Path (e.g., skills, .agent)" : {
       "extractionState" : "stale",
@@ -10867,6 +11605,24 @@
         }
       }
     },
+    "provider.mcp.not_supported_native" : {
+      "comment" : "Provider does not expose native MCP config",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "This provider does not expose a native MCP configuration file."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此 Provider 没有原生 MCP 配置文件。"
+          }
+        }
+      }
+    },
     "provider.resources.health.broken_skills_count" : {
       "comment" : "Provider broken skills count",
       "extractionState" : "extracted_with_value",
@@ -10927,6 +11683,60 @@
         }
       }
     },
+    "provider.secondary_resource.commands" : {
+      "comment" : "Command Folder",
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Command Folder"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "命令文件夹"
+          }
+        }
+      }
+    },
+    "provider.secondary_resource.prompts" : {
+      "comment" : "Prompt Folder",
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Prompt Folder"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "提示词文件夹"
+          }
+        }
+      }
+    },
+    "provider.secondary_resource.workflows" : {
+      "comment" : "Workflow Folder",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Workflow Folder"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "工作流文件夹"
+          }
+        }
+      }
+    },
     "provider.title" : {
       "comment" : "Provider Skills",
       "localizations" : {
@@ -10934,6 +11744,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Provider Skills"
+          }
+        }
+      }
+    },
+    "provider.vendor_category.integrated" : {
+      "comment" : "Integrated vendors",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Integrated Vendors"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "集成厂商"
+          }
+        }
+      }
+    },
+    "provider.vendor_category.original" : {
+      "comment" : "Original vendors",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Original Vendors"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "原始厂商"
           }
         }
       }
@@ -10968,6 +11814,7 @@
     },
     "remote.detail.files_title" : {
       "comment" : "Files",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -11002,6 +11849,7 @@
     },
     "remote.detail.local_details_title" : {
       "comment" : "Local details",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -11019,6 +11867,7 @@
     },
     "remote.detail.path_label" : {
       "comment" : "Path",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -11036,6 +11885,7 @@
     },
     "remote.detail.summary_title" : {
       "comment" : "Summary",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -11053,6 +11903,7 @@
     },
     "remote.detail.updated_label" : {
       "comment" : "Updated",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -11602,6 +12453,9 @@
         }
       }
     },
+    "Resources" : {
+
+    },
     "Reveal in Finder" : {
       "localizations" : {
         "zh-Hans" : {
@@ -11769,6 +12623,9 @@
           }
         }
       }
+    },
+    "Select a resource to view" : {
+
     },
     "Select one or more directories containing skills:" : {
       "comment" : "Select directories",
@@ -12419,6 +13276,7 @@
       }
     },
     "Show as Grid" : {
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -12429,6 +13287,7 @@
       }
     },
     "Show as List" : {
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -12462,9 +13321,45 @@
         }
       }
     },
+    "sidebar.providers.integrated_vendors" : {
+      "comment" : "Integrated vendors section",
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Integrated Vendors"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "集成厂商"
+          }
+        }
+      }
+    },
+    "sidebar.providers.original_vendors" : {
+      "comment" : "Original vendors section",
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Original Vendors"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "原始厂商"
+          }
+        }
+      }
+    },
     "sidebar.providers.projects" : {
       "comment" : "Project providers section",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -12482,7 +13377,7 @@
     },
     "sidebar.providers.vendors" : {
       "comment" : "Vendor providers section",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -12506,6 +13401,24 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "Tools"
+          }
+        }
+      }
+    },
+    "sidebar.tools.accounts" : {
+      "comment" : "Accounts sidebar item",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Accounts"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "账号"
           }
         }
       }
@@ -13033,6 +13946,7 @@
       }
     },
     "Template" : {
+      "comment" : "Template",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -13055,6 +13969,7 @@
     },
     "Unable to read file" : {
       "comment" : "Unable to read file",
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -13063,6 +13978,9 @@
           }
         }
       }
+    },
+    "Unsupported file format." : {
+
     },
     "Update %@ to %@?" : {
       "localizations" : {
@@ -13073,6 +13991,9 @@
           }
         }
       }
+    },
+    "Updated" : {
+      "comment" : "Updated"
     },
     "updates.available_count" : {
       "comment" : "Number of updates available",
@@ -13933,18 +14854,6 @@
         }
       }
     },
-    "usage.token_trend.loading" : {
-      "comment" : "Loading token trend",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Loading token history…"
-          }
-        }
-      }
-    },
     "usage.token_trend.subtitle" : {
       "comment" : "Token trend section subtitle",
       "extractionState" : "extracted_with_value",
@@ -14051,6 +14960,9 @@
           }
         }
       }
+    },
+    "VERSION %@" : {
+
     },
     "View Details" : {
       "comment" : "View resource details",

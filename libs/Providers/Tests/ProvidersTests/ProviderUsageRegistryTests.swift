@@ -24,6 +24,13 @@ struct ProviderUsageRegistryTests {
         #expect(plan.sourceModes.contains(.cli))
     }
 
+    @Test("Fetch plan for claude contains web source")
+    func fetchPlan_claude_containsWeb() {
+        let plan = ProviderUsageRegistry.fetchPlan(for: .claude)
+        #expect(plan.sourceModes.contains(.auto))
+        #expect(plan.sourceModes.contains(.web))
+    }
+
     @Test("Metadata for codex has dashboard URL")
     func metadata_codex_containsDashboardURL() {
         let metadata = ProviderUsageRegistry.metadata(for: .codex)

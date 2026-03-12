@@ -40,10 +40,10 @@ struct SheetHeaderView: View {
     }
 
     var body: some View {
-        HStack(alignment: .center, spacing: 16) {
-            VStack(alignment: .leading, spacing: 4) {
+        HStack(alignment: .center, spacing: DesignSystem.Metrics.spacingL) {
+            VStack(alignment: .leading, spacing: DesignSystem.Metrics.spacingXS) {
                 Text(title)
-                    .font(.system(size: 20, weight: .bold))
+                    .font(DesignSystem.Typography.h3)
                     .foregroundStyle(DesignSystem.Colors.Text.primary)
 
                 if let subtitle {

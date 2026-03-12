@@ -24,13 +24,6 @@ actor AsyncGate {
 
 @MainActor
 final class CodexAuthManagerTests: XCTestCase {
-    func testBDD_GivenAppAuthManagerType_WhenCheckingMigrationBoundary_ThenUsesProviderUsageManagerType() {
-        XCTAssertEqual(
-            ObjectIdentifier(CodexAuthManager.self),
-            ObjectIdentifier(CodexAuthManager.self)
-        )
-    }
-
     func testBDD_GivenRealCodexAccount_WhenStoringUsageCache_ThenUsageCacheIsPersisted() async throws {
         let service = CodexAuthManager()
         let accounts = try await service.loadAccounts()
@@ -43,7 +36,11 @@ final class CodexAuthManagerTests: XCTestCase {
         let fileURL = file.url
         let originalData = try Data(contentsOf: fileURL)
         defer {
-            try? originalData.write(to: fileURL, options: [.atomic])
+            do {
+                try originalData.write(to: fileURL, options: [.atomic])
+            } catch {
+                XCTFail("Failed to restore original auth file: \(error)")
+            }
         }
 
         let usage = UsageSnapshot(

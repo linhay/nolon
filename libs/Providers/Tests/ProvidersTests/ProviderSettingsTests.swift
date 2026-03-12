@@ -66,4 +66,37 @@ struct ProviderSettingsTests {
         let storedClawdhub = try #require(storedRepos.first(where: { $0.templateType == .clawdhub }))
         #expect(storedClawdhub.baseURL == "https://clawhub.ai")
     }
+
+    @Test("ProviderSettings syncs missing vendor category from template defaults")
+    func syncsMissingVendorCategoryFromTemplates() throws {
+        let root = STFolder("/tmp").folder("provider-settings-vendor-category-\(UUID().uuidString)")
+        _ = root.createIfNotExists()
+        defer { try? root.deleteIncludingBrokenSymlink() }
+
+        let defaultsSuite = "provider-settings-vendor-category-\(UUID().uuidString)"
+        let userDefaults = UserDefaults(suiteName: defaultsSuite)!
+        userDefaults.removePersistentDomain(forName: defaultsSuite)
+        defer {
+            userDefaults.removePersistentDomain(forName: defaultsSuite)
+        }
+
+        let manager = NolonManager(rootURL: root.url)
+        let legacyProvider = Provider(
+            id: "codex-provider",
+            kind: .vendor,
+            name: "Codex",
+            defaultSkillsPath: "/tmp/legacy/codex/skills",
+            workflowPath: "/tmp/legacy/codex/prompts",
+            iconName: "terminal",
+            installMethod: .symlink,
+            templateId: ProviderTemplate.codex.rawValue
+        )
+        let data = try JSONEncoder().encode([legacyProvider])
+        _ = try manager.providersConfigFile.overlay(with: data)
+
+        let settings = ProviderSettings(userDefaults: userDefaults, nolonManager: manager)
+        let provider = try #require(settings.providers.first)
+        #expect(provider.vendorCategory == .original)
+        #expect(provider.defaultSkillsPath.hasSuffix(".codex/skills"))
+    }
 }

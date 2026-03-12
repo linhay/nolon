@@ -78,6 +78,21 @@ final class CodexUsageTabPresentationTests: XCTestCase {
         )
     }
 
+    func testBDD_GivenOneDayTokenTrendRange_WhenResolvingPresentation_ThenUsesOneDayWindow() {
+        XCTAssertEqual(ProviderUsageViewModel.TokenTrendRange.days1.trailingDays, 1)
+        XCTAssertEqual(
+            ProviderUsageViewModel.TokenTrendRange.days1.title,
+            NSLocalizedString("codex.usage.range.1d", value: "1D", comment: "Codex usage trend range 1 day")
+        )
+    }
+
+    func testBDD_GivenTokenTrendSection_WhenResolvingQuickActions_ThenCardsCoverAllRangesWithoutHeaderSegment() {
+        XCTAssertEqual(ProviderTokenTrendSection.quickActionRanges, ProviderUsageViewModel.TokenTrendRange.allCases)
+        XCTAssertFalse(ProviderTokenTrendSection.usesHeaderRangePicker)
+        XCTAssertTrue(ProviderTokenTrendSection.usesFullCardTapTarget)
+        XCTAssertEqual(ProviderTokenTrendSection.summaryCardMinHeight, 84)
+    }
+
     func testBDD_GivenEditMode_WhenResolvingConfigPresentation_ThenPrimaryActionUsesSave() {
         let title = ProviderUsageViewModel.codexConfigEditorTitle(for: .edit(accountID: UUID()))
         let subtitle = ProviderUsageViewModel.codexConfigEditorSubtitle(for: .edit(accountID: UUID()))
@@ -361,13 +376,17 @@ final class CodexUsageTabPresentationTests: XCTestCase {
 
         XCTAssertTrue(viewModel.isShowingCodexImportSheet)
         XCTAssertEqual(viewModel.codexImportCandidates.count, 0)
+        XCTAssertFalse(viewModel.hasCodexImportCandidates)
         XCTAssertFalse(viewModel.isRunningCodexImportValidation)
         XCTAssertFalse(viewModel.isRunningCodexImportConnectionTests)
+        XCTAssertEqual(CodexImportSheet.minimumSheetHeight(hasAnyCandidates: false), 320)
+        XCTAssertEqual(CodexImportSheet.minimumSheetHeight(hasAnyCandidates: true), 560)
     }
 
     func testBDD_GivenImportSheetDismissed_WhenReopened_ThenDraftStateIsReset() {
         let viewModel = ProviderUsageViewModel(provider: Self.makeCodexProvider())
         viewModel.beginImportAuthFiles()
+        viewModel.codexImportSearchText = "demo"
         viewModel.codexImportCandidates = [
             .init(
                 sourceFileURL: URL(fileURLWithPath: "/tmp/demo.json"),
@@ -391,6 +410,155 @@ final class CodexUsageTabPresentationTests: XCTestCase {
 
         XCTAssertTrue(viewModel.isShowingCodexImportSheet)
         XCTAssertTrue(viewModel.codexImportCandidates.isEmpty)
+        XCTAssertEqual(viewModel.codexImportSearchText, "")
+    }
+
+    func testBDD_GivenImportCandidatesAcrossGroups_WhenSearching_ThenOnlyMatchingSectionsRemainVisible() {
+        let viewModel = ProviderUsageViewModel(provider: Self.makeCodexProvider())
+        viewModel.codexImportCandidates = [
+            .init(
+                sourceFileURL: URL(fileURLWithPath: "/tmp/team-alpha/oauth.json"),
+                validation: .init(
+                    fileURL: URL(fileURLWithPath: "/tmp/team-alpha/oauth.json"),
+                    sourceGroupID: "group-alpha",
+                    sourceGroupLabel: "Alpha.zip",
+                    isValid: true,
+                    reason: nil,
+                    suggestedName: "Alpha OAuth",
+                    email: "alpha@example.com",
+                    authJSONString: "{}"
+                ),
+                isSelected: true,
+                testStatus: .success,
+                testSummary: nil,
+                testDetail: nil
+            ),
+            .init(
+                sourceFileURL: URL(fileURLWithPath: "/tmp/team-beta/relay.json"),
+                validation: .init(
+                    fileURL: URL(fileURLWithPath: "/tmp/team-beta/relay.json"),
+                    sourceGroupID: "group-beta",
+                    sourceGroupLabel: "Beta.zip",
+                    isValid: true,
+                    reason: nil,
+                    suggestedName: "Beta Relay",
+                    email: "relay@example.com",
+                    authJSONString: "{}"
+                ),
+                isSelected: true,
+                testStatus: .success,
+                testSummary: nil,
+                testDetail: nil
+            )
+        ]
+
+        viewModel.codexImportSearchText = "alpha@example.com"
+
+        XCTAssertEqual(viewModel.codexImportCandidateSections.count, 1)
+        XCTAssertEqual(viewModel.codexImportCandidateSections.first?.title, "Alpha.zip")
+        XCTAssertEqual(viewModel.codexImportCandidateSections.first?.items.count, 1)
+        XCTAssertEqual(viewModel.codexImportCandidateSections.first?.items.first?.validation.suggestedName, "Alpha OAuth")
+
+        viewModel.codexImportSearchText = "relay.json"
+
+        XCTAssertEqual(viewModel.codexImportCandidateSections.count, 1)
+        XCTAssertEqual(viewModel.codexImportCandidateSections.first?.title, "Beta.zip")
+        XCTAssertEqual(viewModel.codexImportCandidateSections.first?.items.first?.validation.suggestedName, "Beta Relay")
+
+        viewModel.codexImportSearchText = ""
+
+        XCTAssertEqual(viewModel.codexImportCandidateSections.count, 2)
+        XCTAssertEqual(viewModel.codexImportSearchResultCount, 2)
+        XCTAssertTrue(viewModel.hasCodexImportCandidates)
+    }
+
+    func testBDD_GivenImportCandidatesExist_WhenSearchHasNoMatch_ThenSearchResultsBecomeEmpty() {
+        let viewModel = ProviderUsageViewModel(provider: Self.makeCodexProvider())
+        viewModel.codexImportCandidates = [
+            .init(
+                sourceFileURL: URL(fileURLWithPath: "/tmp/demo.json"),
+                validation: .init(
+                    fileURL: URL(fileURLWithPath: "/tmp/demo.json"),
+                    sourceGroupID: "group-demo",
+                    sourceGroupLabel: "Demo.zip",
+                    isValid: true,
+                    reason: nil,
+                    suggestedName: "Demo OAuth",
+                    email: "demo@example.com",
+                    authJSONString: "{}"
+                ),
+                isSelected: true,
+                testStatus: .success,
+                testSummary: nil,
+                testDetail: nil
+            )
+        ]
+
+        viewModel.codexImportSearchText = "missing-keyword"
+
+        XCTAssertTrue(viewModel.codexImportCandidateSections.isEmpty)
+        XCTAssertEqual(viewModel.codexImportSearchResultCount, 0)
+    }
+
+    func testBDD_GivenImportSheetPickerReturnsFiles_WhenPresentingPicker_ThenStartsValidationWithSelectedURLs() async {
+        let tempDirectory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        XCTAssertNoThrow(try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true))
+        defer { try? FileManager.default.removeItem(at: tempDirectory) }
+
+        let firstURL = tempDirectory.appendingPathComponent("first.json")
+        let secondURL = tempDirectory.appendingPathComponent("second.zip")
+        XCTAssertNoThrow(try "{}".write(to: firstURL, atomically: true, encoding: .utf8))
+        XCTAssertNoThrow(try Data("PK".utf8).write(to: secondURL))
+
+        let viewModel = ProviderUsageViewModel(
+            provider: Self.makeCodexProvider(),
+            codexImportConnectionTestAction: { validationResult, _ in
+                ProviderAccountUsageOutcome(
+                    provider: .codex,
+                    account: .default,
+                    outcome: .init(
+                        fetchKind: .cli,
+                        result: .failure(CodexImportPanelTestError.connection)
+                    )
+                )
+            },
+            codexImportOpenPanelAction: { [firstURL, secondURL] }
+        )
+
+        await viewModel.presentCodexImportFilePicker()
+
+        XCTAssertEqual(viewModel.importedAuthFileURLs, [firstURL, secondURL])
+        XCTAssertEqual(viewModel.codexImportCandidates.count, 2)
+    }
+
+    func testBDD_GivenImportSheetPickerCancelled_WhenPresentingPicker_ThenKeepsCandidatesUnchanged() async {
+        let existingURL = URL(fileURLWithPath: "/tmp/existing.json")
+        let viewModel = ProviderUsageViewModel(
+            provider: Self.makeCodexProvider(),
+            codexImportOpenPanelAction: { [] }
+        )
+        viewModel.codexImportCandidates = [
+            .init(
+                sourceFileURL: existingURL,
+                validation: .init(
+                    fileURL: existingURL,
+                    isValid: true,
+                    reason: nil,
+                    suggestedName: "Existing",
+                    email: nil,
+                    authJSONString: "{}"
+                ),
+                isSelected: true,
+                testStatus: .idle,
+                testSummary: nil,
+                testDetail: nil
+            )
+        ]
+
+        await viewModel.presentCodexImportFilePicker()
+
+        XCTAssertEqual(viewModel.codexImportCandidates.count, 1)
+        XCTAssertEqual(viewModel.importedAuthFileURLs, [])
     }
 
     func testBDD_GivenValidAndInvalidCandidates_WhenSelectionChanges_ThenOnlyValidRemainSelectable() {
@@ -557,6 +725,156 @@ final class CodexUsageTabPresentationTests: XCTestCase {
         XCTAssertEqual(viewModel.codexImportCandidates[0].testStatus, .success)
     }
 
+    func testBDD_GivenPastedOAuthWithoutExplicitHTTPUsageQuery_WhenHandled_ThenSkipsOnlineTestInsteadOfFallingBackToCLI() async throws {
+        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("codex-paste-no-http-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+
+        let viewModel = ProviderUsageViewModel(provider: Self.makeCodexProvider())
+
+        let raw = """
+        {
+          "auth_mode":"chatgpt",
+          "email":"skip-http@example.com",
+          "tokens":{
+            "id_token":"\(Self.makeJWT(email: "skip-http@example.com", accountID: "acct-skip-http"))",
+            "access_token":"access-demo"
+          }
+        }
+        """
+
+        await viewModel.handleCodexImportText(raw, preferredSourceURL: tempURL)
+
+        XCTAssertEqual(viewModel.codexImportCandidates.count, 1)
+        XCTAssertEqual(viewModel.codexImportCandidates[0].testStatus, .failure)
+        XCTAssertTrue(viewModel.codexImportCandidates[0].testSummary?.contains("HTTP") == true)
+        XCTAssertTrue(viewModel.codexImportCandidates[0].testSummary?.contains("跳过") == true)
+        XCTAssertFalse(viewModel.codexImportCandidates[0].testSummary?.contains("JSON-RPC") == true)
+    }
+
+    func testBDD_GivenSelectedImportCandidates_WhenExportingZIP_ThenOnlySelectedValidCandidatesAreForwarded() async {
+        let destinationURL = FileManager.default.temporaryDirectory.appendingPathComponent("codex-import-export-\(UUID().uuidString).zip")
+        var capturedResults: [CodexAuthManager.CodexImportValidationResult] = []
+        var capturedDestinationURL: URL?
+        let viewModel = ProviderUsageViewModel(
+            provider: Self.makeCodexProvider(),
+            codexExportSavePanelAction: { _, _ in destinationURL },
+            codexImportExportArchiveAction: { results, url in
+                capturedResults = results
+                capturedDestinationURL = url
+                return results.count
+            }
+        )
+
+        viewModel.codexImportCandidates = [
+            .init(
+                sourceFileURL: URL(fileURLWithPath: "/tmp/selected.json"),
+                validation: .init(
+                    fileURL: URL(fileURLWithPath: "/tmp/selected.json"),
+                    isValid: true,
+                    reason: nil,
+                    suggestedName: "Selected",
+                    email: "selected@example.com",
+                    authJSONString: "{}"
+                ),
+                isSelected: true,
+                testStatus: .success,
+                testSummary: nil,
+                testDetail: nil
+            ),
+            .init(
+                sourceFileURL: URL(fileURLWithPath: "/tmp/unselected.json"),
+                validation: .init(
+                    fileURL: URL(fileURLWithPath: "/tmp/unselected.json"),
+                    isValid: true,
+                    reason: nil,
+                    suggestedName: "Unselected",
+                    email: "unselected@example.com",
+                    authJSONString: "{}"
+                ),
+                isSelected: false,
+                testStatus: .idle,
+                testSummary: nil,
+                testDetail: nil
+            ),
+            .init(
+                sourceFileURL: URL(fileURLWithPath: "/tmp/invalid.json"),
+                validation: .init(
+                    fileURL: URL(fileURLWithPath: "/tmp/invalid.json"),
+                    isValid: false,
+                    reason: "Missing required credentials",
+                    suggestedName: nil,
+                    email: nil,
+                    authJSONString: nil
+                ),
+                isSelected: true,
+                testStatus: .failure,
+                testSummary: nil,
+                testDetail: nil
+            )
+        ]
+
+        await viewModel.exportSelectedCodexImportCandidatesAsZIP()
+
+        XCTAssertEqual(capturedResults.count, 1)
+        XCTAssertEqual(capturedResults.first?.email, "selected@example.com")
+        XCTAssertEqual(capturedDestinationURL, destinationURL)
+        XCTAssertEqual(viewModel.alertMessage, "已导出 1 个候选账号到 ZIP。")
+    }
+
+    func testBDD_GivenSelectedImportCandidatesContainRelay_WhenExportingSub2API_ThenAlertIncludesSkippedRelayCount() async {
+        let destinationURL = FileManager.default.temporaryDirectory.appendingPathComponent("codex-import-export-\(UUID().uuidString).json")
+        var capturedResults: [CodexAuthManager.CodexImportValidationResult] = []
+        let viewModel = ProviderUsageViewModel(
+            provider: Self.makeCodexProvider(),
+            codexExportSavePanelAction: { _, _ in destinationURL },
+            codexImportExportSub2APIAction: { results, _ in
+                capturedResults = results
+                return Sub2APIExportResult(exportedCount: 1, skippedRelayCount: 1, skippedUnsupportedCount: 0)
+            }
+        )
+
+        viewModel.codexImportCandidates = [
+            .init(
+                sourceFileURL: URL(fileURLWithPath: "/tmp/oauth.json"),
+                validation: .init(
+                    fileURL: URL(fileURLWithPath: "/tmp/oauth.json"),
+                    isValid: true,
+                    reason: nil,
+                    suggestedName: "OAuth",
+                    email: "oauth@example.com",
+                    authJSONString: "{}"
+                ),
+                isSelected: true,
+                testStatus: .success,
+                testSummary: nil,
+                testDetail: nil
+            ),
+            .init(
+                sourceFileURL: URL(fileURLWithPath: "/tmp/relay.json"),
+                validation: .init(
+                    fileURL: URL(fileURLWithPath: "/tmp/relay.json"),
+                    isValid: true,
+                    reason: nil,
+                    suggestedName: "Relay",
+                    email: nil,
+                    authJSONString: "{}"
+                ),
+                isSelected: true,
+                testStatus: .success,
+                testSummary: nil,
+                testDetail: nil
+            )
+        ]
+
+        await viewModel.exportSelectedCodexImportCandidatesAsSub2API()
+
+        XCTAssertEqual(capturedResults.count, 2)
+        XCTAssertEqual(
+            viewModel.alertMessage,
+            "已导出 1 个候选账号为 sub2api，跳过 1 个 relay 账号。"
+        )
+    }
+
     private static func makeCodexProvider() -> Provider {
         Provider(
             name: "Codex",
@@ -715,4 +1033,57 @@ final class CodexUsageTabPresentationTests: XCTestCase {
 
         XCTAssertFalse(shouldForce)
     }
+
+    func testBDD_GivenCodexNeedsReauthRecord_WhenMappingCard_ThenShowsWarningBadgeAndFailureMessage() {
+        let updatedAt = Date(timeIntervalSince1970: 1_700_600_000)
+        let usageError = ProviderUsageError.authExpired(.codex)
+        let outcome = ProviderAccountUsageOutcome(
+            provider: .codex,
+            account: .tokenAccount(
+                .init(
+                    id: UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE")!,
+                    label: "Work",
+                    token: "redacted",
+                    addedAt: updatedAt.timeIntervalSince1970,
+                    lastUsed: nil
+                )
+            ),
+            outcome: .init(fetchKind: .cli, result: .failure(usageError))
+        )
+        let summary = CodexAuthSummary(
+            email: "work@example.com",
+            plan: "pro",
+            lastLoginAt: updatedAt,
+            lastSyncFailureMessage: "Authentication expired"
+        )
+
+        let record = AccountRecordBuilder.codexUsage(
+            outcome: outcome,
+            summary: summary,
+            presentation: .codex(isActive: false, isPending: false, isBatchSelected: false),
+            title: "Work",
+            creditsRefreshedAt: nil,
+            isRefreshing: false,
+            canRelogin: true
+        )
+        let card = AccountCardViewDataMapper.map(record: record)
+
+        XCTAssertEqual(card.header.badge?.tone, .warning)
+        XCTAssertEqual(
+            card.header.badge?.text,
+            NSLocalizedString("codex.accounts.status.reauth_needed", value: "Needs re-login", comment: "Account status reauth")
+        )
+        XCTAssertEqual(
+            card.detailRows.first?.value,
+            NSLocalizedString(
+                "codex.accounts.error.auth_expired",
+                value: "Authentication expired. Please sign in again.",
+                comment: "Codex auth expired summary"
+            )
+        )
+    }
+}
+
+private enum CodexImportPanelTestError: LocalizedError {
+    case connection
 }

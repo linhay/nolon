@@ -37,6 +37,7 @@ struct NolonCodexAuthGroupCommand: ParsableCommand {
             NolonCodexAuthUsageCommand.self,
             NolonCodexAuthUsageTrendCommand.self,
             NolonCodexAuthStatusCommand.self,
+            NolonCodexAuthExportCommand.self,
             NolonCodexAuthRefreshCommand.self,
             NolonCodexAuthActivateCommand.self,
             NolonCodexAuthLoginCommand.self,
@@ -125,6 +126,28 @@ struct NolonCodexAuthStatusCommand: ParsableCommand {
 
     @Option(name: .long, help: "Provider id, default is codex.")
     var provider: String = "codex"
+}
+
+struct NolonCodexAuthExportCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(commandName: "export")
+
+    @Option(name: .long, help: "Provider id, default is codex.")
+    var provider: String = "codex"
+
+    @Option(name: .long, help: "Export format, currently only sub2api.")
+    var format: String = "sub2api"
+
+    @Option(name: .long, parsing: .upToNextOption, help: "One or more account id UUIDs.")
+    var accountID: [String] = []
+
+    @Option(name: .long, parsing: .upToNextOption, help: "One or more account emails.")
+    var email: [String] = []
+
+    @Flag(name: .long, help: "Export all accounts.")
+    var all: Bool = false
+
+    @Option(name: .long, help: "Output file path.")
+    var output: String
 }
 
 struct NolonCodexAuthRefreshCommand: ParsableCommand {

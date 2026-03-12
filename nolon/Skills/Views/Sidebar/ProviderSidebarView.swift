@@ -22,7 +22,7 @@ final class ProviderSidebarViewModel {
             if let firstProvider = settings.providers.first {
                 currentSelection.wrappedValue = .provider(firstProvider.id)
             } else {
-                currentSelection.wrappedValue = .pluginManagement
+                currentSelection.wrappedValue = .accounts
             }
         }
     }
@@ -38,12 +38,7 @@ final class ProviderSidebarViewModel {
     }
 
     @MainActor
-    func moveVendorProviders(from source: IndexSet, to destination: Int) {
-        moveProviders(in: \.kind, matching: .vendor, from: source, to: destination)
-    }
-
-    @MainActor
-    private func moveProviders<Value: Equatable>(
+    func moveProviders<Value: Equatable>(
         in keyPath: KeyPath<Provider, Value>,
         matching value: Value,
         from source: IndexSet,
@@ -71,7 +66,7 @@ final class ProviderSidebarViewModel {
             if let firstProvider = settings.providers.first {
                 selection.wrappedValue = .provider(firstProvider.id)
             } else {
-                selection.wrappedValue = .pluginManagement
+                selection.wrappedValue = .accounts
             }
         }
     }
@@ -100,12 +95,8 @@ public struct ProviderSidebarView: View {
     @State private var viewModel: ProviderSidebarViewModel
     @State private var showingAddSheet = false
 
-    private var vendorProviders: [Provider] {
-        settings.providers.filter { $0.kind == .vendor }
-    }
-
-    private var projectProviders: [Provider] {
-        settings.providers.filter { $0.kind == .project }
+    private var providerSections: [ProviderPresentationSections.ProviderSection] {
+        ProviderPresentationSections.providerSections(providers: settings.providers)
     }
     
     public init(
@@ -119,9 +110,9 @@ public struct ProviderSidebarView: View {
     
     public var body: some View {
         List(selection: $selectedItem) {
-            if !vendorProviders.isEmpty {
+            ForEach(providerSections) { section in
                 Section {
-                    ForEach(vendorProviders) { provider in
+                    ForEach(section.providers) { provider in
                         ProviderRowView(
                             provider: provider,
                             isSelected: selectedItem == .provider(provider.id),
@@ -133,7 +124,7 @@ public struct ProviderSidebarView: View {
                         .tag(MainSidebarSelection.provider(provider.id))
                     }
                     .onDelete { offsets in
-                        let idsToDelete = Set(offsets.map { vendorProviders[$0].id })
+                        let idsToDelete = Set(offsets.map { section.providers[$0].id })
                         let originalIndices = IndexSet(
                             settings.providers.enumerated().compactMap { index, provider in
                                 idsToDelete.contains(provider.id) ? index : nil
@@ -142,41 +133,37 @@ public struct ProviderSidebarView: View {
                         viewModel.deleteProviders(at: originalIndices)
                     }
                     .onMove { source, destination in
-                        viewModel.moveVendorProviders(from: source, to: destination)
+                        switch section.id {
+                        case .originalVendors:
+                            viewModel.moveProviders(
+                                in: \.vendorCategory,
+                                matching: .original,
+                                from: source,
+                                to: destination
+                            )
+                        case .integratedVendors:
+                            viewModel.moveProviders(
+                                in: \.vendorCategory,
+                                matching: .integrated,
+                                from: source,
+                                to: destination
+                            )
+                        case .projects:
+                            viewModel.moveProviders(in: \.kind, matching: .project, from: source, to: destination)
+                        }
                     }
                 } header: {
-                    Text(NSLocalizedString("sidebar.providers.vendors", value: "Vendors", comment: "Vendor providers section"))
-                }
-            }
-
-            if !projectProviders.isEmpty {
-                Section {
-                    ForEach(projectProviders) { provider in
-                        ProviderRowView(
-                            provider: provider,
-                            isSelected: selectedItem == .provider(provider.id),
-                            onShowInFinder: { viewModel.showInFinder(provider) },
-                            onViewOfficialDocumentation: { viewModel.openOfficialDocumentation(for: provider) },
-                            onEdit: { viewModel.editingProvider = provider },
-                            onDelete: { viewModel.deleteProvider(provider, currentSelection: $selectedItem) }
-                        )
-                        .tag(MainSidebarSelection.provider(provider.id))
-                    }
-                    .onDelete { offsets in
-                        let idsToDelete = Set(offsets.map { projectProviders[$0].id })
-                        let originalIndices = IndexSet(
-                            settings.providers.enumerated().compactMap { index, provider in
-                                idsToDelete.contains(provider.id) ? index : nil
-                            }
-                        )
-                        viewModel.deleteProviders(at: originalIndices)
-                    }
-                } header: {
-                    Text(NSLocalizedString("sidebar.providers.projects", value: "Projects", comment: "Project providers section"))
+                    Text(NSLocalizedString(section.titleKey, value: section.fallbackTitle, comment: "Provider section title"))
                 }
             }
 
             Section {
+                Label(
+                    NSLocalizedString("sidebar.tools.accounts", value: "Accounts", comment: "Accounts sidebar item"),
+                    systemImage: "person.crop.circle.badge.checkmark"
+                )
+                .tag(MainSidebarSelection.accounts)
+
                 Label(
                     NSLocalizedString("sidebar.plugins.management", value: "Plugin Management", comment: "Plugin management sidebar item"),
                     systemImage: "puzzlepiece.extension"

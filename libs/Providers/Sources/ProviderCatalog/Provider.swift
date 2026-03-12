@@ -8,6 +8,11 @@ public enum ProviderKind: String, Codable, Sendable {
     case project
 }
 
+public enum VendorCategory: String, Codable, Sendable {
+    case original
+    case integrated
+}
+
 /// Represents a provider for installing skills.
 public struct Provider: Codable, Identifiable, Hashable, Sendable {
     public let id: String
@@ -22,6 +27,7 @@ public struct Provider: Codable, Identifiable, Hashable, Sendable {
     public var commandPath: String?
     public var iconName: String
     public var installMethod: SkillInstallationMethod
+    public var vendorCategory: VendorCategory?
 
     /// Template ID if created from a built-in template.
     public var templateId: String?
@@ -33,6 +39,8 @@ public struct Provider: Codable, Identifiable, Hashable, Sendable {
 
     public var isVendor: Bool { kind == .vendor }
     public var isProject: Bool { kind == .project }
+    public var isOriginalVendor: Bool { vendorCategory == .original }
+    public var isIntegratedVendor: Bool { vendorCategory == .integrated }
     public var canEditPaths: Bool { kind == .project }
 
     public var path: STPath {
@@ -63,6 +71,7 @@ public struct Provider: Codable, Identifiable, Hashable, Sendable {
         commandPath: String? = nil,
         iconName: String = "folder",
         installMethod: SkillInstallationMethod = .symlink,
+        vendorCategory: VendorCategory? = nil,
         templateId: String? = nil,
         additionalSkillsPaths: [String]? = nil,
         documentationURL: URL? = nil
@@ -76,6 +85,7 @@ public struct Provider: Codable, Identifiable, Hashable, Sendable {
         self.commandPath = commandPath
         self.iconName = iconName
         self.installMethod = installMethod
+        self.vendorCategory = kind == .project ? nil : (vendorCategory ?? .integrated)
         self.templateId = templateId
         self.additionalSkillsPaths = additionalSkillsPaths
         self.documentationURL = documentationURL
@@ -93,6 +103,7 @@ public struct Provider: Codable, Identifiable, Hashable, Sendable {
         case commandPath
         case iconName
         case installMethod
+        case vendorCategory
         case templateId
         case additionalSkillsPaths
         case documentationURL
@@ -110,8 +121,18 @@ public struct Provider: Codable, Identifiable, Hashable, Sendable {
         commandPath = try container.decodeIfPresent(String.self, forKey: .commandPath)
         iconName = try container.decode(String.self, forKey: .iconName)
         installMethod = try container.decode(SkillInstallationMethod.self, forKey: .installMethod)
+        let decodedVendorCategory = try container.decodeIfPresent(VendorCategory.self, forKey: .vendorCategory)
         templateId = try container.decodeIfPresent(String.self, forKey: .templateId)
         additionalSkillsPaths = try container.decodeIfPresent([String].self, forKey: .additionalSkillsPaths)
         documentationURL = try container.decodeIfPresent(URL.self, forKey: .documentationURL)
+        if kind == .project {
+            vendorCategory = nil
+        } else if let decodedVendorCategory {
+            vendorCategory = decodedVendorCategory
+        } else if let templateId, let template = ProviderTemplate(rawValue: templateId) {
+            vendorCategory = template.vendorCategory ?? .integrated
+        } else {
+            vendorCategory = .integrated
+        }
     }
 }

@@ -25,7 +25,7 @@ struct SkillCardView: View {
     private var cardContainer: AnyView {
         AnyView(
             cardContent
-                .padding(16)
+                .padding(DesignSystem.Metrics.spacingL)
                 .frame(maxWidth: .infinity, alignment: .topLeading)
                 .frame(minHeight: 140)
                 .providerTabCardStyle()
@@ -48,7 +48,7 @@ struct SkillCardView: View {
     }
 
     private var cardContent: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: DesignSystem.Metrics.spacingM) {
             headerRow
             versionRow
             descriptionView
@@ -93,17 +93,17 @@ struct SkillCardView: View {
                 Button {
                     onUnlinkWorkflow()
                 } label: {
-                    HStack(spacing: 6) {
+                    HStack(spacing: DesignSystem.Metrics.spacingS - 2) {
                         Image(systemName: "arrow.triangle.branch")
                         Text("Workflow")
                     }
                     .fontWeight(.semibold)
                     .dsBadge(
                         foreground: DesignSystem.Colors.primary,
-                        background: DesignSystem.Colors.primary.opacity(0.10),
+                        background: DesignSystem.Colors.primary.opacity(DesignSystem.Colors.Opacity.subtle),
                         horizontalPadding: 10,
                         verticalPadding: 6,
-                        cornerRadius: DesignSystem.Metrics.cornerRadiusM
+                        cornerRadius: DesignSystem.Metrics.cornerRadiusS
                     )
                 }
                 .dsLinkButton()
@@ -111,11 +111,11 @@ struct SkillCardView: View {
                 Spacer()
             }
         } else {
-            HStack(spacing: 12) {
+            HStack(spacing: DesignSystem.Metrics.spacingM) {
                 Button {
                     onLinkWorkflow()
                 } label: {
-                    HStack(spacing: 6) {
+                    HStack(spacing: DesignSystem.Metrics.spacingS - 2) {
                         Image(systemName: "plus.circle")
                         Text(NSLocalizedString("action.link_workflow", comment: "Link to Workflow"))
                     }
@@ -125,7 +125,7 @@ struct SkillCardView: View {
                         background: DesignSystem.Colors.Component.controlFill,
                         horizontalPadding: 10,
                         verticalPadding: 6,
-                        cornerRadius: DesignSystem.Metrics.cornerRadiusM
+                        cornerRadius: DesignSystem.Metrics.cornerRadiusS
                     )
                 }
                 .dsLinkButton()

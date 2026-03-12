@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Skill Detail Pro - Infinite Scroll & Modular Design</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --bg-window: #000000;
+            --bg-sidebar: #1C1C1E;
+            --bg-content: #121212;
+            
+            --primary: #0A84FF;
+            --primary-glow: rgba(10, 132, 255, 0.4);
+            --success: #30D158;
+            
+            --text-main: #FFFFFF;
+            --text-sub: rgba(235, 235, 245, 0.6);
+            --text-mute: rgba(235, 235, 245, 0.3);
+            
+            --border-thin: rgba(255, 255, 255, 0.08);
+            --border-strong: rgba(255, 255, 255, 0.15);
+            
+            --radius-lg: 16px;
+            --radius-md: 12px;
+            --radius-sm: 8px;
+            
+            --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            --sidebar-width: 280px;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: "SF Pro Display", -apple-system, system-ui, sans-serif;
+            background-color: #050505;
+            color: var(--text-main);
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            -webkit-font-smoothing: antialiased;
+            overflow: hidden;
+        }
+
+        /* --- Layout Container --- */
+        .app-window {
+            width: 1160px;
+            height: 800px;
+            background-color: var(--bg-window);
+            border: 1px solid var(--border-strong);
+            border-radius: var(--radius-lg);
+            display: flex;
+            overflow: hidden;
+            position: relative;
+            box-shadow: 0 50px 150px rgba(0,0,0,1);
+        }
+
+        /* --- Floating Close Button --- */
+        .c-btn-close {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(15px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: var(--text-sub);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            cursor: pointer;
+            z-index: 2000;
+            transition: var(--transition);
+        }
+        .c-btn-close:hover {
+            background: rgba(255, 59, 48, 0.8);
+            color: white;
+            transform: scale(1.05);
+        }
+
+        /* --- Modular: Unified Sidebar (Scrollable) --- */
+        .c-sidebar {
+            width: var(--sidebar-width);
+            background-color: var(--bg-sidebar);
+            border-right: 1px solid var(--border-thin);
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 0;
+            height: 100%;
+            overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255,255,255,0.1) transparent;
+        }
+
+        .c-sidebar-inner {
+            padding: 32px 0;
+            display: flex;
+            flex-direction: column;
+            gap: 32px;
+        }
+
+        /* Identity Module */
+        .c-identity { 
+            padding: 0 24px; 
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+        .c-identity__icon {
+            width: 48px; height: 48px;
+            border-radius: 12px;
+            background: linear-gradient(135deg, var(--primary), #0056b3);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 20px; font-weight: 800;
+            box-shadow: 0 8px 16px var(--primary-glow);
+            border: 1px solid rgba(255,255,255,0.2);
+            flex-shrink: 0;
+        }
+        .c-identity__info { display: flex; flex-direction: column; gap: 4px; }
+        .c-identity__name { font-size: 15px; font-weight: 700; color: white; }
+        .c-identity__tag { 
+            font-size: 9px; font-family: ui-monospace, SFMono-Regular, monospace; 
+            color: var(--text-mute); font-weight: 600;
+            background: rgba(255,255,255,0.06); padding: 2px 6px; border-radius: 4px;
+            width: fit-content;
+        }
+
+        /* Sidebar Section Header */
+        .c-sidebar-section__title { 
+            padding: 0 24px 10px; font-size: 10px; font-weight: 700; 
+            color: var(--text-mute); text-transform: uppercase; letter-spacing: 0.8px;
+        }
+
+        /* Installations Module */
+        .c-installations { display: flex; flex-direction: column; gap: 4px; padding: 0 12px; }
+        .c-provider-row {
+            display: flex; align-items: center; gap: 12px; padding: 10px 12px;
+            border-radius: 8px; cursor: pointer; transition: var(--transition);
+        }
+        .c-provider-row:hover { background: rgba(255, 255, 255, 0.04); }
+        .c-provider-row--active { background: rgba(10, 132, 255, 0.08); }
+        .c-provider-row__icon { width: 24px; height: 24px; border-radius: 5px; filter: grayscale(1); opacity: 0.5; }
+        .c-provider-row--active .c-provider-row__icon { filter: grayscale(0); opacity: 1; }
+        .c-provider-row__name { font-size: 13px; font-weight: 500; color: var(--text-sub); flex: 1; }
+        .c-provider-row--active .c-provider-row__name { color: white; }
+        .c-provider-row__status { color: var(--text-mute); font-size: 14px; }
+        .c-provider-row--active .c-provider-row__status { color: var(--primary); }
+
+        /* Navigation Groups */
+        .c-nav-group { padding: 0 12px; }
+        .c-nav-item {
+            padding: 8px 12px; margin: 1px 0; border-radius: 8px;
+            font-size: 12px; color: var(--text-sub); display: flex; align-items: center; gap: 12px;
+            cursor: pointer; transition: var(--transition);
+        }
+        .c-nav-item:hover { background: rgba(255,255,255,0.05); color: white; }
+        .c-nav-item--active { background: var(--primary); color: white; font-weight: 500; box-shadow: 0 4px 12px var(--primary-glow); }
+        .c-nav-item i { width: 14px; text-align: center; font-size: 14px; }
+
+        /* Sidebar Section Content */
+        .c-sidebar-section { padding: 0 24px; }
+        .c-sidebar-section__body { font-size: 12px; color: var(--text-sub); line-height: 1.6; }
+
+        /* Toggle row */
+        .c-toggle-row {
+            display: flex; justify-content: space-between; align-items: center;
+            background: rgba(255,255,255,0.03); padding: 12px 14px; border-radius: var(--radius-sm);
+        }
+        .c-toggle {
+            width: 32px; height: 18px; background: #333; border-radius: 10px;
+            position: relative; cursor: pointer; transition: var(--transition);
+        }
+        .c-toggle::after {
+            content: ''; position: absolute; width: 14px; height: 14px;
+            background: white; border-radius: 50%; top: 2px; left: 2px; transition: var(--transition);
+        }
+        .c-toggle--on { background: var(--success); }
+        .c-toggle--on::after { left: 16px; }
+
+        /* Sidebar Stats */
+        .c-stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        .c-stat-box { 
+            background: rgba(255,255,255,0.03); padding: 10px; border-radius: 8px; 
+            display: flex; flex-direction: column; gap: 4px; border: 1px solid var(--border-thin);
+        }
+        .c-stat-box__label { font-size: 9px; color: var(--text-mute); text-transform: uppercase; font-weight: 700; }
+        .c-stat-box__value { font-size: 13px; font-weight: 600; color: white; }
+
+        /* Footer Button */
+        .c-btn-reveal {
+            margin: 0 24px; padding: 12px; border-radius: var(--radius-md);
+            background: rgba(255,255,255,0.05); border: 1px solid var(--border-thin);
+            color: white; font-size: 13px; font-weight: 600; cursor: pointer;
+            display: flex; align-items: center; justify-content: center; gap: 10px;
+            transition: var(--transition);
+            flex-shrink: 0;
+        }
+
+        /* --- Modular: Content Area (Scrollable) --- */
+        .c-content {
+            flex: 1;
+            background-color: var(--bg-content);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            height: 100%;
+        }
+
+        .c-toolbar {
+            height: 52px; padding: 0 40px; display: flex; align-items: center;
+            background: rgba(18, 18, 18, 0.85); backdrop-filter: blur(30px);
+            border-bottom: 1px solid var(--border-thin);
+            z-index: 100;
+            flex-shrink: 0;
+        }
+        .c-breadcrumb { font-size: 12px; color: var(--text-sub); display: flex; gap: 8px; align-items: center; }
+        .c-breadcrumb i { font-size: 9px; color: var(--text-mute); }
+
+        .c-viewer { 
+            flex: 1; 
+            padding: 48px 64px 80px; 
+            overflow-y: auto; 
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255,255,255,0.1) transparent;
+        }
+
+        /* Metadata Board */
+        .c-metadata {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 56px;
+        }
+
+        .c-meta-tile {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--border-thin);
+            border-radius: var(--radius-md);
+            padding: 16px 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            transition: var(--transition);
+        }
+        .c-meta-tile:hover {
+            background: rgba(255, 255, 255, 0.06);
+            border-color: var(--border-strong);
+            transform: translateY(-2px);
+        }
+        .c-meta-tile__label {
+            font-size: 9px; font-weight: 800; color: var(--text-mute);
+            text-transform: uppercase; letter-spacing: 1.5px;
+            display: flex; align-items: center; gap: 8px;
+        }
+        .c-meta-tile__value { font-size: 15px; font-weight: 600; color: var(--text-main); }
+
+        .c-meta-tags {
+            grid-column: 1 / -1;
+            background: rgba(255, 255, 255, 0.015);
+            border: 1px dashed var(--border-thin);
+            border-radius: var(--radius-md);
+            padding: 16px 24px;
+            display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+        }
+        .c-tag {
+            font-size: 11px; font-weight: 600; color: var(--primary);
+            background: rgba(10, 132, 255, 0.1); padding: 4px 14px;
+            border-radius: 20px; border: 1px solid rgba(10, 132, 255, 0.2);
+        }
+
+        .markdown { border-top: 1px solid var(--border-thin); padding-top: 56px; }
+        .markdown h1 { font-size: 32px; margin-bottom: 24px; letter-spacing: -1.2px; font-weight: 800; }
+        .markdown h2 { font-size: 20px; margin: 40px 0 16px; color: var(--text-main); font-weight: 700; border-bottom: 1px solid var(--border-thin); padding-bottom: 8px; }
+        .markdown p { font-size: 16px; color: rgba(255,255,255,0.8); line-height: 1.8; margin-bottom: 20px; }
+        .markdown code { background: rgba(255,255,255,0.06); padding: 2px 6px; border-radius: 4px; font-family: ui-monospace, SFMono-Regular, monospace; font-size: 14px; color: #E5E5E5; }
+        .markdown pre { background: rgba(0,0,0,0.3); padding: 20px; border-radius: 12px; margin: 20px 0; border: 1px solid var(--border-thin); overflow-x: auto; }
+        .markdown pre code { background: none; padding: 0; color: #79C0FF; }
+
+        /* Scrollbar styling */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; border: 1px solid transparent; background-clip: content-box; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+    </style>
+</head>
+<body>
+
+<div class="app-window">
+    <!-- Floating Close Button -->
+    <div class="c-btn-close" title="Close Details">
+        <i class="fa-solid fa-xmark"></i>
+    </div>
+
+    <!-- Unified Sidebar (Independent Scroll) -->
+    <aside class="c-sidebar">
+        <div class="c-sidebar-inner">
+            <!-- 1. Identity -->
+            <div class="c-identity">
+                <div class="c-identity__icon">N</div>
+                <div class="c-identity__info">
+                    <div class="c-identity__name">nolon-core</div>
+                    <span class="c-identity__tag">VERSION 1.2.1</span>
+                </div>
+            </div>
+
+            <!-- 2. Installations (Priority List) -->
+            <section>
+                <div class="c-sidebar-section__title">Installations</div>
+                <div class="c-installations">
+                    <div class="c-provider-row c-provider-row--active">
+                        <img class="c-provider-row__icon" src="https://via.placeholder.com/24/007AFF/FFFFFF?text=A" alt="Apple">
+                        <span class="c-provider-row__name">Apple Cloud</span>
+                        <div class="c-provider-row__status"><i class="fa-solid fa-circle-check"></i></div>
+                    </div>
+                    <div class="c-provider-row">
+                        <img class="c-provider-row__icon" src="https://via.placeholder.com/24/FF9500/FFFFFF?text=G" alt="Google">
+                        <span class="c-provider-row__name">Google Platform</span>
+                        <div class="c-provider-row__status"><i class="fa-regular fa-circle"></i></div>
+                    </div>
+                    <div class="c-provider-row c-provider-row--active">
+                        <img class="c-provider-row__icon" src="https://via.placeholder.com/24/34C759/FFFFFF?text=O" alt="OpenAI">
+                        <span class="c-provider-row__name">OpenAI API</span>
+                        <div class="c-provider-row__status"><i class="fa-solid fa-circle-check"></i></div>
+                    </div>
+                    <div class="c-provider-row">
+                        <img class="c-provider-row__icon" src="https://via.placeholder.com/24/5856D6/FFFFFF?text=M" alt="Mistral">
+                        <span class="c-provider-row__name">Mistral AI</span>
+                        <div class="c-provider-row__status"><i class="fa-regular fa-circle"></i></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 3. Navigation Groups (Extended) -->
+            <nav class="c-nav-group">
+                <div class="c-sidebar-section__title">Resources</div>
+                <div class="c-nav-item c-nav-item--active"><i class="fa-regular fa-file-lines"></i> SKILL.md</div>
+                <div class="c-nav-item"><i class="fa-solid fa-code"></i> main.swift</div>
+                <div class="c-nav-item"><i class="fa-solid fa-terminal"></i> workflow.json</div>
+                <div class="c-nav-item"><i class="fa-solid fa-gear"></i> config.yaml</div>
+            </nav>
+
+            <nav class="c-nav-group">
+                <div class="c-sidebar-section__title">Documentation</div>
+                <div class="c-nav-item"><i class="fa-regular fa-file-pdf"></i> Architecture.pdf</div>
+                <div class="c-nav-item"><i class="fa-regular fa-file-word"></i> User_Guide.docx</div>
+                <div class="c-nav-item"><i class="fa-solid fa-book-open"></i> API_Reference.md</div>
+            </nav>
+
+            <nav class="c-nav-group">
+                <div class="c-sidebar-section__title">Tests & CI</div>
+                <div class="c-nav-item"><i class="fa-solid fa-vial"></i> IntegrationTests.swift</div>
+                <div class="c-nav-item"><i class="fa-solid fa-microscope"></i> Benchmarks.py</div>
+                <div class="c-nav-item"><i class="fa-solid fa-robot"></i> .github/workflow.yml</div>
+            </nav>
+
+            <!-- 4. Stats Section -->
+            <section class="c-sidebar-section">
+                <div class="c-sidebar-section__title">Usage Stats</div>
+                <div class="c-stats-grid">
+                    <div class="c-stat-box">
+                        <span class="c-stat-box__label">Total Runs</span>
+                        <span class="c-stat-box__value">1,428</span>
+                    </div>
+                    <div class="c-stat-box">
+                        <span class="c-stat-box__label">Success Rate</span>
+                        <span class="c-stat-box__value">99.4%</span>
+                    </div>
+                    <div class="c-stat-box">
+                        <span class="c-stat-box__label">Last Sync</span>
+                        <span class="c-stat-box__value">2m ago</span>
+                    </div>
+                    <div class="c-stat-box">
+                        <span class="c-stat-box__label">Size</span>
+                        <span class="c-stat-box__value">12.4 MB</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 5. Compatibility -->
+            <section class="c-sidebar-section">
+                <div class="c-sidebar-section__title">Compatibility</div>
+                <div class="c-sidebar-section__body">
+                    <ul style="list-style: none; font-size: 11px;">
+                        <li><i class="fa-brands fa-apple"></i> macOS 14.0+</li>
+                        <li><i class="fa-solid fa-cube"></i> FlowUp Core 0.8.2</li>
+                        <li><i class="fa-solid fa-code-branch"></i> Swift 6.0 Stable</li>
+                    </ul>
+                </div>
+            </section>
+
+            <!-- 6. Synchronization -->
+            <section class="c-sidebar-section">
+                <div class="c-sidebar-section__title">Synchronization</div>
+                <div class="c-toggle-row">
+                    <span style="font-size: 11px; font-weight: 600;">Enable Sync</span>
+                    <div class="c-toggle c-toggle--on"></div>
+                </div>
+            </section>
+
+            <!-- 7. Footer Button -->
+            <button class="c-btn-reveal">
+                <i class="fa-regular fa-folder-open"></i>
+                Reveal in Finder
+            </button>
+        </div>
+    </aside>
+
+    <!-- Main Content Area (Independent Scroll) -->
+    <main class="c-content">
+        <div class="c-toolbar">
+            <div class="c-breadcrumb">
+                Resources <i class="fa-solid fa-chevron-right"></i> <strong>SKILL.md</strong>
+            </div>
+        </div>
+        
+        <div class="c-viewer">
+            <!-- Metadata Board (Extended) -->
+            <section class="c-metadata">
+                <div class="c-meta-tile">
+                    <span class="c-meta-tile__label"><i class="fa-solid fa-user"></i> Author</span>
+                    <span class="c-meta-tile__value">Zolplay Team</span>
+                </div>
+                <div class="c-meta-tile">
+                    <span class="c-meta-tile__label"><i class="fa-solid fa-layer-group"></i> Category</span>
+                    <span class="c-meta-tile__value">System Auto</span>
+                </div>
+                <div class="c-meta-tile">
+                    <span class="c-meta-tile__label"><i class="fa-solid fa-microchip"></i> Runtime</span>
+                    <span class="c-meta-tile__value">Swift 6.0 (WASM)</span>
+                </div>
+                <div class="c-meta-tile">
+                    <span class="c-meta-tile__label"><i class="fa-solid fa-scale-balanced"></i> License</span>
+                    <span class="c-meta-tile__value">MIT Open Source</span>
+                </div>
+                <div class="c-meta-tile">
+                    <span class="c-meta-tile__label"><i class="fa-solid fa-box-open"></i> Size</span>
+                    <span class="c-meta-tile__value">245.8 KB (Compressed)</span>
+                </div>
+                <div class="c-meta-tile">
+                    <span class="c-meta-tile__label"><i class="fa-solid fa-clock"></i> Last Update</span>
+                    <span class="c-meta-tile__value">March 11, 2026</span>
+                </div>
+                <div class="c-meta-tags">
+                    <span style="font-size: 10px; font-weight: 800; color: var(--text-mute); margin-right: 8px;">TAGS</span>
+                    <span class="c-tag">#core</span>
+                    <span class="c-tag">#automation</span>
+                    <span class="c-tag">#native</span>
+                    <span class="c-tag">#high-perf</span>
+                    <span class="c-tag">#mcp</span>
+                    <span class="c-tag">#security-hardened</span>
+                </div>
+            </section>
+
+            <!-- Markdown Content (Extended) -->
+            <article class="markdown">
+                <h1>Core Automation Engine</h1>
+                <p>This skill provides core automation capabilities for nolon, allowing users to manage local resources and remote providers seamlessly. Built with industrial-grade standards, it ensures that your workflows are both fast and secure.</p>
+                
+                <h2>Key Features</h2>
+                <p>Leveraging high-performance I/O and modern Swift patterns to ensure minimal latency during resource synchronization. The core engine is optimized for multi-threaded environments and can handle thousands of resource nodes simultaneously.</p>
+                <ul>
+                    <li><strong>Real-time Sync:</strong> Instant propagation of changes across all registered providers.</li>
+                    <li><strong>Security Sandboxing:</strong> All scripts are executed in a strictly controlled environment.</li>
+                    <li><strong>Adaptive Resource Management:</strong> Intelligently allocates memory based on project size.</li>
+                </ul>
+
+                <h2>Installation Guide</h2>
+                <p>To integrate this skill into your local environment, follow these steps:</p>
+                <pre><code># Clone the skill repository
+git clone https://github.com/zolplay/nolon-core-skill.git
+
+# Install dependencies using nolon-cli
+nolon install core-skill --path ./nolon-core-skill</code></pre>
+
+                <h2>Configuration Parameters</h2>
+                <p>The <code>config.yaml</code> file allows you to fine-tune the performance of the automation engine. Below is a sample configuration:</p>
+                <pre><code>engine:
+  threads: 8
+  sync_interval: 5s
+  cache_policy: "aggressive"
+logging:
+  level: "info"
+  destination: "stdout"</code></pre>
+
+                <h2>Troubleshooting</h2>
+                <p>If you encounter any synchronization issues, please verify the following:</p>
+                <ol>
+                    <li>Ensure the <strong>Enable Sync</strong> toggle is active in the sidebar.</li>
+                    <li>Check if the provider API key has sufficient permissions.</li>
+                    <li>Verify that your local file permissions allow <code>nolon</code> to create symbolic links.</li>
+                </ol>
+
+                <p>For further assistance, visit the <a href="#" style="color: var(--primary);">Official Documentation</a> or join our Discord community.</p>
+
+                <div style="height: 100px;"></div> <!-- Bottom space for scrolling demonstration -->
+            </article>
+        </div>
+    </main>
+</div>
+
+<script>
+    // Module: Sidebar Navigation
+    document.querySelectorAll('.c-nav-item').forEach(item => {
+        item.addEventListener('click', () => {
+            const active = document.querySelector('.c-nav-item--active');
+            if (active) active.classList.remove('c-nav-item--active');
+            item.classList.add('c-nav-item--active');
+        });
+    });
+
+    // Module: Toggle switch
+    document.querySelector('.c-toggle').addEventListener('click', function() {
+        this.classList.toggle('c-toggle--on');
+    });
+
+    // Module: Provider Row Management
+    document.querySelectorAll('.c-provider-row').forEach(row => {
+        row.addEventListener('click', () => {
+            row.classList.toggle('c-provider-row--active');
+            const icon = row.querySelector('.c-provider-row__status i');
+            if (row.classList.contains('c-provider-row--active')) {
+                icon.className = 'fa-solid fa-circle-check';
+            } else {
+                icon.className = 'fa-regular fa-circle';
+            }
+        });
+    });
+</script>
+
+</body>
+</html>

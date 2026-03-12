@@ -1,5 +1,6 @@
 import SwiftUI
 import ProviderUsage
+import Shimmer
 
 struct ProviderTokenTrendSection: View {
     let snapshot: ProviderTokenTrendSnapshot?
@@ -35,45 +36,27 @@ struct ProviderTokenTrendSection: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 8) {
-            // 第一行：标题 + 操作
             HStack(alignment: .center) {
                 Text(NSLocalizedString("usage.token_trend.title", value: "历史 Token 消耗", comment: "Token trend section title"))
                     .font(.headline)
                 
                 Spacer()
                 
-                HStack(spacing: 12) {
-                    Button {
-                        onRefresh()
-                    } label: {
-                        if isLoading {
-                            ProgressView().controlSize(.small)
-                        } else {
-                            Image(systemName: "arrow.clockwise")
-                                .font(.system(size: 13, weight: .medium))
-                        }
+                Button {
+                    onRefresh()
+                } label: {
+                    if isLoading {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.system(size: 13, weight: .medium))
                     }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(DesignSystem.Colors.Text.secondary)
-                    .help(NSLocalizedString("generic.refresh", value: "Refresh", comment: "Refresh button"))
-
-                    Picker(
-                        "",
-                        selection: Binding(
-                            get: { range },
-                            set: { onRangeChange($0) }
-                        )
-                    ) {
-                        ForEach(ProviderUsageViewModel.TokenTrendRange.allCases) { item in
-                            Text(item.title).tag(item)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .frame(width: 160)
                 }
+                .buttonStyle(.plain)
+                .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                .help(NSLocalizedString("generic.refresh", value: "Refresh", comment: "Refresh button"))
             }
-            
-            // 第二行：描述 + 更新时间
+
             HStack(alignment: .firstTextBaseline) {
                 Text(NSLocalizedString("usage.token_trend.subtitle", value: "按日聚合输入、输出与缓存命中 token。", comment: "Token trend section subtitle"))
                     .font(.caption)
@@ -98,54 +81,79 @@ struct ProviderTokenTrendSection: View {
     }
 
     private func summary(snapshot: ProviderTokenTrendSnapshot) -> some View {
-        let items: [SummaryMetric] = [
-            .init(
-                title: NSLocalizedString("usage.token_trend.summary.today", value: "Today", comment: "Today tokens"),
-                value: tokenText(snapshot.todayTokens),
-                detail: selectedDate ?? NSLocalizedString("usage.token_trend.summary.latest", value: "Latest", comment: "Latest point"),
-                color: DesignSystem.Colors.primary
-            ),
-            .init(
-                title: NSLocalizedString("usage.token_trend.summary.7d", value: "7 Days", comment: "7 day tokens"),
-                value: tokenText(snapshot.last7DaysTokens),
-                detail: NSLocalizedString("usage.token_trend.summary.trailing", value: "Trailing total", comment: "Trailing total"),
-                color: DesignSystem.Colors.Status.success
-            ),
-            .init(
-                title: NSLocalizedString("usage.token_trend.summary.30d", value: "30 Days", comment: "30 day tokens"),
-                value: tokenText(snapshot.last30DaysTokens),
-                detail: NSLocalizedString("usage.token_trend.summary.trailing", value: "Trailing total", comment: "Trailing total"),
-                color: DesignSystem.Colors.Status.warning
-            )
-        ]
-
         return LazyVGrid(columns: [GridItem(.adaptive(minimum: 140), spacing: 12)], spacing: 12) {
-            ForEach(items) { item in
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(item.title)
-                        .font(.caption2.weight(.medium))
-                        .foregroundStyle(DesignSystem.Colors.Text.secondary)
-                        .textCase(.uppercase)
-                    
-                    Text(item.value)
-                        .font(.title3.weight(.bold))
-                        .monospacedDigit()
-                        .foregroundStyle(DesignSystem.Colors.Text.primary)
-                    
-                    Text(item.detail)
-                        .font(.system(size: 10, weight: .regular))
-                        .foregroundStyle(DesignSystem.Colors.Text.tertiary)
-                        .lineLimit(1)
+            ForEach(Self.summaryMetrics(snapshot: snapshot, selectedDate: selectedDate)) { item in
+                Button {
+                    onRangeChange(item.targetRange)
+                } label: {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(item.title)
+                            .font(.caption2.weight(.medium))
+                            .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                            .textCase(.uppercase)
+                        
+                        Text(item.value)
+                            .font(.title3.weight(.bold))
+                            .monospacedDigit()
+                            .foregroundStyle(DesignSystem.Colors.Text.primary)
+                        
+                        Text(item.detail)
+                            .font(.system(size: 10, weight: .regular))
+                            .foregroundStyle(DesignSystem.Colors.Text.tertiary)
+                            .lineLimit(1)
+                    }
+                    .frame(maxWidth: .infinity, minHeight: Self.summaryCardMinHeight, alignment: .leading)
+                    .padding(12)
+                    .background(summaryCardBackground(for: item))
+                    .overlay(summaryCardBorder(for: item))
+                    .contentShape(.rect)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(12)
-                .background(DesignSystem.Colors.Background.elevated.opacity(0.4), in: RoundedRectangle(cornerRadius: 12))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .strokeBorder(DesignSystem.Colors.Background.elevated, lineWidth: 1)
-                )
+                .buttonStyle(.plain)
+                .frame(maxWidth: .infinity)
             }
         }
+    }
+
+    private var loadingStateView: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 140), spacing: 12)], spacing: 12) {
+                ForEach(0..<ProviderUsageSkeletonPolicy.tokenTrendSummaryCount, id: \.self) { _ in
+                    VStack(alignment: .leading, spacing: 6) {
+                        RoundedRectangle(cornerRadius: 4, style: .continuous)
+                            .fill(DesignSystem.Colors.Background.elevated.opacity(0.35))
+                            .frame(width: 52, height: 10)
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .fill(DesignSystem.Colors.Background.elevated.opacity(0.42))
+                            .frame(width: 88, height: 20)
+                        RoundedRectangle(cornerRadius: 4, style: .continuous)
+                            .fill(DesignSystem.Colors.Background.elevated.opacity(0.28))
+                            .frame(width: 72, height: 8)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(12)
+                    .background(DesignSystem.Colors.Background.elevated.opacity(0.4), in: RoundedRectangle(cornerRadius: 12))
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 12) {
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .fill(DesignSystem.Colors.Background.elevated.opacity(0.35))
+                    .frame(width: 96, height: 12)
+
+                HStack(alignment: .bottom, spacing: 8) {
+                    ForEach(0..<ProviderUsageSkeletonPolicy.tokenTrendChartBarCount, id: \.self) { index in
+                        RoundedRectangle(cornerRadius: 4, style: .continuous)
+                            .fill(DesignSystem.Colors.Background.elevated.opacity(0.34))
+                            .frame(width: 18, height: CGFloat(42 + (index % 4) * 20))
+                    }
+                }
+                .frame(height: 160, alignment: .bottomLeading)
+            }
+            .padding(12)
+            .background(DesignSystem.Colors.Background.elevated.opacity(0.2), in: RoundedRectangle(cornerRadius: 12))
+        }
+        .redacted(reason: .placeholder)
+        .shimmering(active: true, bandSize: 0.32)
     }
 
     private func chartSection(snapshot: ProviderTokenTrendSnapshot) -> some View {
@@ -352,14 +360,8 @@ struct ProviderTokenTrendSection: View {
     }
 
     private func loadingState() -> some View {
-        HStack(spacing: 10) {
-            ProgressView().controlSize(.small)
-            Text(NSLocalizedString("usage.token_trend.loading", value: "Loading token history…", comment: "Loading token trend"))
-                .font(.caption)
-                .foregroundStyle(DesignSystem.Colors.Text.secondary)
-        }
-        .frame(maxWidth: .infinity, alignment: .center)
-        .padding(.vertical, 40)
+        loadingStateView
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func errorState(message: String) -> some View {
@@ -413,9 +415,53 @@ struct ProviderTokenTrendSection: View {
         return String(value.suffix(5))
     }
 
-    private func tokenText(_ value: Int?) -> String {
+    static func tokenText(_ value: Int?) -> String {
         guard let value else { return "-" }
         return TokenCountCompactFormatter.format(value)
+    }
+}
+
+extension ProviderTokenTrendSection {
+    static let quickActionRanges = ProviderUsageViewModel.TokenTrendRange.allCases
+    static let usesHeaderRangePicker = false
+    static let usesFullCardTapTarget = true
+    static let summaryCardMinHeight: CGFloat = 84
+
+    private static func summaryMetrics(snapshot: ProviderTokenTrendSnapshot, selectedDate: String?) -> [SummaryMetric] {
+        [
+            .init(
+                title: NSLocalizedString("usage.token_trend.summary.today", value: "Today", comment: "Today tokens"),
+                value: Self.tokenText(snapshot.todayTokens),
+                detail: selectedDate ?? NSLocalizedString("usage.token_trend.summary.latest", value: "Latest", comment: "Latest point"),
+                accentColor: DesignSystem.Colors.primary,
+                secondaryAccentColor: DesignSystem.Colors.primary.opacity(0.5),
+                targetRange: .days1
+            ),
+            .init(
+                title: NSLocalizedString("usage.token_trend.summary.7d", value: "7 Days", comment: "7 day tokens"),
+                value: Self.tokenText(snapshot.last7DaysTokens),
+                detail: NSLocalizedString("usage.token_trend.summary.trailing", value: "Trailing total", comment: "Trailing total"),
+                accentColor: DesignSystem.Colors.Status.success,
+                secondaryAccentColor: DesignSystem.Colors.Status.success.opacity(0.5),
+                targetRange: .days7
+            ),
+            .init(
+                title: NSLocalizedString("usage.token_trend.summary.30d", value: "30 Days", comment: "30 day tokens"),
+                value: Self.tokenText(snapshot.last30DaysTokens),
+                detail: NSLocalizedString("usage.token_trend.summary.trailing", value: "Trailing total", comment: "Trailing total"),
+                accentColor: DesignSystem.Colors.Status.warning,
+                secondaryAccentColor: DesignSystem.Colors.Status.warning.opacity(0.5),
+                targetRange: .days30
+            ),
+            .init(
+                title: NSLocalizedString("codex.usage.range.all", value: "ALL", comment: "Codex usage trend range all"),
+                value: Self.tokenText(snapshot.allDaysTokens),
+                detail: NSLocalizedString("usage.token_trend.summary.trailing", value: "Trailing total", comment: "Trailing total"),
+                accentColor: DesignSystem.Colors.Text.secondary,
+                secondaryAccentColor: DesignSystem.Colors.Background.elevated,
+                targetRange: .all
+            )
+        ]
     }
 }
 
@@ -429,7 +475,40 @@ private extension ProviderTokenTrendSection {
         let title: String
         let value: String
         let detail: String
-        let color: Color
+        let accentColor: Color
+        let secondaryAccentColor: Color
+        let targetRange: ProviderUsageViewModel.TokenTrendRange
+    }
+
+    @ViewBuilder
+    func summaryCardBackground(for item: SummaryMetric) -> some View {
+        let isSelected = range == item.targetRange
+        RoundedRectangle(cornerRadius: 12)
+            .fill(
+                LinearGradient(
+                    colors: isSelected
+                        ? [
+                            item.accentColor.opacity(0.26),
+                            item.secondaryAccentColor.opacity(0.16)
+                        ]
+                        : [
+                            item.accentColor.opacity(0.16),
+                            DesignSystem.Colors.Background.elevated.opacity(0.58)
+                        ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
+    }
+
+    @ViewBuilder
+    func summaryCardBorder(for item: SummaryMetric) -> some View {
+        let isSelected = range == item.targetRange
+        RoundedRectangle(cornerRadius: 12)
+            .strokeBorder(
+                isSelected ? item.accentColor.opacity(0.72) : item.accentColor.opacity(0.24),
+                lineWidth: isSelected ? 1.5 : 1
+            )
     }
 }
 

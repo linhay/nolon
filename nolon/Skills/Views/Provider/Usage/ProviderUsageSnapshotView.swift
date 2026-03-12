@@ -5,10 +5,12 @@ import CodexBarProviderCatalog
 struct ProviderUsageSnapshotView: View {
     let outcome: ProviderAccountUsageOutcome
     let creditsRefreshedAt: Date?
+    let isLoading: Bool
 
-    init(outcome: ProviderAccountUsageOutcome, creditsRefreshedAt: Date? = nil) {
+    init(outcome: ProviderAccountUsageOutcome, creditsRefreshedAt: Date? = nil, isLoading: Bool = false) {
         self.outcome = outcome
         self.creditsRefreshedAt = creditsRefreshedAt
+        self.isLoading = isLoading
     }
 
     var body: some View {
@@ -102,6 +104,7 @@ struct ProviderUsageSnapshotView: View {
                 usage: result.usage,
                 credits: result.credits,
                 creditsRefreshedAt: creditsRefreshedAt,
+                isLoading: isLoading,
                 showsEmptyState: true
             )
 

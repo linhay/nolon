@@ -32,6 +32,8 @@ enum NolonCodexCLIHelpResolver {
             return codexAuthUsageTrendHelpText()
         case .codexAuthStatus:
             return codexAuthStatusHelpText()
+        case .codexAuthExport:
+            return codexAuthExportHelpText()
         case .codexAuthRefresh:
             return codexAuthRefreshHelpText()
         case .codexAuthActivate:
@@ -141,6 +143,10 @@ enum NolonCodexCLIHelpResolver {
             --range 7d|30d|all                          # 趋势区间（可选，默认 30d）
           status
             --provider codex|codex-xcode                # 指定 provider（可选）
+          export
+            --format sub2api                            # 导出格式（当前仅支持 sub2api）
+            --all | --account-id <uuid> | --email <v>  # 导出目标（必选其一）
+            --output <path>                             # 输出文件路径（必填）
           refresh
             --account-id <uuid> | --email <email>       # 指定账号（二选一，可选）
             --provider <id>                             # 指定 provider（可选）
@@ -248,6 +254,19 @@ enum NolonCodexCLIHelpResolver {
         Usage: nolon codex auth status [options]
 
           --provider <id>                             # 指定 provider（可选，默认 codex）
+        """
+    }
+
+    private static func codexAuthExportHelpText() -> String {
+        """
+        Usage: nolon codex auth export --format sub2api (--all|--account-id <uuid>|--email <email>) --output <path> [--provider <id>]
+
+          --provider <id>                             # 指定 provider（可选，默认 codex）
+          --format sub2api                            # 导出格式（当前仅支持 sub2api）
+          --all                                       # 导出全部账号
+          --account-id <id>                           # 导出指定账号（可重复）
+          --email <value>                             # 按邮箱选择账号（可重复）
+          --output <path>                             # 输出文件路径（必填）
         """
     }
 
@@ -400,6 +419,7 @@ private struct NolonCLIHelpPath: RawRepresentable, ExpressibleByStringLiteral, E
     static let codexAuthUsage: Self = "help.codex.auth.usage"
     static let codexAuthUsageTrend: Self = "help.codex.auth.usage-trend"
     static let codexAuthStatus: Self = "help.codex.auth.status"
+    static let codexAuthExport: Self = "help.codex.auth.export"
     static let codexAuthRefresh: Self = "help.codex.auth.refresh"
     static let codexAuthActivate: Self = "help.codex.auth.activate"
     static let codexAuthLogin: Self = "help.codex.auth.login"
@@ -492,6 +512,8 @@ private struct NolonCLIHelpPath: RawRepresentable, ExpressibleByStringLiteral, E
             self = .codexAuthUsageTrend
         case ["codex", "auth", "status", "help"], ["codex", "auth", "status", "-h"], ["codex", "auth", "status", "--help"]:
             self = .codexAuthStatus
+        case ["codex", "auth", "export", "help"], ["codex", "auth", "export", "-h"], ["codex", "auth", "export", "--help"]:
+            self = .codexAuthExport
         case ["codex", "auth", "refresh", "help"], ["codex", "auth", "refresh", "-h"], ["codex", "auth", "refresh", "--help"]:
             self = .codexAuthRefresh
         case ["codex", "auth", "activate", "help"], ["codex", "auth", "activate", "-h"], ["codex", "auth", "activate", "--help"]:

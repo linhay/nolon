@@ -19,6 +19,7 @@ public protocol NolonCodexCLIServing: Sendable {
     func authUsageTrend(providerID: String, range: NolonCodexUsageTrendRange) async throws -> NolonCodexAuthUsageTrendPayload
     func authUsageRefresh(providerID: String, accountID: UUID?) async throws -> NolonCodexAuthUsagePayload
     func authStatus(providerID: String) async throws -> NolonCodexAuthStatusPayload
+    func authExport(providerID: String, format: NolonCodexAuthExportFormat, accountIDs: [UUID], outputPath: String) async throws -> NolonCodexAuthExportPayload
     func authRefresh(providerID: String, accountID: UUID?) async throws -> NolonCodexAuthRefreshPayload
     func authActivate(providerID: String, accountID: UUID) async throws -> NolonCodexAuthActivatePayload
     func authLogin(providerID: String, preferredAccountID: UUID?) async throws -> NolonCodexAuthLoginPayload
@@ -37,6 +38,14 @@ public protocol NolonCodexCLIServing: Sendable {
 }
 
 public extension NolonCodexCLIServing {
+    func authExport(providerID: String, format: NolonCodexAuthExportFormat, accountIDs: [UUID], outputPath: String) async throws -> NolonCodexAuthExportPayload {
+        _ = providerID
+        _ = format
+        _ = accountIDs
+        _ = outputPath
+        throw NolonCoreCLIError.invalidArguments("Auth export is not supported by this service.")
+    }
+
     func authUsageRefresh(providerID: String, accountID: UUID?) async throws -> NolonCodexAuthUsagePayload {
         _ = accountID
         return try await authUsage(providerID: providerID)
@@ -355,6 +364,19 @@ public struct NolonCodexAuthStatusPayload: Codable, Sendable, Equatable {
         self.usageAvgWeeklyRemainingPercent = usageAvgWeeklyRemainingPercent
         self.usageLatestRefreshedAt = usageLatestRefreshedAt
     }
+}
+
+public enum NolonCodexAuthExportFormat: String, Codable, Sendable, Equatable {
+    case sub2api
+}
+
+public struct NolonCodexAuthExportPayload: Codable, Sendable, Equatable {
+    public let providerID: String
+    public let format: NolonCodexAuthExportFormat
+    public let outputPath: String
+    public let exportedCount: Int
+    public let skippedRelayCount: Int
+    public let skippedUnsupportedCount: Int
 }
 
 public struct NolonCodexAuthActivatePayload: Codable, Sendable, Equatable {
@@ -707,6 +729,35 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
 
     public func authUsageRefresh(providerID: String, accountID: UUID?) async throws -> NolonCodexAuthUsagePayload {
         try await buildAuthUsagePayload(providerID: providerID, refreshTargetAccountID: accountID, refreshBeforeRead: true)
+    }
+
+    public func authExport(
+        providerID: String,
+        format: NolonCodexAuthExportFormat,
+        accountIDs: [UUID],
+        outputPath: String
+    ) async throws -> NolonCodexAuthExportPayload {
+        let canonicalProviderID = try Self.canonicalProviderID(providerID)
+        _ = try Self.provider(for: canonicalProviderID)
+
+        let destinationURL = URL(fileURLWithPath: outputPath).standardizedFileURL
+        let result: Sub2APIExportResult
+        switch format {
+        case .sub2api:
+            result = try await authManager.exportAccountsAsSub2API(
+                accountIDs: accountIDs,
+                destinationURL: destinationURL
+            )
+        }
+
+        return NolonCodexAuthExportPayload(
+            providerID: canonicalProviderID,
+            format: format,
+            outputPath: destinationURL.path,
+            exportedCount: result.exportedCount,
+            skippedRelayCount: result.skippedRelayCount,
+            skippedUnsupportedCount: result.skippedUnsupportedCount
+        )
     }
 
     private func buildAuthUsagePayload(

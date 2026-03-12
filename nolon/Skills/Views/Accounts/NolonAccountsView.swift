@@ -10,8 +10,6 @@ import Shimmer
 @MainActor
 @Observable
 final class NolonAccountsViewModel {
-    nonisolated static let piAuthRelativePath = ".pi/agent/auth.json"
-
     struct UsageSummary: Sendable, Equatable {
         let provider: UsageProvider
         let totalCount: Int
@@ -45,12 +43,16 @@ final class NolonAccountsViewModel {
     private let usageMonitor: ProviderUsageMonitorService
     private let usageSettingsStore: UsageMonitorSettingsStore
     private let codexAuthManager: CodexAuthManager
-    private let loadPiStatusAction: @Sendable () -> PiAuthStatus
+    private let claudeAccountManager: ClaudeAccountManager
+    private let geminiAuthStore: GeminiAuthStore
 
-    var piStatusByProviderID: [Provider.ID: PiAuthStatus] = [:]
     var usageSummaryByProviderID: [Provider.ID: UsageSummary] = [:]
     var accountSummariesByProviderID: [Provider.ID: [AccountUsageSummary]] = [:]
     var codexAccountSummaryByProviderID: [Provider.ID: CodexAccountSummary] = [:]
+    var claudeAccountsByProviderID: [Provider.ID: [ClaudeAccount]] = [:]
+    var activeClaudeAccountIDByProviderID: [Provider.ID: UUID] = [:]
+    var geminiAccountsByProviderID: [Provider.ID: [GeminiAuthAccount]] = [:]
+    var activeGeminiAccountIDByProviderID: [Provider.ID: UUID] = [:]
     var isRefreshing = false
 
     init(
@@ -58,14 +60,16 @@ final class NolonAccountsViewModel {
         usageMonitor: ProviderUsageMonitorService? = nil,
         usageSettingsStore: UsageMonitorSettingsStore? = nil,
         codexAuthManager: CodexAuthManager = CodexAuthManager(),
-        loadPiStatusAction: @escaping @Sendable () -> PiAuthStatus = NolonAccountsViewModel.defaultLoadPiStatus
+        claudeAccountManager: ClaudeAccountManager = ClaudeAccountManager(),
+        geminiAuthStore: GeminiAuthStore = .shared
     ) {
         self.settings = settings
         let tokenStore = FileTokenAccountStore(fileURL: ProviderUsagePaths.defaultTokenAccountsFileURL())
         self.usageMonitor = usageMonitor ?? ProviderUsageMonitorService(tokenAccountStore: tokenStore)
         self.usageSettingsStore = usageSettingsStore ?? .shared
         self.codexAuthManager = codexAuthManager
-        self.loadPiStatusAction = loadPiStatusAction
+        self.claudeAccountManager = claudeAccountManager
+        self.geminiAuthStore = geminiAuthStore
     }
 
     var sections: [ProviderPresentationSections.ProviderSection] {
@@ -82,17 +86,16 @@ final class NolonAccountsViewModel {
         isRefreshing = true
         defer { isRefreshing = false }
 
-        var latest: [Provider.ID: PiAuthStatus] = [:]
         var latestUsage: [Provider.ID: UsageSummary] = [:]
         var latestAccountUsage: [Provider.ID: [AccountUsageSummary]] = [:]
         var latestCodexSummary: [Provider.ID: CodexAccountSummary] = [:]
+        var latestClaudeAccounts: [Provider.ID: [ClaudeAccount]] = [:]
+        var latestActiveClaudeAccounts: [Provider.ID: UUID] = [:]
+        var latestGeminiAccounts: [Provider.ID: [GeminiAuthAccount]] = [:]
+        var latestActiveGeminiAccounts: [Provider.ID: UUID] = [:]
 
         for section in sections {
             for provider in section.providers {
-                if provider.templateId == ProviderTemplate.pi.rawValue {
-                    latest[provider.id] = loadPiStatusAction()
-                }
-
                 guard let usageProvider = Self.mapUsageProvider(for: provider) else { continue }
                 let monitorSettings = usageSettingsStore.settings(for: provider)
                 let outcomes = await usageMonitor.fetchOutcomes(provider: usageProvider, settings: monitorSettings)
@@ -110,45 +113,50 @@ final class NolonAccountsViewModel {
                     if !codexSnapshot.accountSummaries.isEmpty {
                         latestAccountUsage[provider.id] = codexSnapshot.accountSummaries
                     }
+                } else if usageProvider == .claude {
+                    do {
+                        let accounts = try await claudeAccountManager.loadAccounts()
+                        let activeID = try await claudeAccountManager.activeAccountID()
+                        latestClaudeAccounts[provider.id] = accounts.sorted { lhs, rhs in
+                            let lhsActive = lhs.id == activeID
+                            let rhsActive = rhs.id == activeID
+                            if lhsActive != rhsActive { return lhsActive }
+                            return lhs.updatedAt > rhs.updatedAt
+                        }
+                        if let activeID {
+                            latestActiveClaudeAccounts[provider.id] = activeID
+                        }
+                    } catch {
+                        latestClaudeAccounts[provider.id] = []
+                    }
+                } else if usageProvider == .gemini || usageProvider == .antigravity {
+                    do {
+                        let accounts = try await geminiAuthStore.listAccounts(provider: usageProvider)
+                        let activeID = try await geminiAuthStore.activeAccount(provider: usageProvider)?.id
+                        latestGeminiAccounts[provider.id] = accounts.sorted { lhs, rhs in
+                            let lhsActive = lhs.id == activeID
+                            let rhsActive = rhs.id == activeID
+                            if lhsActive != rhsActive { return lhsActive }
+                            return lhs.createdAt > rhs.createdAt
+                        }
+                        if let activeID {
+                            latestActiveGeminiAccounts[provider.id] = activeID
+                        }
+                    } catch {
+                        latestGeminiAccounts[provider.id] = []
+                    }
                 } else if !accountSummaries.isEmpty {
                     latestAccountUsage[provider.id] = accountSummaries
                 }
             }
         }
-        piStatusByProviderID = latest
         usageSummaryByProviderID = latestUsage
         accountSummariesByProviderID = latestAccountUsage
         codexAccountSummaryByProviderID = latestCodexSummary
-    }
-
-    nonisolated private static func defaultLoadPiStatus() -> PiAuthStatus {
-        let authFile = STFile(
-            URL(fileURLWithPath: NSHomeDirectory())
-                .appendingPathComponent(Self.piAuthRelativePath)
-        )
-
-        guard authFile.isExists else { return .unavailable }
-        guard let data = try? authFile.data() else { return .invalid }
-        return PiAuthStatusParser.parse(data)
-    }
-}
-
-private extension PiAuthStatus {
-    var title: String {
-        switch self {
-        case .unavailable:
-            return NSLocalizedString("accounts.summary.none", value: "No account", comment: "No account")
-        case .available:
-            return NSLocalizedString("accounts.summary.active", value: "Active account", comment: "Active account")
-        case .invalid:
-            return NSLocalizedString("accounts.summary.readonly", value: "Read-only", comment: "Read-only account status")
-        }
-    }
-
-    var accountEmail: String? {
-        guard case let .available(email) = self else { return nil }
-        guard let email, !email.isEmpty else { return nil }
-        return email
+        claudeAccountsByProviderID = latestClaudeAccounts
+        activeClaudeAccountIDByProviderID = latestActiveClaudeAccounts
+        geminiAccountsByProviderID = latestGeminiAccounts
+        activeGeminiAccountIDByProviderID = latestActiveGeminiAccounts
     }
 }
 
@@ -231,27 +239,29 @@ struct NolonAccountsView: View {
 
     @ViewBuilder
     private func accountProviderGroup(_ provider: Provider) -> some View {
-        let accountSummaries = viewModel.accountSummariesByProviderID[provider.id] ?? []
-        let cardCount = max(accountSummaries.count, 1)
+        let cards = viewModel.accountCards(for: provider)
+        let cardCount = max(cards.count, 1)
 
         VStack(alignment: .leading, spacing: 12) {
             AccountVendorGroupHeader(provider: provider, accountCount: cardCount)
-            accountCardGrid(provider: provider, accountSummaries: accountSummaries)
+            accountCardGrid(provider: provider, cards: cards)
         }
     }
 
     @ViewBuilder
-    private func accountCardGrid(provider: Provider, accountSummaries: [NolonAccountsViewModel.AccountUsageSummary]) -> some View {
+    private func accountCardGrid(provider: Provider, cards: [AccountCardViewData]) -> some View {
         LazyVGrid(columns: accountCardColumns, alignment: .leading, spacing: 12) {
             if shouldShowLoadingSkeletons {
                 ForEach(0..<skeletonCardCount(for: provider), id: \.self) { _ in
-                    AccountUsageSkeletonCard(providerName: provider.name)
+                    UnifiedAccountCardSkeleton(providerName: provider.name)
                 }
-            } else if accountSummaries.isEmpty {
-                accountProviderCard(provider: provider, accountSummary: nil)
             } else {
-                ForEach(accountSummaries) { accountSummary in
-                    accountProviderCard(provider: provider, accountSummary: accountSummary)
+                ForEach(cards) { card in
+                    UnifiedAccountCard(
+                        data: card,
+                        onTap: { _ in onSelectProvider(provider.id) },
+                        onAction: { _, _ in onSelectProvider(provider.id) }
+                    )
                 }
             }
         }
@@ -260,10 +270,11 @@ struct NolonAccountsView: View {
 
     private var shouldShowLoadingSkeletons: Bool {
         guard viewModel.isRefreshing else { return false }
-        return viewModel.piStatusByProviderID.isEmpty
-            && viewModel.usageSummaryByProviderID.isEmpty
+        return viewModel.usageSummaryByProviderID.isEmpty
             && viewModel.accountSummariesByProviderID.isEmpty
             && viewModel.codexAccountSummaryByProviderID.isEmpty
+            && viewModel.claudeAccountsByProviderID.isEmpty
+            && viewModel.geminiAccountsByProviderID.isEmpty
     }
 
     private func skeletonCardCount(for provider: Provider) -> Int {
@@ -273,19 +284,6 @@ struct NolonAccountsView: View {
         default:
             return 1
         }
-    }
-
-    private func accountProviderCard(
-        provider: Provider,
-        accountSummary: NolonAccountsViewModel.AccountUsageSummary?
-    ) -> some View {
-        NolonAccountProviderCard(
-            provider: provider,
-            piStatus: viewModel.piStatusByProviderID[provider.id],
-            accountSummary: accountSummary,
-            codexAccountSummary: viewModel.codexAccountSummaryByProviderID[provider.id],
-            onOpenProvider: { onSelectProvider(provider.id) }
-        )
     }
 
     private var accountsHeader: some View {
@@ -549,143 +547,6 @@ private enum AccountTimeWindow: CaseIterable, Hashable {
     }
 }
 
-private struct NolonAccountProviderCard: View {
-    let provider: Provider
-    let piStatus: PiAuthStatus?
-    let accountSummary: NolonAccountsViewModel.AccountUsageSummary?
-    let codexAccountSummary: NolonAccountsViewModel.CodexAccountSummary?
-    let onOpenProvider: () -> Void
-
-    var body: some View {
-        AccountSummaryContentCard(
-            header: .init(
-                eyebrow: provider.name,
-                title: accountTitle,
-                subtitle: accountSummary?.plan ?? codexAccountSummary?.plan,
-                meta: accountSummary?.latestUpdatedAt?.formatted(date: .abbreviated, time: .shortened),
-                badge: nil
-            ),
-            showsDetailsSection: piStatusDetails != nil
-        ) {
-            VStack(alignment: .leading, spacing: 0) {
-                ProviderQuotaSection(
-                    provider: usageProvider,
-                    accountTitle: accountTitle,
-                    usage: usageSnapshot,
-                    credits: nil,
-                    creditsRefreshedAt: nil,
-                    loginAt: nil,
-                    syncedAt: accountSummary?.latestUpdatedAt,
-                    isLoading: false,
-                    showsEmptyState: accountSummary == nil,
-                    errorMessage: accountSummary?.errorMessage,
-                    onRefresh: onOpenProvider,
-                    usesCardChrome: false,
-                    showsHeader: false
-                )
-            }
-        } details: {
-            if let piStatusDetails {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(piStatusDetails.title)
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundStyle(DesignSystem.Colors.Text.primary)
-
-                    ForEach(piStatusDetails.lines, id: \.self) { line in
-                        Text(line)
-                            .dsSecondaryText(font: .callout)
-                    }
-
-                    Text(
-                        NSLocalizedString(
-                            "accounts.provider.readonly",
-                            value: "Read-only summary",
-                            comment: "Read-only summary"
-                        )
-                    )
-                    .font(.caption)
-                    .foregroundStyle(DesignSystem.Colors.Text.secondary)
-                }
-            }
-        }
-    }
-
-    private var usageProvider: UsageProvider {
-        NolonAccountsViewModel.mapUsageProvider(for: provider) ?? .codex
-    }
-
-    private var accountTitle: String {
-        accountSummary?.accountEmail ??
-        codexAccountSummary?.accountEmail ??
-        piStatus?.accountEmail ??
-        accountSummary?.accountLabel ??
-        "\(provider.name) account"
-    }
-
-    private var usageSnapshot: UsageSnapshot? {
-        guard let accountSummary else { return nil }
-        guard accountSummary.errorMessage == nil else { return nil }
-
-        return UsageSnapshot(
-            identity: UsageIdentity(
-                accountEmail: accountSummary.accountEmail,
-                accountOrganization: nil,
-                loginMethod: nil,
-                plan: accountSummary.plan ?? codexAccountSummary?.plan
-            ),
-            primary: accountSummary.primaryUsedPercent.map { RateWindow(usedPercent: $0) },
-            secondary: nil,
-            tertiary: nil,
-            updatedAt: accountSummary.latestUpdatedAt ?? Date()
-        )
-    }
-
-    private var piStatusDetails: (title: String, lines: [String])? {
-        guard provider.templateId == ProviderTemplate.pi.rawValue else { return nil }
-
-        switch piStatus ?? .unavailable {
-        case .unavailable:
-            return (
-                NSLocalizedString("accounts.summary.none", value: "No account", comment: "No account"),
-                [
-                    NSLocalizedString(
-                        "accounts.provider.pi.auth_missing",
-                        value: "~/.pi/agent/auth.json not found",
-                        comment: "Pi auth file missing"
-                    )
-                ]
-            )
-        case let .available(email):
-            var lines: [String] = []
-            if let email, !email.isEmpty {
-                lines.append(email)
-            }
-            lines.append(
-                NSLocalizedString(
-                    "accounts.provider.pi.auth_path",
-                    value: "~/.pi/agent/auth.json",
-                    comment: "Pi auth file path"
-                )
-            )
-            return (
-                NSLocalizedString("accounts.summary.active", value: "Active account", comment: "Active account"),
-                lines
-            )
-        case .invalid:
-            return (
-                NSLocalizedString("accounts.summary.readonly", value: "Read-only", comment: "Read-only account status"),
-                [
-                    NSLocalizedString(
-                        "accounts.provider.pi.auth_invalid",
-                        value: "~/.pi/agent/auth.json is unreadable or invalid",
-                        comment: "Pi auth file invalid"
-                    )
-                ]
-            )
-        }
-    }
-}
-
 private struct AccountProviderSectionHeader: View {
     let section: ProviderPresentationSections.ProviderSection
 
@@ -735,49 +596,6 @@ private struct AccountProviderSectionHeader: View {
     }
 }
 
-private struct AccountUsageSkeletonCard: View {
-    let providerName: String
-
-    var body: some View {
-        AccountSummaryContentCard(
-            header: .init(
-                eyebrow: providerName,
-                title: "Loading",
-                subtitle: "Loading",
-                meta: "Loading",
-                badge: nil
-            ),
-            showsActionsSection: true
-        ) {
-            VStack(spacing: 4) {
-                ForEach(0..<3, id: \.self) { _ in
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(Color.white.opacity(0.1))
-                        .frame(height: 28)
-                }
-            }
-        } actions: {
-            HStack {
-                RoundedRectangle(cornerRadius: 4, style: .continuous)
-                    .fill(Color.white.opacity(0.12))
-                    .frame(width: 52, height: 12)
-
-                Spacer()
-
-                RoundedRectangle(cornerRadius: 4, style: .continuous)
-                    .fill(Color.white.opacity(0.12))
-                    .frame(width: 76, height: 10)
-            }
-        }
-        .redacted(reason: .placeholder)
-        .shimmering(
-            active: true,
-            animation: .easeInOut(duration: 1.25).repeatForever(autoreverses: false),
-            bandSize: 0.32
-        )
-        .accessibilityLabel("\(providerName) loading")
-    }
-}
 
 private struct AccountVendorGroupHeader: View {
     let provider: Provider
@@ -1079,5 +897,97 @@ extension NolonAccountsViewModel {
             providerAuthSummary: providerAuthSummary
         )
         return (summary, accountSummaries)
+    }
+
+    func accountCards(for provider: Provider) -> [AccountCardViewData] {
+        guard let usageProvider = Self.mapUsageProvider(for: provider) else {
+            return [emptyCard(provider: provider)]
+        }
+
+        switch usageProvider {
+        case .claude:
+            let accounts = claudeAccountsByProviderID[provider.id] ?? []
+            if accounts.isEmpty {
+                return [emptyCard(provider: provider)]
+            }
+            let activeID = activeClaudeAccountIDByProviderID[provider.id]
+            return accounts.map { account in
+                let record = AccountRecordBuilder.claude(
+                    providerName: provider.name,
+                    account: account,
+                    isActive: account.id == activeID
+                )
+                return AccountCardViewDataMapper.map(record: record)
+            }
+        case .gemini, .antigravity:
+            let accounts = geminiAccountsByProviderID[provider.id] ?? []
+            if accounts.isEmpty {
+                return [emptyCard(provider: provider)]
+            }
+            let activeID = activeGeminiAccountIDByProviderID[provider.id]
+            let liveSummary = accountSummariesByProviderID[provider.id]?.first
+            return accounts.map { account in
+                let isActive = account.id == activeID
+                let quota: AccountRecordQuota? = {
+                    if isActive, let liveSummary {
+                        return .init(
+                            provider: usageProvider,
+                            accountTitle: account.email ?? account.name,
+                            usage: UsageSnapshot(
+                                identity: UsageIdentity(
+                                    accountEmail: liveSummary.accountEmail ?? account.email,
+                                    accountOrganization: account.project,
+                                    loginMethod: account.method.rawValue,
+                                    plan: liveSummary.plan
+                                ),
+                                primary: liveSummary.primaryUsedPercent.map { RateWindow(usedPercent: $0) },
+                                secondary: nil,
+                                tertiary: nil,
+                                updatedAt: liveSummary.latestUpdatedAt ?? account.lastLoginAt ?? account.createdAt
+                            ),
+                            credits: nil,
+                            creditsRefreshedAt: nil,
+                            loginAt: account.lastLoginAt,
+                            syncedAt: liveSummary.latestUpdatedAt,
+                            isLoading: false,
+                            showsEmptyState: liveSummary.totalCount == 0,
+                            errorMessage: liveSummary.errorMessage
+                        )
+                    }
+                    return nil
+                }()
+
+                let record = AccountRecordBuilder.gemini(
+                    providerName: provider.name,
+                    account: account,
+                    isActive: isActive,
+                    quota: quota
+                )
+                return AccountCardViewDataMapper.map(record: record)
+            }
+        default:
+            let summaries = accountSummariesByProviderID[provider.id] ?? []
+            if summaries.isEmpty {
+                return [emptyCard(provider: provider)]
+            }
+            return summaries.map { summary in
+                let record = AccountRecordBuilder.codexAccounts(
+                    providerName: provider.name,
+                    usageProvider: usageProvider,
+                    summary: summary
+                )
+                return AccountCardViewDataMapper.map(record: record)
+            }
+        }
+    }
+
+    private func emptyCard(provider: Provider) -> AccountCardViewData {
+        let usageProvider = Self.mapUsageProvider(for: provider) ?? .codex
+        let record = AccountRecordBuilder.empty(
+            providerName: provider.name,
+            usageProvider: usageProvider,
+            providerID: provider.id
+        )
+        return AccountCardViewDataMapper.map(record: record)
     }
 }

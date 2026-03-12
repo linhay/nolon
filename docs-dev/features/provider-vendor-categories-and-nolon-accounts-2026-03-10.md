@@ -3,7 +3,7 @@
 ## 背景
 - 现有 `ProviderKind` 只有 `vendor / project` 两层，无法区分“原始厂商”和“集成厂商”。
 - 账号能力目前主要散落在单个 Provider 的 Usage 页面，缺少 `nolon` 全局聚合入口。
-- `pi` 需要按 `badlogic/pi-mono/packages/coding-agent` 的官方文档正式接入，而不是使用占位路径。
+- `pi` 仍保留为 provider 模板，但不再进入统一账号体系或 `Accounts` 全局账号卡片页。
 
 ## 目标
 1. 在 `vendor` 下新增稳定的二级分类：
@@ -23,7 +23,7 @@
 - 不改变 `ProviderKind.project` 的语义。
 - 不重写或迁移底层 Provider-specific auth 存储格式。
 - 不在本次实现 `openclaw` 模板。
-- 不要求 `pi` 在本次支持完整登录/切换/删除；只接入只读账号摘要。
+- 不要求 `pi` 在本次支持完整登录/切换/删除；账号体系已排除 `pi`。
 - 不再保留 `PiAccountSummaryCard` 这种 Provider 专属碎片卡片实现。
 
 ## 官方事实来源
@@ -50,8 +50,8 @@
 3. Given Add Provider 弹窗，When 用户选择 vendor 模板，Then 模板按“原始厂商 / 集成厂商”分组显示。
 4. Given Sidebar 中存在多个 vendor provider，When 渲染列表，Then 固定按 `Original Vendors -> Integrated Vendors -> Projects -> Tools` 顺序展示。
 5. Given Onboarding Provider 选择页，When 展示模板，Then 模板按 `vendorCategory` 分组。
-6. Given 选择 `Accounts` 工具页，When 加载全局账号中心，Then 只展示支持账号状态或账号管理的 Provider。
-7. Given `pi` provider 已配置，When 全局 `Accounts` 页加载，Then 能从 `~/.pi/agent/auth.json` 生成只读账号摘要。
+6. Given 选择 `Accounts` 工具页，When 加载全局账号中心，Then 只展示账号型 Provider（当前包括 `codex`、`claude`、`gemini`、`antigravity`）。
+7. Given `pi` provider 已配置，When 全局 `Accounts` 页加载，Then 不展示 `pi` 的账号卡片。
 8. Given `pi` provider，When 浏览 Provider 详情或编辑视图，Then secondary resource 文案显示为 `Prompts`，且 MCP 区明确显示不支持原生配置。
 9. Given 某 Provider 聚合加载失败，When `Accounts` 页刷新，Then 仅该 Provider 卡片报错，不影响其它 Provider。
 10. Given `codexXcode` provider，When 打开 `Tools -> Accounts`，Then 不展示账号卡片（归属于集成厂商，账号页仅显示原始厂商账号）。
@@ -61,6 +61,7 @@
 
 ## 默认决策
 - 未知 vendor provider 的缺失分类默认迁移为 `integrated`。
-- `pi` 在全局 `Accounts` 页本次仅提供只读状态，不开放登录、切换、删除。
+- `pi` 不属于全局账号体系，不在 `Accounts` 页提供卡片或账号状态。
 - `Accounts` 页中的无账号能力 Provider 默认不展示。
 - 侧边栏组内顺序保留用户现有顺序，分类迁移不触发重排。
+- `Accounts` 与 `Usage` 页中的账号卡片统一消费同一套卡片 view data，并统一复用同一套卡片骨架。

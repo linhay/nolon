@@ -61,22 +61,22 @@ struct WorkflowCardView: View {
     private let descriptionHeight: CGFloat = 44
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: DesignSystem.Metrics.spacingM) {
             // 1. 标题 (Name + Source Badge) | 更多菜单
             HStack(alignment: .center) {
-                HStack(spacing: 8) {
+                HStack(spacing: DesignSystem.Metrics.spacingS) {
                     HighlightedText(text: workflow.name, query: searchText)
                         .font(.headline)
                         .lineLimit(1)
-                    
+
                     sourceBadge
                 }
-                
+
                 Spacer()
-                
+
                 moreMenu
             }
-            
+
             // 2. 描述区
             HighlightedText(text: workflow.description, query: searchText)
                 .font(.caption)
@@ -84,16 +84,16 @@ struct WorkflowCardView: View {
                 .lineLimit(3)
                 .truncationMode(.tail)
                 .frame(maxWidth: .infinity, minHeight: descriptionHeight, maxHeight: descriptionHeight, alignment: .topLeading)
-            
+
             // 3. 操作区
             HStack {
                 Label("Workflow", systemImage: "arrow.triangle.branch")
                     .dsIconLabelText(foreground: DesignSystem.Colors.Text.secondary, font: .caption2)
-                
+
                 Spacer()
             }
         }
-        .padding(16)
+        .padding(DesignSystem.Metrics.spacingL)
         .frame(minHeight: 140)
         .providerTabCardStyle()
         .contentShape(Rectangle())
@@ -116,11 +116,12 @@ struct WorkflowCardView: View {
             Text(NSLocalizedString("action.delete_confirm_message", value: "Are you sure you want to delete this workflow? This action cannot be undone.", comment: "Delete confirmation message"))
         }
     }
-    
+
     @ViewBuilder
     private var sourceBadge: some View {
         Text(workflow.source.displayName)
-            .font(.system(size: 10, weight: .bold))
+            .font(DesignSystem.Typography.caption2)
+            .fontWeight(.bold)
             .dsBadge(
                 foreground: workflow.source.color,
                 background: workflow.source.color.opacity(0.15),

@@ -1,0 +1,629 @@
+import Foundation
+import SwiftUI
+import ProviderUsage
+import CodexBarProviderCatalog
+
+enum AccountCardActionID: String, Equatable, Sendable {
+    case activate
+    case refresh
+    case edit
+    case relogin
+    case validate
+    case copyError
+    case revealInFinder
+    case delete
+}
+
+enum AccountCardTapBehavior: Equatable, Sendable {
+    case none
+    case activate
+    case toggleSelection
+    case openProvider
+}
+
+struct AccountRecordID: Hashable, Equatable {
+    let provider: UsageProvider
+    let rawValue: String
+}
+
+enum AccountRecordSource: Equatable, Sendable {
+    case local
+    case migrated
+    case imported
+    case ccSwitch
+    case detected
+    case unknown
+}
+
+enum AccountActivationState: Equatable, Sendable {
+    case inactive
+    case active
+    case pending
+    case selected
+}
+
+enum AccountHealthState: Equatable, Sendable {
+    case healthy
+    case warning
+    case failed
+    case loading
+    case empty
+    case unsupported
+}
+
+struct AccountIdentity: Equatable, Sendable {
+    let displayName: String
+    let subtitle: String?
+    let meta: String?
+}
+
+enum AccountRecordFieldKind: Equatable, Sendable {
+    case kv
+    case message
+    case code
+}
+
+struct AccountRecordField: Identifiable, Equatable, Sendable {
+    let id: String
+    let kind: AccountRecordFieldKind
+    let label: String?
+    let value: String
+    let auxiliary: String?
+    let tone: AccountSummaryCardBadgeTone?
+}
+
+struct AccountRecordQuota: Equatable {
+    let provider: UsageProvider
+    let accountTitle: String?
+    let usage: UsageSnapshot?
+    let credits: CreditsSnapshot?
+    let creditsRefreshedAt: Date?
+    let loginAt: Date?
+    let syncedAt: Date?
+    let isLoading: Bool
+    let showsEmptyState: Bool
+    let errorMessage: String?
+}
+
+struct AccountRecord: Identifiable, Equatable {
+    let id: AccountRecordID
+    let providerName: String
+    let source: AccountRecordSource
+    let identity: AccountIdentity
+    let activationState: AccountActivationState
+    let healthState: AccountHealthState
+    let bodyFields: [AccountRecordField]
+    let detailFields: [AccountRecordField]
+    let quota: AccountRecordQuota?
+    let accessibilityLabel: String
+}
+
+enum AccountRecordBuilder {
+    static func claude(
+        providerName: String,
+        account: ClaudeAccount,
+        isActive: Bool
+    ) -> AccountRecord {
+        AccountRecord(
+            id: .init(provider: .claude, rawValue: account.id.uuidString.lowercased()),
+            providerName: providerName,
+            source: claudeSource(account.source),
+            identity: .init(
+                displayName: account.name,
+                subtitle: account.baseURL,
+                meta: account.updatedAt.formatted(date: .abbreviated, time: .shortened)
+            ),
+            activationState: isActive ? .active : .inactive,
+            healthState: claudeHealth(account.lastValidationStatus),
+            bodyFields: [
+                .init(
+                    id: "source",
+                    kind: .kv,
+                    label: NSLocalizedString("accounts.provider.source", value: "Source", comment: "Account source"),
+                    value: account.source.rawValue,
+                    auxiliary: nil,
+                    tone: nil
+                )
+            ],
+            detailFields: [],
+            quota: nil,
+            accessibilityLabel: "\(providerName) \(account.name)"
+        )
+    }
+
+    static func gemini(
+        providerName: String,
+        account: GeminiAuthAccount,
+        isActive: Bool,
+        quota: AccountRecordQuota?
+    ) -> AccountRecord {
+        let subtitle = [account.email, account.project]
+            .compactMap { value -> String? in
+                guard let value, !value.isEmpty else { return nil }
+                return value
+            }
+            .joined(separator: " • ")
+
+        let bodyFields: [AccountRecordField]
+        if quota == nil {
+            bodyFields = [
+                .init(
+                    id: "method",
+                    kind: .kv,
+                    label: NSLocalizedString("accounts.provider.method", value: "Method", comment: "Account method"),
+                    value: account.method.rawValue,
+                    auxiliary: nil,
+                    tone: nil
+                ),
+                .init(
+                    id: "project",
+                    kind: .kv,
+                    label: NSLocalizedString("accounts.provider.project", value: "Project", comment: "Account project"),
+                    value: account.project ?? NSLocalizedString("generic.unknown", value: "Unknown", comment: "Unknown"),
+                    auxiliary: account.location,
+                    tone: nil
+                )
+            ]
+        } else {
+            bodyFields = []
+        }
+
+        return AccountRecord(
+            id: .init(provider: account.providerID, rawValue: account.id.uuidString.lowercased()),
+            providerName: providerName,
+            source: .local,
+            identity: .init(
+                displayName: account.name,
+                subtitle: subtitle.isEmpty ? nil : subtitle,
+                meta: (account.lastLoginAt ?? account.createdAt).formatted(date: .abbreviated, time: .shortened)
+            ),
+            activationState: isActive ? .active : .inactive,
+            healthState: quota?.errorMessage == nil ? .healthy : .failed,
+            bodyFields: bodyFields,
+            detailFields: [
+                .init(
+                    id: "runtime",
+                    kind: .code,
+                    label: NSLocalizedString("accounts.provider.runtime_home", value: "Runtime Home", comment: "Runtime home"),
+                    value: account.runtimeHomeRelativePath,
+                    auxiliary: nil,
+                    tone: nil
+                )
+            ],
+            quota: quota,
+            accessibilityLabel: "\(providerName) \(account.name)"
+        )
+    }
+
+    static func codexAccounts(
+        providerName: String,
+        usageProvider: UsageProvider,
+        summary: NolonAccountsViewModel.AccountUsageSummary
+    ) -> AccountRecord {
+        let snapshot = summary.errorMessage == nil ? UsageSnapshot(
+            identity: UsageIdentity(
+                accountEmail: summary.accountEmail,
+                accountOrganization: nil,
+                loginMethod: nil,
+                plan: summary.plan
+            ),
+            primary: summary.primaryUsedPercent.map { RateWindow(usedPercent: $0) },
+            secondary: nil,
+            tertiary: nil,
+            updatedAt: summary.latestUpdatedAt ?? Date()
+        ) : nil
+
+        return AccountRecord(
+            id: .init(provider: usageProvider, rawValue: summary.id),
+            providerName: providerName,
+            source: .local,
+            identity: .init(
+                displayName: summary.accountEmail ?? summary.accountLabel,
+                subtitle: summary.plan,
+                meta: summary.latestUpdatedAt?.formatted(date: .abbreviated, time: .shortened)
+            ),
+            activationState: .inactive,
+            healthState: summary.errorMessage == nil ? .healthy : .failed,
+            bodyFields: [],
+            detailFields: summary.isSnapshotOnly ? [
+                .init(
+                    id: "snapshotOnly",
+                    kind: .message,
+                    label: nil,
+                    value: NSLocalizedString("accounts.provider.readonly", value: "Read-only summary", comment: "Read-only summary"),
+                    auxiliary: nil,
+                    tone: nil
+                )
+            ] : [],
+            quota: .init(
+                provider: usageProvider,
+                accountTitle: summary.accountEmail ?? summary.accountLabel,
+                usage: snapshot,
+                credits: nil,
+                creditsRefreshedAt: nil,
+                loginAt: nil,
+                syncedAt: summary.latestUpdatedAt,
+                isLoading: false,
+                showsEmptyState: snapshot == nil,
+                errorMessage: summary.errorMessage
+            ),
+            accessibilityLabel: "\(providerName) \(summary.accountLabel)"
+        )
+    }
+
+    static func codexUsage(
+        outcome: ProviderAccountUsageOutcome,
+        summary: CodexAuthSummary?,
+        presentation: AccountCardPresentation,
+        title: String,
+        creditsRefreshedAt: Date?,
+        isRefreshing: Bool,
+        canRelogin: Bool
+    ) -> AccountRecord {
+        let displayState: AccountHealthState = {
+            if presentation.selectionStyle == .pending {
+                return .loading
+            }
+            if case let .failure(error) = outcome.outcome.result,
+               CodexAuthFailureClassifier.isAuthFailure(errorText: ProviderUsageViewModel.errorDetailText(error: error)) {
+                return .warning
+            }
+            if summary?.lastSyncFailureMessage?.isEmpty == false && canRelogin {
+                return .warning
+            }
+            if case .failure = outcome.outcome.result {
+                return .failed
+            }
+            return .healthy
+        }()
+        let liveFailureError: Error? = {
+            if case let .failure(error) = outcome.outcome.result { return error }
+            return nil
+        }()
+        let persistedFailureDetail = summary?.lastSyncFailureMessage?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let failureDetail: String? = {
+            if let persistedFailureDetail, !persistedFailureDetail.isEmpty { return persistedFailureDetail }
+            if let liveFailureError { return ProviderUsageViewModel.errorDetailText(error: liveFailureError) }
+            return nil
+        }()
+        let failureSummary: String? = {
+            if let liveFailureError {
+                return ProviderUsageViewModel.errorSummaryText(error: liveFailureError)
+            }
+            if let failureDetail, canRelogin, CodexAuthFailureClassifier.isAuthFailure(errorText: failureDetail) {
+                return NSLocalizedString(
+                    "codex.accounts.error.auth_expired",
+                    value: "Authentication expired. Please sign in again.",
+                    comment: "Codex auth expired summary"
+                )
+            }
+            return failureDetail
+        }()
+
+        let quota: AccountRecordQuota = {
+            switch outcome.outcome.result {
+            case let .success(result):
+                return .init(
+                    provider: outcome.provider,
+                    accountTitle: title,
+                    usage: result.usage,
+                    credits: result.credits,
+                    creditsRefreshedAt: creditsRefreshedAt,
+                    loginAt: summary?.lastLoginAt,
+                    syncedAt: result.usage.updatedAt,
+                    isLoading: isRefreshing,
+                    showsEmptyState: false,
+                    errorMessage: nil
+                )
+            case .failure:
+                return .init(
+                    provider: outcome.provider,
+                    accountTitle: title,
+                    usage: nil,
+                    credits: nil,
+                    creditsRefreshedAt: nil,
+                    loginAt: summary?.lastLoginAt,
+                    syncedAt: nil,
+                    isLoading: isRefreshing,
+                    showsEmptyState: false,
+                    errorMessage: failureDetail
+                )
+            }
+        }()
+
+        return AccountRecord(
+            id: .init(provider: .codex, rawValue: outcome.id),
+            providerName: "Codex",
+            source: .local,
+            identity: .init(
+                displayName: title,
+                subtitle: codexSubtitleText(title: title, email: summary?.email, plan: summary?.plan),
+                meta: summary?.lastLoginAt?.formatted(date: .abbreviated, time: .shortened)
+            ),
+            activationState: codexActivationState(from: presentation.selectionStyle),
+            healthState: displayState,
+            bodyFields: [],
+            detailFields: failureSummary.map {
+                [
+                    .init(
+                        id: "failureSummary",
+                        kind: .message,
+                        label: nil,
+                        value: $0,
+                        auxiliary: nil,
+                        tone: displayState == .warning ? .warning : .neutral
+                    )
+                ]
+            } ?? [],
+            quota: quota,
+            accessibilityLabel: "Codex \(title)"
+        )
+    }
+
+    static func empty(providerName: String, usageProvider: UsageProvider, providerID: String) -> AccountRecord {
+        AccountRecord(
+            id: .init(provider: usageProvider, rawValue: "\(providerID).empty"),
+            providerName: providerName,
+            source: .unknown,
+            identity: .init(
+                displayName: NSLocalizedString("accounts.summary.none", value: "No account", comment: "No account"),
+                subtitle: nil,
+                meta: nil
+            ),
+            activationState: .inactive,
+            healthState: .empty,
+            bodyFields: [
+                .init(
+                    id: "empty",
+                    kind: .message,
+                    label: nil,
+                    value: NSLocalizedString("accounts.empty.description", value: "Manage supported provider accounts from one place.", comment: "Accounts subtitle"),
+                    auxiliary: nil,
+                    tone: nil
+                )
+            ],
+            detailFields: [],
+            quota: nil,
+            accessibilityLabel: "\(providerName) empty"
+        )
+    }
+
+    private static func claudeSource(_ source: ClaudeAccountSource) -> AccountRecordSource {
+        switch source {
+        case .manual:
+            return .local
+        case .migrated:
+            return .migrated
+        case .ccSwitch:
+            return .ccSwitch
+        }
+    }
+
+    private static func claudeHealth(_ validationStatus: Bool?) -> AccountHealthState {
+        switch validationStatus {
+        case .some(true):
+            return .healthy
+        case .some(false):
+            return .failed
+        case .none:
+            return .warning
+        }
+    }
+
+    private static func codexActivationState(from style: AccountCardSelectionStyle) -> AccountActivationState {
+        switch style {
+        case .neutral:
+            return .inactive
+        case .active:
+            return .active
+        case .pending:
+            return .pending
+        case .selected:
+            return .selected
+        }
+    }
+
+    static func codexSubtitleText(title: String, email: String?, plan: String?) -> String? {
+        let trimmedEmail = email?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedPlan = plan?.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        let parts = [
+            (trimmedEmail?.isEmpty == false && trimmedEmail != title) ? trimmedEmail : nil,
+            (trimmedPlan?.isEmpty == false) ? trimmedPlan : nil,
+        ].compactMap { $0 }
+
+        return parts.isEmpty ? nil : parts.joined(separator: " • ")
+    }
+}
+
+enum AccountCardRowStyle: Equatable {
+    case metric
+    case kv
+    case message
+    case code
+}
+
+struct AccountCardRowViewData: Identifiable, Equatable {
+    let id: String
+    let style: AccountCardRowStyle
+    let title: String?
+    let value: String
+    let auxiliary: String?
+    let tint: AccountSummaryCardBadgeTone?
+}
+
+struct AccountCardActionViewData: Identifiable, Equatable {
+    enum Prominence: Equatable {
+        case primary
+        case secondary
+    }
+
+    let id: String
+    let actionID: AccountCardActionID
+    let title: String
+    let systemImage: String?
+    let role: ButtonRole?
+    let prominence: Prominence
+    let isEnabled: Bool
+}
+
+struct AccountCardMenuActionViewData: Identifiable, Equatable {
+    let id: String
+    let actionID: AccountCardActionID
+    let title: String
+    let systemImage: String?
+    let role: ButtonRole?
+    let isEnabled: Bool
+}
+
+struct AccountCardFooterViewData: Equatable {
+    let leadingTag: String?
+    let trailingText: String?
+}
+
+struct AccountCardQuotaViewData: Equatable {
+    let provider: UsageProvider
+    let accountTitle: String?
+    let usage: UsageSnapshot?
+    let credits: CreditsSnapshot?
+    let creditsRefreshedAt: Date?
+    let loginAt: Date?
+    let syncedAt: Date?
+    let isLoading: Bool
+    let showsEmptyState: Bool
+    let errorMessage: String?
+    let onRefreshActionID: AccountCardActionID?
+}
+
+enum AccountCardBodyContent: Equatable {
+    case quota(AccountCardQuotaViewData)
+    case rows([AccountCardRowViewData])
+}
+
+struct AccountCardViewData: Identifiable, Equatable {
+    let id: String
+    let recordID: AccountRecordID
+    let presentation: AccountCardPresentation
+    let header: AccountSummaryCardHeaderModel
+    let body: AccountCardBodyContent
+    let detailRows: [AccountCardRowViewData]
+    let primaryActions: [AccountCardActionViewData]
+    let menuActions: [AccountCardMenuActionViewData]
+    let footer: AccountCardFooterViewData?
+    let tapBehavior: AccountCardTapBehavior
+    let accessibilityLabel: String
+}
+
+@MainActor
+enum AccountCardViewDataMapper {
+    static func map(
+        record: AccountRecord,
+        primaryActions: [AccountCardActionViewData] = [],
+        menuActions: [AccountCardMenuActionViewData] = [],
+        footer: AccountCardFooterViewData? = nil,
+        quotaRefreshActionID: AccountCardActionID? = nil,
+        tapBehavior: AccountCardTapBehavior = .openProvider
+    ) -> AccountCardViewData {
+        AccountCardViewData(
+            id: record.id.rawValue,
+            recordID: record.id,
+            presentation: presentation(for: record.activationState),
+            header: .init(
+                eyebrow: record.providerName,
+                title: record.identity.displayName,
+                subtitle: record.identity.subtitle,
+                meta: record.identity.meta,
+                badge: badge(for: record)
+            ),
+            body: body(for: record, quotaRefreshActionID: quotaRefreshActionID),
+            detailRows: record.detailFields.map(row),
+            primaryActions: primaryActions,
+            menuActions: menuActions,
+            footer: footer,
+            tapBehavior: tapBehavior,
+            accessibilityLabel: record.accessibilityLabel
+        )
+    }
+
+    private static func body(for record: AccountRecord, quotaRefreshActionID: AccountCardActionID?) -> AccountCardBodyContent {
+        if let quota = record.quota {
+            return .quota(
+                .init(
+                    provider: quota.provider,
+                    accountTitle: quota.accountTitle,
+                    usage: quota.usage,
+                    credits: quota.credits,
+                    creditsRefreshedAt: quota.creditsRefreshedAt,
+                    loginAt: quota.loginAt,
+                    syncedAt: quota.syncedAt,
+                    isLoading: quota.isLoading,
+                    showsEmptyState: quota.showsEmptyState,
+                    errorMessage: quota.errorMessage,
+                    onRefreshActionID: quotaRefreshActionID
+                )
+            )
+        }
+        return .rows(record.bodyFields.map(row))
+    }
+
+    private static func row(_ field: AccountRecordField) -> AccountCardRowViewData {
+        AccountCardRowViewData(
+            id: field.id,
+            style: rowStyle(for: field.kind),
+            title: field.label,
+            value: field.value,
+            auxiliary: field.auxiliary,
+            tint: field.tone
+        )
+    }
+
+    private static func rowStyle(for kind: AccountRecordFieldKind) -> AccountCardRowStyle {
+        switch kind {
+        case .kv:
+            return .kv
+        case .message:
+            return .message
+        case .code:
+            return .code
+        }
+    }
+
+    private static func presentation(for activationState: AccountActivationState) -> AccountCardPresentation {
+        switch activationState {
+        case .inactive:
+            return .neutral
+        case .active:
+            return .active
+        case .pending:
+            return .pending
+        case .selected:
+            return .selected
+        }
+    }
+
+    private static func badge(for record: AccountRecord) -> AccountSummaryCardBadgeModel? {
+        switch record.healthState {
+        case .warning:
+            return .init(
+                text: NSLocalizedString("codex.accounts.status.reauth_needed", value: "Needs re-login", comment: "Account status reauth"),
+                tone: .warning
+            )
+        case .loading where record.activationState == .pending:
+            return .init(
+                text: NSLocalizedString("codex.accounts.status.pending", value: "Pending", comment: "Account status pending"),
+                tone: .neutral
+            )
+        default:
+            break
+        }
+
+        if record.activationState == .active {
+            return .init(
+                text: NSLocalizedString("accounts.summary.active", value: "已激活", comment: "Active badge"),
+                tone: .active
+            )
+        }
+
+        return nil
+    }
+}

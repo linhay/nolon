@@ -5,10 +5,16 @@ import ProviderUsage
 import UniformTypeIdentifiers
 
 struct CodexImportSheet: View {
+    static func minimumSheetHeight(hasAnyCandidates: Bool) -> CGFloat {
+        hasAnyCandidates ? 560 : 320
+    }
+
     let sections: [ProviderUsageViewModel.CodexImportCandidateSection]
+    let hasAnyCandidates: Bool
     let isRunningValidation: Bool
     let isRunningConnectionTests: Bool
     @Binding var isTargetingDropZone: Bool
+    @Binding var searchText: String
     let globalErrorMessage: String?
     let onPickFiles: () -> Void
     let onPaste: () -> Void
@@ -20,6 +26,8 @@ struct CodexImportSheet: View {
     let onRetry: (UUID) -> Void
     let onRetryAll: () -> Void
     let onRemove: (UUID) -> Void
+    let onExportZIP: () -> Void
+    let onExportSub2API: () -> Void
     let onImport: () -> Void
     let onCancel: () -> Void
 
@@ -33,6 +41,10 @@ struct CodexImportSheet: View {
 
     private var isBusy: Bool {
         isRunningValidation || isRunningConnectionTests
+    }
+
+    private var hasSearchText: Bool {
+        !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     private var importButtonTitle: String {
@@ -65,8 +77,10 @@ struct CodexImportSheet: View {
                 errorBanner(globalErrorMessage)
             }
 
-            candidateToolbar
-            candidateList
+            if hasAnyCandidates {
+                candidateToolbar
+                candidateList
+            }
 
             HStack(alignment: .center, spacing: 12) {
                 Button(NSLocalizedString("generic.cancel", value: "Cancel", comment: "Cancel")) {
@@ -99,7 +113,7 @@ struct CodexImportSheet: View {
             }
         }
         .padding(20)
-        .frame(minWidth: 760, minHeight: 560)
+        .frame(minWidth: 760, minHeight: Self.minimumSheetHeight(hasAnyCandidates: hasAnyCandidates))
     }
 
     private var dropZone: some View {
@@ -141,57 +155,102 @@ struct CodexImportSheet: View {
     }
 
     private var candidateToolbar: some View {
-        HStack(spacing: 10) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(String(
-                    format: NSLocalizedString("codex.accounts.selection.count", value: "已选 %d", comment: "Selected Codex account count"),
-                    selectedCount
-                ))
-                .font(.caption.weight(.medium))
-                .foregroundStyle(DesignSystem.Colors.Text.primary)
-                Text(String(
-                    format: NSLocalizedString("codex.import.sheet.source_group_count", value: "%d 个来源组", comment: "Codex import source group count"),
-                    sections.count
-                ))
-                .font(.caption2)
-                .foregroundStyle(DesignSystem.Colors.Text.secondary)
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 10) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(String(
+                        format: NSLocalizedString("codex.accounts.selection.count", value: "已选 %d", comment: "Selected Codex account count"),
+                        selectedCount
+                    ))
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(DesignSystem.Colors.Text.primary)
+                    Text(String(
+                        format: NSLocalizedString("codex.import.sheet.source_group_count", value: "%d 个来源组", comment: "Codex import source group count"),
+                        sections.count
+                    ))
+                    .font(.caption2)
+                    .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                }
+
+                Spacer()
+
+                HStack(spacing: 8) {
+                    Image(systemName: "magnifyingglass")
+                        .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                    TextField(
+                        NSLocalizedString("codex.import.sheet.search.placeholder", value: "搜索邮箱、名称或文件名", comment: "Search import candidates placeholder"),
+                        text: $searchText
+                    )
+                    .textFieldStyle(.plain)
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 8)
+                .frame(width: 260)
+                .background(
+                    RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusM, style: .continuous)
+                        .fill(DesignSystem.Colors.Component.controlFillSubtle)
+                )
             }
 
-            Spacer()
+            HStack(spacing: 10) {
+                Spacer()
 
-            Button(NSLocalizedString("codex.import.sheet.select_all", value: "全选", comment: "Select all import candidates")) {
-                onSelectAll()
-            }
-            .disabled(sections.flatMap(\.items).allSatisfy { !$0.validation.isValid })
+                Button(NSLocalizedString("codex.import.sheet.select_all", value: "全选", comment: "Select all import candidates")) {
+                    onSelectAll()
+                }
+                .disabled(sections.flatMap(\.items).allSatisfy { !$0.validation.isValid })
 
-            Button(NSLocalizedString("codex.import.sheet.deselect_all", value: "取消全选", comment: "Deselect all import candidates")) {
-                onDeselectAll()
-            }
-            .disabled(sections.flatMap(\.items).isEmpty)
+                Button(NSLocalizedString("codex.import.sheet.deselect_all", value: "取消全选", comment: "Deselect all import candidates")) {
+                    onDeselectAll()
+                }
+                .disabled(sections.flatMap(\.items).isEmpty)
 
-            Button(NSLocalizedString("codex.import.sheet.paste", value: "粘贴", comment: "Paste import content")) {
-                onPaste()
-            }
+                Button(NSLocalizedString("codex.import.sheet.action.export_zip", value: "导出 ZIP", comment: "Export selected import candidates to ZIP")) {
+                    onExportZIP()
+                }
+                .disabled(!canImport || isRunningValidation)
 
-            Button(NSLocalizedString("codex.import.sheet.retry_all", value: "重新测试全部", comment: "Retry all Codex import tests")) {
-                onRetryAll()
+                Button(NSLocalizedString("codex.import.sheet.action.export_sub2api", value: "导出 sub2api", comment: "Export selected import candidates to sub2api")) {
+                    onExportSub2API()
+                }
+                .disabled(!canImport || isRunningValidation)
+
+                Button(NSLocalizedString("codex.import.sheet.paste", value: "粘贴", comment: "Paste import content")) {
+                    onPaste()
+                }
+
+                Button(NSLocalizedString("codex.import.sheet.retry_all", value: "重新测试全部", comment: "Retry all Codex import tests")) {
+                    onRetryAll()
+                }
+                .disabled(sections.flatMap(\.items).filter(\.validation.isValid).isEmpty || isRunningConnectionTests || isRunningValidation)
             }
-            .disabled(sections.flatMap(\.items).filter(\.validation.isValid).isEmpty || isRunningConnectionTests || isRunningValidation)
         }
     }
 
     private var candidateList: some View {
         Group {
             if sections.flatMap(\.items).isEmpty {
-                ContentUnavailableView(
-                    NSLocalizedString("codex.import.sheet.empty.title", value: "还没有候选账号", comment: "Empty import candidates title"),
-                    systemImage: "tray",
-                    description: Text(NSLocalizedString(
-                        "codex.import.sheet.empty.subtitle",
-                        value: "拖拽或选择 auth.json / ZIP 后，候选账号会先显示在这里。",
-                        comment: "Empty import candidates subtitle"
-                    ))
-                )
+                if hasSearchText {
+                    ContentUnavailableView(
+                        NSLocalizedString("codex.import.sheet.search.empty.title", value: "没有匹配的候选账号", comment: "Empty search result title"),
+                        systemImage: "magnifyingglass",
+                        description: Text(NSLocalizedString(
+                            "codex.import.sheet.search.empty.subtitle",
+                            value: "换个关键字试试，或者清空搜索后查看全部候选项。",
+                            comment: "Empty search result subtitle"
+                        ))
+                    )
+                } else {
+                    ContentUnavailableView(
+                        NSLocalizedString("codex.import.sheet.empty.title", value: "还没有候选账号", comment: "Empty import candidates title"),
+                        systemImage: "tray",
+                        description: Text(NSLocalizedString(
+                            "codex.import.sheet.empty.subtitle",
+                            value: "拖拽或选择 auth.json / ZIP 后，候选账号会先显示在这里。",
+                            comment: "Empty import candidates subtitle"
+                        ))
+                    )
+                }
             } else {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 12) {

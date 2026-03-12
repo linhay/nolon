@@ -41,6 +41,33 @@ final class EditProviderViewModel {
     var canEditPaths: Bool {
         provider.canEditPaths
     }
+
+    var template: ProviderTemplate? {
+        guard let templateId = provider.templateId else { return nil }
+        return ProviderTemplate(rawValue: templateId)
+    }
+
+    var secondaryResourceLabel: String {
+        if let template {
+            return NSLocalizedString(
+                template.secondaryResourceLabelLocalizationKey,
+                value: template.secondaryResourceLabelFallback,
+                comment: "Secondary resource folder label"
+            )
+        }
+
+        return NSLocalizedString("provider.secondary_resource.workflows", value: "Workflow Folder", comment: "Workflow Folder")
+    }
+
+    var vendorCategoryLabel: String? {
+        guard provider.kind == .vendor, let category = provider.vendorCategory else { return nil }
+        switch category {
+        case .original:
+            return NSLocalizedString("provider.vendor_category.original", value: "Original Vendors", comment: "Original vendors")
+        case .integrated:
+            return NSLocalizedString("provider.vendor_category.integrated", value: "Integrated Vendors", comment: "Integrated vendors")
+        }
+    }
     
     var canSave: Bool {
         !providerName.trimmingCharacters(in: .whitespaces).isEmpty &&
@@ -138,6 +165,16 @@ struct EditProviderSheet: View {
                 } header: {
                     Text(NSLocalizedString("add_provider.name_label", comment: "Name"))
                 }
+
+                if let vendorCategoryLabel = viewModel.vendorCategoryLabel {
+                    Section {
+                        LabeledContent(
+                            NSLocalizedString("edit_provider.vendor_category", value: "Vendor Category", comment: "Vendor category")
+                        ) {
+                            Text(vendorCategoryLabel)
+                        }
+                    }
+                }
                 
                 Section {
                     if viewModel.provider.kind == .project {
@@ -187,9 +224,9 @@ struct EditProviderSheet: View {
                                     .truncationMode(.middle)
                             }
                         } else {
-                            LabeledContent(NSLocalizedString("edit_provider.workflow_folder_label", value: "Workflow Folder", comment: "Workflow Folder")) {
+                            LabeledContent(viewModel.secondaryResourceLabel) {
                                 Text(viewModel.workflowPath.isEmpty
-                                     ? NSLocalizedString("edit_provider.no_workflow_folder", value: "No workflow folder selected", comment: "No workflow folder selected")
+                                     ? NSLocalizedString("add_provider.no_folder", comment: "No folder selected")
                                      : viewModel.workflowPath)
                                     .foregroundStyle(viewModel.workflowPath.isEmpty ? DesignSystem.Colors.Text.secondary : DesignSystem.Colors.Text.primary)
                                     .lineLimit(1)

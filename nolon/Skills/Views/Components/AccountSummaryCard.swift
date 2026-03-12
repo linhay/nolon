@@ -1,4 +1,7 @@
 import SwiftUI
+import ProviderUsage
+import CodexBarProviderCatalog
+import Shimmer
 
 enum AccountCardSelectionStyle: Equatable, Sendable {
     case neutral
@@ -13,6 +16,21 @@ struct AccountCardPresentation: Equatable, Sendable {
 
     static let neutral = AccountCardPresentation(
         selectionStyle: .neutral,
+        showsSelectionBadge: false
+    )
+
+    static let active = AccountCardPresentation(
+        selectionStyle: .active,
+        showsSelectionBadge: false
+    )
+
+    static let pending = AccountCardPresentation(
+        selectionStyle: .pending,
+        showsSelectionBadge: false
+    )
+
+    static let selected = AccountCardPresentation(
+        selectionStyle: .selected,
         showsSelectionBadge: false
     )
 
@@ -114,18 +132,18 @@ struct AccountSummaryCard<Content: View>: View {
     }
 }
 
-enum AccountSummaryCardBadgeTone {
+enum AccountSummaryCardBadgeTone: Equatable {
     case neutral
     case active
     case warning
 }
 
-struct AccountSummaryCardBadgeModel {
+struct AccountSummaryCardBadgeModel: Equatable {
     let text: String
     let tone: AccountSummaryCardBadgeTone
 }
 
-struct AccountSummaryCardHeaderModel {
+struct AccountSummaryCardHeaderModel: Equatable {
     let eyebrow: String?
     let title: String
     let subtitle: String?
@@ -227,6 +245,285 @@ struct AccountSummaryContentCard<Body: View, Details: View, Actions: View>: View
     }
 }
 
+struct UnifiedAccountCard: View {
+    let data: AccountCardViewData
+    let onTap: (AccountRecordID) -> Void
+    let onAction: (AccountRecordID, AccountCardActionID) -> Void
+
+    var body: some View {
+        AccountSummaryContentCard(
+            presentation: data.presentation,
+            header: data.header,
+            showsDetailsSection: !data.detailRows.isEmpty,
+            showsActionsSection: !data.primaryActions.isEmpty || data.footer != nil
+        ) {
+            bodyContent
+        } details: {
+            detailsContent
+        } actions: {
+            VStack(alignment: .leading, spacing: 10) {
+                if !data.primaryActions.isEmpty {
+                    actionsContent
+                }
+                if let footer = data.footer {
+                    footerContent(footer)
+                }
+            }
+        }
+        .onTapGesture {
+            guard data.tapBehavior != .none else { return }
+            onTap(data.recordID)
+        }
+        .contextMenu {
+            ForEach(data.menuActions) { action in
+                Button(role: action.role) {
+                    onAction(data.recordID, action.actionID)
+                } label: {
+                    if let systemImage = action.systemImage {
+                        Label(action.title, systemImage: systemImage)
+                    } else {
+                        Text(action.title)
+                    }
+                }
+                .disabled(!action.isEnabled)
+            }
+        }
+        .accessibilityLabel(data.accessibilityLabel)
+    }
+
+    @ViewBuilder
+    private var bodyContent: some View {
+        switch data.body {
+        case let .quota(quota):
+            ProviderQuotaSection(
+                provider: quota.provider,
+                accountTitle: quota.accountTitle,
+                usage: quota.usage,
+                credits: quota.credits,
+                creditsRefreshedAt: quota.creditsRefreshedAt,
+                loginAt: quota.loginAt,
+                syncedAt: quota.syncedAt,
+                isLoading: quota.isLoading,
+                showsEmptyState: quota.showsEmptyState,
+                errorMessage: quota.errorMessage,
+                onRefresh: quota.onRefreshActionID == nil ? nil : {
+                    if let actionID = quota.onRefreshActionID {
+                        onAction(data.recordID, actionID)
+                    }
+                },
+                usesCardChrome: false,
+                showsHeader: false
+            )
+        case let .rows(rows):
+            VStack(alignment: .leading, spacing: 8) {
+                ForEach(rows) { row in
+                    rowView(row)
+                }
+            }
+        }
+    }
+
+    private var detailsContent: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ForEach(data.detailRows) { row in
+                rowView(row)
+            }
+        }
+    }
+
+    private var actionsContent: some View {
+        let primaryCount = data.primaryActions.filter { $0.prominence == .primary }.count
+        return Group {
+            if data.primaryActions.count == 2 && primaryCount == 1 {
+                HStack(spacing: 8) {
+                    ForEach(data.primaryActions) { action in
+                        actionButton(action)
+                    }
+                }
+            } else {
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(data.primaryActions) { action in
+                        actionButton(action)
+                    }
+                }
+            }
+        }
+    }
+
+    private func footerContent(_ footer: AccountCardFooterViewData) -> some View {
+        HStack(alignment: .center, spacing: 8) {
+            if let leadingTag = footer.leadingTag, !leadingTag.isEmpty {
+                Text(leadingTag)
+                    .font(.system(size: 8, weight: .black))
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 1)
+                    .background(
+                        RoundedRectangle(cornerRadius: 4, style: .continuous)
+                            .fill(DesignSystem.Colors.primary.opacity(0.15))
+                    )
+                    .foregroundStyle(DesignSystem.Colors.primary)
+                    .textCase(.uppercase)
+            }
+
+            Spacer(minLength: 0)
+
+            if let trailingText = footer.trailingText, !trailingText.isEmpty {
+                Text(trailingText)
+                    .font(.caption2)
+                    .foregroundStyle(DesignSystem.Colors.Text.tertiary)
+            }
+        }
+    }
+
+    private func actionButton(_ action: AccountCardActionViewData) -> some View {
+        Group {
+            if action.prominence == .primary {
+                Button(role: action.role) {
+                    onAction(data.recordID, action.actionID)
+                } label: {
+                    actionLabel(action)
+                }
+                .buttonStyle(.borderedProminent)
+            } else {
+                Button(role: action.role) {
+                    onAction(data.recordID, action.actionID)
+                } label: {
+                    actionLabel(action)
+                }
+                .buttonStyle(.bordered)
+            }
+        }
+        .controlSize(.small)
+        .disabled(!action.isEnabled)
+    }
+
+    @ViewBuilder
+    private func actionLabel(_ action: AccountCardActionViewData) -> some View {
+        if let systemImage = action.systemImage {
+            Label(action.title, systemImage: systemImage)
+                .frame(maxWidth: .infinity)
+        } else {
+            Text(action.title)
+                .frame(maxWidth: .infinity)
+        }
+    }
+
+    @ViewBuilder
+    private func rowView(_ row: AccountCardRowViewData) -> some View {
+        switch row.style {
+        case .metric:
+            HStack(alignment: .center, spacing: 8) {
+                if let title = row.title {
+                    Text(title)
+                        .font(.caption)
+                        .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                }
+                Spacer(minLength: 0)
+                Text(row.value)
+                    .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(tintColor(row.tint))
+                if let auxiliary = row.auxiliary {
+                    Text(auxiliary)
+                        .font(.caption2)
+                        .foregroundStyle(DesignSystem.Colors.Text.tertiary)
+                }
+            }
+        case .kv:
+            VStack(alignment: .leading, spacing: 4) {
+                if let title = row.title {
+                    Text(title)
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(DesignSystem.Colors.Text.tertiary)
+                        .textCase(.uppercase)
+                }
+                Text(row.value)
+                    .font(.caption)
+                    .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                    .textSelection(.enabled)
+                if let auxiliary = row.auxiliary {
+                    Text(auxiliary)
+                        .font(.caption2)
+                        .foregroundStyle(DesignSystem.Colors.Text.tertiary)
+                }
+            }
+        case .message:
+            Text(row.value)
+                .font(.caption)
+                .foregroundStyle(tintColor(row.tint))
+                .lineLimit(2)
+                .textSelection(.enabled)
+        case .code:
+            VStack(alignment: .leading, spacing: 4) {
+                if let title = row.title {
+                    Text(title)
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(DesignSystem.Colors.Text.tertiary)
+                }
+                Text(row.value)
+                    .font(.system(.caption, design: .monospaced))
+                    .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                    .textSelection(.enabled)
+                    .lineLimit(2)
+            }
+        }
+    }
+
+    private func tintColor(_ tone: AccountSummaryCardBadgeTone?) -> Color {
+        switch tone {
+        case .active:
+            return DesignSystem.Colors.primary
+        case .warning:
+            return DesignSystem.Colors.Status.warning
+        case .neutral, .none:
+            return DesignSystem.Colors.Text.primary
+        }
+    }
+}
+
+struct UnifiedAccountCardSkeleton: View {
+    let providerName: String
+
+    var body: some View {
+        AccountSummaryContentCard(
+            header: .init(
+                eyebrow: providerName,
+                title: "Loading",
+                subtitle: "Loading",
+                meta: "Loading",
+                badge: nil
+            ),
+            showsActionsSection: true
+        ) {
+            VStack(spacing: 4) {
+                ForEach(0..<3, id: \.self) { _ in
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(Color.white.opacity(0.1))
+                        .frame(height: 28)
+                }
+            }
+        } actions: {
+            HStack {
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .fill(Color.white.opacity(0.12))
+                    .frame(width: 52, height: 12)
+
+                Spacer()
+
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .fill(Color.white.opacity(0.12))
+                    .frame(width: 76, height: 10)
+            }
+        }
+        .redacted(reason: .placeholder)
+        .shimmering(
+            active: true,
+            animation: .easeInOut(duration: 1.25).repeatForever(autoreverses: false),
+            bandSize: 0.32
+        )
+        .accessibilityLabel("\(providerName) loading")
+    }
+}
+
 private struct AccountSummaryCardBadge: View {
     let badge: AccountSummaryCardBadgeModel
 
@@ -245,7 +542,7 @@ private struct AccountSummaryCardBadge: View {
     private var backgroundColor: Color {
         switch badge.tone {
         case .neutral:
-            return DesignSystem.Colors.Component.fill.opacity(0.5)
+            return DesignSystem.Colors.Component.controlFillSubtle
         case .active:
             return DesignSystem.Colors.primary.opacity(0.2)
         case .warning:

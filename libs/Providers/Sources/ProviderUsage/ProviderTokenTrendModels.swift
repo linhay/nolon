@@ -27,6 +27,7 @@ public struct ProviderTokenTrendSnapshot: Codable, Sendable, Equatable {
     public let todayTokens: Int?
     public let last7DaysTokens: Int?
     public let last30DaysTokens: Int?
+    public let allDaysTokens: Int?
     public let updatedAt: Date
     public let sourceLabel: String
 
@@ -35,6 +36,7 @@ public struct ProviderTokenTrendSnapshot: Codable, Sendable, Equatable {
         todayTokens: Int?,
         last7DaysTokens: Int?,
         last30DaysTokens: Int?,
+        allDaysTokens: Int?,
         updatedAt: Date,
         sourceLabel: String
     ) {
@@ -42,6 +44,7 @@ public struct ProviderTokenTrendSnapshot: Codable, Sendable, Equatable {
         self.todayTokens = todayTokens
         self.last7DaysTokens = last7DaysTokens
         self.last30DaysTokens = last30DaysTokens
+        self.allDaysTokens = allDaysTokens
         self.updatedAt = updatedAt
         self.sourceLabel = sourceLabel
     }

@@ -11,6 +11,7 @@ public enum ProviderTemplate: String, CaseIterable, Sendable, Identifiable {
     case copilot
     case gemini
     case antigravity
+    case pi
 
     public var id: String { rawValue }
 
@@ -47,6 +48,39 @@ public enum ProviderTemplate: String, CaseIterable, Sendable, Identifiable {
     /// Logo file name in lobe-icons library (without extension).
     public var logoFile: String {
         config?.logoFile ?? rawValue
+    }
+
+    public var vendorCategory: VendorCategory? {
+        guard let raw = config?.vendorCategory?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !raw.isEmpty
+        else {
+            return nil
+        }
+        return VendorCategory(rawValue: raw)
+    }
+
+    public var supportsNativeMcpConfig: Bool {
+        config?.supportsNativeMcpConfig ?? true
+    }
+
+    public var supportsAccounts: Bool {
+        config?.supportsAccounts ?? false
+    }
+
+    public var supportsMultiAccount: Bool {
+        config?.supportsMultiAccount ?? false
+    }
+
+    public var secondaryResourceKind: SecondaryResourceKind {
+        SecondaryResourceKind(rawTemplateValue: config?.secondaryResourceLabel) ?? .workflows
+    }
+
+    public var secondaryResourceLabelLocalizationKey: String {
+        secondaryResourceKind.localizationKey
+    }
+
+    public var secondaryResourceLabelFallback: String {
+        secondaryResourceKind.fallbackLabel
     }
 
     /// Default path for this template.
@@ -105,20 +139,20 @@ public enum ProviderTemplate: String, CaseIterable, Sendable, Identifiable {
     public var relativeMcpConfigPath: String { config?.defaultMcpConfigPath ?? ".\(rawValue)/mcp_settings.json" }
 
     public func skillsPath(forProjectRoot projectRoot: URL) -> URL {
-        resolvePath(base: vendorHomeURL(projectRoot: projectRoot), relativePath: relativeSkillsPath)
+        resolvePath(base: projectBaseURL(projectRoot: projectRoot), relativePath: relativeSkillsPath)
     }
 
     public func workflowPath(forProjectRoot projectRoot: URL) -> URL {
-        resolvePath(base: vendorHomeURL(projectRoot: projectRoot), relativePath: relativeWorkflowPath)
+        resolvePath(base: projectBaseURL(projectRoot: projectRoot), relativePath: relativeWorkflowPath)
     }
 
     public func commandPath(forProjectRoot projectRoot: URL) -> URL? {
         guard let relativePath = config?.defaultCommandPath else { return nil }
-        return resolvePath(base: vendorHomeURL(projectRoot: projectRoot), relativePath: relativePath)
+        return resolvePath(base: projectBaseURL(projectRoot: projectRoot), relativePath: relativePath)
     }
 
     public func mcpConfigPath(forProjectRoot projectRoot: URL) -> URL {
-        resolvePath(base: vendorHomeURL(projectRoot: projectRoot), relativePath: relativeMcpConfigPath)
+        resolvePath(base: projectBaseURL(projectRoot: projectRoot), relativePath: relativeMcpConfigPath)
     }
 
     /// Create a `Provider` instance from this template.
@@ -133,6 +167,7 @@ public enum ProviderTemplate: String, CaseIterable, Sendable, Identifiable {
             commandPath: commandPath,
             iconName: iconName,
             installMethod: .symlink,
+            vendorCategory: vendorCategory,
             templateId: rawValue,
             additionalSkillsPaths: defaultSkillsPaths.map { $0.path },
             documentationURL: documentationURL
@@ -142,19 +177,28 @@ public enum ProviderTemplate: String, CaseIterable, Sendable, Identifiable {
     // MARK: - Helpers
 
     private var vendorBaseURL: URL {
-        vendorHomeURL(projectRoot: STFolder(NSHomeDirectory()).url)
+        vendorBaseURL(userHome: STFolder(NSHomeDirectory()).url)
     }
 
-    private func vendorHomeURL(projectRoot: URL) -> URL {
-        // Use a vendor home folder under the provided base when configured (e.g. "~/.codex" or "<project>/.codex").
-        if let relative = config?.vendorHomeRelativePath?.trimmingCharacters(in: .whitespacesAndNewlines),
+    private func projectBaseURL(projectRoot: URL) -> URL {
+        if let relative = config?.projectHomeRelativePath?.trimmingCharacters(in: .whitespacesAndNewlines),
            !relative.isEmpty
         {
             return resolvePath(base: projectRoot, relativePath: relative)
         }
+        return vendorBaseURL(userHome: projectRoot)
+    }
+
+    private func vendorBaseURL(userHome: URL) -> URL {
+        // Use a vendor home folder under the provided base when configured (e.g. "~/.codex" or "<project>/.codex").
+        if let relative = config?.vendorHomeRelativePath?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !relative.isEmpty
+        {
+            return resolvePath(base: userHome, relativePath: relative)
+        }
 
         // Default: use the provided base.
-        return projectRoot
+        return userHome
     }
 
     private func resolvePath(base: URL, relativePath: String) -> URL {
@@ -177,6 +221,52 @@ public enum ProviderTemplate: String, CaseIterable, Sendable, Identifiable {
         }
         return allCases.first { template in
             normalized == template.rawValue.lowercased() || normalized == template.providerID.lowercased()
+        }
+    }
+}
+
+public enum SecondaryResourceKind: String, Sendable {
+    case workflows
+    case prompts
+    case commands
+
+    init?(rawTemplateValue: String?) {
+        guard let rawTemplateValue else { return nil }
+        let normalized = rawTemplateValue
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+
+        switch normalized {
+        case "", "workflow", "workflows":
+            self = .workflows
+        case "prompt", "prompts":
+            self = .prompts
+        case "command", "commands":
+            self = .commands
+        default:
+            return nil
+        }
+    }
+
+    var localizationKey: String {
+        switch self {
+        case .workflows:
+            return "provider.secondary_resource.workflows"
+        case .prompts:
+            return "provider.secondary_resource.prompts"
+        case .commands:
+            return "provider.secondary_resource.commands"
+        }
+    }
+
+    var fallbackLabel: String {
+        switch self {
+        case .workflows:
+            return "Workflow Folder"
+        case .prompts:
+            return "Prompt Folder"
+        case .commands:
+            return "Command Folder"
         }
     }
 }

@@ -23,8 +23,8 @@ struct AgentDocCardView: View {
     @State private var showingDeleteConfirmation = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .center, spacing: 8) {
+        VStack(alignment: .leading, spacing: DesignSystem.Metrics.spacingM) {
+            HStack(alignment: .center, spacing: DesignSystem.Metrics.spacingS) {
                 HighlightedText(text: doc.fileName, query: searchText)
                     .font(.headline)
                     .lineLimit(1)
@@ -34,7 +34,7 @@ struct AgentDocCardView: View {
                 moreMenu
             }
 
-            HStack(spacing: 6) {
+            HStack(spacing: DesignSystem.Metrics.spacingS - 2) {
                 Image(systemName: doc.kind == .override ? "arrow.up.circle" : "doc.text")
                     .foregroundStyle(DesignSystem.Colors.Text.secondary)
                 Text(doc.kind == .override
@@ -57,7 +57,7 @@ struct AgentDocCardView: View {
                     .frame(maxHeight: .infinity, alignment: .topLeading)
             }
         }
-        .padding(16)
+        .padding(DesignSystem.Metrics.spacingL)
         .frame(minHeight: 140)
         .providerTabCardStyle()
         .contentShape(Rectangle())

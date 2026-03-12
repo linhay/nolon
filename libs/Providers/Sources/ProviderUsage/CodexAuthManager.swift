@@ -152,6 +152,11 @@ public actor CodexAuthManager {
         )
         return decoder
     }()
+    private static let sub2APIJSONEncoder: JSONEncoder = {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+        return encoder
+    }()
 
     private typealias JSONObject = [String: Any]
 
@@ -236,6 +241,76 @@ public actor CodexAuthManager {
         guard var dict = decodeJSONObject(from: data) else { return nil }
         dict.removeValue(forKey: "nolon")
         return try? encodeJSONObject(dict)
+    }
+
+    /// Normalizes imported auth JSON payloads into the canonical Codex `auth.json` structure:
+    /// - Move top-level token fields into `tokens.*` (without overwriting existing `tokens.*` values).
+    /// - Map `expired` -> `expires_at` when missing.
+    /// - Backfill `auth_mode` when missing.
+    ///
+    /// The returned data is a stable JSON object encoding (sorted keys).
+    public nonisolated static func normalizeImportedAuthJSONDataIfNeeded(_ data: Data) -> Data? {
+        guard let rootJSON = try? JSON(data: data) else { return nil }
+        var rootObject = rootJSON.dictionaryObject ?? [:]
+
+        func trimmedNonEmpty(_ value: Any?) -> String? {
+            guard let raw = value as? String else { return nil }
+            let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? nil : trimmed
+        }
+
+        func get(_ key: String) -> String? {
+            trimmedNonEmpty(rootObject[key])
+        }
+
+        var tokens = rootObject["tokens"] as? JSONObject ?? [:]
+
+        // Backfill tokens.* from top-level values without overwriting existing canonical fields.
+        let tokenMappings: [(top: String, canonical: String)] = [
+            ("id_token", "id_token"),
+            ("idToken", "id_token"),
+            ("access_token", "access_token"),
+            ("accessToken", "access_token"),
+            ("refresh_token", "refresh_token"),
+            ("refreshToken", "refresh_token"),
+            ("account_id", "account_id"),
+            ("accountId", "account_id"),
+        ]
+
+        for (top, canonical) in tokenMappings {
+            if tokens[canonical] == nil, let value = get(top) {
+                tokens[canonical] = value
+            }
+            if rootObject[top] != nil {
+                rootObject.removeValue(forKey: top)
+            }
+        }
+
+        if !tokens.isEmpty || rootObject["tokens"] != nil {
+            rootObject["tokens"] = tokens
+        }
+
+        // Map `expired` into `expires_at` (only when expires_at is not already present).
+        if rootObject["expires_at"] == nil, rootObject["expiresAt"] == nil,
+           let expired = get("expired")
+        {
+            rootObject["expires_at"] = expired
+        }
+        if rootObject["expired"] != nil {
+            rootObject.removeValue(forKey: "expired")
+        }
+
+        // Backfill auth_mode if missing.
+        let existingMode = get("auth_mode")
+        if existingMode == nil {
+            if trimmedNonEmpty(rootObject["OPENAI_API_KEY"]) != nil {
+                rootObject["auth_mode"] = "apikey"
+            } else if trimmedNonEmpty(tokens["id_token"]) != nil {
+                rootObject["auth_mode"] = "chatgptAuthTokens"
+            }
+        }
+
+        return try? encodeJSONObject(rootObject)
     }
 
     // Usage cache encoding helpers are defined on CodexAuthUsageCache in ProviderUsage.
@@ -387,6 +462,174 @@ public actor CodexAuthManager {
 
         try runDitto(arguments: ["-c", "-k", "--keepParent", stagingRoot.path, destinationURL.path])
         return selectedAccounts.count
+    }
+
+    public func exportAccountsAsSub2API(accountIDs: [UUID], destinationURL: URL) async throws -> Sub2APIExportResult {
+        try await migrateLegacyIfNeeded()
+
+        let selectedIDs = Set(accountIDs)
+        guard !selectedIDs.isEmpty else {
+            throw NSError(
+                domain: "CodexAuthManager.Export",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "No accounts selected for export."]
+            )
+        }
+
+        let accounts = try loadAccountsFromAuthFolder()
+        let selectedAccounts = accounts.filter { selectedIDs.contains($0.id) }
+        guard !selectedAccounts.isEmpty else {
+            throw NSError(
+                domain: "CodexAuthManager.Export",
+                code: 2,
+                userInfo: [NSLocalizedDescriptionKey: "Selected accounts could not be found."]
+            )
+        }
+
+        var exportedAccounts: [Sub2APIAccount] = []
+        var skippedRelayCount = 0
+        var skippedUnsupportedCount = 0
+
+        for account in selectedAccounts {
+            let data = try accountAuthFile(account).data()
+            guard !data.isEmpty, let authJSON = try? JSON(data: data) else {
+                skippedUnsupportedCount += 1
+                continue
+            }
+
+            let summary = CodexAuthSummary.fromJSONData(data)
+            let fallbackFileStem = URL(fileURLWithPath: account.relativeAuthPath).deletingPathExtension().lastPathComponent
+            switch makeSub2APIExportMapping(from: authJSON, summary: summary, fallbackFileStem: fallbackFileStem) {
+            case let .exportable(exportable):
+                exportedAccounts.append(exportable)
+            case .skipRelay:
+                skippedRelayCount += 1
+            case .skipUnsupported:
+                skippedUnsupportedCount += 1
+            }
+        }
+
+        guard !exportedAccounts.isEmpty else {
+            throw NSError(
+                domain: "CodexAuthManager.Export",
+                code: 3,
+                userInfo: [NSLocalizedDescriptionKey: "No supported sub2api accounts could be exported."]
+            )
+        }
+
+        let payload = Sub2APIExportPayload(
+            exportedAt: Self.makeSub2APIExportTimestamp(),
+            accounts: exportedAccounts
+        )
+        let data = try Self.sub2APIJSONEncoder.encode(payload)
+
+        let fileManager = FileManager.default
+        if fileManager.fileExists(atPath: destinationURL.path) {
+            try fileManager.removeItem(at: destinationURL)
+        }
+        try data.write(to: destinationURL, options: .atomic)
+
+        return Sub2APIExportResult(
+            exportedCount: exportedAccounts.count,
+            skippedRelayCount: skippedRelayCount,
+            skippedUnsupportedCount: skippedUnsupportedCount
+        )
+    }
+
+    @discardableResult
+    public func exportValidatedAuthFilesArchive(
+        results: [CodexImportValidationResult],
+        destinationURL: URL
+    ) async throws -> Int {
+        try await migrateLegacyIfNeeded()
+        let selectedEntries = makeValidatedExportEntries(from: results)
+        guard !selectedEntries.isEmpty else {
+            throw NSError(
+                domain: "CodexAuthManager.Export",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "No valid import candidates selected for export."]
+            )
+        }
+
+        let fileManager = FileManager.default
+        let stagingRoot = fileManager.temporaryDirectory.appendingPathComponent("codex-import-export-\(UUID().uuidString)", isDirectory: true)
+        let stagingFolder = stagingRoot.appendingPathComponent("auth", isDirectory: true)
+        try fileManager.createDirectory(at: stagingFolder, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: stagingRoot) }
+
+        var usedNames: Set<String> = []
+        for entry in selectedEntries {
+            let fileName = uniqueExportFileName(preferred: entry.preferredFileStem, usedNames: &usedNames)
+            let destination = stagingFolder.appendingPathComponent(fileName)
+            try Data(entry.rawJSONString.utf8).write(to: destination, options: .atomic)
+        }
+
+        if fileManager.fileExists(atPath: destinationURL.path) {
+            try fileManager.removeItem(at: destinationURL)
+        }
+
+        try runDitto(arguments: ["-c", "-k", "--keepParent", stagingRoot.path, destinationURL.path])
+        return selectedEntries.count
+    }
+
+    public func exportValidatedAuthFilesAsSub2API(
+        results: [CodexImportValidationResult],
+        destinationURL: URL
+    ) async throws -> Sub2APIExportResult {
+        try await migrateLegacyIfNeeded()
+        let selectedEntries = makeValidatedExportEntries(from: results)
+        guard !selectedEntries.isEmpty else {
+            throw NSError(
+                domain: "CodexAuthManager.Export",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "No valid import candidates selected for export."]
+            )
+        }
+
+        var exportedAccounts: [Sub2APIAccount] = []
+        var skippedRelayCount = 0
+        var skippedUnsupportedCount = 0
+
+        for entry in selectedEntries {
+            switch makeSub2APIExportMapping(
+                from: entry.authJSON,
+                summary: entry.summary,
+                fallbackFileStem: entry.preferredFileStem
+            ) {
+            case let .exportable(exportable):
+                exportedAccounts.append(exportable)
+            case .skipRelay:
+                skippedRelayCount += 1
+            case .skipUnsupported:
+                skippedUnsupportedCount += 1
+            }
+        }
+
+        guard !exportedAccounts.isEmpty else {
+            throw NSError(
+                domain: "CodexAuthManager.Export",
+                code: 3,
+                userInfo: [NSLocalizedDescriptionKey: "No supported sub2api accounts could be exported."]
+            )
+        }
+
+        let payload = Sub2APIExportPayload(
+            exportedAt: Self.makeSub2APIExportTimestamp(),
+            accounts: exportedAccounts
+        )
+        let data = try Self.sub2APIJSONEncoder.encode(payload)
+
+        let fileManager = FileManager.default
+        if fileManager.fileExists(atPath: destinationURL.path) {
+            try fileManager.removeItem(at: destinationURL)
+        }
+        try data.write(to: destinationURL, options: .atomic)
+
+        return Sub2APIExportResult(
+            exportedCount: exportedAccounts.count,
+            skippedRelayCount: skippedRelayCount,
+            skippedUnsupportedCount: skippedUnsupportedCount
+        )
     }
 
     public func findAccountByEmail(_ email: String) async throws -> CodexAuthAccount? {
@@ -830,7 +1073,8 @@ public actor CodexAuthManager {
                     continue
                 }
                 for (candidateURL, sourceGroupID, sourceGroupLabel, data) in candidates {
-                    guard let raw = String(data: data, encoding: .utf8) else {
+                    let normalizedData = Self.normalizeImportedAuthJSONDataIfNeeded(data) ?? data
+                    guard let raw = String(data: normalizedData, encoding: .utf8) else {
                         results.append(
                             CodexImportValidationResult(
                                 fileURL: candidateURL,
@@ -844,6 +1088,24 @@ public actor CodexAuthManager {
                             )
                         )
                         continue
+                    }
+                    if let json = try? JSON(data: normalizedData) {
+                        let type = json["type"].string?.trimmingCharacters(in: .whitespacesAndNewlines)
+                        if let type, !type.isEmpty, type.lowercased() != "codex" {
+                            results.append(
+                                CodexImportValidationResult(
+                                    fileURL: candidateURL,
+                                    sourceGroupID: sourceGroupID,
+                                    sourceGroupLabel: sourceGroupLabel,
+                                    isValid: false,
+                                    reason: "Unsupported auth type: \(type)",
+                                    suggestedName: nil,
+                                    email: nil,
+                                    authJSONString: nil
+                                )
+                            )
+                            continue
+                        }
                     }
                     guard hasImportableCredentials(authJSONString: raw) else {
                         results.append(
@@ -1207,11 +1469,215 @@ public actor CodexAuthManager {
         return apiKey != nil
     }
 
+    private enum Sub2APIExportMapping {
+        case exportable(Sub2APIAccount)
+        case skipRelay
+        case skipUnsupported
+    }
+
+    private struct ValidatedExportEntry {
+        let preferredFileStem: String
+        let rawJSONString: String
+        let authJSON: JSON
+        let summary: CodexAuthSummary
+    }
+
+    private nonisolated func makeSub2APIExportMapping(
+        from authJSON: JSON,
+        summary: CodexAuthSummary,
+        fallbackFileStem: String
+    ) -> Sub2APIExportMapping {
+        let kind = summary.cardKind ?? resolveCardKind(for: authJSON)
+
+        switch kind {
+        case .relayProfile:
+            return .skipRelay
+        case .officialAPIKey:
+            return makeSub2APIApiKeyAccount(from: authJSON, summary: summary, fallbackFileStem: fallbackFileStem)
+        case .chatgptAccount:
+            return makeSub2APIOAuthAccount(from: authJSON, summary: summary, fallbackFileStem: fallbackFileStem)
+        case .none:
+            return .skipUnsupported
+        }
+    }
+
+    private nonisolated func makeSub2APIOAuthAccount(
+        from authJSON: JSON,
+        summary: CodexAuthSummary,
+        fallbackFileStem: String
+    ) -> Sub2APIExportMapping {
+        guard let idToken = firstNonEmptyString(in: authJSON, paths: [
+            ["tokens", "id_token"],
+            ["tokens", "idToken"],
+            ["id_token"],
+            ["idToken"],
+        ]),
+        let accessToken = firstNonEmptyString(in: authJSON, paths: [
+            ["tokens", "access_token"],
+            ["tokens", "accessToken"],
+            ["access_token"],
+            ["accessToken"],
+        ]) else {
+            return .skipUnsupported
+        }
+
+        let payload = CodexAuthSummary.decodeJWTPayloadJSON(idToken)
+        let name = summary.preferredDisplayName(fallbackFileStem: fallbackFileStem)
+
+        var credentials: [String: String] = [
+            "access_token": accessToken,
+            "id_token": idToken,
+        ]
+        if let refreshToken = firstNonEmptyString(in: authJSON, paths: [
+            ["tokens", "refresh_token"],
+            ["tokens", "refreshToken"],
+            ["refresh_token"],
+            ["refreshToken"],
+        ]) {
+            credentials["refresh_token"] = refreshToken
+        }
+        if let expiresAt = firstNonEmptyString(in: authJSON, paths: [["expires_at"], ["expiresAt"]]) {
+            credentials["expires_at"] = expiresAt
+        }
+        if let email = summary.email ?? deriveEmail(from: authJSON) {
+            credentials["email"] = email
+        }
+        if let chatgptAccountID = summary.accountID {
+            credentials["chatgpt_account_id"] = chatgptAccountID
+        }
+        if let chatgptUserID = firstNonEmptyString(in: authJSON, paths: [["chatgpt_user_id"], ["chatgptUserId"], ["user_id"], ["userId"]])
+            ?? firstNonEmptyString(in: payload, paths: [["sub"], ["user_id"], ["userId"]])
+        {
+            credentials["chatgpt_user_id"] = chatgptUserID
+        }
+        if let organizationID = firstNonEmptyString(in: authJSON, paths: [["organization_id"], ["organizationId"], ["org_id"], ["orgId"]])
+            ?? firstNonEmptyString(in: payload, paths: [["organization_id"], ["organizationId"], ["org_id"], ["orgId"]])
+        {
+            credentials["organization_id"] = organizationID
+        }
+        if let planType = firstNonEmptyString(in: authJSON, paths: [["plan_type"], ["planType"]]) ?? summary.plan {
+            credentials["plan_type"] = planType
+        }
+        if let clientID = firstNonEmptyString(in: authJSON, paths: [["client_id"], ["clientId"]])
+            ?? firstNonEmptyString(in: payload, paths: [["client_id"], ["clientId"], ["azp"], ["aud"]])
+        {
+            credentials["client_id"] = clientID
+        }
+
+        return .exportable(Sub2APIAccount(
+            name: name,
+            notes: "Codex OAuth account",
+            type: "oauth",
+            credentials: credentials,
+            extra: [
+                "openai_passthrough": true,
+                "codex_cli_only": true,
+            ],
+            concurrency: 1,
+            priority: 0,
+            rateMultiplier: 1,
+            autoPauseOnExpired: true
+        ))
+    }
+
+    private nonisolated func makeSub2APIApiKeyAccount(
+        from authJSON: JSON,
+        summary: CodexAuthSummary,
+        fallbackFileStem: String
+    ) -> Sub2APIExportMapping {
+        if authJSON["nolon"]["relay"] != JSON.null, authJSON["nolon"]["relay"].dictionaryObject?.isEmpty == false {
+            return .skipRelay
+        }
+
+        guard let apiKey = firstNonEmptyString(in: authJSON, paths: [
+            ["OPENAI_API_KEY"],
+            ["openai_api_key"],
+            ["api_key"],
+            ["apiKey"],
+        ]) else {
+            return .skipUnsupported
+        }
+
+        let name = summary.preferredDisplayName(fallbackFileStem: fallbackFileStem)
+
+        return .exportable(Sub2APIAccount(
+            name: name,
+            notes: "OpenAI API key account",
+            type: "apikey",
+            credentials: ["api_key": apiKey],
+            extra: ["openai_passthrough": true],
+            concurrency: 1,
+            priority: 10,
+            rateMultiplier: 1,
+            autoPauseOnExpired: false
+        ))
+    }
+
+    private nonisolated func resolveCardKind(for authJSON: JSON) -> CodexAuthSummary.CardKind? {
+        let hasRelayBlock = authJSON["nolon"]["relay"] != JSON.null && authJSON["nolon"]["relay"].dictionaryObject?.isEmpty == false
+        return CodexAuthSummary.resolveCardKind(
+            explicitKind: authJSON["nolon"]["account"]["kind"].string,
+            authMode: authJSON["auth_mode"].string,
+            hasRelayBlock: hasRelayBlock
+        )
+    }
+
+    private nonisolated func firstNonEmptyString(in json: JSON?, paths: [[String]]) -> String? {
+        for path in paths {
+            var current = json ?? JSON.null
+            for key in path {
+                current = current[key]
+            }
+            if let value = current.string?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !value.isEmpty
+            {
+                return value
+            }
+        }
+        return nil
+    }
+
+    private static func makeSub2APIExportTimestamp(now: Date = Date()) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = .current
+        formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ssXXXXX"
+        return formatter.string(from: now)
+    }
+
+    private nonisolated func makeValidatedExportEntries(
+        from results: [CodexImportValidationResult]
+    ) -> [ValidatedExportEntry] {
+        results.compactMap { result in
+            guard result.isValid,
+                  let rawJSONString = result.authJSONString,
+                  let data = rawJSONString.data(using: .utf8),
+                  let authJSON = try? JSON(data: data)
+            else {
+                return nil
+            }
+
+            let fallbackFileStem = result.fileURL.deletingPathExtension().lastPathComponent
+            return ValidatedExportEntry(
+                preferredFileStem: fallbackFileStem.isEmpty ? "account" : fallbackFileStem,
+                rawJSONString: rawJSONString,
+                authJSON: authJSON,
+                summary: CodexAuthSummary.fromJSONString(rawJSONString)
+            )
+        }
+    }
+
     private func importCandidates(for url: URL) throws -> [(candidateURL: URL, sourceGroupID: String, sourceGroupLabel: String, data: Data)] {
         if url.pathExtension.lowercased() == "zip" {
             return try importCandidatesFromArchive(url)
         }
-        return [(url, url.standardizedFileURL.path, url.lastPathComponent, try Data(contentsOf: url))]
+        let data = try Data(contentsOf: url)
+        return expandJSONArrayCandidateIfNeeded(
+            candidateURL: url,
+            sourceGroupID: url.standardizedFileURL.path,
+            sourceGroupLabel: url.lastPathComponent,
+            data: data
+        )
     }
 
     private func importCandidatesFromArchive(_ archiveURL: URL) throws -> [(candidateURL: URL, sourceGroupID: String, sourceGroupLabel: String, data: Data)] {
@@ -1231,9 +1697,46 @@ public actor CodexAuthManager {
         var candidates: [(candidateURL: URL, sourceGroupID: String, sourceGroupLabel: String, data: Data)] = []
         for case let fileURL as URL in enumerator {
             guard fileURL.pathExtension.lowercased() == "json" else { continue }
-            candidates.append((fileURL, sourceGroupID, sourceGroupLabel, try Data(contentsOf: fileURL)))
+            let data = try Data(contentsOf: fileURL)
+            candidates.append(
+                contentsOf: expandJSONArrayCandidateIfNeeded(
+                    candidateURL: fileURL,
+                    sourceGroupID: sourceGroupID,
+                    sourceGroupLabel: sourceGroupLabel,
+                    data: data
+                )
+            )
         }
         return candidates.sorted { $0.candidateURL.lastPathComponent < $1.candidateURL.lastPathComponent }
+    }
+
+    private func expandJSONArrayCandidateIfNeeded(
+        candidateURL: URL,
+        sourceGroupID: String,
+        sourceGroupLabel: String,
+        data: Data
+    ) -> [(candidateURL: URL, sourceGroupID: String, sourceGroupLabel: String, data: Data)] {
+        guard let json = try? JSON(data: data),
+              let array = json.arrayObject
+        else {
+            return [(candidateURL, sourceGroupID, sourceGroupLabel, data)]
+        }
+
+        let baseName = candidateURL.deletingPathExtension().lastPathComponent
+        var expanded: [(candidateURL: URL, sourceGroupID: String, sourceGroupLabel: String, data: Data)] = []
+        expanded.reserveCapacity(array.count)
+
+        for (index, element) in array.enumerated() {
+            guard let object = element as? JSONObject else { continue }
+            guard let elementData = try? Self.encodeJSONObject(object) else { continue }
+            let itemName = String(format: "%@-item-%02d.json", baseName, index + 1)
+            let syntheticURL = candidateURL
+                .deletingLastPathComponent()
+                .appendingPathComponent(itemName)
+            expanded.append((syntheticURL, sourceGroupID, sourceGroupLabel, elementData))
+        }
+
+        return expanded.isEmpty ? [(candidateURL, sourceGroupID, sourceGroupLabel, data)] : expanded
     }
 
     private func runDitto(arguments: [String]) throws {
@@ -2462,6 +2965,7 @@ private extension CodexAuthManager {
         }
 
         return trimmed(authJSON["email"].string)
+            ?? trimmed(authJSON["user"]["email"].string)
             ?? trimmed(authJSON["nolon"]["account"]["email"].string)
     }
 

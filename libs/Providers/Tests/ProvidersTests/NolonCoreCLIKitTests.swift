@@ -430,6 +430,7 @@ struct NolonCoreCLIKitTests {
                     todayTokens: 320,
                     last7DaysTokens: 320,
                     last30DaysTokens: 320,
+                    allDaysTokens: 320,
                     updatedAt: Date(timeIntervalSince1970: 1_709_900_000),
                     sourceLabel: "session"
                 )
@@ -465,6 +466,7 @@ struct NolonCoreCLIKitTests {
                     todayTokens: 320,
                     last7DaysTokens: 1280,
                     last30DaysTokens: 4096,
+                    allDaysTokens: 4096,
                     updatedAt: Date(timeIntervalSince1970: 1_709_900_000),
                     sourceLabel: "session"
                 )

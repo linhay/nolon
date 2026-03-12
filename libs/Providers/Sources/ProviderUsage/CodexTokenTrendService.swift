@@ -30,8 +30,8 @@ public struct CodexTokenTrendService: Sendable {
         var globalEnvironment = environment
         globalEnvironment.removeValue(forKey: "CODEX_HOME")
 
-        let snapshot = try await loadSnapshot(.codex, trailingDays, false, globalEnvironment)
-        let points = snapshot.daily
+        let snapshot = try await loadSnapshot(.codex, nil, false, globalEnvironment)
+        let allPoints = snapshot.daily
             .map { entry in
                 let input = max(0, entry.inputTokens ?? 0)
                 let output = max(0, entry.outputTokens ?? 0)
@@ -47,15 +47,24 @@ public struct CodexTokenTrendService: Sendable {
             }
             .sorted { $0.date < $1.date }
 
-        let today = snapshot.sessionTokens ?? points.last?.totalTokens
-        let last7 = sumTrailing(points: points, days: 7)
-        let last30 = sumTrailing(points: points, days: 30)
+        let points: [ProviderTokenTrendPoint]
+        if let trailingDays, trailingDays > 0, allPoints.count > trailingDays {
+            points = Array(allPoints.suffix(trailingDays))
+        } else {
+            points = allPoints
+        }
+
+        let today = snapshot.sessionTokens ?? allPoints.last?.totalTokens
+        let last7 = sumTrailing(points: allPoints, days: 7)
+        let last30 = sumTrailing(points: allPoints, days: 30)
+        let all = sumAll(points: allPoints)
 
         return ProviderTokenTrendSnapshot(
             points: points,
             todayTokens: today,
             last7DaysTokens: last7,
             last30DaysTokens: last30,
+            allDaysTokens: all,
             updatedAt: snapshot.updatedAt,
             sourceLabel: "global"
         )
@@ -66,5 +75,10 @@ public struct CodexTokenTrendService: Sendable {
         let values = points.suffix(days).map(\.totalTokens)
         guard !values.isEmpty else { return nil }
         return values.reduce(0, +)
+    }
+
+    private func sumAll(points: [CodexTokenTrendPoint]) -> Int? {
+        guard !points.isEmpty else { return nil }
+        return points.map(\.totalTokens).reduce(0, +)
     }
 }

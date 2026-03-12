@@ -16,6 +16,19 @@ struct ProviderMcpGridView: View {
             if let provider = provider,
                let templateId = provider.templateId,
                let template = ProviderTemplate(rawValue: templateId) {
+            if !template.supportsNativeMcpConfig {
+                ContentUnavailableView(
+                    NSLocalizedString("mcp.not_supported", comment: "MCP Not Supported"),
+                    systemImage: "server.rack",
+                    description: Text(
+                        NSLocalizedString(
+                            "provider.mcp.not_supported_native",
+                            value: "This provider does not expose a native MCP configuration file.",
+                            comment: "Provider does not expose native MCP config"
+                        )
+                    )
+                )
+            } else {
             
             let configPath = template.defaultMcpConfigPath
             let isToml = configPath.pathExtension.lowercased() == "toml"
@@ -213,6 +226,7 @@ struct ProviderMcpGridView: View {
                          }
                      }
                 }
+            }
             }
             } else {
              ContentUnavailableView(

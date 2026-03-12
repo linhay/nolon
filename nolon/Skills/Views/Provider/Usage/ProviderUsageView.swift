@@ -118,11 +118,16 @@ struct ProviderUsageView: View {
         }) {
             CodexImportSheet(
                 sections: viewModel.codexImportCandidateSections,
+                hasAnyCandidates: viewModel.hasCodexImportCandidates,
                 isRunningValidation: viewModel.isRunningCodexImportValidation,
                 isRunningConnectionTests: viewModel.isRunningCodexImportConnectionTests,
                 isTargetingDropZone: Binding(
                     get: { viewModel.isTargetingCodexImportDropZone },
                     set: { viewModel.isTargetingCodexImportDropZone = $0 }
+                ),
+                searchText: Binding(
+                    get: { viewModel.codexImportSearchText },
+                    set: { viewModel.codexImportSearchText = $0 }
                 ),
                 globalErrorMessage: viewModel.codexImportGlobalErrorMessage,
                 onPickFiles: {
@@ -162,6 +167,12 @@ struct ProviderUsageView: View {
                 },
                 onRemove: { id in
                     viewModel.removeCodexImportCandidate(id: id)
+                },
+                onExportZIP: {
+                    Task { await viewModel.exportSelectedCodexImportCandidatesAsZIP() }
+                },
+                onExportSub2API: {
+                    Task { await viewModel.exportSelectedCodexImportCandidatesAsSub2API() }
                 },
                 onImport: {
                     Task { await viewModel.applySelectedCodexImports() }
@@ -363,6 +374,11 @@ struct ProviderUsageView: View {
                     }
                     .disabled(!viewModel.canExportSelectedCodexAccounts)
 
+                    Button(NSLocalizedString("codex.accounts.action.export_sub2api", value: "导出 sub2api", comment: "Export selected Codex accounts to sub2api")) {
+                        Task { await viewModel.exportSelectedCodexAccountsAsSub2API() }
+                    }
+                    .disabled(!viewModel.canExportSelectedCodexAccounts)
+
                     Button(NSLocalizedString("codex.accounts.action.done_selecting", value: "完成", comment: "Done selecting Codex accounts")) {
                         viewModel.setCodexMultiSelectionEnabled(false)
                     }
@@ -549,6 +565,16 @@ struct ProviderUsageView: View {
                     .disabled(!viewModel.canExportSelectedCodexAccounts)
 
                     Button {
+                        Task { await viewModel.exportSelectedCodexAccountsAsSub2API() }
+                    } label: {
+                        Label(
+                            NSLocalizedString("codex.accounts.action.export_sub2api", value: "导出 sub2api", comment: "Export selected Codex accounts to sub2api"),
+                            systemImage: "doc.badge.arrow.up"
+                        )
+                    }
+                    .disabled(!viewModel.canExportSelectedCodexAccounts)
+
+                    Button {
                         viewModel.selectedCodexAccountIDs.removeAll()
                     } label: {
                         Label(
@@ -618,6 +644,20 @@ struct ProviderUsageView: View {
                 if viewModel.shouldShowGeminiImportAction {
                     geminiImportCallout
                 }
+                if let usageProvider = viewModel.usageProvider,
+                   (usageProvider == .gemini || usageProvider == .antigravity),
+                   !viewModel.geminiAccounts.isEmpty {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text(provider.name)
+                            .font(.headline)
+
+                        LazyVGrid(columns: claudeAccountColumns, alignment: .leading, spacing: 12) {
+                            ForEach(viewModel.geminiAccounts, id: \.id) { account in
+                                geminiAccountCard(account: account)
+                            }
+                        }
+                    }
+                }
                 ForEach(viewModel.outcomes) { outcome in
                     ProviderUsageSnapshotView(outcome: outcome, isLoading: viewModel.isLoading)
                 }
@@ -632,13 +672,19 @@ struct ProviderUsageView: View {
     private var genericUsageLoadingContent: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 12) {
-                ForEach(0..<ProviderUsageSkeletonPolicy.genericCardCount(for: provider), id: \.self) { _ in
-                    ProviderQuotaSection(
-                        provider: viewModel.usageProvider ?? .codex,
-                        usage: nil,
-                        isLoading: true,
-                        showsEmptyState: true
-                    )
+                if viewModel.usageProvider == .gemini || viewModel.usageProvider == .antigravity {
+                    ForEach(0..<ProviderUsageSkeletonPolicy.genericCardCount(for: provider), id: \.self) { _ in
+                        UnifiedAccountCardSkeleton(providerName: provider.name)
+                    }
+                } else {
+                    ForEach(0..<ProviderUsageSkeletonPolicy.genericCardCount(for: provider), id: \.self) { _ in
+                        ProviderQuotaSection(
+                            provider: viewModel.usageProvider ?? .codex,
+                            usage: nil,
+                            isLoading: true,
+                            showsEmptyState: true
+                        )
+                    }
                 }
 
                 if viewModel.usageProvider == .gemini {
@@ -698,53 +744,113 @@ struct ProviderUsageView: View {
 
     private func claudeAccountCard(account: ClaudeAccount) -> some View {
         let isActive = viewModel.isActiveClaudeAccount(account)
-        return AccountSummaryCard(presentation: .claude(isActive: isActive)) {
-            VStack(alignment: .leading, spacing: 10) {
-                HStack(spacing: 8) {
-                    Text(account.name)
-                        .font(.headline)
-                        .foregroundStyle(DesignSystem.Colors.Text.primary)
-                        .lineLimit(1)
+        let record = AccountRecordBuilder.claude(
+            providerName: "Claude",
+            account: account,
+            isActive: isActive
+        )
+        let data = AccountCardViewDataMapper.map(
+            record: record,
+            primaryActions: isActive ? [] : [
+                .init(
+                    id: "activate",
+                    actionID: .activate,
+                    title: NSLocalizedString("claude.accounts.action.activate", value: "激活", comment: "Activate Claude account"),
+                    systemImage: nil,
+                    role: nil,
+                    prominence: .primary,
+                    isEnabled: true
+                )
+            ],
+            tapBehavior: isActive ? .none : .activate
+        )
+        return UnifiedAccountCard(
+            data: data,
+            onTap: { _ in
+                guard !isActive else { return }
+                Task { await viewModel.activateClaudeAccount(id: account.id) }
+            },
+            onAction: { _, action in
+                guard action == .activate else { return }
+                Task { await viewModel.activateClaudeAccount(id: account.id) }
+            }
+        )
+    }
 
-                    Spacer(minLength: 6)
+    private func geminiAccountCard(account: GeminiAuthAccount) -> some View {
+        let isActive = viewModel.isActiveGeminiAccount(account)
+        let liveOutcome = viewModel.outcomes.first
+        let quota: AccountRecordQuota? = {
+            guard isActive, let liveOutcome else { return nil }
 
-                    if isActive {
-                        Text(NSLocalizedString("claude.accounts.active", value: "已激活", comment: "Claude active badge"))
-                            .font(.caption2.weight(.semibold))
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 3)
-                            .background(
-                                Capsule(style: .continuous)
-                                    .fill(DesignSystem.Colors.primary.opacity(0.2))
-                            )
-                            .foregroundStyle(DesignSystem.Colors.primary)
-                    }
-                }
+            switch liveOutcome.outcome.result {
+            case let .success(result):
+                return .init(
+                    provider: liveOutcome.provider,
+                    accountTitle: account.email ?? account.name,
+                    usage: result.usage,
+                    credits: result.credits,
+                    creditsRefreshedAt: nil,
+                    loginAt: account.lastLoginAt,
+                    syncedAt: result.usage.updatedAt,
+                    isLoading: viewModel.isLoading,
+                    showsEmptyState: false,
+                    errorMessage: nil
+                )
+            case let .failure(error):
+                return .init(
+                    provider: liveOutcome.provider,
+                    accountTitle: account.email ?? account.name,
+                    usage: nil,
+                    credits: nil,
+                    creditsRefreshedAt: nil,
+                    loginAt: account.lastLoginAt,
+                    syncedAt: nil,
+                    isLoading: viewModel.isLoading,
+                    showsEmptyState: false,
+                    errorMessage: ProviderUsageViewModel.errorDetailText(error: error)
+                )
+            }
+        }()
 
-                Text(account.baseURL)
-                    .font(.caption)
-                    .foregroundStyle(DesignSystem.Colors.Text.secondary)
-                    .textSelection(.enabled)
-
-                HStack(spacing: 8) {
-                    Text(account.source.rawValue)
-                        .font(.caption2)
-                        .foregroundStyle(DesignSystem.Colors.Text.tertiary)
-                    Spacer(minLength: 0)
-                    Text(account.updatedAt.formatted(date: .abbreviated, time: .shortened))
-                        .font(.caption2)
-                        .foregroundStyle(DesignSystem.Colors.Text.tertiary)
-                }
-
-                if !isActive {
-                    Button(NSLocalizedString("claude.accounts.action.activate", value: "激活", comment: "Activate Claude account")) {
-                        Task { await viewModel.activateClaudeAccount(id: account.id) }
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.small)
+        let record = AccountRecordBuilder.gemini(
+            providerName: provider.name,
+            account: account,
+            isActive: isActive,
+            quota: quota
+        )
+        let data = AccountCardViewDataMapper.map(
+            record: record,
+            primaryActions: isActive ? [
+                .init(id: "refresh", actionID: .refresh, title: NSLocalizedString("usage.monitor.refresh", value: "Refresh", comment: "Refresh"), systemImage: nil, role: nil, prominence: .secondary, isEnabled: !viewModel.isLoading)
+            ] : [
+                .init(id: "activate", actionID: .activate, title: NSLocalizedString("codex.accounts.action.activate", value: "Activate", comment: "Activate account"), systemImage: nil, role: nil, prominence: .primary, isEnabled: true)
+            ],
+            menuActions: [
+                .init(id: "delete", actionID: .delete, title: NSLocalizedString("codex.accounts.delete.title", value: "Delete Account", comment: "Delete account title"), systemImage: "trash", role: .destructive, isEnabled: true)
+            ],
+            quotaRefreshActionID: isActive ? .refresh : nil,
+            tapBehavior: isActive ? .none : .activate
+        )
+        return UnifiedAccountCard(
+            data: data,
+            onTap: { _ in
+                guard !isActive else { return }
+                Task { await viewModel.activateGeminiAccount(id: account.id) }
+            },
+            onAction: { _, action in
+                switch action {
+                case .activate:
+                    Task { await viewModel.activateGeminiAccount(id: account.id) }
+                case .refresh:
+                    Task { await viewModel.load() }
+                case .delete:
+                    Task { await viewModel.deleteGeminiAccount(id: account.id) }
+                default:
+                    break
                 }
             }
-        }
+        )
     }
 
     private var geminiImportCallout: some View {
@@ -946,7 +1052,6 @@ struct ProviderUsageView: View {
 
         let isBatchSelected = viewModel.isCodexAccountSelected(id: accountId)
 
-        let isSelected = isActive || isPending || isBatchSelected
         let cardPresentation = AccountCardPresentation.codex(
             isActive: isActive,
             isPending: isPending,
@@ -958,43 +1063,12 @@ struct ProviderUsageView: View {
             return viewModel.codexRefreshingAccountIds.contains(id)
         }()
         let canLogin = viewModel.codexAccountSupportsLogin(accountID: accountId)
-        let canEdit = viewModel.codexAccountSupportsEditing(accountID: accountId)
         let isLoggingIn = accountId != nil
             && viewModel.isRunningCLILogin
             && viewModel.cliLoginPreferredAccountId == accountId
         let onLogin: (() -> Void)? = canLogin ? accountId.map { id in
             { viewModel.requestLoginForCodexAccount(id: id) }
         } : nil
-        let displayState = viewModel.displayState(accountID: accountId, outcome: outcome, summary: summary)
-        let statusTitle = codexAccountStatusTitle(for: displayState)
-        let lastSync = summary?.lastSyncSucceededAt
-        let liveFailureError: Error? = {
-            if case let .failure(error) = outcome.outcome.result { return error }
-            return nil
-        }()
-        let persistedFailureDetail = summary?.lastSyncFailureMessage?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let failureDetail: String? = {
-            if let persistedFailureDetail, !persistedFailureDetail.isEmpty { return persistedFailureDetail }
-            if let liveFailureError { return ProviderUsageViewModel.errorDetailText(error: liveFailureError) }
-            return nil
-        }()
-        let failureSummary: String? = {
-            if let liveFailureError {
-                return ProviderUsageViewModel.errorSummaryText(error: liveFailureError)
-            }
-            if let failureDetail {
-                if canLogin, CodexAuthFailureClassifier.isAuthFailure(errorText: failureDetail) {
-                    return NSLocalizedString(
-                        "codex.accounts.error.auth_expired",
-                        value: "Authentication expired. Please sign in again.",
-                        comment: "Codex auth expired summary"
-                    )
-                }
-                return failureDetail
-            }
-            return nil
-        }()
-
         codexCompactSnapshotView(
             outcome: outcome,
             presentation: cardPresentation,
@@ -1014,175 +1088,6 @@ struct ProviderUsageView: View {
             }
             guard !isActive else { return }
             viewModel.requestActivateCodexAccount(id: accountId)
-        }
-        .contextMenu {
-            if let accountId {
-                Button {
-                } label: {
-                    Label(statusTitle, systemImage: "circle.fill")
-                }
-                .disabled(true)
-
-                if isRefreshing {
-                    Button {} label: {
-                        Label(
-                            NSLocalizedString("usage.monitor.refreshing", value: "Refreshing…", comment: "Refreshing status"),
-                            systemImage: "arrow.trianglehead.clockwise"
-                        )
-                    }
-                        .disabled(true)
-                }
-
-                if let failureSummary {
-                    Button {} label: {
-                        Label(failureSummary, systemImage: "exclamationmark.triangle")
-                    }
-                        .disabled(true)
-                }
-
-                if let lastSync {
-                    let prefix = NSLocalizedString("codex.accounts.sync.success", value: "Last sync", comment: "Last sync label")
-                    Button {} label: {
-                        Label(
-                            "\(prefix): \(lastSync.formatted(date: .abbreviated, time: .shortened))",
-                            systemImage: "clock"
-                        )
-                    }
-                        .disabled(true)
-                }
-
-                Divider()
-
-                Button {
-                    viewModel.refreshCodexAccount(id: accountId)
-                } label: {
-                    Label(NSLocalizedString("usage.monitor.refresh", value: "Refresh", comment: "Refresh"), systemImage: "arrow.clockwise")
-                }
-                .disabled(isRefreshing)
-
-                if !isActive {
-                    Button {
-                        viewModel.requestActivateCodexAccount(id: accountId)
-                    } label: {
-                        Label(
-                            NSLocalizedString("codex.accounts.action.activate", value: "Activate", comment: "Activate account"),
-                            systemImage: "checkmark.circle"
-                        )
-                    }
-                }
-
-                if canEdit {
-                    Button {
-                        viewModel.beginEditCodexConfiguredAccount(id: accountId)
-                    } label: {
-                        Label(
-                            NSLocalizedString("codex.accounts.action.edit", value: "Edit", comment: "Edit configured account"),
-                            systemImage: "pencil"
-                        )
-                    }
-                }
-
-                if let onLogin, canLogin {
-                    Button {
-                        onLogin()
-                    } label: {
-                        Label(
-                            NSLocalizedString("codex.accounts.relogin", value: "Re-login", comment: "Re-login account"),
-                            systemImage: "person.badge.key"
-                        )
-                    }
-                    .disabled(!canLogin || isLoggingIn)
-                }
-
-                if canEdit {
-                    Button {
-                        viewModel.refreshCodexAccount(id: accountId)
-                    } label: {
-                        Label(
-                            NSLocalizedString("codex.accounts.action.validate", value: "Validate", comment: "Validate configured account"),
-                            systemImage: "checkmark.shield"
-                        )
-                    }
-                    .disabled(isRefreshing)
-                }
-
-                if let failureDetail {
-                    Button {
-                        viewModel.copyErrorText(failureDetail)
-                    } label: {
-                        Label(
-                            NSLocalizedString("codex.accounts.copy_error", value: "Copy error", comment: "Copy account error"),
-                            systemImage: "doc.on.doc"
-                        )
-                    }
-                }
-
-                if isLoggingIn {
-                    Button {} label: {
-                        Label(
-                            NSLocalizedString("codex.accounts.add.cli.running", value: "Logging in…", comment: "CLI login running status"),
-                            systemImage: "hourglass"
-                        )
-                    }
-                        .disabled(true)
-                }
-
-                Divider()
-
-                Button {
-                    viewModel.revealCodexAccountInFinder(id: accountId)
-                } label: {
-                    Label(NSLocalizedString("action.show_in_finder", comment: "Show in Finder"), systemImage: "folder")
-                }
-
-                Button {
-                    viewModel.copyCodexAccountID(id: accountId)
-                } label: {
-                    Label(
-                        NSLocalizedString("codex.accounts.menu.copy_account_id", value: "Copy Account ID", comment: "Copy account id"),
-                        systemImage: "number"
-                    )
-                }
-
-                Button {
-                    viewModel.copyCodexAccountAuthJSON(id: accountId)
-                } label: {
-                    Label(
-                        NSLocalizedString("codex.accounts.menu.copy_auth_json", value: "Copy Auth JSON", comment: "Copy auth json"),
-                        systemImage: "doc.on.doc"
-                    )
-                }
-
-                Button {
-                    viewModel.copyCodexAccountPath(id: accountId)
-                } label: {
-                    Label(
-                        NSLocalizedString("codex.accounts.menu.copy_auth_path", value: "Copy Auth Path", comment: "Copy auth path"),
-                        systemImage: "doc.text"
-                    )
-                }
-
-                Divider()
-
-                Button(role: .destructive) {
-                    viewModel.requestDeleteCodexAccount(id: accountId)
-                } label: {
-                    Label(NSLocalizedString("codex.accounts.delete.title", value: "Delete Account", comment: "Delete account title"), systemImage: "trash")
-                }
-            }
-        }
-    }
-
-    private func codexAccountStatusTitle(for state: ProviderUsageViewModel.CodexAccountDisplayState) -> String {
-        switch state {
-        case .healthy:
-            return NSLocalizedString("codex.accounts.status.normal", value: "Normal", comment: "Account status normal")
-        case .pending:
-            return NSLocalizedString("codex.accounts.status.pending", value: "Pending", comment: "Account status pending")
-        case .needsReauth:
-            return NSLocalizedString("codex.accounts.status.reauth_needed", value: "Needs re-login", comment: "Account status reauth")
-        case .failed:
-            return NSLocalizedString("codex.accounts.status.failed", value: "Failed", comment: "Account status failed")
         }
     }
 
@@ -1214,8 +1119,6 @@ struct ProviderUsageView: View {
             accountID: accountId
         )
         let creditsRefreshedAt = creditsRefreshedAt(for: outcome)
-        let lastLogin = summary?.lastLoginAt
-        let displayState = viewModel.displayState(accountID: accountId, outcome: outcome, summary: summary)
         let liveFailureError: Error? = {
             if case let .failure(error) = outcome.outcome.result { return error }
             return nil
@@ -1226,107 +1129,101 @@ struct ProviderUsageView: View {
             if let liveFailureError { return ProviderUsageViewModel.errorDetailText(error: liveFailureError) }
             return nil
         }()
-        let failureSummary: String? = {
-            if let liveFailureError {
-                return ProviderUsageViewModel.errorSummaryText(error: liveFailureError)
-            }
-            if let failureDetail {
-                if onLogin != nil, CodexAuthFailureClassifier.isAuthFailure(errorText: failureDetail) {
-                    return NSLocalizedString(
-                        "codex.accounts.error.auth_expired",
-                        value: "Authentication expired. Please sign in again.",
-                        comment: "Codex auth expired summary"
+
+        let primaryActions: [AccountCardActionViewData] = {
+            guard let failureDetail else { return [] }
+            var actions: [AccountCardActionViewData] = [
+                .init(
+                    id: "copyError",
+                    actionID: .copyError,
+                    title: NSLocalizedString("codex.accounts.copy_error", value: "Copy error", comment: "Copy account error"),
+                    systemImage: nil,
+                    role: nil,
+                    prominence: onLogin == nil ? .primary : .secondary,
+                    isEnabled: true
+                )
+            ]
+            if onLogin != nil {
+                actions.append(
+                    .init(
+                        id: "relogin",
+                        actionID: .relogin,
+                        title: NSLocalizedString("codex.accounts.relogin", value: "Re-login", comment: "Re-login account"),
+                        systemImage: nil,
+                        role: nil,
+                        prominence: .primary,
+                        isEnabled: !isLoggingIn
                     )
-                }
-                return failureDetail
+                )
+            } else if !failureDetail.isEmpty {
+                _ = failureDetail
             }
-            return nil
+            return actions
         }()
-        let needsReauth = displayState == .needsReauth
 
-        AccountSummaryCard(presentation: presentation) {
-            VStack(alignment: .leading, spacing: 8) {
-                switch outcome.outcome.result {
-                case let .success(result):
-                    ProviderQuotaSection(
-                        provider: outcome.provider,
-                        accountTitle: title,
-                        usage: result.usage,
-                        credits: result.credits,
-                        creditsRefreshedAt: creditsRefreshedAt,
-                        loginAt: lastLogin,
-                        syncedAt: result.usage.updatedAt,
-                        isLoading: isRefreshing,
-                        onRefresh: { onRefresh?() },
-                        usesCardChrome: false
-                    )
-                case .failure:
-                    ProviderQuotaSection(
-                        provider: outcome.provider,
-                        accountTitle: title,
-                        usage: nil,
-                        isLoading: isRefreshing,
-                        errorMessage: failureDetail,
-                        onRefresh: { onRefresh?() },
-                        usesCardChrome: false
-                    )
-                }
+        let menuActions: [AccountCardMenuActionViewData] = {
+            var items: [AccountCardMenuActionViewData] = []
+            if onRefresh != nil {
+                items.append(.init(id: "refresh", actionID: .refresh, title: NSLocalizedString("usage.monitor.refresh", value: "Refresh", comment: "Refresh"), systemImage: "arrow.clockwise", role: nil, isEnabled: !isRefreshing))
+            }
+            if onLogin != nil {
+                items.append(.init(id: "relogin-menu", actionID: .relogin, title: NSLocalizedString("codex.accounts.relogin", value: "Re-login", comment: "Re-login account"), systemImage: "person.badge.key", role: nil, isEnabled: !isLoggingIn))
+            }
+            if accountId != nil {
+                items.append(.init(id: "reveal", actionID: .revealInFinder, title: NSLocalizedString("action.show_in_finder", comment: "Show in Finder"), systemImage: "folder", role: nil, isEnabled: true))
+                items.append(.init(id: "delete", actionID: .delete, title: NSLocalizedString("codex.accounts.delete.title", value: "Delete Account", comment: "Delete account title"), systemImage: "trash", role: .destructive, isEnabled: true))
+            }
+            return items
+        }()
 
-                if let failureSummary, let failureDetail {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(failureSummary)
-                            .font(.caption)
-                            .foregroundStyle(DesignSystem.Colors.Text.primary)
-                            .lineLimit(2)
+        let record = AccountRecordBuilder.codexUsage(
+            outcome: outcome,
+            summary: summary,
+            presentation: presentation,
+            title: title,
+            creditsRefreshedAt: creditsRefreshedAt,
+            isRefreshing: isRefreshing,
+            canRelogin: onLogin != nil
+        )
 
-                        let actionLayout = CodexUsageCardPresentationPolicy.actionLayout(
-                            needsReauth: needsReauth,
-                            hasLoginAction: onLogin != nil
-                        )
-                        if actionLayout == .dualEqualWidth, let onLogin {
-                            HStack(spacing: 8) {
-                                Button {
-                                    viewModel.copyErrorText(failureDetail)
-                                } label: {
-                                    Text(NSLocalizedString("codex.accounts.copy_error", value: "Copy error", comment: "Copy account error"))
-                                        .frame(maxWidth: .infinity)
-                                }
-                                .buttonStyle(.bordered)
-                                .controlSize(.small)
-                                .frame(maxWidth: .infinity)
+        let data = AccountCardViewDataMapper.map(
+            record: record,
+            primaryActions: primaryActions,
+            menuActions: menuActions,
+            footer: isLoggingIn ? .init(
+                leadingTag: nil,
+                trailingText: NSLocalizedString("codex.accounts.add.cli.running", value: "Logging in…", comment: "CLI login running status")
+            ) : nil,
+            quotaRefreshActionID: onRefresh == nil ? nil : .refresh,
+            tapBehavior: .none
+        )
 
-                                Button {
-                                    onLogin()
-                                } label: {
-                                    Text(NSLocalizedString("codex.accounts.relogin", value: "Re-login", comment: "Re-login account"))
-                                        .frame(maxWidth: .infinity)
-                                }
-                                .buttonStyle(.borderedProminent)
-                                .controlSize(.small)
-                                .frame(maxWidth: .infinity)
-                                .disabled(isLoggingIn)
-                            }
-                        } else {
-                            Button {
-                                viewModel.copyErrorText(failureDetail)
-                            } label: {
-                                Text(NSLocalizedString("codex.accounts.copy_error", value: "Copy error", comment: "Copy account error"))
-                                    .frame(maxWidth: .infinity)
-                            }
-                            .buttonStyle(.bordered)
-                            .controlSize(.small)
-                            .frame(maxWidth: .infinity)
-                        }
-
-                        if isLoggingIn {
-                            Text(NSLocalizedString("codex.accounts.add.cli.running", value: "Logging in…", comment: "CLI login running status"))
-                                .font(.caption2)
-                                .foregroundStyle(DesignSystem.Colors.Text.tertiary)
-                        }
+        UnifiedAccountCard(
+            data: data,
+            onTap: { _ in },
+            onAction: { _, action in
+                switch action {
+                case .refresh:
+                    onRefresh?()
+                case .relogin:
+                    onLogin?()
+                case .copyError:
+                    if let failureDetail {
+                        viewModel.copyErrorText(failureDetail)
                     }
+                case .revealInFinder:
+                    if let accountId {
+                        viewModel.revealCodexAccountInFinder(id: accountId)
+                    }
+                case .delete:
+                    if let accountId {
+                        viewModel.requestDeleteCodexAccount(id: accountId)
+                    }
+                default:
+                    break
                 }
             }
-        }
+        )
         .textSelection(.enabled)
     }
 
@@ -1339,6 +1236,32 @@ struct ProviderUsageView: View {
         case .pending:
             return DesignSystem.Colors.Text.secondary
         }
+    }
+
+    private func codexHeaderBadge(
+        isSelected: Bool,
+        needsReauth: Bool,
+        isPending: Bool
+    ) -> AccountSummaryCardBadgeModel? {
+        if needsReauth {
+            return .init(
+                text: NSLocalizedString("codex.accounts.status.reauth_needed", value: "Needs re-login", comment: "Account status reauth"),
+                tone: .warning
+            )
+        }
+        if isPending {
+            return .init(
+                text: NSLocalizedString("codex.accounts.status.pending", value: "Pending", comment: "Account status pending"),
+                tone: .neutral
+            )
+        }
+        if isSelected {
+            return .init(
+                text: NSLocalizedString("accounts.summary.active", value: "已激活", comment: "Active badge"),
+                tone: .active
+            )
+        }
+        return nil
     }
 
     private func codexSubtitleText(title: String, email: String?, plan: String?) -> String? {

@@ -9,11 +9,36 @@ extension DesignSystem {
         let x: CGFloat
         let y: CGFloat
 
+        static let none = CardShadow(color: .clear, radius: 0, x: 0, y: 0)
         static let subtle = CardShadow(
             color: DesignSystem.Colors.Shadow.floating.opacity(0.35),
             radius: 4,
             x: 0,
             y: 2
+        )
+        static let small = CardShadow(
+            color: DesignSystem.Colors.Shadow.floating,
+            radius: 8,
+            x: 0,
+            y: 4
+        )
+        static let medium = CardShadow(
+            color: DesignSystem.Colors.Shadow.floating,
+            radius: 12,
+            x: 0,
+            y: 6
+        )
+        static let large = CardShadow(
+            color: DesignSystem.Colors.Shadow.floating,
+            radius: 16,
+            x: 0,
+            y: 8
+        )
+        static let floating = CardShadow(
+            color: DesignSystem.Colors.Shadow.floating,
+            radius: 20,
+            x: 0,
+            y: 10
         )
     }
 }

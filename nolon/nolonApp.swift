@@ -63,6 +63,7 @@ final class URLSchemeHandler: ObservableObject {
 
     static func normalizeIncomingURL(_ url: URL) -> URL? {
         guard url.scheme == "nolon" || url.scheme == "nln" else { return nil }
+        guard url.host != nil else { return nil }
 
         // Reconstruct the original URL:
         // nolon://github.com/owner/repo -> https://github.com/owner/repo
@@ -119,10 +120,7 @@ final class CodexAuthBackgroundPoller {
     }
 
     private var isEnabled: Bool {
-        if UserDefaults.standard.object(forKey: enabledDefaultsKey) == nil {
-            return true
-        }
-        return UserDefaults.standard.bool(forKey: enabledDefaultsKey)
+        UserDefaults.standard.object(forKey: enabledDefaultsKey) as? Bool ?? true
     }
 
     private func runLoop() async {

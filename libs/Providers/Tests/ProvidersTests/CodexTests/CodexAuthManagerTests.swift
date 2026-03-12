@@ -536,6 +536,74 @@ struct CodexAuthManagerTests {
         #expect(tokenPair?.accessToken == "access-valid")
     }
 
+    @Test("Given batch JSON array import file, when validating then importing, each element becomes a snapshot and top-level tokens are normalized into tokens.*")
+    func validateAndImportAuthFilesExpandsJSONArrayFile() async throws {
+        let root = try makeTempRoot("codex-auth-import-array")
+        defer { try? root.delete() }
+
+        let manager = CodexAuthManager(rootURL: root.url)
+        let inputFolder = root.folder("input")
+        _ = inputFolder.createIfNotExists()
+
+        let batchURL = inputFolder.file("batch.json").url
+        try """
+        [
+          {
+            "type": "codex",
+            "email": "a@example.com",
+            "id_token": "id-a",
+            "access_token": "access-a",
+            "refresh_token": "refresh-a",
+            "account_id": "acct-a",
+            "expired": "2026-03-20T15:23:19Z"
+          },
+          {
+            "type": "codex",
+            "email": "b@example.com",
+            "id_token": "id-b",
+            "access_token": "access-b",
+            "refresh_token": "refresh-b",
+            "account_id": "acct-b"
+          }
+        ]
+        """.write(to: batchURL, atomically: true, encoding: .utf8)
+
+        let results = await manager.validateImportAuthFiles(urls: [batchURL])
+        #expect(results.count == 2)
+        #expect(results.filter(\.isValid).count == 2)
+
+        let imported = try await manager.importValidatedAuthFiles(results: results)
+        #expect(imported.count == 2)
+
+        let accountA = try #require(imported.first)
+        let accountB = try #require(imported.dropFirst().first)
+        let pairA = try await manager.readTokenPair(for: accountA)
+        let pairB = try await manager.readTokenPair(for: accountB)
+        let pairs = [pairA, pairB].compactMap { $0 }
+        #expect(pairs.count == 2)
+        #expect(Set(pairs.map(\.idToken)) == ["id-a", "id-b"])
+        #expect(Set(pairs.map(\.accessToken)) == ["access-a", "access-b"])
+    }
+
+    @Test("Given auth JSON contains type but not codex, when validating then candidate is rejected with a stable reason")
+    func validateImportAuthFilesRejectsNonCodexType() async throws {
+        let root = try makeTempRoot("codex-auth-import-type")
+        defer { try? root.delete() }
+
+        let manager = CodexAuthManager(rootURL: root.url)
+        let inputFolder = root.folder("input")
+        _ = inputFolder.createIfNotExists()
+
+        let url = inputFolder.file("other.json").url
+        try #"{"type":"other","id_token":"id","access_token":"access"}"#
+            .write(to: url, atomically: true, encoding: .utf8)
+
+        let results = await manager.validateImportAuthFiles(urls: [url])
+        #expect(results.count == 1)
+        #expect(results[0].isValid == false)
+        #expect(results[0].reason?.lowercased().contains("type") == true)
+    }
+
     @Test("Given codexXcode provider template, when resolving codex home, then auth manager returns valid home folder")
     func codexXcodeHomeFolderIsAvailable() async throws {
         let root = try makeTempRoot("codex-auth-codexxcode-home")
@@ -897,6 +965,255 @@ struct CodexAuthManagerTests {
         let json = try #require(try? JSON(data: alignedFile.data()))
         #expect((json["email"].string ?? "").lowercased() == "fresh@example.com")
         #expect((json["nolon"]["account"]["email"].string ?? "").lowercased() == "fresh@example.com")
+    }
+
+    @Test("Given selected OAuth snapshot, when exporting sub2api, then result contains one oauth account with token credentials")
+    func exportSelectedAccountsAsSub2APIOAuth() async throws {
+        let root = try makeTempRoot("codex-export-sub2api-oauth")
+        defer { try? root.delete() }
+
+        let manager = CodexAuthManager(rootURL: root.url)
+        let account = try await manager.addAccount(
+            name: "oauth",
+            authJSONString: #"""
+            {
+              "auth_mode": "chatgptAuthTokens",
+              "email": "oauth@example.com",
+              "expires_at": "2026-03-18T11:50:00+08:00",
+              "client_id": "client-123",
+              "organization_id": "org_123",
+              "plan_type": "plus",
+              "chatgpt_user_id": "user-123",
+              "tokens": {
+                "id_token": "id-oauth",
+                "access_token": "access-oauth",
+                "refresh_token": "refresh-oauth",
+                "account_id": "acct-oauth"
+              }
+            }
+            """#
+        )
+
+        let destinationURL = root.url.appendingPathComponent("codex-sub2api.json")
+        let result = try await manager.exportAccountsAsSub2API(
+            accountIDs: [account.id],
+            destinationURL: destinationURL
+        )
+        let json = try JSON(data: Data(contentsOf: destinationURL))
+
+        #expect(result.exportedCount == 1)
+        #expect(result.skippedRelayCount == 0)
+        #expect(json["type"].string == "sub2api-data")
+        #expect(json["version"].int == 1)
+        #expect(json["proxies"].arrayObject?.isEmpty == true)
+        #expect(json["accounts"].arrayObject?.count == 1)
+        #expect(json["accounts"][0]["platform"].string == "openai")
+        #expect(json["accounts"][0]["type"].string == "oauth")
+        #expect(json["accounts"][0]["credentials"]["access_token"].string == "access-oauth")
+        #expect(json["accounts"][0]["credentials"]["refresh_token"].string == "refresh-oauth")
+        #expect(json["accounts"][0]["credentials"]["id_token"].string == "id-oauth")
+        #expect(json["accounts"][0]["credentials"]["chatgpt_account_id"].string == "acct-oauth")
+        #expect(json["accounts"][0]["credentials"]["chatgpt_user_id"].string == "user-123")
+        #expect(json["accounts"][0]["credentials"]["organization_id"].string == "org_123")
+        #expect(json["accounts"][0]["credentials"]["plan_type"].string == "plus")
+        #expect(json["accounts"][0]["credentials"]["client_id"].string == "client-123")
+        #expect(json["accounts"][0]["extra"]["openai_passthrough"].bool == true)
+        #expect(json["accounts"][0]["extra"]["codex_cli_only"].bool == true)
+        #expect(json["accounts"][0]["auto_pause_on_expired"].bool == true)
+    }
+
+    @Test("Given selected official api key snapshot, when exporting sub2api, then result contains one apikey account")
+    func exportSelectedAccountsAsSub2APIApiKey() async throws {
+        let root = try makeTempRoot("codex-export-sub2api-apikey")
+        defer { try? root.delete() }
+
+        let manager = CodexAuthManager(rootURL: root.url)
+        let account = try await manager.addConfiguredAccount(
+            name: "OpenAI Direct",
+            apiKey: "sk-live-12345678",
+            relay: nil
+        )
+
+        let destinationURL = root.url.appendingPathComponent("codex-sub2api.json")
+        let result = try await manager.exportAccountsAsSub2API(
+            accountIDs: [account.id],
+            destinationURL: destinationURL
+        )
+        let json = try JSON(data: Data(contentsOf: destinationURL))
+
+        #expect(result.exportedCount == 1)
+        #expect(result.skippedRelayCount == 0)
+        #expect(json["accounts"].arrayObject?.count == 1)
+        #expect(json["accounts"][0]["type"].string == "apikey")
+        #expect(json["accounts"][0]["credentials"]["api_key"].string == "sk-live-12345678")
+        #expect(json["accounts"][0]["extra"]["openai_passthrough"].bool == true)
+        #expect(json["accounts"][0]["auto_pause_on_expired"].bool == false)
+    }
+
+    @Test("Given selected relay and supported snapshots, when exporting sub2api, then relay is skipped and supported accounts are preserved")
+    func exportSelectedAccountsAsSub2APISkipsRelay() async throws {
+        let root = try makeTempRoot("codex-export-sub2api-skip-relay")
+        defer { try? root.delete() }
+
+        let manager = CodexAuthManager(rootURL: root.url)
+        let relay = try await manager.addConfiguredAccount(
+            name: "Work Relay",
+            apiKey: "rk-live-12345678",
+            relay: .init(
+                baseURL: "https://relay.example.com/v1",
+                modelProvider: "relay"
+            )
+        )
+        let direct = try await manager.addConfiguredAccount(
+            name: "OpenAI Direct",
+            apiKey: "sk-live-12345678",
+            relay: nil
+        )
+
+        let destinationURL = root.url.appendingPathComponent("codex-sub2api.json")
+        let result = try await manager.exportAccountsAsSub2API(
+            accountIDs: [relay.id, direct.id],
+            destinationURL: destinationURL
+        )
+        let json = try JSON(data: Data(contentsOf: destinationURL))
+
+        #expect(result.exportedCount == 1)
+        #expect(result.skippedRelayCount == 1)
+        #expect(json["accounts"].arrayObject?.count == 1)
+        #expect(json["accounts"][0]["type"].string == "apikey")
+        #expect(json["accounts"][0]["credentials"]["api_key"].string == "sk-live-12345678")
+    }
+
+    @Test("Given only relay snapshots are selected, when exporting sub2api, then export fails with no supported accounts error")
+    func exportSelectedAccountsAsSub2APIFailsWhenOnlyRelaySelected() async throws {
+        let root = try makeTempRoot("codex-export-sub2api-only-relay")
+        defer { try? root.delete() }
+
+        let manager = CodexAuthManager(rootURL: root.url)
+        let relay = try await manager.addConfiguredAccount(
+            name: "Work Relay",
+            apiKey: "rk-live-12345678",
+            relay: .init(
+                baseURL: "https://relay.example.com/v1",
+                modelProvider: "relay"
+            )
+        )
+
+        let destinationURL = root.url.appendingPathComponent("codex-sub2api.json")
+
+        await #expect(throws: NSError.self) {
+            try await manager.exportAccountsAsSub2API(
+                accountIDs: [relay.id],
+                destinationURL: destinationURL
+            )
+        }
+    }
+
+    @Test("Given selected validated import candidates, when exporting zip, then only selected valid candidates are archived")
+    func exportSelectedValidatedImportCandidatesAsZip() async throws {
+        let root = try makeTempRoot("codex-import-export-zip")
+        defer { try? root.delete() }
+
+        let manager = CodexAuthManager(rootURL: root.url)
+        let selectedURL = root.url.appendingPathComponent("selected.json")
+        let unselectedURL = root.url.appendingPathComponent("unselected.json")
+        let invalidURL = root.url.appendingPathComponent("invalid.json")
+
+        let selected = CodexAuthManager.CodexImportValidationResult(
+            fileURL: selectedURL,
+            isValid: true,
+            reason: nil,
+            suggestedName: "Selected",
+            email: "selected@example.com",
+            authJSONString: #"{"auth_mode":"chatgptAuthTokens","email":"selected@example.com","tokens":{"id_token":"id-selected","access_token":"access-selected"}}"#
+        )
+        let unselected = CodexAuthManager.CodexImportValidationResult(
+            fileURL: unselectedURL,
+            isValid: true,
+            reason: nil,
+            suggestedName: "Unselected",
+            email: "unselected@example.com",
+            authJSONString: #"{"auth_mode":"chatgptAuthTokens","email":"unselected@example.com","tokens":{"id_token":"id-unselected","access_token":"access-unselected"}}"#
+        )
+        let invalid = CodexAuthManager.CodexImportValidationResult(
+            fileURL: invalidURL,
+            isValid: false,
+            reason: "Missing required credentials",
+            suggestedName: nil,
+            email: nil,
+            authJSONString: nil
+        )
+
+        let destinationURL = root.url.appendingPathComponent("selected-imports.zip")
+        let exportedCount = try await manager.exportValidatedAuthFilesArchive(
+            results: [selected, invalid],
+            destinationURL: destinationURL
+        )
+        let roundTripped = await manager.validateImportAuthFiles(urls: [destinationURL])
+
+        #expect(exportedCount == 1)
+        #expect(roundTripped.count == 1)
+        #expect(roundTripped[0].isValid == true)
+        #expect(roundTripped[0].email == "selected@example.com")
+        #expect(roundTripped[0].fileURL.lastPathComponent.contains("selected"))
+        #expect(roundTripped.allSatisfy { $0.email != unselected.email })
+    }
+
+    @Test("Given selected validated import candidates, when exporting sub2api, then relay is skipped and supported candidates are preserved")
+    func exportSelectedValidatedImportCandidatesAsSub2API() async throws {
+        let root = try makeTempRoot("codex-import-export-sub2api")
+        defer { try? root.delete() }
+
+        let manager = CodexAuthManager(rootURL: root.url)
+        let oauth = CodexAuthManager.CodexImportValidationResult(
+            fileURL: root.url.appendingPathComponent("oauth.json"),
+            isValid: true,
+            reason: nil,
+            suggestedName: "OAuth",
+            email: "oauth-import@example.com",
+            authJSONString: #"""
+            {
+              "auth_mode": "chatgptAuthTokens",
+              "email": "oauth-import@example.com",
+              "tokens": {
+                "id_token": "id-import",
+                "access_token": "access-import"
+              }
+            }
+            """#
+        )
+        let relay = CodexAuthManager.CodexImportValidationResult(
+            fileURL: root.url.appendingPathComponent("relay.json"),
+            isValid: true,
+            reason: nil,
+            suggestedName: "Relay",
+            email: nil,
+            authJSONString: #"""
+            {
+              "auth_mode": "apikey",
+              "OPENAI_API_KEY": "rk-live-12345678",
+              "nolon": {
+                "relay": {
+                  "base_url": "https://relay.example.com/v1",
+                  "model_provider": "relay"
+                }
+              }
+            }
+            """#
+        )
+
+        let destinationURL = root.url.appendingPathComponent("selected-imports-sub2api.json")
+        let result = try await manager.exportValidatedAuthFilesAsSub2API(
+            results: [oauth, relay],
+            destinationURL: destinationURL
+        )
+        let json = try JSON(data: Data(contentsOf: destinationURL))
+
+        #expect(result.exportedCount == 1)
+        #expect(result.skippedRelayCount == 1)
+        #expect(json["accounts"].arrayObject?.count == 1)
+        #expect(json["accounts"][0]["type"].string == "oauth")
+        #expect(json["accounts"][0]["credentials"]["email"].string == "oauth-import@example.com")
     }
 
 }

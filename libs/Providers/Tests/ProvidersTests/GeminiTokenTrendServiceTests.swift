@@ -117,6 +117,7 @@ struct GeminiTokenTrendServiceTests {
         #expect(snapshot.todayTokens == 220)
         #expect(snapshot.last7DaysTokens == 330)
         #expect(snapshot.last30DaysTokens == 330)
+        #expect(snapshot.allDaysTokens == 330)
         #expect(snapshot.sourceLabel == "session")
     }
 
@@ -184,8 +185,9 @@ struct GeminiTokenTrendServiceTests {
 
         #expect(snapshot.points.map(\.date) == ["2026-03-02", "2026-03-03"])
         #expect(snapshot.todayTokens == 35)
-        #expect(snapshot.last7DaysTokens == 60)
-        #expect(snapshot.last30DaysTokens == 60)
+        #expect(snapshot.last7DaysTokens == 75)
+        #expect(snapshot.last30DaysTokens == 75)
+        #expect(snapshot.allDaysTokens == 75)
     }
 
     @Test("Reads Gemini session files only from global Gemini directory")
@@ -248,5 +250,6 @@ struct GeminiTokenTrendServiceTests {
         #expect(snapshot.todayTokens == 150)
         #expect(snapshot.last7DaysTokens == 150)
         #expect(snapshot.last30DaysTokens == 150)
+        #expect(snapshot.allDaysTokens == 150)
     }
 }

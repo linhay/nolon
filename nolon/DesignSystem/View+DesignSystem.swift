@@ -11,7 +11,12 @@ private struct GlassPanelModifier: ViewModifier {
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                     .stroke(DesignSystem.Colors.Component.border.opacity(0.35), lineWidth: 1)
             )
-            .shadow(color: DesignSystem.Colors.Shadow.floating, radius: 30, x: 0, y: 15)
+            .shadow(
+                color: DesignSystem.CardShadow.floating.color,
+                radius: DesignSystem.CardShadow.floating.radius,
+                x: DesignSystem.CardShadow.floating.x,
+                y: DesignSystem.CardShadow.floating.y
+            )
     }
 }
 
@@ -24,7 +29,7 @@ private struct FieldModifier: ViewModifier {
             .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .stroke(DesignSystem.Colors.Component.border.opacity(0.25), lineWidth: 1)
+                    .stroke(DesignSystem.Colors.Component.border.opacity(DesignSystem.Colors.Opacity.low), lineWidth: 1)
             )
     }
 }

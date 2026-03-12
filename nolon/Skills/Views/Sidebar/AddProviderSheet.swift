@@ -25,6 +25,18 @@ final class AddProviderViewModel {
         self.settings = settings
         applyTemplate(.antigravity)
     }
+
+    var templateSections: [ProviderPresentationSections.TemplateSection] {
+        ProviderPresentationSections.templateSections()
+    }
+
+    var secondaryResourceLabel: String {
+        NSLocalizedString(
+            selectedTemplate.secondaryResourceLabelLocalizationKey,
+            value: selectedTemplate.secondaryResourceLabelFallback,
+            comment: "Secondary resource folder label"
+        )
+    }
     
     func applyTemplate(_ template: ProviderTemplate) {
         selectedTemplate = template
@@ -124,6 +136,7 @@ final class AddProviderViewModel {
             commandPath: isOpenCode ? resolvedCommandPath : nil,
             iconName: selectedTemplate.iconName,
             installMethod: .symlink,
+            vendorCategory: kind == .vendor ? selectedTemplate.vendorCategory : nil,
             templateId: selectedTemplate.rawValue,
             documentationURL: selectedTemplate.documentationURL
         )
@@ -160,21 +173,27 @@ struct AddProviderSheet: View {
                         viewModel.setKind(newValue)
                     }
 
-                    Picker("Template", selection: $viewModel.selectedTemplate) {
-                        ForEach(ProviderTemplate.allCases) { template in
-                            Label {
-                                Text(template.displayName)
-                            } icon: {
-                                ProviderLogoView(name: template.displayName, logoName: template.logoFile, iconSize: 16)
+                    Picker(NSLocalizedString("Template", comment: "Template"), selection: $viewModel.selectedTemplate) {
+                        ForEach(viewModel.templateSections) { section in
+                            Section(
+                                NSLocalizedString(section.titleKey, value: section.fallbackTitle, comment: "Template section title")
+                            ) {
+                                ForEach(section.templates) { template in
+                                    Label {
+                                        Text(template.displayName)
+                                    } icon: {
+                                        ProviderLogoView(name: template.displayName, logoName: template.logoFile, iconSize: 16)
+                                    }
+                                    .tag(template)
+                                }
                             }
-                            .tag(template)
                         }
                     }
                     .onChange(of: viewModel.selectedTemplate) { _, newValue in
                         viewModel.applyTemplate(newValue)
                     }
                 } header: {
-                    Text("Template")
+                    Text(NSLocalizedString("Template", comment: "Template"))
                 }
                 
                 Section {
@@ -234,9 +253,9 @@ struct AddProviderSheet: View {
                                     .truncationMode(.middle)
                             }
                         } else {
-                            LabeledContent(NSLocalizedString("add_provider.workflow_folder_label", value: "Workflow Folder", comment: "Workflow Folder")) {
+                            LabeledContent(viewModel.secondaryResourceLabel) {
                                 Text(viewModel.resolvedWorkflowPath.isEmpty
-                                     ? NSLocalizedString("add_provider.no_workflow_folder", value: "No workflow folder selected", comment: "No workflow folder selected")
+                                     ? NSLocalizedString("add_provider.no_folder", comment: "No folder selected")
                                      : viewModel.resolvedWorkflowPath)
                                     .foregroundStyle(viewModel.resolvedWorkflowPath.isEmpty ? DesignSystem.Colors.Text.secondary : DesignSystem.Colors.Text.primary)
                                     .lineLimit(1)

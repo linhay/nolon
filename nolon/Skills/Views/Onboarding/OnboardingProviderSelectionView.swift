@@ -1,5 +1,6 @@
 import SwiftUI
 import ProviderCatalog
+import NolonResourceKit
 
 /// 引导页 - Provider 选择页面
 struct OnboardingProviderSelectionView: View {
@@ -9,6 +10,10 @@ struct OnboardingProviderSelectionView: View {
     private let columns = [
         GridItem(.adaptive(minimum: 100, maximum: 120), spacing: 16)
     ]
+
+    private var templateSections: [ProviderPresentationSections.TemplateSection] {
+        ProviderPresentationSections.templateSections()
+    }
     
     var body: some View {
         VStack(spacing: 0) {
@@ -31,22 +36,34 @@ struct OnboardingProviderSelectionView: View {
             
             // Provider Grid
             ScrollView {
-                LazyVGrid(columns: columns, spacing: 16) {
-                    ForEach(ProviderTemplate.allCases) { template in
-                        ProviderSelectionCard(
-                            template: template,
-                            isSelected: selectedProviders.contains(template),
-                            isDetected: detectedProviders.contains(template),
-                            onToggle: {
-                                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                    if selectedProviders.contains(template) {
-                                        selectedProviders.remove(template)
-                                    } else {
-                                        selectedProviders.insert(template)
-                                    }
+                VStack(alignment: .leading, spacing: 24) {
+                    ForEach(templateSections) { section in
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text(
+                                NSLocalizedString(section.titleKey, value: section.fallbackTitle, comment: "Template section title")
+                            )
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(DesignSystem.Colors.Text.secondary)
+
+                            LazyVGrid(columns: columns, spacing: 16) {
+                                ForEach(section.templates) { template in
+                                    ProviderSelectionCard(
+                                        template: template,
+                                        isSelected: selectedProviders.contains(template),
+                                        isDetected: detectedProviders.contains(template),
+                                        onToggle: {
+                                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                                if selectedProviders.contains(template) {
+                                                    selectedProviders.remove(template)
+                                                } else {
+                                                    selectedProviders.insert(template)
+                                                }
+                                            }
+                                        }
+                                    )
                                 }
                             }
-                        )
+                        }
                     }
                 }
                 .padding(.horizontal, 40)

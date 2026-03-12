@@ -727,6 +727,21 @@ struct NolonCodexCLIEntrypointTests {
         #expect(result.stdout.contains("--account-id"))
     }
 
+    @Test("codex auth export --help prints action help")
+    func codexAuthExportHelpPrintsHelp() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["codex", "auth", "export", "--help"],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("Usage: nolon codex auth export --format sub2api"))
+        #expect(result.stdout.contains("--format sub2api"))
+        #expect(result.stdout.contains("--output <path>"))
+    }
+
     @Test("codex binary install --help prints action help")
     func codexBinaryInstallHelpPrintsHelp() async {
         let mock = MockCodexCLIService()
@@ -1195,6 +1210,28 @@ struct NolonCodexCLIEntrypointTests {
         #expect(result.stdout.contains("运行时切换"))
         #expect(result.stdout.contains("汇总-总数: 1"))
         #expect(await mock.lastCall() == "authRefresh")
+    }
+
+    @Test("routes auth export via all accounts")
+    func routesAuthExport() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: [
+                "codex", "auth", "export",
+                "--provider", "codex",
+                "--format", "sub2api",
+                "--all",
+                "--output", "/tmp/codex-sub2api.json",
+            ],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("format: sub2api"))
+        #expect(result.stdout.contains("output_path: /tmp/codex-sub2api.json"))
+        #expect(result.stdout.contains("skipped_relay_count: 1"))
+        #expect(await mock.lastCall() == "authExport")
     }
 
     @Test("auth activate supports tui selection by index")
@@ -2010,6 +2047,35 @@ struct NolonCodexCLIEntrypointTests {
         #expect(try canonicalJSON(result.stdout) == expected)
     }
 
+    @Test("json contract snapshot for codex auth export success")
+    func jsonContractSnapshotAuthExportSuccess() async throws {
+        let service = JSONContractCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: [
+                "codex", "auth", "export",
+                "--provider", "codex",
+                "--format", "sub2api",
+                "--all",
+                "--output", "/tmp/codex-sub2api.json",
+                "--json",
+            ],
+            codexService: service
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        let object = try JSONSerialization.jsonObject(with: Data(result.stdout.utf8)) as? [String: Any]
+        let data = object?["data"] as? [String: Any]
+        #expect(object?["ok"] as? Bool == true)
+        #expect(object?["command"] as? String == "codex.auth.export")
+        #expect(data?["providerID"] as? String == "codex")
+        #expect(data?["format"] as? String == "sub2api")
+        #expect(data?["outputPath"] as? String == URL(fileURLWithPath: "/tmp/codex-sub2api.json").standardizedFileURL.path)
+        #expect(data?["exportedCount"] as? Int == 1)
+        #expect(data?["skippedRelayCount"] as? Int == 1)
+        #expect(data?["skippedUnsupportedCount"] as? Int == 0)
+    }
+
     @Test("json contract snapshot for codex auth delete success")
     func jsonContractSnapshotAuthDeleteSuccess() async throws {
         let service = JSONContractCodexCLIService()
@@ -2101,12 +2167,39 @@ private actor MockCodexCLIService: NolonCodexCLIServing {
 
     func authList(providerID: String) async throws -> NolonCodexAuthListPayload {
         call = "authList"
-        return NolonCodexAuthListPayload(providerID: providerID, activeAccountID: nil, accounts: [])
+        return NolonCodexAuthListPayload(
+            providerID: providerID,
+            activeAccountID: UUID(uuidString: "11111111-1111-1111-1111-111111111111")!,
+            accounts: [
+                NolonCodexAuthAccountView(
+                    id: UUID(uuidString: "11111111-1111-1111-1111-111111111111")!,
+                    name: "mock",
+                    createdAt: Date(timeIntervalSince1970: 0),
+                    relativeAuthPath: "auth/mock.json",
+                    isActive: true,
+                    email: "mock@example.com",
+                    usageDisplay: nil,
+                    refreshedAt: nil
+                )
+            ]
+        )
     }
 
     func authStatus(providerID: String) async throws -> NolonCodexAuthStatusPayload {
         call = "authStatus"
         return NolonCodexAuthStatusPayload(providerID: providerID, activeAccountID: nil, accountCount: 0, authHashHex: nil)
+    }
+
+    func authExport(providerID: String, format: NolonCodexAuthExportFormat, accountIDs: [UUID], outputPath: String) async throws -> NolonCodexAuthExportPayload {
+        call = "authExport"
+        return NolonCodexAuthExportPayload(
+            providerID: providerID,
+            format: format,
+            outputPath: outputPath,
+            exportedCount: max(1, accountIDs.count),
+            skippedRelayCount: 1,
+            skippedUnsupportedCount: 0
+        )
     }
 
     func authUsage(providerID: String) async throws -> NolonCodexAuthUsagePayload {
@@ -2641,6 +2734,17 @@ private actor JSONContractCodexCLIService: NolonCodexCLIServing {
             usageAvgFiveHourRemainingPercent: 70,
             usageAvgWeeklyRemainingPercent: 55,
             usageLatestRefreshedAt: Date(timeIntervalSince1970: 60)
+        )
+    }
+    func authExport(providerID: String, format: NolonCodexAuthExportFormat, accountIDs: [UUID], outputPath: String) async throws -> NolonCodexAuthExportPayload {
+        _ = accountIDs
+        return NolonCodexAuthExportPayload(
+            providerID: providerID,
+            format: format,
+            outputPath: outputPath,
+            exportedCount: 1,
+            skippedRelayCount: 1,
+            skippedUnsupportedCount: 0
         )
     }
     func authActivate(providerID: String, accountID: UUID) async throws -> NolonCodexAuthActivatePayload {

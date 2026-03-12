@@ -19,8 +19,8 @@ struct RuleCardView: View {
     private let descriptionHeight: CGFloat = 44
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .center, spacing: 8) {
+        VStack(alignment: .leading, spacing: DesignSystem.Metrics.spacingM) {
+            HStack(alignment: .center, spacing: DesignSystem.Metrics.spacingS) {
                 HighlightedText(text: rule.name, query: searchText)
                     .font(.headline)
                     .lineLimit(1)
@@ -42,7 +42,7 @@ struct RuleCardView: View {
                     .frame(maxWidth: .infinity, minHeight: descriptionHeight, maxHeight: descriptionHeight, alignment: .topLeading)
             }
 
-            HStack(spacing: 8) {
+            HStack(spacing: DesignSystem.Metrics.spacingS) {
                 Image(systemName: "doc.text")
                     .foregroundStyle(DesignSystem.Colors.Text.secondary)
                 HighlightedText(text: rule.relativePath, query: searchText)
@@ -53,7 +53,7 @@ struct RuleCardView: View {
                 Spacer()
             }
         }
-        .padding(16)
+        .padding(DesignSystem.Metrics.spacingL)
         .frame(minHeight: 140)
         .providerTabCardStyle()
         .contentShape(Rectangle())

@@ -66,6 +66,15 @@ extension DesignSystem.Colors {
     struct Shadow {
         static let floating = Color(light: 0x000000, dark: 0x000000).opacity(0.20)
     }
+
+    // MARK: Opacity Levels
+
+    struct Opacity {
+        static let high: Double = 0.60
+        static let medium: Double = 0.40
+        static let low: Double = 0.20
+        static let subtle: Double = 0.12
+    }
 }
 
 // MARK: - Helpers

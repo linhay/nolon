@@ -17,7 +17,7 @@ private struct DSBadgeModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .font(.caption2)
+            .font(DesignSystem.Typography.caption2)
             .foregroundStyle(colors.foreground)
             .padding(.horizontal, horizontalPadding)
             .padding(.vertical, verticalPadding)
@@ -30,8 +30,8 @@ extension View {
     func dsBadge(
         foreground: Color,
         background: Color,
-        horizontalPadding: CGFloat = 8,
-        verticalPadding: CGFloat = 4,
+        horizontalPadding: CGFloat = DesignSystem.Metrics.badgePaddingHorizontal,
+        verticalPadding: CGFloat = DesignSystem.Metrics.badgePaddingVertical,
         cornerRadius: CGFloat = DesignSystem.Metrics.cornerRadiusXL
     ) -> some View {
         modifier(DSBadgeModifier(
@@ -47,8 +47,8 @@ extension View {
         background: Color,
         borderColor: Color,
         borderWidth: CGFloat = 1,
-        horizontalPadding: CGFloat = 8,
-        verticalPadding: CGFloat = 4,
+        horizontalPadding: CGFloat = DesignSystem.Metrics.badgePaddingHorizontal,
+        verticalPadding: CGFloat = DesignSystem.Metrics.badgePaddingVertical,
         cornerRadius: CGFloat = DesignSystem.Metrics.cornerRadiusXL
     ) -> some View {
         dsBadge(

@@ -1040,7 +1040,8 @@ struct ResourceCatalogGridView: View {
                 text: $searchText,
                 showSearching: isSearching
             )
-            Spacer()
+            .frame(maxWidth: .infinity)
+
             if let onRefresh {
                 topActionButton(
                     systemImage: "arrow.clockwise",
@@ -1070,14 +1071,20 @@ struct ResourceCatalogGridView: View {
     ) -> some View {
         Button(action: action) {
             Image(systemName: systemImage)
-                .font(.system(size: 14, weight: .semibold))
-                .dsIconButton(
-                    size: 30,
-                    foreground: DesignSystem.Colors.Text.secondary,
-                    background: DesignSystem.Colors.Component.controlFillSubtle
+                .font(.system(size: 13, weight: .bold))
+                .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                .frame(width: 32, height: 32)
+                .background(
+                    Circle()
+                        .fill(.white.opacity(0.1))
+                        .background(
+                            Circle()
+                                .stroke(.white.opacity(0.1), lineWidth: 1)
+                        )
                 )
+                .background(.ultraThinMaterial, in: Circle())
         }
-        .dsLinkButton()
+        .buttonStyle(.plain)
         .help(help)
         .accessibilityLabel(help)
         .modifier(ResourceCatalogCancelShortcutModifier(isEnabled: isCancelAction))

@@ -64,7 +64,8 @@ struct ResourceCenterTabView: View {
     var body: some View {
         let repoSyncToken = watchCenter.token(for: repository)
         let cacheBuster = "\(refreshTrigger)-\(repoSyncToken)"
-        Group {
+        VStack(spacing: 0) {
+            compactHeader
             if let repository = repository {
                 List(selection: $selectedTab) {
                     ForEach(ResourceContentTabType.allCases) { tab in
@@ -78,7 +79,6 @@ struct ResourceCenterTabView: View {
                     }
                 }
                 .listStyle(.sidebar)
-                .navigationTitle(repository.name)
             } else {
                 ContentUnavailableView(
                     NSLocalizedString("content.no_repository", comment: "Select a Repository"),
@@ -100,5 +100,24 @@ struct ResourceCenterTabView: View {
             await viewModel.loadCounts(for: repository)
         }
         .navigationSplitViewColumnWidth(min: 160, ideal: 180, max: 200)
+    }
+
+    @ViewBuilder
+    private var compactHeader: some View {
+        HStack(spacing: 12) {
+            Text(repository?.name ?? NSLocalizedString("resource.center.title", value: "Resource Center", comment: "Resource center title"))
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(DesignSystem.Colors.Text.primary)
+                .lineLimit(1)
+                .truncationMode(.tail)
+            Spacer(minLength: 0)
+        }
+        .frame(height: 52)
+        .padding(.horizontal, 16)
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(DesignSystem.Colors.Component.separator)
+                .frame(height: 1)
+        }
     }
 }

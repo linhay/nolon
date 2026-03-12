@@ -38,23 +38,29 @@ struct ToastView: View {
     }
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: DesignSystem.Metrics.spacingS) {
             if let systemImage {
                 Image(systemName: systemImage)
                     .foregroundStyle(foregroundColor)
             }
             Text(text)
-                .font(.callout.weight(.semibold))
+                .font(DesignSystem.Typography.label)
                 .foregroundStyle(foregroundColor)
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
+        .padding(.horizontal, DesignSystem.Metrics.spacingM)
+        .padding(.vertical, DesignSystem.Metrics.spacingS)
         .background(backgroundColor)
         .overlay(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
+            RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusS, style: .continuous)
                 .stroke(borderColor, lineWidth: 1)
         )
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .shadow(color: DesignSystem.Colors.Shadow.floating, radius: 16, x: 0, y: 8)
+        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusS, style: .continuous))
+        .shadow(
+            color: DesignSystem.CardShadow.medium.color,
+            radius: DesignSystem.CardShadow.medium.radius,
+            x: DesignSystem.CardShadow.medium.x,
+            y: DesignSystem.CardShadow.medium.y
+        )
+        .transition(DesignSystem.Transitions.scale)
     }
 }

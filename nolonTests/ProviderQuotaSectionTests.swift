@@ -51,7 +51,7 @@ final class ProviderQuotaSectionTests: XCTestCase {
 
         let windows = ProviderQuotaSection.displayWindows(for: usage, provider: .codex)
 
-        XCTAssertEqual(windows.map(\.id), ["primary", "secondary", "tertiary"])
-        XCTAssertEqual(windows.map(\.title), ["Session", "Weekly", "Other"])
+        XCTAssertEqual(windows.map(\.id), ["primary", "secondary"])
+        XCTAssertEqual(windows.map(\.title), ["Session", "Weekly"])
     }
 }

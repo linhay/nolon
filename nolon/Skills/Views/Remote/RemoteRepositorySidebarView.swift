@@ -218,15 +218,19 @@ struct RemoteRepositorySidebarView: View {
                 SheetHeaderView(title: NSLocalizedString("Sources", comment: "Sources")) { EmptyView() }
                 SheetDivider()
             } else if let title, !title.isEmpty {
-                HStack {
+                HStack(spacing: 12) {
                     Text(title)
-                        .font(.headline.weight(.semibold))
+                        .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(DesignSystem.Colors.Text.primary)
-                    Spacer()
+                    Spacer(minLength: 0)
                 }
-                .padding(.horizontal, 12)
-                .padding(.top, 12)
-                .padding(.bottom, 8)
+                .frame(height: 52)
+                .padding(.horizontal, 16)
+                .overlay(alignment: .bottom) {
+                    Rectangle()
+                        .fill(DesignSystem.Colors.Component.separator)
+                        .frame(height: 1)
+                }
             }
 
             List(selection: $selectedRepository) {

@@ -9,8 +9,8 @@ struct SearchField: View {
     @FocusState private var isFocused: Bool
 
     var body: some View {
-        HStack(spacing: 12) {
-            HStack(spacing: 8) {
+        HStack(spacing: DesignSystem.Metrics.spacingM) {
+            HStack(spacing: DesignSystem.Metrics.spacingS) {
                 Image(systemName: "magnifyingglass")
                     .foregroundStyle(DesignSystem.Colors.Text.tertiary)
                 TextField(placeholder, text: $text)
@@ -28,9 +28,9 @@ struct SearchField: View {
                     .buttonStyle(.plain)
                     .accessibilityLabel(NSLocalizedString("Clear", comment: "Clear"))
                 }
-                HStack(spacing: 6) {
+                HStack(spacing: DesignSystem.Metrics.spacingS - 2) {
                     Image(systemName: "arrow.triangle.2.circlepath")
-                        .font(.system(size: 12, weight: .medium))
+                        .font(DesignSystem.Typography.labelSmall)
                         .foregroundStyle(DesignSystem.Colors.Status.info)
                         .frame(width: 16, height: 16)
                     Text(NSLocalizedString("remote.searching", value: "Searching...", comment: "Searching indicator"))
@@ -39,8 +39,8 @@ struct SearchField: View {
                 .opacity(showSearching ? 1 : 0)
                 .accessibilityHidden(!showSearching)
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
+            .padding(.horizontal, DesignSystem.Metrics.spacingM)
+            .padding(.vertical, DesignSystem.Metrics.spacingS)
             .frame(maxWidth: width ?? .infinity)
             .dsField(cornerRadius: DesignSystem.Metrics.cornerRadiusM)
             .overlay(
@@ -49,19 +49,21 @@ struct SearchField: View {
                         isFocused
                         ? DesignSystem.Colors.Status.info
                         : (text.isEmpty
-                           ? DesignSystem.Colors.Component.border.opacity(0.25)
-                           : DesignSystem.Colors.Status.info.opacity(0.6)),
+                           ? DesignSystem.Colors.Component.border.opacity(DesignSystem.Colors.Opacity.low)
+                           : DesignSystem.Colors.Status.info.opacity(DesignSystem.Colors.Opacity.high)),
                         lineWidth: 1.2
                     )
             )
             .shadow(
                 color: text.isEmpty
-                ? DesignSystem.Colors.Shadow.floating.opacity(0.08)
-                : (isFocused ? DesignSystem.Colors.Status.info.opacity(0.35) : DesignSystem.Colors.Status.info.opacity(0.2)),
+                ? DesignSystem.Colors.Shadow.floating.opacity(DesignSystem.Colors.Opacity.subtle)
+                : (isFocused ? DesignSystem.Colors.Status.info.opacity(0.35) : DesignSystem.Colors.Status.info.opacity(DesignSystem.Colors.Opacity.low)),
                 radius: isFocused ? 14 : (text.isEmpty ? 6 : 12),
                 x: 0,
                 y: 4
             )
+            .animation(DesignSystem.Animations.quick, value: isFocused)
+            .animation(DesignSystem.Animations.quick, value: text.isEmpty)
 
             Button {
                 isFocused = true

@@ -12,7 +12,9 @@ public enum ProviderUsageRegistry {
             return GeminiUsageDescriptor(provider: .gemini)
         case .antigravity:
             return GeminiUsageDescriptor(provider: .antigravity)
-        case .claude, .cursor, .opencode, .factory, .zai, .minimax, .kimi, .kiro, .vertexai, .augment, .jetbrains, .kimik2, .amp, .synthetic:
+        case .claude:
+            return ClaudeUsageDescriptor()
+        case .cursor, .opencode, .factory, .zai, .minimax, .kimi, .kiro, .vertexai, .augment, .jetbrains, .kimik2, .amp, .synthetic:
             return UnsupportedUsageDescriptor(provider: provider)
         }
     }

@@ -12,7 +12,6 @@ import Combine
 import NolonResourceKit
 @preconcurrency import STFilePath
 import STJSON
-import UniformTypeIdentifiers
 
 @MainActor
 @Observable
@@ -27,6 +26,10 @@ final class ProviderUsageViewModel {
     typealias CodexOutcomeFetchAction = @Sendable (CodexAuthAccount, UsageMonitorProviderSettings, URL) async -> ProviderAccountUsageOutcome
     typealias CodexUsageQueryTestAction = @MainActor @Sendable (CodexHTTPUsageQueryResolvedConfiguration, Bool) async throws -> ProviderFetchResult
     typealias CodexImportConnectionTestAction = @Sendable (CodexAuthManager.CodexImportValidationResult, UsageMonitorProviderSettings) async -> ProviderAccountUsageOutcome
+    typealias CodexImportOpenPanelAction = @MainActor @Sendable () -> [URL]
+    typealias CodexExportSavePanelAction = @MainActor @Sendable (UTType, String) -> URL?
+    typealias CodexImportExportArchiveAction = @MainActor @Sendable ([CodexAuthManager.CodexImportValidationResult], URL) async throws -> Int
+    typealias CodexImportExportSub2APIAction = @MainActor @Sendable ([CodexAuthManager.CodexImportValidationResult], URL) async throws -> Sub2APIExportResult
     typealias GeminiTokenTrendFetchAction = @Sendable (UsageProvider, Int?) async throws -> ProviderTokenTrendSnapshot?
     typealias AsyncVoidAction = @MainActor @Sendable () async -> Void
 
@@ -35,6 +38,7 @@ final class ProviderUsageViewModel {
     private let geminiTokenTrendFetchAction: GeminiTokenTrendFetchAction
     private let settingsStore = UsageMonitorSettingsStore.shared
     private let codexAuthManager = CodexAuthManager()
+    private let claudeAccountManager = ClaudeAccountManager()
     private let geminiAuthStore = GeminiAuthStore.shared
     private let codexActivateAction: CodexActivateAction
     private let postActivationLoadAction: AsyncVoidAction?
@@ -45,6 +49,10 @@ final class ProviderUsageViewModel {
     private let codexOutcomeFetchAction: CodexOutcomeFetchAction
     private let codexUsageQueryTestAction: CodexUsageQueryTestAction
     private let codexImportConnectionTestAction: CodexImportConnectionTestAction
+    private let codexImportOpenPanelAction: CodexImportOpenPanelAction
+    private let codexExportSavePanelAction: CodexExportSavePanelAction
+    private let codexImportExportArchiveAction: CodexImportExportArchiveAction
+    private let codexImportExportSub2APIAction: CodexImportExportSub2APIAction
     private let usageSnapshotService = ProviderUsageSnapshotService()
     @ObservationIgnored private var usageWatcher: UsageMonitorFileWatcher? = nil
 
@@ -80,6 +88,10 @@ final class ProviderUsageViewModel {
     var collapsedCodexSectionIDs: Set<String> = []
     var isCodexMultiSelectionEnabled = false
     var selectedCodexAccountIDs: Set<UUID> = []
+    var claudeAccounts: [ClaudeAccount] = []
+    var activeClaudeAccountId: UUID?
+    var geminiAccounts: [GeminiAuthAccount] = []
+    var activeGeminiAccountId: UUID?
 
     var addAccountSource: CodexAddSource = .current
     var importedAuthFileURL: URL?
@@ -90,6 +102,7 @@ final class ProviderUsageViewModel {
     var isRunningCodexImportConnectionTests = false
     var isTargetingCodexImportDropZone = false
     var codexImportGlobalErrorMessage: String?
+    var codexImportSearchText = ""
     var codexImportCandidates: [CodexImportCandidate] = []
     var isRunningCLILogin = false
     var cliLoginStatus: String?
@@ -334,8 +347,20 @@ final class ProviderUsageViewModel {
         codexSelectedImportCandidateCount > 0
     }
 
+    var canExportSelectedCodexImportCandidates: Bool {
+        codexSelectedImportCandidateCount > 0
+    }
+
+    var hasCodexImportCandidates: Bool {
+        !codexImportCandidates.isEmpty
+    }
+
+    var codexImportSearchResultCount: Int {
+        filteredCodexImportCandidates.count
+    }
+
     var codexImportCandidateSections: [CodexImportCandidateSection] {
-        let grouped = Dictionary(grouping: codexImportCandidates, by: { $0.validation.sourceGroupID })
+        let grouped = Dictionary(grouping: filteredCodexImportCandidates, by: { $0.validation.sourceGroupID })
         return grouped.keys.sorted { lhs, rhs in
             let leftTitle = grouped[lhs]?.first?.validation.sourceGroupLabel ?? lhs
             let rightTitle = grouped[rhs]?.first?.validation.sourceGroupLabel ?? rhs
@@ -363,6 +388,10 @@ final class ProviderUsageViewModel {
         codexOutcomeFetchAction: CodexOutcomeFetchAction? = nil,
         codexUsageQueryTestAction: CodexUsageQueryTestAction? = nil,
         codexImportConnectionTestAction: CodexImportConnectionTestAction? = nil,
+        codexImportOpenPanelAction: CodexImportOpenPanelAction? = nil,
+        codexExportSavePanelAction: CodexExportSavePanelAction? = nil,
+        codexImportExportArchiveAction: CodexImportExportArchiveAction? = nil,
+        codexImportExportSub2APIAction: CodexImportExportSub2APIAction? = nil,
         geminiTokenTrendFetchAction: GeminiTokenTrendFetchAction? = nil,
         postDeleteLoadAction: AsyncVoidAction? = nil
     ) {
@@ -392,6 +421,34 @@ final class ProviderUsageViewModel {
         }
         self.codexImportConnectionTestAction = codexImportConnectionTestAction ?? { validationResult, settings in
             await Self.testCodexImportConnectionDetached(validationResult: validationResult, settings: settings)
+        }
+        self.codexImportOpenPanelAction = codexImportOpenPanelAction ?? {
+            let panel = NSOpenPanel()
+            panel.canChooseFiles = true
+            panel.canChooseDirectories = false
+            panel.allowsMultipleSelection = true
+            panel.allowedContentTypes = [.json, .data, .zip]
+            panel.message = NSLocalizedString(
+                "codex.import.sheet.open_panel.message",
+                value: "选择要导入的 auth.json 或 ZIP 文件。",
+                comment: "Codex import open panel message"
+            )
+            panel.prompt = NSLocalizedString("select", comment: "Select")
+            return panel.runModal() == .OK ? panel.urls : []
+        }
+        self.codexExportSavePanelAction = codexExportSavePanelAction ?? { contentType, defaultName in
+            let panel = NSSavePanel()
+            panel.allowedContentTypes = [contentType]
+            panel.canCreateDirectories = true
+            panel.isExtensionHidden = false
+            panel.nameFieldStringValue = defaultName
+            return panel.runModal() == .OK ? panel.url : nil
+        }
+        self.codexImportExportArchiveAction = codexImportExportArchiveAction ?? { [codexAuthManager] results, destinationURL in
+            try await codexAuthManager.exportValidatedAuthFilesArchive(results: results, destinationURL: destinationURL)
+        }
+        self.codexImportExportSub2APIAction = codexImportExportSub2APIAction ?? { [codexAuthManager] results, destinationURL in
+            try await codexAuthManager.exportValidatedAuthFilesAsSub2API(results: results, destinationURL: destinationURL)
         }
         self.geminiTokenTrendFetchAction = geminiTokenTrendFetchAction ?? { provider, trailingDays in
             try await GeminiTokenTrendService().fetchActiveSnapshot(provider: provider, trailingDays: trailingDays)
@@ -436,6 +493,7 @@ final class ProviderUsageViewModel {
     }
 
     enum TokenTrendRange: String, CaseIterable, Identifiable {
+        case days1
         case days7
         case days30
         case all
@@ -444,6 +502,8 @@ final class ProviderUsageViewModel {
 
         var title: String {
             switch self {
+            case .days1:
+                return NSLocalizedString("codex.usage.range.1d", value: "1D", comment: "Codex usage trend range 1 day")
             case .days7:
                 return NSLocalizedString("codex.usage.range.7d", value: "7D", comment: "Codex usage trend range 7 days")
             case .days30:
@@ -455,6 +515,7 @@ final class ProviderUsageViewModel {
 
         var trailingDays: Int? {
             switch self {
+            case .days1: 1
             case .days7: 7
             case .days30: 30
             case .all: nil
@@ -496,6 +557,75 @@ final class ProviderUsageViewModel {
         }
     }
 
+    func migrateClaudeFromCurrentSettings() async {
+        guard usageProvider == .claude else { return }
+        do {
+            guard let imported = try await claudeAccountManager.importFromCurrentSettings(provider: provider) else {
+                alertTitle = NSLocalizedString("claude.accounts.title", value: "Claude Accounts", comment: "Claude accounts title")
+                alertMessage = NSLocalizedString(
+                    "claude.accounts.migrate.empty",
+                    value: "No Claude settings were found to migrate.",
+                    comment: "No Claude settings found to migrate"
+                )
+                return
+            }
+
+            _ = try await claudeAccountManager.activateAccount(id: imported.id, provider: provider)
+            await load()
+
+            alertTitle = NSLocalizedString("claude.accounts.title", value: "Claude Accounts", comment: "Claude accounts title")
+            alertMessage = NSLocalizedString(
+                "claude.accounts.migrate.success",
+                value: "Migration completed and the imported account is now active.",
+                comment: "Claude migration success message"
+            )
+        } catch {
+            alertTitle = NSLocalizedString("claude.accounts.title", value: "Claude Accounts", comment: "Claude accounts title")
+            alertMessage = error.localizedDescription
+        }
+    }
+
+    func importClaudeFromCCSwitch() async {
+        guard usageProvider == .claude else { return }
+        do {
+            let report = try await claudeAccountManager.importFromCCSwitch()
+            if report.totalCandidates == 0 {
+                alertTitle = NSLocalizedString("claude.accounts.title", value: "Claude Accounts", comment: "Claude accounts title")
+                alertMessage = NSLocalizedString(
+                    "claude.accounts.cc_switch.empty",
+                    value: "No Claude accounts were found in cc-switch.",
+                    comment: "No Claude accounts found in cc-switch"
+                )
+                return
+            }
+
+            if try await claudeAccountManager.activeAccountID() == nil {
+                let accounts = try await claudeAccountManager.loadAccounts()
+                if let latest = accounts.max(by: { $0.updatedAt < $1.updatedAt }) {
+                    _ = try await claudeAccountManager.activateAccount(id: latest.id, provider: provider)
+                }
+            }
+
+            await load()
+
+            let format = NSLocalizedString(
+                "claude.accounts.cc_switch.report",
+                value: "Imported %d, replaced %d, skipped %d.",
+                comment: "Claude cc-switch import report"
+            )
+            alertTitle = NSLocalizedString("claude.accounts.title", value: "Claude Accounts", comment: "Claude accounts title")
+            alertMessage = String(
+                format: format,
+                report.importedCount,
+                report.replacedCount,
+                report.skippedCount
+            )
+        } catch {
+            alertTitle = NSLocalizedString("claude.accounts.title", value: "Claude Accounts", comment: "Claude accounts title")
+            alertMessage = error.localizedDescription
+        }
+    }
+
     @discardableResult
     func loadIfNeeded() async -> Bool {
         guard !didStartInitialLoad else { return false }
@@ -528,6 +658,13 @@ final class ProviderUsageViewModel {
             lastUsageRefreshAt = Date()
         }
 
+        if usageProvider == .claude {
+            await reloadClaudeAccountsState()
+        }
+        if usageProvider == .gemini || usageProvider == .antigravity {
+            await reloadGeminiAccountsState(for: usageProvider)
+        }
+
         guard usageProvider == .codex || usageProvider == .gemini else {
             await updateUsageFileWatcher()
             return
@@ -549,8 +686,8 @@ final class ProviderUsageViewModel {
 
             guard isMultiAccountEnabled else {
                 if let outcome = outcomes.first(where: { outcome in
-                    if case .default = outcome.account { return true }
-                    return false
+                    guard case .default = outcome.account else { return false }
+                    return true
                 }) {
                     let merged = await mergeCachedCodexUsageIfNeeded(outcome: outcome, accounts: loadedAccounts)
                     outcomes = outcomes.map { item in
@@ -593,6 +730,83 @@ final class ProviderUsageViewModel {
         await trendRefreshTask.value
         await loadCodexManagementStatus()
         await updateUsageFileWatcher()
+    }
+
+    func isActiveClaudeAccount(_ account: ClaudeAccount) -> Bool {
+        account.id == activeClaudeAccountId
+    }
+
+    func activateClaudeAccount(id: UUID) async {
+        guard usageProvider == .claude else { return }
+        do {
+            _ = try await claudeAccountManager.activateAccount(id: id, provider: provider)
+            await load()
+        } catch {
+            alertTitle = NSLocalizedString("claude.accounts.title", value: "Claude Accounts", comment: "Claude accounts title")
+            alertMessage = error.localizedDescription
+        }
+    }
+
+    func isActiveGeminiAccount(_ account: GeminiAuthAccount) -> Bool {
+        account.id == activeGeminiAccountId
+    }
+
+    func activateGeminiAccount(id: UUID) async {
+        guard let usageProvider, usageProvider == .gemini || usageProvider == .antigravity else { return }
+        do {
+            _ = try await geminiAuthStore.activate(provider: usageProvider, accountID: id)
+            await load()
+        } catch {
+            alertTitle = provider.name
+            alertMessage = error.localizedDescription
+        }
+    }
+
+    func deleteGeminiAccount(id: UUID) async {
+        guard let usageProvider, usageProvider == .gemini || usageProvider == .antigravity else { return }
+        do {
+            try await geminiAuthStore.delete(provider: usageProvider, accountID: id)
+            await load()
+        } catch {
+            alertTitle = provider.name
+            alertMessage = error.localizedDescription
+        }
+    }
+
+    private func reloadClaudeAccountsState() async {
+        do {
+            let accounts = try await claudeAccountManager.loadAccounts()
+            let activeID = try await claudeAccountManager.activeAccountID()
+            activeClaudeAccountId = activeID
+            claudeAccounts = accounts.sorted { lhs, rhs in
+                let lhsActive = lhs.id == activeID
+                let rhsActive = rhs.id == activeID
+                if lhsActive != rhsActive { return lhsActive }
+                return lhs.updatedAt > rhs.updatedAt
+            }
+        } catch {
+            Self.logger.error("Failed to load claude accounts: \(String(describing: error), privacy: .public)")
+            activeClaudeAccountId = nil
+            claudeAccounts = []
+        }
+    }
+
+    private func reloadGeminiAccountsState(for usageProvider: UsageProvider) async {
+        do {
+            let accounts = try await geminiAuthStore.listAccounts(provider: usageProvider)
+            let activeID = try await geminiAuthStore.activeAccount(provider: usageProvider)?.id
+            activeGeminiAccountId = activeID
+            geminiAccounts = accounts.sorted { lhs, rhs in
+                let lhsActive = lhs.id == activeID
+                let rhsActive = rhs.id == activeID
+                if lhsActive != rhsActive { return lhsActive }
+                return lhs.createdAt > rhs.createdAt
+            }
+        } catch {
+            Self.logger.error("Failed to load gemini accounts: \(String(describing: error), privacy: .public)")
+            activeGeminiAccountId = nil
+            geminiAccounts = []
+        }
     }
 
     func performAutoRefresh() async {
@@ -1014,6 +1228,9 @@ final class ProviderUsageViewModel {
         if provider.templateId == ProviderTemplate.codexXcode.rawValue {
             return .codex
         }
+        if provider.templateId == ProviderTemplate.claudeCode.rawValue {
+            return .claude
+        }
         if let templateId = provider.templateId, let mapped = UsageProvider(rawValue: templateId) {
             return mapped
         }
@@ -1076,6 +1293,7 @@ final class ProviderUsageViewModel {
         importedAuthFileURL = nil
         importedAuthFileURLs = []
         codexImportGlobalErrorMessage = nil
+        codexImportSearchText = ""
         codexImportCandidates = []
         isTargetingCodexImportDropZone = false
         isRunningCodexImportValidation = false
@@ -1089,6 +1307,7 @@ final class ProviderUsageViewModel {
         isRunningCodexImportValidation = false
         isRunningCodexImportConnectionTests = false
         codexImportGlobalErrorMessage = nil
+        codexImportSearchText = ""
         codexImportCandidates = []
         importedAuthFileURL = nil
         importedAuthFileURLs = []
@@ -1097,10 +1316,12 @@ final class ProviderUsageViewModel {
         isShowingImportValidationConfirm = false
     }
 
-    func presentCodexImportFilePicker() {
+    func presentCodexImportFilePicker() async {
         importedAuthFileURL = nil
         importedAuthFileURLs = []
-        isShowingAuthFileImporter = true
+        let urls = codexImportOpenPanelAction()
+        guard !urls.isEmpty else { return }
+        await handleCodexImportURLs(urls)
     }
 
     func pasteCodexImportFromClipboard() async {
@@ -1120,7 +1341,7 @@ final class ProviderUsageViewModel {
 
     func handleCodexImportText(_ raw: String, preferredSourceURL: URL? = nil) async {
         guard usageProvider == .codex else { return }
-        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = trimmed(raw)
         guard !trimmed.isEmpty else { return }
 
         do {
@@ -1334,7 +1555,7 @@ final class ProviderUsageViewModel {
     func saveCodexConfigEditor() async {
         guard let draft = codexConfigEditorDraft else { return }
 
-        let name = draft.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let name = trimmed(draft.name)
         guard !name.isEmpty else {
             codexConfigEditorErrorMessage = NSLocalizedString(
                 "codex.accounts.config.error.name_required",
@@ -1344,7 +1565,7 @@ final class ProviderUsageViewModel {
             return
         }
 
-        let apiKey = draft.apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        let apiKey = trimmed(draft.apiKey)
         guard !apiKey.isEmpty else {
             codexConfigEditorErrorMessage = NSLocalizedString(
                 "codex.accounts.config.error.api_key_required",
@@ -1359,8 +1580,8 @@ final class ProviderUsageViewModel {
             if case .newRelay = draft.mode { return true }
             return false
         }() {
-            let baseURL = draft.baseURL.trimmingCharacters(in: .whitespacesAndNewlines)
-            let modelProvider = draft.modelProvider.trimmingCharacters(in: .whitespacesAndNewlines)
+            let baseURL = trimmed(draft.baseURL)
+            let modelProvider = trimmed(draft.modelProvider)
             guard !baseURL.isEmpty, !modelProvider.isEmpty else {
                 codexConfigEditorErrorMessage = NSLocalizedString(
                     "codex.accounts.config.error.relay_required",
@@ -1496,6 +1717,95 @@ final class ProviderUsageViewModel {
         }
     }
 
+    func exportSelectedCodexImportCandidatesAsZIP() async {
+        guard canExportSelectedCodexImportCandidates else {
+            alertTitle = NSLocalizedString("codex.import.sheet.title", value: "导入账号", comment: "Codex import sheet title")
+            alertMessage = NSLocalizedString(
+                "codex.import.sheet.export.error.none_selected",
+                value: "请先选择至少一个可导出的账号。",
+                comment: "No selected import candidates for export"
+            )
+            return
+        }
+
+        guard let destinationURL = codexExportSavePanelAction(.zip, Self.defaultCodexImportExportArchiveName()) else { return }
+        let selectedResults = codexImportCandidates
+            .filter { $0.validation.isValid && $0.isSelected }
+            .map(\.validation)
+
+        do {
+            let exportedCount = try await codexImportExportArchiveAction(selectedResults, destinationURL)
+            alertTitle = NSLocalizedString("codex.import.sheet.title", value: "导入账号", comment: "Codex import sheet title")
+            alertMessage = String(
+                format: NSLocalizedString(
+                    "codex.import.sheet.export_zip.success",
+                    value: "已导出 %d 个候选账号到 ZIP。",
+                    comment: "Codex import ZIP export success"
+                ),
+                exportedCount
+            )
+        } catch {
+            alertTitle = NSLocalizedString("codex.import.sheet.title", value: "导入账号", comment: "Codex import sheet title")
+            alertMessage = error.localizedDescription
+        }
+    }
+
+    func exportSelectedCodexImportCandidatesAsSub2API() async {
+        guard canExportSelectedCodexImportCandidates else {
+            alertTitle = NSLocalizedString("codex.import.sheet.title", value: "导入账号", comment: "Codex import sheet title")
+            alertMessage = NSLocalizedString(
+                "codex.import.sheet.export.error.none_selected",
+                value: "请先选择至少一个可导出的账号。",
+                comment: "No selected import candidates for export"
+            )
+            return
+        }
+
+        guard let destinationURL = codexExportSavePanelAction(.json, Self.defaultCodexImportExportSub2APIFileName()) else { return }
+        let selectedResults = codexImportCandidates
+            .filter { $0.validation.isValid && $0.isSelected }
+            .map(\.validation)
+
+        do {
+            let result = try await codexImportExportSub2APIAction(selectedResults, destinationURL)
+            alertTitle = NSLocalizedString("codex.import.sheet.title", value: "导入账号", comment: "Codex import sheet title")
+            if result.skippedRelayCount > 0 {
+                alertMessage = String(
+                    format: NSLocalizedString(
+                        "codex.import.sheet.export_sub2api.partial_success",
+                        value: "已导出 %d 个候选账号为 sub2api，跳过 %d 个 relay 账号。",
+                        comment: "Codex import sub2api partial export success"
+                    ),
+                    result.exportedCount,
+                    result.skippedRelayCount
+                )
+            } else {
+                alertMessage = String(
+                    format: NSLocalizedString(
+                        "codex.import.sheet.export_sub2api.success",
+                        value: "已导出 %d 个候选账号为 sub2api。",
+                        comment: "Codex import sub2api export success"
+                    ),
+                    result.exportedCount
+                )
+            }
+        } catch {
+            alertTitle = NSLocalizedString("codex.import.sheet.title", value: "导入账号", comment: "Codex import sheet title")
+            if let nsError = error as NSError?,
+               nsError.domain == "CodexAuthManager.Export",
+               nsError.code == 3
+            {
+                alertMessage = NSLocalizedString(
+                    "codex.accounts.export_sub2api.error.no_supported_accounts",
+                    value: "所选账号中没有可导出的 sub2api 账号。",
+                    comment: "No supported sub2api accounts"
+                )
+            } else {
+                alertMessage = error.localizedDescription
+            }
+        }
+    }
+
     func exportSelectedCodexAccountsAsZIP() async {
         guard canExportSelectedCodexAccounts else {
             alertTitle = NSLocalizedString("codex.accounts.title", value: "Accounts", comment: "Codex accounts title")
@@ -1533,6 +1843,66 @@ final class ProviderUsageViewModel {
         } catch {
             alertTitle = NSLocalizedString("codex.accounts.title", value: "Accounts", comment: "Codex accounts title")
             alertMessage = error.localizedDescription
+        }
+    }
+
+    func exportSelectedCodexAccountsAsSub2API() async {
+        guard canExportSelectedCodexAccounts else {
+            alertTitle = NSLocalizedString("codex.accounts.title", value: "Accounts", comment: "Codex accounts title")
+            alertMessage = NSLocalizedString(
+                "codex.accounts.export.error.no_selection",
+                value: "请先选择要导出的账号卡片。",
+                comment: "No selected Codex accounts for export"
+            )
+            return
+        }
+
+        let savePanel = NSSavePanel()
+        savePanel.allowedContentTypes = [.json]
+        savePanel.canCreateDirectories = true
+        savePanel.isExtensionHidden = false
+        savePanel.nameFieldStringValue = Self.defaultCodexExportSub2APIFileName()
+
+        guard savePanel.runModal() == .OK, let destinationURL = savePanel.url else { return }
+
+        do {
+            let result = try await codexAuthManager.exportAccountsAsSub2API(
+                accountIDs: Array(selectedCodexAccountIDs),
+                destinationURL: destinationURL
+            )
+            setCodexMultiSelectionEnabled(false)
+            alertTitle = NSLocalizedString("codex.accounts.title", value: "Accounts", comment: "Codex accounts title")
+            if result.skippedRelayCount > 0 {
+                alertMessage = String(
+                    format: NSLocalizedString(
+                        "codex.accounts.export_sub2api.partial_success",
+                        value: "已导出 %d 个账号为 sub2api，跳过 %d 个 relay 账号。",
+                        comment: "Codex sub2api partial export success"
+                    ),
+                    result.exportedCount,
+                    result.skippedRelayCount
+                )
+            } else {
+                alertMessage = String(
+                    format: NSLocalizedString(
+                        "codex.accounts.export_sub2api.success",
+                        value: "已导出 %d 个账号为 sub2api。",
+                        comment: "Codex sub2api export success"
+                    ),
+                    result.exportedCount
+                )
+            }
+        } catch {
+            alertTitle = NSLocalizedString("codex.accounts.title", value: "Accounts", comment: "Codex accounts title")
+            if let nsError = error as NSError?, nsError.domain == "CodexAuthManager.Export", nsError.code == 3 {
+                alertMessage = NSLocalizedString(
+                    "codex.accounts.export_sub2api.error.no_supported_accounts",
+                    value: "所选账号中没有可导出的 sub2api 账号。",
+                    comment: "No supported sub2api accounts"
+                )
+            } else {
+                alertMessage = error.localizedDescription
+            }
         }
     }
 
@@ -1591,8 +1961,8 @@ final class ProviderUsageViewModel {
     }
 
     func copyErrorText(_ raw: String) {
-        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
+        let trimmed = trimmed(raw)
+        guard isNotBlank(raw) else { return }
         copyText(trimmed)
     }
 
@@ -1609,9 +1979,7 @@ final class ProviderUsageViewModel {
     func copyCodexAccountAuthJSON(id: UUID) {
         guard let account = codexAccounts.first(where: { $0.id == id }) else { return }
         let file = codexAuthManager.accountAuthFile(relativeAuthPath: account.relativeAuthPath)
-        guard let raw = try? file.read(),
-              !raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        else { return }
+        guard let raw = try? file.read(), isNotBlank(raw) else { return }
         copyText(raw)
     }
 
@@ -1716,8 +2084,8 @@ final class ProviderUsageViewModel {
         } catch {
             alertTitle = NSLocalizedString("codex.accounts.add.title", value: "Add Account", comment: "Add account title")
             let fallback = NSLocalizedString("codex.accounts.error.add", value: "Failed to add this account.", comment: "Error message")
-            let message = error.localizedDescription.trimmingCharacters(in: .whitespacesAndNewlines)
-            alertMessage = message.isEmpty ? fallback : message
+            let message = trimmed(error.localizedDescription)
+            alertMessage = isNotBlank(message) ? message : fallback
         }
     }
 
@@ -1968,7 +2336,7 @@ final class ProviderUsageViewModel {
             .map { String($0) }
 
         for rawLine in lines {
-            let line = rawLine.trimmingCharacters(in: .whitespacesAndNewlines)
+            let line = trimmed(rawLine)
             if line.isEmpty { continue }
             let parts = line.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false)
             guard parts.count == 2 else {
@@ -1978,8 +2346,8 @@ final class ProviderUsageViewModel {
                     userInfo: [NSLocalizedDescriptionKey: "Invalid key=value line: \(line)"]
                 )
             }
-            let key = String(parts[0]).trimmingCharacters(in: .whitespacesAndNewlines)
-            let value = String(parts[1]).trimmingCharacters(in: .whitespacesAndNewlines)
+            let key = trimmed(String(parts[0]))
+            let value = trimmed(String(parts[1]))
             guard !key.isEmpty else {
                 throw NSError(
                     domain: "ProviderUsageViewModel.CodexConfig",
@@ -2019,25 +2387,25 @@ final class ProviderUsageViewModel {
     private func makeCodexUsageQuery(from draft: CodexConfigEditorDraft) throws -> CodexHTTPUsageQuery? {
         let hasAnyHTTPField =
             draft.httpUsageEnabled
-            || !draft.httpUsageURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            || !draft.httpUsageHeadersText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            || !draft.httpUsageBody.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            || !draft.httpUsagePlanPath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            || !draft.httpUsageCreditsRemainingPath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            || !draft.httpUsageUsedPath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            || !draft.httpUsageTotalPath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            || !draft.httpUsageCostTodayPath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            || !draft.httpUsageCostLast30DaysPath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            || !draft.httpUsageErrorMessagePath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            || !draft.httpUsageOverrideBaseURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            || !draft.httpUsageOverrideAPIKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            || !draft.httpUsageOverrideAccessToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            || !draft.httpUsageOverrideUserID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || isNotBlank(draft.httpUsageURL)
+            || isNotBlank(draft.httpUsageHeadersText)
+            || isNotBlank(draft.httpUsageBody)
+            || isNotBlank(draft.httpUsagePlanPath)
+            || isNotBlank(draft.httpUsageCreditsRemainingPath)
+            || isNotBlank(draft.httpUsageUsedPath)
+            || isNotBlank(draft.httpUsageTotalPath)
+            || isNotBlank(draft.httpUsageCostTodayPath)
+            || isNotBlank(draft.httpUsageCostLast30DaysPath)
+            || isNotBlank(draft.httpUsageErrorMessagePath)
+            || isNotBlank(draft.httpUsageOverrideBaseURL)
+            || isNotBlank(draft.httpUsageOverrideAPIKey)
+            || isNotBlank(draft.httpUsageOverrideAccessToken)
+            || isNotBlank(draft.httpUsageOverrideUserID)
 
         guard hasAnyHTTPField else { return nil }
 
         let timeoutSeconds: Double?
-        let rawTimeout = draft.httpUsageTimeoutSeconds.trimmingCharacters(in: .whitespacesAndNewlines)
+        let rawTimeout = trimmed(draft.httpUsageTimeoutSeconds)
         if rawTimeout.isEmpty {
             timeoutSeconds = nil
         } else if let value = Double(rawTimeout) {
@@ -2054,7 +2422,7 @@ final class ProviderUsageViewModel {
             )
         }
 
-        let requestURL = draft.httpUsageURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        let requestURL = trimmed(draft.httpUsageURL)
         if draft.httpUsageEnabled, requestURL.isEmpty {
             throw NSError(
                 domain: "ProviderUsageViewModel.CodexUsageQuery",
@@ -2074,7 +2442,7 @@ final class ProviderUsageViewModel {
                 method: draft.httpUsageMethod,
                 url: requestURL,
                 headers: try Self.parseKeyValueLines(draft.httpUsageHeadersText),
-                body: draft.httpUsageBody.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : draft.httpUsageBody
+                body: isNotBlank(draft.httpUsageBody) ? draft.httpUsageBody : nil
             ),
             credentials: .init(
                 baseURL: emptyToNil(draft.httpUsageOverrideBaseURL),
@@ -2171,8 +2539,8 @@ final class ProviderUsageViewModel {
     }
 
     private func emptyToNil(_ raw: String) -> String? {
-        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
+        let trimmed = trimmed(raw)
+        return isNotBlank(trimmed) ? trimmed : nil
     }
 
     private func mergeCodexImportCandidates(results: [CodexAuthManager.CodexImportValidationResult]) {
@@ -2207,6 +2575,41 @@ final class ProviderUsageViewModel {
         return (raw, "json")
     }
 
+    private var filteredCodexImportCandidates: [CodexImportCandidate] {
+        let keyword = normalizedCodexImportSearchKeyword
+        guard !keyword.isEmpty else { return codexImportCandidates }
+        return codexImportCandidates.filter { candidate in
+            codexImportSearchTokens(for: candidate).contains { token in
+                normalizedCodexImportSearchValue(token).contains(keyword)
+            }
+        }
+    }
+
+    private var normalizedCodexImportSearchKeyword: String {
+        normalizedCodexImportSearchValue(codexImportSearchText)
+    }
+
+    private func codexImportSearchTokens(for candidate: CodexImportCandidate) -> [String] {
+        [
+            candidate.validation.suggestedName,
+            candidate.validation.email,
+            candidate.sourceFileURL.lastPathComponent,
+            candidate.validation.sourceGroupLabel,
+            candidate.validation.reason,
+            candidate.testSummary
+        ].compactMap { value in
+            guard let value else { return nil }
+            let trimmedValue = trimmed(value)
+            return trimmedValue.isEmpty ? nil : trimmedValue
+        }
+    }
+
+    private func normalizedCodexImportSearchValue(_ raw: String) -> String {
+        trimmed(raw)
+            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+            .lowercased()
+    }
+
     private func makePastedCodexImportURL(for fileExtension: String) -> URL {
         FileManager.default.temporaryDirectory
             .appendingPathComponent("nolon-codex-import-pasted-\(UUID().uuidString)")
@@ -2216,7 +2619,7 @@ final class ProviderUsageViewModel {
     private func makeCodexImportCandidate(
         result: CodexAuthManager.CodexImportValidationResult
     ) -> CodexImportCandidate {
-        let failureSummary = result.reason?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let failureSummary = result.reason.map { trimmed($0) }
         return CodexImportCandidate(
             sourceFileURL: result.fileURL,
             validation: result,
@@ -2280,7 +2683,7 @@ final class ProviderUsageViewModel {
         if !source.isEmpty {
             parts.append(source)
         }
-        if let plan = result.usage.identity?.plan?.trimmingCharacters(in: .whitespacesAndNewlines), !plan.isEmpty {
+        if let plan = result.usage.identity?.plan?.trimmingCharacters(in: .whitespacesAndNewlines), isNotBlank(plan) {
             parts.append(plan)
         }
         if let remaining = result.credits?.remaining, !remaining.isNaN {
@@ -2637,7 +3040,7 @@ final class ProviderUsageViewModel {
 
         if case let .success(result) = outcome.outcome.result,
            let email = result.usage.identity?.accountEmail?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !email.isEmpty
+           isNotBlank(email)
         {
             _ = try? await codexAuthManager.backfillEmailIfMissing(for: account, email: email)
         }
@@ -2681,7 +3084,7 @@ final class ProviderUsageViewModel {
     private func reconcileCodexSelections() {
         let validIDs = Set(codexAccounts.map(\.id))
         selectedCodexAccountIDs = selectedCodexAccountIDs.intersection(validIDs)
-        if selectedCodexAccountIDs.isEmpty, isCodexMultiSelectionEnabled == false {
+        if selectedCodexAccountIDs.isEmpty, !isCodexMultiSelectionEnabled {
             return
         }
         if validIDs.isEmpty {
@@ -2738,6 +3141,27 @@ final class ProviderUsageViewModel {
         return "codex-accounts-\(formatter.string(from: now)).zip"
     }
 
+    private static func defaultCodexExportSub2APIFileName(now: Date = Date()) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyyMMdd-HHmmss"
+        return "codex-sub2api-\(formatter.string(from: now)).json"
+    }
+
+    private static func defaultCodexImportExportArchiveName(now: Date = Date()) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyyMMdd-HHmmss"
+        return "codex-import-\(formatter.string(from: now)).zip"
+    }
+
+    private static func defaultCodexImportExportSub2APIFileName(now: Date = Date()) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyyMMdd-HHmmss"
+        return "codex-import-sub2api-\(formatter.string(from: now)).json"
+    }
+
     func requestLoginForCodexAccount(id: UUID) {
         if isRunningCLILogin {
             Self.logger.info("CLI login restart requested for account \(id.uuidString, privacy: .public).")
@@ -2786,7 +3210,7 @@ final class ProviderUsageViewModel {
             let fallback = NSLocalizedString("codex.accounts.error.delete", value: "Failed to delete this account.", comment: "Error message")
             let message = error.localizedDescription.trimmingCharacters(in: .whitespacesAndNewlines)
             alertTitle = NSLocalizedString("codex.accounts.title", value: "Accounts", comment: "Codex accounts title")
-            alertMessage = message.isEmpty ? fallback : message
+            alertMessage = isNotBlank(message) ? message : fallback
         }
     }
 
@@ -3029,7 +3453,7 @@ final class ProviderUsageViewModel {
             if let identity = result.usage.identity {
                 var summary = codexAccountSummaries[accountId] ?? CodexAuthSummary()
                 if let email = identity.accountEmail?.trimmingCharacters(in: .whitespacesAndNewlines),
-                   !email.isEmpty
+                   isNotBlank(email)
                 {
                     if summary.email == nil {
                         _ = try? await codexAuthManager.backfillEmailIfMissing(for: account, email: email)
@@ -3037,7 +3461,7 @@ final class ProviderUsageViewModel {
                     summary.email = email
                 }
                 if let plan = identity.plan?.trimmingCharacters(in: .whitespacesAndNewlines),
-                   !plan.isEmpty,
+                   isNotBlank(plan),
                    summary.plan == nil
                 {
                     summary.plan = plan
@@ -3065,17 +3489,13 @@ final class ProviderUsageViewModel {
     private func shouldRetainExistingCodexSuccessResult(for accountID: UUID, error: Error) -> Bool {
         guard error is CodexHTTPUsageQueryError else { return false }
         guard let existing = codexAccountOutcomes.first(where: { outcome in
-            if case let .tokenAccount(account) = outcome.account {
-                return account.id == accountID
-            }
-            return false
+            guard case let .tokenAccount(account) = outcome.account else { return false }
+            return account.id == accountID
         }) else {
             return false
         }
-        if case .success = existing.outcome.result {
-            return true
-        }
-        return false
+        guard case .success = existing.outcome.result else { return false }
+        return true
     }
 
     private func orderedAccounts(activeId: UUID?) -> [CodexAuthAccount] {
@@ -3084,10 +3504,8 @@ final class ProviderUsageViewModel {
         let resolvedActiveID: UUID? = {
             if let activeId { return activeId }
             if let active = uniqueAccounts.first(where: { account in
-                if let current = activeCodexAccountForRefresh() {
-                    return account.id == current.id
-                }
-                return false
+                guard let current = activeCodexAccountForRefresh() else { return false }
+                return account.id == current.id
             }) {
                 return active.id
             }
@@ -3481,19 +3899,17 @@ final class ProviderUsageViewModel {
         if let plan, !plan.isEmpty { return false }
 
         if let outcome = codexAccountOutcomes.first(where: { outcome in
-            if case let .tokenAccount(account) = outcome.account {
-                return account.id == accountId
-            }
-            return false
+            guard case let .tokenAccount(account) = outcome.account else { return false }
+            return account.id == accountId
         }) {
             if case let .success(result) = outcome.outcome.result {
                 if let identityEmail = result.usage.identity?.accountEmail?.trimmingCharacters(in: .whitespacesAndNewlines),
-                   !identityEmail.isEmpty
+                   isNotBlank(identityEmail)
                 {
                     return false
                 }
                 if let identityPlan = result.usage.identity?.plan?.trimmingCharacters(in: .whitespacesAndNewlines),
-                   !identityPlan.isEmpty
+                   isNotBlank(identityPlan)
                 {
                     return false
                 }
@@ -3598,7 +4014,58 @@ final class ProviderUsageViewModel {
                 createdAt: Date(),
                 relativeAuthPath: "auth/import-test.json"
             )
-            return await fetchCodexOutcomeDetached(for: account, settings: settings, authSourceURL: authURL)
+            var environment = ProcessInfo.processInfo.environment
+            if let managedEnv = try? await CodexBinaryManager.shared.launchEnvironmentVariables() {
+                environment.merge(managedEnv) { _, new in new }
+            }
+            environment[CodexHTTPUsageQueryExecutor.authSourcePathEnvironmentKey] = authURL.path
+            guard let resolved = try CodexHTTPUsageQueryExecutor.resolveConfiguration(from: environment),
+                  resolved.source == CodexHTTPUsageQueryConfigurationSource.explicit
+            else {
+                let tokenAccount = ProviderTokenAccount(
+                    id: account.id,
+                    label: account.name,
+                    token: "",
+                    addedAt: account.createdAt.timeIntervalSince1970,
+                    lastUsed: nil
+                )
+                let fetchOutcome = ProviderFetchOutcome(
+                    fetchKind: .web,
+                    result: .failure(NSError(
+                        domain: "ProviderUsageViewModel.CodexImportHTTP",
+                        code: 1,
+                        userInfo: [NSLocalizedDescriptionKey: NSLocalizedString(
+                            "codex.import.sheet.test.skipped.no_explicit_http",
+                            value: "未配置 HTTP 用量查询，已跳过在线测试；仍可继续导入。",
+                            comment: "Skipped import online test because no explicit HTTP usage query is configured"
+                        )]
+                    ))
+                )
+                return ProviderAccountUsageOutcome(provider: .codex, account: .tokenAccount(tokenAccount), outcome: fetchOutcome)
+            }
+
+            do {
+                let result = try await CodexHTTPUsageQueryExecutor().execute(resolved, includeCredits: settings.includeCredits)
+                let fetchOutcome = ProviderFetchOutcome(fetchKind: .web, result: .success(result))
+                let tokenAccount = ProviderTokenAccount(
+                    id: account.id,
+                    label: account.name,
+                    token: "",
+                    addedAt: account.createdAt.timeIntervalSince1970,
+                    lastUsed: nil
+                )
+                return ProviderAccountUsageOutcome(provider: .codex, account: .tokenAccount(tokenAccount), outcome: fetchOutcome)
+            } catch {
+                let tokenAccount = ProviderTokenAccount(
+                    id: account.id,
+                    label: account.name,
+                    token: "",
+                    addedAt: account.createdAt.timeIntervalSince1970,
+                    lastUsed: nil
+                )
+                let fetchOutcome = ProviderFetchOutcome(fetchKind: .web, result: .failure(error))
+                return ProviderAccountUsageOutcome(provider: .codex, account: .tokenAccount(tokenAccount), outcome: fetchOutcome)
+            }
         } catch {
             let tokenAccount = ProviderTokenAccount(
                 id: UUID(),
@@ -3666,5 +4133,21 @@ final class ProviderUsageViewModel {
         } catch let error as NSError where error.domain == NSPOSIXErrorDomain && error.code == ENOENT {
             return
         }
+    }
+
+    private static func isNotBlank(_ string: String) -> Bool {
+        !string.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private static func trimmed(_ string: String) -> String {
+        string.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func isNotBlank(_ string: String) -> Bool {
+        Self.isNotBlank(string)
+    }
+
+    private func trimmed(_ string: String) -> String {
+        Self.trimmed(string)
     }
 }

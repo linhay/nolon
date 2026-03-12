@@ -4,21 +4,29 @@ import SwiftUI
 
 private struct DSPrimaryButtonStyle: ButtonStyle {
     @Environment(\.isEnabled) private var isEnabled
+    @State private var isHovered = false
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 13, weight: .semibold))
+            .font(DesignSystem.Typography.button)
             .foregroundStyle(isEnabled ? DesignSystem.Colors.Text.onAccent : DesignSystem.Colors.Text.tertiary)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 7)
+            .padding(.horizontal, DesignSystem.Metrics.buttonPaddingHorizontal)
+            .padding(.vertical, DesignSystem.Metrics.buttonPaddingVertical)
             .background(isEnabled ? DesignSystem.Colors.primary : DesignSystem.Colors.Component.disabledFill)
             .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusM, style: .continuous))
-            .opacity(configuration.isPressed ? 0.92 : 1.0)
+            .opacity(configuration.isPressed ? 0.92 : (isHovered ? 0.96 : 1.0))
+            .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
+            .animation(DesignSystem.Animations.quick, value: configuration.isPressed)
+            .animation(DesignSystem.Animations.quick, value: isHovered)
+            .onHover { hovering in
+                isHovered = hovering && isEnabled
+            }
     }
 }
 
 private struct DSSecondaryButtonStyle: ButtonStyle {
     @Environment(\.isEnabled) private var isEnabled
+    @State private var isHovered = false
     let foreground: Color?
     let background: Color?
     let borderColor: Color?
@@ -29,34 +37,46 @@ private struct DSSecondaryButtonStyle: ButtonStyle {
         let border = borderColor ?? DesignSystem.Colors.Component.border.opacity(0.30)
 
         return configuration.label
-            .font(.system(size: 13, weight: .semibold))
+            .font(DesignSystem.Typography.button)
             .foregroundStyle(fg)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 7)
+            .padding(.horizontal, DesignSystem.Metrics.buttonPaddingHorizontal)
+            .padding(.vertical, DesignSystem.Metrics.buttonPaddingVertical)
             .background(bg)
             .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusM, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusM, style: .continuous)
                     .stroke(border, lineWidth: 1)
             )
-            .opacity(configuration.isPressed ? 0.92 : 1.0)
+            .opacity(configuration.isPressed ? 0.92 : (isHovered ? 0.96 : 1.0))
+            .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
+            .animation(DesignSystem.Animations.quick, value: configuration.isPressed)
+            .animation(DesignSystem.Animations.quick, value: isHovered)
+            .onHover { hovering in
+                isHovered = hovering && isEnabled
+            }
     }
 }
 
 private struct DSLinkButtonStyle: ButtonStyle {
     @Environment(\.isEnabled) private var isEnabled
+    @State private var isHovered = false
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 13, weight: .medium))
+            .font(DesignSystem.Typography.label)
             .foregroundStyle(isEnabled ? DesignSystem.Colors.Text.primary : DesignSystem.Colors.Text.tertiary)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 4)
+            .padding(.horizontal, DesignSystem.Metrics.spacingS - 2)
+            .padding(.vertical, DesignSystem.Metrics.spacingXS)
             .background(
                 RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusS, style: .continuous)
-                    .fill(configuration.isPressed ? DesignSystem.Colors.Component.controlFillSubtle : Color.clear)
+                    .fill(configuration.isPressed ? DesignSystem.Colors.Component.controlFillSubtle : (isHovered ? DesignSystem.Colors.Component.controlFillSubtle.opacity(0.5) : Color.clear))
             )
             .opacity(configuration.isPressed ? 0.9 : 1.0)
+            .animation(DesignSystem.Animations.quick, value: configuration.isPressed)
+            .animation(DesignSystem.Animations.quick, value: isHovered)
+            .onHover { hovering in
+                isHovered = hovering && isEnabled
+            }
     }
 }
 
@@ -97,20 +117,25 @@ private struct DSIconButtonModifier: ViewModifier {
     let foreground: Color
     let background: Color
     let cornerRadius: CGFloat
+    @State private var isHovered = false
 
     func body(content: Content) -> some View {
         content
             .font(.body)
             .foregroundStyle(foreground)
             .frame(width: size, height: size)
-            .background(background)
+            .background(isHovered ? background.opacity(0.8) : background)
             .contentShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+            .animation(DesignSystem.Animations.quick, value: isHovered)
+            .onHover { hovering in
+                isHovered = hovering
+            }
     }
 }
 
 extension View {
     func dsIconButton(
-        size: CGFloat = 24,
+        size: CGFloat = DesignSystem.Metrics.iconButtonSize,
         foreground: Color = DesignSystem.Colors.Text.secondary,
         background: Color = .clear,
         cornerRadius: CGFloat = DesignSystem.Metrics.cornerRadiusS
@@ -138,7 +163,7 @@ private struct DSIconLabelButtonModifier: ViewModifier {
 extension View {
     func dsIconLabelButton(
         foreground: Color = DesignSystem.Colors.Text.primary,
-        font: Font = .system(size: 13, weight: .medium)
+        font: Font = DesignSystem.Typography.label
     ) -> some View {
         modifier(DSIconLabelButtonModifier(foreground: foreground, font: font))
     }
@@ -158,7 +183,7 @@ private struct DSIconLabelTextModifier: ViewModifier {
 extension View {
     func dsIconLabelText(
         foreground: Color = DesignSystem.Colors.Text.secondary,
-        font: Font = .caption2
+        font: Font = DesignSystem.Typography.caption2
     ) -> some View {
         modifier(DSIconLabelTextModifier(foreground: foreground, font: font))
     }

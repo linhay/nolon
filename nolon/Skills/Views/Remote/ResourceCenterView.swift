@@ -107,6 +107,7 @@ struct ResourceCenterView: View {
     @ObservedObject var settings: ProviderSettings
     let repository: SkillRepository
     let targetProvider: Provider?
+    let onClose: () -> Void
     let onInstall: (RemoteSkill, Provider) -> Void
     let onInstallWorkflow: ((RemoteWorkflow, Provider) -> Void)?
     let onInstallMCP: ((RemoteMCP, Provider) -> Void)?
@@ -114,7 +115,6 @@ struct ResourceCenterView: View {
     let onMakeDeleteRequestExecutor: ((Int) -> ResourceCatalogGridViewModel.DeleteRequestExecutor)?
     
     @State private var viewModel = ResourceCenterViewModel()
-    @Environment(\.dismiss) private var dismiss
     private let draftService = RepositoryDraftService()
     
     init(
@@ -122,6 +122,7 @@ struct ResourceCenterView: View {
         repository: SkillRepository,
         targetProvider: Provider? = nil,
         selectedTab: ResourceContentTabType? = .skills,
+        onClose: @escaping () -> Void = {},
         onInstall: @escaping (RemoteSkill, Provider) -> Void,
         onInstallWorkflow: ((RemoteWorkflow, Provider) -> Void)? = nil,
         onInstallMCP: ((RemoteMCP, Provider) -> Void)? = nil,
@@ -131,6 +132,7 @@ struct ResourceCenterView: View {
         self.settings = settings
         self.repository = repository
         self.targetProvider = targetProvider
+        self.onClose = onClose
         self.onInstall = onInstall
         self.onInstallWorkflow = onInstallWorkflow
         self.onInstallMCP = onInstallMCP
@@ -329,9 +331,7 @@ struct ResourceCenterView: View {
                         onRefresh: {
                             refreshData()
                         },
-                        onClose: {
-                            dismiss()
-                        }
+                        onClose: onClose
                     )
                 }
                 .navigationSplitViewStyle(.balanced)
@@ -405,9 +405,7 @@ struct ResourceCenterView: View {
                         onRefresh: {
                             refreshData()
                         },
-                        onClose: {
-                            dismiss()
-                        }
+                        onClose: onClose
                     )
                 }
                 .navigationSplitViewStyle(.balanced)

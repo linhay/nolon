@@ -229,12 +229,14 @@ public class ProviderSettings: ObservableObject {
             if updatedProviders[index].defaultSkillsPath != expected.defaultSkillsPath
                 || updatedProviders[index].workflowPath != expected.workflowPath
                 || updatedProviders[index].commandPath != expected.commandPath
+                || updatedProviders[index].vendorCategory != expected.vendorCategory
                 || updatedProviders[index].additionalSkillsPaths != expected.additionalSkillsPaths
                 || updatedProviders[index].documentationURL != expected.documentationURL
             {
                 updatedProviders[index].defaultSkillsPath = expected.defaultSkillsPath
                 updatedProviders[index].workflowPath = expected.workflowPath
                 updatedProviders[index].commandPath = expected.commandPath
+                updatedProviders[index].vendorCategory = expected.vendorCategory
                 updatedProviders[index].additionalSkillsPaths = expected.additionalSkillsPaths
                 updatedProviders[index].documentationURL = expected.documentationURL
                 hasChanges = true

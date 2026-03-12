@@ -68,7 +68,56 @@ struct CodexTokenTrendServiceTests {
         #expect(result.todayTokens == 120)
         #expect(result.last7DaysTokens == 510)
         #expect(result.last30DaysTokens == 510)
+        #expect(result.allDaysTokens == 510)
         #expect(result.sourceLabel == "global")
+    }
+
+    @Test("keeps summary metrics stable while slicing chart range")
+    func keepsSummaryMetricsStableWhileSlicingChartRange() async throws {
+        let now = Date(timeIntervalSince1970: 1_746_000_000)
+        let entries = (1...40).map { index in
+            CostUsageDailyReport.Entry(
+                date: String(format: "2026-02-%02d", min(index, 28)),
+                inputTokens: index,
+                outputTokens: index,
+                cacheReadTokens: 0,
+                totalTokens: index * 10,
+                costUSD: nil,
+                modelsUsed: nil,
+                modelBreakdowns: nil
+            )
+        }
+        let snapshot = CostUsageTokenSnapshot(
+            sessionTokens: 400,
+            sessionCostUSD: nil,
+            todayInputTokens: nil,
+            todayOutputTokens: nil,
+            todayCachedInputTokens: nil,
+            rangeDays: nil,
+            rangeTokens: nil,
+            rangeCostUSD: nil,
+            rangeInputTokens: nil,
+            rangeOutputTokens: nil,
+            rangeCachedInputTokens: nil,
+            daily: entries,
+            updatedAt: now,
+            source: .globalFallback
+        )
+
+        let recorder = TrailingDaysRecorder()
+        let service = CodexTokenTrendService { _, trailingDays, _, _ in
+            await recorder.record(trailingDays)
+            return snapshot
+        }
+
+        let result = try await service.fetchGlobalSnapshot(trailingDays: 7, environment: [:])
+
+        #expect(await recorder.values() == [nil])
+        #expect(result.points.count == 7)
+        #expect(result.todayTokens == 400)
+        #expect(result.last7DaysTokens == (34...40).map { $0 * 10 }.reduce(0, +))
+        #expect(result.last30DaysTokens == (11...40).map { $0 * 10 }.reduce(0, +))
+        #expect(result.allDaysTokens == (1...40).map { $0 * 10 }.reduce(0, +))
     }
 
     @Test("returns empty snapshot when scanner has no daily entries")
@@ -98,5 +147,18 @@ struct CodexTokenTrendServiceTests {
         #expect(result.todayTokens == nil)
         #expect(result.last7DaysTokens == nil)
         #expect(result.last30DaysTokens == nil)
+        #expect(result.allDaysTokens == nil)
+    }
+}
+
+private actor TrailingDaysRecorder {
+    private var storage: [Int?] = []
+
+    func record(_ value: Int?) {
+        storage.append(value)
+    }
+
+    func values() -> [Int?] {
+        storage
     }
 }

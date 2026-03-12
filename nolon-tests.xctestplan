@@ -1,0 +1,30 @@
+{
+  "configurations" : [
+    {
+      "id" : "D3FBFC03-3704-4E30-9DAA-61C79703A85E",
+      "name" : "Default",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+    "codeCoverage" : false,
+    "targetForVariableExpansion" : {
+      "containerPath" : "container:nolon.xcodeproj",
+      "identifier" : "CD2B1A912F1F624900DF4A2B",
+      "name" : "nolon"
+    }
+  },
+  "testTargets" : [
+    {
+      "parallelizable" : false,
+      "target" : {
+        "containerPath" : "container:nolon.xcodeproj",
+        "identifier" : "CD9EDF3B2F24F31E009248CB",
+        "name" : "nolonTests"
+      }
+    }
+  ],
+  "version" : 1
+}

@@ -55,6 +55,7 @@ public struct GeminiTokenTrendService: Sendable {
                 todayTokens: nil,
                 last7DaysTokens: nil,
                 last30DaysTokens: nil,
+                allDaysTokens: nil,
                 updatedAt: now(),
                 sourceLabel: "session"
             )
@@ -67,6 +68,7 @@ public struct GeminiTokenTrendService: Sendable {
                 todayTokens: nil,
                 last7DaysTokens: nil,
                 last30DaysTokens: nil,
+                allDaysTokens: nil,
                 updatedAt: now(),
                 sourceLabel: "session"
             )
@@ -90,7 +92,7 @@ public struct GeminiTokenTrendService: Sendable {
             }
         }
 
-        var points = daily.keys.sorted().map { day in
+        let allPoints = daily.keys.sorted().map { day in
             let totals = daily[day, default: DayTotals()]
             return ProviderTokenTrendPoint(
                 date: day,
@@ -101,18 +103,23 @@ public struct GeminiTokenTrendService: Sendable {
             )
         }
 
-        if let trailingDays, trailingDays > 0, points.count > trailingDays {
-            points = Array(points.suffix(trailingDays))
+        let points: [ProviderTokenTrendPoint]
+        if let trailingDays, trailingDays > 0, allPoints.count > trailingDays {
+            points = Array(allPoints.suffix(trailingDays))
+        } else {
+            points = allPoints
         }
 
-        let today = points.last?.totalTokens
-        let last7 = sumTrailing(points: points, days: 7)
-        let last30 = sumTrailing(points: points, days: 30)
+        let today = allPoints.last?.totalTokens
+        let last7 = sumTrailing(points: allPoints, days: 7)
+        let last30 = sumTrailing(points: allPoints, days: 30)
+        let all = sumAll(points: allPoints)
         return ProviderTokenTrendSnapshot(
             points: points,
             todayTokens: today,
             last7DaysTokens: last7,
             last30DaysTokens: last30,
+            allDaysTokens: all,
             updatedAt: now(),
             sourceLabel: "session"
         )
@@ -123,6 +130,11 @@ public struct GeminiTokenTrendService: Sendable {
         let values = points.suffix(days).map(\.totalTokens)
         guard !values.isEmpty else { return nil }
         return values.reduce(0, +)
+    }
+
+    private func sumAll(points: [ProviderTokenTrendPoint]) -> Int? {
+        guard !points.isEmpty else { return nil }
+        return points.map(\.totalTokens).reduce(0, +)
     }
 
     private static func dayString(from timestamp: String) -> String? {
