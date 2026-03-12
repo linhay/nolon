@@ -202,7 +202,7 @@ final class RemoteRepositorySidebarViewModel: ObservableObject {
 }
 
 /// Left column 1: Repository sidebar with list and add button
-struct RemoteRepositorySidebarView: View {
+struct RemoteRepositorySidebarView: View, DebugPageLocatable {
     @Binding var selectedRepository: RemoteRepository?
     @ObservedObject var settings: ProviderSettings
     var showsHeader: Bool = true
@@ -211,6 +211,14 @@ struct RemoteRepositorySidebarView: View {
     @StateObject private var viewModel = RemoteRepositorySidebarViewModel()
     @State private var collapsedSectionIDs: Set<String> = []
     @Environment(\.dismiss) private var dismiss
+
+    var debugPageMarkerItems: [PageMarkerItem] {
+        var items = [PageMarkerItem(title: "Repository Sidebar")]
+        if let selectedRepository {
+            items.append(PageMarkerItem(title: selectedRepository.name))
+        }
+        return items
+    }
     
     var body: some View {
         let sections = repositorySections(settings.remoteRepositories)
@@ -319,6 +327,7 @@ struct RemoteRepositorySidebarView: View {
                 viewModel.showingAddRepository = true
             }
         }
+        .debugPageLocator(debugPageMarkerItems)
 
     }
 

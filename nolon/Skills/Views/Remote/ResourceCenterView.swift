@@ -150,7 +150,7 @@ final class ResourceCenterViewModel {
 /// - 左1: RemoteRepositorySidebarView (仓库列表)
 /// - 左2: ResourceCenterTabView (Tab 导航)
 /// - 左3: ResourceCatalogGridView (网格视图)
-struct ResourceCenterView: View {
+struct ResourceCenterView: View, DebugPageLocatable {
     @ObservedObject var settings: ProviderSettings
     let repository: SkillRepository
     let targetProvider: Provider?
@@ -186,6 +186,10 @@ struct ResourceCenterView: View {
         self.onRegisterDeleteRequest = onRegisterDeleteRequest
         self.onMakeDeleteRequestExecutor = onMakeDeleteRequestExecutor
         self._viewModel = State(initialValue: ResourceCenterViewModel(selectedTab: selectedTab))
+    }
+
+    var debugPageMarkerItems: [PageMarkerItem] {
+        PageMarkerRouteResolver.resourceCenterItems(selectedTab: viewModel.selectedTab)
     }
     
     private func refreshData() {
@@ -446,6 +450,7 @@ struct ResourceCenterView: View {
                 .navigationSplitViewStyle(.balanced)
             }
         }
+        .debugPageLocator(debugPageMarkerItems)
         .overlay(alignment: .top) {
             if let importErrorMessage = viewModel.importErrorMessage, !importErrorMessage.isEmpty {
                 HStack(alignment: .top, spacing: 8) {

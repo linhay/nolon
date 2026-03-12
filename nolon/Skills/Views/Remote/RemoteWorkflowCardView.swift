@@ -23,6 +23,10 @@ struct RemoteWorkflowCardView: View {
         ResourceCardShell(
             minHeight: 140,
             isSelected: isSelected,
+            locatorItems: [
+                .init(title: "Workflow Card"),
+                .init(title: workflow.displayName)
+            ],
             onTap: onTap,
             headerContent: { headerView },
             summaryContent: { summaryView },

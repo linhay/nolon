@@ -5,7 +5,7 @@ import STFilePath
 import NolonResourceKit
 
 /// Detail 区域 - Grid 布局显示 Skills 或 Workflows
-struct ProviderDetailGridView: View {
+struct ProviderDetailGridView: View, DebugPageLocatable {
     let provider: Provider?
     let selectedTab: ProviderContentTabType?
     @ObservedObject var settings: ProviderSettings
@@ -37,6 +37,10 @@ struct ProviderDetailGridView: View {
         self.onSelectProvider = onSelectProvider
         self.onSelectTab = onSelectTab
         self._viewModel = State(initialValue: ProviderDetailGridViewModel(provider: provider, settings: settings))
+    }
+
+    var debugPageMarkerItems: [PageMarkerItem] {
+        PageMarkerRouteResolver.providerDetailItems(provider: provider, selectedTab: selectedTab)
     }
     
     var body: some View {
@@ -122,6 +126,7 @@ struct ProviderDetailGridView: View {
                 await viewModel.loadData()
             }
         }
+        .debugPageLocator(debugPageMarkerItems)
     }
     
     @ViewBuilder

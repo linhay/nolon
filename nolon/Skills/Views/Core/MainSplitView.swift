@@ -763,7 +763,14 @@ public struct MainSplitView: View {
 
 }
 
-private struct PluginManagementNavigationView: View {
+private struct PluginManagementNavigationView: View, DebugPageLocatable {
+    var debugPageMarkerItems: [PageMarkerItem] {
+        [
+            PageMarkerItem(title: "Plugins"),
+            PageMarkerItem(title: NSLocalizedString("plugins.navigation.title", value: "Plugin Management", comment: "Plugin management navigation title"))
+        ]
+    }
+
     var body: some View {
         List {
             Label(
@@ -775,6 +782,7 @@ private struct PluginManagementNavigationView: View {
         .navigationTitle(
             NSLocalizedString("plugins.navigation.group", value: "Plugins", comment: "Plugins navigation group title")
         )
+        .debugPageLocator(debugPageMarkerItems)
     }
 }
 

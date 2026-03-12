@@ -1,9 +1,18 @@
 import XCTest
+import STFilePath
 import NolonResourceKit
 import ProviderCatalog
 import ProviderUsage
 import CodexBarProviderCatalog
 @testable import nolon
+
+private final class CopyTextSink: @unchecked Sendable {
+    var value: String?
+}
+
+private final class UUIDSink: @unchecked Sendable {
+    var value: UUID?
+}
 
 @MainActor
 final class NolonAccountsViewModelTests: XCTestCase {
@@ -241,6 +250,141 @@ final class NolonAccountsViewModelTests: XCTestCase {
         XCTAssertEqual(merged[1].accountEmail, "side@example.com")
         XCTAssertEqual(merged[1].totalCount, 0)
         XCTAssertTrue(merged[1].isSnapshotOnly)
+    }
+
+    func testBDD_GivenInactiveCodexSnapshotCard_WhenBuildingAccountCards_ThenIncludesActivateAndCopyMenu() {
+        let provider = Provider(
+            id: "codex",
+            kind: .vendor,
+            name: "Codex",
+            defaultSkillsPath: "/tmp/codex/skills",
+            workflowPath: "/tmp/codex/prompts",
+            vendorCategory: .original,
+            templateId: ProviderTemplate.codex.rawValue
+        )
+        let id = UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE")!
+        let viewModel = NolonAccountsViewModel(settings: ProviderSettings())
+        viewModel.accountSummariesByProviderID[provider.id] = [
+            .init(
+                id: id.uuidString,
+                accountLabel: "Work",
+                accountEmail: "work@example.com",
+                plan: "plus",
+                totalCount: 0,
+                successCount: 0,
+                failureCount: 0,
+                latestUpdatedAt: Date(timeIntervalSince1970: 1_700_300_000),
+                primaryUsedPercent: nil,
+                errorMessage: nil,
+                isSnapshotOnly: true
+            )
+        ]
+
+        let cards = viewModel.accountCards(for: provider)
+
+        XCTAssertEqual(cards.count, 1)
+        XCTAssertEqual(cards[0].presentation.selectionStyle, .neutral)
+        XCTAssertEqual(cards[0].tapBehavior, .activate)
+        XCTAssertEqual(cards[0].primaryActions.map(\.actionID), [.activate])
+        XCTAssertEqual(cards[0].menuActions.map(\.actionID), [.copyAccountID, .copyAuthPath])
+    }
+
+    func testBDD_GivenActiveCodexSnapshotCard_WhenBuildingAccountCards_ThenShowsActiveStateWithoutActivateAction() {
+        let provider = Provider(
+            id: "codex",
+            kind: .vendor,
+            name: "Codex",
+            defaultSkillsPath: "/tmp/codex/skills",
+            workflowPath: "/tmp/codex/prompts",
+            vendorCategory: .original,
+            templateId: ProviderTemplate.codex.rawValue
+        )
+        let id = UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE")!
+        let viewModel = NolonAccountsViewModel(settings: ProviderSettings())
+        viewModel.accountSummariesByProviderID[provider.id] = [
+            .init(
+                id: id.uuidString,
+                accountLabel: "Work",
+                accountEmail: "work@example.com",
+                plan: "plus",
+                totalCount: 1,
+                successCount: 1,
+                failureCount: 0,
+                latestUpdatedAt: Date(timeIntervalSince1970: 1_700_300_000),
+                primaryUsedPercent: 20,
+                errorMessage: nil,
+                isSnapshotOnly: false
+            )
+        ]
+        viewModel.activeCodexAccountIDByProviderID[provider.id] = id
+
+        let cards = viewModel.accountCards(for: provider)
+
+        XCTAssertEqual(cards.count, 1)
+        XCTAssertEqual(cards[0].presentation.selectionStyle, .active)
+        XCTAssertTrue(cards[0].primaryActions.isEmpty)
+        XCTAssertEqual(cards[0].tapBehavior, .openProvider)
+    }
+
+    func testBDD_GivenCodexSnapshotID_WhenCopyingAuthPath_ThenPasteboardWriterReceivesSnapshotPath() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("nolon-accounts-copy-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let service = CodexAuthManager(rootURL: root)
+        let account = try await service.addAccount(
+            name: "work",
+            authJSONString: #"{"tokens":{"id_token":"id","access_token":"access"}}"#
+        )
+
+        let sink = CopyTextSink()
+        let viewModel = NolonAccountsViewModel(
+            settings: ProviderSettings(),
+            codexAuthManager: service,
+            copyTextAction: { text in
+                sink.value = text
+            }
+        )
+
+        await viewModel.copyCodexAccountPath(account.id)
+
+        let expected = service.accountAuthFile(relativeAuthPath: account.relativeAuthPath).url.path
+        XCTAssertEqual(sink.value, expected)
+    }
+
+    func testBDD_GivenCodexSnapshotID_WhenActivatingFromAccountsPage_ThenUsesActivationCoordinatorClosure() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("nolon-accounts-activate-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let service = CodexAuthManager(rootURL: root)
+        let account = try await service.addAccount(
+            name: "work",
+            authJSONString: #"{"tokens":{"id_token":"id","access_token":"access"}}"#
+        )
+        let provider = Provider(
+            id: "codex",
+            kind: .vendor,
+            name: "Codex",
+            defaultSkillsPath: root.appendingPathComponent("provider/skills").path,
+            workflowPath: root.appendingPathComponent("provider/prompts").path,
+            vendorCategory: .original,
+            templateId: ProviderTemplate.codex.rawValue
+        )
+        let sink = UUIDSink()
+        let viewModel = NolonAccountsViewModel(
+            settings: ProviderSettings(),
+            codexAuthManager: service,
+            codexActivateAction: { account, _ in
+                sink.value = account.id
+            }
+        )
+
+        await viewModel.activateCodexAccount(id: account.id, for: provider)
+
+        XCTAssertEqual(sink.value, account.id)
     }
 
     func testBDD_GivenPiAuthPayloadWithRootEmail_WhenParsing_ThenReturnsAvailableStatusWithEmail() throws {

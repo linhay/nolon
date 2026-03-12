@@ -325,10 +325,14 @@ final class PluginManagementViewModel {
     }
 }
 
-struct PluginManagementView: View {
+struct PluginManagementView: View, DebugPageLocatable {
     @State private var viewModel = PluginManagementViewModel()
     @State private var showingLogs = false
     @State private var logsAutoScroll = true
+
+    var debugPageMarkerItems: [PageMarkerItem] {
+        PageMarkerRouteResolver.pluginManagementItems()
+    }
 
     var body: some View {
         ScrollView {
@@ -360,6 +364,7 @@ struct PluginManagementView: View {
             .padding()
             .frame(maxWidth: .infinity, alignment: .topLeading)
         }
+        .debugPageLocator(debugPageMarkerItems)
         .task {
             await viewModel.load()
         }

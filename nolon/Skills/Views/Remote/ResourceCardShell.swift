@@ -1,8 +1,9 @@
 import SwiftUI
 
-struct ResourceCardShell<HeaderContent: View, SummaryContent: View, MetaContent: View, ActionContent: View, MenuContent: View>: View {
+struct ResourceCardShell<HeaderContent: View, SummaryContent: View, MetaContent: View, ActionContent: View, MenuContent: View>: View, DebugCardLocatable {
     let minHeight: CGFloat
     let isSelected: Bool
+    let locatorItems: [PageMarkerItem]
     let onTap: () -> Void
     @ViewBuilder let headerContent: HeaderContent
     @ViewBuilder let summaryContent: SummaryContent
@@ -15,6 +16,7 @@ struct ResourceCardShell<HeaderContent: View, SummaryContent: View, MetaContent:
     init(
         minHeight: CGFloat = 140,
         isSelected: Bool = false,
+        locatorItems: [PageMarkerItem] = [],
         onTap: @escaping () -> Void,
         @ViewBuilder headerContent: () -> HeaderContent,
         @ViewBuilder summaryContent: () -> SummaryContent,
@@ -24,12 +26,17 @@ struct ResourceCardShell<HeaderContent: View, SummaryContent: View, MetaContent:
     ) {
         self.minHeight = minHeight
         self.isSelected = isSelected
+        self.locatorItems = locatorItems
         self.onTap = onTap
         self.headerContent = headerContent()
         self.summaryContent = summaryContent()
         self.metaContent = metaContent()
         self.actionContent = actionContent()
         self.menuContent = menuContent()
+    }
+
+    var debugCardMarkerItems: [PageMarkerItem] {
+        locatorItems
     }
 
     var body: some View {
@@ -82,6 +89,7 @@ struct ResourceCardShell<HeaderContent: View, SummaryContent: View, MetaContent:
         .contextMenu {
             menuContent
         }
+        .debugCardLocator(debugCardMarkerItems)
     }
 
     private var moreMenu: some View {

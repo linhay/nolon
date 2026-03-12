@@ -89,7 +89,7 @@ final class ProviderSidebarViewModel {
 /// Left column 1: Provider sidebar (collapsible)
 /// Displays the unified list of all providers with selection state
 @MainActor
-public struct ProviderSidebarView: View {
+public struct ProviderSidebarView: View, DebugPageLocatable {
     @Binding var selectedItemKey: String?
     @ObservedObject var settings: ProviderSettings
     @State private var viewModel: ProviderSidebarViewModel
@@ -106,6 +106,29 @@ public struct ProviderSidebarView: View {
         self._selectedItemKey = selectedItemKey
         self.settings = settings
         self._viewModel = State(initialValue: ProviderSidebarViewModel(settings: settings))
+    }
+
+    var debugPageMarkerItems: [PageMarkerItem] {
+        var items = [PageMarkerItem(title: "Sidebar")]
+        guard let selectedItemKey,
+              let selection = MainSidebarSelection(storageKey: selectedItemKey)
+        else {
+            return items
+        }
+
+        switch selection {
+        case let .provider(providerID):
+            if let provider = settings.providers.first(where: { $0.id == providerID }) {
+                items.append(PageMarkerItem(title: provider.displayName))
+            } else {
+                items.append(PageMarkerItem(title: "Provider"))
+            }
+        case .accounts:
+            items.append(PageMarkerItem(title: NSLocalizedString("sidebar.tools.accounts", value: "Accounts", comment: "Accounts sidebar item")))
+        case .pluginManagement:
+            items.append(PageMarkerItem(title: NSLocalizedString("sidebar.plugins.management", value: "Plugin Management", comment: "Plugin management sidebar item")))
+        }
+        return items
     }
     
     public var body: some View {
@@ -195,5 +218,6 @@ public struct ProviderSidebarView: View {
         .sheet(isPresented: $showingAddSheet) {
             AddProviderSheet(settings: viewModel.settings)
         }
+        .debugPageLocator(debugPageMarkerItems)
     }
 }

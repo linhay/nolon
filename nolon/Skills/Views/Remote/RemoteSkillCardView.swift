@@ -23,6 +23,10 @@ struct RemoteSkillCardView: View {
         ResourceCardShell(
             minHeight: 140,
             isSelected: isSelected,
+            locatorItems: [
+                .init(title: "Skill Card"),
+                .init(title: skill.displayName)
+            ],
             onTap: onTap,
             headerContent: { headerView },
             summaryContent: { summaryView },

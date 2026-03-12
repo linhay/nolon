@@ -53,13 +53,21 @@ final class ResourceCenterTabViewModel {
 }
 
 /// 中间栏 - 资源中心内容导航列表 (类似 ProviderContentTabView)
-struct ResourceCenterTabView: View {
+struct ResourceCenterTabView: View, DebugPageLocatable {
     let repository: RemoteRepository?
     @Binding var selectedTab: ResourceContentTabType?
     var refreshTrigger: Int
     
     @State private var viewModel = ResourceCenterTabViewModel()
     @ObservedObject private var watchCenter = RemoteRepositoryWatchCenter.shared
+
+    var debugPageMarkerItems: [PageMarkerItem] {
+        var items = [PageMarkerItem(title: "Resource Center Sidebar")]
+        if let selectedTab {
+            items.append(PageMarkerItem(title: selectedTab.localizedName))
+        }
+        return items
+    }
     
     var body: some View {
         let repoSyncToken = watchCenter.token(for: repository)
@@ -99,6 +107,7 @@ struct ResourceCenterTabView: View {
             }
             await viewModel.loadCounts(for: repository)
         }
+        .debugPageLocator(debugPageMarkerItems)
         .navigationSplitViewColumnWidth(min: 160, ideal: 180, max: 200)
     }
 

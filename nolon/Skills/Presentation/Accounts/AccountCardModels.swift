@@ -10,6 +10,8 @@ enum AccountCardActionID: String, Equatable, Sendable {
     case relogin
     case validate
     case copyError
+    case copyAccountID
+    case copyAuthPath
     case revealInFinder
     case delete
 }
@@ -198,7 +200,8 @@ enum AccountRecordBuilder {
     static func codexAccounts(
         providerName: String,
         usageProvider: UsageProvider,
-        summary: NolonAccountsViewModel.AccountUsageSummary
+        summary: NolonAccountsViewModel.AccountUsageSummary,
+        isActive: Bool
     ) -> AccountRecord {
         let snapshot = summary.errorMessage == nil ? UsageSnapshot(
             identity: UsageIdentity(
@@ -222,7 +225,7 @@ enum AccountRecordBuilder {
                 subtitle: summary.plan,
                 meta: summary.latestUpdatedAt?.formatted(date: .abbreviated, time: .shortened)
             ),
-            activationState: .inactive,
+            activationState: isActive ? .active : .inactive,
             healthState: summary.errorMessage == nil ? .healthy : .failed,
             bodyFields: [],
             detailFields: summary.isSnapshotOnly ? [
@@ -537,12 +540,20 @@ enum AccountCardViewDataMapper {
             ),
             body: body(for: record, quotaRefreshActionID: quotaRefreshActionID),
             detailRows: record.detailFields.map(row),
-            primaryActions: primaryActions,
+            primaryActions: deduplicatedPrimaryActions(primaryActions, tapBehavior: tapBehavior),
             menuActions: menuActions,
             footer: footer,
             tapBehavior: tapBehavior,
             accessibilityLabel: record.accessibilityLabel
         )
+    }
+
+    private static func deduplicatedPrimaryActions(
+        _ primaryActions: [AccountCardActionViewData],
+        tapBehavior: AccountCardTapBehavior
+    ) -> [AccountCardActionViewData] {
+        guard tapBehavior == .activate else { return primaryActions }
+        return primaryActions.filter { $0.actionID != .activate }
     }
 
     private static func body(for record: AccountRecord, quotaRefreshActionID: AccountCardActionID?) -> AccountCardBodyContent {

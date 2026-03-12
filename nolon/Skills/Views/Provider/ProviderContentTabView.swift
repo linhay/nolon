@@ -362,7 +362,7 @@ final class ProviderContentTabViewModel {
 }
 
 /// 中间栏 - Provider 内容导航列表
-struct ProviderContentTabView: View {
+struct ProviderContentTabView: View, DebugPageLocatable {
     let provider: Provider?
     @Binding var selectedTab: ProviderContentTabType?
     let settings: ProviderSettings
@@ -376,6 +376,10 @@ struct ProviderContentTabView: View {
         self.settings = settings
         self.refreshTrigger = refreshTrigger
         self._viewModel = State(initialValue: ProviderContentTabViewModel(settings: settings))
+    }
+
+    var debugPageMarkerItems: [PageMarkerItem] {
+        PageMarkerRouteResolver.providerNavigationItems(provider: provider)
     }
     
     var body: some View {
@@ -451,6 +455,7 @@ struct ProviderContentTabView: View {
         } message: {
             Text(viewModel.terminalErrorMessage ?? "")
         }
+        .debugPageLocator(debugPageMarkerItems)
         .navigationSplitViewColumnWidth(min: 160, ideal: 180, max: 200)
     }
 

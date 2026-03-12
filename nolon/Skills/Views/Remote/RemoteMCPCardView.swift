@@ -23,6 +23,10 @@ struct RemoteMCPCardView: View {
         ResourceCardShell(
             minHeight: 160,
             isSelected: isSelected,
+            locatorItems: [
+                .init(title: "MCP Card"),
+                .init(title: mcp.displayName)
+            ],
             onTap: onTap,
             headerContent: { headerView },
             summaryContent: { summaryView },

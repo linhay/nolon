@@ -200,6 +200,18 @@ struct nolonApp: App {
                 }
                 .keyboardShortcut(",", modifiers: .command)
             }
+
+            #if DEBUG
+            CommandMenu(NSLocalizedString("debug.menu.title", value: "Debug", comment: "Debug menu")) {
+                Toggle(
+                    NSLocalizedString("debug.menu.page_markers", value: "Show Page Markers", comment: "Toggle debug page markers"),
+                    isOn: Binding(
+                        get: { AppCommandState.shared.isDebugPageMarkersEnabled },
+                        set: { AppCommandState.shared.isDebugPageMarkersEnabled = $0 }
+                    )
+                )
+            }
+            #endif
             
             CommandGroup(after: .appInfo) {
                 if let controller = Self.updaterController {

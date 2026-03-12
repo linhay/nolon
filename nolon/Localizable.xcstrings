@@ -8708,6 +8708,9 @@
         }
       }
     },
+    "Copy Page Marker" : {
+
+    },
     "Create Configuration" : {
       "localizations" : {
         "zh-Hans" : {
@@ -8720,6 +8723,30 @@
     },
     "Current: %@" : {
 
+    },
+    "debug.menu.page_markers" : {
+      "comment" : "Toggle debug page markers",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Show Page Markers"
+          }
+        }
+      }
+    },
+    "debug.menu.title" : {
+      "comment" : "Debug menu",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Debug"
+          }
+        }
+      }
     },
     "Delete %@" : {
 
