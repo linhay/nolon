@@ -1,6 +1,12 @@
 import ProviderCatalog
 
+enum CodexLoadingSkeletonStyle {
+    case unifiedAccountCard
+}
+
 enum ProviderUsageSkeletonPolicy {
+    static let codexLoadingSkeletonStyle: CodexLoadingSkeletonStyle = .unifiedAccountCard
+
     static func genericCardCount(for provider: Provider) -> Int {
         switch provider.templateId {
         case ProviderTemplate.gemini.rawValue:

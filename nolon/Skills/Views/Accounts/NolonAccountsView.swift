@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 import Observation
 import ProviderCatalog
 import ProviderUsage
@@ -10,6 +11,10 @@ import Shimmer
 @MainActor
 @Observable
 final class NolonAccountsViewModel {
+    typealias CodexActivateAction = @Sendable (CodexAuthAccount, Provider) async throws -> Void
+    typealias CopyTextAction = @Sendable (String) -> Void
+    typealias ProviderUsageViewModelFactory = @MainActor @Sendable (Provider) -> ProviderUsageViewModel
+
     struct UsageSummary: Sendable, Equatable {
         let provider: UsageProvider
         let totalCount: Int
@@ -45,10 +50,15 @@ final class NolonAccountsViewModel {
     private let codexAuthManager: CodexAuthManager
     private let claudeAccountManager: ClaudeAccountManager
     private let geminiAuthStore: GeminiAuthStore
+    private let codexActivateAction: CodexActivateAction
+    private let copyTextAction: CopyTextAction
+    private let providerUsageViewModelFactory: ProviderUsageViewModelFactory
+    @ObservationIgnored private var providerUsageViewModelsByProviderID: [Provider.ID: ProviderUsageViewModel] = [:]
 
     var usageSummaryByProviderID: [Provider.ID: UsageSummary] = [:]
     var accountSummariesByProviderID: [Provider.ID: [AccountUsageSummary]] = [:]
     var codexAccountSummaryByProviderID: [Provider.ID: CodexAccountSummary] = [:]
+    var activeCodexAccountIDByProviderID: [Provider.ID: UUID] = [:]
     var claudeAccountsByProviderID: [Provider.ID: [ClaudeAccount]] = [:]
     var activeClaudeAccountIDByProviderID: [Provider.ID: UUID] = [:]
     var geminiAccountsByProviderID: [Provider.ID: [GeminiAuthAccount]] = [:]
@@ -61,15 +71,47 @@ final class NolonAccountsViewModel {
         usageSettingsStore: UsageMonitorSettingsStore? = nil,
         codexAuthManager: CodexAuthManager = CodexAuthManager(),
         claudeAccountManager: ClaudeAccountManager = ClaudeAccountManager(),
-        geminiAuthStore: GeminiAuthStore = .shared
+        geminiAuthStore: GeminiAuthStore = .shared,
+        codexActivateAction: CodexActivateAction? = nil,
+        copyTextAction: CopyTextAction? = nil,
+        providerUsageViewModelFactory: ProviderUsageViewModelFactory? = nil
     ) {
-        self.settings = settings
+        let hasCustomViewModelDependencies = usageMonitor != nil || codexActivateAction != nil
         let tokenStore = FileTokenAccountStore(fileURL: ProviderUsagePaths.defaultTokenAccountsFileURL())
-        self.usageMonitor = usageMonitor ?? ProviderUsageMonitorService(tokenAccountStore: tokenStore)
+        let resolvedUsageMonitor = usageMonitor ?? ProviderUsageMonitorService(tokenAccountStore: tokenStore)
+        let resolvedCodexActivateAction = codexActivateAction ?? { account, provider in
+            _ = try await CodexAuthActivationCoordinator.shared.activate(account: account, provider: provider)
+        }
+
+        self.settings = settings
+        self.usageMonitor = resolvedUsageMonitor
         self.usageSettingsStore = usageSettingsStore ?? .shared
         self.codexAuthManager = codexAuthManager
         self.claudeAccountManager = claudeAccountManager
         self.geminiAuthStore = geminiAuthStore
+        self.codexActivateAction = resolvedCodexActivateAction
+        self.copyTextAction = copyTextAction ?? { text in
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(text, forType: .string)
+        }
+        if let providerUsageViewModelFactory {
+            self.providerUsageViewModelFactory = providerUsageViewModelFactory
+        } else if hasCustomViewModelDependencies {
+            self.providerUsageViewModelFactory = { provider in
+                ProviderUsageViewModel(
+                    provider: provider,
+                    usageMonitor: resolvedUsageMonitor,
+                    codexActivateAction: { account, provider in
+                        try await resolvedCodexActivateAction(account, provider)
+                        return CodexAuthActivationResult(runtimeSwitched: false, runtimeErrorDescription: nil)
+                    }
+                )
+            }
+        } else {
+            self.providerUsageViewModelFactory = { provider in
+                ProviderUsageViewModelStore.shared.viewModel(for: provider)
+            }
+        }
     }
 
     var sections: [ProviderPresentationSections.ProviderSection] {
@@ -89,6 +131,7 @@ final class NolonAccountsViewModel {
         var latestUsage: [Provider.ID: UsageSummary] = [:]
         var latestAccountUsage: [Provider.ID: [AccountUsageSummary]] = [:]
         var latestCodexSummary: [Provider.ID: CodexAccountSummary] = [:]
+        var latestActiveCodexAccounts: [Provider.ID: UUID] = [:]
         var latestClaudeAccounts: [Provider.ID: [ClaudeAccount]] = [:]
         var latestActiveClaudeAccounts: [Provider.ID: UUID] = [:]
         var latestGeminiAccounts: [Provider.ID: [GeminiAuthAccount]] = [:]
@@ -96,9 +139,11 @@ final class NolonAccountsViewModel {
 
         for section in sections {
             for provider in section.providers {
-                guard let usageProvider = Self.mapUsageProvider(for: provider) else { continue }
-                let monitorSettings = usageSettingsStore.settings(for: provider)
-                let outcomes = await usageMonitor.fetchOutcomes(provider: usageProvider, settings: monitorSettings)
+                let usageViewModel = providerUsageViewModel(for: provider)
+                guard let usageProvider = usageViewModel.usageProvider else { continue }
+                usageViewModel.settings = usageSettingsStore.settings(for: provider)
+                await usageViewModel.load()
+                let outcomes = usageViewModel.outcomes
 
                 let accountSummaries = Self.makeAccountSummaries(outcomes: outcomes)
                 if let summary = Self.makeUsageSummary(provider: provider, usageProvider: usageProvider, outcomes: outcomes) {
@@ -109,6 +154,9 @@ final class NolonAccountsViewModel {
                     let codexSnapshot = await loadCodexSnapshotAccounts(for: provider, liveSummaries: accountSummaries)
                     if let codexSummary = codexSnapshot.summary {
                         latestCodexSummary[provider.id] = codexSummary
+                    }
+                    if let activeID = codexSnapshot.activeAccountID {
+                        latestActiveCodexAccounts[provider.id] = activeID
                     }
                     if !codexSnapshot.accountSummaries.isEmpty {
                         latestAccountUsage[provider.id] = codexSnapshot.accountSummaries
@@ -153,14 +201,53 @@ final class NolonAccountsViewModel {
         usageSummaryByProviderID = latestUsage
         accountSummariesByProviderID = latestAccountUsage
         codexAccountSummaryByProviderID = latestCodexSummary
+        activeCodexAccountIDByProviderID = latestActiveCodexAccounts
         claudeAccountsByProviderID = latestClaudeAccounts
         activeClaudeAccountIDByProviderID = latestActiveClaudeAccounts
         geminiAccountsByProviderID = latestGeminiAccounts
         activeGeminiAccountIDByProviderID = latestActiveGeminiAccounts
     }
+
+    func activateCodexAccount(id: UUID, for provider: Provider) async {
+        do {
+            let usageViewModel = providerUsageViewModel(for: provider)
+            _ = await usageViewModel.loadIfNeeded()
+            usageViewModel.requestActivateCodexAccount(id: id)
+            if usageViewModel.pendingActivateCodexAccount != nil {
+                await usageViewModel.confirmActivate()
+            } else {
+                let accounts = try await codexAuthManager.loadAccounts()
+                guard let account = accounts.first(where: { $0.id == id }) else { return }
+                try await codexActivateAction(account, provider)
+            }
+            await refreshAsync()
+        } catch {
+        }
+    }
+
+    func copyCodexAccountID(_ id: UUID) {
+        copyTextAction(id.uuidString.lowercased())
+    }
+
+    func copyCodexAccountPath(_ id: UUID) async {
+        guard let accounts = try? await codexAuthManager.loadAccounts(),
+              let account = accounts.first(where: { $0.id == id })
+        else { return }
+        let file = await codexAuthManager.accountAuthFile(account)
+        copyTextAction(file.url.path)
+    }
+
+    private func providerUsageViewModel(for provider: Provider) -> ProviderUsageViewModel {
+        if let cached = providerUsageViewModelsByProviderID[provider.id] {
+            return cached
+        }
+        let created = providerUsageViewModelFactory(provider)
+        providerUsageViewModelsByProviderID[provider.id] = created
+        return created
+    }
 }
 
-struct NolonAccountsView: View {
+struct NolonAccountsView: View, DebugPageLocatable {
     @ObservedObject var settings: ProviderSettings
     let onSelectProvider: (Provider.ID) -> Void
     @State private var viewModel: NolonAccountsViewModel
@@ -175,6 +262,10 @@ struct NolonAccountsView: View {
         self.settings = settings
         self.onSelectProvider = onSelectProvider
         self._viewModel = State(initialValue: NolonAccountsViewModel(settings: settings))
+    }
+
+    var debugPageMarkerItems: [PageMarkerItem] {
+        PageMarkerRouteResolver.accountsItems()
     }
 
     var body: some View {
@@ -200,6 +291,7 @@ struct NolonAccountsView: View {
             }
         }
         .navigationTitle("")
+        .debugPageLocator(debugPageMarkerItems)
         .task(id: settings.providers.map(\.id).joined(separator: ",")) {
             viewModel.refresh()
         }
@@ -259,8 +351,8 @@ struct NolonAccountsView: View {
                 ForEach(cards) { card in
                     UnifiedAccountCard(
                         data: card,
-                        onTap: { _ in onSelectProvider(provider.id) },
-                        onAction: { _, _ in onSelectProvider(provider.id) }
+                        onTap: { _ in handleCardTap(card, provider: provider) },
+                        onAction: { _, action in handleCardAction(card, provider: provider, action: action) }
                     )
                 }
             }
@@ -283,6 +375,38 @@ struct NolonAccountsView: View {
             return 2
         default:
             return 1
+        }
+    }
+
+    private func handleCardTap(_ card: AccountCardViewData, provider: Provider) {
+        switch card.tapBehavior {
+        case .none:
+            break
+        case .openProvider, .toggleSelection:
+            onSelectProvider(provider.id)
+        case .activate:
+            handleCardAction(card, provider: provider, action: .activate)
+        }
+    }
+
+    private func handleCardAction(_ card: AccountCardViewData, provider: Provider, action: AccountCardActionID) {
+        switch action {
+        case .activate:
+            guard provider.templateId == ProviderTemplate.codex.rawValue,
+                  let id = NolonAccountsViewModel.resolveCodexAccountID(from: card.recordID.rawValue)
+            else {
+                onSelectProvider(provider.id)
+                return
+            }
+            Task { await viewModel.activateCodexAccount(id: id, for: provider) }
+        case .copyAccountID:
+            guard let id = NolonAccountsViewModel.resolveCodexAccountID(from: card.recordID.rawValue) else { return }
+            viewModel.copyCodexAccountID(id)
+        case .copyAuthPath:
+            guard let id = NolonAccountsViewModel.resolveCodexAccountID(from: card.recordID.rawValue) else { return }
+            Task { await viewModel.copyCodexAccountPath(id) }
+        default:
+            onSelectProvider(provider.id)
         }
     }
 
@@ -657,6 +781,16 @@ private struct AccountProviderRankingItem {
 }
 
 extension NolonAccountsViewModel {
+    nonisolated static func resolveCodexAccountID(from summaryID: String) -> UUID? {
+        if let directID = UUID(uuidString: summaryID) {
+            return directID
+        }
+
+        let components = summaryID.split(separator: ".", maxSplits: 1, omittingEmptySubsequences: true)
+        guard components.count == 2 else { return nil }
+        return UUID(uuidString: String(components[1]))
+    }
+
     static func mapUsageProvider(for provider: Provider) -> UsageProvider? {
         if provider.templateId == ProviderTemplate.codexXcode.rawValue {
             return nil
@@ -863,7 +997,7 @@ extension NolonAccountsViewModel {
     private func loadCodexSnapshotAccounts(
         for provider: Provider,
         liveSummaries: [AccountUsageSummary]
-    ) async -> (summary: CodexAccountSummary?, accountSummaries: [AccountUsageSummary]) {
+    ) async -> (summary: CodexAccountSummary?, accountSummaries: [AccountUsageSummary], activeAccountID: UUID?) {
         let accounts = (try? await codexAuthManager.loadAccounts()) ?? []
         var summaries: [UUID: CodexAuthSummary] = [:]
 
@@ -896,7 +1030,7 @@ extension NolonAccountsViewModel {
             activeAccountID: activeAccountID,
             providerAuthSummary: providerAuthSummary
         )
-        return (summary, accountSummaries)
+        return (summary, accountSummaries, activeAccountID)
     }
 
     func accountCards(for provider: Provider) -> [AccountCardViewData] {
@@ -970,13 +1104,53 @@ extension NolonAccountsViewModel {
             if summaries.isEmpty {
                 return [emptyCard(provider: provider)]
             }
+            let supportsCodexSwitching = usageProvider == .codex
+            let activeID = supportsCodexSwitching ? activeCodexAccountIDByProviderID[provider.id] : nil
             return summaries.map { summary in
+                let accountID = supportsCodexSwitching
+                    ? Self.resolveCodexAccountID(from: summary.id)
+                    : nil
+                let isActive = accountID == activeID
+                let canOperateOnSnapshot = supportsCodexSwitching && accountID != nil
                 let record = AccountRecordBuilder.codexAccounts(
                     providerName: provider.name,
                     usageProvider: usageProvider,
-                    summary: summary
+                    summary: summary,
+                    isActive: isActive
                 )
-                return AccountCardViewDataMapper.map(record: record)
+                return AccountCardViewDataMapper.map(
+                    record: record,
+                    primaryActions: !isActive && canOperateOnSnapshot ? [
+                        .init(
+                            id: "activate",
+                            actionID: .activate,
+                            title: NSLocalizedString("codex.accounts.action.activate", value: "Activate", comment: "Activate account"),
+                            systemImage: nil,
+                            role: nil,
+                            prominence: .primary,
+                            isEnabled: true
+                        )
+                    ] : [],
+                    menuActions: canOperateOnSnapshot ? [
+                        .init(
+                            id: "copy-account-id",
+                            actionID: .copyAccountID,
+                            title: NSLocalizedString("codex.accounts.menu.copy_account_id", value: "Copy Account ID", comment: "Copy account id"),
+                            systemImage: "number",
+                            role: nil,
+                            isEnabled: true
+                        ),
+                        .init(
+                            id: "copy-auth-path",
+                            actionID: .copyAuthPath,
+                            title: NSLocalizedString("codex.accounts.menu.copy_auth_path", value: "Copy Auth Path", comment: "Copy auth path"),
+                            systemImage: "doc.on.doc",
+                            role: nil,
+                            isEnabled: true
+                        )
+                    ] : [],
+                    tapBehavior: !isActive && canOperateOnSnapshot ? .activate : .openProvider
+                )
             }
         }
     }

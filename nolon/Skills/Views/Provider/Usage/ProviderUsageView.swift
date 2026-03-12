@@ -73,10 +73,11 @@ struct ProviderUsageView: View {
         GridItem(.adaptive(minimum: 260, maximum: 380), spacing: 12, alignment: .topLeading)
     ]
 
+    @MainActor
     init(provider: Provider, isEmbedded: Bool = false) {
         self.provider = provider
         self.isEmbedded = isEmbedded
-        self._viewModel = State(initialValue: ProviderUsageViewModel(provider: provider))
+        self._viewModel = State(initialValue: ProviderUsageViewModelStore.shared.viewModel(for: provider))
     }
 
     var body: some View {
@@ -93,7 +94,7 @@ struct ProviderUsageView: View {
             await viewModel.loadIfNeeded()
         }
         .onChange(of: provider.id) { _, _ in
-            viewModel = ProviderUsageViewModel(provider: provider)
+            viewModel = ProviderUsageViewModelStore.shared.viewModel(for: provider)
             Task { await viewModel.loadIfNeeded() }
         }
         .onChange(of: viewModel.settings) { _, _ in
@@ -944,12 +945,10 @@ struct ProviderUsageView: View {
                 if viewModel.isLoading && viewModel.codexAccountOutcomes.isEmpty {
                     LazyVGrid(columns: codexAccountColumns, alignment: .leading, spacing: 12) {
                         ForEach(0..<ProviderUsageSkeletonPolicy.codexCardCount, id: \.self) { _ in
-                            ProviderQuotaSection(
-                                provider: .codex,
-                                usage: nil,
-                                isLoading: true,
-                                showsEmptyState: true
-                            )
+                            switch ProviderUsageSkeletonPolicy.codexLoadingSkeletonStyle {
+                            case .unifiedAccountCard:
+                                UnifiedAccountCardSkeleton(providerName: provider.name)
+                            }
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)

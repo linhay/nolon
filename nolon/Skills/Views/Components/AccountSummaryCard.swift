@@ -245,12 +245,37 @@ struct AccountSummaryContentCard<Body: View, Details: View, Actions: View>: View
     }
 }
 
-struct UnifiedAccountCard: View {
+struct UnifiedAccountCard: View, DebugCardLocatable {
     let data: AccountCardViewData
     let onTap: (AccountRecordID) -> Void
     let onAction: (AccountRecordID, AccountCardActionID) -> Void
 
+    var debugCardMarkerItems: [PageMarkerItem] {
+        var items: [PageMarkerItem] = []
+        if let eyebrow = data.header.eyebrow, !eyebrow.isEmpty {
+            items.append(PageMarkerItem(title: eyebrow))
+        }
+        items.append(PageMarkerItem(title: data.header.title))
+        return items
+    }
+
     var body: some View {
+        Group {
+            if Self.shouldInstallTapGesture(for: data.tapBehavior) {
+                cardContent.onTapGesture {
+                    onTap(data.recordID)
+                }
+            } else {
+                cardContent
+            }
+        }
+    }
+
+    static func shouldInstallTapGesture(for tapBehavior: AccountCardTapBehavior) -> Bool {
+        tapBehavior != .none
+    }
+
+    private var cardContent: some View {
         AccountSummaryContentCard(
             presentation: data.presentation,
             header: data.header,
@@ -270,10 +295,6 @@ struct UnifiedAccountCard: View {
                 }
             }
         }
-        .onTapGesture {
-            guard data.tapBehavior != .none else { return }
-            onTap(data.recordID)
-        }
         .contextMenu {
             ForEach(data.menuActions) { action in
                 Button(role: action.role) {
@@ -288,6 +309,7 @@ struct UnifiedAccountCard: View {
                 .disabled(!action.isEnabled)
             }
         }
+        .debugCardLocator(debugCardMarkerItems)
         .accessibilityLabel(data.accessibilityLabel)
     }
 
