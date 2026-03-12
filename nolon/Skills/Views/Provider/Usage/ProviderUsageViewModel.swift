@@ -2172,6 +2172,17 @@ final class ProviderUsageViewModel {
         return usageProvider == .gemini && candidateAvailable
     }
 
+    static func displayedGenericUsageOutcomes(
+        usageProvider: UsageProvider?,
+        hasGeminiAccounts: Bool,
+        outcomes: [ProviderAccountUsageOutcome]
+    ) -> [ProviderAccountUsageOutcome] {
+        if (usageProvider == .gemini || usageProvider == .antigravity), hasGeminiAccounts {
+            return []
+        }
+        return outcomes
+    }
+
     static func shouldForceRefreshOnAppearForFailedOutcomes(
         _ outcomes: [ProviderAccountUsageOutcome]
     ) -> Bool {

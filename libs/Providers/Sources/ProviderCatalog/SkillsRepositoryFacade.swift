@@ -556,6 +556,7 @@ public enum SkillsRepositoryFacade {
         base: URL,
         loader: RemoteDataLoader
     ) async throws -> RemoteListResult {
+        let maxRateLimitAttempts = 3
         let trimmed = query?.trimmingCharacters(in: .whitespacesAndNewlines)
         let hasQuery = trimmed?.isEmpty == false
         let url: URL
@@ -586,7 +587,24 @@ public enum SkillsRepositoryFacade {
             ])
         }
 
-        let (data, response) = try await loader(url)
+        var attempt = 1
+        var (data, response) = try await loader(url)
+        while response.statusCode == 429, attempt < maxRateLimitAttempts {
+            let retryAfter = rateLimitRetryDelaySeconds(from: response)
+            logger.error(
+                "Remote list rate limited. kind=\(kind.rawValue, privacy: .public) status=429 retryAfter=\(retryAfter, privacy: .public) attempt=\(attempt, privacy: .public) url=\(url.absoluteString, privacy: .public)"
+            )
+            if retryAfter > 0 {
+                try? await Task.sleep(nanoseconds: UInt64(retryAfter) * 1_000_000_000)
+            }
+            let retryResult = try await loader(url)
+            data = retryResult.0
+            response = retryResult.1
+            attempt += 1
+            logger.info(
+                "Remote list retry completed. kind=\(kind.rawValue, privacy: .public) status=\(response.statusCode, privacy: .public) attempt=\(attempt, privacy: .public) url=\(url.absoluteString, privacy: .public)"
+            )
+        }
         guard (200..<300).contains(response.statusCode) else {
             throw SyncError.commandFailed("Remote list failed with status \(response.statusCode)")
         }

@@ -989,6 +989,64 @@ final class CodexUsageTabPresentationTests: XCTestCase {
         XCTAssertFalse(shouldShow)
     }
 
+    func testBDD_GivenGeminiAccountsPresent_WhenResolvingDisplayedGenericUsageOutcomes_ThenHidesDuplicateOutcomeCards() {
+        let outcome = ProviderAccountUsageOutcome(
+            provider: .gemini,
+            account: .default,
+            outcome: ProviderFetchOutcome(
+                fetchKind: .oauth,
+                result: .success(
+                    ProviderFetchResult(
+                        usage: UsageSnapshot(
+                            identity: UsageIdentity(
+                                accountEmail: "dev@example.com",
+                                accountOrganization: nil,
+                                loginMethod: "oauth"
+                            ),
+                            primary: nil,
+                            secondary: nil,
+                            tertiary: nil,
+                            updatedAt: Date()
+                        ),
+                        credits: nil,
+                        cost: nil,
+                        sourceLabel: "OAuth",
+                        fetchKind: .oauth,
+                        strategyKind: .direct
+                    )
+                )
+            )
+        )
+
+        let displayed = ProviderUsageViewModel.displayedGenericUsageOutcomes(
+            usageProvider: .gemini,
+            hasGeminiAccounts: true,
+            outcomes: [outcome]
+        )
+
+        XCTAssertTrue(displayed.isEmpty)
+    }
+
+    func testBDD_GivenGeminiWithoutAccounts_WhenResolvingDisplayedGenericUsageOutcomes_ThenKeepsOutcomeCardsForEmptyState() {
+        let outcome = ProviderAccountUsageOutcome(
+            provider: .gemini,
+            account: .default,
+            outcome: ProviderFetchOutcome(
+                fetchKind: .cli,
+                result: .failure(ProviderUsageError.missingAccount(.gemini))
+            )
+        )
+
+        let displayed = ProviderUsageViewModel.displayedGenericUsageOutcomes(
+            usageProvider: .gemini,
+            hasGeminiAccounts: false,
+            outcomes: [outcome]
+        )
+
+        XCTAssertEqual(displayed.count, 1)
+        XCTAssertEqual(displayed.first?.id, outcome.id)
+    }
+
     func testBDD_GivenFailedUsageOutcome_WhenEvaluatingAppearRefreshPolicy_ThenForcesRefresh() {
         let failed = ProviderAccountUsageOutcome(
             provider: .antigravity,

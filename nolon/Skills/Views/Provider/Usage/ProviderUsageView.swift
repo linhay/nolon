@@ -639,7 +639,12 @@ struct ProviderUsageView: View {
     }
 
     private var genericUsageContent: some View {
-        ScrollView {
+        let displayedOutcomes = ProviderUsageViewModel.displayedGenericUsageOutcomes(
+            usageProvider: viewModel.usageProvider,
+            hasGeminiAccounts: !viewModel.geminiAccounts.isEmpty,
+            outcomes: viewModel.outcomes
+        )
+        return ScrollView {
             LazyVStack(alignment: .leading, spacing: 12) {
                 if viewModel.shouldShowGeminiImportAction {
                     geminiImportCallout
@@ -658,7 +663,7 @@ struct ProviderUsageView: View {
                         }
                     }
                 }
-                ForEach(viewModel.outcomes) { outcome in
+                ForEach(displayedOutcomes) { outcome in
                     ProviderUsageSnapshotView(outcome: outcome, isLoading: viewModel.isLoading)
                 }
                 if viewModel.usageProvider == .gemini {

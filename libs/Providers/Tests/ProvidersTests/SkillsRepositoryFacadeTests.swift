@@ -286,6 +286,85 @@ struct SkillsRepositoryFacadeTests {
         #expect(await calledHosts.snapshot() == ["clawhub.ai"])
     }
 
+    @Test("list remote resources retries once on same host after 429")
+    func listRemoteResourcesRetryOnceOnSameHostAfterRateLimited() async throws {
+        let calledHosts = CalledHostsStore()
+        let payload = """
+        {
+          "items": [
+            {
+              "slug": "agent-browser",
+              "displayName": "Agent Browser",
+              "summary": "Browser automation",
+              "updatedAt": 1739366400000,
+              "latestVersion": {"version": "1.2.0"},
+              "stats": {"downloads": 120, "stars": 15}
+            }
+          ]
+        }
+        """
+
+        let result = try await SkillsRepositoryFacade.listRemoteResources(
+            kind: .skill,
+            query: nil,
+            limit: 20,
+            baseURL: "https://clawhub.ai",
+            loader: { url in
+                let attempt = await calledHosts.append(url.host ?? "")
+                if attempt == 1 {
+                    let response = HTTPURLResponse(
+                        url: url,
+                        statusCode: 429,
+                        httpVersion: nil,
+                        headerFields: ["Retry-After": "0"]
+                    )!
+                    return (Data(), response)
+                }
+                let response = HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)!
+                return (Data(payload.utf8), response)
+            }
+        )
+
+        #expect(await calledHosts.snapshot() == ["clawhub.ai", "clawhub.ai"])
+        #expect(result.items.count == 1)
+        #expect(result.items.first?.slug == "agent-browser")
+    }
+
+    @Test("list remote resources returns 429 after same-host retry exhaustion")
+    func listRemoteResourcesFailsAfterRateLimitRetryExhausted() async throws {
+        let calledHosts = CalledHostsStore()
+
+        do {
+            _ = try await SkillsRepositoryFacade.listRemoteResources(
+                kind: .skill,
+                query: nil,
+                limit: 20,
+                baseURL: "https://clawhub.ai",
+                loader: { url in
+                    _ = await calledHosts.append(url.host ?? "")
+                    let response = HTTPURLResponse(
+                        url: url,
+                        statusCode: 429,
+                        httpVersion: nil,
+                        headerFields: ["Retry-After": "0"]
+                    )!
+                    return (Data(), response)
+                }
+            )
+            Issue.record("expected 429 error")
+        } catch let error as SkillsRepositoryFacade.SyncError {
+            guard case let .commandFailed(message) = error else {
+                Issue.record("unexpected sync error: \\(error)")
+                return
+            }
+            #expect(message.contains("429"))
+        } catch {
+            Issue.record("unexpected error: \\(error)")
+        }
+
+        #expect(await calledHosts.snapshot() == ["clawhub.ai", "clawhub.ai", "clawhub.ai"])
+    }
+
     @Test("download remote skill uses skill endpoint and preserves extension")
     func downloadRemoteSkill() async throws {
         let base = URL(string: "https://clawhub.ai")!
