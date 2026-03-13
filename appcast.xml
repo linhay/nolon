@@ -1806,5 +1806,57 @@
                        xml:lang="en" />
         </item>
 
+    
+        <item>
+            <title>2.1.5</title>
+            <pubDate>Sat, 14 Mar 2026 00:05:06 +0800</pubDate>
+            <sparkle:version>202603140005</sparkle:version>
+            <sparkle:shortVersionString>2.1.5</sparkle:shortVersionString>
+            <link>https://github.com/linhay/nolon/releases/download/v2.1.5/nolon-arm64.dmg</link>
+            <description><![CDATA[<div style="white-space: pre-wrap; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;">## nolon 2.1.5
+
+### Changes
+- Added the local Codex account-pool gateway with scheduling, sticky sessions, metrics, request logs, and failover/circuit-breaker controls so traffic is routed through healthy accounts.
+- Introduced the direct auto-switch mode that activates the next candidate whenever the active quota window drops below the configured threshold and logs rich diagnostics for each handoff.
+- Exposed the gateway and auto-switch controls through both the App runtime view and the CLI (`nolon codex gateway start|stop|status|logs|doctor` plus `nolon codex autoswitch status|enable|disable|doctor`), showing status summaries, active counts, sticky sessions, recent errors, and the latest auto-switch events.
+- Documented the feature design and operational runbook so the team can confidently operate or troubleshoot the new pathways.
+
+### Downloads
+
+| Platform | Architecture | Download |
+|----------|--------------|----------|
+| macOS | Apple Silicon (M1/M2/M3) | `nolon-arm64.dmg` |
+| macOS | Intel | `nolon-x86_64.dmg` |
+
+### Installation
+1. Download the appropriate DMG for your Mac
+   - **Apple Silicon** (M1, M2, M3 chips): `nolon-arm64.dmg`
+   - **Intel** (older Macs): `nolon-x86_64.dmg`
+2. Open the DMG and drag nolon to Applications
+3. Launch nolon from Applications
+
+### System Requirements
+- macOS 14.0 or later
+
+---
+*Built on 2026-03-14*</div>]]></description>
+            <enclosure url="https://github.com/linhay/nolon/releases/download/v2.1.5/nolon-arm64.dmg"
+                       sparkle:version="202603140005"
+                       sparkle:shortVersionString="2.1.5"
+                       sparkle:edSignature="KExjpPgC/9cd0U5XaS7Udse//Pzi+O0sbBk1njOeAXikVVl5FRaV6NtusGXm/4BxvJNSJ/OMhtgbbj3oxbiFAw=="
+                       length="17349194"
+                       type="application/x-apple-diskimage"
+                       sparkle:os="macos"
+                       xml:lang="en" />
+            <enclosure url="https://github.com/linhay/nolon/releases/download/v2.1.5/nolon-x86_64.dmg"
+                       sparkle:version="202603140005"
+                       sparkle:shortVersionString="2.1.5"
+                       sparkle:edSignature="2DEFHiKOfQwHr1tm5BSWtUIWk5HnAkpf0P6yUw1C/xZkr3u4Ls22yOTP0rUiD+7MuwyJSC/w3XnP6uOMhGBhBQ=="
+                       length="17983581"
+                       type="application/x-apple-diskimage"
+                       sparkle:os="macos"
+                       xml:lang="en" />
+        </item>
+
     </channel>
 </rss>
