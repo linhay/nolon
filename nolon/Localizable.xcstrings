@@ -1891,6 +1891,42 @@
         }
       }
     },
+    "codex.accounts.filter.hide_zero_off" : {
+      "comment" : "Hide zero-quota Codex accounts",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hide Zero-Quota Accounts"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "隐藏无额度账号"
+          }
+        }
+      }
+    },
+    "codex.accounts.filter.hide_zero_on" : {
+      "comment" : "Show all Codex accounts",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show All Accounts"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "显示全部账号"
+          }
+        }
+      }
+    },
     "codex.accounts.action.export_sub2api" : {
       "comment" : "Export selected Codex accounts to sub2api",
       "extractionState" : "extracted_with_value",
@@ -2817,6 +2853,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "暂无账号"
+          }
+        }
+      }
+    },
+    "codex.accounts.filtered_empty.desc" : {
+      "comment" : "All accounts hidden by zero quota filter description",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Accounts with a 0% longest quota window are currently hidden. Turn off the filter to see all accounts."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当前已隐藏最长额度窗口为 0% 的账号。关闭筛选后可查看全部账号。"
+          }
+        }
+      }
+    },
+    "codex.accounts.filtered_empty.title" : {
+      "comment" : "All accounts hidden by zero quota filter title",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No Visible Accounts"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没有可显示的账号"
           }
         }
       }
@@ -8748,6 +8820,30 @@
         }
       }
     },
+    "debug.page_marker.copied" : {
+      "comment" : "Toast after copying debug page marker",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Copied Page Marker"
+          }
+        }
+      }
+    },
+    "debug.page_marker.copy" : {
+      "comment" : "Copy page marker\nCopy sidebar row page marker",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Copy Page Marker"
+          }
+        }
+      }
+    },
     "Delete %@" : {
 
     },
@@ -9459,7 +9555,7 @@
       }
     },
     "generic.error" : {
-      "comment" : "Error\nGeneric error title",
+      "comment" : "Error\nError state\nGeneric error title",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
@@ -9472,6 +9568,18 @@
           "stringUnit" : {
             "state" : "needs_review",
             "value" : "错误"
+          }
+        }
+      }
+    },
+    "generic.loading" : {
+      "comment" : "Loading state",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Loading"
           }
         }
       }
@@ -13845,7 +13953,7 @@
       }
     },
     "tab.agents" : {
-      "comment" : "Agents",
+      "comment" : "Agents\nAgents tab",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
@@ -13897,7 +14005,7 @@
       }
     },
     "tab.rules" : {
-      "comment" : "Rules",
+      "comment" : "Rules\nRules tab",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {

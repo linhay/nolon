@@ -114,6 +114,8 @@ final class NolonAccountsViewModel {
         }
     }
 
+    nonisolated deinit {}
+
     var sections: [ProviderPresentationSections.ProviderSection] {
         ProviderPresentationSections.accountProviders(from: settings.providers)
     }
@@ -248,15 +250,21 @@ final class NolonAccountsViewModel {
 }
 
 struct NolonAccountsView: View, DebugPageLocatable {
-    @ObservedObject var settings: ProviderSettings
+    let settings: ProviderSettings
     let onSelectProvider: (Provider.ID) -> Void
     @State private var viewModel: NolonAccountsViewModel
     @State private var selectedWindow: AccountTimeWindow = .d7
     private let accountCardColumns: [GridItem] = [
         GridItem(.adaptive(minimum: 240, maximum: 340), spacing: 12, alignment: .topLeading)
     ]
-    private let pageBackground = Color(light: 0x0F0F0F, dark: 0x0F0F0F)
-    private let panelBackground = Color(light: 0x1C1C1E, dark: 0x1C1C1E)
+    private let pageBackground = Color(light: NolonAccountsThemeTokens.pageBackgroundLight, dark: NolonAccountsThemeTokens.pageBackgroundDark)
+    private let panelBackground = Color(light: NolonAccountsThemeTokens.panelBackgroundLight, dark: NolonAccountsThemeTokens.panelBackgroundDark)
+    private let primaryText = DesignSystem.Colors.Text.primary
+    private let secondaryText = DesignSystem.Colors.Text.secondary
+    private let tertiaryText = DesignSystem.Colors.Text.tertiary
+    private let subtleBorder = Color(light: 0x000000, dark: 0xFFFFFF).opacity(0.08)
+    private let subtleFill = Color(light: 0x000000, dark: 0xFFFFFF).opacity(0.06)
+    private let subtleFillStrong = Color(light: 0x000000, dark: 0xFFFFFF).opacity(0.14)
 
     init(settings: ProviderSettings, onSelectProvider: @escaping (Provider.ID) -> Void) {
         self.settings = settings
@@ -309,7 +317,7 @@ struct NolonAccountsView: View, DebugPageLocatable {
                 )
             )
         )
-        .foregroundStyle(.white)
+        .foregroundStyle(primaryText)
     }
 
     private var sectionsContent: some View {
@@ -415,7 +423,7 @@ struct NolonAccountsView: View, DebugPageLocatable {
             VStack(alignment: .leading, spacing: 4) {
                 Text(NSLocalizedString("accounts.title", value: "Account Panorama", comment: "Accounts title"))
                     .font(.system(size: 28, weight: .black))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(primaryText)
 
                 Text(
                     NSLocalizedString(
@@ -425,7 +433,7 @@ struct NolonAccountsView: View, DebugPageLocatable {
                     )
                 )
                     .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(Color(light: 0x636366, dark: 0x636366))
+                    .foregroundStyle(tertiaryText)
             }
 
             Spacer()
@@ -443,16 +451,16 @@ struct NolonAccountsView: View, DebugPageLocatable {
                         Text(NSLocalizedString("accounts.action.refresh", value: "Refresh All", comment: "Refresh accounts"))
                     }
                     .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(Color(light: 0xAEAEB2, dark: 0xAEAEB2))
+                    .foregroundStyle(secondaryText)
                     .padding(.horizontal, 16)
                     .padding(.vertical, 8)
                     .background(
                         RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .fill(Color.white.opacity(0.06))
+                            .fill(subtleFill)
                     )
                     .overlay(
                         RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                            .stroke(subtleBorder, lineWidth: 1)
                     )
                 }
                 .buttonStyle(.plain)
@@ -461,7 +469,7 @@ struct NolonAccountsView: View, DebugPageLocatable {
                 Button {} label: {
                     Text(NSLocalizedString("accounts.action.add_account", value: "+ Add Account", comment: "Add account action"))
                         .font(.system(size: 12, weight: .bold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(DesignSystem.Colors.Text.onAccent)
                         .padding(.horizontal, 20)
                         .padding(.vertical, 10)
                         .background(
@@ -477,7 +485,7 @@ struct NolonAccountsView: View, DebugPageLocatable {
     private var accountsDashboard: some View {
         VStack(alignment: .leading, spacing: 30) {
             Rectangle()
-                .fill(Color.white.opacity(0.08))
+                .fill(subtleBorder)
                 .frame(height: 1)
 
             HStack(alignment: .top, spacing: 30) {
@@ -495,7 +503,7 @@ struct NolonAccountsView: View, DebugPageLocatable {
             HStack {
                 Text(NSLocalizedString("accounts.dashboard.trend", value: "Aggregated Usage Trend", comment: "Aggregated trend panel"))
                     .font(.system(size: 16, weight: .bold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(primaryText)
 
                 Spacer()
 
@@ -506,12 +514,12 @@ struct NolonAccountsView: View, DebugPageLocatable {
                         } label: {
                             Text(window.label)
                                 .font(.system(size: 10, weight: .bold))
-                                .foregroundStyle(selectedWindow == window ? .white : Color(light: 0xAEAEB2, dark: 0xAEAEB2))
+                                .foregroundStyle(selectedWindow == window ? primaryText : secondaryText)
                                 .padding(.horizontal, 8)
                                 .padding(.vertical, 4)
                                 .background(
                                     Capsule(style: .continuous)
-                                        .fill(selectedWindow == window ? Color.white.opacity(0.14) : Color.white.opacity(0.05))
+                                        .fill(selectedWindow == window ? subtleFillStrong : subtleFill)
                                 )
                         }
                         .buttonStyle(.plain)
@@ -526,7 +534,7 @@ struct NolonAccountsView: View, DebugPageLocatable {
                     VStack(spacing: 8) {
                         ZStack(alignment: .bottom) {
                             RoundedRectangle(cornerRadius: 4, style: .continuous)
-                                .fill(Color.white.opacity(0.06))
+                                .fill(subtleFill)
                                 .frame(width: 32, height: 124)
                             RoundedRectangle(cornerRadius: 4, style: .continuous)
                                 .fill(item.color)
@@ -534,7 +542,7 @@ struct NolonAccountsView: View, DebugPageLocatable {
                         }
                         Text(item.label)
                             .font(.system(size: 10, weight: .medium))
-                            .foregroundStyle(Color(light: 0xAEAEB2, dark: 0xAEAEB2))
+                            .foregroundStyle(secondaryText)
                     }
                 }
             }
@@ -546,7 +554,7 @@ struct NolonAccountsView: View, DebugPageLocatable {
         .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                .stroke(subtleBorder, lineWidth: 1)
         )
     }
 
@@ -554,19 +562,19 @@ struct NolonAccountsView: View, DebugPageLocatable {
         VStack(alignment: .leading, spacing: 16) {
             Text(NSLocalizedString("accounts.dashboard.ranking", value: "Provider Ranking", comment: "Provider ranking panel"))
                 .font(.system(size: 16, weight: .bold))
-                .foregroundStyle(.white)
+                .foregroundStyle(primaryText)
 
             ForEach(rankingItems(), id: \.id) { item in
                 HStack(spacing: 10) {
                     Text(item.name)
                         .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(Color(light: 0xAEAEB2, dark: 0xAEAEB2))
+                        .foregroundStyle(secondaryText)
                         .frame(width: 78, alignment: .leading)
 
                     GeometryReader { proxy in
                         ZStack(alignment: .leading) {
                             Capsule(style: .continuous)
-                                .fill(Color.white.opacity(0.08))
+                                .fill(subtleBorder)
                             Capsule(style: .continuous)
                                 .fill(item.color)
                                 .frame(width: max(8, proxy.size.width * CGFloat(item.ratio)))
@@ -576,7 +584,7 @@ struct NolonAccountsView: View, DebugPageLocatable {
 
                     Text(item.valueText)
                         .font(.system(size: 11, weight: .bold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(primaryText)
                         .frame(width: 46, alignment: .trailing)
                 }
                 .frame(height: 16)
@@ -589,7 +597,7 @@ struct NolonAccountsView: View, DebugPageLocatable {
         .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                .stroke(subtleBorder, lineWidth: 1)
         )
     }
 
@@ -687,18 +695,18 @@ private struct AccountProviderSectionHeader: View {
 
             Text(NSLocalizedString(section.titleKey, value: section.fallbackTitle, comment: "Account provider section"))
                 .font(.system(size: 18, weight: .black))
-                .foregroundStyle(.white)
+                .foregroundStyle(DesignSystem.Colors.Text.primary)
 
             Spacer()
 
             Text("\(section.providers.count) \(NSLocalizedString("accounts.section.accounts", value: "accounts", comment: "accounts unit"))")
                 .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(Color(light: 0x636366, dark: 0x636366))
+                .foregroundStyle(DesignSystem.Colors.Text.tertiary)
         }
         .padding(.bottom, 12)
         .overlay(alignment: .bottom) {
             Rectangle()
-                .fill(Color.white.opacity(0.08))
+                .fill(Color(light: 0x000000, dark: 0xFFFFFF).opacity(0.08))
                 .frame(height: 1)
         }
     }
@@ -746,7 +754,7 @@ private struct AccountVendorGroupHeader: View {
 
             Text(provider.name)
                 .font(.system(size: 16, weight: .bold))
-                .foregroundStyle(.white)
+                .foregroundStyle(DesignSystem.Colors.Text.primary)
 
             Spacer()
 
@@ -757,7 +765,7 @@ private struct AccountVendorGroupHeader: View {
                 )
             )
             .font(.system(size: 11, weight: .medium))
-            .foregroundStyle(Color(light: 0x636366, dark: 0x636366))
+            .foregroundStyle(DesignSystem.Colors.Text.tertiary)
         }
     }
 }
@@ -778,6 +786,13 @@ private struct AccountProviderRankingItem {
         self.ratio = ratio
         self.valueText = valueText
     }
+}
+
+enum NolonAccountsThemeTokens {
+    static let pageBackgroundLight = 0xF5F5F7
+    static let pageBackgroundDark = 0x0F0F0F
+    static let panelBackgroundLight = 0xFFFFFF
+    static let panelBackgroundDark = 0x1C1C1E
 }
 
 extension NolonAccountsViewModel {

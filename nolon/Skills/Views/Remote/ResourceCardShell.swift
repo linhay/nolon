@@ -88,6 +88,7 @@ struct ResourceCardShell<HeaderContent: View, SummaryContent: View, MetaContent:
         }
         .contextMenu {
             menuContent
+            debugPageMarkerMenuItem(debugCardMarkerItems)
         }
         .debugCardLocator(debugCardMarkerItems)
     }
@@ -95,6 +96,7 @@ struct ResourceCardShell<HeaderContent: View, SummaryContent: View, MetaContent:
     private var moreMenu: some View {
         Menu {
             menuContent
+            debugPageMarkerMenuItem(debugCardMarkerItems)
         } label: {
             Image(systemName: "ellipsis")
                 .dsIconButton()

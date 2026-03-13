@@ -726,6 +726,7 @@ struct ResourceCatalogGridView: View {
     let selectedTab: ResourceContentTabType?
     @Binding var searchText: String
     let installedSlugs: Set<String>
+    let installedSkills: [RemoteSkill]
     let installedWorkflowSlugs: Set<String>
     let installedMcpSlugs: Set<String>
     let providers: [Provider]
@@ -740,7 +741,7 @@ struct ResourceCatalogGridView: View {
     let onClose: (() -> Void)?
     
     @State private var viewModel = ResourceCatalogGridViewModel()
-    @ObservedObject private var watchCenter = RemoteRepositoryWatchCenter.shared
+    private var watchCenter = RemoteRepositoryWatchCenter.shared
     @State private var debouncedSearchText: String = ""
     @State private var searchDebounceTask: Task<Void, Never>?
     @State private var retryTrigger: Int = 0
@@ -757,6 +758,7 @@ struct ResourceCatalogGridView: View {
         selectedTab: ResourceContentTabType?,
         searchText: Binding<String>,
         installedSlugs: Set<String>,
+        installedSkills: [RemoteSkill],
         installedWorkflowSlugs: Set<String>,
         installedMcpSlugs: Set<String>,
         providers: [Provider],
@@ -775,6 +777,7 @@ struct ResourceCatalogGridView: View {
         self._searchText = searchText
         self._debouncedSearchText = State(initialValue: searchText.wrappedValue)
         self.installedSlugs = installedSlugs
+        self.installedSkills = installedSkills
         self.installedWorkflowSlugs = installedWorkflowSlugs
         self.installedMcpSlugs = installedMcpSlugs
         self.providers = providers
@@ -1245,7 +1248,14 @@ struct ResourceCatalogGridView: View {
         let shouldClientFilter = repository?.templateType != .clawdhub
         switch selectedTab {
         case .skills:
-            let filtered = shouldClientFilter ? viewModel.filteredSkills(searchText: searchText) : viewModel.skills
+            let mergedSkills = mergeResourceCatalogSkills(
+                catalogSkills: viewModel.skills,
+                installedSkills: installedSkills
+            )
+            let filtered = filterResourceCatalogSkills(
+                mergedSkills,
+                searchText: shouldClientFilter ? searchText : normalizedSearchQuery
+            )
             if filtered.isEmpty {
                 ContentUnavailableView(
                     searchText.isEmpty
@@ -1736,6 +1746,27 @@ struct ResourceCatalogGridView: View {
             onMakeDeleteRequestExecutor: onMakeDeleteRequestExecutor,
             onRefresh: onRefresh
         )
+    }
+}
+
+func mergeResourceCatalogSkills(
+    catalogSkills: [RemoteSkill],
+    installedSkills: [RemoteSkill]
+) -> [RemoteSkill] {
+    let catalogSlugs = Set(catalogSkills.map(\.slug))
+    let installedOnly = installedSkills.filter { !catalogSlugs.contains($0.slug) }
+    return catalogSkills + installedOnly
+}
+
+func filterResourceCatalogSkills(
+    _ skills: [RemoteSkill],
+    searchText: String
+) -> [RemoteSkill] {
+    let trimmedQuery = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmedQuery.isEmpty else { return skills }
+    return skills.filter { skill in
+        skill.displayName.localizedStandardContains(trimmedQuery)
+        || (skill.summary?.localizedStandardContains(trimmedQuery) ?? false)
     }
 }
 

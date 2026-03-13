@@ -1053,14 +1053,16 @@ struct CodexAdvancedConfigView: View {
     }
 
     let provider: Provider
+    let markerBaseItems: [PageMarkerItem]
     @State private var viewModel: CodexAdvancedConfigViewModel
     @State private var isEditingRawConfig = false
     @State private var roleEditorTarget: RoleEditorTarget?
     @State private var pendingNewRoleDraft = CodexAdvancedConfigViewModel.makeEmptyRoleDraft()
     @State private var featureSearchText: String = ""
 
-    init(provider: Provider) {
+    init(provider: Provider, markerBaseItems: [PageMarkerItem] = []) {
         self.provider = provider
+        self.markerBaseItems = markerBaseItems
         self._viewModel = State(initialValue: CodexAdvancedConfigViewModel(provider: provider))
     }
 
@@ -1271,6 +1273,7 @@ struct CodexAdvancedConfigView: View {
             cornerRadius: DesignSystem.Metrics.cornerRadiusM,
             borderColor: DesignSystem.Colors.Component.border.opacity(0.35)
         )
+        .debugCardLocator(sectionMarkerItems("Common Options"))
     }
 
     private var featureFlagsSection: some View {
@@ -1389,6 +1392,7 @@ struct CodexAdvancedConfigView: View {
                     cornerRadius: DesignSystem.Metrics.cornerRadiusS,
                     borderColor: DesignSystem.Colors.Component.border.opacity(0.18)
                 )
+                .debugCardLocator(itemMarkerItems("Feature: \(feature.key)"))
             }
         }
         .padding(14)
@@ -1398,6 +1402,7 @@ struct CodexAdvancedConfigView: View {
             cornerRadius: DesignSystem.Metrics.cornerRadiusM,
             borderColor: DesignSystem.Colors.Component.border.opacity(0.35)
         )
+        .debugCardLocator(sectionMarkerItems("Feature Flags"))
     }
 
     private func featureSortRank(_ maturity: String) -> Int {
@@ -1617,6 +1622,7 @@ struct CodexAdvancedConfigView: View {
                     cornerRadius: DesignSystem.Metrics.cornerRadiusS,
                     borderColor: DesignSystem.Colors.Component.border.opacity(0.18)
                 )
+                .debugCardLocator(itemMarkerItems("Multi-Agent Empty State"))
             } else {
                 ForEach(viewModel.roleDrafts) { role in
                     let roleID = role.id
@@ -1658,6 +1664,7 @@ struct CodexAdvancedConfigView: View {
                         cornerRadius: DesignSystem.Metrics.cornerRadiusS,
                         borderColor: DesignSystem.Colors.Component.border.opacity(0.18)
                     )
+                    .debugCardLocator(itemMarkerItems("Role: \(role.name.nonEmpty ?? "Unnamed Role")"))
                 }
             }
 
@@ -1714,6 +1721,7 @@ struct CodexAdvancedConfigView: View {
             cornerRadius: DesignSystem.Metrics.cornerRadiusM,
             borderColor: DesignSystem.Colors.Component.border.opacity(0.35)
         )
+        .debugCardLocator(sectionMarkerItems("Multi-Agent Roles"))
     }
 
     @ViewBuilder
@@ -1949,6 +1957,7 @@ struct CodexAdvancedConfigView: View {
             control()
                 .frame(minWidth: 200, maxWidth: 420, alignment: .trailing)
         }
+        .debugCardLocator(itemMarkerItems(label))
     }
 
     private func mergedOptions(current: String, defaults: [String]) -> [String] {
@@ -2270,10 +2279,12 @@ struct CodexAdvancedConfigView: View {
                     cornerRadius: DesignSystem.Metrics.cornerRadiusS,
                     borderColor: DesignSystem.Colors.Component.border.opacity(0.18)
                 )
+                .debugCardLocator(itemMarkerItems("Xcode Link: \(folder.rawValue)"))
                 .contextMenu {
                     Button(NSLocalizedString("action.show_in_finder", comment: "Show in Finder")) {
                         NSWorkspace.shared.activateFileViewerSelecting([state.targetURL])
                     }
+                    debugPageMarkerMenuItem(itemMarkerItems("Xcode Link: \(folder.rawValue)"))
                 }
             }
         }
@@ -2284,6 +2295,27 @@ struct CodexAdvancedConfigView: View {
             cornerRadius: DesignSystem.Metrics.cornerRadiusM,
             borderColor: DesignSystem.Colors.Component.border.opacity(0.35)
         )
+        .debugCardLocator(sectionMarkerItems("Xcode Folder Links"))
+    }
+
+    private func sectionMarkerItems(_ title: String) -> [PageMarkerItem] {
+        let prefix = markerBaseItems.isEmpty
+            ? [
+                PageMarkerItem(title: provider.displayName),
+                PageMarkerItem(title: ProviderContentTabType.advanced.localizedName(for: provider))
+            ]
+            : markerBaseItems
+        return prefix + [PageMarkerItem(title: title)]
+    }
+
+    private func itemMarkerItems(_ title: String) -> [PageMarkerItem] {
+        let prefix = markerBaseItems.isEmpty
+            ? [
+                PageMarkerItem(title: provider.displayName),
+                PageMarkerItem(title: ProviderContentTabType.advanced.localizedName(for: provider))
+            ]
+            : markerBaseItems
+        return prefix + [PageMarkerItem(title: title)]
     }
 
     private func displayPath(_ path: String) -> String {
@@ -2327,6 +2359,7 @@ struct CodexAdvancedConfigView: View {
             RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusS, style: .continuous)
                 .stroke(DesignSystem.Colors.Component.border.opacity(0.22), lineWidth: 1)
         )
+        .debugCardLocator(itemMarkerItems(title))
     }
 
     private func pathStatusText(_ status: CodexBinaryManager.CodexPathStatus) -> String {

@@ -1,27 +1,28 @@
-import Combine
 import Foundation
+import Observation
 import STFilePath
 import ProviderCatalog
 import OSLog
 
 @MainActor
-public class ProviderSettings: ObservableObject {
+@Observable
+public class ProviderSettings {
     public static let shared = ProviderSettings()
     private static let logger = Logger(subsystem: "com.nolon", category: "ProviderSettings")
     
     private let userDefaults: UserDefaults
     private let nolonManager: NolonManager
 
-    @Published public var providers: [Provider] = [] {
+    public var providers: [Provider] = [] {
         didSet { saveProviders() }
     }
 
-    @Published public var remoteRepositories: [RemoteRepository] = [] {
+    public var remoteRepositories: [RemoteRepository] = [] {
         didSet { saveRemoteRepositories() }
     }
     
     /// URL to import from nolon:// scheme
-    @Published public var pendingImportURL: String?
+    public var pendingImportURL: String?
 
 
     public init(userDefaults: UserDefaults = .standard, nolonManager: NolonManager = .shared) {

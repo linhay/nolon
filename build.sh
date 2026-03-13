@@ -1,4 +1,5 @@
 #!/bin/bash
+set -euo pipefail
 
 # Build script for Nolon
 
@@ -23,13 +24,20 @@ if [[ -f ".gitmodules" && "${CHECK_SUBMODULES:-0}" == "1" ]]; then
     fi
 fi
 
-echo "🚀 Building Nolon..."
+echo "🚀 Running Nolon gate..."
+
+SCHEME="${XCODE_SCHEME:-nolon-app}"
+BUILD_CONFIGURATION="${XCODE_CONFIGURATION:-Release}"
+TEST_CONFIGURATION="${XCODE_TEST_CONFIGURATION:-Debug}"
+RUN_TESTS="${RUN_TESTS:-1}"
+DESTINATION="${XCODE_DESTINATION:-platform=macOS}"
+TEST_SCOPE="${TEST_SCOPE:-unit}"
 
 XCODEBUILD_ARGS=(
     -project nolon.xcodeproj
-    -scheme nolon
-    -configuration Release
-    -destination 'platform=macOS'
+    -scheme "${SCHEME}"
+    -configuration "${BUILD_CONFIGURATION}"
+    -destination "${DESTINATION}"
 )
 
 # Optional: avoid hitting the network / updating SwiftPM dependencies.
@@ -49,11 +57,43 @@ fi
 
 XCODEBUILD_ARGS+=(build)
 
-xcodebuild "${XCODEBUILD_ARGS[@]}"
+echo "ℹ️ Scheme: ${SCHEME}"
+echo "ℹ️ Build configuration: ${BUILD_CONFIGURATION}"
+echo "ℹ️ Destination: ${DESTINATION}"
 
-if [ $? -eq 0 ]; then
-    echo "✅ Build succeeded!"
+xcodebuild "${XCODEBUILD_ARGS[@]}"
+echo "✅ Build succeeded!"
+
+if [[ "${RUN_TESTS}" == "1" ]]; then
+    echo "🧪 Running tests..."
+    TEST_ARGS=(
+        -project nolon.xcodeproj \
+        -scheme "${SCHEME}" \
+        -configuration "${TEST_CONFIGURATION}" \
+        -destination "${DESTINATION}" \
+        test
+    )
+
+    case "${TEST_SCOPE}" in
+        unit)
+            TEST_ARGS+=(-only-testing:nolonTests)
+            echo "ℹ️ Test scope: unit (nolonTests)"
+            ;;
+        ui)
+            TEST_ARGS+=(-only-testing:nolonUITests)
+            echo "ℹ️ Test scope: ui (nolonUITests)"
+            ;;
+        all)
+            echo "ℹ️ Test scope: all"
+            ;;
+        *)
+            echo "❌ Invalid TEST_SCOPE='${TEST_SCOPE}'. Expected: unit | ui | all"
+            exit 1
+            ;;
+    esac
+
+    xcodebuild "${TEST_ARGS[@]}"
+    echo "✅ Tests passed! (${TEST_SCOPE})"
 else
-    echo "❌ Build failed."
-    exit 1
+    echo "⏭️ Tests skipped (RUN_TESTS=${RUN_TESTS})"
 fi

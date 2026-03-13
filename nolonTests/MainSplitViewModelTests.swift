@@ -334,4 +334,34 @@ final class MainSplitViewModelTests: XCTestCase {
         XCTAssertEqual(selection?.tab, .usage)
     }
 
+    func testBDD_GivenPersistedProviderSelectionKey_WhenValidating_ThenKeepSelection() {
+        let codexProvider = fixture.providerSettings.providers.first { $0.templateId == "codex" }
+        XCTAssertNotNil(codexProvider)
+        let storageKey = "provider:\(codexProvider!.id)"
+
+        let result = MainSplitViewModel.normalizedSidebarSelectionKey(
+            storageKey,
+            providers: fixture.providerSettings.providers
+        )
+
+        XCTAssertEqual(result, storageKey)
+    }
+
+    func testBDD_GivenPersistedUnknownProviderSelectionKey_WhenValidating_ThenDropSelection() {
+        let result = MainSplitViewModel.normalizedSidebarSelectionKey(
+            "provider:missing-provider-id",
+            providers: fixture.providerSettings.providers
+        )
+
+        XCTAssertNil(result)
+    }
+
+    func testBDD_GivenPersistedTabRawValue_WhenValidating_ThenResolveKnownTabOrNil() {
+        let valid = MainSplitViewModel.persistedTab(from: ProviderContentTabType.usage.rawValue)
+        let invalid = MainSplitViewModel.persistedTab(from: "not-a-tab")
+
+        XCTAssertEqual(valid, ProviderContentTabType.usage)
+        XCTAssertNil(invalid)
+    }
+
 }

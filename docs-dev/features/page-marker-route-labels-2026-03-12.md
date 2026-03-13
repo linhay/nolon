@@ -11,12 +11,14 @@
 - 页面标签仅在 Debug 构建中显示，避免进入正式用户界面。
 - 定位图标按钮点击即可复制完整定位文本，方便联调和缺陷沟通时直接粘贴。
 - 定位图标按钮使用高对比背景色，保证在复杂页面上也容易识别。
+- 定位图标按钮以 overlay 方式悬浮在视图上，不应占用页面布局高度。
 - 页面标签额外显示调用点调试元信息：`#file #line #function`。
 - 页面标签默认关闭，通过菜单栏 `Debug -> Show Page Markers` 手动开启。
 - Debug 模式下记住 `Show Page Markers` 的上次选择，避免每次重启重复开启。
 - 资源卡片与账号卡片也展示同风格定位按钮。
 - 我们自定义的页面类型与卡片类型通过统一协议接入，减少后续遗漏与重复 modifier。
 - 侧边栏面板（Provider Sidebar / Resource Repository Sidebar / Resource Tab Sidebar / Plugin Navigation）也需显示定位图标按钮。
+- `RemoteSkillCardView`、`RemoteWorkflowCardView`、`RemoteMCPCardView` 显式遵守 `DebugPageLocatable`，保证卡片类型本身可追踪。
 
 ## 范围
 - `Accounts`
@@ -25,6 +27,12 @@
 - Provider 子页面（如 `Skills` / `Usage` / `Runtime`）
 - `Resource Center`
 - `Resource Center` 子页面（如 `Skills` / `Workflows` / `MCPs`）
+
+## 实现备注
+- `build.sh` 现已作为默认门禁脚本，默认使用 `nolon-app` scheme，避免 App 层 SwiftUI / Observation 问题被 `nolon` scheme 漏检。
+- 默认门禁执行 `Release build + Debug unit tests`，其中测试默认限定到 `nolonTests`；`nolonUITests` 改为显式 `TEST_SCOPE=ui` 触发，避免环境波动导致日常门禁误伤。
+- `RemoteRepositorySidebarViewModel`、`NolonAccountsViewModel`、`AppCommandState` 等 `@MainActor @Observable` 类型在析构阶段需要避免触发 back-deploy 主线程执行器释放路径；当前通过显式 `nonisolated deinit {}` 与视图生命周期清理任务配合规避。
+- 账号卡片在 `tapBehavior == .activate` 时，主 CTA 会由 `AccountCardViewDataMapper` 去重，避免点击整卡和按钮产生重复激活动作；此时保留右键菜单动作用于调试复制。
 
 ## 非目标
 - 不引入新的导航结构。
@@ -91,3 +99,15 @@
 13. Given 用户浏览侧边栏面板
     When 页面渲染
     Then Provider Sidebar、Resource Repository Sidebar、Resource Tab Sidebar、Plugin Navigation 都显示定位图标按钮
+
+14. Given 页面启用了定位图标按钮
+    When 页面渲染
+    Then 定位图标按钮悬浮在内容上层且不改变内容原有布局高度
+
+15. Given 用户在 `Repository Sidebar` 里对 Git 仓库行执行 `Copy Page Marker`
+    And 行内展示名称为 `owner@repo`
+    When 复制定位文本
+    Then 结果包含 `Repository Sidebar / owner@repo / #file #line #function`
+
+## 2026-03-13 补充
+- `RemoteRepositorySidebarView` 的页面 marker 名称统一改为复用 `repositoryDisplayName(_:)`，避免 Git 仓库右键复制时回退到原始 `repo.name`，导致与列表展示名称不一致。

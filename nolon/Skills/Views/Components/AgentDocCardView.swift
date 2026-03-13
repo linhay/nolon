@@ -106,6 +106,13 @@ struct AgentDocCardView: View {
             )
             .dsIconLabelButton()
         }
+
+        debugPageMarkerMenuItem(
+            [
+                PageMarkerItem(title: NSLocalizedString("tab.agents", value: "Agents", comment: "Agents tab")),
+                PageMarkerItem(title: doc.fileName)
+            ]
+        )
     }
 
     private var moreMenu: some View {
@@ -119,4 +126,5 @@ struct AgentDocCardView: View {
         .menuIndicator(.hidden)
         .fixedSize()
     }
+
 }

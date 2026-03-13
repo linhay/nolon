@@ -9,6 +9,7 @@ import SwiftUI
 
 struct ContentView: View {
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
+    @State private var debugMarkerToastCenter = DebugMarkerToastCenter.shared
     
     var body: some View {
         Group {
@@ -23,6 +24,17 @@ struct ContentView: View {
             }
         }
         .textSelection(.enabled)
+        .overlay(alignment: .bottom) {
+            if debugMarkerToastCenter.isVisible {
+                ToastView(
+                    text: debugMarkerToastCenter.message,
+                    systemImage: "checkmark",
+                    style: .success
+                )
+                .padding(.bottom, 20)
+            }
+        }
+        .animation(.easeOut(duration: 0.2), value: debugMarkerToastCenter.isVisible)
     }
 }
 

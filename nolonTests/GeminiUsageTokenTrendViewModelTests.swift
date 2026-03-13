@@ -18,6 +18,32 @@ actor GeminiUsageCallRecorder {
 
 @MainActor
 final class GeminiUsageTokenTrendViewModelTests: XCTestCase {
+    func testBDD_GivenGeminiUsageInitialLoad_WhenTrendDataIsStillEmpty_ThenShowsTokenTrendSkeleton() throws {
+        let provider = try XCTUnwrap(ProviderTemplate(rawValue: "gemini")).createProvider()
+        let viewModel = ProviderUsageViewModel(provider: provider)
+
+        viewModel.isLoading = true
+
+        XCTAssertTrue(viewModel.shouldShowTokenTrendLoadingSkeleton)
+    }
+
+    func testBDD_GivenGeminiTrendSnapshot_WhenPageStillLoading_ThenKeepsRenderedTrendInsteadOfSkeleton() throws {
+        let provider = try XCTUnwrap(ProviderTemplate(rawValue: "gemini")).createProvider()
+        let viewModel = ProviderUsageViewModel(provider: provider)
+        viewModel.tokenTrendSnapshot = ProviderTokenTrendSnapshot(
+            points: [],
+            todayTokens: 10,
+            last7DaysTokens: 20,
+            last30DaysTokens: 30,
+            allDaysTokens: 40,
+            updatedAt: Date(timeIntervalSince1970: 1_709_900_000),
+            sourceLabel: "session"
+        )
+        viewModel.isLoading = true
+
+        XCTAssertFalse(viewModel.shouldShowTokenTrendLoadingSkeleton)
+    }
+
     func testBDD_GivenGeminiProvider_WhenRefreshingTokenTrend_ThenUsesSelectedRangeAndPublishesSnapshot() async throws {
         let provider = try XCTUnwrap(ProviderTemplate(rawValue: "gemini")).createProvider()
         let recorder = GeminiUsageCallRecorder()

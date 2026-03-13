@@ -455,6 +455,9 @@ struct ProviderContentTabView: View, DebugPageLocatable {
         } message: {
             Text(viewModel.terminalErrorMessage ?? "")
         }
+        .debugPageMarkerContextMenu(debugPageMarkerItems, withDivider: false) {
+            EmptyView()
+        }
         .debugPageLocator(debugPageMarkerItems)
         .navigationSplitViewColumnWidth(min: 160, ideal: 180, max: 200)
     }

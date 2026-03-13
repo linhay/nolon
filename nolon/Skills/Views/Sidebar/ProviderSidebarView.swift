@@ -91,7 +91,7 @@ final class ProviderSidebarViewModel {
 @MainActor
 public struct ProviderSidebarView: View, DebugPageLocatable {
     @Binding var selectedItemKey: String?
-    @ObservedObject var settings: ProviderSettings
+    let settings: ProviderSettings
     @State private var viewModel: ProviderSidebarViewModel
     @State private var showingAddSheet = false
 
@@ -142,7 +142,8 @@ public struct ProviderSidebarView: View, DebugPageLocatable {
                             onShowInFinder: { viewModel.showInFinder(provider) },
                             onViewOfficialDocumentation: { viewModel.openOfficialDocumentation(for: provider) },
                             onEdit: { viewModel.editingProvider = provider },
-                            onDelete: { viewModel.deleteProvider(provider, currentSelectionKey: $selectedItemKey) }
+                            onDelete: { viewModel.deleteProvider(provider, currentSelectionKey: $selectedItemKey) },
+                            debugLocatorText: providerDebugLocatorText(provider)
                         )
                         .tag(MainSidebarSelection.provider(provider.id).storageKey)
                     }
@@ -219,5 +220,24 @@ public struct ProviderSidebarView: View, DebugPageLocatable {
             AddProviderSheet(settings: viewModel.settings)
         }
         .debugPageLocator(debugPageMarkerItems)
+    }
+
+    private func providerDebugLocatorText(
+        _ provider: Provider,
+        fileID: String = #fileID,
+        line: Int = #line,
+        function: String = #function
+    ) -> String {
+        PageMarkerRouteResolver.locatorText(
+            for: [
+                PageMarkerItem(title: "Sidebar"),
+                PageMarkerItem(title: provider.displayName)
+            ],
+            source: PageMarkerRouteResolver.source(
+                fileID: fileID,
+                line: line,
+                function: function
+            )
+        )
     }
 }

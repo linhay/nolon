@@ -4,7 +4,7 @@ import AppKit
 import NolonResourceKit
 
 /// 资源中心技能卡片视图 - Grid 布局中的卡片
-struct RemoteSkillCardView: View {
+struct RemoteSkillCardView: View, DebugPageLocatable {
     let skill: RemoteSkill
     let isInstalled: Bool
     let isInstalling: Bool
@@ -18,15 +18,19 @@ struct RemoteSkillCardView: View {
     let onTap: () -> Void
     
     @State private var showingInstallSheet = false
+
+    var debugPageMarkerItems: [PageMarkerItem] {
+        [
+            .init(title: "Skill Card"),
+            .init(title: skill.displayName)
+        ]
+    }
     
     var body: some View {
         ResourceCardShell(
             minHeight: 140,
             isSelected: isSelected,
-            locatorItems: [
-                .init(title: "Skill Card"),
-                .init(title: skill.displayName)
-            ],
+            locatorItems: debugPageMarkerItems,
             onTap: onTap,
             headerContent: { headerView },
             summaryContent: { summaryView },

@@ -34,6 +34,7 @@ struct ProviderUsageSkeletonPolicyTests {
         #expect(ProviderUsageSkeletonPolicy.codexCardCount == 3)
         #expect(ProviderUsageSkeletonPolicy.tokenTrendSummaryCount == 4)
         #expect(ProviderUsageSkeletonPolicy.tokenTrendChartBarCount == 7)
+        #expect(ProviderUsageSkeletonPolicy.tokenTrendTableRowCount == 5)
     }
 
     @Test("BDD: Given codex loading state when resolving skeleton style then uses unified account card")

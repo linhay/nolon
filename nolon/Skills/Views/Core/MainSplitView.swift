@@ -1,7 +1,7 @@
 import SwiftUI
 import ProviderCatalog
 import CodexProvider
-import Combine
+import Observation
 import OSLog
 import STFilePath
 import NolonResourceKit
@@ -11,8 +11,13 @@ import NolonResourceKit
 /// Left 2: Skills list for current provider
 /// Left 3: Skill detail view
 @MainActor
-final class MainSplitViewModel: ObservableObject {
+@Observable
+final class MainSplitViewModel {
     fileprivate static let logger = Logger(subsystem: "com.nolon", category: "MainSplitView")
+    private enum PersistenceKeys {
+        static let selectedSidebarSelectionKey = "main.selected_sidebar_selection_key"
+        static let selectedProviderTab = "main.selected_provider_tab"
+    }
 
     var settings: ProviderSettings
     var repository: SkillRepository
@@ -24,24 +29,35 @@ final class MainSplitViewModel: ObservableObject {
     private var registeredDeleteRequests: [Int: RegisteredResourceDeleteRequest] = [:]
     private var inFlightDeleteRequestTasks: [Int: Task<ResourceDeleteExecutionResult, Never>] = [:]
     private var completedDeleteRequestResults: [Int: ResourceDeleteExecutionResult] = [:]
+    private let userDefaults: UserDefaults
+    private var isRestoringPersistedSelection = false
 
-    @Published var selectedSidebarSelectionKey: String?
-    @Published var selectedTab: ProviderContentTabType? = .skills
-    @Published var columnVisibility: NavigationSplitViewVisibility = .all
+    var selectedSidebarSelectionKey: String? {
+        didSet { persistSidebarSelection() }
+    }
+    var selectedTab: ProviderContentTabType? = .skills {
+        didSet { persistSelectedTab() }
+    }
+    var columnVisibility: NavigationSplitViewVisibility = .all
     
-    @Published var showingSettings = false
-    @Published var showingResourceCenter = false
-    @Published var refreshTrigger: Int = 0
+    var showingSettings = false
+    var showingResourceCenter = false
+    var refreshTrigger: Int = 0
 
     init(
         settings: ProviderSettings? = nil,
         repository: SkillRepository? = nil,
-        nolonManager: NolonManager = .shared
+        nolonManager: NolonManager = .shared,
+        userDefaults: UserDefaults = .standard
     ) {
         self.nolonManager = nolonManager
         self.settings = settings ?? ProviderSettings.shared
         self.repository = repository ?? SkillRepository(nolonManager: nolonManager)
+        self.userDefaults = userDefaults
+        restorePersistedSelection()
     }
+
+    nonisolated deinit {}
 
     var selectedProviderId: Provider.ID? {
         guard case let .provider(providerID)? = selectedSidebarItem else {
@@ -82,6 +98,15 @@ final class MainSplitViewModel: ObservableObject {
     
     @MainActor
     func setup() {
+        let hadPersistedSelection = selectedSidebarSelectionKey != nil
+        sanitizeSelectionState()
+        if hadPersistedSelection, selectedSidebarSelectionKey == nil {
+            if let firstProvider = settings.providers.first {
+                selectedSidebarItem = .provider(firstProvider.id)
+            } else {
+                selectedSidebarItem = .accounts
+            }
+        }
         installer = SkillInstaller(repository: repository, settings: settings)
         if !UITestSupport.isRunningUnitTests {
             resourceMonitor = ProviderResourceMonitor { [weak self] in
@@ -142,6 +167,66 @@ final class MainSplitViewModel: ObservableObject {
             validatedTab = nil
         }
         return (provider, validatedTab)
+    }
+
+    private func restorePersistedSelection() {
+        isRestoringPersistedSelection = true
+        defer { isRestoringPersistedSelection = false }
+        selectedSidebarSelectionKey = userDefaults.string(forKey: PersistenceKeys.selectedSidebarSelectionKey)
+        if let tab = Self.persistedTab(from: userDefaults.string(forKey: PersistenceKeys.selectedProviderTab)) {
+            selectedTab = tab
+        } else {
+            selectedTab = .skills
+        }
+    }
+
+    private func sanitizeSelectionState() {
+        selectedSidebarSelectionKey = Self.normalizedSidebarSelectionKey(
+            selectedSidebarSelectionKey,
+            providers: settings.providers
+        )
+        if let provider = selectedProvider,
+           let selectedTab,
+           ProviderContentTabType.availableTabs(for: provider).contains(selectedTab) == false {
+            self.selectedTab = .skills
+        }
+    }
+
+    static func normalizedSidebarSelectionKey(_ storageKey: String?, providers: [Provider]) -> String? {
+        guard let storageKey,
+              let selection = MainSidebarSelection(storageKey: storageKey)
+        else {
+            return nil
+        }
+        switch selection {
+        case let .provider(providerID):
+            return providers.contains(where: { $0.id == providerID }) ? storageKey : nil
+        case .accounts, .pluginManagement:
+            return storageKey
+        }
+    }
+
+    static func persistedTab(from rawValue: String?) -> ProviderContentTabType? {
+        guard let rawValue else { return nil }
+        return ProviderContentTabType(rawValue: rawValue)
+    }
+
+    private func persistSidebarSelection() {
+        guard isRestoringPersistedSelection == false else { return }
+        if let selectedSidebarSelectionKey {
+            userDefaults.set(selectedSidebarSelectionKey, forKey: PersistenceKeys.selectedSidebarSelectionKey)
+        } else {
+            userDefaults.removeObject(forKey: PersistenceKeys.selectedSidebarSelectionKey)
+        }
+    }
+
+    private func persistSelectedTab() {
+        guard isRestoringPersistedSelection == false else { return }
+        if let selectedTab {
+            userDefaults.set(selectedTab.rawValue, forKey: PersistenceKeys.selectedProviderTab)
+        } else {
+            userDefaults.removeObject(forKey: PersistenceKeys.selectedProviderTab)
+        }
     }
 
     @MainActor
@@ -581,7 +666,8 @@ final class MainSplitViewModel: ObservableObject {
 @MainActor
 public struct MainSplitView: View {
     
-    @StateObject private var viewModel = MainSplitViewModel()
+    @State private var viewModel = MainSplitViewModel()
+    @State private var urlSchemeHandler = URLSchemeHandler.shared
 
     public init() {}
 
@@ -664,7 +750,7 @@ public struct MainSplitView: View {
         .onExitCommand {
             viewModel.dismissResourceCenter()
         }
-        .onReceive(URLSchemeHandler.shared.$pendingURL) { pendingURL in
+        .onChange(of: urlSchemeHandler.pendingURL) { _, pendingURL in
             guard let url = pendingURL else { return }
             MainSplitViewModel.logger.info("Received URL from URLSchemeHandler: \(url.absoluteString, privacy: .public)")
             
@@ -678,7 +764,7 @@ public struct MainSplitView: View {
             viewModel.presentResourceCenter()
             
             // Clear the pending URL after consuming
-            URLSchemeHandler.shared.pendingURL = nil
+            urlSchemeHandler.pendingURL = nil
         }
         .onAppear {
             viewModel.setup()
@@ -689,7 +775,7 @@ public struct MainSplitView: View {
         .onChange(of: viewModel.selectedSidebarSelectionKey) { _, _ in
             viewModel.updateResourceMonitoring()
         }
-        .onReceive(viewModel.settings.$providers) { _ in
+        .onChange(of: viewModel.settings.providers) { _, _ in
             viewModel.updateResourceMonitoring()
         }
     }
@@ -763,14 +849,7 @@ public struct MainSplitView: View {
 
 }
 
-private struct PluginManagementNavigationView: View, DebugPageLocatable {
-    var debugPageMarkerItems: [PageMarkerItem] {
-        [
-            PageMarkerItem(title: "Plugins"),
-            PageMarkerItem(title: NSLocalizedString("plugins.navigation.title", value: "Plugin Management", comment: "Plugin management navigation title"))
-        ]
-    }
-
+private struct PluginManagementNavigationView: View {
     var body: some View {
         List {
             Label(
@@ -782,7 +861,6 @@ private struct PluginManagementNavigationView: View, DebugPageLocatable {
         .navigationTitle(
             NSLocalizedString("plugins.navigation.group", value: "Plugins", comment: "Plugins navigation group title")
         )
-        .debugPageLocator(debugPageMarkerItems)
     }
 }
 

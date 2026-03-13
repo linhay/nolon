@@ -4,7 +4,7 @@ import AppKit
 import NolonResourceKit
 
 /// 资源中心 MCP 卡片视图 - Grid 布局中的卡片
-struct RemoteMCPCardView: View {
+struct RemoteMCPCardView: View, DebugPageLocatable {
     let mcp: RemoteMCP
     let isInstalled: Bool
     let isInstalling: Bool
@@ -18,15 +18,19 @@ struct RemoteMCPCardView: View {
     let onTap: () -> Void
     
     @State private var showingInstallSheet = false
+
+    var debugPageMarkerItems: [PageMarkerItem] {
+        [
+            .init(title: "MCP Card"),
+            .init(title: mcp.displayName)
+        ]
+    }
     
     var body: some View {
         ResourceCardShell(
             minHeight: 160,
             isSelected: isSelected,
-            locatorItems: [
-                .init(title: "MCP Card"),
-                .init(title: mcp.displayName)
-            ],
+            locatorItems: debugPageMarkerItems,
             onTap: onTap,
             headerContent: { headerView },
             summaryContent: { summaryView },

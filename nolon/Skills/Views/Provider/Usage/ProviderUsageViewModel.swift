@@ -82,9 +82,16 @@ final class ProviderUsageViewModel {
     var tokenTrendSnapshot: ProviderTokenTrendSnapshot?
     var tokenTrendErrorMessage: String?
     var isLoadingTokenTrend = false
+    var shouldShowTokenTrendLoadingSkeleton: Bool {
+        guard usageProvider == .codex || usageProvider == .gemini else { return false }
+        guard tokenTrendSnapshot == nil else { return false }
+        guard tokenTrendErrorMessage?.isEmpty != false else { return false }
+        return isLoading || isLoadingTokenTrend
+    }
     var codexAccountGroupingOption: CodexAccountGroupingOption = .typeInfo
     var codexAccountSortOption: CodexAccountSortOption = .remainingCredits
     var codexCurrentSortDirection: CodexSortDirection = .descending
+    var codexHideZeroQuotaAccounts = false
     var collapsedCodexSectionIDs: Set<String> = []
     var isCodexMultiSelectionEnabled = false
     var selectedCodexAccountIDs: Set<UUID> = []
@@ -315,7 +322,8 @@ final class ProviderUsageViewModel {
             summaries: codexAccountSummaries,
             grouping: codexAccountGroupingOption,
             sorting: codexAccountSortOption,
-            sortDirection: codexCurrentSortDirection
+            sortDirection: codexCurrentSortDirection,
+            hideZeroQuotaAccounts: codexHideZeroQuotaAccounts
         )
     }
 
@@ -404,6 +412,7 @@ final class ProviderUsageViewModel {
         self.codexRefreshTimeoutGraceSeconds = codexRefreshTimeoutGraceSeconds
         let initialSettings = initialSettingsOverride ?? settingsStore.settings(for: provider)
         self.settings = initialSettings
+        self.codexHideZeroQuotaAccounts = initialSettings.codexHideZeroQuotaAccounts
         if ProviderUsageViewModel.mapToUsageProvider(provider) == .codex {
             self.isMultiAccountEnabled = true
         } else {
@@ -528,7 +537,15 @@ final class ProviderUsageViewModel {
 
     func updateSettings(_ newSettings: UsageMonitorProviderSettings) {
         settings = newSettings
+        codexHideZeroQuotaAccounts = newSettings.codexHideZeroQuotaAccounts
         settingsStore.update(settings: newSettings, for: provider)
+    }
+
+    func setCodexHideZeroQuotaAccounts(_ hidden: Bool) {
+        guard codexHideZeroQuotaAccounts != hidden || settings.codexHideZeroQuotaAccounts != hidden else { return }
+        var updated = settings
+        updated.codexHideZeroQuotaAccounts = hidden
+        updateSettings(updated)
     }
 
     func loadCodexManagementStatus() async {
@@ -647,6 +664,13 @@ final class ProviderUsageViewModel {
         didStartInitialLoad = true
         isLoading = true
         defer { isLoading = false }
+        let trendRefreshTask: Task<Void, Never>? = if usageProvider == .codex || usageProvider == .gemini {
+            Task { [weak self] in
+                await self?.refreshTokenTrend()
+            }
+        } else {
+            nil
+        }
 
         Self.logger.info("Loading usage. provider=\(usageProvider.rawValue, privacy: .public) multiAccount=\(self.isMultiAccountEnabled, privacy: .public)")
         if usageProvider == .codex, isMultiAccountEnabled {
@@ -672,12 +696,9 @@ final class ProviderUsageViewModel {
             await updateUsageFileWatcher()
             return
         }
-        let trendRefreshTask = Task { [weak self] in
-            await self?.refreshTokenTrend()
-        }
 
         guard usageProvider == .codex else {
-            await trendRefreshTask.value
+            await trendRefreshTask?.value
             await updateUsageFileWatcher()
             return
         }
@@ -699,7 +720,7 @@ final class ProviderUsageViewModel {
                     await persistCurrentCodexOutcomeIfPossible(outcome: merged, accounts: loadedAccounts)
                 }
                 resetCodexMultiAccountState()
-                await trendRefreshTask.value
+                await trendRefreshTask?.value
                 return
             }
 
@@ -730,7 +751,7 @@ final class ProviderUsageViewModel {
             Self.logger.error("Failed to load codex accounts: \(String(describing: error), privacy: .public)")
         }
 
-        await trendRefreshTask.value
+        await trendRefreshTask?.value
         await loadCodexManagementStatus()
         await updateUsageFileWatcher()
     }
@@ -1223,7 +1244,8 @@ final class ProviderUsageViewModel {
                 includeCredits: settings.includeCredits,
                 webTimeoutSeconds: settings.webTimeoutSeconds,
                 autoRefreshIntervalMinutes: settings.autoRefreshIntervalMinutes,
-                costWindowDays: settings.costWindowDays))
+                costWindowDays: settings.costWindowDays,
+                codexHideZeroQuotaAccounts: settings.codexHideZeroQuotaAccounts))
         }
     }
 
@@ -2183,6 +2205,23 @@ final class ProviderUsageViewModel {
         return outcomes
     }
 
+    static func displayedClaudeUsageOutcomes(
+        hasClaudeAccounts: Bool,
+        outcomes: [ProviderAccountUsageOutcome]
+    ) -> [ProviderAccountUsageOutcome] {
+        outcomes.filter { outcome in
+            guard
+                !hasClaudeAccounts,
+                case let .failure(error) = outcome.outcome.result,
+                let usageError = error as? ProviderUsageError,
+                usageError == .missingAccount(.claude)
+            else {
+                return true
+            }
+            return false
+        }
+    }
+
     static func shouldForceRefreshOnAppearForFailedOutcomes(
         _ outcomes: [ProviderAccountUsageOutcome]
     ) -> Bool {
@@ -2200,7 +2239,8 @@ final class ProviderUsageViewModel {
         summaries: [UUID: CodexAuthSummary],
         grouping: CodexAccountGroupingOption,
         sorting: CodexAccountSortOption,
-        sortDirection: CodexSortDirection = .descending
+        sortDirection: CodexSortDirection = .descending,
+        hideZeroQuotaAccounts: Bool = false
     ) -> [CodexAccountDisplaySection] {
         let outcomeByID = Dictionary(
             outcomes.compactMap { outcome -> (UUID, ProviderAccountUsageOutcome)? in
@@ -2212,6 +2252,9 @@ final class ProviderUsageViewModel {
 
         let items = accounts.compactMap { account -> (CodexAuthAccount, ProviderAccountUsageOutcome, CodexAuthSummary?)? in
             guard let outcome = outcomeByID[account.id] else { return nil }
+            if hideZeroQuotaAccounts, shouldHideCodexAccountForZeroQuota(outcome: outcome) {
+                return nil
+            }
             return (account, outcome, summaries[account.id])
         }
         .sorted { lhs, rhs in
@@ -2236,6 +2279,13 @@ final class ProviderUsageViewModel {
                 return .init(id: key, title: title, items: items.map(\.1))
             }
         }
+    }
+
+    private static func shouldHideCodexAccountForZeroQuota(
+        outcome: ProviderAccountUsageOutcome
+    ) -> Bool {
+        guard let longestWindow = longestQuotaWindow(from: outcome) else { return false }
+        return longestWindow.remainingPercent <= 0
     }
 
     static func codexSortMenuOptions(from outcomes: [ProviderAccountUsageOutcome]) -> [CodexAccountSortOption] {
@@ -3861,6 +3911,18 @@ final class ProviderUsageViewModel {
         return windows
             .first(where: { $0.windowMinutes == windowMinutes })?
             .remainingPercent
+    }
+
+    private static func longestQuotaWindow(
+        from outcome: ProviderAccountUsageOutcome
+    ) -> RateWindow? {
+        guard case let .success(result) = outcome.outcome.result else { return nil }
+        return result.usage.allWindows
+            .map(\.window)
+            .filter { ($0.windowMinutes ?? 0) > 0 }
+            .max { lhs, rhs in
+                (lhs.windowMinutes ?? 0) < (rhs.windowMinutes ?? 0)
+            }
     }
 
     private static func expirySortDate(from outcome: ProviderAccountUsageOutcome) -> Date? {

@@ -4,7 +4,7 @@ import AppKit
 import NolonResourceKit
 
 /// 资源中心 Workflow 卡片视图 - Grid 布局中的卡片
-struct RemoteWorkflowCardView: View {
+struct RemoteWorkflowCardView: View, DebugPageLocatable {
     let workflow: RemoteWorkflow
     let isInstalled: Bool
     let isInstalling: Bool
@@ -18,15 +18,19 @@ struct RemoteWorkflowCardView: View {
     let onTap: () -> Void
     
     @State private var showingInstallSheet = false
+
+    var debugPageMarkerItems: [PageMarkerItem] {
+        [
+            .init(title: "Workflow Card"),
+            .init(title: workflow.displayName)
+        ]
+    }
     
     var body: some View {
         ResourceCardShell(
             minHeight: 140,
             isSelected: isSelected,
-            locatorItems: [
-                .init(title: "Workflow Card"),
-                .init(title: workflow.displayName)
-            ],
+            locatorItems: debugPageMarkerItems,
             onTap: onTap,
             headerContent: { headerView },
             summaryContent: { summaryView },

@@ -16,6 +16,13 @@ private final class UUIDSink: @unchecked Sendable {
 
 @MainActor
 final class NolonAccountsViewModelTests: XCTestCase {
+    func testBDD_GivenAccountsThemeTokens_WhenComparingLightDarkValues_ThenLightModeUsesDedicatedPalette() {
+        XCTAssertNotEqual(NolonAccountsThemeTokens.pageBackgroundLight, NolonAccountsThemeTokens.pageBackgroundDark)
+        XCTAssertNotEqual(NolonAccountsThemeTokens.panelBackgroundLight, NolonAccountsThemeTokens.panelBackgroundDark)
+        XCTAssertEqual(NolonAccountsThemeTokens.pageBackgroundLight, 0xF5F5F7)
+        XCTAssertEqual(NolonAccountsThemeTokens.panelBackgroundLight, 0xFFFFFF)
+    }
+
     func testBDD_GivenCodexXcodeProvider_WhenResolvingUsageProvider_ThenReturnsNil() {
         let provider = Provider(
             id: "codex-xcode",
@@ -285,7 +292,7 @@ final class NolonAccountsViewModelTests: XCTestCase {
         XCTAssertEqual(cards.count, 1)
         XCTAssertEqual(cards[0].presentation.selectionStyle, .neutral)
         XCTAssertEqual(cards[0].tapBehavior, .activate)
-        XCTAssertEqual(cards[0].primaryActions.map(\.actionID), [.activate])
+        XCTAssertTrue(cards[0].primaryActions.isEmpty)
         XCTAssertEqual(cards[0].menuActions.map(\.actionID), [.copyAccountID, .copyAuthPath])
     }
 

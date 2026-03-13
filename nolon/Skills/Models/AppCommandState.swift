@@ -21,4 +21,6 @@ final class AppCommandState {
         self.userDefaults = userDefaults
         self.isDebugPageMarkersEnabled = userDefaults.bool(forKey: StorageKey.debugPageMarkersEnabled)
     }
+
+    nonisolated deinit {}
 }

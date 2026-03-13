@@ -1,35 +1,36 @@
 import SwiftUI
-import Combine
+import Observation
 import os.log
 import STFilePath
 import NolonResourceKit
 
 @MainActor
-final class RemoteRepositorySidebarViewModel: ObservableObject {
+@Observable
+final class RemoteRepositorySidebarViewModel {
 
     private let logger = Logger(subsystem: "com.nolon", category: "RemoteRepositorySidebarViewModel")
     
     // Directory selection for Git repos
-    @Published var showingDirectoryPicker = false
-    @Published var pendingRepository: RemoteRepository?
-    @Published var detectedCandidates: [GitRepository.SkillsDirectoryCandidate] = []
-    @Published var selectedDirectoryIndices: Set<Int> = []
+    var showingDirectoryPicker = false
+    var pendingRepository: RemoteRepository?
+    var detectedCandidates: [GitRepository.SkillsDirectoryCandidate] = []
+    var selectedDirectoryIndices: Set<Int> = []
     
     // Token input for SSH-unavailable repos
-    @Published var showingTokenInput = false
-    @Published var tokenInputRepository: RemoteRepository?
-    @Published var tokenInputHost: String = ""
-    @Published var inputToken: String = ""
+    var showingTokenInput = false
+    var tokenInputRepository: RemoteRepository?
+    var tokenInputHost: String = ""
+    var inputToken: String = ""
     
     // Repository management
-    @Published var showingAddRepository = false
-    @Published var editingRepository: RemoteRepository?  // For edit mode
-    @Published var isSyncing = false
-    @Published var syncingRepositoryID: String?
-    @Published var syncingRepositoryName: String?
-    @Published var syncCompletionMessage: String?
-    @Published var syncCompletionRepositoryName: String?
-    @Published var syncCompletionStyle: SyncCompletionStyle?
+    var showingAddRepository = false
+    var editingRepository: RemoteRepository?  // For edit mode
+    var isSyncing = false
+    var syncingRepositoryID: String?
+    var syncingRepositoryName: String?
+    var syncCompletionMessage: String?
+    var syncCompletionRepositoryName: String?
+    var syncCompletionStyle: SyncCompletionStyle?
 
     private var syncCompletionToken: UUID?
     private var repositorySelectionTask: Task<Void, Never>?
@@ -45,7 +46,10 @@ final class RemoteRepositorySidebarViewModel: ObservableObject {
         case failure
     }
 
-    deinit {
+    nonisolated deinit {}
+
+    @MainActor
+    func cancelPendingTasks() {
         repositorySelectionTask?.cancel()
         syncCompletionDismissTask?.cancel()
     }
@@ -204,20 +208,16 @@ final class RemoteRepositorySidebarViewModel: ObservableObject {
 /// Left column 1: Repository sidebar with list and add button
 struct RemoteRepositorySidebarView: View, DebugPageLocatable {
     @Binding var selectedRepository: RemoteRepository?
-    @ObservedObject var settings: ProviderSettings
+    let settings: ProviderSettings
     var showsHeader: Bool = true
     var title: String? = nil
     
-    @StateObject private var viewModel = RemoteRepositorySidebarViewModel()
+    @State private var viewModel = RemoteRepositorySidebarViewModel()
     @State private var collapsedSectionIDs: Set<String> = []
     @Environment(\.dismiss) private var dismiss
 
     var debugPageMarkerItems: [PageMarkerItem] {
-        var items = [PageMarkerItem(title: "Repository Sidebar")]
-        if let selectedRepository {
-            items.append(PageMarkerItem(title: selectedRepository.name))
-        }
-        return items
+        remoteRepositorySidebarMarkerItems(selectedRepository: selectedRepository)
     }
     
     var body: some View {
@@ -326,6 +326,12 @@ struct RemoteRepositorySidebarView: View, DebugPageLocatable {
             if shouldOpenAddRepositorySheet(for: newValue) {
                 viewModel.showingAddRepository = true
             }
+        }
+        .onDisappear {
+            viewModel.cancelPendingTasks()
+        }
+        .debugPageMarkerContextMenu(debugPageMarkerItems, withDivider: false) {
+            EmptyView()
         }
         .debugPageLocator(debugPageMarkerItems)
 
@@ -474,6 +480,10 @@ struct RemoteRepositorySidebarView: View, DebugPageLocatable {
                         .dsIconLabelButton()
                 }
             }
+
+            debugPageMarkerMenuItem(
+                remoteRepositorySidebarMarkerItems(selectedRepository: repo)
+            )
         }
     }
     
@@ -655,6 +665,14 @@ private func builtInSortKey(_ repo: RemoteRepository) -> Int {
     case .clawdhub: return 1
     default: return 2
     }
+}
+
+func remoteRepositorySidebarMarkerItems(selectedRepository: RemoteRepository?) -> [PageMarkerItem] {
+    var items = [PageMarkerItem(title: "Repository Sidebar")]
+    if let selectedRepository {
+        items.append(PageMarkerItem(title: repositoryDisplayName(selectedRepository)))
+    }
+    return items
 }
 
 private func repositoryDisplayName(_ repo: RemoteRepository) -> String {

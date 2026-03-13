@@ -8,7 +8,7 @@ import NolonResourceKit
 struct ProviderDetailGridView: View, DebugPageLocatable {
     let provider: Provider?
     let selectedTab: ProviderContentTabType?
-    @ObservedObject var settings: ProviderSettings
+    let settings: ProviderSettings
     var refreshTrigger: Int
     var onSelectProvider: ((Provider.ID) -> Void)?
     var onSelectTab: ((ProviderContentTabType) -> Void)?
@@ -55,6 +55,9 @@ struct ProviderDetailGridView: View, DebugPageLocatable {
                             .dsEmptyStateIcon()
                     }
                 }
+                .debugCardLocator([
+                    PageMarkerItem(title: NSLocalizedString("detail.no_provider", comment: "Select a Provider"))
+                ])
             } else if selectedTab == nil {
                 ContentUnavailableView {
                     Label {
@@ -65,6 +68,9 @@ struct ProviderDetailGridView: View, DebugPageLocatable {
                             .dsEmptyStateIcon()
                     }
                 }
+                .debugCardLocator([
+                    PageMarkerItem(title: NSLocalizedString("detail.select_tab", comment: "Select a Tab"))
+                ])
             } else {
                 if viewModel.isLoading {
                     ProgressView()
@@ -352,18 +358,31 @@ struct ProviderDetailGridView: View, DebugPageLocatable {
             if let provider = provider {
                 VStack(alignment: .leading, spacing: 12) {
                     warningCard(viewModel.skillsErrorMessage)
-                    ProviderSkillsGridView(viewModel: viewModel, columns: columns, provider: provider)
+                    ProviderSkillsGridView(
+                        viewModel: viewModel,
+                        columns: columns,
+                        provider: provider,
+                        markerBaseItems: debugPageMarkerItems
+                    )
                 }
             }
         case .workflows:
             VStack(alignment: .leading, spacing: 12) {
                 warningCard(viewModel.workflowsErrorMessage)
-                ProviderWorkflowsGridView(viewModel: viewModel, columns: columns)
+                ProviderWorkflowsGridView(
+                    viewModel: viewModel,
+                    columns: columns,
+                    markerBaseItems: debugPageMarkerItems
+                )
             }
         case .rules:
             VStack(alignment: .leading, spacing: 12) {
                 warningCard(viewModel.rulesErrorMessage)
-                ProviderRulesGridView(viewModel: viewModel, columns: columns) { rule in
+                ProviderRulesGridView(
+                    viewModel: viewModel,
+                    columns: columns,
+                    markerBaseItems: debugPageMarkerItems
+                ) { rule in
                     editingMarkdownDocument = EditingMarkdownDocument(url: URL(fileURLWithPath: rule.path))
                 }
             }
@@ -386,19 +405,24 @@ struct ProviderDetailGridView: View, DebugPageLocatable {
             }
         case .advanced:
             if let provider = provider {
-                CodexAdvancedConfigView(provider: provider)
+                CodexAdvancedConfigView(
+                    provider: provider,
+                    markerBaseItems: debugPageMarkerItems
+                )
                     .id(provider.id)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
         case .accounts:
             if let provider = provider {
                 ProviderUsageView(provider: provider)
+                    .debugCardLocator(debugPageMarkerItems)
                     .id(provider.id)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
         case .usage:
             if let provider = provider {
                 ProviderUsageView(provider: provider)
+                    .debugCardLocator(debugPageMarkerItems)
                     .id(provider.id)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -683,7 +707,8 @@ struct ProviderDetailGridView: View, DebugPageLocatable {
         ProviderMcpGridView(
             provider: provider,
             viewModel: viewModel,
-            columns: columns
+            columns: columns,
+            markerBaseItems: debugPageMarkerItems
         )
     }
 }

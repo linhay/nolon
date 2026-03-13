@@ -3,6 +3,7 @@ import SwiftUI
 struct ProviderWorkflowsGridView: View {
     let viewModel: ProviderDetailGridViewModel
     let columns: [GridItem]
+    let markerBaseItems: [PageMarkerItem]
     
     var body: some View {
         if viewModel.filteredWorkflows.isEmpty {
@@ -26,6 +27,7 @@ struct ProviderWorkflowsGridView: View {
                             NSWorkspace.shared.open(URL(fileURLWithPath: workflow.path))
                         }
                     )
+                    .debugCardLocator(markerBaseItems + [PageMarkerItem(title: workflow.name)])
                 }
             }
         }

@@ -153,6 +153,13 @@ struct WorkflowCardView: View {
             )
             .dsIconLabelButton()
         }
+
+        debugPageMarkerMenuItem(
+            [
+                PageMarkerItem(title: NSLocalizedString("tab.workflows", comment: "Workflows")),
+                PageMarkerItem(title: workflow.name)
+            ]
+        )
     }
     
     private var moreMenu: some View {
@@ -166,4 +173,5 @@ struct WorkflowCardView: View {
         .menuIndicator(.hidden)
         .fixedSize()
     }
+
 }

@@ -61,7 +61,7 @@ enum CodexUsageCardPresentationPolicy {
     }
 }
 
-struct ProviderUsageView: View {
+struct ProviderUsageView: View, DebugPageLocatable {
     let provider: Provider
     let isEmbedded: Bool
     @State private var viewModel: ProviderUsageViewModel
@@ -78,6 +78,29 @@ struct ProviderUsageView: View {
         self.provider = provider
         self.isEmbedded = isEmbedded
         self._viewModel = State(initialValue: ProviderUsageViewModelStore.shared.viewModel(for: provider))
+    }
+
+    static func shouldUseFullWidthGeminiCardLayout(accountCount: Int) -> Bool {
+        accountCount == 1
+    }
+
+    var debugPageMarkerItems: [PageMarkerItem] {
+        [
+            PageMarkerItem(title: provider.displayName),
+            PageMarkerItem(title: ProviderContentTabType.usage.localizedName(for: provider))
+        ]
+    }
+
+    private var tokenTrendDebugPageMarkerItems: [PageMarkerItem] {
+        debugPageMarkerItems + [
+            PageMarkerItem(
+                title: NSLocalizedString(
+                    "usage.token_trend.title",
+                    value: "历史 Token 消耗",
+                    comment: "Token trend section title"
+                )
+            )
+        ]
     }
 
     var body: some View {
@@ -304,6 +327,7 @@ struct ProviderUsageView: View {
             }
         }
         .animation(.easeOut(duration: 0.2), value: viewModel.isShowingCopyToast)
+        .debugPageLocator(debugPageMarkerItems)
     }
 
     private var autoRefreshIntervalBinding: Binding<Int> {
@@ -330,6 +354,7 @@ struct ProviderUsageView: View {
                 ))
                 .dsSecondaryText(font: .body)
             )
+            .debugCardLocator(debugPageMarkerItems + [PageMarkerItem(title: NSLocalizedString("usage.monitor.unsupported.title", value: "Usage not supported", comment: "Unsupported title"))])
         } else if viewModel.usageProvider == .codex {
             codexContent
         } else if viewModel.usageProvider == .claude {
@@ -344,6 +369,7 @@ struct ProviderUsageView: View {
                     description: Text(NSLocalizedString("usage.monitor.empty.desc", value: "No provider data available yet.", comment: "Empty description"))
                         .dsSecondaryText(font: .body)
                 )
+                .debugCardLocator(debugPageMarkerItems + [PageMarkerItem(title: NSLocalizedString("usage.monitor.empty.title", value: "No usage data", comment: "Empty title"))])
             }
         } else {
             genericUsageContent
@@ -358,6 +384,16 @@ struct ProviderUsageView: View {
             Spacer()
 
             if viewModel.usageProvider == .codex {
+                Button {
+                    viewModel.setCodexHideZeroQuotaAccounts(!viewModel.codexHideZeroQuotaAccounts)
+                } label: {
+                    Text(
+                        viewModel.codexHideZeroQuotaAccounts
+                            ? NSLocalizedString("codex.accounts.filter.hide_zero_on", value: "显示全部账号", comment: "Show all Codex accounts")
+                            : NSLocalizedString("codex.accounts.filter.hide_zero_off", value: "隐藏无额度账号", comment: "Hide zero-quota Codex accounts")
+                    )
+                }
+
                 if viewModel.isCodexMultiSelectionEnabled {
                     Text(String(
                         format: NSLocalizedString(
@@ -657,9 +693,18 @@ struct ProviderUsageView: View {
                         Text(provider.name)
                             .font(.headline)
 
-                        LazyVGrid(columns: claudeAccountColumns, alignment: .leading, spacing: 12) {
-                            ForEach(viewModel.geminiAccounts, id: \.id) { account in
-                                geminiAccountCard(account: account)
+                        if Self.shouldUseFullWidthGeminiCardLayout(accountCount: viewModel.geminiAccounts.count) {
+                            VStack(alignment: .leading, spacing: 12) {
+                                ForEach(viewModel.geminiAccounts, id: \.id) { account in
+                                    geminiAccountCard(account: account)
+                                        .frame(maxWidth: .infinity, alignment: .topLeading)
+                                }
+                            }
+                        } else {
+                            LazyVGrid(columns: claudeAccountColumns, alignment: .leading, spacing: 12) {
+                                ForEach(viewModel.geminiAccounts, id: \.id) { account in
+                                    geminiAccountCard(account: account)
+                                }
                             }
                         }
                     }
@@ -705,18 +750,24 @@ struct ProviderUsageView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 if viewModel.claudeAccounts.isEmpty {
-                    ContentUnavailableView(
-                        NSLocalizedString("claude.accounts.empty.title", value: "No Claude accounts", comment: "Empty Claude accounts title"),
+                    ProviderUsageEmptyStateCard(
+                        title: LocalizedStringKey(
+                            NSLocalizedString(
+                                "claude.accounts.empty.title",
+                                value: "No Claude accounts",
+                                comment: "Empty Claude accounts title"
+                            )
+                        ),
                         systemImage: "person.crop.circle.badge.exclamationmark",
-                        description: Text(
+                        descriptionText: Text(
                             NSLocalizedString(
                                 "claude.accounts.empty.desc",
                                 value: "Use \"迁移\" or \"从 cc-switch 导入\" to add accounts.",
                                 comment: "Empty Claude accounts description"
                             )
                         )
-                        .dsSecondaryText(font: .body)
                     )
+                    .debugCardLocator(debugPageMarkerItems + [PageMarkerItem(title: NSLocalizedString("claude.accounts.empty.title", value: "No Claude accounts", comment: "Empty Claude accounts title"))])
                 } else {
                     VStack(alignment: .leading, spacing: 10) {
                         Text(NSLocalizedString("claude.accounts.title", value: "Claude Accounts", comment: "Claude accounts title"))
@@ -730,7 +781,10 @@ struct ProviderUsageView: View {
                     }
                 }
 
-                let usageOutcomes = viewModel.outcomes.filter { outcome in
+                let usageOutcomes = ProviderUsageViewModel.displayedClaudeUsageOutcomes(
+                    hasClaudeAccounts: !viewModel.claudeAccounts.isEmpty,
+                    outcomes: viewModel.outcomes
+                ).filter { outcome in
                     if case let .failure(error) = outcome.outcome.result,
                        let usageError = error as? ProviderUsageError,
                        usageError == .unsupported(.claude) {
@@ -940,6 +994,7 @@ struct ProviderUsageView: View {
                         ))
                         .dsSecondaryText(font: .body)
                     )
+                    .debugCardLocator(debugPageMarkerItems + [PageMarkerItem(title: NSLocalizedString("codex.accounts.empty.title", value: "No accounts", comment: "Empty state title"))])
                 }
 
                 if viewModel.isLoading && viewModel.codexAccountOutcomes.isEmpty {
@@ -952,6 +1007,20 @@ struct ProviderUsageView: View {
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
+                } else if viewModel.codexAccountDisplaySections.isEmpty && viewModel.codexHideZeroQuotaAccounts {
+                    ContentUnavailableView(
+                        NSLocalizedString("codex.accounts.filtered_empty.title", value: "没有可显示的账号", comment: "All accounts hidden by zero quota filter title"),
+                        systemImage: "line.3.horizontal.decrease.circle",
+                        description: Text(
+                            NSLocalizedString(
+                                "codex.accounts.filtered_empty.desc",
+                                value: "当前已隐藏最长额度窗口为 0% 的账号。关闭筛选后可查看全部账号。",
+                                comment: "All accounts hidden by zero quota filter description"
+                            )
+                        )
+                        .dsSecondaryText(font: .body)
+                    )
+                    .debugCardLocator(debugPageMarkerItems + [PageMarkerItem(title: NSLocalizedString("codex.accounts.filtered_empty.title", value: "没有可显示的账号", comment: "All accounts hidden by zero quota filter title"))])
                 } else {
                     ForEach(viewModel.codexAccountDisplaySections) { section in
                         VStack(alignment: .leading, spacing: 10) {
@@ -1024,11 +1093,12 @@ struct ProviderUsageView: View {
     private var tokenTrendSection: some View {
         ProviderTokenTrendSection(
             snapshot: viewModel.tokenTrendSnapshot,
-            isLoading: viewModel.isLoadingTokenTrend,
+            isLoading: viewModel.shouldShowTokenTrendLoadingSkeleton,
             errorMessage: viewModel.tokenTrendErrorMessage,
             range: viewModel.tokenTrendRange,
             onRangeChange: { viewModel.setTokenTrendRange($0) },
-            onRefresh: { viewModel.refreshTokenTrendNow() }
+            onRefresh: { viewModel.refreshTokenTrendNow() },
+            debugPageMarkerItems: tokenTrendDebugPageMarkerItems
         )
     }
 
@@ -1059,7 +1129,8 @@ struct ProviderUsageView: View {
         let cardPresentation = AccountCardPresentation.codex(
             isActive: isActive,
             isPending: isPending,
-            isBatchSelected: isBatchSelected
+            isBatchSelected: isBatchSelected,
+            selectableAccountCount: viewModel.codexAccounts.count
         )
         let summary = accountId.flatMap { viewModel.codexAccountSummaries[$0] }
         let isRefreshing: Bool = {

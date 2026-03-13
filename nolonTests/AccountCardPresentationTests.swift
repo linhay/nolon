@@ -7,7 +7,8 @@ final class AccountCardPresentationTests: XCTestCase {
         let presentation = AccountCardPresentation.codex(
             isActive: true,
             isPending: false,
-            isBatchSelected: false
+            isBatchSelected: false,
+            selectableAccountCount: 1
         )
 
         XCTAssertEqual(presentation.selectionStyle, .active)
@@ -18,7 +19,8 @@ final class AccountCardPresentationTests: XCTestCase {
         let presentation = AccountCardPresentation.codex(
             isActive: false,
             isPending: true,
-            isBatchSelected: false
+            isBatchSelected: false,
+            selectableAccountCount: 1
         )
 
         XCTAssertEqual(presentation.selectionStyle, .pending)
@@ -29,11 +31,24 @@ final class AccountCardPresentationTests: XCTestCase {
         let presentation = AccountCardPresentation.codex(
             isActive: false,
             isPending: false,
-            isBatchSelected: true
+            isBatchSelected: true,
+            selectableAccountCount: 2
         )
 
         XCTAssertEqual(presentation.selectionStyle, .selected)
         XCTAssertTrue(presentation.showsSelectionBadge)
+    }
+
+    func testBDD_GivenSingleCodexAccount_WhenBuildingPresentation_ThenIgnoresBatchSelectionState() {
+        let presentation = AccountCardPresentation.codex(
+            isActive: false,
+            isPending: false,
+            isBatchSelected: true,
+            selectableAccountCount: 1
+        )
+
+        XCTAssertEqual(presentation.selectionStyle, .neutral)
+        XCTAssertFalse(presentation.showsSelectionBadge)
     }
 
     func testBDD_GivenClaudeActiveAccount_WhenBuildingPresentation_ThenUsesActiveStyle() {

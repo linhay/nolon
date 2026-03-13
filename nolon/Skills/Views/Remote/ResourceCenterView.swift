@@ -19,6 +19,7 @@ final class ResourceCenterViewModel {
     var searchText = ""
     var columnVisibility: NavigationSplitViewVisibility = .all
     var installedSlugs: Set<String> = []
+    var installedSkills: [RemoteSkill] = []
     var installedWorkflowSlugs: Set<String> = []
     var installedMcpSlugs: Set<String> = []
     var importErrorMessage: String?
@@ -73,14 +74,33 @@ final class ResourceCenterViewModel {
     @MainActor
     func refreshInstalledSkills(repository: SkillRepository, targetProvider: Provider?, settings: ProviderSettings) {
         do {
-            installedSlugs = try statusService.installedSkillIDs(
+            let installedIDs = try statusService.installedSkillIDs(
                 provider: targetProvider,
                 repository: repository,
                 settings: settings
             )
+            installedSlugs = installedIDs
+            installedSkills = try repository.listSkills()
+                .filter { installedIDs.contains($0.id) }
+                .map { skill in
+                    RemoteSkill(
+                        slug: skill.id,
+                        displayName: skill.name,
+                        summary: skill.description,
+                        latestVersion: skill.version,
+                        updatedAt: nil,
+                        downloads: nil,
+                        stars: nil,
+                        localPath: skill.globalPath
+                    )
+                }
+                .sorted {
+                    $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending
+                }
         } catch {
             Self.logger.error("Failed to scan provider: \(error.localizedDescription, privacy: .public)")
             installedSlugs = []
+            installedSkills = []
         }
     }
 
@@ -151,7 +171,7 @@ final class ResourceCenterViewModel {
 /// - 左2: ResourceCenterTabView (Tab 导航)
 /// - 左3: ResourceCatalogGridView (网格视图)
 struct ResourceCenterView: View, DebugPageLocatable {
-    @ObservedObject var settings: ProviderSettings
+    let settings: ProviderSettings
     let repository: SkillRepository
     let targetProvider: Provider?
     let onClose: () -> Void
@@ -336,6 +356,7 @@ struct ResourceCenterView: View, DebugPageLocatable {
                         selectedTab: .skills,
                         searchText: $viewModel.searchText,
                         installedSlugs: viewModel.installedSlugs,
+                        installedSkills: viewModel.installedSkills,
                         installedWorkflowSlugs: viewModel.installedWorkflowSlugs,
                         installedMcpSlugs: viewModel.installedMcpSlugs,
                         providers: settings.providers,
@@ -404,6 +425,7 @@ struct ResourceCenterView: View, DebugPageLocatable {
                         selectedTab: viewModel.selectedTab,
                         searchText: $viewModel.searchText,
                         installedSlugs: viewModel.installedSlugs,
+                        installedSkills: viewModel.installedSkills,
                         installedWorkflowSlugs: viewModel.installedWorkflowSlugs,
                         installedMcpSlugs: viewModel.installedMcpSlugs,
                         providers: settings.providers,

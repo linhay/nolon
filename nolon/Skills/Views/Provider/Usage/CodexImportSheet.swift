@@ -174,21 +174,14 @@ struct CodexImportSheet: View {
 
                 Spacer()
 
-                HStack(spacing: 8) {
-                    Image(systemName: "magnifyingglass")
-                        .foregroundStyle(DesignSystem.Colors.Text.secondary)
-                    TextField(
-                        NSLocalizedString("codex.import.sheet.search.placeholder", value: "搜索邮箱、名称或文件名", comment: "Search import candidates placeholder"),
-                        text: $searchText
-                    )
-                    .textFieldStyle(.plain)
-                }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 8)
-                .frame(width: 260)
-                .background(
-                    RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusM, style: .continuous)
-                        .fill(DesignSystem.Colors.Component.controlFillSubtle)
+                SearchField(
+                    placeholder: NSLocalizedString(
+                        "codex.import.sheet.search.placeholder",
+                        value: "搜索邮箱、名称或文件名",
+                        comment: "Search import candidates placeholder"
+                    ),
+                    text: $searchText,
+                    width: 260
                 )
             }
 

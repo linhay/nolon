@@ -246,6 +246,50 @@ final class ResourceCatalogGridViewModelTests: XCTestCase {
         XCTAssertEqual(executedClosures, 1)
     }
 
+    @MainActor
+    func testBDD_GivenInstalledSkillMissingFromRepositoryResults_WhenMergingDisplaySkills_ThenInstalledCardStillAppears() {
+        let repositorySkill = Self.makeRemoteSkill(
+            slug: "codex-cli",
+            displayName: "Codex CLI",
+            summary: "Remote catalog entry"
+        )
+        let installedOnlySkill = Self.makeRemoteSkill(
+            slug: "harmony-next",
+            displayName: "HarmonyOS NEXT Expert",
+            summary: "Installed from global cache"
+        )
+
+        let merged = mergeResourceCatalogSkills(
+            catalogSkills: [repositorySkill],
+            installedSkills: [installedOnlySkill]
+        )
+
+        XCTAssertEqual(merged.map(\.slug), ["codex-cli", "harmony-next"])
+    }
+
+    @MainActor
+    func testBDD_GivenInstalledSkillAlsoInRepositoryResults_WhenMergingDisplaySkills_ThenUseRepositoryMetadataWithoutDuplication() {
+        let repositorySkill = Self.makeRemoteSkill(
+            slug: "harmony-next",
+            displayName: "Harmony NEXT",
+            summary: "Repository summary"
+        )
+        let installedOnlySkill = Self.makeRemoteSkill(
+            slug: "harmony-next",
+            displayName: "HarmonyOS NEXT Expert",
+            summary: "Installed summary"
+        )
+
+        let merged = mergeResourceCatalogSkills(
+            catalogSkills: [repositorySkill],
+            installedSkills: [installedOnlySkill]
+        )
+
+        XCTAssertEqual(merged.count, 1)
+        XCTAssertEqual(merged.first?.displayName, "Harmony NEXT")
+        XCTAssertEqual(merged.first?.summary, "Repository summary")
+    }
+
     private static func makeClawdhubRepository() -> RemoteRepository {
         RemoteRepository(
             id: "repo-clawdhub",
@@ -279,6 +323,23 @@ final class ResourceCatalogGridViewModelTests: XCTestCase {
             stars: 1,
             installs: nil,
             localPath: nil
+        )
+    }
+
+    private static func makeRemoteSkill(
+        slug: String,
+        displayName: String,
+        summary: String
+    ) -> RemoteSkill {
+        RemoteSkill(
+            slug: slug,
+            displayName: displayName,
+            summary: summary,
+            latestVersion: "1.0.0",
+            updatedAt: nil,
+            downloads: nil,
+            stars: nil,
+            localPath: "/tmp/\(slug)"
         )
     }
 }

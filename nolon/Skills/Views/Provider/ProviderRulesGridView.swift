@@ -3,6 +3,7 @@ import SwiftUI
 struct ProviderRulesGridView: View {
     let viewModel: ProviderDetailGridViewModel
     let columns: [GridItem]
+    let markerBaseItems: [PageMarkerItem]
     let onEditRule: (RuleInfo) -> Void
 
     var body: some View {
@@ -32,6 +33,7 @@ struct ProviderRulesGridView: View {
                             onEditRule(rule)
                         }
                     )
+                    .debugCardLocator(markerBaseItems + [PageMarkerItem(title: rule.name)])
                 }
             }
         }

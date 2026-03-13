@@ -2,6 +2,7 @@ import XCTest
 import SwiftUI
 import ProviderCatalog
 import CodexBarProviderCatalog
+import NolonResourceKit
 @testable import nolon
 
 @MainActor
@@ -100,6 +101,14 @@ final class PageMarkerRouteResolverTests: XCTestCase {
         ])
     }
 
+    func testBDD_GivenPluginManagementPage_WhenResolvingItems_ThenReturnsOnlyPluginManagementLabel() {
+        let items = PageMarkerRouteResolver.pluginManagementItems()
+
+        XCTAssertEqual(items.map(\.title), [
+            NSLocalizedString("sidebar.plugins.management", value: "Plugin Management", comment: "Plugin management sidebar item")
+        ])
+    }
+
     func testBDD_GivenMultipleMarkerItems_WhenBuildingLocatorText_ThenJoinsWithSlashSeparator() {
         let provider = Provider(
             id: "codex",
@@ -164,6 +173,91 @@ final class PageMarkerRouteResolverTests: XCTestCase {
                 function: "body"
             ),
             "Card / Token / #FakeCard.swift #27 #body"
+        )
+    }
+
+    func testBDD_GivenProviderTokenTrendSection_WhenBuildingLocatorText_ThenIncludesTokenTrendPath() {
+        let provider = Provider(
+            id: "codex",
+            kind: .vendor,
+            name: "Codex",
+            defaultSkillsPath: "/tmp/codex/skills",
+            workflowPath: "/tmp/codex/workflows",
+            vendorCategory: .original,
+            templateId: ProviderTemplate.codex.rawValue
+        )
+        let section = ProviderTokenTrendSection(
+            snapshot: nil,
+            isLoading: false,
+            errorMessage: nil,
+            range: .days30,
+            onRangeChange: { _ in },
+            onRefresh: {},
+            debugPageMarkerItems: [
+                PageMarkerItem(title: provider.displayName),
+                PageMarkerItem(title: ProviderContentTabType.usage.localizedName(for: provider)),
+                PageMarkerItem(
+                    title: NSLocalizedString(
+                        "usage.token_trend.title",
+                        value: "历史 Token 消耗",
+                        comment: "Token trend section title"
+                    )
+                )
+            ]
+        )
+
+        XCTAssertEqual(
+            section.debugPageLocatorText(
+                fileID: "/tmp/ProviderTokenTrendSection.swift",
+                line: 36,
+                function: "body"
+            ),
+            "Codex / \(ProviderContentTabType.usage.localizedName(for: provider)) / 历史 Token 消耗 / #ProviderTokenTrendSection.swift #36 #body"
+        )
+    }
+
+    func testBDD_GivenProviderTokenTrendChildBlock_WhenBuildingMarkerItems_ThenAppendsChildTitleToSectionPath() {
+        let baseItems = [
+            PageMarkerItem(title: "Codex"),
+            PageMarkerItem(title: "账号与用量"),
+            PageMarkerItem(title: "历史 Token 消耗")
+        ]
+
+        XCTAssertEqual(
+            ProviderTokenTrendSection.debugCardMarkerItems(
+                baseItems: baseItems,
+                childTitle: "Daily Breakdown"
+            ).map(\.title),
+            ["Codex", "账号与用量", "历史 Token 消耗", "Daily Breakdown"]
+        )
+    }
+
+    func testBDD_GivenCopiedPageMarkerText_WhenShowingToast_ThenToastDisplaysCopiedText() {
+        let center = DebugMarkerToastCenter.shared
+
+        center.showCopiedPageMarkerToast("Codex / 账号与用量 / 历史 Token 消耗")
+
+        XCTAssertTrue(center.isVisible)
+        XCTAssertEqual(center.message, "Codex / 账号与用量 / 历史 Token 消耗")
+    }
+
+    func testBDD_GivenGitRepositorySidebarRow_WhenBuildingMarkerItems_ThenUsesResolvedDisplayName() {
+        let repo = RemoteRepository(
+            id: "repo-1",
+            name: "OpenAI Codex",
+            baseURL: "https://github.com/openai/codex",
+            iconName: "shippingbox",
+            logoName: nil,
+            templateType: .git,
+            isBuiltIn: false,
+            localPath: nil,
+            gitURL: "https://github.com/openai/codex.git",
+            provider: .github
+        )
+
+        XCTAssertEqual(
+            remoteRepositorySidebarMarkerItems(selectedRepository: repo).map(\.title),
+            ["Repository Sidebar", "openai@codex"]
         )
     }
 }

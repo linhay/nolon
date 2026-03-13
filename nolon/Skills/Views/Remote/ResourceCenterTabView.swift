@@ -59,7 +59,17 @@ struct ResourceCenterTabView: View, DebugPageLocatable {
     var refreshTrigger: Int
     
     @State private var viewModel = ResourceCenterTabViewModel()
-    @ObservedObject private var watchCenter = RemoteRepositoryWatchCenter.shared
+    private var watchCenter = RemoteRepositoryWatchCenter.shared
+
+    init(
+        repository: RemoteRepository?,
+        selectedTab: Binding<ResourceContentTabType?>,
+        refreshTrigger: Int
+    ) {
+        self.repository = repository
+        self._selectedTab = selectedTab
+        self.refreshTrigger = refreshTrigger
+    }
 
     var debugPageMarkerItems: [PageMarkerItem] {
         var items = [PageMarkerItem(title: "Resource Center Sidebar")]
@@ -106,6 +116,9 @@ struct ResourceCenterTabView: View, DebugPageLocatable {
                 watchCenter.ensureWatching(repository: repository)
             }
             await viewModel.loadCounts(for: repository)
+        }
+        .debugPageMarkerContextMenu(debugPageMarkerItems, withDivider: false) {
+            EmptyView()
         }
         .debugPageLocator(debugPageMarkerItems)
         .navigationSplitViewColumnWidth(min: 160, ideal: 180, max: 200)

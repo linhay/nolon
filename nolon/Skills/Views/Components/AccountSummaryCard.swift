@@ -44,7 +44,8 @@ struct AccountCardPresentation: Equatable, Sendable {
     static func codex(
         isActive: Bool,
         isPending: Bool,
-        isBatchSelected: Bool
+        isBatchSelected: Bool,
+        selectableAccountCount: Int
     ) -> AccountCardPresentation {
         if isActive {
             return AccountCardPresentation(selectionStyle: .active, showsSelectionBadge: false)
@@ -52,7 +53,7 @@ struct AccountCardPresentation: Equatable, Sendable {
         if isPending {
             return AccountCardPresentation(selectionStyle: .pending, showsSelectionBadge: false)
         }
-        if isBatchSelected {
+        if isBatchSelected, selectableAccountCount > 1 {
             return AccountCardPresentation(selectionStyle: .selected, showsSelectionBadge: true)
         }
         return .neutral
@@ -295,7 +296,7 @@ struct UnifiedAccountCard: View, DebugCardLocatable {
                 }
             }
         }
-        .contextMenu {
+        .debugPageMarkerContextMenu(debugCardMarkerItems) {
             ForEach(data.menuActions) { action in
                 Button(role: action.role) {
                     onAction(data.recordID, action.actionID)

@@ -9,7 +9,7 @@ enum UITestSupport {
     }
 
     static var isRunningUnitTests: Bool {
-        ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+        ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil && !isEnabled
     }
 
     static var isEnabled: Bool {

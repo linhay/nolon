@@ -1,15 +1,16 @@
 import Foundation
-import Combine
+import Observation
 @preconcurrency import STFilePath
 
 /// A shared watcher pool that monitors local repository/cache folders and exposes a changing token
 /// that SwiftUI can use to refresh remote browsing views.
 @MainActor
-public final class RemoteRepositoryWatchCenter: ObservableObject {
+@Observable
+public final class RemoteRepositoryWatchCenter {
     public static let shared = RemoteRepositoryWatchCenter()
 
     /// A monotonically increasing token per repository key.
-    @Published private(set) var tokenByKey: [String: Int] = [:]
+    private(set) var tokenByKey: [String: Int] = [:]
 
     private var watchersByKey: [String: [STPathWatcher]] = [:]
     private var watchTasksByKey: [String: [Task<Void, Never>]] = [:]

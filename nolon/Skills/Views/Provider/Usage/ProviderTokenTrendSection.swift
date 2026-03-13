@@ -2,17 +2,36 @@ import SwiftUI
 import ProviderUsage
 import Shimmer
 
-struct ProviderTokenTrendSection: View {
+struct ProviderTokenTrendSection: View, DebugPageLocatable {
     let snapshot: ProviderTokenTrendSnapshot?
     let isLoading: Bool
     let errorMessage: String?
     let range: ProviderUsageViewModel.TokenTrendRange
     let onRangeChange: (ProviderUsageViewModel.TokenTrendRange) -> Void
     let onRefresh: () -> Void
+    let debugPageMarkerItems: [PageMarkerItem]
 
     @State private var sortKey: SortKey = .date
     @State private var sortAscending = false
     @State private var selectedDate: String?
+
+    init(
+        snapshot: ProviderTokenTrendSnapshot?,
+        isLoading: Bool,
+        errorMessage: String?,
+        range: ProviderUsageViewModel.TokenTrendRange,
+        onRangeChange: @escaping (ProviderUsageViewModel.TokenTrendRange) -> Void,
+        onRefresh: @escaping () -> Void,
+        debugPageMarkerItems: [PageMarkerItem] = []
+    ) {
+        self.snapshot = snapshot
+        self.isLoading = isLoading
+        self.errorMessage = errorMessage
+        self.range = range
+        self.onRangeChange = onRangeChange
+        self.onRefresh = onRefresh
+        self.debugPageMarkerItems = debugPageMarkerItems
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -32,6 +51,7 @@ struct ProviderTokenTrendSection: View {
         }
         .padding(16)
         .dsCard()
+        .debugPageLocator(debugPageMarkerItems)
     }
 
     private var header: some View {
@@ -110,6 +130,7 @@ struct ProviderTokenTrendSection: View {
                 }
                 .buttonStyle(.plain)
                 .frame(maxWidth: .infinity)
+                .debugCardLocator(Self.debugCardMarkerItems(baseItems: debugPageMarkerItems, childTitle: item.title))
             }
         }
     }
@@ -151,15 +172,40 @@ struct ProviderTokenTrendSection: View {
             }
             .padding(12)
             .background(DesignSystem.Colors.Background.elevated.opacity(0.2), in: RoundedRectangle(cornerRadius: 12))
+
+            VStack(alignment: .leading, spacing: 8) {
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .fill(DesignSystem.Colors.Background.elevated.opacity(0.35))
+                    .frame(width: 110, height: 12)
+
+                VStack(spacing: 0) {
+                    tokenTrendTableSkeletonHeader
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(DesignSystem.Colors.Background.elevated.opacity(0.3))
+
+                    VStack(spacing: 0) {
+                        ForEach(0..<ProviderUsageSkeletonPolicy.tokenTrendTableRowCount, id: \.self) { index in
+                            tokenTrendTableSkeletonRow(isLastRow: index == ProviderUsageSkeletonPolicy.tokenTrendTableRowCount - 1)
+                        }
+                    }
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .strokeBorder(DesignSystem.Colors.Background.elevated.opacity(0.5), lineWidth: 1)
+                )
+            }
         }
         .redacted(reason: .placeholder)
         .shimmering(active: true, bandSize: 0.32)
     }
 
     private func chartSection(snapshot: ProviderTokenTrendSnapshot) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
+        let title = NSLocalizedString("usage.token_trend.chart", value: "Daily Trend", comment: "Daily trend chart title")
+        return VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text(NSLocalizedString("usage.token_trend.chart", value: "Daily Trend", comment: "Daily trend chart title"))
+                Text(title)
                     .font(.subheadline.weight(.semibold))
                 
                 Spacer()
@@ -171,6 +217,7 @@ struct ProviderTokenTrendSection: View {
         }
         .padding(12)
         .background(DesignSystem.Colors.Background.elevated.opacity(0.2), in: RoundedRectangle(cornerRadius: 12))
+        .debugCardLocator(Self.debugCardMarkerItems(baseItems: debugPageMarkerItems, childTitle: title))
     }
 
     private var chartLegend: some View {
@@ -265,8 +312,9 @@ struct ProviderTokenTrendSection: View {
     }
 
     private func tableSection(snapshot: ProviderTokenTrendSnapshot) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(NSLocalizedString("usage.token_trend.table", value: "Daily Breakdown", comment: "Daily breakdown table"))
+        let title = NSLocalizedString("usage.token_trend.table", value: "Daily Breakdown", comment: "Daily breakdown table")
+        return VStack(alignment: .leading, spacing: 8) {
+            Text(title)
                 .font(.subheadline.weight(.semibold))
 
             VStack(spacing: 0) {
@@ -291,6 +339,7 @@ struct ProviderTokenTrendSection: View {
                     .strokeBorder(DesignSystem.Colors.Background.elevated.opacity(0.5), lineWidth: 1)
             )
         }
+        .debugCardLocator(Self.debugCardMarkerItems(baseItems: debugPageMarkerItems, childTitle: title))
     }
 
     private var headerRow: some View {
@@ -362,6 +411,12 @@ struct ProviderTokenTrendSection: View {
     private func loadingState() -> some View {
         loadingStateView
             .frame(maxWidth: .infinity, alignment: .leading)
+            .debugCardLocator(
+                Self.debugCardMarkerItems(
+                    baseItems: debugPageMarkerItems,
+                    childTitle: NSLocalizedString("generic.loading", value: "Loading", comment: "Loading state")
+                )
+            )
     }
 
     private func errorState(message: String) -> some View {
@@ -382,6 +437,12 @@ struct ProviderTokenTrendSection: View {
         }
         .frame(maxWidth: .infinity, alignment: .center)
         .padding(.vertical, 40)
+        .debugCardLocator(
+            Self.debugCardMarkerItems(
+                baseItems: debugPageMarkerItems,
+                childTitle: NSLocalizedString("generic.error", value: "Error", comment: "Error state")
+            )
+        )
     }
 
     private var emptyState: some View {
@@ -395,6 +456,12 @@ struct ProviderTokenTrendSection: View {
         }
         .frame(maxWidth: .infinity, alignment: .center)
         .padding(.vertical, 40)
+        .debugCardLocator(
+            Self.debugCardMarkerItems(
+                baseItems: debugPageMarkerItems,
+                childTitle: NSLocalizedString("usage.token_trend.empty", value: "No token history yet.", comment: "Empty token trend state")
+            )
+        )
     }
 
     private func sortedPoints(_ points: [ProviderTokenTrendPoint]) -> [ProviderTokenTrendPoint] {
@@ -426,6 +493,14 @@ extension ProviderTokenTrendSection {
     static let usesHeaderRangePicker = false
     static let usesFullCardTapTarget = true
     static let summaryCardMinHeight: CGFloat = 84
+
+    static func debugCardMarkerItems(
+        baseItems: [PageMarkerItem],
+        childTitle: String
+    ) -> [PageMarkerItem] {
+        guard !childTitle.isEmpty else { return baseItems }
+        return baseItems + [PageMarkerItem(title: childTitle)]
+    }
 
     private static func summaryMetrics(snapshot: ProviderTokenTrendSnapshot, selectedDate: String?) -> [SummaryMetric] {
         [
@@ -509,6 +584,45 @@ private extension ProviderTokenTrendSection {
                 isSelected ? item.accentColor.opacity(0.72) : item.accentColor.opacity(0.24),
                 lineWidth: isSelected ? 1.5 : 1
             )
+    }
+
+    private var tokenTrendTableSkeletonHeader: some View {
+        HStack(spacing: 0) {
+            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                .fill(DesignSystem.Colors.Background.elevated.opacity(0.35))
+                .frame(width: 42, height: 10)
+            Spacer()
+            ForEach(0..<4, id: \.self) { _ in
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .fill(DesignSystem.Colors.Background.elevated.opacity(0.35))
+                    .frame(width: 36, height: 10)
+                    .frame(width: 80, alignment: .trailing)
+            }
+        }
+    }
+
+    private func tokenTrendTableSkeletonRow(isLastRow: Bool) -> some View {
+        HStack(spacing: 0) {
+            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                .fill(DesignSystem.Colors.Background.elevated.opacity(0.28))
+                .frame(width: 64, height: 10)
+            Spacer()
+            ForEach(0..<4, id: \.self) { column in
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .fill(DesignSystem.Colors.Background.elevated.opacity(0.28 + (Double(column) * 0.03)))
+                    .frame(width: column == 0 ? 42 : 34, height: 10)
+                    .frame(width: 80, alignment: .trailing)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .overlay(alignment: .bottom) {
+            if !isLastRow {
+                Rectangle()
+                    .fill(DesignSystem.Colors.Background.elevated.opacity(0.3))
+                    .frame(height: 1)
+            }
+        }
     }
 }
 

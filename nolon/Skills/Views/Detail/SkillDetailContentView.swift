@@ -7,7 +7,7 @@ import NolonResourceKit
 @MainActor
 public struct SkillDetailContentView: View {
     let skill: Skill?
-    @ObservedObject var settings: ProviderSettings
+    let settings: ProviderSettings
 
     public init(skill: Skill?, settings: ProviderSettings) {
         self.skill = skill

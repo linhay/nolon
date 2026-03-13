@@ -1,6 +1,7 @@
 import SwiftUI
 import AppKit
 import Foundation
+import Observation
 import ProviderCatalog
 import NolonResourceKit
 
@@ -94,6 +95,41 @@ enum PageMarkerRouteResolver {
     }
 }
 
+@MainActor
+@Observable
+final class DebugMarkerToastCenter {
+    static let shared = DebugMarkerToastCenter()
+
+    private(set) var isVisible = false
+    private(set) var message = ""
+
+    private var hideTask: Task<Void, Never>?
+
+    func showCopiedPageMarkerToast(_ text: String) {
+        hideTask?.cancel()
+        message = text.isEmpty
+            ? NSLocalizedString(
+                "debug.page_marker.copied",
+                value: "Copied Page Marker",
+                comment: "Toast after copying debug page marker"
+            )
+            : text
+        isVisible = true
+
+        hideTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .milliseconds(1400))
+            self?.isVisible = false
+        }
+    }
+}
+
+@MainActor
+private func copyPageMarkerToPasteboard(_ text: String) {
+    NSPasteboard.general.clearContents()
+    NSPasteboard.general.setString(text, forType: .string)
+    DebugMarkerToastCenter.shared.showCopiedPageMarkerToast(text)
+}
+
 private struct DebugLocatorButton: View {
     let text: String
     let compact: Bool
@@ -105,8 +141,7 @@ private struct DebugLocatorButton: View {
            commandState.isDebugPageMarkersEnabled,
            !text.isEmpty {
             Button {
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(text, forType: .string)
+                copyPageMarkerToPasteboard(text)
             } label: {
                 Image(systemName: "scope")
                     .font(.system(size: compact ? 10 : 12, weight: .black))
@@ -133,20 +168,45 @@ private struct DebugLocatorButton: View {
     }
 }
 
+struct DebugPageMarkerContextMenuItem: View {
+    let text: String
+    let withDivider: Bool
+
+    init(text: String, withDivider: Bool = true) {
+        self.text = text
+        self.withDivider = withDivider
+    }
+
+    var body: some View {
+        if PageMarkerRouteResolver.isEnabledInCurrentBuild,
+           AppCommandState.shared.isDebugPageMarkersEnabled,
+           !text.isEmpty {
+            if withDivider {
+                Divider()
+            }
+
+            Button {
+                copyPageMarkerToPasteboard(text)
+            } label: {
+                Label(
+                    NSLocalizedString("debug.page_marker.copy", value: "Copy Page Marker", comment: "Copy page marker"),
+                    systemImage: "scope"
+                )
+            }
+        }
+    }
+}
+
 private struct PageMarkerModifier: ViewModifier {
     let items: [PageMarkerItem]
     let source: PageMarkerSource
 
     func body(content: Content) -> some View {
         let locatorText = PageMarkerRouteResolver.locatorText(for: items, source: source)
-        content.safeAreaInset(edge: .top, spacing: 0) {
-            HStack {
-                Spacer(minLength: 0)
-                DebugLocatorButton(text: locatorText, compact: false)
-            }
-            .padding(.horizontal, 12)
-            .padding(.top, 8)
-            .padding(.bottom, 4)
+        content.overlay(alignment: .topTrailing) {
+            DebugLocatorButton(text: locatorText, compact: false)
+                .padding(.top, 10)
+                .padding(.trailing, 12)
         }
     }
 }
@@ -228,6 +288,47 @@ extension View {
             )
         )
     }
+
+    @ViewBuilder
+    func debugPageMarkerMenuItem(
+        _ items: [PageMarkerItem],
+        withDivider: Bool = true,
+        fileID: String = #fileID,
+        line: Int = #line,
+        function: String = #function
+    ) -> some View {
+        DebugPageMarkerContextMenuItem(
+            text: PageMarkerRouteResolver.locatorText(
+                for: items,
+                source: PageMarkerRouteResolver.source(
+                    fileID: fileID,
+                    line: line,
+                    function: function
+                )
+            ),
+            withDivider: withDivider
+        )
+    }
+
+    func debugPageMarkerContextMenu(
+        _ items: [PageMarkerItem],
+        withDivider: Bool = true,
+        fileID: String = #fileID,
+        line: Int = #line,
+        function: String = #function,
+        @ViewBuilder _ content: () -> some View
+    ) -> some View {
+        contextMenu {
+            content()
+            debugPageMarkerMenuItem(
+                items,
+                withDivider: withDivider,
+                fileID: fileID,
+                line: line,
+                function: function
+            )
+        }
+    }
 }
 
 extension DebugPageLocatable {
@@ -258,6 +359,23 @@ extension DebugPageLocatable {
             function: function
         )
     }
+
+    func debugPageMarkerContextMenu(
+        withDivider: Bool = true,
+        fileID: String = #fileID,
+        line: Int = #line,
+        function: String = #function,
+        @ViewBuilder _ content: () -> some View
+    ) -> some View {
+        debugPageMarkerContextMenu(
+            debugPageMarkerItems,
+            withDivider: withDivider,
+            fileID: fileID,
+            line: line,
+            function: function,
+            content
+        )
+    }
 }
 
 extension DebugCardLocatable {
@@ -286,6 +404,23 @@ extension DebugCardLocatable {
             fileID: fileID,
             line: line,
             function: function
+        )
+    }
+
+    func debugCardMarkerContextMenu(
+        withDivider: Bool = true,
+        fileID: String = #fileID,
+        line: Int = #line,
+        function: String = #function,
+        @ViewBuilder _ content: () -> some View
+    ) -> some View {
+        debugPageMarkerContextMenu(
+            debugCardMarkerItems,
+            withDivider: withDivider,
+            fileID: fileID,
+            line: line,
+            function: function,
+            content
         )
     }
 }

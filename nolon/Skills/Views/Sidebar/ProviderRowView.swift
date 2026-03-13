@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 import ProviderCatalog
 
 /// Row view for a provider in the sidebar
@@ -9,6 +10,8 @@ struct ProviderRowView: View {
     let onViewOfficialDocumentation: () -> Void
     let onEdit: () -> Void
     let onDelete: () -> Void
+    let debugLocatorText: String?
+    @State private var commandState = AppCommandState.shared
     
     var body: some View {
         Label {
@@ -67,6 +70,24 @@ struct ProviderRowView: View {
                     systemImage: "trash",
                     foreground: DesignSystem.Colors.Status.error
                 )
+            }
+
+            if PageMarkerRouteResolver.isEnabledInCurrentBuild,
+               commandState.isDebugPageMarkersEnabled,
+               let debugLocatorText,
+               !debugLocatorText.isEmpty {
+                Divider()
+
+                Button {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(debugLocatorText, forType: .string)
+                    DebugMarkerToastCenter.shared.showCopiedPageMarkerToast(debugLocatorText)
+                } label: {
+                    menuLabel(
+                        NSLocalizedString("debug.page_marker.copy", value: "Copy Page Marker", comment: "Copy sidebar row page marker"),
+                        systemImage: "scope"
+                    )
+                }
             }
         }
     }

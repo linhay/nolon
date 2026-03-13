@@ -241,6 +241,13 @@ struct McpServerCard: View {
             Label(NSLocalizedString("action.delete", comment: "Delete"), systemImage: "trash")
                 .dsIconLabelButton()
         }
+
+        debugPageMarkerMenuItem(
+            [
+                PageMarkerItem(title: "MCP Servers"),
+                PageMarkerItem(title: mcp.name)
+            ]
+        )
     }
 
     private var moreMenu: some View {
@@ -269,4 +276,5 @@ struct McpServerCard: View {
         if name.contains("slack") { return "slack" }
         return nil
     }
+
 }

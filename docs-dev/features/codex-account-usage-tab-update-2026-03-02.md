@@ -173,3 +173,28 @@
   - 新 auth 文件不再写这个字段
   - 旧文件在加载/保存时自动迁移清理
   - 运行时显示名改为派生规则，优先使用邮箱，再回退到 relay provider/host、API key suffix、文件名或 `account`
+
+## 增补（2026-03-13：隐藏无额度账号）
+1. Codex 账号卡片区新增显式筛选按钮：
+   - 默认显示 `隐藏无额度账号`
+   - 开启后切换为 `显示全部账号`
+2. 筛选仅作用于 Codex 账号卡片列表：
+   - 不影响顶部管理卡
+   - 不影响 Token Trend 区块
+   - 不影响非 Codex Provider
+3. “无额度”定义固定为：
+   - 仅对 `.tokenAccount` 生效
+   - 取账号所有 quota window 中 `windowMinutes` 最大的一项
+   - 若该最长窗口存在且 `remainingPercent == 0`，则该账号在筛选开启时被隐藏
+   - 若账号没有任何 quota window 数据，则继续显示
+   - 不使用 `credits.remaining` 参与该判定
+4. 筛选顺序固定为“先过滤，再排序/分组”，避免改变现有排序语义。
+5. 筛选状态按 provider 维度持久化，重新进入同一 provider 时沿用上次选择，不影响其他 provider。
+6. 当筛选开启且所有账号都被过滤时，页面显示明确空态，提示用户当前是因为筛选而不是因为没有账号。
+
+### 补充 BDD 验收
+1. Given 当前 Provider 为 Codex 且用户开启 `隐藏无额度账号`，When 某个账号最长 quota window 的剩余比例为 0%，Then 该账号不出现在卡片列表中。
+2. Given 当前 Provider 为 Codex 且用户开启 `隐藏无额度账号`，When 某个账号最长 quota window 的剩余比例大于 0%，Then 该账号继续显示。
+3. Given 当前 Provider 为 Codex 且用户开启 `隐藏无额度账号`，When 某个账号没有任何 quota window 数据，Then 该账号继续显示。
+4. Given 某个账号同时存在多个 quota window，When 判断是否隐藏，Then 必须以 `windowMinutes` 最大的那一个窗口作为唯一判定依据。
+5. Given 当前 Provider 为 Codex 且筛选后所有账号都被隐藏，When 页面渲染，Then 显示“已隐藏无额度账号，可关闭筛选查看全部”的空态提示。

@@ -2,7 +2,7 @@ import SwiftUI
 import ProviderCatalog
 import NolonResourceKit
 
-struct SkillDetailView: View {
+struct SkillDetailView: View, DebugPageLocatable {
     @Environment(\.dismiss) private var dismiss
     @State private var viewModel: SkillDetailViewModel
     private let providers: [Provider]
@@ -30,6 +30,13 @@ struct SkillDetailView: View {
                 }
             )
         )
+    }
+
+    var debugPageMarkerItems: [PageMarkerItem] {
+        [
+            PageMarkerItem(title: "Skill Detail"),
+            PageMarkerItem(title: viewModel.title)
+        ]
     }
     
     var body: some View {
@@ -73,5 +80,9 @@ struct SkillDetailView: View {
         .task {
             await viewModel.loadData(checkProviders: providers, currentProvider: currentProvider)
         }
+        .debugPageMarkerContextMenu(debugPageMarkerItems, withDivider: false) {
+            EmptyView()
+        }
+        .debugPageLocator(debugPageMarkerItems)
     }
 }

@@ -220,6 +220,14 @@ struct SkillCardView: View {
                 .dsIconLabelButton()
             }
         }
+
+        debugPageMarkerMenuItem(
+            [
+                PageMarkerItem(title: provider.displayName),
+                PageMarkerItem(title: NSLocalizedString("tab.skills", comment: "Skills")),
+                PageMarkerItem(title: skill.name)
+            ]
+        )
     }
     
     private var moreMenu: some View {
@@ -233,4 +241,5 @@ struct SkillCardView: View {
         .menuIndicator(.hidden)
         .fixedSize()
     }
+
 }

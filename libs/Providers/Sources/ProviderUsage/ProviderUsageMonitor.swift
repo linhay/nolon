@@ -8,19 +8,22 @@ public struct ProviderUsageMonitorSettings: Sendable, Codable, Equatable {
     public var webTimeoutSeconds: Int
     public var autoRefreshIntervalMinutes: Int
     public var costWindowDays: Int?
+    public var codexHideZeroQuotaAccounts: Bool
 
     public init(
         sourceMode: ProviderSourceMode = .auto,
         includeCredits: Bool = false,
         webTimeoutSeconds: Int = 30,
         autoRefreshIntervalMinutes: Int = 0,
-        costWindowDays: Int? = 30
+        costWindowDays: Int? = 30,
+        codexHideZeroQuotaAccounts: Bool = false
     ) {
         self.sourceMode = sourceMode
         self.includeCredits = includeCredits
         self.webTimeoutSeconds = webTimeoutSeconds
         self.autoRefreshIntervalMinutes = autoRefreshIntervalMinutes
         self.costWindowDays = costWindowDays
+        self.codexHideZeroQuotaAccounts = codexHideZeroQuotaAccounts
     }
 
     public func effectiveCostWindowDays(selected: Int?) -> Int? {
@@ -33,6 +36,7 @@ public struct ProviderUsageMonitorSettings: Sendable, Codable, Equatable {
         case webTimeoutSeconds
         case autoRefreshIntervalMinutes
         case costWindowDays
+        case codexHideZeroQuotaAccounts
     }
 
     public init(from decoder: Decoder) throws {
@@ -41,6 +45,7 @@ public struct ProviderUsageMonitorSettings: Sendable, Codable, Equatable {
         includeCredits = (try? container.decode(Bool.self, forKey: .includeCredits)) ?? false
         webTimeoutSeconds = (try? container.decode(Int.self, forKey: .webTimeoutSeconds)) ?? 30
         autoRefreshIntervalMinutes = (try? container.decode(Int.self, forKey: .autoRefreshIntervalMinutes)) ?? 0
+        codexHideZeroQuotaAccounts = (try? container.decode(Bool.self, forKey: .codexHideZeroQuotaAccounts)) ?? false
         if container.contains(.costWindowDays) {
             // Keep explicit `null` as nil ("All"), only default when key is absent (legacy data).
             costWindowDays = try container.decodeIfPresent(Int.self, forKey: .costWindowDays)
@@ -55,6 +60,7 @@ public struct ProviderUsageMonitorSettings: Sendable, Codable, Equatable {
         try container.encode(includeCredits, forKey: .includeCredits)
         try container.encode(webTimeoutSeconds, forKey: .webTimeoutSeconds)
         try container.encode(autoRefreshIntervalMinutes, forKey: .autoRefreshIntervalMinutes)
+        try container.encode(codexHideZeroQuotaAccounts, forKey: .codexHideZeroQuotaAccounts)
         if let costWindowDays {
             try container.encode(costWindowDays, forKey: .costWindowDays)
         } else {

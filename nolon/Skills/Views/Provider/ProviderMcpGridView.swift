@@ -7,6 +7,7 @@ struct ProviderMcpGridView: View {
     let provider: Provider?
     let viewModel: ProviderDetailGridViewModel
     let columns: [GridItem]
+    let markerBaseItems: [PageMarkerItem]
 
     @State private var editingConfig: EditingConfig?
     @State private var migrationAlert: MigrationAlert?
@@ -197,6 +198,7 @@ struct ProviderMcpGridView: View {
                                 Task { await viewModel.deleteMCP(named: mcp.name, for: provider) }
                             }
                         )
+                        .debugCardLocator(markerBaseItems + [PageMarkerItem(title: mcp.name)])
                         .onTapGesture {
                             editingConfig = EditingConfig(
                                 configURL: configPath,
@@ -268,5 +270,10 @@ private struct MigrationAlert: Identifiable {
 }
 
 #Preview {
-    ProviderMcpGridView(provider: nil, viewModel: ProviderDetailGridViewModel(provider: nil, settings: .shared), columns: [GridItem(.flexible())])
+    ProviderMcpGridView(
+        provider: nil,
+        viewModel: ProviderDetailGridViewModel(provider: nil, settings: .shared),
+        columns: [GridItem(.flexible())],
+        markerBaseItems: []
+    )
 }

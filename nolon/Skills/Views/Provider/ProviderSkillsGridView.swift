@@ -6,6 +6,7 @@ struct ProviderSkillsGridView: View {
     let viewModel: ProviderDetailGridViewModel
     let columns: [GridItem]
     let provider: Provider
+    let markerBaseItems: [PageMarkerItem]
     
     var body: some View {
         if viewModel.filteredSkills.isEmpty {
@@ -21,7 +22,7 @@ struct ProviderSkillsGridView: View {
                 ForEach(viewModel.groupedFilteredSkills, id: \.path) { group in
                     Section {
                         ForEach(group.skills, id: \.uniqueId) { skill in
-                        SkillCardView(
+                            SkillCardView(
                                 skill: skill,
                                 provider: provider,
                                 hasWorkflow: viewModel.workflowIds.contains(skill.id),
@@ -33,6 +34,7 @@ struct ProviderSkillsGridView: View {
                                 onMigrate: { await viewModel.migrateSkill(skill) },
                                 onTap: { viewModel.selectedSkillForDetail = skill }
                             )
+                            .debugCardLocator(markerBaseItems + [PageMarkerItem(title: skill.name)])
                         }
                     } header: {
                         HStack {

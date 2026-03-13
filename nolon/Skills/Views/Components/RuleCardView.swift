@@ -106,6 +106,13 @@ struct RuleCardView: View {
             )
             .dsIconLabelButton()
         }
+
+        debugPageMarkerMenuItem(
+            [
+                PageMarkerItem(title: NSLocalizedString("tab.rules", value: "Rules", comment: "Rules tab")),
+                PageMarkerItem(title: rule.name)
+            ]
+        )
     }
 
     private var moreMenu: some View {
@@ -119,4 +126,5 @@ struct RuleCardView: View {
         .menuIndicator(.hidden)
         .fixedSize()
     }
+
 }

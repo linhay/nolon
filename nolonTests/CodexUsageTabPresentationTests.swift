@@ -950,6 +950,12 @@ final class CodexUsageTabPresentationTests: XCTestCase {
         XCTAssertTrue(shouldUseCLILogin)
     }
 
+    func testBDD_GivenGeminiAccountCount_WhenResolvingCardLayout_ThenSingleCardUsesFullWidth() {
+        XCTAssertTrue(ProviderUsageView.shouldUseFullWidthGeminiCardLayout(accountCount: 1))
+        XCTAssertFalse(ProviderUsageView.shouldUseFullWidthGeminiCardLayout(accountCount: 2))
+        XCTAssertFalse(ProviderUsageView.shouldUseFullWidthGeminiCardLayout(accountCount: 0))
+    }
+
     func testBDD_GivenGeminiCandidate_WhenEvaluatingInlineImportPolicy_ThenShowsImportAction() {
         let shouldShow = ProviderUsageViewModel.shouldShowGeminiImportAction(
             usageProvider: .gemini,
@@ -1047,6 +1053,79 @@ final class CodexUsageTabPresentationTests: XCTestCase {
         XCTAssertEqual(displayed.first?.id, outcome.id)
     }
 
+    func testBDD_GivenClaudeWithoutAccounts_WhenResolvingDisplayedClaudeUsageOutcomes_ThenSuppressesMissingAccountCard() {
+        let outcome = ProviderAccountUsageOutcome(
+            provider: .claude,
+            account: .default,
+            outcome: ProviderFetchOutcome(
+                fetchKind: .web,
+                result: .failure(ProviderUsageError.missingAccount(.claude))
+            )
+        )
+
+        let displayed = ProviderUsageViewModel.displayedClaudeUsageOutcomes(
+            hasClaudeAccounts: false,
+            outcomes: [outcome]
+        )
+
+        XCTAssertTrue(displayed.isEmpty)
+    }
+
+    func testBDD_GivenClaudeWithAccounts_WhenResolvingDisplayedClaudeUsageOutcomes_ThenKeepsMissingAccountCardForDiagnosis() {
+        let outcome = ProviderAccountUsageOutcome(
+            provider: .claude,
+            account: .default,
+            outcome: ProviderFetchOutcome(
+                fetchKind: .web,
+                result: .failure(ProviderUsageError.missingAccount(.claude))
+            )
+        )
+
+        let displayed = ProviderUsageViewModel.displayedClaudeUsageOutcomes(
+            hasClaudeAccounts: true,
+            outcomes: [outcome]
+        )
+
+        XCTAssertEqual(displayed.count, 1)
+        XCTAssertEqual(displayed.first?.id, outcome.id)
+    }
+
+    func testBDD_GivenCodexInitialSettingsOverride_WhenInitializingViewModel_ThenHideZeroQuotaStateFollowsSettings() {
+        let viewModel = ProviderUsageViewModel(
+            provider: Self.makeCodexProvider(),
+            initialSettingsOverride: UsageMonitorProviderSettings(
+                sourceMode: .auto,
+                includeCredits: false,
+                webTimeoutSeconds: 30,
+                autoRefreshIntervalMinutes: 0,
+                costWindowDays: 30,
+                codexHideZeroQuotaAccounts: true
+            )
+        )
+
+        XCTAssertTrue(viewModel.codexHideZeroQuotaAccounts)
+        XCTAssertTrue(viewModel.settings.codexHideZeroQuotaAccounts)
+    }
+
+    func testBDD_GivenCodexUsageViewModel_WhenTogglingHideZeroQuota_ThenSettingsAreUpdated() {
+        let viewModel = ProviderUsageViewModel(
+            provider: Self.makeCodexProvider(),
+            initialSettingsOverride: UsageMonitorProviderSettings(
+                sourceMode: .auto,
+                includeCredits: false,
+                webTimeoutSeconds: 30,
+                autoRefreshIntervalMinutes: 0,
+                costWindowDays: 30,
+                codexHideZeroQuotaAccounts: false
+            )
+        )
+
+        viewModel.setCodexHideZeroQuotaAccounts(true)
+
+        XCTAssertTrue(viewModel.codexHideZeroQuotaAccounts)
+        XCTAssertTrue(viewModel.settings.codexHideZeroQuotaAccounts)
+    }
+
     func testBDD_GivenFailedUsageOutcome_WhenEvaluatingAppearRefreshPolicy_ThenForcesRefresh() {
         let failed = ProviderAccountUsageOutcome(
             provider: .antigravity,
@@ -1118,7 +1197,12 @@ final class CodexUsageTabPresentationTests: XCTestCase {
         let record = AccountRecordBuilder.codexUsage(
             outcome: outcome,
             summary: summary,
-            presentation: .codex(isActive: false, isPending: false, isBatchSelected: false),
+            presentation: .codex(
+                isActive: false,
+                isPending: false,
+                isBatchSelected: false,
+                selectableAccountCount: 1
+            ),
             title: "Work",
             creditsRefreshedAt: nil,
             isRefreshing: false,

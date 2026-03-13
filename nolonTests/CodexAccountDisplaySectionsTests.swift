@@ -226,6 +226,72 @@ final class CodexAccountDisplaySectionsTests: XCTestCase {
         XCTAssertEqual(sections[0].items.count, 2)
     }
 
+    func testBDD_GivenHideZeroQuotaEnabled_WhenLongestWindowRemainingIsZero_ThenAccountIsFilteredOut() {
+        let zeroLongest = CodexAuthAccount(id: UUID(), name: "Zero Longest", createdAt: .distantPast, relativeAuthPath: "auth/zero-longest.json")
+        let availableLongest = CodexAuthAccount(id: UUID(), name: "Available Longest", createdAt: .distantPast, relativeAuthPath: "auth/available-longest.json")
+        let missingWindows = CodexAuthAccount(id: UUID(), name: "Missing Windows", createdAt: .distantPast, relativeAuthPath: "auth/missing-windows.json")
+
+        let sections = ProviderUsageViewModel.makeCodexAccountDisplaySections(
+            accounts: [zeroLongest, availableLongest, missingWindows],
+            outcomes: [
+                Self.makeOutcome(
+                    account: zeroLongest,
+                    label: "Zero Longest",
+                    remaining: nil,
+                    primaryWindow: .init(usedPercent: 20, windowMinutes: 60),
+                    secondaryWindow: .init(usedPercent: 100, windowMinutes: 1440)
+                ),
+                Self.makeOutcome(
+                    account: availableLongest,
+                    label: "Available Longest",
+                    remaining: nil,
+                    primaryWindow: .init(usedPercent: 100, windowMinutes: 60),
+                    secondaryWindow: .init(usedPercent: 20, windowMinutes: 1440)
+                ),
+                Self.makeOutcome(
+                    account: missingWindows,
+                    label: "Missing Windows",
+                    remaining: nil
+                )
+            ],
+            summaries: [
+                zeroLongest.id: CodexAuthSummary(cardKind: .officialAPIKey),
+                availableLongest.id: CodexAuthSummary(cardKind: .officialAPIKey),
+                missingWindows.id: CodexAuthSummary(cardKind: .officialAPIKey)
+            ],
+            grouping: .none,
+            sorting: .name,
+            hideZeroQuotaAccounts: true
+        )
+
+        XCTAssertEqual(sections.count, 1)
+        XCTAssertEqual(Set(sections[0].items.map(\.displayName)), Set(["Available Longest", "Missing Windows"]))
+    }
+
+    func testBDD_GivenHideZeroQuotaDisabled_WhenLongestWindowRemainingIsZero_ThenAccountRemainsVisible() {
+        let zeroLongest = CodexAuthAccount(id: UUID(), name: "Zero Longest", createdAt: .distantPast, relativeAuthPath: "auth/zero-longest.json")
+
+        let sections = ProviderUsageViewModel.makeCodexAccountDisplaySections(
+            accounts: [zeroLongest],
+            outcomes: [
+                Self.makeOutcome(
+                    account: zeroLongest,
+                    label: "Zero Longest",
+                    remaining: nil,
+                    primaryWindow: .init(usedPercent: 100, windowMinutes: 1440)
+                )
+            ],
+            summaries: [
+                zeroLongest.id: CodexAuthSummary(cardKind: .officialAPIKey)
+            ],
+            grouping: .none,
+            sorting: .name,
+            hideZeroQuotaAccounts: false
+        )
+
+        XCTAssertEqual(sections[0].items.map(\.displayName), ["Zero Longest"])
+    }
+
     func testBDD_GivenSelectingCurrentSortOption_WhenTappedAgain_ThenTogglesDirection() {
         let viewModel = ProviderUsageViewModel(provider: Self.makeCodexProvider())
 
