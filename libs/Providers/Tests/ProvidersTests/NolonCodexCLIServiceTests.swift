@@ -284,6 +284,56 @@ struct NolonCodexCLIServiceTests {
         #expect(configContent.contains(#"cli_auth_credentials_store = "file""#))
     }
 
+    @Test("gateway start resolves config path from HOME override")
+    func gatewayStartResolvesConfigPathFromHomeOverride() async throws {
+        let root = try makeTempRoot("nolon-codex-cli-gateway-home")
+        defer { try? root.delete() }
+
+        let home = root.folder("fake-home")
+        _ = home.createIfNotExists()
+
+        let authManager = CodexAuthManager(rootURL: root.url)
+        let gatewayStore = CodexGatewayStateStore(authManager: authManager)
+        let gatewayManagedStore = CodexGatewayManagedConfigStateStore(authManager: authManager)
+        let gatewayConfigManager = CodexGatewayConfigManager(stateStore: gatewayManagedStore)
+        let gatewayPIDStore = CodexGatewayPIDStore(authManager: authManager)
+        let gatewayControl = CodexGatewayControlService(
+            statusStore: gatewayStore,
+            now: { Date(timeIntervalSince1970: 1_700_000_000) }
+        )
+        let service = NolonLiveCodexCLIService(
+            authManager: authManager,
+            binaryManager: CodexBinaryManager(homeURL: root.url),
+            loginRunner: .init(),
+            environment: ["HOME": home.url.path],
+            runtimeProcessInspector: StubRuntimeProcessInspector(snapshots: []),
+            runtimeSignalController: StubRuntimeSignalController(),
+            currentPIDProvider: { 12345 },
+            sleep: { _ in },
+            gatewayControlService: gatewayControl,
+            gatewayConfigManager: gatewayConfigManager,
+            gatewayPIDStore: gatewayPIDStore,
+            gatewayConfigFileResolver: { provider in
+                NolonLiveCodexCLIService.defaultGatewayConfigFile(
+                    for: provider,
+                    environment: ["HOME": home.url.path]
+                )
+            },
+            gatewayDetachedProcessStarter: { _, _ in 4567 },
+            gatewayHealthChecker: { _, _ in true },
+            gatewayExecutablePathProvider: { "/tmp/nolon" },
+            autoSwitchSettingsStore: CodexAutoSwitchSettingsStore(userDefaults: .standard),
+            autoSwitchStatusStore: CodexAutoSwitchStatusStore(authManager: authManager)
+        )
+
+        _ = try await service.gatewayStart(providerID: "codex", host: "127.0.0.1", port: 9092)
+
+        let configFile = home.folder(".codex").file("config.toml")
+        #expect(configFile.isExists)
+        let configContent = try configFile.read()
+        #expect(configContent.contains(#"base_url = "http://127.0.0.1:9092""#))
+    }
+
     @Test("gateway stop reads persisted status snapshot")
     func gatewayStopReadsPersistedSnapshot() async throws {
         let root = try makeTempRoot("nolon-codex-cli-gateway-stop")

@@ -486,6 +486,10 @@ CLI 统一调用 `CodexGatewayControlService` 和 `CodexAutoSwitchCoordinator`�
    - 请求级 metrics
    - 动态评分
    - 账号级实时 in-flight 统计
+4. 环境路径语义已明确：
+   - gateway `config.toml` 跟随 `HOME`
+   - gateway `state.json` / `gateway.pid` / auth snapshot 跟随 `NOLON_HOME`
+   - 因此 CLI smoke / 集成测试必须同时设置 `HOME` 与 `NOLON_HOME`
 
 ### 本轮测试
 1. 更新 `libs/Providers/Tests/ProvidersTests/NolonCodexCLIServiceTests.swift`

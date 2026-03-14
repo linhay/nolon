@@ -733,8 +733,7 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
             ),
             gatewayPIDStore: CodexGatewayPIDStore(authManager: authManager),
             gatewayConfigFileResolver: { provider in
-                let skillsPath = STPath(provider.defaultSkillsPath)
-                return skillsPath.parentFolder()?.file("config.toml")
+                Self.defaultGatewayConfigFile(for: provider, environment: environment)
             },
             gatewayDetachedProcessStarter: Self.startDetachedProcess,
             gatewayHealthChecker: Self.healthCheck,
@@ -774,8 +773,7 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
             ),
             gatewayPIDStore: CodexGatewayPIDStore(authManager: authManager),
             gatewayConfigFileResolver: { provider in
-                let skillsPath = STPath(provider.defaultSkillsPath)
-                return skillsPath.parentFolder()?.file("config.toml")
+                Self.defaultGatewayConfigFile(for: provider, environment: environment)
             },
             gatewayDetachedProcessStarter: Self.startDetachedProcess,
             gatewayHealthChecker: Self.healthCheck,
@@ -2081,6 +2079,25 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
             additionalSkillsPaths: base.additionalSkillsPaths,
             documentationURL: base.documentationURL
         )
+    }
+
+    static func defaultGatewayConfigFile(for provider: Provider, environment: [String: String]) -> STFile? {
+        let rawSkillsPath = provider.defaultSkillsPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !rawSkillsPath.isEmpty else { return nil }
+
+        let processHome = NSHomeDirectory()
+        let environmentHome = environment["HOME"]?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let resolvedSkillsPath: String
+        if let environmentHome, !environmentHome.isEmpty,
+           rawSkillsPath == processHome || rawSkillsPath.hasPrefix(processHome + "/") {
+            resolvedSkillsPath = environmentHome + rawSkillsPath.dropFirst(processHome.count)
+        } else {
+            resolvedSkillsPath = rawSkillsPath
+        }
+
+        let skillsURL = URL(fileURLWithPath: resolvedSkillsPath, isDirectory: true)
+        let configURL = skillsURL.deletingLastPathComponent().appendingPathComponent("config.toml")
+        return STFile(configURL)
     }
 
     private static func canonicalProviderID(_ providerID: String) throws -> String {
