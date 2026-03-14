@@ -55,6 +55,42 @@ struct CodexAutoSwitchServiceTests {
         #expect(savedState.value?.lastSwitchedAtByProviderID[provider.id] != nil)
     }
 
+    @Test("Given a decision is produced, when service completes evaluation, then it records latest status and event")
+    func recordsEventAndStatusSnapshot() async throws {
+        let provider = makeProvider()
+        let eventStore = InMemoryEventStore()
+        let statusStore = InMemoryStatusStore()
+
+        let service = CodexAutoSwitchService(
+            coordinator: CodexAutoSwitchCoordinator(
+                config: CodexAutoSwitchConfig(enabled: true, thresholdPercent: 10),
+                loadState: { CodexAutoSwitchState() },
+                saveState: { _ in },
+                now: { Date(timeIntervalSince1970: 1_700_000_500) },
+                activateAccount: { _, _ in }
+            ),
+            loadAccounts: {
+                [makeAccount(id: UUID(uuidString: "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA")!)]
+            },
+            activeAccountID: { _ in UUID(uuidString: "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA")! },
+            loadUsageCache: { _ in makeUsageCache(usedPercent: 80) },
+            loadSummary: { _ in CodexAuthSummary(cardKind: .chatgptAccount) },
+            config: CodexAutoSwitchConfig(enabled: true, thresholdPercent: 10),
+            statusStore: statusStore,
+            eventStore: eventStore
+        )
+
+        let decision = try await service.evaluateAndSwitchIfNeeded(for: provider)
+        let snapshot = await statusStore.snapshot
+        let events = await eventStore.events
+
+        #expect(decision.reason == .thresholdNotReached)
+        #expect(snapshot?.providerID == provider.id)
+        #expect(snapshot?.lastDecision == decision)
+        #expect(events.count == 1)
+        #expect(events.first?.reason == .thresholdNotReached)
+    }
+
     @Test("Given there is no active account, when service evaluates, then it returns no active account")
     func returnsNoActiveAccountWhenMissing() async throws {
         let service = CodexAutoSwitchService(
@@ -113,6 +149,30 @@ struct CodexAutoSwitchServiceTests {
             credits: nil,
             cost: nil
         )
+    }
+}
+
+private actor InMemoryEventStore: CodexAutoSwitchEventStoring {
+    private(set) var events: [CodexAutoSwitchEvent] = []
+
+    func append(_ event: CodexAutoSwitchEvent) async throws {
+        events.append(event)
+    }
+
+    func recentEvents(limit: Int) async -> [CodexAutoSwitchEvent] {
+        Array(events.suffix(limit).reversed())
+    }
+}
+
+private actor InMemoryStatusStore: CodexAutoSwitchStatusStoring {
+    private(set) var snapshot: CodexAutoSwitchStatusSnapshot?
+
+    func load() async -> CodexAutoSwitchStatusSnapshot? {
+        snapshot
+    }
+
+    func save(_ snapshot: CodexAutoSwitchStatusSnapshot) async throws {
+        self.snapshot = snapshot
     }
 }
 

@@ -997,6 +997,86 @@ final class ProviderUsageViewModelManualRefreshTests: XCTestCase {
         XCTAssertEqual(ids, [healthy.id, failed.id])
     }
 
+    func testBDD_GivenCodexAutoRefreshAndAutoSwitchDecision_WhenRefreshingActiveAccount_ThenRunsAutoSwitchFollowUp() async {
+        let provider = Provider(
+            name: "Codex",
+            defaultSkillsPath: "/tmp/codex-skills",
+            workflowPath: "/tmp/codex-prompts",
+            installMethod: .symlink,
+            templateId: "codex"
+        )
+
+        let active = CodexAuthAccount(name: "active", relativeAuthPath: "auth/active.json")
+        let fallback = CodexAuthAccount(name: "fallback", relativeAuthPath: "auth/fallback.json")
+        let autoSwitchCount = LockedBox<Int>(0)
+
+        let viewModel = ProviderUsageViewModel(
+            provider: provider,
+            codexOutcomeFetchAction: { account, _, _ in
+                let usedPercent: Double = account.id == active.id ? 95 : 20
+                return ProviderAccountUsageOutcome(
+                    provider: .codex,
+                    account: .tokenAccount(
+                        .init(
+                            id: account.id,
+                            label: account.name,
+                            token: "",
+                            addedAt: account.createdAt.timeIntervalSince1970,
+                            lastUsed: nil
+                        )
+                    ),
+                    outcome: ProviderFetchOutcome(
+                        fetchKind: .web,
+                        result: .success(
+                            .init(
+                                usage: UsageSnapshot(
+                                    identity: UsageIdentity(
+                                        accountEmail: "\(account.name)@example.com",
+                                        accountOrganization: nil,
+                                        loginMethod: "oauth",
+                                        plan: "plus"
+                                    ),
+                                    primary: RateWindow(usedPercent: usedPercent, windowMinutes: 60),
+                                    secondary: nil,
+                                    tertiary: nil,
+                                    updatedAt: Date()
+                                ),
+                                credits: CreditsSnapshot(remaining: account.id == active.id ? 2 : 20, updatedAt: Date()),
+                                cost: nil,
+                                sourceLabel: "HTTP",
+                                fetchKind: .web,
+                                strategyKind: .direct
+                            )
+                        )
+                    )
+                )
+            },
+            codexAutoSwitchAction: { provider in
+                await autoSwitchCount.set((await autoSwitchCount.value()) + 1)
+                return CodexAutoSwitchDecision(
+                    reason: .switched,
+                    fromAccountID: active.id,
+                    toAccountID: fallback.id,
+                    currentRemainingPercent: 5,
+                    targetRemainingPercent: 80,
+                    checkedAt: Date()
+                )
+            }
+        )
+        viewModel.codexAccounts = [active, fallback]
+        viewModel.activeCodexAccountId = active.id
+        viewModel.codexAccountSummaries = [
+            active.id: CodexAuthSummary(lastSyncSucceededAt: Date()),
+            fallback.id: CodexAuthSummary(lastSyncSucceededAt: Date())
+        ]
+
+        await viewModel.performAutoRefresh()
+
+        let count = await autoSwitchCount.value()
+        XCTAssertEqual(count, 1)
+        XCTAssertEqual(viewModel.codexDiskReloadCountForTesting, 1)
+    }
+
     func testBDD_GivenFailedAccount_WhenResolvingHeaderRefreshTargets_ThenDoesNotSkipIt() {
         let provider = Provider(
             name: "Codex",

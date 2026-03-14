@@ -1126,6 +1126,65 @@ final class CodexUsageTabPresentationTests: XCTestCase {
         XCTAssertTrue(viewModel.settings.codexHideZeroQuotaAccounts)
     }
 
+    func testBDD_GivenCodexAutoSwitchSettingsOverride_WhenInitializingViewModel_ThenAutoSwitchConfigFollowsStore() {
+        let suiteName = "codex-usage-auto-switch-init-\(UUID().uuidString)"
+        let userDefaults = UserDefaults(suiteName: suiteName)!
+        userDefaults.removePersistentDomain(forName: suiteName)
+        defer {
+            userDefaults.removePersistentDomain(forName: suiteName)
+        }
+
+        let provider = Self.makeCodexProvider()
+        let store = CodexAutoSwitchSettingsStore(userDefaults: userDefaults)
+        store.update(
+            settings: CodexAutoSwitchConfig(
+                enabled: true,
+                thresholdPercent: 15,
+                minimumCandidateRemainingPercent: 30,
+                skipRelayAccounts: false,
+                cooldown: 900
+            ),
+            for: provider
+        )
+
+        let viewModel = ProviderUsageViewModel(
+            provider: provider,
+            codexAutoSwitchSettingsStore: store
+        )
+
+        XCTAssertTrue(viewModel.codexAutoSwitchConfig.enabled)
+        XCTAssertEqual(viewModel.codexAutoSwitchConfig.thresholdPercent, 15)
+        XCTAssertEqual(viewModel.codexAutoSwitchConfig.minimumCandidateRemainingPercent, 30)
+        XCTAssertFalse(viewModel.codexAutoSwitchConfig.skipRelayAccounts)
+    }
+
+    func testBDD_GivenCodexUsageViewModel_WhenUpdatingAutoSwitchConfig_ThenStoreIsUpdated() {
+        let suiteName = "codex-usage-auto-switch-update-\(UUID().uuidString)"
+        let userDefaults = UserDefaults(suiteName: suiteName)!
+        userDefaults.removePersistentDomain(forName: suiteName)
+        defer {
+            userDefaults.removePersistentDomain(forName: suiteName)
+        }
+
+        let provider = Self.makeCodexProvider()
+        let store = CodexAutoSwitchSettingsStore(userDefaults: userDefaults)
+        let viewModel = ProviderUsageViewModel(
+            provider: provider,
+            codexAutoSwitchSettingsStore: store
+        )
+
+        viewModel.setCodexAutoSwitchEnabled(true)
+        viewModel.setCodexAutoSwitchThresholdPercent(20)
+        viewModel.setCodexAutoSwitchMinimumCandidateRemainingPercent(40)
+        viewModel.setCodexAutoSwitchSkipRelay(false)
+
+        XCTAssertTrue(viewModel.codexAutoSwitchConfig.enabled)
+        XCTAssertEqual(viewModel.codexAutoSwitchConfig.thresholdPercent, 20)
+        XCTAssertEqual(viewModel.codexAutoSwitchConfig.minimumCandidateRemainingPercent, 40)
+        XCTAssertFalse(viewModel.codexAutoSwitchConfig.skipRelayAccounts)
+        XCTAssertEqual(store.settings(for: provider), viewModel.codexAutoSwitchConfig)
+    }
+
     func testBDD_GivenFailedUsageOutcome_WhenEvaluatingAppearRefreshPolicy_ThenForcesRefresh() {
         let failed = ProviderAccountUsageOutcome(
             provider: .antigravity,

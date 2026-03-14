@@ -71,7 +71,7 @@ public enum CodexAutoSwitchDecisionReason: String, Sendable, Equatable, Codable 
     case switched
 }
 
-public struct CodexAutoSwitchDecision: Sendable, Equatable {
+public struct CodexAutoSwitchDecision: Sendable, Equatable, Codable {
     public var reason: CodexAutoSwitchDecisionReason
     public var fromAccountID: UUID?
     public var toAccountID: UUID?
@@ -96,6 +96,69 @@ public struct CodexAutoSwitchDecision: Sendable, Equatable {
         self.targetRemainingPercent = targetRemainingPercent
         self.checkedAt = checkedAt
         self.cooldownUntil = cooldownUntil
+    }
+}
+
+public struct CodexAutoSwitchEvent: Sendable, Equatable, Codable {
+    public var providerID: String
+    public var reason: CodexAutoSwitchDecisionReason
+    public var fromAccountID: UUID?
+    public var toAccountID: UUID?
+    public var currentRemainingPercent: Double?
+    public var targetRemainingPercent: Double?
+    public var checkedAt: Date
+    public var cooldownUntil: Date?
+
+    public init(
+        providerID: String,
+        reason: CodexAutoSwitchDecisionReason,
+        fromAccountID: UUID?,
+        toAccountID: UUID?,
+        currentRemainingPercent: Double?,
+        targetRemainingPercent: Double?,
+        checkedAt: Date,
+        cooldownUntil: Date? = nil
+    ) {
+        self.providerID = providerID
+        self.reason = reason
+        self.fromAccountID = fromAccountID
+        self.toAccountID = toAccountID
+        self.currentRemainingPercent = currentRemainingPercent
+        self.targetRemainingPercent = targetRemainingPercent
+        self.checkedAt = checkedAt
+        self.cooldownUntil = cooldownUntil
+    }
+
+    public init(providerID: String, decision: CodexAutoSwitchDecision) {
+        self.init(
+            providerID: providerID,
+            reason: decision.reason,
+            fromAccountID: decision.fromAccountID,
+            toAccountID: decision.toAccountID,
+            currentRemainingPercent: decision.currentRemainingPercent,
+            targetRemainingPercent: decision.targetRemainingPercent,
+            checkedAt: decision.checkedAt,
+            cooldownUntil: decision.cooldownUntil
+        )
+    }
+}
+
+public struct CodexAutoSwitchStatusSnapshot: Sendable, Equatable, Codable {
+    public var providerID: String
+    public var config: CodexAutoSwitchConfig
+    public var lastDecision: CodexAutoSwitchDecision?
+    public var lastUpdatedAt: Date
+
+    public init(
+        providerID: String,
+        config: CodexAutoSwitchConfig,
+        lastDecision: CodexAutoSwitchDecision?,
+        lastUpdatedAt: Date
+    ) {
+        self.providerID = providerID
+        self.config = config
+        self.lastDecision = lastDecision
+        self.lastUpdatedAt = lastUpdatedAt
     }
 }
 
@@ -250,6 +313,16 @@ public protocol CodexAutoSwitchStateStoring: Sendable {
     func save(_ state: CodexAutoSwitchState) async throws
 }
 
+public protocol CodexAutoSwitchEventStoring: Sendable {
+    func append(_ event: CodexAutoSwitchEvent) async throws
+    func recentEvents(limit: Int) async -> [CodexAutoSwitchEvent]
+}
+
+public protocol CodexAutoSwitchStatusStoring: Sendable {
+    func load() async -> CodexAutoSwitchStatusSnapshot?
+    func save(_ snapshot: CodexAutoSwitchStatusSnapshot) async throws
+}
+
 public actor CodexAutoSwitchStateStore: CodexAutoSwitchStateStoring {
     private let file: STFile
 
@@ -280,6 +353,80 @@ public actor CodexAutoSwitchStateStore: CodexAutoSwitchStateStoring {
     }
 }
 
+public actor CodexAutoSwitchEventStore: CodexAutoSwitchEventStoring {
+    private let file: STFile
+    private let encoder = JSONEncoder()
+    private let decoder = JSONDecoder()
+
+    public init(file: STFile) {
+        self.file = file
+        encoder.dateEncodingStrategy = .iso8601
+        decoder.dateDecodingStrategy = .iso8601
+    }
+
+    public init(authManager: CodexAuthManager = CodexAuthManager()) {
+        self.init(file: authManager.nolonCodexRootFolder().folder("auto-switch").file("events.jsonl"))
+    }
+
+    public func append(_ event: CodexAutoSwitchEvent) async throws {
+        let data = try encoder.encode(event)
+        let line = String(decoding: data, as: UTF8.self) + "\n"
+        _ = file.parentFolder()?.createIfNotExists()
+        let existing = (try? file.read()) ?? ""
+        try file.overlay(with: existing + line)
+    }
+
+    public func recentEvents(limit: Int) async -> [CodexAutoSwitchEvent] {
+        guard limit > 0,
+              let content = try? file.read(),
+              !content.isEmpty
+        else {
+            return []
+        }
+
+        let lines = content
+            .split(separator: "\n")
+            .suffix(limit)
+
+        return lines.reversed().compactMap { line in
+            guard let data = String(line).data(using: .utf8) else { return nil }
+            return try? decoder.decode(CodexAutoSwitchEvent.self, from: data)
+        }
+    }
+}
+
+public actor CodexAutoSwitchStatusStore: CodexAutoSwitchStatusStoring {
+    private let file: STFile
+
+    public init(file: STFile) {
+        self.file = file
+    }
+
+    public init(authManager: CodexAuthManager = CodexAuthManager()) {
+        self.init(file: authManager.nolonCodexRootFolder().folder("auto-switch").file("status.json"))
+    }
+
+    public func load() async -> CodexAutoSwitchStatusSnapshot? {
+        guard let data = try? file.data(),
+              !data.isEmpty
+        else {
+            return nil
+        }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return try? decoder.decode(CodexAutoSwitchStatusSnapshot.self, from: data)
+    }
+
+    public func save(_ snapshot: CodexAutoSwitchStatusSnapshot) async throws {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+        encoder.dateEncodingStrategy = .iso8601
+        let data = try encoder.encode(snapshot)
+        _ = file.parentFolder()?.createIfNotExists()
+        try file.overlay(with: data)
+    }
+}
+
 public actor CodexAutoSwitchService {
     public typealias LoadAccounts = @Sendable () async throws -> [CodexAuthAccount]
     public typealias ActiveAccountID = @Sendable (Provider) async -> UUID?
@@ -291,14 +438,22 @@ public actor CodexAutoSwitchService {
     private let activeAccountID: ActiveAccountID
     private let loadUsageCache: LoadUsageCache
     private let loadSummary: LoadSummary
+    private let statusStore: (any CodexAutoSwitchStatusStoring)?
+    private let eventStore: (any CodexAutoSwitchEventStoring)?
+    private let config: CodexAutoSwitchConfig
 
     public init(
         config: CodexAutoSwitchConfig = CodexAutoSwitchConfig(),
         authManager: CodexAuthManager = CodexAuthManager(),
         stateStore: (any CodexAutoSwitchStateStoring)? = nil,
+        statusStore: (any CodexAutoSwitchStatusStoring)? = nil,
+        eventStore: (any CodexAutoSwitchEventStoring)? = nil,
         activationCoordinator: CodexAuthActivationCoordinator = .shared
     ) {
+        self.config = config
         let resolvedStateStore = stateStore ?? CodexAutoSwitchStateStore(authManager: authManager)
+        let resolvedStatusStore = statusStore ?? CodexAutoSwitchStatusStore(authManager: authManager)
+        let resolvedEventStore = eventStore ?? CodexAutoSwitchEventStore(authManager: authManager)
         self.coordinator = CodexAutoSwitchCoordinator(
             config: config,
             loadState: { await resolvedStateStore.load() },
@@ -317,6 +472,8 @@ public actor CodexAutoSwitchService {
             }
             return CodexAuthSummary.fromJSONData(data)
         }
+        self.statusStore = resolvedStatusStore
+        self.eventStore = resolvedEventStore
     }
 
     init(
@@ -324,18 +481,26 @@ public actor CodexAutoSwitchService {
         loadAccounts: @escaping LoadAccounts,
         activeAccountID: @escaping ActiveAccountID,
         loadUsageCache: @escaping LoadUsageCache,
-        loadSummary: @escaping LoadSummary
+        loadSummary: @escaping LoadSummary,
+        config: CodexAutoSwitchConfig = CodexAutoSwitchConfig(),
+        statusStore: (any CodexAutoSwitchStatusStoring)? = nil,
+        eventStore: (any CodexAutoSwitchEventStoring)? = nil
     ) {
+        self.config = config
         self.coordinator = coordinator
         self.loadAccounts = loadAccounts
         self.activeAccountID = activeAccountID
         self.loadUsageCache = loadUsageCache
         self.loadSummary = loadSummary
+        self.statusStore = statusStore
+        self.eventStore = eventStore
     }
 
     public func evaluateAndSwitchIfNeeded(for provider: Provider) async throws -> CodexAutoSwitchDecision {
+        let decision: CodexAutoSwitchDecision
+
         guard let activeAccountID = await activeAccountID(provider) else {
-            return CodexAutoSwitchDecision(
+            decision = CodexAutoSwitchDecision(
                 reason: .noActiveAccount,
                 fromAccountID: nil,
                 toAccountID: nil,
@@ -343,6 +508,8 @@ public actor CodexAutoSwitchService {
                 targetRemainingPercent: nil,
                 checkedAt: Date()
             )
+            await persist(decision: decision, for: provider)
+            return decision
         }
 
         let accounts = try await loadAccounts()
@@ -358,11 +525,28 @@ public actor CodexAutoSwitchService {
             )
         }
 
-        return try await coordinator.evaluateAndSwitch(
+        decision = try await coordinator.evaluateAndSwitch(
             provider: provider,
             activeAccountID: activeAccountID,
             candidates: candidates
         )
+        await persist(decision: decision, for: provider)
+        return decision
+    }
+
+    private func persist(decision: CodexAutoSwitchDecision, for provider: Provider) async {
+        if let statusStore {
+            let snapshot = CodexAutoSwitchStatusSnapshot(
+                providerID: provider.id,
+                config: config,
+                lastDecision: decision,
+                lastUpdatedAt: decision.checkedAt
+            )
+            try? await statusStore.save(snapshot)
+        }
+        if let eventStore {
+            try? await eventStore.append(CodexAutoSwitchEvent(providerID: provider.id, decision: decision))
+        }
     }
 }
 
