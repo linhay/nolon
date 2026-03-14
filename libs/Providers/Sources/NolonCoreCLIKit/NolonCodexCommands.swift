@@ -25,6 +25,8 @@ struct NolonCodexRootCommand: ParsableCommand {
             NolonCodexStatusGroupCommand.self,
             NolonCodexRuntimeGroupCommand.self,
             NolonCodexProviderGroupCommand.self,
+            NolonCodexGatewayGroupCommand.self,
+            NolonCodexAutoSwitchGroupCommand.self,
         ]
     )
 }
@@ -83,6 +85,69 @@ struct NolonCodexProviderGroupCommand: ParsableCommand {
         commandName: "provider",
         subcommands: [NolonCodexProviderDiscoverCommand.self]
     )
+}
+
+struct NolonCodexGatewayGroupCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "gateway",
+        subcommands: [
+            NolonCodexGatewayStatusCommand.self,
+            NolonCodexGatewayStartCommand.self,
+            NolonCodexGatewayStopCommand.self,
+            NolonCodexGatewayServeCommand.self,
+        ]
+    )
+}
+
+struct NolonCodexAutoSwitchGroupCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "autoswitch",
+        subcommands: [
+            NolonCodexAutoSwitchStatusCommand.self,
+            NolonCodexAutoSwitchEnableCommand.self,
+            NolonCodexAutoSwitchDisableCommand.self,
+        ]
+    )
+}
+
+struct NolonCodexGatewayStatusCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(commandName: "status")
+
+    @Option(name: .long, help: "Provider id, default is codex.")
+    var provider: String = "codex"
+}
+
+struct NolonCodexGatewayStartCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(commandName: "start")
+
+    @Option(name: .long, help: "Provider id, default is codex.")
+    var provider: String = "codex"
+
+    @Option(name: .long, help: "Gateway bind host, default is 127.0.0.1.")
+    var host: String = "127.0.0.1"
+
+    @Option(name: .long, help: "Gateway port, default is 8080.")
+    var port: Int = 8080
+}
+
+struct NolonCodexGatewayStopCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(commandName: "stop")
+
+    @Option(name: .long, help: "Provider id, default is codex.")
+    var provider: String = "codex"
+}
+
+struct NolonCodexGatewayServeCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(commandName: "serve")
+
+    @Option(name: .long, help: "Provider id, default is codex.")
+    var provider: String = "codex"
+
+    @Option(name: .long, help: "Gateway bind host, default is 127.0.0.1.")
+    var host: String = "127.0.0.1"
+
+    @Option(name: .long, help: "Gateway port, default is 8080.")
+    var port: Int = 8080
 }
 
 struct NolonCodexAuthListCommand: ParsableCommand {
@@ -269,6 +334,27 @@ struct NolonCodexRuntimeStopCommand: ParsableCommand {
 
 struct NolonCodexProviderDiscoverCommand: ParsableCommand {
     static let configuration = CommandConfiguration(commandName: "discover")
+}
+
+struct NolonCodexAutoSwitchStatusCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(commandName: "status")
+
+    @Option(name: .long, help: "Provider id, default is codex.")
+    var provider: String = "codex"
+}
+
+struct NolonCodexAutoSwitchEnableCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(commandName: "enable")
+
+    @Option(name: .long, help: "Provider id, default is codex.")
+    var provider: String = "codex"
+}
+
+struct NolonCodexAutoSwitchDisableCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(commandName: "disable")
+
+    @Option(name: .long, help: "Provider id, default is codex.")
+    var provider: String = "codex"
 }
 
 struct NolonGeminiRootCommand: ParsableCommand {

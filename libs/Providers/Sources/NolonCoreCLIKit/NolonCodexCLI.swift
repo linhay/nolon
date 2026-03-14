@@ -1,12 +1,14 @@
 import ArgumentParser
 import CodexAppServerKit
 import CodexCLIKit
+import CodexGatewayKit
 import CodexProvider
 import Foundation
 import ProviderCatalog
 import ProviderUsage
 import SKProcessRunner
 import STFilePath
+import Vapor
 #if canImport(Darwin)
 import Darwin
 #elseif canImport(Glibc)
@@ -35,6 +37,12 @@ public protocol NolonCodexCLIServing: Sendable {
     func providerDiscover() async throws -> NolonCodexProviderDiscoverPayload
     func runtimeList(providerID: String?) async throws -> NolonCodexRuntimeListPayload
     func runtimeStop(pid: Int32, force: Bool, timeoutSeconds: Int) async throws -> NolonCodexRuntimeStopPayload
+    func gatewayStatus(providerID: String) async throws -> NolonCodexGatewayStatusPayload
+    func gatewayStart(providerID: String, host: String, port: Int) async throws -> NolonCodexGatewaySetPayload
+    func gatewayStop(providerID: String) async throws -> NolonCodexGatewaySetPayload
+    func gatewayServe(providerID: String, host: String, port: Int) async throws
+    func autoSwitchStatus(providerID: String) async throws -> NolonCodexAutoSwitchStatusPayload
+    func autoSwitchSetEnabled(providerID: String, enabled: Bool) async throws -> NolonCodexAutoSwitchSetPayload
 }
 
 public extension NolonCodexCLIServing {
@@ -136,6 +144,71 @@ public extension NolonCodexCLIServing {
                 last7DaysTokens: snapshot.last7DaysTokens,
                 last30DaysTokens: snapshot.last30DaysTokens
             )
+        )
+    }
+
+    func autoSwitchStatus(providerID: String) async throws -> NolonCodexAutoSwitchStatusPayload {
+        let canonicalProviderID = providerID.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return NolonCodexAutoSwitchStatusPayload(
+            providerID: canonicalProviderID,
+            enabled: false,
+            thresholdPercent: 10,
+            minimumCandidateRemainingPercent: 20,
+            skipRelayAccounts: true,
+            cooldownSeconds: 600,
+            lastDecision: nil,
+            lastUpdatedAt: nil
+        )
+    }
+
+    func gatewayStatus(providerID: String) async throws -> NolonCodexGatewayStatusPayload {
+        let canonicalProviderID = providerID.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return NolonCodexGatewayStatusPayload(
+            providerID: canonicalProviderID,
+            status: .stopped,
+            host: "127.0.0.1",
+            port: 8080,
+            startedAt: nil
+        )
+    }
+
+    func gatewayStart(providerID: String, host: String, port: Int) async throws -> NolonCodexGatewaySetPayload {
+        let canonicalProviderID = providerID.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return NolonCodexGatewaySetPayload(
+            providerID: canonicalProviderID,
+            status: .running,
+            host: host,
+            port: port,
+            startedAt: Date()
+        )
+    }
+
+    func gatewayStop(providerID: String) async throws -> NolonCodexGatewaySetPayload {
+        let canonicalProviderID = providerID.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return NolonCodexGatewaySetPayload(
+            providerID: canonicalProviderID,
+            status: .stopped,
+            host: "127.0.0.1",
+            port: 8080,
+            startedAt: nil
+        )
+    }
+
+    func gatewayServe(providerID: String, host: String, port: Int) async throws {
+        _ = providerID
+        _ = host
+        _ = port
+    }
+
+    func autoSwitchSetEnabled(providerID: String, enabled: Bool) async throws -> NolonCodexAutoSwitchSetPayload {
+        let canonicalProviderID = providerID.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return NolonCodexAutoSwitchSetPayload(
+            providerID: canonicalProviderID,
+            enabled: enabled,
+            thresholdPercent: 10,
+            minimumCandidateRemainingPercent: 20,
+            skipRelayAccounts: true,
+            cooldownSeconds: 600
         )
     }
 }
@@ -278,6 +351,42 @@ public struct NolonCodexAuthUsageSummaryView: Codable, Sendable, Equatable {
         self.earliestExpiresAt = earliestExpiresAt
         self.latestRefreshedAt = latestRefreshedAt
     }
+}
+
+public struct NolonCodexAutoSwitchStatusPayload: Codable, Sendable, Equatable {
+    public let providerID: String
+    public let enabled: Bool
+    public let thresholdPercent: Double
+    public let minimumCandidateRemainingPercent: Double
+    public let skipRelayAccounts: Bool
+    public let cooldownSeconds: Int
+    public let lastDecision: CodexAutoSwitchDecision?
+    public let lastUpdatedAt: Date?
+}
+
+public struct NolonCodexAutoSwitchSetPayload: Codable, Sendable, Equatable {
+    public let providerID: String
+    public let enabled: Bool
+    public let thresholdPercent: Double
+    public let minimumCandidateRemainingPercent: Double
+    public let skipRelayAccounts: Bool
+    public let cooldownSeconds: Int
+}
+
+public struct NolonCodexGatewayStatusPayload: Codable, Sendable, Equatable {
+    public let providerID: String
+    public let status: CodexGatewayRuntimeStatus
+    public let host: String
+    public let port: Int
+    public let startedAt: Date?
+}
+
+public struct NolonCodexGatewaySetPayload: Codable, Sendable, Equatable {
+    public let providerID: String
+    public let status: CodexGatewayRuntimeStatus
+    public let host: String
+    public let port: Int
+    public let startedAt: Date?
 }
 
 public struct NolonCodexAuthUsagePayload: Codable, Sendable, Equatable {
@@ -562,6 +671,9 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
     typealias AuthActivator = @Sendable (CodexAuthAccount, Provider) async throws -> CodexAuthActivationResult
     typealias AuthRefreshRunner = @Sendable (_ providerID: String, _ accountID: UUID, _ environment: [String: String]) async throws -> Void
     typealias UsageOutcomeFetcher = @Sendable (_ environment: [String: String]) async -> ProviderFetchOutcome
+    typealias GatewayDetachedProcessStarter = @Sendable (_ executablePath: String, _ arguments: [String]) throws -> Int32
+    typealias GatewayHealthChecker = @Sendable (_ host: String, _ port: Int) async -> Bool
+    typealias GatewayExecutablePathProvider = @Sendable () -> String?
 
     private let authManager: CodexAuthManager
     private let binaryManager: CodexBinaryManager
@@ -574,6 +686,15 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
     private let runtimeSignalController: any NolonCodexRuntimeSignalControlling
     private let currentPIDProvider: @Sendable () -> Int32
     private let sleep: @Sendable (UInt64) async throws -> Void
+    private let gatewayControlService: CodexGatewayControlService
+    private let gatewayConfigManager: any CodexGatewayConfigManaging
+    private let gatewayPIDStore: any CodexGatewayPIDStoring
+    private let gatewayConfigFileResolver: @Sendable (Provider) -> STFile?
+    private let gatewayDetachedProcessStarter: GatewayDetachedProcessStarter
+    private let gatewayHealthChecker: GatewayHealthChecker
+    private let gatewayExecutablePathProvider: GatewayExecutablePathProvider
+    private let autoSwitchSettingsStore: CodexAutoSwitchSettingsStore
+    private let autoSwitchStatusStore: any CodexAutoSwitchStatusStoring
 
     private struct UsageRefreshReport: Sendable {
         var refreshOrder: [UUID] = []
@@ -603,7 +724,23 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
             currentPIDProvider: { getpid() },
             sleep: { nanoseconds in
                 try await Task.sleep(nanoseconds: nanoseconds)
-            }
+            },
+            gatewayControlService: CodexGatewayControlService(
+                statusStore: CodexGatewayStateStore(authManager: authManager)
+            ),
+            gatewayConfigManager: CodexGatewayConfigManager(
+                stateStore: CodexGatewayManagedConfigStateStore(authManager: authManager)
+            ),
+            gatewayPIDStore: CodexGatewayPIDStore(authManager: authManager),
+            gatewayConfigFileResolver: { provider in
+                let skillsPath = STPath(provider.defaultSkillsPath)
+                return skillsPath.parentFolder()?.file("config.toml")
+            },
+            gatewayDetachedProcessStarter: Self.startDetachedProcess,
+            gatewayHealthChecker: Self.healthCheck,
+            gatewayExecutablePathProvider: Self.resolveCurrentExecutablePath,
+            autoSwitchSettingsStore: .shared,
+            autoSwitchStatusStore: CodexAutoSwitchStatusStore(authManager: authManager)
         )
     }
 
@@ -628,7 +765,23 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
             currentPIDProvider: { getpid() },
             sleep: { nanoseconds in
                 try await Task.sleep(nanoseconds: nanoseconds)
-            }
+            },
+            gatewayControlService: CodexGatewayControlService(
+                statusStore: CodexGatewayStateStore(authManager: authManager)
+            ),
+            gatewayConfigManager: CodexGatewayConfigManager(
+                stateStore: CodexGatewayManagedConfigStateStore(authManager: authManager)
+            ),
+            gatewayPIDStore: CodexGatewayPIDStore(authManager: authManager),
+            gatewayConfigFileResolver: { provider in
+                let skillsPath = STPath(provider.defaultSkillsPath)
+                return skillsPath.parentFolder()?.file("config.toml")
+            },
+            gatewayDetachedProcessStarter: Self.startDetachedProcess,
+            gatewayHealthChecker: Self.healthCheck,
+            gatewayExecutablePathProvider: Self.resolveCurrentExecutablePath,
+            autoSwitchSettingsStore: .shared,
+            autoSwitchStatusStore: CodexAutoSwitchStatusStore(authManager: authManager)
         )
     }
 
@@ -645,7 +798,16 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
         runtimeProcessInspector: any NolonCodexRuntimeProcessInspecting,
         runtimeSignalController: any NolonCodexRuntimeSignalControlling,
         currentPIDProvider: @escaping @Sendable () -> Int32,
-        sleep: @escaping @Sendable (UInt64) async throws -> Void
+        sleep: @escaping @Sendable (UInt64) async throws -> Void,
+        gatewayControlService: CodexGatewayControlService = CodexGatewayControlService(),
+        gatewayConfigManager: any CodexGatewayConfigManaging = CodexGatewayConfigManager(),
+        gatewayPIDStore: any CodexGatewayPIDStoring = CodexGatewayPIDStore(),
+        gatewayConfigFileResolver: @escaping @Sendable (Provider) -> STFile? = { _ in nil },
+        gatewayDetachedProcessStarter: @escaping GatewayDetachedProcessStarter = Self.startDetachedProcess,
+        gatewayHealthChecker: @escaping GatewayHealthChecker = Self.healthCheck,
+        gatewayExecutablePathProvider: @escaping GatewayExecutablePathProvider = Self.resolveCurrentExecutablePath,
+        autoSwitchSettingsStore: CodexAutoSwitchSettingsStore = .shared,
+        autoSwitchStatusStore: any CodexAutoSwitchStatusStoring = CodexAutoSwitchStatusStore()
     ) {
         self.authManager = authManager
         self.binaryManager = binaryManager
@@ -658,6 +820,15 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
         self.runtimeSignalController = runtimeSignalController
         self.currentPIDProvider = currentPIDProvider
         self.sleep = sleep
+        self.gatewayControlService = gatewayControlService
+        self.gatewayConfigManager = gatewayConfigManager
+        self.gatewayPIDStore = gatewayPIDStore
+        self.gatewayConfigFileResolver = gatewayConfigFileResolver
+        self.gatewayDetachedProcessStarter = gatewayDetachedProcessStarter
+        self.gatewayHealthChecker = gatewayHealthChecker
+        self.gatewayExecutablePathProvider = gatewayExecutablePathProvider
+        self.autoSwitchSettingsStore = autoSwitchSettingsStore
+        self.autoSwitchStatusStore = autoSwitchStatusStore
     }
 
     public func authList(providerID: String) async throws -> NolonCodexAuthListPayload {
@@ -729,6 +900,41 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
 
     public func authUsageRefresh(providerID: String, accountID: UUID?) async throws -> NolonCodexAuthUsagePayload {
         try await buildAuthUsagePayload(providerID: providerID, refreshTargetAccountID: accountID, refreshBeforeRead: true)
+    }
+
+    public func autoSwitchStatus(providerID: String) async throws -> NolonCodexAutoSwitchStatusPayload {
+        let canonicalProviderID = try Self.canonicalProviderID(providerID)
+        let provider = try Self.provider(for: canonicalProviderID)
+        let settings = autoSwitchSettingsStore.settings(for: provider)
+        let snapshot = await autoSwitchStatusStore.load()
+        let lastDecision = snapshot?.providerID == provider.id ? snapshot?.lastDecision : nil
+        let lastUpdatedAt = snapshot?.providerID == provider.id ? snapshot?.lastUpdatedAt : nil
+        return NolonCodexAutoSwitchStatusPayload(
+            providerID: canonicalProviderID,
+            enabled: settings.enabled,
+            thresholdPercent: settings.thresholdPercent,
+            minimumCandidateRemainingPercent: settings.minimumCandidateRemainingPercent,
+            skipRelayAccounts: settings.skipRelayAccounts,
+            cooldownSeconds: Int(settings.cooldown),
+            lastDecision: lastDecision,
+            lastUpdatedAt: lastUpdatedAt
+        )
+    }
+
+    public func autoSwitchSetEnabled(providerID: String, enabled: Bool) async throws -> NolonCodexAutoSwitchSetPayload {
+        let canonicalProviderID = try Self.canonicalProviderID(providerID)
+        let provider = try Self.provider(for: canonicalProviderID)
+        var settings = autoSwitchSettingsStore.settings(for: provider)
+        settings.enabled = enabled
+        autoSwitchSettingsStore.update(settings: settings, for: provider)
+        return NolonCodexAutoSwitchSetPayload(
+            providerID: canonicalProviderID,
+            enabled: settings.enabled,
+            thresholdPercent: settings.thresholdPercent,
+            minimumCandidateRemainingPercent: settings.minimumCandidateRemainingPercent,
+            skipRelayAccounts: settings.skipRelayAccounts,
+            cooldownSeconds: Int(settings.cooldown)
+        )
     }
 
     public func authExport(
@@ -1449,6 +1655,175 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
         )
     }
 
+    public func gatewayStatus(providerID: String) async throws -> NolonCodexGatewayStatusPayload {
+        let canonicalProviderID = try Self.canonicalProviderID(providerID)
+        var snapshot = await gatewayControlService.status()
+        if snapshot.status == .running,
+           let pid = await gatewayPIDStore.load(),
+           !runtimeSignalController.isRunning(pid: pid) {
+            snapshot = try await gatewayControlService.stop(config: CodexGatewayConfig(host: snapshot.host, port: snapshot.port))
+            try? await gatewayPIDStore.clear()
+        }
+        return NolonCodexGatewayStatusPayload(
+            providerID: canonicalProviderID,
+            status: snapshot.status,
+            host: snapshot.host,
+            port: snapshot.port,
+            startedAt: snapshot.startedAt
+        )
+    }
+
+    public func gatewayStart(providerID: String, host: String, port: Int) async throws -> NolonCodexGatewaySetPayload {
+        let canonicalProviderID = try Self.canonicalProviderID(providerID)
+        let provider = try Self.provider(for: canonicalProviderID)
+        let trimmedHost = host.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedHost.isEmpty else {
+            throw NolonCoreCLIError.invalidArguments("Invalid --host: value cannot be empty")
+        }
+        guard (1...65535).contains(port) else {
+            throw NolonCoreCLIError.invalidArguments("Invalid --port: \(port)")
+        }
+        let config = CodexGatewayConfig(host: trimmedHost, port: port)
+        guard let configFile = gatewayConfigFileResolver(provider) else {
+            throw NolonCoreCLIError.domainFailed(
+                code: "codex_gateway_config_unavailable",
+                message: "Codex config.toml is unavailable for provider: \(canonicalProviderID)"
+            )
+        }
+        if let existingPID = await gatewayPIDStore.load(),
+           runtimeSignalController.isRunning(pid: existingPID) {
+            throw NolonCoreCLIError.domainFailed(
+                code: "codex_gateway_already_running",
+                message: "Codex gateway is already running (pid=\(existingPID)). Stop it before starting again."
+            )
+        }
+        guard let executablePath = gatewayExecutablePathProvider() else {
+            throw NolonCoreCLIError.domainFailed(
+                code: "codex_gateway_executable_unavailable",
+                message: "Unable to resolve current nolon executable path for gateway daemon startup."
+            )
+        }
+        try await gatewayConfigManager.patchGatewayConfig(configFile: configFile, config: config)
+        let arguments = [
+            "codex", "gateway", "serve",
+            "--provider", canonicalProviderID,
+            "--host", trimmedHost,
+            "--port", "\(port)",
+        ]
+        let pid: Int32
+        do {
+            pid = try gatewayDetachedProcessStarter(executablePath, arguments)
+            try await gatewayPIDStore.save(pid)
+        } catch {
+            try? await gatewayConfigManager.restoreGatewayConfig(configFile: configFile)
+            throw error
+        }
+
+        let healthy = await Self.waitForGatewayHealthy(
+            host: trimmedHost,
+            port: port,
+            checker: gatewayHealthChecker,
+            sleep: sleep
+        )
+        guard healthy else {
+            _ = try? await stopGatewayProcess(pid: pid)
+            try? await gatewayPIDStore.clear()
+            try? await gatewayConfigManager.restoreGatewayConfig(configFile: configFile)
+            throw NolonCoreCLIError.domainFailed(
+                code: "codex_gateway_start_failed",
+                message: "Codex gateway failed to become healthy at http://\(trimmedHost):\(port)/healthz"
+            )
+        }
+        var snapshot = await gatewayControlService.status(config: config)
+        if snapshot.status != .running {
+            snapshot = try await gatewayControlService.start(config: config)
+        }
+        return NolonCodexGatewaySetPayload(
+            providerID: canonicalProviderID,
+            status: snapshot.status,
+            host: snapshot.host,
+            port: snapshot.port,
+            startedAt: snapshot.startedAt
+        )
+    }
+
+    public func gatewayStop(providerID: String) async throws -> NolonCodexGatewaySetPayload {
+        let canonicalProviderID = try Self.canonicalProviderID(providerID)
+        let provider = try Self.provider(for: canonicalProviderID)
+        guard let configFile = gatewayConfigFileResolver(provider) else {
+            throw NolonCoreCLIError.domainFailed(
+                code: "codex_gateway_config_unavailable",
+                message: "Codex config.toml is unavailable for provider: \(canonicalProviderID)"
+            )
+        }
+        if let pid = await gatewayPIDStore.load() {
+            _ = try? await stopGatewayProcess(pid: pid)
+            try? await gatewayPIDStore.clear()
+        }
+        try await gatewayConfigManager.restoreGatewayConfig(configFile: configFile)
+        let snapshot = try await gatewayControlService.stop()
+        return NolonCodexGatewaySetPayload(
+            providerID: canonicalProviderID,
+            status: snapshot.status,
+            host: snapshot.host,
+            port: snapshot.port,
+            startedAt: snapshot.startedAt
+        )
+    }
+
+    public func gatewayServe(providerID: String, host: String, port: Int) async throws {
+        let canonicalProviderID = try Self.canonicalProviderID(providerID)
+        _ = try Self.provider(for: canonicalProviderID)
+        let trimmedHost = host.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedHost.isEmpty else {
+            throw NolonCoreCLIError.invalidArguments("Invalid --host: value cannot be empty")
+        }
+        guard (1...65535).contains(port) else {
+            throw NolonCoreCLIError.invalidArguments("Invalid --port: \(port)")
+        }
+
+        let app = try await Application.make(.production)
+        defer {
+            Task {
+                try? await app.asyncShutdown()
+            }
+        }
+        app.http.server.configuration.hostname = trimmedHost
+        app.http.server.configuration.port = port
+
+        let config = CodexGatewayConfig(host: trimmedHost, port: port)
+        let accountSource = CodexGatewayAccountSource(authManager: authManager)
+        let routingService = CodexGatewayResponsesRoutingService(accountSource: accountSource)
+        let statusSnapshot = CodexGatewayStatusSnapshot(
+            status: .running,
+            host: trimmedHost,
+            port: port,
+            startedAt: Date()
+        )
+        try CodexGatewayServer.configure(
+            app: app,
+            statusProvider: { statusSnapshot },
+            responsesHandler: { context in
+                try await routingService.handle(context)
+            }
+        )
+        try await app.asyncBoot()
+        try await app.server.start(address: .hostname(trimmedHost, port: port))
+        _ = try await gatewayControlService.start(config: config)
+        do {
+            while !Task.isCancelled {
+                try await sleep(250_000_000)
+            }
+        } catch is CancellationError {
+        } catch {
+            await app.server.shutdown()
+            _ = try? await gatewayControlService.stop(config: config)
+            throw error
+        }
+        await app.server.shutdown()
+        _ = try? await gatewayControlService.stop(config: config)
+    }
+
     private static func liveAuthRefreshRunner(providerID: String, accountID: UUID, environment: [String: String]) async throws {
         _ = providerID
         var runtimeEnvironment = environment
@@ -1464,6 +1839,121 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
         defer { Task { await service.shutdown() } }
         try await service.initialize(clientName: "nolon", clientVersion: "1.0.0")
         _ = try await service.readAccount(refreshToken: true)
+    }
+
+    private func stopGatewayProcess(pid: Int32) async throws -> Bool {
+        try runtimeSignalController.send(signal: SIGTERM, to: pid)
+        for _ in 0..<20 {
+            if !runtimeSignalController.isRunning(pid: pid) {
+                return true
+            }
+            try await sleep(100_000_000)
+        }
+        try runtimeSignalController.send(signal: SIGKILL, to: pid)
+        for _ in 0..<20 {
+            if !runtimeSignalController.isRunning(pid: pid) {
+                return true
+            }
+            try await sleep(100_000_000)
+        }
+        return !runtimeSignalController.isRunning(pid: pid)
+    }
+
+    private static func waitForGatewayHealthy(
+        host: String,
+        port: Int,
+        checker: @escaping GatewayHealthChecker,
+        sleep: @escaping @Sendable (UInt64) async throws -> Void
+    ) async -> Bool {
+        for _ in 0..<20 {
+            if await checker(host, port) {
+                return true
+            }
+            do {
+                try await sleep(100_000_000)
+            } catch {
+                return false
+            }
+        }
+        return false
+    }
+
+    private static func healthCheck(host: String, port: Int) async -> Bool {
+        guard let url = URL(string: "http://\(host):\(port)/healthz") else {
+            return false
+        }
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 0.5
+        do {
+            let (_, response) = try await URLSession.shared.data(for: request)
+            guard let httpResponse = response as? HTTPURLResponse else {
+                return false
+            }
+            return httpResponse.statusCode == 200
+        } catch {
+            return false
+        }
+    }
+
+    private static func startDetachedProcess(executablePath: String, arguments: [String]) throws -> Int32 {
+        let commandLine = ([executablePath] + arguments)
+            .map(shellEscaped)
+            .joined(separator: " ")
+        let script = "nohup \(commandLine) >/dev/null 2>&1 & echo $!"
+
+        var payload = SKProcessPayload.executableURL(STPath("/bin/sh").url)
+        payload.arguments = ["-lc", script]
+        payload.throwOnNonZeroExit = false
+        payload.timeoutMs = 5_000
+
+        let result = try SKProcessRunner.runSync(payload)
+        guard result.exitCode == 0 else {
+            let stderr = result.stderr.trimmingCharacters(in: .whitespacesAndNewlines)
+            throw NolonCoreCLIError.executionFailed(stderr.isEmpty ? "failed to start detached process" : stderr)
+        }
+        let output = result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let line = output.split(separator: "\n").last,
+              let pid = Int32(line) else {
+            throw NolonCoreCLIError.executionFailed("failed to parse detached process pid")
+        }
+        return pid
+    }
+
+    private static func shellEscaped(_ value: String) -> String {
+        if value.isEmpty { return "''" }
+        if value.range(of: #"^[A-Za-z0-9_@%+=:,./-]+$"#, options: .regularExpression) != nil {
+            return value
+        }
+        return "'" + value.replacingOccurrences(of: "'", with: "'\\''") + "'"
+    }
+
+    private static func resolveCurrentExecutablePath() -> String? {
+        guard let rawExecutable = CommandLine.arguments.first?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+            !rawExecutable.isEmpty else {
+            return nil
+        }
+        let fileManager = FileManager.default
+        if rawExecutable.contains("/") {
+            let path = rawExecutable.hasPrefix("/")
+                ? rawExecutable
+                : URL(fileURLWithPath: fileManager.currentDirectoryPath)
+                    .appendingPathComponent(rawExecutable)
+                    .standardizedFileURL
+                    .path
+            return fileManager.isExecutableFile(atPath: path) ? path : nil
+        }
+
+        let pathEnv = ProcessInfo.processInfo.environment["PATH"] ?? ""
+        for rawPath in pathEnv.split(separator: ":") {
+            let candidate = URL(fileURLWithPath: String(rawPath), isDirectory: true)
+                .appendingPathComponent(rawExecutable)
+                .path
+            if fileManager.isExecutableFile(atPath: candidate) {
+                return candidate
+            }
+        }
+        return nil
     }
 
     private static func loginViaAppServer(
@@ -1888,7 +2378,7 @@ public enum NolonCLIEntrypoint {
         }
         let root = normalized[0].lowercased()
         let groupsNeedingHelp: [String: Set<String>] = [
-            "codex": ["auth", "binary", "status", "runtime", "provider"],
+            "codex": ["auth", "binary", "status", "runtime", "provider", "gateway", "autoswitch"],
             "skills": [],
         ]
         let rootCommands = Set(["codex", "provider", "skills", "workflow", "mcp", "plugin", "remote"])
@@ -1949,6 +2439,12 @@ public enum NolonCLIEntrypoint {
             case "provider":
                 guard arguments.count >= 3 else { return NolonCodexProviderGroupCommand.self }
                 return codexProviderCommandType(action: arguments[2])
+            case "gateway":
+                guard arguments.count >= 3 else { return NolonCodexGatewayGroupCommand.self }
+                return codexGatewayCommandType(action: arguments[2])
+            case "autoswitch":
+                guard arguments.count >= 3 else { return NolonCodexAutoSwitchGroupCommand.self }
+                return codexAutoSwitchCommandType(action: arguments[2])
             default:
                 return NolonCodexRootCommand.self
             }
@@ -2083,6 +2579,34 @@ public enum NolonCLIEntrypoint {
             return NolonCodexProviderDiscoverCommand.self
         default:
             return NolonCodexProviderGroupCommand.self
+        }
+    }
+
+    private static func codexGatewayCommandType(action: String) -> ParsableCommand.Type? {
+        switch action.lowercased() {
+        case "status":
+            return NolonCodexGatewayStatusCommand.self
+        case "start":
+            return NolonCodexGatewayStartCommand.self
+        case "stop":
+            return NolonCodexGatewayStopCommand.self
+        case "serve":
+            return NolonCodexGatewayServeCommand.self
+        default:
+            return NolonCodexGatewayGroupCommand.self
+        }
+    }
+
+    private static func codexAutoSwitchCommandType(action: String) -> ParsableCommand.Type? {
+        switch action.lowercased() {
+        case "status":
+            return NolonCodexAutoSwitchStatusCommand.self
+        case "enable":
+            return NolonCodexAutoSwitchEnableCommand.self
+        case "disable":
+            return NolonCodexAutoSwitchDisableCommand.self
+        default:
+            return NolonCodexAutoSwitchGroupCommand.self
         }
     }
 
