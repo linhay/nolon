@@ -6,6 +6,7 @@ import STFilePath
 import ProviderCatalog
 import STJSON
 import ProvidersShared
+import SKProcessRunner
 
 public actor CodexAuthManager {
     public struct ConfiguredRelay: Sendable, Equatable, Codable {
@@ -1740,23 +1741,18 @@ public actor CodexAuthManager {
     }
 
     private func runDitto(arguments: [String]) throws {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
-        process.arguments = arguments
+        var payload = SKProcessPayload.executableURL(STPath("/usr/bin/ditto").url)
+        payload.arguments = arguments
+        payload.throwOnNonZeroExit = false
+        payload.timeoutMs = 120_000
+        let result = try SKProcessRunner.runSync(payload)
 
-        let stderr = Pipe()
-        process.standardError = stderr
-
-        try process.run()
-        process.waitUntilExit()
-
-        guard process.terminationStatus == 0 else {
-            let message = String(data: stderr.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)?
-                .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard result.exitCode == 0 else {
+            let message = result.stderr.trimmingCharacters(in: .whitespacesAndNewlines)
             throw NSError(
                 domain: "CodexAuthManager.Ditto",
-                code: Int(process.terminationStatus),
-                userInfo: [NSLocalizedDescriptionKey: message?.isEmpty == false ? message! : "ditto failed"]
+                code: Int(result.exitCode),
+                userInfo: [NSLocalizedDescriptionKey: message.isEmpty ? "ditto failed" : message]
             )
         }
     }
