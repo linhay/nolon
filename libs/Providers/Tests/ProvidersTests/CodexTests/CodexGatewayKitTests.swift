@@ -193,6 +193,40 @@ struct CodexGatewayKitTests {
         #expect(relay.upstreamHeaders["X-Relay-Key"] == "relay-secret")
     }
 
+    @Test("Given gateway virtual reply account marker, when loading gateway candidates, then virtual account is not schedulable")
+    func accountSourceSkipsGatewayVirtualReplyCandidate() async throws {
+        let root = try makeTempRoot("codex-gateway-account-source-virtual")
+        defer { try? root.delete() }
+
+        let authManager = CodexAuthManager(rootURL: root.url)
+        _ = try await authManager.addConfiguredAccount(
+            name: "Direct",
+            apiKey: "sk-direct",
+            relay: nil
+        )
+        _ = try await authManager.addConfiguredAccount(
+            name: "Virtual",
+            apiKey: "nolon-gateway-virtual-api-key",
+            relay: CodexAuthManager.ConfiguredRelay(
+                baseURL: "http://127.0.0.1:18086",
+                modelProvider: "openai",
+                queryParams: [
+                    "nolon_gateway_virtual": "1",
+                    "provider_id": "codex",
+                ]
+            )
+        )
+
+        let source = CodexGatewayAccountSource(authManager: authManager)
+        let candidates = try await source.loadCandidates()
+
+        let direct = try #require(candidates.first(where: { $0.upstreamBaseURL?.host == "api.openai.com" }))
+        let virtual = try #require(candidates.first(where: { $0.upstreamBaseURL == nil }))
+
+        #expect(direct.isSchedulable == true)
+        #expect(virtual.isSchedulable == false)
+    }
+
     @Test("Given chatgpt auth account, when loading gateway candidates, then candidate uses chatgpt codex backend and account header")
     func accountSourceLoadsChatGPTCandidate() async throws {
         let root = try makeTempRoot("codex-gateway-account-source-chatgpt")
