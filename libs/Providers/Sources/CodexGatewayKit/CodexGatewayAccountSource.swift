@@ -2,6 +2,7 @@ import Foundation
 import ProviderUsage
 
 public actor CodexGatewayAccountSource {
+    fileprivate static let gatewayVirtualMarkerKey = "nolon_gateway_virtual"
     private let authManager: CodexAuthManager
     private let openAIBaseURL: URL
     private let chatGPTBaseURL: URL
@@ -64,11 +65,15 @@ public actor CodexGatewayAccountSource {
             accessToken: Self.stringValue(tokens?["access_token"]) ?? Self.stringValue(root["access_token"]),
             accountID: Self.stringValue(root["account_id"]),
             relayBaseURL: Self.stringValue(relay?["base_url"]),
+            relayQueryParams: Self.stringMap(relay?["query_params"]),
             relayHeaders: Self.stringMap(relay?["headers"])
         )
     }
 
     private func resolveUpstream(summary: CodexAuthSummary, payload: AuthPayload) -> UpstreamConfiguration? {
+        if payload.isGatewayVirtual {
+            return nil
+        }
         switch summary.cardKind {
         case .officialAPIKey:
             guard let apiKey = payload.apiKey else { return nil }
@@ -134,7 +139,12 @@ private struct AuthPayload {
     var accessToken: String?
     var accountID: String?
     var relayBaseURL: String?
+    var relayQueryParams: [String: String] = [:]
     var relayHeaders: [String: String] = [:]
+
+    var isGatewayVirtual: Bool {
+        relayQueryParams[CodexGatewayAccountSource.gatewayVirtualMarkerKey] == "1"
+    }
 }
 
 private struct UpstreamConfiguration {

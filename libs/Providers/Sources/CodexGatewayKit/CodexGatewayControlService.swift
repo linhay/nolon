@@ -7,6 +7,69 @@ public protocol CodexGatewayStatusStoring: Sendable {
     func save(_ snapshot: CodexGatewayStatusSnapshot) async throws
 }
 
+public struct CodexGatewayVirtualAccountState: Sendable, Equatable, Codable {
+    public let providerID: String
+    public let previousActiveAccountID: UUID?
+    public let virtualAccountID: UUID
+
+    public init(providerID: String, previousActiveAccountID: UUID?, virtualAccountID: UUID) {
+        self.providerID = providerID
+        self.previousActiveAccountID = previousActiveAccountID
+        self.virtualAccountID = virtualAccountID
+    }
+}
+
+public protocol CodexGatewayVirtualAccountStateStoring: Sendable {
+    func load(providerID: String) async -> CodexGatewayVirtualAccountState?
+    func save(_ state: CodexGatewayVirtualAccountState) async throws
+    func remove(providerID: String) async throws
+}
+
+public actor CodexGatewayVirtualAccountStateStore: CodexGatewayVirtualAccountStateStoring {
+    private let file: STFile
+
+    public init(file: STFile) {
+        self.file = file
+    }
+
+    public init(authManager: CodexAuthManager = CodexAuthManager()) {
+        self.init(file: authManager.nolonCodexRootFolder().folder("gateway").file("virtual-account.json"))
+    }
+
+    public func load(providerID: String) async -> CodexGatewayVirtualAccountState? {
+        loadAll()[providerID]
+    }
+
+    public func save(_ state: CodexGatewayVirtualAccountState) async throws {
+        var states = loadAll()
+        states[state.providerID] = state
+        try persist(states)
+    }
+
+    public func remove(providerID: String) async throws {
+        var states = loadAll()
+        states.removeValue(forKey: providerID)
+        try persist(states)
+    }
+
+    private func loadAll() -> [String: CodexGatewayVirtualAccountState] {
+        guard let data = try? file.data(),
+              !data.isEmpty
+        else {
+            return [:]
+        }
+        return (try? JSONDecoder().decode([String: CodexGatewayVirtualAccountState].self, from: data)) ?? [:]
+    }
+
+    private func persist(_ states: [String: CodexGatewayVirtualAccountState]) throws {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+        let data = try encoder.encode(states)
+        _ = file.parentFolder()?.createIfNotExists()
+        try file.overlay(with: data)
+    }
+}
+
 public actor CodexGatewayStateStore: CodexGatewayStatusStoring {
     private let file: STFile
 

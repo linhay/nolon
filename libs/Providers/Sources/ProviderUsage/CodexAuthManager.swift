@@ -1172,6 +1172,12 @@ public actor CodexAuthManager {
         try saveActiveAccountMap(map)
     }
 
+    public func clearActiveAccount(for provider: Provider) throws {
+        var map = loadActiveAccountMap()
+        map.removeValue(forKey: provider.id)
+        try saveActiveAccountMap(map)
+    }
+
     public func activateAccount(_ account: CodexAuthAccount, for provider: Provider) throws {
         guard let authFile = authFile(for: provider) else { return }
         _ = authFile.parentFolder()?.createIfNotExists()

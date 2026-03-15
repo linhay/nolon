@@ -693,6 +693,7 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
     private let gatewayDetachedProcessStarter: GatewayDetachedProcessStarter
     private let gatewayHealthChecker: GatewayHealthChecker
     private let gatewayExecutablePathProvider: GatewayExecutablePathProvider
+    private let gatewayVirtualAccountStateStore: any CodexGatewayVirtualAccountStateStoring
     private let autoSwitchSettingsStore: CodexAutoSwitchSettingsStore
     private let autoSwitchStatusStore: any CodexAutoSwitchStatusStoring
 
@@ -702,6 +703,10 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
         var skippedReasons: [UUID: String] = [:]
         var failedAccountIDs: Set<UUID> = []
     }
+
+    private static let gatewayVirtualMarkerKey = "nolon_gateway_virtual"
+    private static let gatewayVirtualNamePrefix = "__gateway_reply__"
+    private static let gatewayVirtualAPIKey = "nolon-gateway-virtual-api-key"
 
     public init(
         authManager: CodexAuthManager = CodexAuthManager(),
@@ -738,6 +743,7 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
             gatewayDetachedProcessStarter: Self.startDetachedProcess,
             gatewayHealthChecker: Self.healthCheck,
             gatewayExecutablePathProvider: Self.resolveCurrentExecutablePath,
+            gatewayVirtualAccountStateStore: CodexGatewayVirtualAccountStateStore(authManager: authManager),
             autoSwitchSettingsStore: .shared,
             autoSwitchStatusStore: CodexAutoSwitchStatusStore(authManager: authManager)
         )
@@ -778,6 +784,7 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
             gatewayDetachedProcessStarter: Self.startDetachedProcess,
             gatewayHealthChecker: Self.healthCheck,
             gatewayExecutablePathProvider: Self.resolveCurrentExecutablePath,
+            gatewayVirtualAccountStateStore: CodexGatewayVirtualAccountStateStore(authManager: authManager),
             autoSwitchSettingsStore: .shared,
             autoSwitchStatusStore: CodexAutoSwitchStatusStore(authManager: authManager)
         )
@@ -804,6 +811,7 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
         gatewayDetachedProcessStarter: @escaping GatewayDetachedProcessStarter = Self.startDetachedProcess,
         gatewayHealthChecker: @escaping GatewayHealthChecker = Self.healthCheck,
         gatewayExecutablePathProvider: @escaping GatewayExecutablePathProvider = Self.resolveCurrentExecutablePath,
+        gatewayVirtualAccountStateStore: any CodexGatewayVirtualAccountStateStoring = CodexGatewayVirtualAccountStateStore(),
         autoSwitchSettingsStore: CodexAutoSwitchSettingsStore = .shared,
         autoSwitchStatusStore: any CodexAutoSwitchStatusStoring = CodexAutoSwitchStatusStore()
     ) {
@@ -825,6 +833,7 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
         self.gatewayDetachedProcessStarter = gatewayDetachedProcessStarter
         self.gatewayHealthChecker = gatewayHealthChecker
         self.gatewayExecutablePathProvider = gatewayExecutablePathProvider
+        self.gatewayVirtualAccountStateStore = gatewayVirtualAccountStateStore
         self.autoSwitchSettingsStore = autoSwitchSettingsStore
         self.autoSwitchStatusStore = autoSwitchStatusStore
     }
@@ -1732,6 +1741,41 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
                 message: "Codex gateway failed to become healthy at http://\(trimmedHost):\(port)/healthz"
             )
         }
+
+        let previousActiveAccountID = await authManager.activeAccountId(for: provider)
+        do {
+            let virtualAccount = try await upsertGatewayVirtualReplyAccount(
+                providerID: canonicalProviderID,
+                host: trimmedHost,
+                port: port
+            )
+            try await authManager.setActiveAccount(virtualAccount, for: provider)
+            try await gatewayVirtualAccountStateStore.save(
+                CodexGatewayVirtualAccountState(
+                    providerID: canonicalProviderID,
+                    previousActiveAccountID: previousActiveAccountID,
+                    virtualAccountID: virtualAccount.id
+                )
+            )
+        } catch {
+            _ = try? await stopGatewayProcess(pid: pid)
+            try? await gatewayPIDStore.clear()
+            try? await gatewayConfigManager.restoreGatewayConfig(configFile: configFile)
+            _ = try? await gatewayControlService.stop(config: config)
+            if let previousActiveAccountID {
+                try? await restoreGatewayActiveAccount(
+                    provider: provider,
+                    targetAccountID: previousActiveAccountID
+                )
+            } else {
+                try? await authManager.clearActiveAccount(for: provider)
+            }
+            throw NolonCoreCLIError.domainFailed(
+                code: "codex_gateway_virtual_account_failed",
+                message: "Codex gateway failed to switch active account to gateway virtual reply account."
+            )
+        }
+
         var snapshot = await gatewayControlService.status(config: config)
         if snapshot.status != .running {
             snapshot = try await gatewayControlService.start(config: config)
@@ -1759,6 +1803,14 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
             try? await gatewayPIDStore.clear()
         }
         try await gatewayConfigManager.restoreGatewayConfig(configFile: configFile)
+        if let state = await gatewayVirtualAccountStateStore.load(providerID: canonicalProviderID) {
+            if let previousActiveAccountID = state.previousActiveAccountID {
+                try? await restoreGatewayActiveAccount(provider: provider, targetAccountID: previousActiveAccountID)
+            } else {
+                try? await authManager.clearActiveAccount(for: provider)
+            }
+            try? await gatewayVirtualAccountStateStore.remove(providerID: canonicalProviderID)
+        }
         let snapshot = try await gatewayControlService.stop()
         return NolonCodexGatewaySetPayload(
             providerID: canonicalProviderID,
@@ -1855,6 +1907,70 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
             try await sleep(100_000_000)
         }
         return !runtimeSignalController.isRunning(pid: pid)
+    }
+
+    private func upsertGatewayVirtualReplyAccount(
+        providerID: String,
+        host: String,
+        port: Int
+    ) async throws -> CodexAuthAccount {
+        let relay = CodexAuthManager.ConfiguredRelay(
+            baseURL: "http://\(host):\(port)",
+            modelProvider: "openai",
+            queryParams: [
+                Self.gatewayVirtualMarkerKey: "1",
+                "provider_id": providerID,
+            ]
+        )
+        let name = "\(Self.gatewayVirtualNamePrefix)-\(providerID)"
+        let accounts = try await authManager.loadAccounts()
+        if let existing = try await findGatewayVirtualReplyAccount(
+            providerID: providerID,
+            accounts: accounts
+        ) {
+            try await authManager.updateConfiguredAccount(
+                existing,
+                name: name,
+                apiKey: Self.gatewayVirtualAPIKey,
+                relay: relay
+            )
+            let refreshedAccounts = try await authManager.loadAccounts()
+            return refreshedAccounts.first(where: { $0.id == existing.id }) ?? existing
+        }
+        return try await authManager.addConfiguredAccount(
+            name: name,
+            apiKey: Self.gatewayVirtualAPIKey,
+            relay: relay
+        )
+    }
+
+    private func findGatewayVirtualReplyAccount(
+        providerID: String,
+        accounts: [CodexAuthAccount]
+    ) async throws -> CodexAuthAccount? {
+        for account in accounts {
+            let file = await authManager.accountAuthFile(account)
+            guard let data = try? file.data(),
+                  let jsonObject = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let nolon = jsonObject["nolon"] as? [String: Any],
+                  let relay = nolon["relay"] as? [String: Any],
+                  let queryParams = relay["query_params"] as? [String: Any]
+            else {
+                continue
+            }
+            let marker = (queryParams[Self.gatewayVirtualMarkerKey] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let ownerProvider = (queryParams["provider_id"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+            if marker == "1", ownerProvider == providerID {
+                return account
+            }
+        }
+        return nil
+    }
+
+    private func restoreGatewayActiveAccount(provider: Provider, targetAccountID: UUID) async throws {
+        let accounts = try await authManager.loadAccounts()
+        guard let account = accounts.first(where: { $0.id == targetAccountID }) else { return }
+        try await authManager.setActiveAccount(account, for: provider)
     }
 
     private static func waitForGatewayHealthy(
