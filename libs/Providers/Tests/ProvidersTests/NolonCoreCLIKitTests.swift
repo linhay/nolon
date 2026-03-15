@@ -910,7 +910,7 @@ struct NolonCoreCLIKitTests {
         let binDir = tempRoot.folder("bin")
         _ = binDir.createIfNotExists()
         try makeExecutableScript(at: binDir.file("xcodemcpkit").url.path)
-        try makeExecutableScript(at: binDir.file("xcode-mcp-server").url.path)
+        try makeExecutableScript(at: binDir.file("xcodemcpkit").url.path)
         let globalMcpPath = mcpsDir.file("xcodemcpkit.json")
         try """
         {
