@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 import STFilePath
+import CodexGatewayKit
 @testable import NolonCoreCLIKit
 @testable import CodexCLIKit
 @testable import ProviderCatalog
@@ -82,6 +83,504 @@ struct NolonCodexCLIServiceTests {
         } catch {
             Issue.record("Unexpected error type: \(error)")
         }
+    }
+
+    @Test("autoswitch enable persists settings to store")
+    func autoSwitchEnablePersistsSettings() async throws {
+        let root = try makeTempRoot("nolon-codex-cli-autoswitch-enable")
+        defer { try? root.delete() }
+
+        let suiteName = "nolon-codex-cli-autoswitch-enable-\(UUID().uuidString)"
+        guard let userDefaults = UserDefaults(suiteName: suiteName) else {
+            Issue.record("Expected dedicated UserDefaults suite")
+            return
+        }
+        defer { userDefaults.removePersistentDomain(forName: suiteName) }
+
+        let authManager = CodexAuthManager(rootURL: root.url)
+        let settingsStore = CodexAutoSwitchSettingsStore(userDefaults: userDefaults)
+        let statusStore = CodexAutoSwitchStatusStore(authManager: authManager)
+        let service = NolonLiveCodexCLIService(
+            authManager: authManager,
+            binaryManager: CodexBinaryManager(homeURL: root.url),
+            loginRunner: .init(),
+            environment: [:],
+            runtimeProcessInspector: StubRuntimeProcessInspector(snapshots: []),
+            runtimeSignalController: StubRuntimeSignalController(),
+            currentPIDProvider: { 12345 },
+            sleep: { _ in },
+            autoSwitchSettingsStore: settingsStore,
+            autoSwitchStatusStore: statusStore
+        )
+
+        let payload = try await service.autoSwitchSetEnabled(providerID: "codex", enabled: true)
+        let stored = settingsStore.settings(for: makeCodexProvider())
+
+        #expect(payload.providerID == "codex")
+        #expect(payload.enabled == true)
+        #expect(stored.enabled == true)
+    }
+
+    @Test("autoswitch status reads persisted status snapshot")
+    func autoSwitchStatusReadsPersistedSnapshot() async throws {
+        let root = try makeTempRoot("nolon-codex-cli-autoswitch-status")
+        defer { try? root.delete() }
+
+        let suiteName = "nolon-codex-cli-autoswitch-status-\(UUID().uuidString)"
+        guard let userDefaults = UserDefaults(suiteName: suiteName) else {
+            Issue.record("Expected dedicated UserDefaults suite")
+            return
+        }
+        defer { userDefaults.removePersistentDomain(forName: suiteName) }
+
+        let authManager = CodexAuthManager(rootURL: root.url)
+        let settingsStore = CodexAutoSwitchSettingsStore(userDefaults: userDefaults)
+        settingsStore.update(
+            settings: CodexAutoSwitchConfig(
+                enabled: true,
+                thresholdPercent: 15,
+                minimumCandidateRemainingPercent: 35,
+                skipRelayAccounts: false,
+                cooldown: 120
+            ),
+            for: makeCodexProvider()
+        )
+
+        let statusStore = CodexAutoSwitchStatusStore(authManager: authManager)
+        try await statusStore.save(
+            CodexAutoSwitchStatusSnapshot(
+                providerID: "codex",
+                config: CodexAutoSwitchConfig(enabled: true, thresholdPercent: 15),
+                lastDecision: CodexAutoSwitchDecision(
+                    reason: .switched,
+                    fromAccountID: UUID(uuidString: "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA"),
+                    toAccountID: UUID(uuidString: "BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB"),
+                    currentRemainingPercent: 9,
+                    targetRemainingPercent: 76,
+                    checkedAt: Date(timeIntervalSince1970: 1_700_000_000)
+                ),
+                lastUpdatedAt: Date(timeIntervalSince1970: 1_700_000_000)
+            )
+        )
+
+        let service = NolonLiveCodexCLIService(
+            authManager: authManager,
+            binaryManager: CodexBinaryManager(homeURL: root.url),
+            loginRunner: .init(),
+            environment: [:],
+            runtimeProcessInspector: StubRuntimeProcessInspector(snapshots: []),
+            runtimeSignalController: StubRuntimeSignalController(),
+            currentPIDProvider: { 12345 },
+            sleep: { _ in },
+            autoSwitchSettingsStore: settingsStore,
+            autoSwitchStatusStore: statusStore
+        )
+
+        let payload = try await service.autoSwitchStatus(providerID: "codex")
+
+        #expect(payload.enabled == true)
+        #expect(payload.thresholdPercent == 15)
+        #expect(payload.minimumCandidateRemainingPercent == 35)
+        #expect(payload.skipRelayAccounts == false)
+        #expect(payload.cooldownSeconds == 120)
+        #expect(payload.lastDecision?.reason == .switched)
+        #expect(payload.lastDecision?.toAccountID == UUID(uuidString: "BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB"))
+    }
+
+    @Test("autoswitch disable persists settings to store")
+    func autoSwitchDisablePersistsSettings() async throws {
+        let root = try makeTempRoot("nolon-codex-cli-autoswitch-disable")
+        defer { try? root.delete() }
+
+        let suiteName = "nolon-codex-cli-autoswitch-disable-\(UUID().uuidString)"
+        guard let userDefaults = UserDefaults(suiteName: suiteName) else {
+            Issue.record("Expected dedicated UserDefaults suite")
+            return
+        }
+        defer { userDefaults.removePersistentDomain(forName: suiteName) }
+
+        let authManager = CodexAuthManager(rootURL: root.url)
+        let settingsStore = CodexAutoSwitchSettingsStore(userDefaults: userDefaults)
+        settingsStore.update(
+            settings: CodexAutoSwitchConfig(enabled: true, thresholdPercent: 10),
+            for: makeCodexProvider()
+        )
+
+        let statusStore = CodexAutoSwitchStatusStore(authManager: authManager)
+        let service = NolonLiveCodexCLIService(
+            authManager: authManager,
+            binaryManager: CodexBinaryManager(homeURL: root.url),
+            loginRunner: .init(),
+            environment: [:],
+            runtimeProcessInspector: StubRuntimeProcessInspector(snapshots: []),
+            runtimeSignalController: StubRuntimeSignalController(),
+            currentPIDProvider: { 12345 },
+            sleep: { _ in },
+            autoSwitchSettingsStore: settingsStore,
+            autoSwitchStatusStore: statusStore
+        )
+
+        let payload = try await service.autoSwitchSetEnabled(providerID: "codex", enabled: false)
+        let stored = settingsStore.settings(for: makeCodexProvider())
+
+        #expect(payload.providerID == "codex")
+        #expect(payload.enabled == false)
+        #expect(stored.enabled == false)
+    }
+
+    @Test("gateway start persists running status to store")
+    func gatewayStartPersistsStatus() async throws {
+        let root = try makeTempRoot("nolon-codex-cli-gateway-start")
+        defer { try? root.delete() }
+
+        let authManager = CodexAuthManager(rootURL: root.url)
+        let gatewayStore = CodexGatewayStateStore(authManager: authManager)
+        let gatewayManagedStore = CodexGatewayManagedConfigStateStore(authManager: authManager)
+        let gatewayConfigManager = CodexGatewayConfigManager(stateStore: gatewayManagedStore)
+        let gatewayPIDStore = CodexGatewayPIDStore(authManager: authManager)
+        let gatewayControl = CodexGatewayControlService(
+            statusStore: gatewayStore,
+            now: { Date(timeIntervalSince1970: 1_700_000_000) }
+        )
+        let configFile = root.folder("provider-home").file("config.toml")
+        let launched = LockedValue<[String]>([])
+        let service = NolonLiveCodexCLIService(
+            authManager: authManager,
+            binaryManager: CodexBinaryManager(homeURL: root.url),
+            loginRunner: .init(),
+            environment: [:],
+            runtimeProcessInspector: StubRuntimeProcessInspector(snapshots: []),
+            runtimeSignalController: StubRuntimeSignalController(),
+            currentPIDProvider: { 12345 },
+            sleep: { _ in },
+            gatewayControlService: gatewayControl,
+            gatewayConfigManager: gatewayConfigManager,
+            gatewayPIDStore: gatewayPIDStore,
+            gatewayConfigFileResolver: { _ in configFile },
+            gatewayDetachedProcessStarter: { executable, arguments in
+                launched.set([executable] + arguments)
+                return 4567
+            },
+            gatewayHealthChecker: { _, _ in true },
+            gatewayExecutablePathProvider: { "/tmp/nolon" },
+            autoSwitchSettingsStore: CodexAutoSwitchSettingsStore(userDefaults: .standard),
+            autoSwitchStatusStore: CodexAutoSwitchStatusStore(authManager: authManager)
+        )
+
+        let payload = try await service.gatewayStart(providerID: "codex", host: "127.0.0.1", port: 9090)
+        let stored = await gatewayStore.load()
+        let storedPID = await gatewayPIDStore.load()
+        let configContent = try configFile.read()
+        let launchArguments = launched.value
+
+        #expect(payload.status == .running)
+        #expect(payload.port == 9090)
+        #expect(stored?.status == .running)
+        #expect(stored?.port == 9090)
+        #expect(storedPID == 4567)
+        #expect(launchArguments == ["/tmp/nolon", "codex", "gateway", "serve", "--provider", "codex", "--host", "127.0.0.1", "--port", "9090"])
+        #expect(configContent.contains(#"base_url = "http://127.0.0.1:9090""#))
+        #expect(configContent.contains(#"model_provider = "openai""#))
+        #expect(configContent.contains(#"cli_auth_credentials_store = "file""#))
+    }
+
+    @Test("gateway start creates virtual reply account and marks it active")
+    func gatewayStartCreatesVirtualReplyAccountAndMarksActive() async throws {
+        let root = try makeTempRoot("nolon-codex-cli-gateway-virtual-start")
+        defer { try? root.delete() }
+
+        let authManager = CodexAuthManager(rootURL: root.url)
+        let provider = makeCodexProvider()
+        let previous = try await authManager.addAccount(
+            name: "previous",
+            authJSONString: #"{"email":"previous@example.com"}"#
+        )
+        try await authManager.setActiveAccount(previous, for: provider)
+
+        let gatewayStore = CodexGatewayStateStore(authManager: authManager)
+        let gatewayManagedStore = CodexGatewayManagedConfigStateStore(authManager: authManager)
+        let gatewayConfigManager = CodexGatewayConfigManager(stateStore: gatewayManagedStore)
+        let gatewayPIDStore = CodexGatewayPIDStore(authManager: authManager)
+        let virtualStateStore = CodexGatewayVirtualAccountStateStore(authManager: authManager)
+        let gatewayControl = CodexGatewayControlService(statusStore: gatewayStore)
+        let configFile = root.folder("provider-home").file("config.toml")
+
+        let service = NolonLiveCodexCLIService(
+            authManager: authManager,
+            binaryManager: CodexBinaryManager(homeURL: root.url),
+            loginRunner: .init(),
+            environment: [:],
+            runtimeProcessInspector: StubRuntimeProcessInspector(snapshots: []),
+            runtimeSignalController: StubRuntimeSignalController(),
+            currentPIDProvider: { 12345 },
+            sleep: { _ in },
+            gatewayControlService: gatewayControl,
+            gatewayConfigManager: gatewayConfigManager,
+            gatewayPIDStore: gatewayPIDStore,
+            gatewayConfigFileResolver: { _ in configFile },
+            gatewayDetachedProcessStarter: { _, _ in 4567 },
+            gatewayHealthChecker: { _, _ in true },
+            gatewayExecutablePathProvider: { "/tmp/nolon" },
+            gatewayVirtualAccountStateStore: virtualStateStore,
+            autoSwitchSettingsStore: CodexAutoSwitchSettingsStore(userDefaults: .standard),
+            autoSwitchStatusStore: CodexAutoSwitchStatusStore(authManager: authManager)
+        )
+
+        _ = try await service.gatewayStart(providerID: "codex", host: "127.0.0.1", port: 9095)
+
+        let accounts = try await authManager.loadAccounts()
+        let virtual = try #require(accounts.first(where: { $0.id != previous.id }))
+        let activeID = await authManager.activeAccountId(for: provider)
+        let virtualState = await virtualStateStore.load(providerID: "codex")
+        let virtualData = try await authManager.accountAuthFile(virtual).data()
+        let virtualObject = try #require(try JSONSerialization.jsonObject(with: virtualData) as? [String: Any])
+        let relay = try #require(((virtualObject["nolon"] as? [String: Any])?["relay"] as? [String: Any]))
+        let queryParams = try #require(relay["query_params"] as? [String: Any])
+
+        #expect(activeID == virtual.id)
+        #expect(virtualState?.previousActiveAccountID == previous.id)
+        #expect(virtualState?.virtualAccountID == virtual.id)
+        #expect(queryParams["nolon_gateway_virtual"] as? String == "1")
+        #expect(queryParams["provider_id"] as? String == "codex")
+    }
+
+    @Test("gateway stop restores active account from virtual reply state")
+    func gatewayStopRestoresActiveAccountFromVirtualState() async throws {
+        let root = try makeTempRoot("nolon-codex-cli-gateway-virtual-stop")
+        defer { try? root.delete() }
+
+        let authManager = CodexAuthManager(rootURL: root.url)
+        let provider = makeCodexProvider()
+        let previous = try await authManager.addAccount(
+            name: "previous",
+            authJSONString: #"{"email":"previous@example.com"}"#
+        )
+        let virtual = try await authManager.addConfiguredAccount(
+            name: "__gateway_reply__-codex",
+            apiKey: "nolon-gateway-virtual-api-key",
+            relay: .init(
+                baseURL: "http://127.0.0.1:9096",
+                modelProvider: "openai",
+                queryParams: [
+                    "nolon_gateway_virtual": "1",
+                    "provider_id": "codex",
+                ]
+            )
+        )
+        try await authManager.setActiveAccount(virtual, for: provider)
+
+        let gatewayStore = CodexGatewayStateStore(authManager: authManager)
+        let gatewayManagedStore = CodexGatewayManagedConfigStateStore(authManager: authManager)
+        let gatewayConfigManager = CodexGatewayConfigManager(stateStore: gatewayManagedStore)
+        let gatewayPIDStore = CodexGatewayPIDStore(authManager: authManager)
+        let virtualStateStore = CodexGatewayVirtualAccountStateStore(authManager: authManager)
+        try await virtualStateStore.save(
+            CodexGatewayVirtualAccountState(
+                providerID: "codex",
+                previousActiveAccountID: previous.id,
+                virtualAccountID: virtual.id
+            )
+        )
+        let configFile = root.folder("provider-home").file("config.toml")
+        try configFile.overlay(with: "base_url = \"http://127.0.0.1:9096\"\n")
+        try await gatewayManagedStore.save(
+            CodexGatewayManagedConfigState(
+                configFilePath: configFile.url.standardizedFileURL.path,
+                configExistedBeforePatch: true,
+                originalBaseURL: "https://api.openai.com/v1",
+                originalModelProvider: nil,
+                originalCLIAuthCredentialsStore: nil
+            )
+        )
+        try await gatewayPIDStore.save(4567)
+        let signalController = StubRuntimeSignalController(aliveSequenceByPID: [4567: [true, false]])
+
+        let service = NolonLiveCodexCLIService(
+            authManager: authManager,
+            binaryManager: CodexBinaryManager(homeURL: root.url),
+            loginRunner: .init(),
+            environment: [:],
+            runtimeProcessInspector: StubRuntimeProcessInspector(snapshots: []),
+            runtimeSignalController: signalController,
+            currentPIDProvider: { 12345 },
+            sleep: { _ in },
+            gatewayControlService: CodexGatewayControlService(statusStore: gatewayStore),
+            gatewayConfigManager: gatewayConfigManager,
+            gatewayPIDStore: gatewayPIDStore,
+            gatewayConfigFileResolver: { _ in configFile },
+            gatewayVirtualAccountStateStore: virtualStateStore,
+            autoSwitchSettingsStore: CodexAutoSwitchSettingsStore(userDefaults: .standard),
+            autoSwitchStatusStore: CodexAutoSwitchStatusStore(authManager: authManager)
+        )
+
+        _ = try await service.gatewayStop(providerID: "codex")
+
+        let activeID = await authManager.activeAccountId(for: provider)
+        let virtualState = await virtualStateStore.load(providerID: "codex")
+        #expect(activeID == previous.id)
+        #expect(virtualState == nil)
+    }
+
+    @Test("gateway start resolves config path from HOME override")
+    func gatewayStartResolvesConfigPathFromHomeOverride() async throws {
+        let root = try makeTempRoot("nolon-codex-cli-gateway-home")
+        defer { try? root.delete() }
+
+        let home = root.folder("fake-home")
+        _ = home.createIfNotExists()
+
+        let authManager = CodexAuthManager(rootURL: root.url)
+        let gatewayStore = CodexGatewayStateStore(authManager: authManager)
+        let gatewayManagedStore = CodexGatewayManagedConfigStateStore(authManager: authManager)
+        let gatewayConfigManager = CodexGatewayConfigManager(stateStore: gatewayManagedStore)
+        let gatewayPIDStore = CodexGatewayPIDStore(authManager: authManager)
+        let gatewayControl = CodexGatewayControlService(
+            statusStore: gatewayStore,
+            now: { Date(timeIntervalSince1970: 1_700_000_000) }
+        )
+        let service = NolonLiveCodexCLIService(
+            authManager: authManager,
+            binaryManager: CodexBinaryManager(homeURL: root.url),
+            loginRunner: .init(),
+            environment: ["HOME": home.url.path],
+            runtimeProcessInspector: StubRuntimeProcessInspector(snapshots: []),
+            runtimeSignalController: StubRuntimeSignalController(),
+            currentPIDProvider: { 12345 },
+            sleep: { _ in },
+            gatewayControlService: gatewayControl,
+            gatewayConfigManager: gatewayConfigManager,
+            gatewayPIDStore: gatewayPIDStore,
+            gatewayConfigFileResolver: { provider in
+                NolonLiveCodexCLIService.defaultGatewayConfigFile(
+                    for: provider,
+                    environment: ["HOME": home.url.path]
+                )
+            },
+            gatewayDetachedProcessStarter: { _, _ in 4567 },
+            gatewayHealthChecker: { _, _ in true },
+            gatewayExecutablePathProvider: { "/tmp/nolon" },
+            autoSwitchSettingsStore: CodexAutoSwitchSettingsStore(userDefaults: .standard),
+            autoSwitchStatusStore: CodexAutoSwitchStatusStore(authManager: authManager)
+        )
+
+        _ = try await service.gatewayStart(providerID: "codex", host: "127.0.0.1", port: 9092)
+
+        let configFile = home.folder(".codex").file("config.toml")
+        #expect(configFile.isExists)
+        let configContent = try configFile.read()
+        #expect(configContent.contains(#"base_url = "http://127.0.0.1:9092""#))
+    }
+
+    @Test("gateway stop reads persisted status snapshot")
+    func gatewayStopReadsPersistedSnapshot() async throws {
+        let root = try makeTempRoot("nolon-codex-cli-gateway-stop")
+        defer { try? root.delete() }
+
+        let authManager = CodexAuthManager(rootURL: root.url)
+        let gatewayStore = CodexGatewayStateStore(authManager: authManager)
+        let gatewayManagedStore = CodexGatewayManagedConfigStateStore(authManager: authManager)
+        let gatewayConfigManager = CodexGatewayConfigManager(stateStore: gatewayManagedStore)
+        let gatewayPIDStore = CodexGatewayPIDStore(authManager: authManager)
+        let configFile = root.folder("provider-home").file("config.toml")
+        try configFile.overlay(
+            with: """
+            model = "gpt-5"
+            base_url = "http://127.0.0.1:9090"
+            model_provider = "openai"
+            cli_auth_credentials_store = "file"
+
+            [profiles.default]
+            model = "gpt-5"
+            """
+        )
+        try await gatewayManagedStore.save(
+            CodexGatewayManagedConfigState(
+                configFilePath: configFile.url.standardizedFileURL.path,
+                configExistedBeforePatch: true,
+                originalBaseURL: "https://api.openai.com/v1",
+                originalModelProvider: "custom",
+                originalCLIAuthCredentialsStore: "keyring"
+            )
+        )
+        try await gatewayStore.save(
+            CodexGatewayStatusSnapshot(
+                status: .running,
+                host: "127.0.0.1",
+                port: 9090,
+                startedAt: Date(timeIntervalSince1970: 1_700_000_000)
+            )
+        )
+        try await gatewayPIDStore.save(4567)
+        let signalController = StubRuntimeSignalController(aliveSequenceByPID: [4567: [true, false]])
+        let gatewayControl = CodexGatewayControlService(statusStore: gatewayStore)
+        let service = NolonLiveCodexCLIService(
+            authManager: authManager,
+            binaryManager: CodexBinaryManager(homeURL: root.url),
+            loginRunner: .init(),
+            environment: [:],
+            runtimeProcessInspector: StubRuntimeProcessInspector(snapshots: []),
+            runtimeSignalController: signalController,
+            currentPIDProvider: { 12345 },
+            sleep: { _ in },
+            gatewayControlService: gatewayControl,
+            gatewayConfigManager: gatewayConfigManager,
+            gatewayPIDStore: gatewayPIDStore,
+            gatewayConfigFileResolver: { _ in configFile },
+            autoSwitchSettingsStore: CodexAutoSwitchSettingsStore(userDefaults: .standard),
+            autoSwitchStatusStore: CodexAutoSwitchStatusStore(authManager: authManager)
+        )
+
+        let payload = try await service.gatewayStop(providerID: "codex")
+        let stored = await gatewayStore.load()
+        let storedPID = await gatewayPIDStore.load()
+        let configContent = try configFile.read()
+
+        #expect(payload.status == .stopped)
+        #expect(payload.port == 9090)
+        #expect(stored?.status == .stopped)
+        #expect(stored?.port == 9090)
+        #expect(storedPID == nil)
+        #expect(signalController.signals == [SentSignal(pid: 4567, signal: SIGTERM)])
+        #expect(configContent.contains(#"base_url = "https://api.openai.com/v1""#))
+        #expect(configContent.contains(#"model_provider = "custom""#))
+        #expect(configContent.contains(#"cli_auth_credentials_store = "keyring""#))
+        #expect(configContent.contains(#"[profiles.default]"#))
+    }
+
+    @Test("gateway status returns default snapshot when store is empty")
+    func gatewayStatusReturnsDefaultSnapshot() async throws {
+        let root = try makeTempRoot("nolon-codex-cli-gateway-status")
+        defer { try? root.delete() }
+
+        let authManager = CodexAuthManager(rootURL: root.url)
+        let gatewayStore = CodexGatewayStateStore(authManager: authManager)
+        let gatewayControl = CodexGatewayControlService(statusStore: gatewayStore)
+        let configFile = root.folder("provider-home").file("config.toml")
+        let service = NolonLiveCodexCLIService(
+            authManager: authManager,
+            binaryManager: CodexBinaryManager(homeURL: root.url),
+            loginRunner: .init(),
+            environment: [:],
+            runtimeProcessInspector: StubRuntimeProcessInspector(snapshots: []),
+            runtimeSignalController: StubRuntimeSignalController(),
+            currentPIDProvider: { 12345 },
+            sleep: { _ in },
+            gatewayControlService: gatewayControl,
+            gatewayConfigManager: CodexGatewayConfigManager(
+                stateStore: CodexGatewayManagedConfigStateStore(authManager: authManager)
+            ),
+            gatewayPIDStore: CodexGatewayPIDStore(authManager: authManager),
+            gatewayConfigFileResolver: { _ in configFile },
+            autoSwitchSettingsStore: CodexAutoSwitchSettingsStore(userDefaults: .standard),
+            autoSwitchStatusStore: CodexAutoSwitchStatusStore(authManager: authManager)
+        )
+
+        let payload = try await service.gatewayStatus(providerID: "codex")
+
+        #expect(payload.status == .stopped)
+        #expect(payload.host == "127.0.0.1")
+        #expect(payload.port == 8080)
+        #expect(payload.startedAt == nil)
     }
 
     @Test("auth list includes email usage display and refreshed time from local cache")
@@ -787,6 +1286,17 @@ struct NolonCodexCLIServiceTests {
     }
 }
 
+private func makeCodexProvider() -> Provider {
+    Provider(
+        id: "codex",
+        name: "Codex",
+        defaultSkillsPath: "/tmp/codex/skills",
+        workflowPath: "/tmp/codex/prompts",
+        installMethod: .symlink,
+        templateId: "codex"
+    )
+}
+
 private actor Counter {
     private var rawValue: Int = 0
 
@@ -796,6 +1306,27 @@ private actor Counter {
 
     func value() -> Int {
         rawValue
+    }
+}
+
+private final class LockedValue<Value>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storage: Value
+
+    init(_ value: Value) {
+        storage = value
+    }
+
+    func set(_ value: Value) {
+        lock.lock()
+        defer { lock.unlock() }
+        storage = value
+    }
+
+    var value: Value {
+        lock.lock()
+        defer { lock.unlock() }
+        return storage
     }
 }
 

@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import CodexGatewayKit
 @testable import NolonCoreCLIKit
 
 @Suite("Nolon Codex CLI Entrypoint")
@@ -260,6 +261,130 @@ struct NolonCodexCLIEntrypointTests {
         #expect(result.stdout.contains("Usage: nolon codex provider"))
         #expect(result.stdout.contains("Actions:"))
         #expect(result.stdout.contains("discover"))
+    }
+
+    @Test("codex gateway --help prints gateway help")
+    func codexGatewayHelpPrintsHelp() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["codex", "gateway", "--help"],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("USAGE: nolon codex gateway"))
+        #expect(result.stdout.contains("status"))
+        #expect(result.stdout.contains("start"))
+        #expect(result.stdout.contains("stop"))
+        #expect(result.stdout.contains("serve"))
+    }
+
+    @Test("codex gateway status routes successfully")
+    func codexGatewayStatusRoutesSuccessfully() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["codex", "gateway", "status", "--json"],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("\"command\":\"codex.gateway.status\""))
+        #expect(result.stdout.contains("\"status\":\"stopped\""))
+        #expect(await mock.lastCall() == "gatewayStatus")
+    }
+
+    @Test("codex gateway start routes successfully")
+    func codexGatewayStartRoutesSuccessfully() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["codex", "gateway", "start", "--host", "127.0.0.1", "--port", "9090", "--json"],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("\"command\":\"codex.gateway.start\""))
+        #expect(result.stdout.contains("\"status\":\"running\""))
+        #expect(result.stdout.contains("\"port\":9090"))
+        #expect(await mock.lastCall() == "gatewayStart:127.0.0.1:9090")
+    }
+
+    @Test("codex gateway stop routes successfully")
+    func codexGatewayStopRoutesSuccessfully() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["codex", "gateway", "stop", "--json"],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("\"command\":\"codex.gateway.stop\""))
+        #expect(result.stdout.contains("\"status\":\"stopped\""))
+        #expect(await mock.lastCall() == "gatewayStop")
+    }
+
+    @Test("codex autoswitch --help prints autoswitch help")
+    func codexAutoSwitchHelpPrintsHelp() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["codex", "autoswitch", "--help"],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("USAGE: nolon codex autoswitch"))
+        #expect(result.stdout.contains("status"))
+        #expect(result.stdout.contains("enable"))
+        #expect(result.stdout.contains("disable"))
+    }
+
+    @Test("codex autoswitch status routes successfully")
+    func codexAutoSwitchStatusRoutesSuccessfully() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["codex", "autoswitch", "status", "--json"],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("\"command\":\"codex.autoswitch.status\""))
+        #expect(result.stdout.contains("\"enabled\":false"))
+        #expect(await mock.lastCall() == "autoSwitchStatus")
+    }
+
+    @Test("codex autoswitch enable routes successfully")
+    func codexAutoSwitchEnableRoutesSuccessfully() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["codex", "autoswitch", "enable", "--json"],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("\"command\":\"codex.autoswitch.enable\""))
+        #expect(result.stdout.contains("\"enabled\":true"))
+        #expect(await mock.lastCall() == "autoSwitchSetEnabled:true")
+    }
+
+    @Test("codex autoswitch disable routes successfully")
+    func codexAutoSwitchDisableRoutesSuccessfully() async {
+        let mock = MockCodexCLIService()
+        let result = await NolonCLIEntrypoint.execute(
+            arguments: ["codex", "autoswitch", "disable", "--json"],
+            codexService: mock
+        )
+
+        #expect(result.exitCode == 0)
+        #expect(result.stderr.isEmpty)
+        #expect(result.stdout.contains("\"command\":\"codex.autoswitch.disable\""))
+        #expect(result.stdout.contains("\"enabled\":false"))
+        #expect(await mock.lastCall() == "autoSwitchSetEnabled:false")
     }
 
     @Test("codex runtime list --help prints action help")
@@ -2107,7 +2232,7 @@ struct NolonCodexCLIEntrypointTests {
         #expect(result.exitCode == 2)
         #expect(result.stdout.isEmpty)
 
-        let expected = #"{"error":{"code":"invalid_arguments","message":"Unknown group 'oops'. Available groups: auth, binary, provider, runtime, status."},"ok":false}"#
+        let expected = #"{"error":{"code":"invalid_arguments","message":"Unknown group 'oops'. Available groups: auth, autoswitch, binary, gateway, provider, runtime, status."},"ok":false}"#
         #expect(try canonicalJSON(result.stderr) == expected)
     }
 
@@ -2464,6 +2589,69 @@ private actor MockCodexCLIService: NolonCodexCLIServing {
                     authSymlinkTargetPath: "/tmp/.nolon/codex/auth/codex.json"
                 ),
             ]
+        )
+    }
+
+    func gatewayStatus(providerID: String) async throws -> NolonCodexGatewayStatusPayload {
+        call = "gatewayStatus"
+        return NolonCodexGatewayStatusPayload(
+            providerID: providerID,
+            status: .stopped,
+            host: "127.0.0.1",
+            port: 8080,
+            startedAt: nil
+        )
+    }
+
+    func gatewayStart(providerID: String, host: String, port: Int) async throws -> NolonCodexGatewaySetPayload {
+        call = "gatewayStart:\(host):\(port)"
+        return NolonCodexGatewaySetPayload(
+            providerID: providerID,
+            status: .running,
+            host: host,
+            port: port,
+            startedAt: Date(timeIntervalSince1970: 1_700_000_000)
+        )
+    }
+
+    func gatewayStop(providerID: String) async throws -> NolonCodexGatewaySetPayload {
+        call = "gatewayStop"
+        return NolonCodexGatewaySetPayload(
+            providerID: providerID,
+            status: .stopped,
+            host: "127.0.0.1",
+            port: 8080,
+            startedAt: nil
+        )
+    }
+
+    func gatewayServe(providerID: String, host: String, port: Int) async throws {
+        call = "gatewayServe:\(host):\(port)"
+    }
+
+    func autoSwitchStatus(providerID: String) async throws -> NolonCodexAutoSwitchStatusPayload {
+        call = "autoSwitchStatus"
+        return NolonCodexAutoSwitchStatusPayload(
+            providerID: providerID,
+            enabled: false,
+            thresholdPercent: 10,
+            minimumCandidateRemainingPercent: 20,
+            skipRelayAccounts: true,
+            cooldownSeconds: 600,
+            lastDecision: nil,
+            lastUpdatedAt: nil
+        )
+    }
+
+    func autoSwitchSetEnabled(providerID: String, enabled: Bool) async throws -> NolonCodexAutoSwitchSetPayload {
+        call = "autoSwitchSetEnabled:\(enabled)"
+        return NolonCodexAutoSwitchSetPayload(
+            providerID: providerID,
+            enabled: enabled,
+            thresholdPercent: 10,
+            minimumCandidateRemainingPercent: 20,
+            skipRelayAccounts: true,
+            cooldownSeconds: 600
         )
     }
 }

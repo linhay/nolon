@@ -24,6 +24,7 @@ final class ProviderUsageViewModel {
     typealias CodexRefreshAllAction = @MainActor @Sendable ([CodexAuthAccount]) async -> Void
     typealias CodexPreflightAction = @MainActor @Sendable (Provider, Bool, String) async throws -> CodexAuthAccount?
     typealias CodexOutcomeFetchAction = @Sendable (CodexAuthAccount, UsageMonitorProviderSettings, URL) async -> ProviderAccountUsageOutcome
+    typealias CodexAutoSwitchAction = @MainActor @Sendable (Provider) async -> CodexAutoSwitchDecision?
     typealias CodexUsageQueryTestAction = @MainActor @Sendable (CodexHTTPUsageQueryResolvedConfiguration, Bool) async throws -> ProviderFetchResult
     typealias CodexImportConnectionTestAction = @Sendable (CodexAuthManager.CodexImportValidationResult, UsageMonitorProviderSettings) async -> ProviderAccountUsageOutcome
     typealias CodexImportOpenPanelAction = @MainActor @Sendable () -> [URL]
@@ -37,6 +38,7 @@ final class ProviderUsageViewModel {
     private let codexTokenTrendService = CodexTokenTrendService()
     private let geminiTokenTrendFetchAction: GeminiTokenTrendFetchAction
     private let settingsStore = UsageMonitorSettingsStore.shared
+    private let codexAutoSwitchSettingsStore: CodexAutoSwitchSettingsStore
     private let codexAuthManager = CodexAuthManager()
     private let claudeAccountManager = ClaudeAccountManager()
     private let geminiAuthStore = GeminiAuthStore.shared
@@ -47,6 +49,7 @@ final class ProviderUsageViewModel {
     private let codexRefreshAllAction: CodexRefreshAllAction?
     private let codexPreflightAction: CodexPreflightAction?
     private let codexOutcomeFetchAction: CodexOutcomeFetchAction
+    private let codexAutoSwitchAction: CodexAutoSwitchAction
     private let codexUsageQueryTestAction: CodexUsageQueryTestAction
     private let codexImportConnectionTestAction: CodexImportConnectionTestAction
     private let codexImportOpenPanelAction: CodexImportOpenPanelAction
@@ -92,6 +95,7 @@ final class ProviderUsageViewModel {
     var codexAccountSortOption: CodexAccountSortOption = .remainingCredits
     var codexCurrentSortDirection: CodexSortDirection = .descending
     var codexHideZeroQuotaAccounts = false
+    var codexAutoSwitchConfig = CodexAutoSwitchConfig()
     var collapsedCodexSectionIDs: Set<String> = []
     var isCodexMultiSelectionEnabled = false
     var selectedCodexAccountIDs: Set<UUID> = []
@@ -394,6 +398,7 @@ final class ProviderUsageViewModel {
         codexRefreshAllAction: CodexRefreshAllAction? = nil,
         codexPreflightAction: CodexPreflightAction? = nil,
         codexOutcomeFetchAction: CodexOutcomeFetchAction? = nil,
+        codexAutoSwitchAction: CodexAutoSwitchAction? = nil,
         codexUsageQueryTestAction: CodexUsageQueryTestAction? = nil,
         codexImportConnectionTestAction: CodexImportConnectionTestAction? = nil,
         codexImportOpenPanelAction: CodexImportOpenPanelAction? = nil,
@@ -403,16 +408,20 @@ final class ProviderUsageViewModel {
         geminiTokenTrendFetchAction: GeminiTokenTrendFetchAction? = nil,
         postDeleteLoadAction: AsyncVoidAction? = nil,
         codexRefreshTimeoutGraceSeconds: TimeInterval = 5,
-        initialSettingsOverride: UsageMonitorProviderSettings? = nil
+        initialSettingsOverride: UsageMonitorProviderSettings? = nil,
+        codexAutoSwitchSettingsStore: CodexAutoSwitchSettingsStore? = nil
     ) {
         let tokenStore = FileTokenAccountStore(fileURL: ProviderUsagePaths.defaultTokenAccountsFileURL())
+        let resolvedCodexAutoSwitchSettingsStore = codexAutoSwitchSettingsStore ?? .shared
         self.usageMonitor = usageMonitor ?? ProviderUsageMonitorService(tokenAccountStore: tokenStore)
+        self.codexAutoSwitchSettingsStore = resolvedCodexAutoSwitchSettingsStore
         self.provider = provider
         self.usageProvider = ProviderUsageViewModel.mapToUsageProvider(provider)
         self.codexRefreshTimeoutGraceSeconds = codexRefreshTimeoutGraceSeconds
         let initialSettings = initialSettingsOverride ?? settingsStore.settings(for: provider)
         self.settings = initialSettings
         self.codexHideZeroQuotaAccounts = initialSettings.codexHideZeroQuotaAccounts
+        self.codexAutoSwitchConfig = resolvedCodexAutoSwitchSettingsStore.settings(for: provider)
         if ProviderUsageViewModel.mapToUsageProvider(provider) == .codex {
             self.isMultiAccountEnabled = true
         } else {
@@ -427,6 +436,16 @@ final class ProviderUsageViewModel {
         self.codexPreflightAction = codexPreflightAction
         self.codexOutcomeFetchAction = codexOutcomeFetchAction ?? { account, settings, authSourceURL in
             await Self.fetchCodexOutcomeDetached(for: account, settings: settings, authSourceURL: authSourceURL)
+        }
+        self.codexAutoSwitchAction = codexAutoSwitchAction ?? { provider in
+            let config = resolvedCodexAutoSwitchSettingsStore.settings(for: provider)
+            guard config.enabled else { return nil }
+            do {
+                return try await CodexAutoSwitchService(config: config).evaluateAndSwitchIfNeeded(for: provider)
+            } catch {
+                Self.logger.error("Codex auto switch failed: \(String(describing: error), privacy: .public)")
+                return nil
+            }
         }
         self.codexUsageQueryTestAction = codexUsageQueryTestAction ?? { resolved, includeCredits in
             try await CodexHTTPUsageQueryExecutor().execute(resolved, includeCredits: includeCredits)
@@ -546,6 +565,42 @@ final class ProviderUsageViewModel {
         var updated = settings
         updated.codexHideZeroQuotaAccounts = hidden
         updateSettings(updated)
+    }
+
+    func updateCodexAutoSwitchConfig(_ newConfig: CodexAutoSwitchConfig) {
+        guard codexAutoSwitchConfig != newConfig else { return }
+        codexAutoSwitchConfig = newConfig
+        codexAutoSwitchSettingsStore.update(settings: newConfig, for: provider)
+    }
+
+    func setCodexAutoSwitchEnabled(_ enabled: Bool) {
+        guard codexAutoSwitchConfig.enabled != enabled else { return }
+        var updated = codexAutoSwitchConfig
+        updated.enabled = enabled
+        updateCodexAutoSwitchConfig(updated)
+    }
+
+    func setCodexAutoSwitchThresholdPercent(_ thresholdPercent: Int) {
+        let normalized = Double(thresholdPercent)
+        guard codexAutoSwitchConfig.thresholdPercent != normalized else { return }
+        var updated = codexAutoSwitchConfig
+        updated.thresholdPercent = normalized
+        updateCodexAutoSwitchConfig(updated)
+    }
+
+    func setCodexAutoSwitchMinimumCandidateRemainingPercent(_ percent: Int) {
+        let normalized = Double(percent)
+        guard codexAutoSwitchConfig.minimumCandidateRemainingPercent != normalized else { return }
+        var updated = codexAutoSwitchConfig
+        updated.minimumCandidateRemainingPercent = normalized
+        updateCodexAutoSwitchConfig(updated)
+    }
+
+    func setCodexAutoSwitchSkipRelay(_ skipRelay: Bool) {
+        guard codexAutoSwitchConfig.skipRelayAccounts != skipRelay else { return }
+        var updated = codexAutoSwitchConfig
+        updated.skipRelayAccounts = skipRelay
+        updateCodexAutoSwitchConfig(updated)
     }
 
     func loadCodexManagementStatus() async {
@@ -851,6 +906,11 @@ final class ProviderUsageViewModel {
             if let account = activeCodexAccountForRefresh(),
                !shouldSkipRefresh(accountID: account.id, summaries: codexAccountSummaries) {
                 await refreshCodexAccountOutcome(account)
+                if let decision = await codexAutoSwitchAction(provider),
+                   decision.reason == .switched
+                {
+                    await reloadCodexFromDisk(refreshUsage: false)
+                }
             }
             return
         }

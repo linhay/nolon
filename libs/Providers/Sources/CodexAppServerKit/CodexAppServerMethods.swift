@@ -2,44 +2,26 @@ import Foundation
 
 public enum CodexAppServerMethod: String, Sendable, CaseIterable {
     case initialize
-    case addConversationListener
     case appList = "app/list"
-    case archiveConversation
-    case cancelLoginChatGpt
     case commandExec = "command/exec"
     case configBatchWrite = "config/batchWrite"
     case configMcpServerReload = "config/mcpServer/reload"
     case configRead = "config/read"
     case configValueWrite = "config/value/write"
     case configRequirementsRead = "configRequirements/read"
-    case execOneOffCommand
+    case experimentalFeatureList = "experimentalFeature/list"
+    case externalAgentConfigDetect = "externalAgentConfig/detect"
+    case externalAgentConfigImport = "externalAgentConfig/import"
     case feedbackUpload = "feedback/upload"
-    case forkConversation
     case fuzzyFileSearch
-    case getAuthStatus
-    case getConversationSummary
-    case getUserAgent
-    case getUserSavedConfig
-    case gitDiffToRemote
-    case interruptConversation
-    case listConversations
-    case loginApiKey
-    case loginChatGpt
-    case logoutChatGpt
     case mcpServerOAuthLogin = "mcpServer/oauth/login"
     case mcpServerStatusList = "mcpServerStatus/list"
     case modelList = "model/list"
-    case newConversation
-    case removeConversationListener
-    case resumeConversation
     case reviewStart = "review/start"
-    case sendUserMessage
-    case sendUserTurn
-    case setDefaultModel
     case skillsConfigWrite = "skills/config/write"
     case skillsList = "skills/list"
-    case skillsRemoteRead = "skills/remote/read"
-    case skillsRemoteWrite = "skills/remote/write"
+    case skillsRemoteExport = "skills/remote/export"
+    case skillsRemoteList = "skills/remote/list"
     case threadArchive = "thread/archive"
     case threadCompactStart = "thread/compact/start"
     case threadFork = "thread/fork"
@@ -50,10 +32,12 @@ public enum CodexAppServerMethod: String, Sendable, CaseIterable {
     case threadResume = "thread/resume"
     case threadRollback = "thread/rollback"
     case threadStart = "thread/start"
+    case threadUnsubscribe = "thread/unsubscribe"
     case threadUnarchive = "thread/unarchive"
     case turnInterrupt = "turn/interrupt"
+    case turnSteer = "turn/steer"
     case turnStart = "turn/start"
-    case userInfo
+    case windowsSandboxSetupStart = "windowsSandbox/setupStart"
 
     case accountLoginStart = "account/login/start"
     case accountLoginCancel = "account/login/cancel"
@@ -67,13 +51,15 @@ public enum CodexAppServerClientNotification: String, Sendable, CaseIterable {
 }
 
 public enum CodexAppServerServerNotification: String, Sendable, CaseIterable {
+    case appListUpdated = "app/list/updated"
     case accountLoginCompleted = "account/login/completed"
     case accountRateLimitsUpdated = "account/rateLimits/updated"
     case accountUpdated = "account/updated"
-    case authStatusChange
     case configWarning
     case deprecationNotice
     case error
+    case fuzzyFileSearchSessionCompleted = "fuzzyFileSearch/sessionCompleted"
+    case fuzzyFileSearchSessionUpdated = "fuzzyFileSearch/sessionUpdated"
     case itemAgentMessageDelta = "item/agentMessage/delta"
     case itemCommandExecutionOutputDelta = "item/commandExecution/outputDelta"
     case itemCommandExecutionTerminalInteraction = "item/commandExecution/terminalInteraction"
@@ -85,18 +71,27 @@ public enum CodexAppServerServerNotification: String, Sendable, CaseIterable {
     case itemReasoningSummaryTextDelta = "item/reasoning/summaryTextDelta"
     case itemReasoningTextDelta = "item/reasoning/textDelta"
     case itemStarted = "item/started"
-    case loginChatGptComplete
     case mcpServerOAuthLoginCompleted = "mcpServer/oauthLogin/completed"
-    case rawResponseItemCompleted = "rawResponseItem/completed"
-    case sessionConfigured
+    case modelRerouted = "model/rerouted"
+    case serverRequestResolved = "serverRequest/resolved"
+    case threadArchived = "thread/archived"
+    case threadClosed = "thread/closed"
     case threadCompacted = "thread/compacted"
     case threadNameUpdated = "thread/name/updated"
+    case threadRealtimeClosed = "thread/realtime/closed"
+    case threadRealtimeError = "thread/realtime/error"
+    case threadRealtimeItemAdded = "thread/realtime/itemAdded"
+    case threadRealtimeOutputAudioDelta = "thread/realtime/outputAudio/delta"
+    case threadRealtimeStarted = "thread/realtime/started"
     case threadStarted = "thread/started"
+    case threadStatusChanged = "thread/status/changed"
     case threadTokenUsageUpdated = "thread/tokenUsage/updated"
+    case threadUnarchived = "thread/unarchived"
     case turnCompleted = "turn/completed"
     case turnDiffUpdated = "turn/diff/updated"
     case turnPlanUpdated = "turn/plan/updated"
     case turnStarted = "turn/started"
+    case windowsSandboxSetupCompleted = "windowsSandbox/setupCompleted"
     case windowsWorldWritableWarning = "windows/worldWritableWarning"
 }
 

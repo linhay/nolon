@@ -91,6 +91,20 @@ enum NolonCodexCLIExecutor {
             return try await executeRuntimeStop(command: command, context: context, outputMode: outputMode)
         case _ as NolonCodexProviderDiscoverCommand:
             return try await executeProviderDiscover(context: context, outputMode: outputMode)
+        case let command as NolonCodexGatewayStatusCommand:
+            return try await executeGatewayStatus(command: command, context: context, outputMode: outputMode)
+        case let command as NolonCodexGatewayStartCommand:
+            return try await executeGatewayStart(command: command, context: context, outputMode: outputMode)
+        case let command as NolonCodexGatewayStopCommand:
+            return try await executeGatewayStop(command: command, context: context, outputMode: outputMode)
+        case let command as NolonCodexGatewayServeCommand:
+            return try await executeGatewayServe(command: command, context: context)
+        case let command as NolonCodexAutoSwitchStatusCommand:
+            return try await executeAutoSwitchStatus(command: command, context: context, outputMode: outputMode)
+        case let command as NolonCodexAutoSwitchEnableCommand:
+            return try await executeAutoSwitchEnable(command: command, context: context, outputMode: outputMode)
+        case let command as NolonCodexAutoSwitchDisableCommand:
+            return try await executeAutoSwitchDisable(command: command, context: context, outputMode: outputMode)
         case _ as NolonProviderListCommand:
             return try await executeProviderList(context: context, outputMode: outputMode)
         case _ as NolonProviderDiscoverCommand:
@@ -485,6 +499,83 @@ enum NolonCodexCLIExecutor {
         return try renderOutput(command: .providerList, payload: payload, outputMode: outputMode, textFormatter: formatProviderList)
     }
 
+    private static func executeGatewayStatus(
+        command: NolonCodexGatewayStatusCommand,
+        context: NolonCLIExecutionContext,
+        outputMode: OutputMode
+    ) async throws -> String {
+        let providerID = try parseCodexProviderID(command.provider)
+        let payload = try await context.codexService().gatewayStatus(providerID: providerID)
+        return try renderOutput(command: .gatewayStatus, payload: payload, outputMode: outputMode, textFormatter: formatGatewayStatus)
+    }
+
+    private static func executeGatewayStart(
+        command: NolonCodexGatewayStartCommand,
+        context: NolonCLIExecutionContext,
+        outputMode: OutputMode
+    ) async throws -> String {
+        let providerID = try parseCodexProviderID(command.provider)
+        let payload = try await context.codexService().gatewayStart(
+            providerID: providerID,
+            host: command.host,
+            port: command.port
+        )
+        return try renderOutput(command: .gatewayStart, payload: payload, outputMode: outputMode, textFormatter: formatGatewaySet)
+    }
+
+    private static func executeGatewayStop(
+        command: NolonCodexGatewayStopCommand,
+        context: NolonCLIExecutionContext,
+        outputMode: OutputMode
+    ) async throws -> String {
+        let providerID = try parseCodexProviderID(command.provider)
+        let payload = try await context.codexService().gatewayStop(providerID: providerID)
+        return try renderOutput(command: .gatewayStop, payload: payload, outputMode: outputMode, textFormatter: formatGatewaySet)
+    }
+
+    private static func executeGatewayServe(
+        command: NolonCodexGatewayServeCommand,
+        context: NolonCLIExecutionContext
+    ) async throws -> String {
+        let providerID = try parseCodexProviderID(command.provider)
+        try await context.codexService().gatewayServe(
+            providerID: providerID,
+            host: command.host,
+            port: command.port
+        )
+        return ""
+    }
+
+    private static func executeAutoSwitchStatus(
+        command: NolonCodexAutoSwitchStatusCommand,
+        context: NolonCLIExecutionContext,
+        outputMode: OutputMode
+    ) async throws -> String {
+        let providerID = try parseCodexProviderID(command.provider)
+        let payload = try await context.codexService().autoSwitchStatus(providerID: providerID)
+        return try renderOutput(command: .autoSwitchStatus, payload: payload, outputMode: outputMode, textFormatter: formatAutoSwitchStatus)
+    }
+
+    private static func executeAutoSwitchEnable(
+        command: NolonCodexAutoSwitchEnableCommand,
+        context: NolonCLIExecutionContext,
+        outputMode: OutputMode
+    ) async throws -> String {
+        let providerID = try parseCodexProviderID(command.provider)
+        let payload = try await context.codexService().autoSwitchSetEnabled(providerID: providerID, enabled: true)
+        return try renderOutput(command: .autoSwitchEnable, payload: payload, outputMode: outputMode, textFormatter: formatAutoSwitchSet)
+    }
+
+    private static func executeAutoSwitchDisable(
+        command: NolonCodexAutoSwitchDisableCommand,
+        context: NolonCLIExecutionContext,
+        outputMode: OutputMode
+    ) async throws -> String {
+        let providerID = try parseCodexProviderID(command.provider)
+        let payload = try await context.codexService().autoSwitchSetEnabled(providerID: providerID, enabled: false)
+        return try renderOutput(command: .autoSwitchDisable, payload: payload, outputMode: outputMode, textFormatter: formatAutoSwitchSet)
+    }
+
     private static func shouldDowngradeStatusProbeError(_ error: Error) -> Bool {
         let message: String
         if let cliError = error as? NolonCoreCLIError {
@@ -575,6 +666,8 @@ enum NolonCodexCLIExecutor {
             "status": ["probe", "doctor"],
             "runtime": ["list", "stop"],
             "provider": ["discover"],
+            "gateway": ["status", "start", "stop", "serve"],
+            "autoswitch": ["status", "enable", "disable"],
         ]
         guard let actions = supportedByGroup[group] else {
             throw NolonCoreCLIError.invalidArguments(
@@ -1338,6 +1431,65 @@ enum NolonCodexCLIExecutor {
         return "\(header)\n\(body)"
     }
 
+    private static func formatGatewayStatus(_ payload: NolonCodexGatewayStatusPayload) -> String {
+        """
+        provider: \(payload.providerID)
+        status: \(payload.status.rawValue)
+        host: \(payload.host)
+        port: \(payload.port)
+        started_at: \(payload.startedAt.map(Self.formatDate) ?? "-")
+        """
+    }
+
+    private static func formatGatewaySet(_ payload: NolonCodexGatewaySetPayload) -> String {
+        """
+        provider: \(payload.providerID)
+        gateway: \(payload.status.rawValue)
+        host: \(payload.host)
+        port: \(payload.port)
+        started_at: \(payload.startedAt.map(Self.formatDate) ?? "-")
+        """
+    }
+
+    private static func formatAutoSwitchStatus(_ payload: NolonCodexAutoSwitchStatusPayload) -> String {
+        let enabled = payload.enabled ? "enabled" : "disabled"
+        let lastDecision = payload.lastDecision?.reason.rawValue ?? "-"
+        let lastUpdatedAt = payload.lastUpdatedAt.map(Self.formatDate) ?? "-"
+        return """
+        provider: \(payload.providerID)
+        status: \(enabled)
+        threshold: \(formatPercent(payload.thresholdPercent))
+        minimum_candidate: \(formatPercent(payload.minimumCandidateRemainingPercent))
+        skip_relay: \(payload.skipRelayAccounts ? "yes" : "no")
+        cooldown_seconds: \(payload.cooldownSeconds)
+        last_decision: \(lastDecision)
+        last_updated_at: \(lastUpdatedAt)
+        """
+    }
+
+    private static func formatAutoSwitchSet(_ payload: NolonCodexAutoSwitchSetPayload) -> String {
+        """
+        provider: \(payload.providerID)
+        auto_switch: \(payload.enabled ? "enabled" : "disabled")
+        threshold: \(formatPercent(payload.thresholdPercent))
+        minimum_candidate: \(formatPercent(payload.minimumCandidateRemainingPercent))
+        skip_relay: \(payload.skipRelayAccounts ? "yes" : "no")
+        cooldown_seconds: \(payload.cooldownSeconds)
+        """
+    }
+
+    private static func formatPercent(_ value: Double) -> String {
+        if value.rounded() == value {
+            return "\(Int(value))%"
+        }
+        return String(format: "%.1f%%", value)
+    }
+
+    private static func formatDate(_ value: Date) -> String {
+        let formatter = ISO8601DateFormatter()
+        return formatter.string(from: value)
+    }
+
     static func parseActivateSelection(input: String, accounts: [NolonCodexAuthAccountView]) throws -> UUID {
         let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.lowercased() == "q" || trimmed.lowercased() == "quit" {
@@ -1413,6 +1565,12 @@ private struct NolonCodexCommandPath: RawRepresentable, ExpressibleByStringLiter
     static let runtimeList: Self = "codex.runtime.list"
     static let runtimeStop: Self = "codex.runtime.stop"
     static let providerDiscover: Self = "codex.provider.discover"
+    static let gatewayStatus: Self = "codex.gateway.status"
+    static let gatewayStart: Self = "codex.gateway.start"
+    static let gatewayStop: Self = "codex.gateway.stop"
+    static let autoSwitchStatus: Self = "codex.autoswitch.status"
+    static let autoSwitchEnable: Self = "codex.autoswitch.enable"
+    static let autoSwitchDisable: Self = "codex.autoswitch.disable"
     static let providerList: Self = "provider.list"
 
     let rawValue: String

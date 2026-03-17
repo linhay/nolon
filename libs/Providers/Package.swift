@@ -23,6 +23,9 @@ let package = Package(
         .library(
             name: "NolonCoreCLIKit",
             targets: ["NolonCoreCLIKit"]),
+        .library(
+            name: "CodexGatewayKit",
+            targets: ["CodexGatewayKit"]),
         // Unified library with all providers
         .library(
             name: "Providers",
@@ -55,6 +58,7 @@ let package = Package(
         .package(url: "https://github.com/linhay/STFilePath.git", from: "1.3.4"),
         .package(url: "https://github.com/linhay/STJSON.git", from: "1.4.10"),
         .package(url: "https://github.com/jpsim/Yams", from: "6.2.1"),
+        .package(url: "https://github.com/vapor/vapor.git", from: "4.119.2"),
     ],
     targets: [
         // Shared Provider utilities
@@ -173,6 +177,7 @@ let package = Package(
                 "ProviderCatalog",
                 "ProviderUsage",
                 "NolonResourceKit",
+                "CodexGatewayKit",
                 "CodexProvider",
                 "CodexCLIKit",
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
@@ -180,6 +185,17 @@ let package = Package(
                 .product(name: "STFilePath", package: "STFilePath"),
             ],
             path: "Sources/NolonCoreCLIKit"
+        ),
+
+        .target(
+            name: "CodexGatewayKit",
+            dependencies: [
+                "ProviderCatalog",
+                "ProviderUsage",
+                .product(name: "STFilePath", package: "STFilePath"),
+                .product(name: "Vapor", package: "vapor"),
+            ],
+            path: "Sources/CodexGatewayKit"
         ),
 
         .executableTarget(
@@ -207,9 +223,11 @@ let package = Package(
                 "ProviderUsage",
                 "CodexProvider",
                 "CopilotProvider",
+                "CodexGatewayKit",
                 "NolonCoreCLIKit",
                 "NolonResourceKit",
                 .product(name: "STFilePath", package: "STFilePath"),
+                .product(name: "XCTVapor", package: "vapor"),
             ],
             swiftSettings: [
                 .enableUpcomingFeature("StrictConcurrency"),

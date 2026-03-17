@@ -65,6 +65,8 @@ struct ProviderUsageView: View, DebugPageLocatable {
     let provider: Provider
     let isEmbedded: Bool
     @State private var viewModel: ProviderUsageViewModel
+    private let codexAutoSwitchThresholdOptions: [Double] = [5, 10, 15, 20, 30]
+    private let codexAutoSwitchCandidateOptions: [Double] = [10, 20, 30, 40, 50]
 
     private let codexAccountColumns: [GridItem] = [
         GridItem(.adaptive(minimum: 240, maximum: 340), spacing: 12, alignment: .topLeading)
@@ -640,6 +642,108 @@ struct ProviderUsageView: View, DebugPageLocatable {
                         NSLocalizedString("codex.accounts.action.new_relay", value: "新增 Relay", comment: "New relay account"),
                         systemImage: "point.3.connected.trianglepath.dotted"
                     )
+                }
+
+                Divider()
+
+                Toggle(
+                    isOn: Binding(
+                        get: { viewModel.codexAutoSwitchConfig.enabled },
+                        set: { viewModel.setCodexAutoSwitchEnabled($0) }
+                    )
+                ) {
+                    Label(
+                        NSLocalizedString("codex.accounts.auto_switch.enabled", value: "自动切号", comment: "Codex auto switch enabled"),
+                        systemImage: "arrow.left.arrow.right.circle"
+                    )
+                }
+
+                if viewModel.codexAutoSwitchConfig.enabled {
+                    Menu {
+                        ForEach(codexAutoSwitchThresholdOptions, id: \.self) { option in
+                            Button {
+                                viewModel.setCodexAutoSwitchThresholdPercent(Int(option))
+                            } label: {
+                                HStack {
+                                    Text(
+                                        String(
+                                            format: NSLocalizedString(
+                                                "codex.accounts.auto_switch.threshold.option",
+                                                value: "低于 %d%% 时切换",
+                                                comment: "Codex auto switch threshold option"
+                                            ),
+                                            Int(option)
+                                        )
+                                    )
+                                    if viewModel.codexAutoSwitchConfig.thresholdPercent == option {
+                                        Spacer(minLength: 8)
+                                        Image(systemName: "checkmark")
+                                    }
+                                }
+                            }
+                        }
+                    } label: {
+                        Label(
+                            String(
+                                format: NSLocalizedString(
+                                    "codex.accounts.auto_switch.threshold.title",
+                                    value: "切号阈值：%d%%",
+                                    comment: "Codex auto switch threshold title"
+                                ),
+                                Int(viewModel.codexAutoSwitchConfig.thresholdPercent)
+                            ),
+                            systemImage: "gauge.with.dots.needle.33percent"
+                        )
+                    }
+
+                    Menu {
+                        ForEach(codexAutoSwitchCandidateOptions, id: \.self) { option in
+                            Button {
+                                viewModel.setCodexAutoSwitchMinimumCandidateRemainingPercent(Int(option))
+                            } label: {
+                                HStack {
+                                    Text(
+                                        String(
+                                            format: NSLocalizedString(
+                                                "codex.accounts.auto_switch.candidate.option",
+                                                value: "候选至少保留 %d%%",
+                                                comment: "Codex auto switch candidate threshold option"
+                                            ),
+                                            Int(option)
+                                        )
+                                    )
+                                    if viewModel.codexAutoSwitchConfig.minimumCandidateRemainingPercent == option {
+                                        Spacer(minLength: 8)
+                                        Image(systemName: "checkmark")
+                                    }
+                                }
+                            }
+                        }
+                    } label: {
+                        Label(
+                            String(
+                                format: NSLocalizedString(
+                                    "codex.accounts.auto_switch.candidate.title",
+                                    value: "候选余量：%d%%",
+                                    comment: "Codex auto switch candidate threshold title"
+                                ),
+                                Int(viewModel.codexAutoSwitchConfig.minimumCandidateRemainingPercent)
+                            ),
+                            systemImage: "battery.75"
+                        )
+                    }
+
+                    Toggle(
+                        isOn: Binding(
+                            get: { viewModel.codexAutoSwitchConfig.skipRelayAccounts },
+                            set: { viewModel.setCodexAutoSwitchSkipRelay($0) }
+                        )
+                    ) {
+                        Label(
+                            NSLocalizedString("codex.accounts.auto_switch.skip_relay", value: "跳过 Relay 账号", comment: "Skip relay accounts in auto switch"),
+                            systemImage: "point.3.connected.trianglepath.dotted"
+                        )
+                    }
                 }
 
                 Divider()

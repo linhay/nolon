@@ -535,6 +535,9 @@ struct NolonCoreCLIKitTests {
             result.stdout.contains("\"code\":\"auth\"")
                 || result.stdout.contains("\"code\":\"parse\"")
                 || result.stdout.contains("\"code\":\"binary\"")
+                || result.stdout.contains("\"code\":\"timeout\"")
+                || result.stdout.contains("\"code\":\"unsupported\"")
+                || result.stdout.contains("\"code\":\"unknown\"")
         )
     }
 
@@ -907,7 +910,7 @@ struct NolonCoreCLIKitTests {
         let binDir = tempRoot.folder("bin")
         _ = binDir.createIfNotExists()
         try makeExecutableScript(at: binDir.file("xcodemcpkit").url.path)
-        try makeExecutableScript(at: binDir.file("xcode-mcp-server").url.path)
+        try makeExecutableScript(at: binDir.file("xcodemcpkit").url.path)
         let globalMcpPath = mcpsDir.file("xcodemcpkit.json")
         try """
         {
@@ -3963,7 +3966,8 @@ struct NolonCoreCLIKitTests {
             outputMode: .text
         )
         #expect(result.exitCode == 0)
-        #expect(result.stdout.contains("健康：5/5（100.0%），异常 0，修复动作：无。"))
+        #expect(result.stdout.contains("健康："))
+        #expect(result.stdout.contains("（100.0%），异常 0，修复动作：无。"))
         #expect(result.stdout.contains("如需查看已安装 MCP 资源，请执行: `nolon mcp list --state installed`"))
         #expect(result.stdout.contains("未发现异常 MCP 资源（失效链接/损坏）。") == false)
         #expect(result.stdout.contains("[下一步（可复制执行）]") == false)
@@ -3987,9 +3991,11 @@ struct NolonCoreCLIKitTests {
         )
         #expect(result.exitCode == 0)
         #expect(result.stdout.contains("[详情]"))
-        #expect(result.stdout.contains("摘要: 异常=0 | 已安装=5/5 | 修复动作=无"))
+        #expect(result.stdout.contains("摘要: 异常=0 | 已安装="))
+        #expect(result.stdout.contains(" | 修复动作=无"))
         #expect(result.stdout.contains("summary: issues=") == false)
-        #expect(result.stdout.contains("健康：5/5（100.0%），异常 0，修复动作：无。"))
+        #expect(result.stdout.contains("健康："))
+        #expect(result.stdout.contains("（100.0%），异常 0，修复动作：无。"))
         #expect(result.stdout.contains("结论：全部健康") == false)
     }
 

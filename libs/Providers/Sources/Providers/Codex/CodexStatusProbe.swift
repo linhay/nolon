@@ -124,33 +124,6 @@ public struct CodexStatusProbe {
             case let .launchFailed(message):
                 throw CodexStatusProbeError.parseFailed(message)
             }
-        } catch let error as CodexStatusProbeError {
-            // If the primary runner produced unparseable output, retry once using the fallback (PTY-based) runner.
-            switch error {
-            case .parseFailed, .timedOut:
-                do {
-                    let result = try await fallbackRunner.run(
-                        binary: binary,
-                        send: script,
-                        options: .init(
-                            rows: rows,
-                            cols: cols,
-                            timeout: timeout,
-                            extraArgs: ["-s", "read-only", "-a", "untrusted"]))
-                    return try Self.parse(text: result.text)
-                } catch let error as TTYCommandRunner.Error {
-                    switch error {
-                    case .timedOut:
-                        throw CodexStatusProbeError.timedOut
-                    case .binaryNotFound:
-                        throw CodexStatusProbeError.codexNotInstalled
-                    case let .launchFailed(message):
-                        throw CodexStatusProbeError.parseFailed(message)
-                    }
-                }
-            default:
-                throw error
-            }
         }
     }
 
