@@ -1250,7 +1250,8 @@ struct ResourceCatalogGridView: View {
         case .skills:
             let mergedSkills = mergeResourceCatalogSkills(
                 catalogSkills: viewModel.skills,
-                installedSkills: installedSkills
+                installedSkills: installedSkills,
+                repositoryTemplateType: repository?.templateType
             )
             let filtered = filterResourceCatalogSkills(
                 mergedSkills,
@@ -1751,8 +1752,12 @@ struct ResourceCatalogGridView: View {
 
 func mergeResourceCatalogSkills(
     catalogSkills: [RemoteSkill],
-    installedSkills: [RemoteSkill]
+    installedSkills: [RemoteSkill],
+    repositoryTemplateType: RepositoryTemplate?
 ) -> [RemoteSkill] {
+    guard repositoryTemplateType == .clawdhub else {
+        return catalogSkills
+    }
     let catalogSlugs = Set(catalogSkills.map(\.slug))
     let installedOnly = installedSkills.filter { !catalogSlugs.contains($0.slug) }
     return catalogSkills + installedOnly

@@ -261,7 +261,8 @@ final class ResourceCatalogGridViewModelTests: XCTestCase {
 
         let merged = mergeResourceCatalogSkills(
             catalogSkills: [repositorySkill],
-            installedSkills: [installedOnlySkill]
+            installedSkills: [installedOnlySkill],
+            repositoryTemplateType: .clawdhub
         )
 
         XCTAssertEqual(merged.map(\.slug), ["codex-cli", "harmony-next"])
@@ -282,12 +283,35 @@ final class ResourceCatalogGridViewModelTests: XCTestCase {
 
         let merged = mergeResourceCatalogSkills(
             catalogSkills: [repositorySkill],
-            installedSkills: [installedOnlySkill]
+            installedSkills: [installedOnlySkill],
+            repositoryTemplateType: .clawdhub
         )
 
         XCTAssertEqual(merged.count, 1)
         XCTAssertEqual(merged.first?.displayName, "Harmony NEXT")
         XCTAssertEqual(merged.first?.summary, "Repository summary")
+    }
+
+    @MainActor
+    func testBDD_GivenGitRepositoryAndInstalledSkillMissingFromRepository_WhenMergingDisplaySkills_ThenDoNotInjectInstalledOnlySkill() {
+        let repositorySkill = Self.makeRemoteSkill(
+            slug: "harmony-next",
+            displayName: "Harmony NEXT",
+            summary: "Repository summary"
+        )
+        let installedOnlySkill = Self.makeRemoteSkill(
+            slug: "global-only",
+            displayName: "Global Only",
+            summary: "Installed from global cache"
+        )
+
+        let merged = mergeResourceCatalogSkills(
+            catalogSkills: [repositorySkill],
+            installedSkills: [installedOnlySkill],
+            repositoryTemplateType: .git
+        )
+
+        XCTAssertEqual(merged.map(\.slug), ["harmony-next"])
     }
 
     private static func makeClawdhubRepository() -> RemoteRepository {
