@@ -225,6 +225,46 @@ struct CodexAuthManagerTests {
         #expect(activeId == account.id)
     }
 
+    @Test("Given provider auth still points to chatgpt snapshot, when registry switches to relay profile, then active account prefers relay registry")
+    func activeAccountPrefersRelayRegistryOverProviderAuthSnapshot() async throws {
+        let root = try makeTempRoot("codex-auth-relay-registry-priority")
+        defer { try? root.delete() }
+
+        let manager = CodexAuthManager(rootURL: root.url)
+        let primary = try await manager.addAccount(
+            name: "primary",
+            authJSONString: #"{"tokens":{"id_token":"id-primary","access_token":"access-primary"},"email":"primary@example.com"}"#
+        )
+        let providerRoot = root.folder("provider")
+        _ = providerRoot.createIfNotExists()
+        let provider = Provider(
+            id: "codex",
+            name: "Codex",
+            defaultSkillsPath: providerRoot.folder("skills").url.path,
+            workflowPath: providerRoot.folder("prompts").url.path,
+            installMethod: .symlink,
+            templateId: "codex"
+        )
+        try await manager.activateAccountAndMarkActive(primary, for: provider)
+
+        let relay = try await manager.addConfiguredAccount(
+            name: "__gateway_reply__-codex",
+            apiKey: "nolon-gateway-virtual-api-key",
+            relay: .init(
+                baseURL: "http://127.0.0.1:18083",
+                modelProvider: "openai",
+                queryParams: [
+                    "nolon_gateway_virtual": "1",
+                    "provider_id": "codex",
+                ]
+            )
+        )
+        try await manager.setActiveAccount(relay, for: provider)
+
+        let activeID = await manager.activeAccountId(for: provider)
+        #expect(activeID == relay.id)
+    }
+
     @Test("Given snapshot drift right after activation, when preflight runs then active snapshot is restored from activation baseline")
     func activateAccountAndMarkActiveSeedsDriftRestoreBaseline() async throws {
         let root = try makeTempRoot("codex-auth-activate-drift-baseline")

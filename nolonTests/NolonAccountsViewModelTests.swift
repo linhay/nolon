@@ -14,6 +14,10 @@ private final class UUIDSink: @unchecked Sendable {
     var value: UUID?
 }
 
+private final class URLSink: @unchecked Sendable {
+    var value: URL?
+}
+
 @MainActor
 final class NolonAccountsViewModelTests: XCTestCase {
     func testBDD_GivenAccountsThemeTokens_WhenComparingLightDarkValues_ThenLightModeUsesDedicatedPalette() {
@@ -259,7 +263,7 @@ final class NolonAccountsViewModelTests: XCTestCase {
         XCTAssertTrue(merged[1].isSnapshotOnly)
     }
 
-    func testBDD_GivenInactiveCodexSnapshotCard_WhenBuildingAccountCards_ThenIncludesActivateAndCopyMenu() {
+    func testBDD_GivenInactiveCodexSnapshotCard_WhenBuildingAccountCards_ThenIncludesActivateAndAuthJSONMenus() {
         let provider = Provider(
             id: "codex",
             kind: .vendor,
@@ -293,7 +297,7 @@ final class NolonAccountsViewModelTests: XCTestCase {
         XCTAssertEqual(cards[0].presentation.selectionStyle, .neutral)
         XCTAssertEqual(cards[0].tapBehavior, .activate)
         XCTAssertTrue(cards[0].primaryActions.isEmpty)
-        XCTAssertEqual(cards[0].menuActions.map(\.actionID), [.copyAccountID, .copyAuthPath])
+        XCTAssertEqual(cards[0].menuActions.map(\.actionID), [.copyAccountID, .copyAuthPath, .copyAuthJSON, .editAuthJSON])
     }
 
     func testBDD_GivenActiveCodexSnapshotCard_WhenBuildingAccountCards_ThenShowsActiveStateWithoutActivateAction() {
@@ -357,6 +361,61 @@ final class NolonAccountsViewModelTests: XCTestCase {
         await viewModel.copyCodexAccountPath(account.id)
 
         let expected = service.accountAuthFile(relativeAuthPath: account.relativeAuthPath).url.path
+        XCTAssertEqual(sink.value, expected)
+    }
+
+    func testBDD_GivenCodexSnapshotID_WhenCopyingAuthJSON_ThenPasteboardWriterReceivesRawJSON() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("nolon-accounts-copy-auth-json-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let service = CodexAuthManager(rootURL: root)
+        let account = try await service.addAccount(
+            name: "work",
+            authJSONString: #"{"tokens":{"id_token":"id","access_token":"access"}}"#
+        )
+
+        let sink = CopyTextSink()
+        let viewModel = NolonAccountsViewModel(
+            settings: ProviderSettings(),
+            codexAuthManager: service,
+            copyTextAction: { text in
+                sink.value = text
+            }
+        )
+
+        await viewModel.copyCodexAccountAuthJSON(account.id)
+
+        let file = service.accountAuthFile(relativeAuthPath: account.relativeAuthPath)
+        let expected = try file.read()
+        XCTAssertEqual(sink.value, expected)
+    }
+
+    func testBDD_GivenCodexSnapshotID_WhenEditingAuthJSON_ThenOpenActionReceivesAuthFileURL() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("nolon-accounts-edit-auth-json-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let service = CodexAuthManager(rootURL: root)
+        let account = try await service.addAccount(
+            name: "work",
+            authJSONString: #"{"tokens":{"id_token":"id","access_token":"access"}}"#
+        )
+
+        let sink = URLSink()
+        let viewModel = NolonAccountsViewModel(
+            settings: ProviderSettings(),
+            codexAuthManager: service,
+            openURLAction: { url in
+                sink.value = url
+            }
+        )
+
+        await viewModel.editCodexAccountAuthJSON(account.id)
+
+        let expected = service.accountAuthFile(relativeAuthPath: account.relativeAuthPath).url
         XCTAssertEqual(sink.value, expected)
     }
 

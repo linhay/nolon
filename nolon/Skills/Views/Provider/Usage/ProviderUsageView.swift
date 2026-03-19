@@ -1349,6 +1349,8 @@ struct ProviderUsageView: View, DebugPageLocatable {
                 items.append(.init(id: "relogin-menu", actionID: .relogin, title: NSLocalizedString("codex.accounts.relogin", value: "Re-login", comment: "Re-login account"), systemImage: "person.badge.key", role: nil, isEnabled: !isLoggingIn))
             }
             if accountId != nil {
+                items.append(.init(id: "copy-auth-json", actionID: .copyAuthJSON, title: NSLocalizedString("codex.accounts.menu.copy_auth_json", value: "Copy auth.json", comment: "Copy auth json"), systemImage: "doc.on.doc.fill", role: nil, isEnabled: true))
+                items.append(.init(id: "edit-auth-json", actionID: .editAuthJSON, title: NSLocalizedString("codex.accounts.menu.edit_auth_json", value: "Edit auth.json", comment: "Edit auth json"), systemImage: "pencil", role: nil, isEnabled: true))
                 items.append(.init(id: "reveal", actionID: .revealInFinder, title: NSLocalizedString("action.show_in_finder", comment: "Show in Finder"), systemImage: "folder", role: nil, isEnabled: true))
                 items.append(.init(id: "delete", actionID: .delete, title: NSLocalizedString("codex.accounts.delete.title", value: "Delete Account", comment: "Delete account title"), systemImage: "trash", role: .destructive, isEnabled: true))
             }
@@ -1393,6 +1395,14 @@ struct ProviderUsageView: View, DebugPageLocatable {
                 case .revealInFinder:
                     if let accountId {
                         viewModel.revealCodexAccountInFinder(id: accountId)
+                    }
+                case .copyAuthJSON:
+                    if let accountId {
+                        viewModel.copyCodexAccountAuthJSON(id: accountId)
+                    }
+                case .editAuthJSON:
+                    if let accountId {
+                        viewModel.editCodexAccountAuthJSON(id: accountId)
                     }
                 case .delete:
                     if let accountId {

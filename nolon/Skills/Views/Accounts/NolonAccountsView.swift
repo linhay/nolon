@@ -13,6 +13,7 @@ import Shimmer
 final class NolonAccountsViewModel {
     typealias CodexActivateAction = @Sendable (CodexAuthAccount, Provider) async throws -> Void
     typealias CopyTextAction = @Sendable (String) -> Void
+    typealias OpenURLAction = @Sendable (URL) -> Void
     typealias ProviderUsageViewModelFactory = @MainActor @Sendable (Provider) -> ProviderUsageViewModel
 
     struct UsageSummary: Sendable, Equatable {
@@ -52,6 +53,7 @@ final class NolonAccountsViewModel {
     private let geminiAuthStore: GeminiAuthStore
     private let codexActivateAction: CodexActivateAction
     private let copyTextAction: CopyTextAction
+    private let openURLAction: OpenURLAction
     private let providerUsageViewModelFactory: ProviderUsageViewModelFactory
     @ObservationIgnored private var providerUsageViewModelsByProviderID: [Provider.ID: ProviderUsageViewModel] = [:]
 
@@ -74,6 +76,7 @@ final class NolonAccountsViewModel {
         geminiAuthStore: GeminiAuthStore = .shared,
         codexActivateAction: CodexActivateAction? = nil,
         copyTextAction: CopyTextAction? = nil,
+        openURLAction: OpenURLAction? = nil,
         providerUsageViewModelFactory: ProviderUsageViewModelFactory? = nil
     ) {
         let hasCustomViewModelDependencies = usageMonitor != nil || codexActivateAction != nil
@@ -93,6 +96,9 @@ final class NolonAccountsViewModel {
         self.copyTextAction = copyTextAction ?? { text in
             NSPasteboard.general.clearContents()
             NSPasteboard.general.setString(text, forType: .string)
+        }
+        self.openURLAction = openURLAction ?? { url in
+            NSWorkspace.shared.open(url)
         }
         if let providerUsageViewModelFactory {
             self.providerUsageViewModelFactory = providerUsageViewModelFactory
@@ -237,6 +243,23 @@ final class NolonAccountsViewModel {
         else { return }
         let file = await codexAuthManager.accountAuthFile(account)
         copyTextAction(file.url.path)
+    }
+
+    func copyCodexAccountAuthJSON(_ id: UUID) async {
+        guard let accounts = try? await codexAuthManager.loadAccounts(),
+              let account = accounts.first(where: { $0.id == id })
+        else { return }
+        let file = await codexAuthManager.accountAuthFile(account)
+        guard let raw = try? file.read(), !raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        copyTextAction(raw)
+    }
+
+    func editCodexAccountAuthJSON(_ id: UUID) async {
+        guard let accounts = try? await codexAuthManager.loadAccounts(),
+              let account = accounts.first(where: { $0.id == id })
+        else { return }
+        let file = await codexAuthManager.accountAuthFile(account)
+        openURLAction(file.url)
     }
 
     private func providerUsageViewModel(for provider: Provider) -> ProviderUsageViewModel {
@@ -413,6 +436,12 @@ struct NolonAccountsView: View, DebugPageLocatable {
         case .copyAuthPath:
             guard let id = NolonAccountsViewModel.resolveCodexAccountID(from: card.recordID.rawValue) else { return }
             Task { await viewModel.copyCodexAccountPath(id) }
+        case .copyAuthJSON:
+            guard let id = NolonAccountsViewModel.resolveCodexAccountID(from: card.recordID.rawValue) else { return }
+            Task { await viewModel.copyCodexAccountAuthJSON(id) }
+        case .editAuthJSON:
+            guard let id = NolonAccountsViewModel.resolveCodexAccountID(from: card.recordID.rawValue) else { return }
+            Task { await viewModel.editCodexAccountAuthJSON(id) }
         default:
             onSelectProvider(provider.id)
         }
@@ -1160,6 +1189,22 @@ extension NolonAccountsViewModel {
                             actionID: .copyAuthPath,
                             title: NSLocalizedString("codex.accounts.menu.copy_auth_path", value: "Copy Auth Path", comment: "Copy auth path"),
                             systemImage: "doc.on.doc",
+                            role: nil,
+                            isEnabled: true
+                        ),
+                        .init(
+                            id: "copy-auth-json",
+                            actionID: .copyAuthJSON,
+                            title: NSLocalizedString("codex.accounts.menu.copy_auth_json", value: "Copy auth.json", comment: "Copy auth json"),
+                            systemImage: "doc.on.doc.fill",
+                            role: nil,
+                            isEnabled: true
+                        ),
+                        .init(
+                            id: "edit-auth-json",
+                            actionID: .editAuthJSON,
+                            title: NSLocalizedString("codex.accounts.menu.edit_auth_json", value: "Edit auth.json", comment: "Edit auth json"),
+                            systemImage: "pencil",
                             role: nil,
                             isEnabled: true
                         )

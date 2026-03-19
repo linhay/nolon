@@ -182,6 +182,10 @@ public actor CodexAuthManager {
         nolonCodexRootFolder().folder(PathName.authFolder.rawValue)
     }
 
+    public nonisolated func nolonCodexGatewayVirtualAuthFolder() -> STFolder {
+        nolonCodexRootFolder().folder("gateway").folder("virtual-auth")
+    }
+
     public nonisolated func cliLoginCodexHomeFolder(providerID: String) -> STFolder {
         let sanitized = providerID.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         let fallback = "codex"
@@ -414,6 +418,81 @@ public actor CodexAuthManager {
             existingRootObject: (try? file.data()).flatMap { Self.decodeJSONObject(from: $0) }
         )
         try file.overlay(with: payload)
+    }
+
+    public func upsertGatewayVirtualAccount(
+        providerID: String,
+        name: String,
+        apiKey: String,
+        relay: ConfiguredRelay
+    ) async throws -> CodexAuthAccount {
+        try await migrateLegacyIfNeeded()
+        let trimmedProviderID = providerID.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !trimmedProviderID.isEmpty else {
+            throw CocoaError(.fileNoSuchFile)
+        }
+
+        let fileName = "__gateway_reply__-\(sanitizeFileStem(trimmedProviderID)).json"
+        let virtualFolder = nolonCodexGatewayVirtualAuthFolder()
+        _ = virtualFolder.createIfNotExists()
+        let relativePath = "gateway/virtual-auth/\(fileName)"
+        let file = accountAuthFile(relativeAuthPath: relativePath)
+
+        let legacyRelativePath = "auth/\(fileName)"
+        let legacyFile = accountAuthFile(relativeAuthPath: legacyRelativePath)
+        if !file.isExists, legacyFile.isExists {
+            _ = file.parentFolder()?.createIfNotExists()
+            do {
+                try FileManager.default.moveItem(at: legacyFile.url, to: file.url)
+            } catch {
+                _ = try? legacyFile.copy(to: file)
+                _ = try? legacyFile.delete()
+            }
+        }
+
+        let existing = try? loadAccount(file: file, relativeAuthPath: relativePath)
+        let now = Date()
+        let payload = try makeConfiguredAccountPayload(
+            name: sanitizedConfiguredAccountName(name: name, relay: relay),
+            apiKey: apiKey,
+            relay: relay,
+            usageQuery: nil,
+            preferredId: existing?.id ?? UUID(),
+            relativeAuthPath: relativePath,
+            createdAt: existing?.createdAt ?? now,
+            updatedAt: now,
+            existingRootObject: (try? file.data()).flatMap { Self.decodeJSONObject(from: $0) }
+        )
+        try file.overlay(with: payload)
+        return try loadAccount(file: file, relativeAuthPath: relativePath)
+    }
+
+    public func gatewayVirtualAccount(providerID: String) async -> CodexAuthAccount? {
+        let trimmedProviderID = providerID.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !trimmedProviderID.isEmpty else { return nil }
+
+        let fileName = "__gateway_reply__-\(sanitizeFileStem(trimmedProviderID)).json"
+        let relativePath = "gateway/virtual-auth/\(fileName)"
+        let file = accountAuthFile(relativeAuthPath: relativePath)
+        if file.isExists {
+            return try? loadAccount(file: file, relativeAuthPath: relativePath)
+        }
+
+        let legacyRelativePath = "auth/\(fileName)"
+        let legacyFile = accountAuthFile(relativeAuthPath: legacyRelativePath)
+        if !legacyFile.isExists {
+            return nil
+        }
+
+        _ = nolonCodexGatewayVirtualAuthFolder().createIfNotExists()
+        do {
+            _ = file.parentFolder()?.createIfNotExists()
+            try FileManager.default.moveItem(at: legacyFile.url, to: file.url)
+        } catch {
+            _ = try? legacyFile.copy(to: file)
+            _ = try? legacyFile.delete()
+        }
+        return try? loadAccount(file: file, relativeAuthPath: relativePath)
     }
 
     @discardableResult
@@ -961,8 +1040,15 @@ public actor CodexAuthManager {
 
     public func activeAccountId(for provider: Provider) async -> UUID? {
         let accounts = (try? await loadAccounts()) ?? []
+        let registryActiveID = activeAccountIdFromRegistry(for: provider, accounts: accounts)
+        if let registryActiveID,
+           let registryAccount = accounts.first(where: { $0.id == registryActiveID }),
+           isRelayProfileAccount(registryAccount) {
+            return registryActiveID
+        }
+
         guard let authFile = authFile(for: provider) else {
-            return activeAccountIdFromRegistry(for: provider, accounts: accounts)
+            return registryActiveID
         }
 
         // Symlink form (older behavior / user created): resolve target and match by file URL.
@@ -978,13 +1064,13 @@ public actor CodexAuthManager {
         // Regular file: match by cleaned content (ignore Nolon metadata).
         guard let currentData = try? authFile.data(),
               !currentData.isEmpty
-        else { return activeAccountIdFromRegistry(for: provider, accounts: accounts) }
+        else { return registryActiveID }
 
         if let matched = matchAccount(authData: currentData, accounts: accounts)?.id {
             return matched
         }
 
-        return activeAccountIdFromRegistry(for: provider, accounts: accounts)
+        return registryActiveID
     }
 
     public func managementStatus(for provider: Provider) async -> CodexManagementStatus {
@@ -2410,7 +2496,33 @@ private extension CodexAuthManager {
     private func activeAccountIdFromRegistry(for provider: Provider, accounts: [CodexAuthAccount]) -> UUID? {
         let map = loadActiveAccountMap()
         guard let raw = map[provider.id], let id = UUID(uuidString: raw) else { return nil }
-        return accounts.contains(where: { $0.id == id }) ? id : nil
+        if accounts.contains(where: { $0.id == id }) {
+            return id
+        }
+        return containsGatewayVirtualAccount(id: id) ? id : nil
+    }
+
+    private func containsGatewayVirtualAccount(id: UUID) -> Bool {
+        let folder = nolonCodexGatewayVirtualAuthFolder()
+        let fileNames = stableAuthSnapshotFileNames(in: folder)
+        for fileName in fileNames {
+            let relativePath = "gateway/virtual-auth/\(fileName)"
+            let file = folder.file(fileName)
+            guard let account = try? loadAccount(file: file, relativeAuthPath: relativePath) else {
+                continue
+            }
+            if account.id == id {
+                return true
+            }
+        }
+        return false
+    }
+
+    private func isRelayProfileAccount(_ account: CodexAuthAccount) -> Bool {
+        guard let data = try? accountAuthFile(account).data(),
+              !data.isEmpty
+        else { return false }
+        return CodexAuthSummary.fromJSONData(data).cardKind == .relayProfile
     }
 
     private func loadActiveAccountMap() -> [String: String] {

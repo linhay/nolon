@@ -12,6 +12,8 @@ enum AccountCardActionID: String, Equatable, Sendable {
     case copyError
     case copyAccountID
     case copyAuthPath
+    case copyAuthJSON
+    case editAuthJSON
     case revealInFinder
     case delete
 }

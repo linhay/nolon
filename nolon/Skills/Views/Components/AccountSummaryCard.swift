@@ -152,6 +152,11 @@ struct AccountSummaryCardHeaderModel: Equatable {
     let badge: AccountSummaryCardBadgeModel?
 }
 
+private enum AccountSummaryContentCardLayout {
+    static let cardSpacing: CGFloat = 14
+    static let sectionSpacing: CGFloat = 10
+}
+
 struct AccountSummaryContentCard<Body: View, Details: View, Actions: View>: View {
     let presentation: AccountCardPresentation
     let header: AccountSummaryCardHeaderModel
@@ -181,18 +186,16 @@ struct AccountSummaryContentCard<Body: View, Details: View, Actions: View>: View
 
     var body: some View {
         AccountSummaryCard(presentation: presentation) {
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: AccountSummaryContentCardLayout.cardSpacing) {
                 headerSection
-                bodyContent
+                bodySection
 
                 if showsDetailsSection {
-                    sectionDivider
-                    detailsContent
+                    supplementarySection(detailsContent)
                 }
 
                 if showsActionsSection {
-                    sectionDivider
-                    actionsContent
+                    supplementarySection(actionsContent)
                 }
             }
         }
@@ -212,6 +215,7 @@ struct AccountSummaryContentCard<Body: View, Details: View, Actions: View>: View
                     .font(.headline)
                     .foregroundStyle(DesignSystem.Colors.Text.primary)
                     .lineLimit(1)
+                    .layoutPriority(2)
 
                 if let subtitle = header.subtitle, !subtitle.isEmpty {
                     Text(subtitle)
@@ -221,21 +225,39 @@ struct AccountSummaryContentCard<Body: View, Details: View, Actions: View>: View
                         .textSelection(.enabled)
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .layoutPriority(1)
 
-            Spacer(minLength: 8)
+            if header.badge != nil || (header.meta?.isEmpty == false) {
+                VStack(alignment: .trailing, spacing: 6) {
+                    if let badge = header.badge {
+                        AccountSummaryCardBadge(badge: badge)
+                    }
 
-            VStack(alignment: .trailing, spacing: 6) {
-                if let badge = header.badge {
-                    AccountSummaryCardBadge(badge: badge)
+                    if let meta = header.meta, !meta.isEmpty {
+                        Text(meta)
+                            .font(.caption2)
+                            .foregroundStyle(DesignSystem.Colors.Text.tertiary)
+                            .multilineTextAlignment(.trailing)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                    }
                 }
-
-                if let meta = header.meta, !meta.isEmpty {
-                    Text(meta)
-                        .font(.caption2)
-                        .foregroundStyle(DesignSystem.Colors.Text.tertiary)
-                        .multilineTextAlignment(.trailing)
-                }
+                .fixedSize(horizontal: true, vertical: false)
             }
+        }
+    }
+
+    private var bodySection: some View {
+        bodyContent
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func supplementarySection<Content: View>(_ content: Content) -> some View {
+        VStack(alignment: .leading, spacing: AccountSummaryContentCardLayout.sectionSpacing) {
+            sectionDivider
+            content
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
@@ -338,7 +360,7 @@ struct UnifiedAccountCard: View, DebugCardLocatable {
                 showsHeader: false
             )
         case let .rows(rows):
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 10) {
                 ForEach(rows) { row in
                     rowView(row)
                 }
@@ -347,7 +369,7 @@ struct UnifiedAccountCard: View, DebugCardLocatable {
     }
 
     private var detailsContent: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 10) {
             ForEach(data.detailRows) { row in
                 rowView(row)
             }
@@ -396,6 +418,7 @@ struct UnifiedAccountCard: View, DebugCardLocatable {
                     .foregroundStyle(DesignSystem.Colors.Text.tertiary)
             }
         }
+        .debugCardLocator(footerMarkerItems(footer))
     }
 
     private func actionButton(_ action: AccountCardActionViewData) -> some View {
@@ -418,6 +441,7 @@ struct UnifiedAccountCard: View, DebugCardLocatable {
         }
         .controlSize(.small)
         .disabled(!action.isEnabled)
+        .debugCardLocator(actionMarkerItems(action))
     }
 
     @ViewBuilder
@@ -433,62 +457,95 @@ struct UnifiedAccountCard: View, DebugCardLocatable {
 
     @ViewBuilder
     private func rowView(_ row: AccountCardRowViewData) -> some View {
-        switch row.style {
-        case .metric:
-            HStack(alignment: .center, spacing: 8) {
-                if let title = row.title {
-                    Text(title)
+        Group {
+            switch row.style {
+            case .metric:
+                HStack(alignment: .center, spacing: 8) {
+                    if let title = row.title {
+                        Text(title)
+                            .font(.caption)
+                            .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                    }
+                    Spacer(minLength: 0)
+                    Text(row.value)
+                        .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(tintColor(row.tint))
+                    if let auxiliary = row.auxiliary {
+                        Text(auxiliary)
+                            .font(.caption2)
+                            .foregroundStyle(DesignSystem.Colors.Text.tertiary)
+                    }
+                }
+            case .kv:
+                VStack(alignment: .leading, spacing: 4) {
+                    if let title = row.title {
+                        Text(title)
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(DesignSystem.Colors.Text.tertiary)
+                            .textCase(.uppercase)
+                    }
+                    Text(row.value)
                         .font(.caption)
                         .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                        .textSelection(.enabled)
+                    if let auxiliary = row.auxiliary {
+                        Text(auxiliary)
+                            .font(.caption2)
+                            .foregroundStyle(DesignSystem.Colors.Text.tertiary)
+                    }
                 }
-                Spacer(minLength: 0)
-                Text(row.value)
-                    .font(.system(size: 12, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(tintColor(row.tint))
-                if let auxiliary = row.auxiliary {
-                    Text(auxiliary)
-                        .font(.caption2)
-                        .foregroundStyle(DesignSystem.Colors.Text.tertiary)
-                }
-            }
-        case .kv:
-            VStack(alignment: .leading, spacing: 4) {
-                if let title = row.title {
-                    Text(title)
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(DesignSystem.Colors.Text.tertiary)
-                        .textCase(.uppercase)
-                }
+            case .message:
                 Text(row.value)
                     .font(.caption)
-                    .foregroundStyle(DesignSystem.Colors.Text.secondary)
-                    .textSelection(.enabled)
-                if let auxiliary = row.auxiliary {
-                    Text(auxiliary)
-                        .font(.caption2)
-                        .foregroundStyle(DesignSystem.Colors.Text.tertiary)
-                }
-            }
-        case .message:
-            Text(row.value)
-                .font(.caption)
-                .foregroundStyle(tintColor(row.tint))
-                .lineLimit(2)
-                .textSelection(.enabled)
-        case .code:
-            VStack(alignment: .leading, spacing: 4) {
-                if let title = row.title {
-                    Text(title)
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(DesignSystem.Colors.Text.tertiary)
-                }
-                Text(row.value)
-                    .font(.system(.caption, design: .monospaced))
-                    .foregroundStyle(DesignSystem.Colors.Text.secondary)
-                    .textSelection(.enabled)
+                    .foregroundStyle(tintColor(row.tint))
                     .lineLimit(2)
+                    .textSelection(.enabled)
+            case .code:
+                VStack(alignment: .leading, spacing: 4) {
+                    if let title = row.title {
+                        Text(title)
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(DesignSystem.Colors.Text.tertiary)
+                    }
+                    Text(row.value)
+                        .font(.system(.caption, design: .monospaced))
+                        .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                        .textSelection(.enabled)
+                        .lineLimit(2)
+                }
             }
         }
+        .debugCardLocator(rowMarkerItems(row))
+    }
+
+    private func rowMarkerItems(_ row: AccountCardRowViewData) -> [PageMarkerItem] {
+        debugCardMarkerItems + [PageMarkerItem(title: rowMarkerTitle(row))]
+    }
+
+    private func rowMarkerTitle(_ row: AccountCardRowViewData) -> String {
+        if let title = row.title?.trimmingCharacters(in: .whitespacesAndNewlines), !title.isEmpty {
+            return title
+        }
+        let value = row.value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return value.isEmpty ? "Row" : value
+    }
+
+    private func actionMarkerItems(_ action: AccountCardActionViewData) -> [PageMarkerItem] {
+        debugCardMarkerItems + [PageMarkerItem(title: action.title)]
+    }
+
+    private func footerMarkerItems(_ footer: AccountCardFooterViewData) -> [PageMarkerItem] {
+        let label = [
+            footer.leadingTag?.trimmingCharacters(in: .whitespacesAndNewlines),
+            footer.trailingText?.trimmingCharacters(in: .whitespacesAndNewlines),
+        ]
+        .compactMap { value in
+            guard let value, !value.isEmpty else { return nil }
+            return value
+        }
+        .joined(separator: " • ")
+
+        return debugCardMarkerItems + [PageMarkerItem(title: label.isEmpty ? "Footer" : label)]
     }
 
     private func tintColor(_ tone: AccountSummaryCardBadgeTone?) -> Color {

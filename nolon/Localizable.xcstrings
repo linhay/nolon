@@ -1891,42 +1891,6 @@
         }
       }
     },
-    "codex.accounts.filter.hide_zero_off" : {
-      "comment" : "Hide zero-quota Codex accounts",
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Hide Zero-Quota Accounts"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "隐藏无额度账号"
-          }
-        }
-      }
-    },
-    "codex.accounts.filter.hide_zero_on" : {
-      "comment" : "Show all Codex accounts",
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Show All Accounts"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "显示全部账号"
-          }
-        }
-      }
-    },
     "codex.accounts.action.export_sub2api" : {
       "comment" : "Export selected Codex accounts to sub2api",
       "extractionState" : "extracted_with_value",
@@ -2301,6 +2265,78 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "添加账号"
+          }
+        }
+      }
+    },
+    "codex.accounts.auto_switch.candidate.option" : {
+      "comment" : "Codex auto switch candidate threshold option",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "候选至少保留 %d%%"
+          }
+        }
+      }
+    },
+    "codex.accounts.auto_switch.candidate.title" : {
+      "comment" : "Codex auto switch candidate threshold title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "候选余量：%d%%"
+          }
+        }
+      }
+    },
+    "codex.accounts.auto_switch.enabled" : {
+      "comment" : "Codex auto switch enabled",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "自动切号"
+          }
+        }
+      }
+    },
+    "codex.accounts.auto_switch.skip_relay" : {
+      "comment" : "Skip relay accounts in auto switch",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "跳过 Relay 账号"
+          }
+        }
+      }
+    },
+    "codex.accounts.auto_switch.threshold.option" : {
+      "comment" : "Codex auto switch threshold option",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "低于 %d%% 时切换"
+          }
+        }
+      }
+    },
+    "codex.accounts.auto_switch.threshold.title" : {
+      "comment" : "Codex auto switch threshold title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "切号阈值：%d%%"
           }
         }
       }
@@ -2857,42 +2893,6 @@
         }
       }
     },
-    "codex.accounts.filtered_empty.desc" : {
-      "comment" : "All accounts hidden by zero quota filter description",
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Accounts with a 0% longest quota window are currently hidden. Turn off the filter to see all accounts."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "当前已隐藏最长额度窗口为 0% 的账号。关闭筛选后可查看全部账号。"
-          }
-        }
-      }
-    },
-    "codex.accounts.filtered_empty.title" : {
-      "comment" : "All accounts hidden by zero quota filter title",
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No Visible Accounts"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "没有可显示的账号"
-          }
-        }
-      }
-    },
     "codex.accounts.error.activate" : {
       "comment" : "Error message",
       "extractionState" : "extracted_with_value",
@@ -3021,6 +3021,78 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "已导出 %d 个账号到 ZIP。"
+          }
+        }
+      }
+    },
+    "codex.accounts.filter.hide_zero_off" : {
+      "comment" : "Hide zero-quota Codex accounts",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hide Zero-Quota Accounts"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "隐藏无额度账号"
+          }
+        }
+      }
+    },
+    "codex.accounts.filter.hide_zero_on" : {
+      "comment" : "Show all Codex accounts",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show All Accounts"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "显示全部账号"
+          }
+        }
+      }
+    },
+    "codex.accounts.filtered_empty.desc" : {
+      "comment" : "All accounts hidden by zero quota filter description",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Accounts with a 0% longest quota window are currently hidden. Turn off the filter to see all accounts."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当前已隐藏最长额度窗口为 0% 的账号。关闭筛选后可查看全部账号。"
+          }
+        }
+      }
+    },
+    "codex.accounts.filtered_empty.title" : {
+      "comment" : "All accounts hidden by zero quota filter title",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No Visible Accounts"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没有可显示的账号"
           }
         }
       }
@@ -3487,6 +3559,18 @@
         }
       }
     },
+    "codex.accounts.menu.copy_auth_json" : {
+      "comment" : "Copy auth json",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Copy auth.json"
+          }
+        }
+      }
+    },
     "codex.accounts.menu.copy_auth_path" : {
       "comment" : "Copy auth path",
       "extractionState" : "manual",
@@ -3501,6 +3585,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "复制 Auth 路径"
+          }
+        }
+      }
+    },
+    "codex.accounts.menu.edit_auth_json" : {
+      "comment" : "Edit auth json",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Edit auth.json"
           }
         }
       }

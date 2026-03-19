@@ -2068,6 +2068,12 @@ final class ProviderUsageViewModel {
         copyText(raw)
     }
 
+    func editCodexAccountAuthJSON(id: UUID) {
+        guard let account = codexAccounts.first(where: { $0.id == id }) else { return }
+        let file = codexAuthManager.accountAuthFile(relativeAuthPath: account.relativeAuthPath)
+        NSWorkspace.shared.open(file.url)
+    }
+
     private func copyText(_ text: String) {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)

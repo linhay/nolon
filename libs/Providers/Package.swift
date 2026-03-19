@@ -52,7 +52,7 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/apple/swift-argument-parser", from: "1.3.0"),
-        .package(url: "https://github.com/linhay/SKProcessRunner", revision: "1512ca7"),
+        .package(url: "https://github.com/linhay/SKProcessRunner", from: "0.0.21"),
         .package(url: "https://github.com/steipete/SweetCookieKit", from: "0.4.0"),
         .package(url: "https://github.com/mattt/swift-toml", from: "2.0.0"),
         .package(url: "https://github.com/linhay/STFilePath.git", from: "1.3.4"),
