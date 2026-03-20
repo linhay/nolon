@@ -227,5 +227,10 @@ struct nolonApp: App {
                 }
             }
         }
+
+        MenuBarExtra("nolon", systemImage: "arrow.triangle.2.circlepath.circle") {
+            CodexQuickSwitchMenuBarView()
+        }
+        .menuBarExtraStyle(.window)
     }
 }
