@@ -390,6 +390,31 @@ final class ProviderUsageViewModelCLILoginTests: XCTestCase {
         XCTAssertNotNil(viewModel.cliLoginPreferredAccountId)
     }
 
+    func testBDD_GivenGatewayCardIsSelected_WhenPreparingCLILogin_ThenGatewayStopsAndSelectionClears() async throws {
+        let provider = Provider(
+            name: "Codex",
+            defaultSkillsPath: "/tmp/codex-skills",
+            workflowPath: "/tmp/codex-prompts",
+            installMethod: .symlink,
+            templateId: "codex"
+        )
+        let stoppedGatewayProviderID = LockedBox<String?>(nil)
+        let viewModel = ProviderUsageViewModel(
+            provider: provider,
+            codexGatewayStopAction: { providerID in
+                await stoppedGatewayProviderID.set(providerID)
+            }
+        )
+        let card = viewModel.createGatewayCard(name: "网关 1")
+        _ = viewModel.activateGatewayCard(cardID: try XCTUnwrap(card?.id))
+
+        try await viewModel.prepareGatewayModeForCLILoginIfNeeded()
+
+        XCTAssertNil(viewModel.gatewayCardsState.lastUsedCardID)
+        let stoppedProviderID = await stoppedGatewayProviderID.value()
+        XCTAssertEqual(stoppedProviderID, "codex")
+    }
+
     func testBDD_GivenCLILoginRunning_WhenLoginURLSheetDismisses_ThenLoginFlowCancelsImmediately() {
         let provider = Provider(
             name: "Codex",

@@ -440,17 +440,22 @@ final class NolonAccountsViewModelTests: XCTestCase {
             templateId: ProviderTemplate.codex.rawValue
         )
         let sink = UUIDSink()
+        var stoppedProviderID: String?
         let viewModel = NolonAccountsViewModel(
             settings: ProviderSettings(),
             codexAuthManager: service,
             codexActivateAction: { account, _ in
                 sink.value = account.id
+            },
+            codexGatewayStopAction: { providerID in
+                stoppedProviderID = providerID
             }
         )
 
         await viewModel.activateCodexAccount(id: account.id, for: provider)
 
         XCTAssertEqual(sink.value, account.id)
+        XCTAssertEqual(stoppedProviderID, "codex")
     }
 
     func testBDD_GivenPiAuthPayloadWithRootEmail_WhenParsing_ThenReturnsAvailableStatusWithEmail() throws {

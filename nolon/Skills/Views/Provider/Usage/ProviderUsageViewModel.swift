@@ -10,6 +10,7 @@ import UniformTypeIdentifiers
 import OSLog
 import Combine
 import NolonResourceKit
+import NolonCoreCLIKit
 @preconcurrency import STFilePath
 import STJSON
 
@@ -19,6 +20,8 @@ final class ProviderUsageViewModel {
     private static let logger = Logger(subsystem: "com.nolon", category: "ProviderUsageViewModel")
     private static var codexInitialFullRefreshProviderIDs: Set<String> = []
     private static let codexOfficialAPIBaseURL = "https://api.openai.com/v1"
+    private static let codexGatewayDefaultHost = "127.0.0.1"
+    private static let codexGatewayDefaultPort = 8080
     typealias CodexActivateAction = @MainActor @Sendable (CodexAuthAccount, Provider) async throws -> CodexAuthActivationResult
     typealias CodexDeleteAction = @MainActor @Sendable (UUID) async throws -> Void
     typealias CodexRefreshAllAction = @MainActor @Sendable ([CodexAuthAccount]) async -> Void
@@ -27,6 +30,8 @@ final class ProviderUsageViewModel {
     typealias CodexAutoSwitchAction = @MainActor @Sendable (Provider) async -> CodexAutoSwitchDecision?
     typealias CodexUsageQueryTestAction = @MainActor @Sendable (CodexHTTPUsageQueryResolvedConfiguration, Bool) async throws -> ProviderFetchResult
     typealias CodexImportConnectionTestAction = @Sendable (CodexAuthManager.CodexImportValidationResult, UsageMonitorProviderSettings) async -> ProviderAccountUsageOutcome
+    typealias CodexGatewayStartAction = @MainActor @Sendable (String, String, Int) async throws -> Void
+    typealias CodexGatewayStopAction = @MainActor @Sendable (String) async throws -> Void
     typealias CodexImportOpenPanelAction = @MainActor @Sendable () -> [URL]
     typealias CodexExportSavePanelAction = @MainActor @Sendable (UTType, String) -> URL?
     typealias CodexImportExportArchiveAction = @MainActor @Sendable ([CodexAuthManager.CodexImportValidationResult], URL) async throws -> Int
@@ -39,6 +44,7 @@ final class ProviderUsageViewModel {
     private let geminiTokenTrendFetchAction: GeminiTokenTrendFetchAction
     private let settingsStore = UsageMonitorSettingsStore.shared
     private let codexAutoSwitchSettingsStore: CodexAutoSwitchSettingsStore
+    private let codexGatewayCardsStore: CodexGatewayCardsStore
     private let codexAuthManager = CodexAuthManager()
     private let claudeAccountManager = ClaudeAccountManager()
     private let geminiAuthStore = GeminiAuthStore.shared
@@ -52,6 +58,8 @@ final class ProviderUsageViewModel {
     private let codexAutoSwitchAction: CodexAutoSwitchAction
     private let codexUsageQueryTestAction: CodexUsageQueryTestAction
     private let codexImportConnectionTestAction: CodexImportConnectionTestAction
+    private let codexGatewayStartAction: CodexGatewayStartAction
+    private let codexGatewayStopAction: CodexGatewayStopAction
     private let codexImportOpenPanelAction: CodexImportOpenPanelAction
     private let codexExportSavePanelAction: CodexExportSavePanelAction
     private let codexImportExportArchiveAction: CodexImportExportArchiveAction
@@ -95,10 +103,15 @@ final class ProviderUsageViewModel {
     var codexAccountSortOption: CodexAccountSortOption = .remainingCredits
     var codexCurrentSortDirection: CodexSortDirection = .descending
     var codexHideZeroQuotaAccounts = false
+    var codexAccountLayoutMode: CodexAccountLayoutMode = .cards
     var codexAutoSwitchConfig = CodexAutoSwitchConfig()
     var collapsedCodexSectionIDs: Set<String> = []
     var isCodexMultiSelectionEnabled = false
     var selectedCodexAccountIDs: Set<UUID> = []
+    var gatewayCardsState = CodexGatewayCardsState()
+    var isGatewayCardsSectionCollapsed = false
+    var isShowingGatewayCardPicker = false
+    var pendingGatewaySelectionAccountIDs: [UUID] = []
     var claudeAccounts: [ClaudeAccount] = []
     var activeClaudeAccountId: UUID?
     var geminiAccounts: [GeminiAuthAccount] = []
@@ -156,6 +169,7 @@ final class ProviderUsageViewModel {
     private var codexReloadPending = false
     private var codexReloadPendingRefreshUsage = false
     private var codexUsageCacheWriteCount = 0
+    private var gatewaySwitchInProgressTokens: Set<UUID> = []
     private(set) var codexDiskReloadCountForTesting = 0
     private var hasTriggeredAppearRefresh = false
     private var didStartInitialLoad = false
@@ -207,6 +221,13 @@ final class ProviderUsageViewModel {
         var id: String { rawValue }
     }
 
+    enum CodexAccountLayoutMode: String, CaseIterable, Identifiable {
+        case cards
+        case list
+
+        var id: String { rawValue }
+    }
+
     enum CodexPrimaryHeaderAction: String, CaseIterable, Identifiable {
         case refreshAll
         case login
@@ -221,6 +242,18 @@ final class ProviderUsageViewModel {
         let id: String
         let title: String?
         let items: [ProviderAccountUsageOutcome]
+    }
+
+    struct CodexGatewayMemberDisplay: Identifiable, Equatable {
+        let id: UUID
+        let title: String
+        let subtitle: String?
+    }
+
+    struct CodexGatewayCandidateSection: Identifiable, Equatable {
+        let id: String
+        let title: String
+        let items: [CodexAuthAccount]
     }
 
     enum CodexConfigEditorMode: Equatable {
@@ -351,6 +384,18 @@ final class ProviderUsageViewModel {
         isCodexMultiSelectionEnabled && !selectedCodexAccountIDs.isEmpty
     }
 
+    var gatewayCards: [CodexGatewayCard] {
+        gatewayCardsState.cards
+    }
+
+    var canAddSelectedToGatewayCard: Bool {
+        isCodexMultiSelectionEnabled && !selectedCodexAccountIDs.isEmpty && !gatewayCards.isEmpty
+    }
+
+    var hasActiveGatewayCardSelection: Bool {
+        gatewayCardsState.lastUsedCardID != nil
+    }
+
     var codexSelectedImportCandidateCount: Int {
         codexImportCandidates.filter { $0.validation.isValid && $0.isSelected }.count
     }
@@ -401,6 +446,8 @@ final class ProviderUsageViewModel {
         codexAutoSwitchAction: CodexAutoSwitchAction? = nil,
         codexUsageQueryTestAction: CodexUsageQueryTestAction? = nil,
         codexImportConnectionTestAction: CodexImportConnectionTestAction? = nil,
+        codexGatewayStartAction: CodexGatewayStartAction? = nil,
+        codexGatewayStopAction: CodexGatewayStopAction? = nil,
         codexImportOpenPanelAction: CodexImportOpenPanelAction? = nil,
         codexExportSavePanelAction: CodexExportSavePanelAction? = nil,
         codexImportExportArchiveAction: CodexImportExportArchiveAction? = nil,
@@ -409,19 +456,24 @@ final class ProviderUsageViewModel {
         postDeleteLoadAction: AsyncVoidAction? = nil,
         codexRefreshTimeoutGraceSeconds: TimeInterval = 5,
         initialSettingsOverride: UsageMonitorProviderSettings? = nil,
-        codexAutoSwitchSettingsStore: CodexAutoSwitchSettingsStore? = nil
+        codexAutoSwitchSettingsStore: CodexAutoSwitchSettingsStore? = nil,
+        codexGatewayCardsStore: CodexGatewayCardsStore? = nil
     ) {
         let tokenStore = FileTokenAccountStore(fileURL: ProviderUsagePaths.defaultTokenAccountsFileURL())
         let resolvedCodexAutoSwitchSettingsStore = codexAutoSwitchSettingsStore ?? .shared
+        let resolvedCodexGatewayCardsStore = codexGatewayCardsStore ?? .shared
         self.usageMonitor = usageMonitor ?? ProviderUsageMonitorService(tokenAccountStore: tokenStore)
         self.codexAutoSwitchSettingsStore = resolvedCodexAutoSwitchSettingsStore
+        self.codexGatewayCardsStore = resolvedCodexGatewayCardsStore
         self.provider = provider
         self.usageProvider = ProviderUsageViewModel.mapToUsageProvider(provider)
         self.codexRefreshTimeoutGraceSeconds = codexRefreshTimeoutGraceSeconds
         let initialSettings = initialSettingsOverride ?? settingsStore.settings(for: provider)
         self.settings = initialSettings
         self.codexHideZeroQuotaAccounts = initialSettings.codexHideZeroQuotaAccounts
+        self.codexAccountLayoutMode = initialSettings.codexUseListLayout ? .list : .cards
         self.codexAutoSwitchConfig = resolvedCodexAutoSwitchSettingsStore.settings(for: provider)
+        self.gatewayCardsState = resolvedCodexGatewayCardsStore.load(for: provider)
         if ProviderUsageViewModel.mapToUsageProvider(provider) == .codex {
             self.isMultiAccountEnabled = true
         } else {
@@ -452,6 +504,12 @@ final class ProviderUsageViewModel {
         }
         self.codexImportConnectionTestAction = codexImportConnectionTestAction ?? { validationResult, settings in
             await Self.testCodexImportConnectionDetached(validationResult: validationResult, settings: settings)
+        }
+        self.codexGatewayStartAction = codexGatewayStartAction ?? { providerID, host, port in
+            _ = try await NolonLiveCodexCLIService().gatewayStart(providerID: providerID, host: host, port: port)
+        }
+        self.codexGatewayStopAction = codexGatewayStopAction ?? { providerID in
+            _ = try await NolonLiveCodexCLIService().gatewayStop(providerID: providerID)
         }
         self.codexImportOpenPanelAction = codexImportOpenPanelAction ?? {
             let panel = NSOpenPanel()
@@ -557,6 +615,7 @@ final class ProviderUsageViewModel {
     func updateSettings(_ newSettings: UsageMonitorProviderSettings) {
         settings = newSettings
         codexHideZeroQuotaAccounts = newSettings.codexHideZeroQuotaAccounts
+        codexAccountLayoutMode = newSettings.codexUseListLayout ? .list : .cards
         settingsStore.update(settings: newSettings, for: provider)
     }
 
@@ -564,6 +623,14 @@ final class ProviderUsageViewModel {
         guard codexHideZeroQuotaAccounts != hidden || settings.codexHideZeroQuotaAccounts != hidden else { return }
         var updated = settings
         updated.codexHideZeroQuotaAccounts = hidden
+        updateSettings(updated)
+    }
+
+    func setCodexAccountLayoutMode(_ mode: CodexAccountLayoutMode) {
+        let useListLayout = mode == .list
+        guard codexAccountLayoutMode != mode || settings.codexUseListLayout != useListLayout else { return }
+        var updated = settings
+        updated.codexUseListLayout = useListLayout
         updateSettings(updated)
     }
 
@@ -1117,8 +1184,9 @@ final class ProviderUsageViewModel {
             currentCodexAuthHashHex = await codexAuthManager.currentAuthHashHex(for: provider)
 
             let loadedAccounts = try await codexAuthManager.loadAccounts()
-            codexAccounts = loadedAccounts
+            codexAccounts = filterGatewayVirtualCodexAccounts(loadedAccounts)
             reconcileCodexSelections()
+            reconcileGatewayCardsWithCurrentAccounts()
             codexAccountSummaries = loadCodexAccountSummaries(accounts: codexAccounts)
             activeCodexAccountId = await codexAuthManager.activeAccountId(for: provider)
             codexAccountOutcomes = await loadCachedCodexAccountOutcomes(accounts: codexAccounts)
@@ -1191,12 +1259,49 @@ final class ProviderUsageViewModel {
     }
 
     private func applyCodexAccountsForDisplay(_ accounts: [CodexAuthAccount]) async {
-        codexAccounts = accounts
+        codexAccounts = filterGatewayVirtualCodexAccounts(accounts)
         reconcileCodexSelections()
+        reconcileGatewayCardsWithCurrentAccounts()
         codexAccountSummaries = loadCodexAccountSummaries(accounts: codexAccounts)
         activeCodexAccountId = await codexAuthManager.activeAccountId(for: provider)
         codexAccountOutcomes = await loadCachedCodexAccountOutcomes(accounts: codexAccounts)
         reorderCodexAccountOutcomesForDisplay()
+    }
+
+    private func filterGatewayVirtualCodexAccounts(_ accounts: [CodexAuthAccount]) -> [CodexAuthAccount] {
+        accounts.filter { account in
+            let authFile = codexAuthManager.accountAuthFile(relativeAuthPath: account.relativeAuthPath)
+            let data = try? authFile.data()
+            return !Self.isGatewayVirtualCodexAccount(
+                relativeAuthPath: account.relativeAuthPath,
+                authData: data
+            )
+        }
+    }
+
+    static func isGatewayVirtualCodexAccount(relativeAuthPath: String, authData: Data?) -> Bool {
+        let normalizedPath = relativeAuthPath.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if normalizedPath.hasPrefix("gateway/virtual-auth/") || normalizedPath.contains("/__gateway_reply__-") {
+            return true
+        }
+        guard let authData,
+              let object = try? JSONSerialization.jsonObject(with: authData) as? [String: Any]
+        else {
+            return false
+        }
+        if let apiKey = object["OPENAI_API_KEY"] as? String {
+            let normalizedAPIKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+            if normalizedAPIKey == "nolon-gateway-virtual-api-key" {
+                return true
+            }
+        }
+        guard let nolon = object["nolon"] as? [String: Any],
+              let relay = nolon["relay"] as? [String: Any],
+              let params = relay["query_params"] as? [String: Any]
+        else {
+            return false
+        }
+        return (params["nolon_gateway_virtual"] as? String) == "1"
     }
 
     private func shouldIgnoreTemporaryFileChange(path: String) -> Bool {
@@ -1305,7 +1410,8 @@ final class ProviderUsageViewModel {
                 webTimeoutSeconds: settings.webTimeoutSeconds,
                 autoRefreshIntervalMinutes: settings.autoRefreshIntervalMinutes,
                 costWindowDays: settings.costWindowDays,
-                codexHideZeroQuotaAccounts: settings.codexHideZeroQuotaAccounts))
+                codexHideZeroQuotaAccounts: settings.codexHideZeroQuotaAccounts,
+                codexUseListLayout: settings.codexUseListLayout))
         }
     }
 
@@ -1507,6 +1613,278 @@ final class ProviderUsageViewModel {
     func isCodexAccountSelected(id: UUID?) -> Bool {
         guard let id else { return false }
         return selectedCodexAccountIDs.contains(id)
+    }
+
+    func isCodexSectionFullySelected(_ section: CodexAccountDisplaySection) -> Bool {
+        guard isCodexMultiSelectionEnabled else { return false }
+        let sectionIDs = codexSectionAccountIDs(from: section.items)
+        guard !sectionIDs.isEmpty else { return false }
+        return sectionIDs.isSubset(of: selectedCodexAccountIDs)
+    }
+
+    func toggleCodexSectionSelection(_ section: CodexAccountDisplaySection) {
+        guard isCodexMultiSelectionEnabled else { return }
+        let sectionIDs = codexSectionAccountIDs(from: section.items)
+        guard !sectionIDs.isEmpty else { return }
+        if sectionIDs.isSubset(of: selectedCodexAccountIDs) {
+            selectedCodexAccountIDs.subtract(sectionIDs)
+        } else {
+            selectedCodexAccountIDs.formUnion(sectionIDs)
+        }
+    }
+
+    private func codexSectionAccountIDs(from items: [ProviderAccountUsageOutcome]) -> Set<UUID> {
+        Set(items.compactMap { outcome in
+            guard case let .tokenAccount(account) = outcome.account else { return nil }
+            return account.id
+        })
+    }
+
+    @discardableResult
+    func createGatewayCard(name: String) -> CodexGatewayCard? {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        var state = codexGatewayCardsStore.normalized(
+            gatewayCardsState,
+            validAccountIDs: Set(codexAccounts.map(\.id))
+        )
+        let card = CodexGatewayCard(name: trimmed)
+        state.cards.append(card)
+        state.lastUsedCardID = card.id
+        updateGatewayCardsState(state)
+        return card
+    }
+
+    func renameGatewayCard(cardID: UUID, name: String) {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        var state = codexGatewayCardsStore.normalized(
+            gatewayCardsState,
+            validAccountIDs: Set(codexAccounts.map(\.id))
+        )
+        guard let index = state.cards.firstIndex(where: { $0.id == cardID }) else { return }
+        guard state.cards[index].name != trimmed else { return }
+        state.cards[index].name = trimmed
+        state.cards[index].updatedAt = Date()
+        updateGatewayCardsState(state)
+    }
+
+    func deleteGatewayCard(cardID: UUID) {
+        var state = codexGatewayCardsStore.normalized(
+            gatewayCardsState,
+            validAccountIDs: Set(codexAccounts.map(\.id))
+        )
+        let originalCount = state.cards.count
+        state.cards.removeAll { $0.id == cardID }
+        guard state.cards.count != originalCount else { return }
+        if state.lastUsedCardID == cardID {
+            state.lastUsedCardID = nil
+        }
+        updateGatewayCardsState(state)
+    }
+
+    func addAccountToGatewayCard(accountID: UUID, cardID: UUID) {
+        addAccountsToGatewayCard(accountIDs: [accountID], cardID: cardID)
+    }
+
+    func addAccountsToGatewayCard(accountIDs: [UUID], cardID: UUID) {
+        let validAccountIDs = Set(codexAccounts.map(\.id))
+        let uniqueValidTargets = accountIDs.filter { validAccountIDs.contains($0) }
+        guard !uniqueValidTargets.isEmpty else { return }
+
+        var state = codexGatewayCardsStore.normalized(
+            gatewayCardsState,
+            validAccountIDs: validAccountIDs
+        )
+        guard let index = state.cards.firstIndex(where: { $0.id == cardID }) else { return }
+
+        var mergedMembers = state.cards[index].memberAccountIDs
+        for id in uniqueValidTargets where !mergedMembers.contains(id) {
+            mergedMembers.append(id)
+        }
+
+        guard mergedMembers != state.cards[index].memberAccountIDs else {
+            state.lastUsedCardID = cardID
+            updateGatewayCardsState(state)
+            return
+        }
+
+        state.cards[index].memberAccountIDs = mergedMembers
+        state.cards[index].updatedAt = Date()
+        state.lastUsedCardID = cardID
+        updateGatewayCardsState(state)
+    }
+
+    func removeAccountFromGatewayCard(accountID: UUID, cardID: UUID) {
+        var state = codexGatewayCardsStore.normalized(
+            gatewayCardsState,
+            validAccountIDs: Set(codexAccounts.map(\.id))
+        )
+        guard let index = state.cards.firstIndex(where: { $0.id == cardID }) else { return }
+        let originalCount = state.cards[index].memberAccountIDs.count
+        state.cards[index].memberAccountIDs.removeAll { $0 == accountID }
+        guard state.cards[index].memberAccountIDs.count != originalCount else { return }
+        state.cards[index].updatedAt = Date()
+        updateGatewayCardsState(state)
+    }
+
+    @discardableResult
+    func activateGatewayCard(cardID: UUID) -> Bool {
+        var state = codexGatewayCardsStore.normalized(
+            gatewayCardsState,
+            validAccountIDs: Set(codexAccounts.map(\.id))
+        )
+        guard let index = state.cards.firstIndex(where: { $0.id == cardID }) else { return false }
+        let shouldPromptAddAccounts = state.cards[index].memberAccountIDs.isEmpty
+        state.lastUsedCardID = cardID
+        updateGatewayCardsState(state)
+        return shouldPromptAddAccounts
+    }
+
+    func startGatewayForCardSelection(cardID: UUID) async {
+        guard usageProvider == .codex else { return }
+        var normalizedState = codexGatewayCardsStore.normalized(
+            gatewayCardsState,
+            validAccountIDs: Set(codexAccounts.map(\.id))
+        )
+        guard let card = normalizedState.cards.first(where: { $0.id == cardID }) else { return }
+        if normalizedState.lastUsedCardID != cardID {
+            normalizedState.lastUsedCardID = cardID
+            updateGatewayCardsState(normalizedState)
+        }
+        guard !card.memberAccountIDs.isEmpty else { return }
+        guard let gatewayProviderID = resolvedGatewayProviderIDForCLI() else { return }
+
+        await withGatewaySwitchInProgress {
+            do {
+                try await codexGatewayStartAction(
+                    gatewayProviderID,
+                    Self.codexGatewayDefaultHost,
+                    Self.codexGatewayDefaultPort
+                )
+                await ensureGatewayVirtualAccountActivatedForCurrentProviderIfNeeded()
+                selectedCodexAccountIDs.removeAll()
+                codexAuthReloadSignal.send()
+            } catch let cliError as NolonCoreCLIError {
+                guard gatewayCardsState.lastUsedCardID == cardID else { return }
+                if case let .domainFailed(code, _) = cliError, code == "codex_gateway_already_running" {
+                    do {
+                        try await codexGatewayStopAction(gatewayProviderID)
+                        try await codexGatewayStartAction(
+                            gatewayProviderID,
+                            Self.codexGatewayDefaultHost,
+                            Self.codexGatewayDefaultPort
+                        )
+                        await ensureGatewayVirtualAccountActivatedForCurrentProviderIfNeeded()
+                        selectedCodexAccountIDs.removeAll()
+                        codexAuthReloadSignal.send()
+                        return
+                    } catch {
+                        alertTitle = NSLocalizedString("codex.gateway.cards.title", value: "网关卡片", comment: "Gateway cards section title")
+                        alertMessage = Self.errorSummaryText(error: error, maxLength: 220)
+                        return
+                    }
+                }
+                alertTitle = NSLocalizedString("codex.gateway.cards.title", value: "网关卡片", comment: "Gateway cards section title")
+                alertMessage = Self.errorSummaryText(error: cliError, maxLength: 220)
+            } catch {
+                guard gatewayCardsState.lastUsedCardID == cardID else { return }
+                alertTitle = NSLocalizedString("codex.gateway.cards.title", value: "网关卡片", comment: "Gateway cards section title")
+                alertMessage = Self.errorSummaryText(error: error, maxLength: 220)
+            }
+        }
+    }
+
+    func clearActiveGatewayCardSelection() {
+        var state = codexGatewayCardsStore.normalized(
+            gatewayCardsState,
+            validAccountIDs: Set(codexAccounts.map(\.id))
+        )
+        guard state.lastUsedCardID != nil else { return }
+        state.lastUsedCardID = nil
+        updateGatewayCardsState(state)
+    }
+
+    func gatewayMembers(for card: CodexGatewayCard) -> [CodexGatewayMemberDisplay] {
+        let accountByID = Dictionary(uniqueKeysWithValues: codexAccounts.map { ($0.id, $0) })
+        let summaryByID = codexAccountSummaries
+        return card.memberAccountIDs.compactMap { id in
+            guard let account = accountByID[id] else { return nil }
+            let summary = summaryByID[id]
+            let title = CodexAccountDisplayNameResolver.resolve(
+                summary: summary,
+                relativeAuthPath: account.relativeAuthPath,
+                defaultName: account.name,
+                accountID: id
+            )
+            let subtitle: String? = {
+                guard let raw = summary?.email?.trimmingCharacters(in: .whitespacesAndNewlines),
+                      !raw.isEmpty
+                else { return nil }
+                return raw == title ? nil : raw
+            }()
+            return CodexGatewayMemberDisplay(id: id, title: title, subtitle: subtitle)
+        }
+    }
+
+    func gatewayCandidateAccounts(for cardID: UUID) -> [CodexAuthAccount] {
+        guard let card = gatewayCards.first(where: { $0.id == cardID }) else {
+            return codexAccounts
+        }
+        let memberIDs = Set(card.memberAccountIDs)
+        guard !memberIDs.isEmpty else { return codexAccounts }
+        return codexAccounts.filter { !memberIDs.contains($0.id) }
+    }
+
+    func gatewayCandidateSections(for cardID: UUID) -> [CodexGatewayCandidateSection] {
+        let candidates = gatewayCandidateAccounts(for: cardID)
+        guard !candidates.isEmpty else { return [] }
+
+        var grouped: [String: [CodexAuthAccount]] = [:]
+        var titleByKey: [String: String] = [:]
+
+        for account in candidates {
+            let title = Self.codexGroupingTitle(account: account, summary: codexAccountSummaries[account.id])
+            let key = title.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+            titleByKey[key] = title
+            grouped[key, default: []].append(account)
+        }
+
+        return grouped
+            .keys
+            .sorted()
+            .map { key in
+                CodexGatewayCandidateSection(
+                    id: key,
+                    title: titleByKey[key] ?? key,
+                    items: grouped[key] ?? []
+                )
+            }
+    }
+
+    func addSelectedToGatewayCard() {
+        presentGatewayCardPicker(
+            accountIDs: selectedCodexAccountIDsInDisplayOrder()
+        )
+    }
+
+    func presentGatewayCardPicker(accountIDs: [UUID]) {
+        let valid = Set(codexAccounts.map(\.id))
+        let unique = orderedUniqueValidAccountIDs(accountIDs, validAccountIDs: valid)
+        guard !unique.isEmpty, !gatewayCards.isEmpty else { return }
+        pendingGatewaySelectionAccountIDs = unique
+        isShowingGatewayCardPicker = true
+    }
+
+    func confirmAddPendingAccounts(to cardID: UUID) {
+        addAccountsToGatewayCard(accountIDs: pendingGatewaySelectionAccountIDs, cardID: cardID)
+        pendingGatewaySelectionAccountIDs = []
+        isShowingGatewayCardPicker = false
+    }
+
+    func dismissGatewayCardPicker() {
+        pendingGatewaySelectionAccountIDs = []
+        isShowingGatewayCardPicker = false
     }
 
     func beginNewCodexAPIKeyAccount() {
@@ -2240,6 +2618,7 @@ final class ProviderUsageViewModel {
         isShowingDeleteConfirm = false
         isCodexMultiSelectionEnabled = false
         selectedCodexAccountIDs = []
+        dismissGatewayCardPicker()
         dismissCodexImportSheet()
     }
 
@@ -2994,6 +3373,7 @@ final class ProviderUsageViewModel {
             finalizeCLILoginSessionIfNeeded(sessionId: sessionId)
         }
         do {
+            try await prepareGatewayModeForCLILoginIfNeeded()
             try await runAppServerLoginFlow(sessionId: sessionId)
             return
         } catch {
@@ -3001,6 +3381,27 @@ final class ProviderUsageViewModel {
             Self.logger.error("App-server login failed without fallback. error=\(String(describing: error), privacy: .public)")
             handleAppServerLoginFailure(error)
         }
+    }
+
+    func prepareGatewayModeForCLILoginIfNeeded() async throws {
+        guard usageProvider == .codex else { return }
+        guard gatewayCardsState.lastUsedCardID != nil else { return }
+        clearActiveGatewayCardSelection()
+        guard let gatewayProviderID = resolvedGatewayProviderIDForCLI() else { return }
+
+        var capturedStopError: Error?
+        await withGatewaySwitchInProgress {
+            do {
+                try await codexGatewayStopAction(gatewayProviderID)
+            } catch {
+                capturedStopError = error
+            }
+        }
+
+        if let capturedStopError {
+            throw capturedStopError
+        }
+        codexAuthReloadSignal.send()
     }
 
     func handleAppServerLoginFailure(_ error: Error) {
@@ -3183,6 +3584,19 @@ final class ProviderUsageViewModel {
         isShowingActivateConfirm = true
     }
 
+    func activateCodexAccountImmediately(id: UUID) async {
+        guard let account = codexAccounts.first(where: { $0.id == id }) else { return }
+        pendingActivateCodexAccount = nil
+        isShowingActivateConfirm = false
+        await performCodexActivation(account)
+    }
+
+    func shouldActivateCodexAccountOnTap(id: UUID, hasActiveGatewayCardSelection: Bool) -> Bool {
+        guard let account = codexAccounts.first(where: { $0.id == id }) else { return false }
+        if hasActiveGatewayCardSelection { return true }
+        return !isActiveCodexAccount(account)
+    }
+
     func codexCardKind(accountID: UUID?) -> CodexAuthSummary.CardKind? {
         guard let accountID else { return nil }
         return codexAccountSummaries[accountID]?.cardKind
@@ -3222,6 +3636,43 @@ final class ProviderUsageViewModel {
         }
     }
 
+    private func orderedUniqueValidAccountIDs(_ accountIDs: [UUID], validAccountIDs: Set<UUID>) -> [UUID] {
+        var seen: Set<UUID> = []
+        var result: [UUID] = []
+        for id in accountIDs {
+            if !validAccountIDs.contains(id) { continue }
+            if seen.contains(id) { continue }
+            seen.insert(id)
+            result.append(id)
+        }
+        return result
+    }
+
+    private func selectedCodexAccountIDsInDisplayOrder() -> [UUID] {
+        codexAccounts
+            .map(\.id)
+            .filter { selectedCodexAccountIDs.contains($0) }
+    }
+
+    private func updateGatewayCardsState(_ state: CodexGatewayCardsState) {
+        let validAccountIDs = Set(codexAccounts.map(\.id))
+        let normalized = codexGatewayCardsStore.normalized(state, validAccountIDs: validAccountIDs)
+        gatewayCardsState = normalized
+        codexGatewayCardsStore.save(normalized, for: provider, validAccountIDs: validAccountIDs)
+    }
+
+    private func reconcileGatewayCardsWithCurrentAccounts() {
+        let validAccountIDs = Set(codexAccounts.map(\.id))
+        let normalized = codexGatewayCardsStore.normalized(
+            gatewayCardsState,
+            validAccountIDs: validAccountIDs
+        )
+        if gatewayCardsState != normalized {
+            gatewayCardsState = normalized
+            codexGatewayCardsStore.save(normalized, for: provider, validAccountIDs: validAccountIDs)
+        }
+    }
+
     func isCodexSectionCollapsed(_ sectionID: String) -> Bool {
         collapsedCodexSectionIDs.contains(sectionID)
     }
@@ -3232,6 +3683,10 @@ final class ProviderUsageViewModel {
         } else {
             collapsedCodexSectionIDs.insert(sectionID)
         }
+    }
+
+    func toggleGatewayCardsSectionCollapsed() {
+        isGatewayCardsSectionCollapsed.toggle()
     }
 
     func selectCodexSortOption(_ option: CodexAccountSortOption) {
@@ -3302,7 +3757,15 @@ final class ProviderUsageViewModel {
 
     func confirmActivate() async {
         guard let account = pendingActivateCodexAccount else { return }
+        await performCodexActivation(account)
+    }
+
+    private func performCodexActivation(_ account: CodexAuthAccount) async {
         do {
+            clearActiveGatewayCardSelection()
+            if let gatewayProviderID = resolvedGatewayProviderIDForCLI() {
+                try await codexGatewayStopAction(gatewayProviderID)
+            }
             let activation = try await codexActivateAction(account, provider)
             if let runtimeError = activation.runtimeErrorDescription {
                 Self.logger.error("Codex runtime switch after activation failed: \(runtimeError, privacy: .public)")
@@ -3317,6 +3780,11 @@ final class ProviderUsageViewModel {
             alertTitle = NSLocalizedString("codex.accounts.title", value: "Accounts", comment: "Codex accounts title")
             alertMessage = NSLocalizedString("codex.accounts.error.activate", value: "Failed to activate this account.", comment: "Error message")
         }
+    }
+
+    private func resolvedGatewayProviderIDForCLI() -> String? {
+        guard usageProvider == .codex else { return nil }
+        return "codex"
     }
 
     func confirmDeleteCodexAccount() async {
@@ -3704,6 +4172,10 @@ final class ProviderUsageViewModel {
         let authFolderPath = codexAuthManager.nolonCodexAuthFolder().url.standardizedFileURL.path
         let isAuthFolderChange = path == authFolderPath || path.hasPrefix(authFolderPath + "/")
         if isAuthFolderChange {
+            if !gatewaySwitchInProgressTokens.isEmpty {
+                Self.logger.debug("Ignoring auth change during gateway switch. kind=\(String(describing: kind), privacy: .public) path=\(path, privacy: .public)")
+                return true
+            }
             if codexUsageCacheWriteCount > 0 {
                 Self.logger.debug("Ignoring auth change during cache write. kind=\(String(describing: kind), privacy: .public) path=\(path, privacy: .public)")
                 return true
@@ -3715,6 +4187,35 @@ final class ProviderUsageViewModel {
         }
 
         return false
+    }
+
+    private func withGatewaySwitchInProgress(_ operation: @MainActor () async -> Void) async {
+        let token = UUID()
+        gatewaySwitchInProgressTokens.insert(token)
+        defer { gatewaySwitchInProgressTokens.remove(token) }
+        await operation()
+    }
+
+    private func ensureGatewayVirtualAccountActivatedForCurrentProviderIfNeeded() async {
+        guard let gatewayProviderID = resolvedGatewayProviderIDForCLI() else {
+            return
+        }
+        let virtual: CodexAuthAccount?
+        if let dedicatedVirtual = await codexAuthManager.gatewayVirtualAccount(providerID: gatewayProviderID) {
+            virtual = dedicatedVirtual
+        } else {
+            let accounts = (try? await codexAuthManager.loadAccounts()) ?? []
+            virtual = accounts.first(where: { account in
+                let authFile = codexAuthManager.accountAuthFile(relativeAuthPath: account.relativeAuthPath)
+                let data = try? authFile.data()
+                return Self.isGatewayVirtualCodexAccount(
+                    relativeAuthPath: account.relativeAuthPath,
+                    authData: data
+                )
+            })
+        }
+        guard let virtual else { return }
+        try? await codexAuthManager.activateAccountAndMarkActive(virtual, for: provider)
     }
 
     private func updateCodexOutcome(_ outcome: ProviderAccountUsageOutcome, for account: CodexAuthAccount) {

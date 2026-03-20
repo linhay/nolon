@@ -83,53 +83,88 @@ struct AccountSummaryCard<Content: View>: View {
             .overlay(borderShape)
             .overlay(alignment: .topTrailing) {
                 if presentation.showsSelectionBadge {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.title3)
-                        .foregroundStyle(DesignSystem.Colors.primary)
-                        .padding(10)
+                    selectionBadge
                 }
             }
             .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusL, style: .continuous))
             .contentShape(RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusL, style: .continuous))
+            .animation(DesignSystem.Animations.standard, value: presentation.selectionStyle)
     }
 
     private var backgroundShape: some View {
         RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusL, style: .continuous)
             .fill(backgroundColor)
+            .shadow(
+                color: presentation.selectionStyle == .active ? DesignSystem.Colors.primary.opacity(0.12) : Color.clear,
+                radius: 8, x: 0, y: 4
+            )
     }
 
     private var borderShape: some View {
         RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusL, style: .continuous)
             .strokeBorder(borderColor, style: borderStyle)
     }
+    
+    private var selectionBadge: some View {
+        Image(systemName: "checkmark.circle.fill")
+            .font(.system(size: 18, weight: .bold))
+            .foregroundStyle(DesignSystem.Colors.primary)
+            .background(Circle().fill(Color.white))
+            .padding(10)
+            .transition(.scale.combined(with: .opacity))
+    }
 
     private var backgroundColor: Color {
         switch presentation.selectionStyle {
         case .neutral:
             return DesignSystem.Colors.Background.elevated
-        case .active:
-            return DesignSystem.Colors.primary.opacity(0.16)
-        case .pending:
-            return DesignSystem.Colors.primary.opacity(0.1)
-        case .selected:
-            return DesignSystem.Colors.primary.opacity(0.14)
+        case .active, .pending, .selected:
+            return DesignSystem.Colors.primary.opacity(Self.backgroundOpacity(for: presentation.selectionStyle))
         }
     }
 
     private var borderColor: Color {
         switch presentation.selectionStyle {
         case .neutral:
-            return DesignSystem.Colors.Component.border.opacity(0.6)
-        case .active, .pending, .selected:
+            return DesignSystem.Colors.Component.border.opacity(0.5)
+        case .active:
             return DesignSystem.Colors.primary
+        case .pending:
+            return DesignSystem.Colors.primary.opacity(0.6)
+        case .selected:
+            return DesignSystem.Colors.primary.opacity(0.8)
         }
     }
 
     private var borderStyle: StrokeStyle {
-        StrokeStyle(
-            lineWidth: presentation.selectionStyle == .neutral ? 1 : 2,
-            dash: presentation.selectionStyle == .pending ? [6, 4] : []
+        return StrokeStyle(
+            lineWidth: Self.borderLineWidth(for: presentation.selectionStyle),
+            dash: Self.borderDash(for: presentation.selectionStyle)
         )
+    }
+    
+    static func backgroundOpacity(for selectionStyle: AccountCardSelectionStyle) -> Double {
+        switch selectionStyle {
+        case .neutral: return 0
+        case .active: return 0.08
+        case .pending: return 0.04
+        case .selected: return 0.06
+        }
+    }
+    
+    static func borderLineWidth(for selectionStyle: AccountCardSelectionStyle) -> CGFloat {
+        switch selectionStyle {
+        case .active: return 2.0
+        case .selected: return 1.5
+        default: return 1.0
+        }
+    }
+    
+    static func borderDash(for selectionStyle: AccountCardSelectionStyle) -> [CGFloat] {
+        switch selectionStyle {
+        case .pending: return [5, 4]
+        default: return []
+        }
     }
 }
 

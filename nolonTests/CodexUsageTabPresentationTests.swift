@@ -60,6 +60,25 @@ final class CodexUsageTabPresentationTests: XCTestCase {
         XCTAssertEqual(actions, [.refreshAll, .login, .importAuth, .editConfig, .validateConfig])
     }
 
+    func testBDD_GivenCodexHeaderActions_WhenResolvingVisibleActions_ThenShowsRefreshAndLoginInTopBar() {
+        let visibleActions = ProviderUsageView.visibleCodexPrimaryHeaderActions(
+            from: [.refreshAll, .login, .importAuth],
+            isCodexMultiSelectionEnabled: false
+        )
+
+        XCTAssertEqual(visibleActions, [.refreshAll, .login])
+    }
+
+    func testBDD_GivenCodexAccountActivationState_WhenResolvingContextMenuPolicy_ThenOnlyInactiveShowsActivateAction() {
+        XCTAssertTrue(ProviderUsageView.shouldShowActivateAccountContextAction(isActiveAccount: false))
+        XCTAssertFalse(ProviderUsageView.shouldShowActivateAccountContextAction(isActiveAccount: true))
+    }
+
+    func testBDD_GivenGatewayActivationState_WhenResolvingContextMenuPolicy_ThenOnlyInactiveShowsActivateAction() {
+        XCTAssertTrue(ProviderUsageView.shouldShowActivateGatewayContextAction(isActiveGateway: false))
+        XCTAssertFalse(ProviderUsageView.shouldShowActivateGatewayContextAction(isActiveGateway: true))
+    }
+
     func testBDD_GivenNewRelayMode_WhenResolvingConfigPresentation_ThenSubtitleAndPrimaryActionGuideMinimalSetup() {
         let subtitle = ProviderUsageViewModel.codexConfigEditorSubtitle(for: .newRelay)
         let actionTitle = ProviderUsageViewModel.codexConfigEditorPrimaryActionTitle(for: .newRelay)
@@ -1124,6 +1143,47 @@ final class CodexUsageTabPresentationTests: XCTestCase {
 
         XCTAssertTrue(viewModel.codexHideZeroQuotaAccounts)
         XCTAssertTrue(viewModel.settings.codexHideZeroQuotaAccounts)
+    }
+
+    func testBDD_GivenCodexInitialSettingsOverride_WhenInitializingViewModel_ThenLayoutModeFollowsSettings() {
+        let viewModel = ProviderUsageViewModel(
+            provider: Self.makeCodexProvider(),
+            initialSettingsOverride: UsageMonitorProviderSettings(
+                sourceMode: .auto,
+                includeCredits: false,
+                webTimeoutSeconds: 30,
+                autoRefreshIntervalMinutes: 0,
+                costWindowDays: 30,
+                codexHideZeroQuotaAccounts: false,
+                codexUseListLayout: true
+            )
+        )
+
+        XCTAssertEqual(viewModel.codexAccountLayoutMode, .list)
+        XCTAssertTrue(viewModel.settings.codexUseListLayout)
+    }
+
+    func testBDD_GivenCodexUsageViewModel_WhenSwitchingLayoutMode_ThenSettingsAreUpdated() {
+        let viewModel = ProviderUsageViewModel(
+            provider: Self.makeCodexProvider(),
+            initialSettingsOverride: UsageMonitorProviderSettings(
+                sourceMode: .auto,
+                includeCredits: false,
+                webTimeoutSeconds: 30,
+                autoRefreshIntervalMinutes: 0,
+                costWindowDays: 30,
+                codexHideZeroQuotaAccounts: false,
+                codexUseListLayout: false
+            )
+        )
+
+        viewModel.setCodexAccountLayoutMode(.list)
+        XCTAssertEqual(viewModel.codexAccountLayoutMode, .list)
+        XCTAssertTrue(viewModel.settings.codexUseListLayout)
+
+        viewModel.setCodexAccountLayoutMode(.cards)
+        XCTAssertEqual(viewModel.codexAccountLayoutMode, .cards)
+        XCTAssertFalse(viewModel.settings.codexUseListLayout)
     }
 
     func testBDD_GivenCodexAutoSwitchSettingsOverride_WhenInitializingViewModel_ThenAutoSwitchConfigFollowsStore() {

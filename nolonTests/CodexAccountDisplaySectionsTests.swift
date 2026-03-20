@@ -2,6 +2,7 @@ import XCTest
 import ProviderCatalog
 import ProviderUsage
 import CodexBarProviderCatalog
+import NolonCoreCLIKit
 @testable import nolon
 
 @MainActor
@@ -375,6 +376,16 @@ final class CodexAccountDisplaySectionsTests: XCTestCase {
         XCTAssertFalse(viewModel.isCodexSectionCollapsed("OpenAI"))
     }
 
+    func testBDD_GivenGatewayCardsSection_WhenTogglingCollapse_ThenExpandedStateFlips() {
+        let viewModel = ProviderUsageViewModel(provider: Self.makeCodexProvider())
+
+        XCTAssertFalse(viewModel.isGatewayCardsSectionCollapsed)
+        viewModel.toggleGatewayCardsSectionCollapsed()
+        XCTAssertTrue(viewModel.isGatewayCardsSectionCollapsed)
+        viewModel.toggleGatewayCardsSectionCollapsed()
+        XCTAssertFalse(viewModel.isGatewayCardsSectionCollapsed)
+    }
+
     func testBDD_GivenCodexMultiSelectionMode_WhenToggledOff_ThenSelectionsAreCleared() {
         let viewModel = ProviderUsageViewModel(provider: Self.makeCodexProvider())
         let id = UUID()
@@ -408,6 +419,75 @@ final class CodexAccountDisplaySectionsTests: XCTestCase {
 
         XCTAssertEqual(viewModel.codexSelectedAccountCount, 0)
         XCTAssertFalse(viewModel.canExportSelectedCodexAccounts)
+    }
+
+    func testBDD_GivenCodexSectionInMultiSelection_WhenTogglingSelectAll_ThenSelectsAllAccountsInSection() {
+        let viewModel = ProviderUsageViewModel(provider: Self.makeCodexProvider())
+        let first = CodexAuthAccount(id: UUID(), name: "A", createdAt: .distantPast, relativeAuthPath: "auth/a.json")
+        let second = CodexAuthAccount(id: UUID(), name: "B", createdAt: .distantPast, relativeAuthPath: "auth/b.json")
+        let third = CodexAuthAccount(id: UUID(), name: "C", createdAt: .distantPast, relativeAuthPath: "auth/c.json")
+        viewModel.codexAccounts = [first, second, third]
+        viewModel.codexAccountOutcomes = [
+            Self.makeOutcome(account: first, label: "A", remaining: 80),
+            Self.makeOutcome(account: second, label: "B", remaining: 70),
+            Self.makeOutcome(account: third, label: "C", remaining: 60),
+        ]
+        viewModel.codexAccountGroupingOption = .none
+        viewModel.setCodexMultiSelectionEnabled(true)
+
+        let section = try! XCTUnwrap(viewModel.codexAccountDisplaySections.first)
+        XCTAssertFalse(viewModel.isCodexSectionFullySelected(section))
+
+        viewModel.toggleCodexSectionSelection(section)
+
+        XCTAssertEqual(viewModel.selectedCodexAccountIDs, Set([first.id, second.id, third.id]))
+        XCTAssertTrue(viewModel.isCodexSectionFullySelected(section))
+    }
+
+    func testBDD_GivenCodexSectionAlreadyFullySelected_WhenTogglingSelectAll_ThenClearsSectionSelection() {
+        let viewModel = ProviderUsageViewModel(provider: Self.makeCodexProvider())
+        let first = CodexAuthAccount(id: UUID(), name: "A", createdAt: .distantPast, relativeAuthPath: "auth/a.json")
+        let second = CodexAuthAccount(id: UUID(), name: "B", createdAt: .distantPast, relativeAuthPath: "auth/b.json")
+        viewModel.codexAccounts = [first, second]
+        viewModel.codexAccountOutcomes = [
+            Self.makeOutcome(account: first, label: "A", remaining: 80),
+            Self.makeOutcome(account: second, label: "B", remaining: 70),
+        ]
+        viewModel.setCodexMultiSelectionEnabled(true)
+
+        let section = ProviderUsageViewModel.CodexAccountDisplaySection(
+            id: "all",
+            title: "All",
+            items: viewModel.codexAccountOutcomes
+        )
+        viewModel.selectedCodexAccountIDs = Set([first.id, second.id])
+        XCTAssertTrue(viewModel.isCodexSectionFullySelected(section))
+
+        viewModel.toggleCodexSectionSelection(section)
+
+        XCTAssertTrue(viewModel.selectedCodexAccountIDs.isEmpty)
+        XCTAssertFalse(viewModel.isCodexSectionFullySelected(section))
+    }
+
+    func testBDD_GivenMultipleSections_WhenSelectingOneSection_ThenOtherSectionSelectionRemainsUnchanged() {
+        let viewModel = ProviderUsageViewModel(provider: Self.makeCodexProvider())
+        let first = CodexAuthAccount(id: UUID(), name: "A", createdAt: .distantPast, relativeAuthPath: "auth/a.json")
+        let second = CodexAuthAccount(id: UUID(), name: "B", createdAt: .distantPast, relativeAuthPath: "auth/b.json")
+        let third = CodexAuthAccount(id: UUID(), name: "C", createdAt: .distantPast, relativeAuthPath: "auth/c.json")
+        let firstOutcome = Self.makeOutcome(account: first, label: "A", remaining: 80)
+        let secondOutcome = Self.makeOutcome(account: second, label: "B", remaining: 70)
+        viewModel.setCodexMultiSelectionEnabled(true)
+        viewModel.selectedCodexAccountIDs = [third.id]
+
+        let firstSection = ProviderUsageViewModel.CodexAccountDisplaySection(
+            id: "first",
+            title: "First",
+            items: [firstOutcome, secondOutcome]
+        )
+
+        viewModel.toggleCodexSectionSelection(firstSection)
+
+        XCTAssertEqual(viewModel.selectedCodexAccountIDs, Set([first.id, second.id, third.id]))
     }
 
     func testBDD_GivenImportCandidates_WhenSelectingAllAndClearing_ThenSelectionCountTracksValidItems() {
@@ -524,6 +604,478 @@ final class CodexAccountDisplaySectionsTests: XCTestCase {
         viewModel.setCodexImportCandidatesSelected(false, sourceGroupID: "group-a")
 
         XCTAssertEqual(viewModel.codexSelectedImportCandidateCount, 0)
+    }
+
+    func testBDD_GivenGatewayCard_WhenAddingSingleAccount_ThenMemberAppearsWithoutDuplicates() {
+        let viewModel = ProviderUsageViewModel(provider: Self.makeCodexProvider())
+        let account = CodexAuthAccount(
+            id: UUID(),
+            name: "A",
+            createdAt: .distantPast,
+            relativeAuthPath: "auth/a.json"
+        )
+        viewModel.codexAccounts = [account]
+        let card = viewModel.createGatewayCard(name: "网关 A")
+
+        XCTAssertNotNil(card)
+        let cardID = try! XCTUnwrap(card?.id)
+
+        viewModel.addAccountToGatewayCard(accountID: account.id, cardID: cardID)
+        viewModel.addAccountToGatewayCard(accountID: account.id, cardID: cardID)
+
+        let updated = viewModel.gatewayCards.first(where: { $0.id == cardID })
+        XCTAssertEqual(updated?.memberAccountIDs, [account.id])
+    }
+
+    func testBDD_GivenGatewayCardWithMembers_WhenSelectingCard_ThenCardBecomesActiveAndNoAutoPicker() {
+        let viewModel = ProviderUsageViewModel(provider: Self.makeCodexProvider())
+        let account = CodexAuthAccount(id: UUID(), name: "A", createdAt: .distantPast, relativeAuthPath: "auth/a.json")
+        viewModel.codexAccounts = [account]
+        let card = try! XCTUnwrap(viewModel.createGatewayCard(name: "网关激活"))
+        viewModel.addAccountToGatewayCard(accountID: account.id, cardID: card.id)
+        viewModel.gatewayCardsState.lastUsedCardID = nil
+
+        let shouldPromptAdd = viewModel.activateGatewayCard(cardID: card.id)
+
+        XCTAssertFalse(shouldPromptAdd)
+        XCTAssertEqual(viewModel.gatewayCardsState.lastUsedCardID, card.id)
+    }
+
+    func testBDD_GivenEmptyGatewayCard_WhenSelectingCard_ThenCardBecomesActiveAndAutoPickerIsNeeded() {
+        let viewModel = ProviderUsageViewModel(provider: Self.makeCodexProvider())
+        let card = try! XCTUnwrap(viewModel.createGatewayCard(name: "空网关激活"))
+        viewModel.gatewayCardsState.lastUsedCardID = nil
+
+        let shouldPromptAdd = viewModel.activateGatewayCard(cardID: card.id)
+
+        XCTAssertTrue(shouldPromptAdd)
+        XCTAssertEqual(viewModel.gatewayCardsState.lastUsedCardID, card.id)
+    }
+
+    func testBDD_GivenGatewayCardSelected_WhenClearingGatewaySelection_ThenNoGatewayCardIsSelected() {
+        let viewModel = ProviderUsageViewModel(provider: Self.makeCodexProvider())
+        let card = try! XCTUnwrap(viewModel.createGatewayCard(name: "网关互斥"))
+        viewModel.gatewayCardsState.lastUsedCardID = card.id
+
+        viewModel.clearActiveGatewayCardSelection()
+
+        XCTAssertNil(viewModel.gatewayCardsState.lastUsedCardID)
+        XCTAssertFalse(viewModel.hasActiveGatewayCardSelection)
+    }
+
+    func testBDD_GivenGatewayCardWithMembers_WhenStartingGatewayFromSelection_ThenInvokesGatewayStartAction() async {
+        var received: (providerID: String, host: String, port: Int)?
+        let viewModel = ProviderUsageViewModel(
+            provider: Self.makeCodexProvider(),
+            codexGatewayStartAction: { providerID, host, port in
+                received = (providerID, host, port)
+            }
+        )
+        let account = CodexAuthAccount(id: UUID(), name: "A", createdAt: .distantPast, relativeAuthPath: "auth/a.json")
+        viewModel.codexAccounts = [account]
+        let card = try! XCTUnwrap(viewModel.createGatewayCard(name: "网关启动"))
+        viewModel.addAccountToGatewayCard(accountID: account.id, cardID: card.id)
+
+        await viewModel.startGatewayForCardSelection(cardID: card.id)
+
+        XCTAssertEqual(received?.providerID, "codex")
+        XCTAssertEqual(received?.host, "127.0.0.1")
+        XCTAssertEqual(received?.port, 8080)
+    }
+
+    func testBDD_GivenCodexXcodeGatewayCardWithMembers_WhenStartingGatewayFromSelection_ThenFallsBackToCodexProviderID() async {
+        var receivedProviderID: String?
+        var provider = Self.makeCodexProvider()
+        provider.templateId = ProviderTemplate.codexXcode.rawValue
+        let viewModel = ProviderUsageViewModel(
+            provider: provider,
+            codexGatewayStartAction: { providerID, _, _ in
+                receivedProviderID = providerID
+            }
+        )
+        let account = CodexAuthAccount(id: UUID(), name: "Xcode", createdAt: .distantPast, relativeAuthPath: "auth/xcode.json")
+        viewModel.codexAccounts = [account]
+        let card = try! XCTUnwrap(viewModel.createGatewayCard(name: "Xcode 网关启动"))
+        viewModel.addAccountToGatewayCard(accountID: account.id, cardID: card.id)
+
+        await viewModel.startGatewayForCardSelection(cardID: card.id)
+
+        XCTAssertEqual(receivedProviderID, "codex")
+    }
+
+    func testBDD_GivenEmptyGatewayCard_WhenStartingGatewayFromSelection_ThenSkipsGatewayStartAction() async {
+        var invokeCount = 0
+        let viewModel = ProviderUsageViewModel(
+            provider: Self.makeCodexProvider(),
+            codexGatewayStartAction: { _, _, _ in
+                invokeCount += 1
+            }
+        )
+        let card = try! XCTUnwrap(viewModel.createGatewayCard(name: "空网关"))
+
+        await viewModel.startGatewayForCardSelection(cardID: card.id)
+
+        XCTAssertEqual(invokeCount, 0)
+    }
+
+    func testBDD_GivenGatewayCardNotSelected_WhenStartingGatewayFromSelection_ThenSelectsCardAndStartsGateway() async {
+        var invokeCount = 0
+        let viewModel = ProviderUsageViewModel(
+            provider: Self.makeCodexProvider(),
+            codexGatewayStartAction: { _, _, _ in
+                invokeCount += 1
+            }
+        )
+        let account = CodexAuthAccount(id: UUID(), name: "A", createdAt: .distantPast, relativeAuthPath: "auth/a.json")
+        viewModel.codexAccounts = [account]
+        let card = try! XCTUnwrap(viewModel.createGatewayCard(name: "未选中网关"))
+        viewModel.addAccountToGatewayCard(accountID: account.id, cardID: card.id)
+        viewModel.gatewayCardsState.lastUsedCardID = nil
+
+        await viewModel.startGatewayForCardSelection(cardID: card.id)
+
+        XCTAssertEqual(invokeCount, 1)
+        XCTAssertEqual(viewModel.gatewayCardsState.lastUsedCardID, card.id)
+    }
+
+    func testBDD_GivenGatewayAlreadyRunning_WhenStartingSelectedGatewayCard_ThenStopsAndRestartsGateway() async {
+        var startInvocations = 0
+        var stopInvocations = 0
+        let viewModel = ProviderUsageViewModel(
+            provider: Self.makeCodexProvider(),
+            codexGatewayStartAction: { _, _, _ in
+                startInvocations += 1
+                if startInvocations == 1 {
+                    throw NolonCoreCLIError.domainFailed(
+                        code: "codex_gateway_already_running",
+                        message: "already running"
+                    )
+                }
+            },
+            codexGatewayStopAction: { _ in
+                stopInvocations += 1
+            }
+        )
+        let account = CodexAuthAccount(id: UUID(), name: "A", createdAt: .distantPast, relativeAuthPath: "auth/a.json")
+        viewModel.codexAccounts = [account]
+        let card = try! XCTUnwrap(viewModel.createGatewayCard(name: "重启网关"))
+        viewModel.addAccountToGatewayCard(accountID: account.id, cardID: card.id)
+
+        await viewModel.startGatewayForCardSelection(cardID: card.id)
+
+        XCTAssertEqual(startInvocations, 2)
+        XCTAssertEqual(stopInvocations, 1)
+        XCTAssertNil(viewModel.alertMessage)
+    }
+
+    func testBDD_GivenGatewayCardSelected_WhenConfirmingAccountActivation_ThenGatewaySelectionIsCleared() async {
+        let account = CodexAuthAccount(id: UUID(), name: "A", createdAt: .distantPast, relativeAuthPath: "auth/a.json")
+        var stoppedProviderID: String?
+        let viewModel = ProviderUsageViewModel(
+            provider: Self.makeCodexProvider(),
+            codexActivateAction: { _, _ in
+                CodexAuthActivationResult(runtimeSwitched: false, runtimeErrorDescription: nil)
+            },
+            postActivationLoadAction: {},
+            codexGatewayStopAction: { providerID in
+                stoppedProviderID = providerID
+            }
+        )
+        viewModel.codexAccounts = [account]
+        let card = try! XCTUnwrap(viewModel.createGatewayCard(name: "网关互斥激活"))
+        viewModel.gatewayCardsState.lastUsedCardID = card.id
+        viewModel.requestActivateCodexAccount(id: account.id)
+
+        await viewModel.confirmActivate()
+
+        XCTAssertNil(viewModel.gatewayCardsState.lastUsedCardID)
+        XCTAssertFalse(viewModel.hasActiveGatewayCardSelection)
+        XCTAssertEqual(stoppedProviderID, "codex")
+    }
+
+    func testBDD_GivenGatewayCardSelected_WhenActivatingAccountImmediately_ThenSkipsConfirmAndClearsGatewaySelection() async {
+        let account = CodexAuthAccount(id: UUID(), name: "A", createdAt: .distantPast, relativeAuthPath: "auth/a.json")
+        var stoppedProviderID: String?
+        var activationCount = 0
+        let viewModel = ProviderUsageViewModel(
+            provider: Self.makeCodexProvider(),
+            codexActivateAction: { _, _ in
+                activationCount += 1
+                return CodexAuthActivationResult(runtimeSwitched: false, runtimeErrorDescription: nil)
+            },
+            postActivationLoadAction: {},
+            codexGatewayStopAction: { providerID in
+                stoppedProviderID = providerID
+            }
+        )
+        viewModel.codexAccounts = [account]
+        let card = try! XCTUnwrap(viewModel.createGatewayCard(name: "右键直切"))
+        viewModel.gatewayCardsState.lastUsedCardID = card.id
+
+        await viewModel.activateCodexAccountImmediately(id: account.id)
+
+        XCTAssertEqual(activationCount, 1)
+        XCTAssertNil(viewModel.pendingActivateCodexAccount)
+        XCTAssertFalse(viewModel.isShowingActivateConfirm)
+        XCTAssertNil(viewModel.gatewayCardsState.lastUsedCardID)
+        XCTAssertFalse(viewModel.hasActiveGatewayCardSelection)
+        XCTAssertEqual(stoppedProviderID, "codex")
+    }
+
+    func testBDD_GivenActiveCodexAccountAndNoGatewaySelection_WhenTappingCard_ThenActivationIsSkipped() {
+        let account = CodexAuthAccount(id: UUID(), name: "A", createdAt: .distantPast, relativeAuthPath: "auth/a.json")
+        let viewModel = ProviderUsageViewModel(provider: Self.makeCodexProvider())
+        viewModel.codexAccounts = [account]
+        viewModel.activeCodexAccountId = account.id
+
+        let shouldActivate = viewModel.shouldActivateCodexAccountOnTap(
+            id: account.id,
+            hasActiveGatewayCardSelection: false
+        )
+
+        XCTAssertFalse(shouldActivate)
+    }
+
+    func testBDD_GivenActiveCodexAccountAndGatewaySelection_WhenTappingCard_ThenActivationIsForcedForGatewayStop() {
+        let account = CodexAuthAccount(id: UUID(), name: "A", createdAt: .distantPast, relativeAuthPath: "auth/a.json")
+        let viewModel = ProviderUsageViewModel(provider: Self.makeCodexProvider())
+        viewModel.codexAccounts = [account]
+        viewModel.activeCodexAccountId = account.id
+        let card = try! XCTUnwrap(viewModel.createGatewayCard(name: "网关"))
+        viewModel.gatewayCardsState.lastUsedCardID = card.id
+
+        let shouldActivate = viewModel.shouldActivateCodexAccountOnTap(
+            id: account.id,
+            hasActiveGatewayCardSelection: true
+        )
+
+        XCTAssertTrue(shouldActivate)
+    }
+
+    func testBDD_GivenMultiSelectedAccounts_WhenConfirmingTargetGatewayCard_ThenAllSelectedAreAdded() {
+        let viewModel = ProviderUsageViewModel(provider: Self.makeCodexProvider())
+        let first = CodexAuthAccount(id: UUID(), name: "A", createdAt: .distantPast, relativeAuthPath: "auth/a.json")
+        let second = CodexAuthAccount(id: UUID(), name: "B", createdAt: .distantPast, relativeAuthPath: "auth/b.json")
+        viewModel.codexAccounts = [first, second]
+        let card = viewModel.createGatewayCard(name: "网关 B")
+        let cardID = try! XCTUnwrap(card?.id)
+
+        viewModel.setCodexMultiSelectionEnabled(true)
+        viewModel.selectedCodexAccountIDs = [first.id, second.id]
+        viewModel.addSelectedToGatewayCard()
+
+        XCTAssertTrue(viewModel.isShowingGatewayCardPicker)
+        XCTAssertEqual(Set(viewModel.pendingGatewaySelectionAccountIDs), Set([first.id, second.id]))
+
+        viewModel.confirmAddPendingAccounts(to: cardID)
+
+        let updated = viewModel.gatewayCards.first(where: { $0.id == cardID })
+        XCTAssertEqual(Set(updated?.memberAccountIDs ?? []), Set([first.id, second.id]))
+        XCTAssertFalse(viewModel.isShowingGatewayCardPicker)
+    }
+
+    func testBDD_GivenMultiSelectedAccountsOutOfOrder_WhenOpeningGatewayPicker_ThenPendingIDsFollowAccountOrder() {
+        let viewModel = ProviderUsageViewModel(provider: Self.makeCodexProvider())
+        let first = CodexAuthAccount(id: UUID(), name: "A", createdAt: .distantPast, relativeAuthPath: "auth/a.json")
+        let second = CodexAuthAccount(id: UUID(), name: "B", createdAt: .distantPast, relativeAuthPath: "auth/b.json")
+        let third = CodexAuthAccount(id: UUID(), name: "C", createdAt: .distantPast, relativeAuthPath: "auth/c.json")
+        viewModel.codexAccounts = [first, second, third]
+        _ = viewModel.createGatewayCard(name: "网关顺序")
+
+        viewModel.setCodexMultiSelectionEnabled(true)
+        viewModel.selectedCodexAccountIDs = [third.id, first.id]
+
+        viewModel.addSelectedToGatewayCard()
+
+        XCTAssertEqual(viewModel.pendingGatewaySelectionAccountIDs, [first.id, third.id])
+    }
+
+    func testBDD_GivenGatewayCardMembers_WhenRemovingAccount_ThenRemovedAccountDisappears() {
+        let viewModel = ProviderUsageViewModel(provider: Self.makeCodexProvider())
+        let first = CodexAuthAccount(id: UUID(), name: "A", createdAt: .distantPast, relativeAuthPath: "auth/a.json")
+        let second = CodexAuthAccount(id: UUID(), name: "B", createdAt: .distantPast, relativeAuthPath: "auth/b.json")
+        viewModel.codexAccounts = [first, second]
+        let card = viewModel.createGatewayCard(name: "网关 C")
+        let cardID = try! XCTUnwrap(card?.id)
+        viewModel.addAccountsToGatewayCard(accountIDs: [first.id, second.id], cardID: cardID)
+
+        viewModel.removeAccountFromGatewayCard(accountID: second.id, cardID: cardID)
+
+        let updated = viewModel.gatewayCards.first(where: { $0.id == cardID })
+        XCTAssertEqual(updated?.memberAccountIDs, [first.id])
+    }
+
+    func testBDD_GivenAccountListChanged_WhenAnyGatewayMutationOccurs_ThenInvalidMembersAreCleaned() {
+        let viewModel = ProviderUsageViewModel(provider: Self.makeCodexProvider())
+        let valid = CodexAuthAccount(id: UUID(), name: "A", createdAt: .distantPast, relativeAuthPath: "auth/a.json")
+        let removed = CodexAuthAccount(id: UUID(), name: "B", createdAt: .distantPast, relativeAuthPath: "auth/b.json")
+        viewModel.codexAccounts = [valid, removed]
+        let card = viewModel.createGatewayCard(name: "网关 D")
+        let cardID = try! XCTUnwrap(card?.id)
+        viewModel.addAccountsToGatewayCard(accountIDs: [valid.id, removed.id], cardID: cardID)
+
+        viewModel.codexAccounts = [valid]
+        viewModel.addAccountsToGatewayCard(accountIDs: [valid.id], cardID: cardID)
+
+        let updated = viewModel.gatewayCards.first(where: { $0.id == cardID })
+        XCTAssertEqual(updated?.memberAccountIDs, [valid.id])
+    }
+
+    func testBDD_GivenMultipleGatewayCards_WhenDeletingOne_ThenOtherCardsRemainUnchanged() {
+        let viewModel = ProviderUsageViewModel(provider: Self.makeCodexProvider())
+        let account = CodexAuthAccount(id: UUID(), name: "A", createdAt: .distantPast, relativeAuthPath: "auth/a.json")
+        viewModel.codexAccounts = [account]
+
+        let first = viewModel.createGatewayCard(name: "网关 1")
+        let second = viewModel.createGatewayCard(name: "网关 2")
+        let firstID = try! XCTUnwrap(first?.id)
+        let secondID = try! XCTUnwrap(second?.id)
+        viewModel.addAccountToGatewayCard(accountID: account.id, cardID: firstID)
+        viewModel.addAccountToGatewayCard(accountID: account.id, cardID: secondID)
+
+        viewModel.deleteGatewayCard(cardID: firstID)
+
+        XCTAssertNil(viewModel.gatewayCards.first(where: { $0.id == firstID }))
+        let remaining = viewModel.gatewayCards.first(where: { $0.id == secondID })
+        XCTAssertEqual(remaining?.memberAccountIDs, [account.id])
+    }
+
+    func testBDD_GivenGatewayCardWithExistingMembers_WhenQueryingCandidateAccounts_ThenExcludesExistingMembers() {
+        let viewModel = ProviderUsageViewModel(provider: Self.makeCodexProvider())
+        let first = CodexAuthAccount(id: UUID(), name: "A", createdAt: .distantPast, relativeAuthPath: "auth/a.json")
+        let second = CodexAuthAccount(id: UUID(), name: "B", createdAt: .distantPast, relativeAuthPath: "auth/b.json")
+        let third = CodexAuthAccount(id: UUID(), name: "C", createdAt: .distantPast, relativeAuthPath: "auth/c.json")
+        viewModel.codexAccounts = [first, second, third]
+        let card = viewModel.createGatewayCard(name: "网关 E")
+        let cardID = try! XCTUnwrap(card?.id)
+        viewModel.addAccountsToGatewayCard(accountIDs: [second.id], cardID: cardID)
+
+        let candidates = viewModel.gatewayCandidateAccounts(for: cardID)
+
+        XCTAssertEqual(candidates.map(\.id), [first.id, third.id])
+    }
+
+    func testBDD_GivenUnknownGatewayCardID_WhenQueryingCandidateAccounts_ThenReturnsAllAccounts() {
+        let viewModel = ProviderUsageViewModel(provider: Self.makeCodexProvider())
+        let first = CodexAuthAccount(id: UUID(), name: "A", createdAt: .distantPast, relativeAuthPath: "auth/a.json")
+        let second = CodexAuthAccount(id: UUID(), name: "B", createdAt: .distantPast, relativeAuthPath: "auth/b.json")
+        viewModel.codexAccounts = [first, second]
+
+        let candidates = viewModel.gatewayCandidateAccounts(for: UUID())
+
+        XCTAssertEqual(candidates.map(\.id), [first.id, second.id])
+    }
+
+    func testBDD_GivenGatewayCandidates_WhenBuildingCandidateSections_ThenContainsGroupingInfoAndKeepsOrderInEachGroup() {
+        let viewModel = ProviderUsageViewModel(provider: Self.makeCodexProvider())
+        let plus = CodexAuthAccount(id: UUID(), name: "Plus", createdAt: .distantPast, relativeAuthPath: "auth/plus.json")
+        let relayA = CodexAuthAccount(id: UUID(), name: "Relay A", createdAt: .distantPast, relativeAuthPath: "auth/relay-a.json")
+        let openAI = CodexAuthAccount(id: UUID(), name: "OpenAI", createdAt: .distantPast, relativeAuthPath: "auth/openai.json")
+        let relayB = CodexAuthAccount(id: UUID(), name: "Relay B", createdAt: .distantPast, relativeAuthPath: "auth/relay-b.json")
+        viewModel.codexAccounts = [plus, relayA, openAI, relayB]
+        viewModel.codexAccountSummaries = [
+            plus.id: CodexAuthSummary(plan: "Plus", cardKind: .chatgptAccount),
+            relayA.id: CodexAuthSummary(cardKind: .relayProfile, relayModelProvider: "relay"),
+            openAI.id: CodexAuthSummary(cardKind: .officialAPIKey),
+            relayB.id: CodexAuthSummary(cardKind: .relayProfile, relayModelProvider: "RELAY")
+        ]
+
+        let card = try! XCTUnwrap(viewModel.createGatewayCard(name: "网关分组"))
+        let sections = viewModel.gatewayCandidateSections(for: card.id)
+
+        XCTAssertEqual(Set(sections.map(\.title)), Set(["Plus", "Relay", "OpenAI"]))
+        XCTAssertEqual(
+            sections.first(where: { $0.title == "Relay" })?.items.map(\.id),
+            [relayA.id, relayB.id]
+        )
+    }
+
+    func testBDD_GivenGatewayCardHasMembers_WhenBuildingCandidateSections_ThenExistingMembersAreExcluded() {
+        let viewModel = ProviderUsageViewModel(provider: Self.makeCodexProvider())
+        let first = CodexAuthAccount(id: UUID(), name: "A", createdAt: .distantPast, relativeAuthPath: "auth/a.json")
+        let second = CodexAuthAccount(id: UUID(), name: "B", createdAt: .distantPast, relativeAuthPath: "auth/b.json")
+        viewModel.codexAccounts = [first, second]
+        viewModel.codexAccountSummaries = [
+            first.id: CodexAuthSummary(cardKind: .officialAPIKey),
+            second.id: CodexAuthSummary(plan: "Plus", cardKind: .chatgptAccount)
+        ]
+        let card = try! XCTUnwrap(viewModel.createGatewayCard(name: "网关过滤"))
+        viewModel.addAccountToGatewayCard(accountID: first.id, cardID: card.id)
+
+        let sections = viewModel.gatewayCandidateSections(for: card.id)
+
+        XCTAssertEqual(sections.flatMap(\.items).map(\.id), [second.id])
+    }
+
+    func testBDD_GivenGatewayVirtualAuthPayload_WhenCheckingVirtualAccount_ThenReturnsTrue() throws {
+        let raw = """
+        {
+          "auth_mode": "apikey",
+          "OPENAI_API_KEY": "nolon-gateway-virtual-api-key",
+          "nolon": {
+            "relay": {
+              "base_url": "http://127.0.0.1:8080",
+              "model_provider": "openai",
+              "query_params": {
+                "nolon_gateway_virtual": "1",
+                "provider_id": "codex"
+              }
+            }
+          }
+        }
+        """
+        let data = try XCTUnwrap(raw.data(using: .utf8))
+
+        let isVirtual = ProviderUsageViewModel.isGatewayVirtualCodexAccount(
+            relativeAuthPath: "auth/openai.json",
+            authData: data
+        )
+
+        XCTAssertTrue(isVirtual)
+    }
+
+    func testBDD_GivenNormalRelayAuthPayload_WhenCheckingVirtualAccount_ThenReturnsFalse() throws {
+        let raw = """
+        {
+          "auth_mode": "apikey",
+          "OPENAI_API_KEY": "normal-key",
+          "nolon": {
+            "relay": {
+              "base_url": "https://relay.example.com",
+              "model_provider": "openai",
+              "query_params": {
+                "provider_id": "codex"
+              }
+            }
+          }
+        }
+        """
+        let data = try XCTUnwrap(raw.data(using: .utf8))
+
+        let isVirtual = ProviderUsageViewModel.isGatewayVirtualCodexAccount(
+            relativeAuthPath: "auth/my-relay.json",
+            authData: data
+        )
+
+        XCTAssertFalse(isVirtual)
+    }
+
+    func testBDD_GivenVirtualAPIKeyWithoutMarker_WhenCheckingVirtualAccount_ThenReturnsTrue() throws {
+        let raw = """
+        {
+          "auth_mode": "apikey",
+          "OPENAI_API_KEY": "nolon-gateway-virtual-api-key",
+          "tokens": null
+        }
+        """
+        let data = try XCTUnwrap(raw.data(using: .utf8))
+
+        let isVirtual = ProviderUsageViewModel.isGatewayVirtualCodexAccount(
+            relativeAuthPath: "auth/polluted-virtual.json",
+            authData: data
+        )
+
+        XCTAssertTrue(isVirtual)
     }
 
     private static func makeCodexProvider() -> Provider {

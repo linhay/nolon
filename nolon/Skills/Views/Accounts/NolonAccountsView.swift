@@ -4,6 +4,7 @@ import Observation
 import ProviderCatalog
 import ProviderUsage
 import CodexBarProviderCatalog
+import NolonCoreCLIKit
 import STFilePath
 import NolonResourceKit
 import Shimmer
@@ -12,6 +13,7 @@ import Shimmer
 @Observable
 final class NolonAccountsViewModel {
     typealias CodexActivateAction = @Sendable (CodexAuthAccount, Provider) async throws -> Void
+    typealias CodexGatewayStopAction = @Sendable (String) async throws -> Void
     typealias CopyTextAction = @Sendable (String) -> Void
     typealias OpenURLAction = @Sendable (URL) -> Void
     typealias ProviderUsageViewModelFactory = @MainActor @Sendable (Provider) -> ProviderUsageViewModel
@@ -52,6 +54,7 @@ final class NolonAccountsViewModel {
     private let claudeAccountManager: ClaudeAccountManager
     private let geminiAuthStore: GeminiAuthStore
     private let codexActivateAction: CodexActivateAction
+    private let codexGatewayStopAction: CodexGatewayStopAction
     private let copyTextAction: CopyTextAction
     private let openURLAction: OpenURLAction
     private let providerUsageViewModelFactory: ProviderUsageViewModelFactory
@@ -75,6 +78,7 @@ final class NolonAccountsViewModel {
         claudeAccountManager: ClaudeAccountManager = ClaudeAccountManager(),
         geminiAuthStore: GeminiAuthStore = .shared,
         codexActivateAction: CodexActivateAction? = nil,
+        codexGatewayStopAction: CodexGatewayStopAction? = nil,
         copyTextAction: CopyTextAction? = nil,
         openURLAction: OpenURLAction? = nil,
         providerUsageViewModelFactory: ProviderUsageViewModelFactory? = nil
@@ -85,6 +89,9 @@ final class NolonAccountsViewModel {
         let resolvedCodexActivateAction = codexActivateAction ?? { account, provider in
             _ = try await CodexAuthActivationCoordinator.shared.activate(account: account, provider: provider)
         }
+        let resolvedCodexGatewayStopAction = codexGatewayStopAction ?? { providerID in
+            _ = try await NolonLiveCodexCLIService().gatewayStop(providerID: providerID)
+        }
 
         self.settings = settings
         self.usageMonitor = resolvedUsageMonitor
@@ -93,6 +100,7 @@ final class NolonAccountsViewModel {
         self.claudeAccountManager = claudeAccountManager
         self.geminiAuthStore = geminiAuthStore
         self.codexActivateAction = resolvedCodexActivateAction
+        self.codexGatewayStopAction = resolvedCodexGatewayStopAction
         self.copyTextAction = copyTextAction ?? { text in
             NSPasteboard.general.clearContents()
             NSPasteboard.general.setString(text, forType: .string)
@@ -219,6 +227,10 @@ final class NolonAccountsViewModel {
     func activateCodexAccount(id: UUID, for provider: Provider) async {
         do {
             let usageViewModel = providerUsageViewModel(for: provider)
+            usageViewModel.clearActiveGatewayCardSelection()
+            if let gatewayProviderID = Self.gatewayProviderID(for: provider) {
+                try? await codexGatewayStopAction(gatewayProviderID)
+            }
             _ = await usageViewModel.loadIfNeeded()
             usageViewModel.requestActivateCodexAccount(id: id)
             if usageViewModel.pendingActivateCodexAccount != nil {
@@ -230,6 +242,18 @@ final class NolonAccountsViewModel {
             }
             await refreshAsync()
         } catch {
+        }
+    }
+
+    private static func gatewayProviderID(for provider: Provider) -> String? {
+        let normalizedTemplateID = provider.templateId?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        switch normalizedTemplateID {
+        case ProviderTemplate.codex.rawValue.lowercased():
+            return "codex"
+        case ProviderTemplate.codexXcode.rawValue.lowercased(), "codex-xcode":
+            return "codex-xcode"
+        default:
+            return nil
         }
     }
 

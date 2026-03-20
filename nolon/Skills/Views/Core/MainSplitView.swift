@@ -95,6 +95,17 @@ final class MainSplitViewModel {
         // 从账号中心跳转时，直接进入详情默认技能页，不停留在中间账号 tab。
         selectedTab = .skills
     }
+
+    @MainActor
+    func openProvider(providerID: Provider.ID, tab: ProviderContentTabType) {
+        guard let provider = settings.providers.first(where: { $0.id == providerID }) else { return }
+        selectedSidebarItem = .provider(provider.id)
+        if ProviderContentTabType.availableTabs(for: provider).contains(tab) {
+            selectedTab = tab
+        } else {
+            selectedTab = .skills
+        }
+    }
     
     @MainActor
     func setup() {
@@ -664,12 +675,31 @@ final class MainSplitViewModel {
 /// Left 2: Skills list for current provider
 /// Left 3: Skill detail view
 @MainActor
-public struct MainSplitView: View {
+public struct MainSplitView: View, DebugPageLocatable {
     
     @State private var viewModel = MainSplitViewModel()
     @State private var urlSchemeHandler = URLSchemeHandler.shared
 
     public init() {}
+
+    var debugPageMarkerItems: [PageMarkerItem] {
+        var items = [PageMarkerItem(title: "Main")]
+        if viewModel.isAccountsSelected {
+            items.append(contentsOf: PageMarkerRouteResolver.accountsItems())
+            return items
+        }
+        if viewModel.isPluginManagementSelected {
+            items.append(contentsOf: PageMarkerRouteResolver.pluginManagementItems())
+            return items
+        }
+        items.append(
+            contentsOf: PageMarkerRouteResolver.providerDetailItems(
+                provider: viewModel.selectedProvider,
+                selectedTab: viewModel.selectedTab
+            )
+        )
+        return items
+    }
 
     public var body: some View {
         ZStack {
@@ -742,7 +772,7 @@ public struct MainSplitView: View {
             }
         }
         .animation(.easeInOut(duration: 0.18), value: viewModel.showingResourceCenter)
-
+        .debugPageLocator(debugPageMarkerItems)
         .sheet(isPresented: Bindable(AppCommandState.shared).showingSettings) {
             AppSettingsView()
                 .frame(minWidth: 720, minHeight: 480)
@@ -777,6 +807,14 @@ public struct MainSplitView: View {
         }
         .onChange(of: viewModel.settings.providers) { _, _ in
             viewModel.updateResourceMonitoring()
+        }
+        .onChange(of: AppCommandState.shared.pendingNavigation) { _, pendingNavigation in
+            guard let pendingNavigation else { return }
+            switch pendingNavigation {
+            case let .providerTab(providerID, tab):
+                viewModel.openProvider(providerID: providerID, tab: tab)
+            }
+            AppCommandState.shared.pendingNavigation = nil
         }
     }
 

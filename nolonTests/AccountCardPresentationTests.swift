@@ -1,4 +1,5 @@
 import XCTest
+import SwiftUI
 @testable import nolon
 
 @MainActor
@@ -56,5 +57,25 @@ final class AccountCardPresentationTests: XCTestCase {
 
         XCTAssertEqual(presentation.selectionStyle, .active)
         XCTAssertFalse(presentation.showsSelectionBadge)
+    }
+
+    func testBDD_GivenActiveAndBatchSelectedStyles_WhenResolvingCardChrome_ThenVisualTokensAreDifferent() {
+        let activeOpacity = AccountSummaryCard<EmptyView>.backgroundOpacity(for: .active)
+        let selectedOpacity = AccountSummaryCard<EmptyView>.backgroundOpacity(for: .selected)
+        XCTAssertNotEqual(activeOpacity, selectedOpacity)
+
+        let activeLineWidth = AccountSummaryCard<EmptyView>.borderLineWidth(for: .active)
+        let selectedLineWidth = AccountSummaryCard<EmptyView>.borderLineWidth(for: .selected)
+        XCTAssertNotEqual(activeLineWidth, selectedLineWidth)
+
+        // Note: New design uses solid borders for both Active and Selected states
+        // while using dashed borders only for Pending states.
+        let activeDash = AccountSummaryCard<EmptyView>.borderDash(for: .active)
+        let selectedDash = AccountSummaryCard<EmptyView>.borderDash(for: .selected)
+        XCTAssertEqual(activeDash, [])
+        XCTAssertEqual(selectedDash, [])
+        
+        let pendingDash = AccountSummaryCard<EmptyView>.borderDash(for: .pending)
+        XCTAssertFalse(pendingDash.isEmpty)
     }
 }
