@@ -962,6 +962,39 @@ struct CodexAuthManagerTests {
         #expect(existingRawAfter == existingRawBefore)
     }
 
+    @Test("Given virtual api key payload without marker, when recording CLI login snapshot, then it is still rejected")
+    func recordCLILoginSnapshotRejectsVirtualAPIKeyWithoutMarker() async throws {
+        let root = try makeTempRoot("codex-auth-record-gateway-virtual-key")
+        defer { try? root.delete() }
+
+        let manager = CodexAuthManager(rootURL: root.url)
+        let existing = try await manager.addAccount(
+            name: "existing",
+            authJSONString: #"{"email":"existing@example.com","tokens":{"id_token":"id-old","access_token":"access-old"}}"#
+        )
+        let existingRawBefore = try await manager.accountAuthFile(existing).read()
+
+        let gatewayVirtualPayload = #"""
+        {
+          "OPENAI_API_KEY": "nolon-gateway-virtual-api-key",
+          "auth_mode": "apikey",
+          "tokens": null
+        }
+        """#
+
+        await #expect(throws: CodexAuthManager.CLILoginError.gatewayVirtualAuthPayload) {
+            _ = try await manager.recordCLILoginSnapshot(
+                authJSONString: gatewayVirtualPayload,
+                preferredAccountID: nil
+            )
+        }
+
+        let accounts = try await manager.loadAccounts()
+        #expect(accounts.count == 1)
+        let existingRawAfter = try await manager.accountAuthFile(existing).read()
+        #expect(existingRawAfter == existingRawBefore)
+    }
+
     @Test("Given detached provider auth with invalid json and healthy snapshot, when preflight runs then snapshot is kept as source of truth")
     func preflightPrefersHealthySnapshotWhenProviderAuthBroken() async throws {
         let root = try makeTempRoot("codex-auth-preflight-prefer-snapshot")

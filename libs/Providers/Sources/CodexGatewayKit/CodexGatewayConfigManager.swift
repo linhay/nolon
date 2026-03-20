@@ -13,19 +13,22 @@ public struct CodexGatewayManagedConfigState: Sendable, Equatable, Codable {
     public let originalBaseURL: String?
     public let originalModelProvider: String?
     public let originalCLIAuthCredentialsStore: String?
+    public let originalRawConfig: String?
 
     public init(
         configFilePath: String,
         configExistedBeforePatch: Bool,
         originalBaseURL: String?,
         originalModelProvider: String?,
-        originalCLIAuthCredentialsStore: String?
+        originalCLIAuthCredentialsStore: String?,
+        originalRawConfig: String? = nil
     ) {
         self.configFilePath = configFilePath
         self.configExistedBeforePatch = configExistedBeforePatch
         self.originalBaseURL = originalBaseURL
         self.originalModelProvider = originalModelProvider
         self.originalCLIAuthCredentialsStore = originalCLIAuthCredentialsStore
+        self.originalRawConfig = originalRawConfig
     }
 }
 
@@ -83,6 +86,8 @@ public actor CodexGatewayConfigManager: CodexGatewayConfigManaging {
 
     private let stateStore: CodexGatewayManagedConfigStateStore
     private let controlledKeys = ["base_url", "model_provider", "cli_auth_credentials_store"]
+    private let gatewayProviderSectionName = "model_providers.nolon_gateway"
+    private let gatewayProviderName = "Nolon Gateway"
 
     public init(stateStore: CodexGatewayManagedConfigStateStore = CodexGatewayManagedConfigStateStore()) {
         self.stateStore = stateStore
@@ -90,21 +95,19 @@ public actor CodexGatewayConfigManager: CodexGatewayConfigManaging {
 
     public func patchGatewayConfig(configFile: STFile, config: CodexGatewayConfig) async throws {
         let path = configFile.url.standardizedFileURL.path
-        let original = (try? configFile.read()) ?? ""
-        let document = parseDocument(original.replacingOccurrences(of: "\r\n", with: "\n"))
-        let captured = captureOriginalState(configFilePath: path, document: document, existed: configFile.isExists)
+        let original = normalizeConfigText((try? configFile.read()) ?? "")
+        let document = parseDocument(original)
+        let captured = captureOriginalState(
+            configFilePath: path,
+            document: document,
+            existed: configFile.isExists,
+            originalRawConfig: original
+        )
         if await stateStore.load(configFilePath: path) == nil {
             try await stateStore.save(captured)
         }
 
-        let rendered = patch(
-            document: document,
-            assignments: [
-                "base_url": "http://\(config.host):\(config.port)",
-                "model_provider": "openai",
-                "cli_auth_credentials_store": "file",
-            ]
-        )
+        let rendered = patchGatewayDocument(document: document, config: config)
         _ = configFile.parentFolder()?.createIfNotExists()
         try configFile.overlay(with: rendered)
     }
@@ -114,10 +117,26 @@ public actor CodexGatewayConfigManager: CodexGatewayConfigManaging {
         guard let state = await stateStore.load(configFilePath: path) else {
             return
         }
+        if let originalRawConfig = state.originalRawConfig {
+            if state.configExistedBeforePatch == false && originalRawConfig.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                try removeFileIfPresent(configFile)
+            } else {
+                _ = configFile.parentFolder()?.createIfNotExists()
+                try configFile.overlay(with: originalRawConfig)
+            }
+            try await stateStore.remove(configFilePath: path)
+            return
+        }
+
         let current = (try? configFile.read()) ?? ""
-        let document = parseDocument(current.replacingOccurrences(of: "\r\n", with: "\n"))
+        let document = parseDocument(normalizeConfigText(current))
+        let cleanedDocument = Document(
+            preamble: document.preamble,
+            sections: removingSection(named: gatewayProviderSectionName, from: document.sections),
+            hasTrailingNewline: document.hasTrailingNewline
+        )
         let rendered = patch(
-            document: document,
+            document: cleanedDocument,
             assignments: [
                 "base_url": state.originalBaseURL,
                 "model_provider": state.originalModelProvider,
@@ -137,7 +156,8 @@ public actor CodexGatewayConfigManager: CodexGatewayConfigManaging {
     private func captureOriginalState(
         configFilePath: String,
         document: Document,
-        existed: Bool
+        existed: Bool,
+        originalRawConfig: String
     ) -> CodexGatewayManagedConfigState {
         let assignments = Dictionary(uniqueKeysWithValues: document.preamble.compactMap { line -> (String, String)? in
             guard let key = parseAssignmentKey(from: line),
@@ -153,8 +173,40 @@ public actor CodexGatewayConfigManager: CodexGatewayConfigManaging {
             configExistedBeforePatch: existed,
             originalBaseURL: assignments["base_url"],
             originalModelProvider: assignments["model_provider"],
-            originalCLIAuthCredentialsStore: assignments["cli_auth_credentials_store"]
+            originalCLIAuthCredentialsStore: assignments["cli_auth_credentials_store"],
+            originalRawConfig: originalRawConfig
         )
+    }
+
+    private func patchGatewayDocument(document: Document, config: CodexGatewayConfig) -> String {
+        let strippedDocument = Document(
+            preamble: document.preamble,
+            sections: removingSection(named: gatewayProviderSectionName, from: document.sections),
+            hasTrailingNewline: document.hasTrailingNewline
+        )
+        let patchedTopLevel = patch(
+            document: strippedDocument,
+            assignments: [
+                "base_url": nil,
+                "model_provider": "nolon_gateway",
+                "cli_auth_credentials_store": "file",
+            ]
+        )
+        let parsedPatched = parseDocument(patchedTopLevel)
+        var sections = parsedPatched.sections
+        if !sections.isEmpty, sections.last?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
+            sections.append("")
+        }
+        sections.append("[\(gatewayProviderSectionName)]")
+        sections.append("name = \"\(escape(gatewayProviderName))\"")
+        sections.append("base_url = \"http://\(escape(config.host)):\(config.port)/v1\"")
+        sections.append("wire_api = \"responses\"")
+        let finalDocument = Document(
+            preamble: parsedPatched.preamble,
+            sections: sections,
+            hasTrailingNewline: true
+        )
+        return render(document: finalDocument)
     }
 
     private func parseDocument(_ text: String) -> Document {
@@ -201,7 +253,17 @@ public actor CodexGatewayConfigManager: CodexGatewayConfigManaging {
         }
         preamble.append(contentsOf: generated)
 
-        var lines = preamble
+        return render(
+            document: Document(
+                preamble: preamble,
+                sections: document.sections,
+                hasTrailingNewline: document.hasTrailingNewline
+            )
+        )
+    }
+
+    private func render(document: Document) -> String {
+        var lines = document.preamble
         if !document.sections.isEmpty, !lines.isEmpty, lines.last?.isEmpty == false {
             lines.append("")
         }
@@ -212,6 +274,34 @@ public actor CodexGatewayConfigManager: CodexGatewayConfigManaging {
             output += "\n"
         }
         return output
+    }
+
+    private func removingSection(named sectionName: String, from lines: [String]) -> [String] {
+        guard !lines.isEmpty else { return lines }
+        var result: [String] = []
+        result.reserveCapacity(lines.count)
+        var isSkippingTargetSection = false
+
+        for line in lines {
+            if let parsedSectionName = parseSectionName(from: line) {
+                isSkippingTargetSection = parsedSectionName == sectionName
+                if isSkippingTargetSection {
+                    continue
+                }
+            }
+            if !isSkippingTargetSection {
+                result.append(line)
+            }
+        }
+
+        while result.last?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == true {
+            _ = result.popLast()
+        }
+        return result
+    }
+
+    private func normalizeConfigText(_ text: String) -> String {
+        text.replacingOccurrences(of: "\r\n", with: "\n")
     }
 
     private func parseAssignmentKey(from line: String) -> String? {

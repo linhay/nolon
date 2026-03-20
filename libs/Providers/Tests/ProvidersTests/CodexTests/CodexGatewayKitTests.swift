@@ -43,14 +43,11 @@ struct CodexGatewayKitTests {
 
     @Test("Given responses handler is configured, when posting v1 responses, then request is forwarded to handler and returns JSON response")
     func responsesRouteForwardsRequestToHandler() throws {
-        let expectedRequest = CodexGatewayResponsesRequestContext(
-            path: "/v1/responses",
-            body: #"{"input":"hello"}"#,
-            sessionID: "session-1",
-            conversationID: "conversation-1"
-        )
         let app = try makeApplication { context in
-            #expect(context == expectedRequest)
+            #expect(context.path == "/v1/responses")
+            #expect(context.body == #"{"input":"hello"}"#)
+            #expect(context.sessionID == "session-1")
+            #expect(context.conversationID == "conversation-1")
             return CodexGatewayResponsesResult(
                 status: .ok,
                 body: #"{"id":"resp_123","status":"completed"}"#
@@ -92,6 +89,31 @@ struct CodexGatewayKitTests {
         }
     }
 
+    @Test("Given incoming responses request has allowlisted headers, when route builds context, then request headers are forwarded for upstream bridge")
+    func responsesRouteCapturesAllowlistedHeaders() throws {
+        let app = try makeApplication { context in
+            #expect(context.requestHeaders["User-Agent"] == "codex-test-agent")
+            #expect(context.requestHeaders["OpenAI-Beta"] == "responses=v1")
+            #expect(context.requestHeaders["x-openai-foo"] == "bar")
+            return CodexGatewayResponsesResult(
+                status: .ok,
+                body: #"{"id":"resp_456","status":"completed"}"#
+            )
+        }
+        defer { app.shutdown() }
+
+        try XCTVaporContext.$emitWarningIfCurrentTestInfoIsAvailable.withValue(false) {
+            try app.test(.POST, "v1/responses", beforeRequest: { request in
+                try request.content.encode(["input": "hello"], as: .json)
+                request.headers.replaceOrAdd(name: "User-Agent", value: "codex-test-agent")
+                request.headers.replaceOrAdd(name: "OpenAI-Beta", value: "responses=v1")
+                request.headers.replaceOrAdd(name: "x-openai-foo", value: "bar")
+            }, afterResponse: { response in
+                #expect(response.status == .ok)
+            })
+        }
+    }
+
     @Test("Given responses forwarder, when forwarding request context, then upstream request preserves path body and sticky headers")
     func responsesForwarderBuildsUpstreamRequest() async throws {
         let transport = RecordingUpstreamTransport(
@@ -127,6 +149,93 @@ struct CodexGatewayKitTests {
         #expect(result.contentType == .json)
     }
 
+    @Test("Given upstream responds SSE and request asks stream mode, when forwarding, then accept header is set and SSE content type is preserved")
+    func responsesForwarderPreservesSSEContentTypeAndStreamAcceptHeader() async throws {
+        let transport = RecordingUpstreamTransport(
+            response: CodexGatewayUpstreamResponse(
+                status: .ok,
+                body: Data(#"event: response.completed\ndata: {"type":"response.completed"}\n\n"#.utf8),
+                contentTypeHeader: "text/event-stream; charset=utf-8"
+            )
+        )
+        let forwarder = CodexGatewayResponsesForwarder(
+            upstreamBaseURL: URL(string: "https://gateway.example.com")!,
+            transport: transport
+        )
+
+        let result = try await forwarder.forward(
+            CodexGatewayResponsesRequestContext(
+                path: "/v1/responses",
+                body: #"{"input":"hello","stream":true}"#,
+                sessionID: nil,
+                conversationID: nil
+            )
+        )
+        let recorded = await transport.lastRequest()
+
+        #expect(recorded?.headers["Accept"] == "text/event-stream")
+        #expect(result.contentType.serialize() == "text/event-stream")
+        #expect(result.body.contains("response.completed"))
+    }
+
+    @Test("Given request includes OpenAI headers, when forwarding, then gateway keeps these headers for upstream request")
+    func responsesForwarderForwardsOpenAIHeaders() async throws {
+        let transport = RecordingUpstreamTransport(
+            response: CodexGatewayUpstreamResponse(
+                status: .ok,
+                body: Data(#"{"id":"resp_forwarded"}"#.utf8),
+                contentTypeHeader: "application/json"
+            )
+        )
+        let forwarder = CodexGatewayResponsesForwarder(
+            upstreamBaseURL: URL(string: "https://gateway.example.com")!,
+            transport: transport
+        )
+
+        _ = try await forwarder.forward(
+            CodexGatewayResponsesRequestContext(
+                path: "/v1/responses",
+                body: #"{"input":"hello"}"#,
+                sessionID: nil,
+                conversationID: nil,
+                requestHeaders: [
+                    "Accept": "text/event-stream",
+                    "OpenAI-Beta": "responses=v1"
+                ]
+            )
+        )
+        let recorded = await transport.lastRequest()
+
+        #expect(recorded?.headers["Accept"] == "text/event-stream")
+        #expect(recorded?.headers["OpenAI-Beta"] == "responses=v1")
+    }
+
+    @Test("Given stream request receives HTML payload, when forwarding, then gateway rejects upstream response as invalid stream")
+    func responsesForwarderRejectsHTMLPayloadForStreamRequests() async throws {
+        let transport = RecordingUpstreamTransport(
+            response: CodexGatewayUpstreamResponse(
+                status: .ok,
+                body: Data("<!DOCTYPE html><html><body>login</body></html>".utf8),
+                contentTypeHeader: "text/html; charset=utf-8"
+            )
+        )
+        let forwarder = CodexGatewayResponsesForwarder(
+            upstreamBaseURL: URL(string: "https://gateway.example.com")!,
+            transport: transport
+        )
+
+        await #expect(throws: Abort.self) {
+            _ = try await forwarder.forward(
+                CodexGatewayResponsesRequestContext(
+                    path: "/v1/responses",
+                    body: #"{"input":"hello","stream":true}"#,
+                    sessionID: nil,
+                    conversationID: nil
+                )
+            )
+        }
+    }
+
     @Test("Given upstream base URL already ends with v1, when forwarding v1 responses path, then path is normalized and auth headers are injected")
     func responsesForwarderNormalizesV1PathAndInjectsHeaders() async throws {
         let transport = RecordingUpstreamTransport(
@@ -155,9 +264,35 @@ struct CodexGatewayKitTests {
         )
         let recorded = await transport.lastRequest()
 
-        #expect(recorded?.url.absoluteString == "https://gateway.example.com/responses")
+        #expect(recorded?.url.absoluteString == "https://gateway.example.com/v1/responses")
         #expect(recorded?.headers["Authorization"] == "Bearer test-token")
         #expect(recorded?.headers["ChatGPT-Account-ID"] == "acct_123")
+    }
+
+    @Test("Given upstream base URL contains codex backend path, when forwarding v1 responses path, then gateway preserves base path and drops only request v1 prefix")
+    func responsesForwarderPreservesChatGPTBackendPath() async throws {
+        let transport = RecordingUpstreamTransport(
+            response: CodexGatewayUpstreamResponse(
+                status: .ok,
+                body: Data(#"{"id":"resp_chatgpt_backend"}"#.utf8),
+                contentTypeHeader: "application/json"
+            )
+        )
+        let forwarder = CodexGatewayResponsesForwarder(
+            upstreamBaseURL: URL(string: "https://chatgpt.com/backend-api/codex")!,
+            transport: transport
+        )
+
+        _ = try await forwarder.forward(
+            CodexGatewayResponsesRequestContext(
+                path: "/v1/responses",
+                body: #"{"input":"hello"}"#,
+                sessionID: nil,
+                conversationID: nil
+            )
+        )
+        let recorded = await transport.lastRequest()
+        #expect(recorded?.url.absoluteString == "https://chatgpt.com/backend-api/codex/responses")
     }
 
     @Test("Given configured API key and relay accounts, when loading gateway candidates, then upstream targets and auth headers are resolved from auth source")
@@ -225,6 +360,37 @@ struct CodexGatewayKitTests {
 
         #expect(direct.isSchedulable == true)
         #expect(virtual.isSchedulable == false)
+    }
+
+    @Test("Given virtual api key without marker, when loading gateway candidates, then account is still treated as virtual and not schedulable")
+    func accountSourceSkipsVirtualReplyCandidateWithoutMarker() async throws {
+        let root = try makeTempRoot("codex-gateway-account-source-virtual-key")
+        defer { try? root.delete() }
+
+        let authManager = CodexAuthManager(rootURL: root.url)
+        _ = try await authManager.addConfiguredAccount(
+            name: "Direct",
+            apiKey: "sk-direct",
+            relay: nil
+        )
+        let virtualAccount = try await authManager.addConfiguredAccount(
+            name: "VirtualWithoutMarker",
+            apiKey: "nolon-gateway-virtual-api-key",
+            relay: CodexAuthManager.ConfiguredRelay(
+                baseURL: "http://127.0.0.1:18086",
+                modelProvider: "openai"
+            )
+        )
+
+        let source = CodexGatewayAccountSource(authManager: authManager)
+        let candidates = try await source.loadCandidates()
+
+        let direct = try #require(candidates.first(where: { $0.upstreamBaseURL?.host == "api.openai.com" }))
+        let virtual = try #require(candidates.first(where: { $0.accountID == virtualAccount.id }))
+
+        #expect(direct.isSchedulable == true)
+        #expect(virtual.isSchedulable == false)
+        #expect(virtual.upstreamBaseURL == nil)
     }
 
     @Test("Given chatgpt auth account, when loading gateway candidates, then candidate uses chatgpt codex backend and account header")
@@ -340,7 +506,7 @@ struct CodexGatewayKitTests {
         #expect(loaded == stopped)
     }
 
-    @Test("Given existing config with unrelated sections, when patching and restoring gateway config, then only controlled keys change")
+    @Test("Given existing config with unrelated sections, when patching and restoring gateway config, then gateway provider section is injected and original config can be restored")
     func configManagerPatchAndRestoreControlledKeys() async throws {
         let root = try makeTempRoot("codex-gateway-config-patch")
         defer { try? root.delete() }
@@ -363,9 +529,12 @@ struct CodexGatewayKitTests {
 
         try await manager.patchGatewayConfig(configFile: configFile, config: CodexGatewayConfig(host: "127.0.0.1", port: 8088))
         let patched = try configFile.read()
-        #expect(patched.contains(#"base_url = "http://127.0.0.1:8088""#))
-        #expect(patched.contains(#"model_provider = "openai""#))
+        #expect(patched.contains(#"model_provider = "nolon_gateway""#))
         #expect(patched.contains(#"cli_auth_credentials_store = "file""#))
+        #expect(patched.contains(#"[model_providers.nolon_gateway]"#))
+        #expect(patched.contains(#"name = "Nolon Gateway""#))
+        #expect(patched.contains(#"base_url = "http://127.0.0.1:8088/v1""#))
+        #expect(patched.contains(#"wire_api = "responses""#))
         #expect(patched.contains(#"[profiles.default]"#))
         #expect(patched.contains(#"model = "gpt-5""#))
 
@@ -375,6 +544,7 @@ struct CodexGatewayKitTests {
         #expect(restored.contains(#"model_provider = "custom""#))
         #expect(restored.contains(#"cli_auth_credentials_store = "keyring""#))
         #expect(restored.contains(#"[profiles.default]"#))
+        #expect(restored.contains(#"[model_providers.nolon_gateway]"#) == false)
     }
 
     @Test("Given config file created by patch only, when restoring, then generated config file is removed")

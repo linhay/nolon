@@ -141,6 +141,7 @@ public struct CodexGatewayResponsesRoutingService: Sendable {
         let availableCandidates = try await candidates()
         let stickyKey = extractStickyKey(from: context)
         var remainingCandidates = availableCandidates
+        var lastFailureReason: String?
 
         if let stickyCandidate = await resolveStickyCandidate(
             from: remainingCandidates,
@@ -154,7 +155,8 @@ public struct CodexGatewayResponsesRoutingService: Sendable {
             switch stickyResult {
             case let .completed(result):
                 return result
-            case .retry:
+            case let .retry(reason):
+                lastFailureReason = reason
                 remainingCandidates.removeAll { $0.accountID == stickyCandidate.accountID }
             }
         }
@@ -166,10 +168,7 @@ public struct CodexGatewayResponsesRoutingService: Sendable {
                 if let stickyKey {
                     await stickyStore.removeAccountID(for: stickyKey)
                 }
-                return CodexGatewayResponsesResult(
-                    status: .serviceUnavailable,
-                    body: #"{"error":{"message":"Codex gateway has no schedulable upstream account."}}"#
-                )
+                return makeNoSchedulableResult(reason: lastFailureReason)
             }
 
             switch try await attemptForward(
@@ -179,13 +178,11 @@ public struct CodexGatewayResponsesRoutingService: Sendable {
             ) {
             case let .completed(result):
                 return result
-            case .retry:
+            case let .retry(reason):
+                lastFailureReason = reason
                 remainingCandidates.removeAll { $0.accountID == candidate.accountID }
                 if remainingCandidates.isEmpty {
-                    return CodexGatewayResponsesResult(
-                        status: .serviceUnavailable,
-                        body: #"{"error":{"message":"Codex gateway has no schedulable upstream account."}}"#
-                    )
+                    return makeNoSchedulableResult(reason: lastFailureReason)
                 }
             }
         }
@@ -209,7 +206,10 @@ public struct CodexGatewayResponsesRoutingService: Sendable {
     }
 
     private func isFailoverable(status: HTTPResponseStatus) -> Bool {
-        status == .tooManyRequests || status.code >= 500
+        status == .tooManyRequests ||
+            status == .unauthorized ||
+            status == .forbidden ||
+            status.code >= 500
     }
 
     private func attemptForward(
@@ -221,7 +221,7 @@ public struct CodexGatewayResponsesRoutingService: Sendable {
             if let stickyKey {
                 await stickyStore.removeAccountID(for: stickyKey)
             }
-            return .retry
+            return .retry(reason: "Candidate has no upstream base URL.")
         }
 
         let forwarder = CodexGatewayResponsesForwarder(
@@ -236,7 +236,7 @@ public struct CodexGatewayResponsesRoutingService: Sendable {
                 if let stickyKey {
                     await stickyStore.removeAccountID(for: stickyKey)
                 }
-                return .retry
+                return .retry(reason: "Upstream returned failoverable status \(result.status.code).")
             }
             if let stickyKey, result.status.code < 400 {
                 await stickyStore.bind(accountID: candidate.accountID, for: stickyKey)
@@ -246,12 +246,28 @@ public struct CodexGatewayResponsesRoutingService: Sendable {
             if let stickyKey {
                 await stickyStore.removeAccountID(for: stickyKey)
             }
-            return .retry
+            return .retry(reason: error.localizedDescription)
         }
+    }
+
+    private func makeNoSchedulableResult(reason: String?) -> CodexGatewayResponsesResult {
+        let message: String
+        if let reason, !reason.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            message = "Codex gateway has no schedulable upstream account. Last failure: \(reason)"
+        } else {
+            message = "Codex gateway has no schedulable upstream account."
+        }
+        let escapedMessage = message
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+        return CodexGatewayResponsesResult(
+            status: .serviceUnavailable,
+            body: #"{"error":{"message":"\#(escapedMessage)"}}"#
+        )
     }
 }
 
 private enum AttemptResult {
     case completed(CodexGatewayResponsesResult)
-    case retry
+    case retry(reason: String?)
 }

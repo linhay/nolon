@@ -83,25 +83,30 @@ public struct CodexGatewayResponsesForwarder: Sendable {
     }
 
     public func forward(_ context: CodexGatewayResponsesRequestContext) async throws -> CodexGatewayResponsesResult {
+        let expectsStream = bodyIndicatesStream(context.body)
         let upstreamRequest = try buildRequest(for: context)
         let upstreamResponse = try await transport.execute(upstreamRequest)
+        if expectsStream {
+            try validateStreamResponse(upstreamResponse)
+        }
         let contentType = resolveContentType(header: upstreamResponse.contentTypeHeader)
         return CodexGatewayResponsesResult(
             status: upstreamResponse.status,
-            body: String(decoding: upstreamResponse.body, as: UTF8.self),
+            bodyData: upstreamResponse.body,
             contentType: contentType
         )
     }
 
     private func buildRequest(for context: CodexGatewayResponsesRequestContext) throws -> CodexGatewayUpstreamRequest {
-        let resolvedPath = normalizedPath(for: context.path)
-        guard let url = URL(string: resolvedPath, relativeTo: upstreamBaseURL)?.absoluteURL else {
+        guard let url = resolveUpstreamURL(for: context.path) else {
             throw Abort(.badGateway, reason: "Invalid upstream request URL.")
         }
 
-        var headers: [String: String] = [
-            "Content-Type": "application/json"
-        ]
+        var headers = context.requestHeaders
+        headers["Content-Type"] = "application/json"
+        if headers["Accept"] == nil && headers["accept"] == nil {
+            headers["Accept"] = bodyIndicatesStream(context.body) ? "text/event-stream" : "application/json"
+        }
         for (name, value) in upstreamHeaders {
             headers[name] = value
         }
@@ -120,23 +125,78 @@ public struct CodexGatewayResponsesForwarder: Sendable {
         )
     }
 
-    private func normalizedPath(for requestPath: String) -> String {
-        let upstreamPath = upstreamBaseURL.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-        guard upstreamPath == "v1", requestPath.hasPrefix("/v1/") else {
-            return requestPath
+    private func resolveUpstreamURL(for requestPath: String) -> URL? {
+        let baseSegments = upstreamBaseURL.path
+            .split(separator: "/", omittingEmptySubsequences: true)
+            .map(String.init)
+        var requestSegments = requestPath
+            .split(separator: "/", omittingEmptySubsequences: true)
+            .map(String.init)
+
+        if !baseSegments.isEmpty, requestSegments.first?.lowercased() == "v1" {
+            let baseEndsWithV1 = baseSegments.last?.lowercased() == "v1"
+            if baseEndsWithV1 || requestSegments.count > 1 {
+                requestSegments.removeFirst()
+            }
         }
-        return String(requestPath.dropFirst(3))
+
+        let finalSegments: [String]
+        if baseSegments.isEmpty {
+            finalSegments = requestSegments
+        } else {
+            finalSegments = baseSegments + requestSegments
+        }
+
+        var components = URLComponents(url: upstreamBaseURL, resolvingAgainstBaseURL: false)
+        components?.path = "/" + finalSegments.joined(separator: "/")
+        return components?.url
     }
 
     private func resolveContentType(header: String?) -> HTTPMediaType {
         guard let header else { return .json }
         let lowercased = header.lowercased()
+        if lowercased.contains("text/event-stream") {
+            return HTTPMediaType(type: "text", subType: "event-stream")
+        }
         if lowercased.contains("application/json") {
             return .json
+        }
+        if lowercased.contains("application/x-ndjson") {
+            return HTTPMediaType(type: "application", subType: "x-ndjson")
         }
         if lowercased.contains("text/plain") {
             return .plainText
         }
         return .plainText
+    }
+
+    private func bodyIndicatesStream(_ body: String) -> Bool {
+        guard let data = body.data(using: .utf8),
+              let object = try? JSONSerialization.jsonObject(with: data),
+              let root = object as? [String: Any],
+              let stream = root["stream"] as? Bool else {
+            return false
+        }
+        return stream
+    }
+
+    private func validateStreamResponse(_ response: CodexGatewayUpstreamResponse) throws {
+        let contentType = response.contentTypeHeader?.lowercased() ?? ""
+        let body = String(decoding: response.body, as: UTF8.self)
+        let trimmedBody = body.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+
+        // ChatGPT auth expires may silently return HTML login page with 200 status.
+        if contentType.contains("text/html") || trimmedBody.hasPrefix("<!doctype html") || trimmedBody.hasPrefix("<html") {
+            throw Abort(.badGateway, reason: "Upstream returned HTML page instead of SSE stream.")
+        }
+
+        let appearsToBeSSE = contentType.contains("text/event-stream") || body.contains("event:")
+        guard appearsToBeSSE else {
+            throw Abort(.badGateway, reason: "Upstream stream protocol mismatch: expected SSE payload.")
+        }
+
+        guard body.contains("response.completed") else {
+            throw Abort(.badGateway, reason: "Upstream stream ended before response.completed.")
+        }
     }
 }

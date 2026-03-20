@@ -3,6 +3,7 @@ import ProviderUsage
 
 public actor CodexGatewayAccountSource {
     fileprivate static let gatewayVirtualMarkerKey = "nolon_gateway_virtual"
+    fileprivate static let gatewayVirtualAPIKey = "nolon-gateway-virtual-api-key"
     private let authManager: CodexAuthManager
     private let openAIBaseURL: URL
     private let chatGPTBaseURL: URL
@@ -143,7 +144,14 @@ private struct AuthPayload {
     var relayHeaders: [String: String] = [:]
 
     var isGatewayVirtual: Bool {
-        relayQueryParams[CodexGatewayAccountSource.gatewayVirtualMarkerKey] == "1"
+        let marker = relayQueryParams[CodexGatewayAccountSource.gatewayVirtualMarkerKey]?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        if marker == "1" || marker == "true" {
+            return true
+        }
+        guard let apiKey else { return false }
+        return apiKey == CodexGatewayAccountSource.gatewayVirtualAPIKey
     }
 }
 

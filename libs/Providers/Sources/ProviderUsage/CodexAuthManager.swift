@@ -126,6 +126,7 @@ public actor CodexAuthManager {
     }
 
     private static let logger = Logger(subsystem: "com.nolon", category: "CodexAuthManager")
+    private static let gatewayVirtualAPIKey = "nolon-gateway-virtual-api-key"
     private nonisolated static func isCodexTemplate(_ templateID: String?) -> Bool {
         templateID == ProviderTemplate.codex.rawValue || templateID == ProviderTemplate.codexXcode.rawValue
     }
@@ -2645,8 +2646,16 @@ private extension CodexAuthManager {
     }
 
     private func isGatewayVirtualAuthPayload(_ data: Data) -> Bool {
-        guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let nolon = object["nolon"] as? [String: Any],
+        guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return false
+        }
+        if let apiKey = object["OPENAI_API_KEY"] as? String {
+            let normalizedAPIKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+            if normalizedAPIKey == Self.gatewayVirtualAPIKey {
+                return true
+            }
+        }
+        guard let nolon = object["nolon"] as? [String: Any],
               let relay = nolon["relay"] as? [String: Any],
               let params = relay["query_params"] as? [String: Any]
         else {

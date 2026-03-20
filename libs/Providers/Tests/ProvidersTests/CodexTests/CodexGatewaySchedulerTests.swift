@@ -303,6 +303,67 @@ struct CodexGatewaySchedulerTests {
         #expect(rebound == secondAccountID)
     }
 
+    @Test("Given selected upstream returns unauthorized, when another candidate exists, then routing service retries next candidate")
+    func routingServiceFailsOverOnUnauthorizedStatus() async throws {
+        let firstAccountID = UUID(uuidString: "00000000-0000-0000-0000-000000000018")!
+        let secondAccountID = UUID(uuidString: "00000000-0000-0000-0000-000000000019")!
+        let transport = SequencedGatewayTransport(
+            responsesByURL: [
+                "https://first.example.com/v1/responses": [
+                    .success(
+                        CodexGatewayUpstreamResponse(
+                            status: .unauthorized,
+                            body: Data(#"{"error":"unauthorized"}"#.utf8),
+                            contentTypeHeader: "application/json"
+                        )
+                    )
+                ],
+                "https://second.example.com/v1/responses": [
+                    .success(
+                        CodexGatewayUpstreamResponse(
+                            status: .ok,
+                            body: Data(#"{"id":"resp_after_unauthorized"}"#.utf8),
+                            contentTypeHeader: "application/json"
+                        )
+                    )
+                ]
+            ]
+        )
+        let service = CodexGatewayResponsesRoutingService(
+            candidates: {
+                [
+                    makeCandidate(
+                        accountID: firstAccountID,
+                        priority: 1,
+                        upstreamBaseURL: URL(string: "https://first.example.com")!
+                    ),
+                    makeCandidate(
+                        accountID: secondAccountID,
+                        priority: 2,
+                        upstreamBaseURL: URL(string: "https://second.example.com")!
+                    )
+                ]
+            },
+            transport: transport
+        )
+
+        let result = try await service.handle(
+            CodexGatewayResponsesRequestContext(
+                path: "/v1/responses",
+                body: #"{"input":"hello"}"#,
+                sessionID: nil,
+                conversationID: nil
+            )
+        )
+        let requests = await transport.recordedRequests()
+
+        #expect(requests.count == 2)
+        #expect(requests[0].url.absoluteString == "https://first.example.com/v1/responses")
+        #expect(requests[1].url.absoluteString == "https://second.example.com/v1/responses")
+        #expect(result.status == .ok)
+        #expect(result.body == #"{"id":"resp_after_unauthorized"}"#)
+    }
+
     private func makeCandidate(
         accountID: UUID = UUID(uuidString: "00000000-0000-0000-0000-000000000001")!,
         priority: Int = 1,

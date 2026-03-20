@@ -46,6 +46,15 @@
 2. Gateway 从账号池中选择账号并转发。
 3. Gateway 模式开启时，非网关自动切号逻辑不生效。
 
+### 实现补充（2026-03-20）
+1. `config.toml` 进入网关模式时，使用自定义 provider 注入：
+   - 顶层：`model_provider = "nolon_gateway"`、`cli_auth_credentials_store = "file"`
+   - 区块：`[model_providers.nolon_gateway]` + `base_url = "http://127.0.0.1:<port>/v1"` + `wire_api = "responses"`
+2. 转发层需要透传关键请求头（至少 `Accept`、`OpenAI-Beta`），避免流式响应协议降级。
+3. 上游 `Content-Type: text/event-stream` 需要原样识别为 SSE，避免客户端把流式响应误判为普通文本导致完成事件丢失。
+4. `stream=true` 的上游回包必须通过协议校验（拒绝 HTML 登录页、拒绝无 SSE 语义、拒绝缺失 `response.completed`），失败后进入候选 failover。
+5. 调度层将 `401/403` 视为可 failover 错误；所有候选失败时返回 `503` 并附带 `Last failure`，便于定位账号可用性问题。
+
 ### 模式 B：非网关自动切号
 1. 不启用统一网关。
 2. 保持当前“直接使用已激活账号”的行为。
