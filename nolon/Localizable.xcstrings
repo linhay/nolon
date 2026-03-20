@@ -135,6 +135,12 @@
         }
       }
     },
+    "%lld 个成员账号" : {
+
+    },
+    "%lld%%" : {
+
+    },
     "•" : {
       "localizations" : {
         "zh-Hans" : {
@@ -154,6 +160,9 @@
           }
         }
       }
+    },
+    "+%lld" : {
+
     },
     "~/.codex/%@" : {
 
@@ -987,6 +996,9 @@
         }
       }
     },
+    "ACTIVE" : {
+
+    },
     "Add" : {
       "localizations" : {
         "zh-Hans" : {
@@ -1593,6 +1605,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "内置"
+          }
+        }
+      }
+    },
+    "cancel" : {
+      "comment" : "Cancel",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Cancel"
           }
         }
       }
@@ -2359,6 +2383,18 @@
         }
       }
     },
+    "codex.accounts.bulk_actions" : {
+      "comment" : "Bulk account actions",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "批量操作"
+          }
+        }
+      }
+    },
     "codex.accounts.config.advanced" : {
       "comment" : "Advanced config section title",
       "extractionState" : "extracted_with_value",
@@ -3061,6 +3097,18 @@
         }
       }
     },
+    "codex.accounts.filter.hide_zero.help" : {
+      "comment" : "Help for hide zero quota filter",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "切换是否显示额度为 0 的账号"
+          }
+        }
+      }
+    },
     "codex.accounts.filtered_empty.desc" : {
       "comment" : "All accounts hidden by zero quota filter description",
       "extractionState" : "manual",
@@ -3511,6 +3559,54 @@
         }
       }
     },
+    "codex.accounts.layout.cards" : {
+      "comment" : "Codex account card layout",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "卡片"
+          }
+        }
+      }
+    },
+    "codex.accounts.layout.help" : {
+      "comment" : "Codex account layout picker help",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "切换账号显示为卡片或列表模式"
+          }
+        }
+      }
+    },
+    "codex.accounts.layout.list" : {
+      "comment" : "Codex account list layout",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "列表"
+          }
+        }
+      }
+    },
+    "codex.accounts.layout.title" : {
+      "comment" : "Codex account layout title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "布局"
+          }
+        }
+      }
+    },
     "codex.accounts.login" : {
       "comment" : "Codex login",
       "extractionState" : "extracted_with_value",
@@ -3597,6 +3693,42 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "Edit auth.json"
+          }
+        }
+      }
+    },
+    "codex.accounts.menu.section.account" : {
+      "comment" : "Codex menu section for account management",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "账号管理"
+          }
+        }
+      }
+    },
+    "codex.accounts.menu.section.auto_switch" : {
+      "comment" : "Codex menu section for auto switch",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "自动切号"
+          }
+        }
+      }
+    },
+    "codex.accounts.menu.section.view" : {
+      "comment" : "Codex menu section for view options",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "显示"
           }
         }
       }
@@ -7380,6 +7512,162 @@
         }
       }
     },
+    "codex.gateway.accounts.picker.add" : {
+      "comment" : "Add accounts to gateway card",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "加入网关"
+          }
+        }
+      }
+    },
+    "codex.gateway.accounts.picker.empty.desc" : {
+      "comment" : "Gateway account picker empty description",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "当前所有账号都已在此网关卡片中。"
+          }
+        }
+      }
+    },
+    "codex.gateway.accounts.picker.empty.title" : {
+      "comment" : "Gateway account picker empty title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "没有可添加的账号"
+          }
+        }
+      }
+    },
+    "codex.gateway.accounts.picker.title" : {
+      "comment" : "Gateway account picker title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "为 %@ 选择账号"
+          }
+        }
+      }
+    },
+    "codex.gateway.cards.action.add_accounts" : {
+      "comment" : "Add accounts to gateway card",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "添加账号"
+          }
+        }
+      }
+    },
+    "codex.gateway.cards.action.add_selected" : {
+      "comment" : "Add selected accounts to gateway card",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "加入网关卡片"
+          }
+        }
+      }
+    },
+    "codex.gateway.cards.create.title" : {
+      "comment" : "Create gateway card title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "新建网关卡片"
+          }
+        }
+      }
+    },
+    "codex.gateway.cards.default_name" : {
+      "comment" : "Gateway default card name",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "网关 %d"
+          }
+        }
+      }
+    },
+    "codex.gateway.cards.picker.selected_count" : {
+      "comment" : "Gateway picker selected count",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "将加入 %d 个已选账号"
+          }
+        }
+      }
+    },
+    "codex.gateway.cards.picker.title" : {
+      "comment" : "Gateway card picker title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "选择目标网关卡片"
+          }
+        }
+      }
+    },
+    "codex.gateway.cards.rename.title" : {
+      "comment" : "Rename gateway card title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "重命名网关卡片"
+          }
+        }
+      }
+    },
+    "codex.gateway.cards.title" : {
+      "comment" : "Gateway cards section title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "网关卡片"
+          }
+        }
+      }
+    },
+    "codex.gateway.cards.unknown" : {
+      "comment" : "Gateway card fallback name",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "网关卡片"
+          }
+        }
+      }
+    },
     "codex.import.sheet.action.export_sub2api" : {
       "comment" : "Export selected import candidates to sub2api",
       "extractionState" : "extracted_with_value",
@@ -7405,7 +7693,7 @@
       }
     },
     "codex.import.sheet.deselect_all" : {
-      "comment" : "Deselect all import candidates",
+      "comment" : "Deselect all\nDeselect all import candidates",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
@@ -7729,7 +8017,7 @@
       }
     },
     "codex.import.sheet.select_all" : {
-      "comment" : "Select all import candidates",
+      "comment" : "Select all\nSelect all import candidates",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
@@ -8936,6 +9224,18 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "Copy Page Marker"
+          }
+        }
+      }
+    },
+    "delete" : {
+      "comment" : "Delete",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Delete"
           }
         }
       }
@@ -12484,6 +12784,18 @@
         }
       }
     },
+    "rename" : {
+      "comment" : "Rename",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Rename"
+          }
+        }
+      }
+    },
     "repo_type.global_skills" : {
       "comment" : "Global Skills",
       "extractionState" : "stale",
@@ -14323,6 +14635,42 @@
         }
       }
     },
+    "usage.menu.section.account" : {
+      "comment" : "Generic menu section for account management",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "账号管理"
+          }
+        }
+      }
+    },
+    "usage.menu.section.danger" : {
+      "comment" : "Menu section for destructive actions",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "危险操作"
+          }
+        }
+      }
+    },
+    "usage.menu.section.system" : {
+      "comment" : "Menu section for system options",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "系统"
+          }
+        }
+      }
+    },
     "usage.metric.account" : {
       "comment" : "Account label",
       "extractionState" : "extracted_with_value",
@@ -15321,7 +15669,19 @@
         }
       }
     },
+    "已耗尽账号" : {
+
+    },
+    "快速切换账号" : {
+
+    },
     "或点击选择文件夹" : {
+
+    },
+    "暂无可用账号" : {
+
+    },
+    "退出" : {
 
     }
   },
