@@ -21,9 +21,14 @@
 9. `app-server` 登录完成后，系统会在短窗口内轮询等待 `auth.json` 落盘，再执行快照写入；避免“登录成功但文件尚未同步”导致回退链路误覆盖旧账号。
 
 ## 匹配与判定规则
-1. `matchAccount` 优先级：`email -> account.id -> OPENAI_API_KEY（完整值精确匹配）`，最后才回退 cleaned-json 全等。
-2. provider auth 与 snapshot 冲突时使用评分选真值；同分时优先 provider。
-3. `nolon.account.id`（UUID）不作为评分加分项，避免误压制 provider 结果。
+1. `matchAccount` 对含 `account_id` 的 payload 采用严格身份判定：
+   - `account_id + email` 命中才允许覆盖；
+   - 若缺失 `email`，仅 `account_id + nolon.account.id` 同时命中才允许覆盖；
+   - 仅 `account_id` 命中时不覆盖，改为新建快照。
+2. 对不含 `account_id` 的 payload，继续按 `OPENAI_API_KEY（完整值精确匹配） -> email -> cleaned-json` 判定。
+3. 自愈链路（detached reconcile / drift repair）与主匹配使用同一身份判定规则，避免“同工作空间不同用户”被误合并。
+4. provider auth 与 snapshot 冲突时使用评分选真值；同分时优先 provider。
+5. `nolon.account.id`（UUID）不作为评分加分项，避免误压制 provider 结果。
 
 ## 备份与恢复
 1. 仅备份 active 快照。

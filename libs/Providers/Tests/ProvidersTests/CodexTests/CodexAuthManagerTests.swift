@@ -138,6 +138,28 @@ struct CodexAuthManagerTests {
         #expect(pair?.chatgptAccountID == "acct-123")
     }
 
+    @Test("Given unsorted auth json, when saving account, then persisted auth.json is pretty printed with sorted keys")
+    func addAccountPersistsPrettySortedAuthJSON() async throws {
+        let root = try makeTempRoot("codex-auth-format")
+        defer { try? root.delete() }
+
+        let manager = CodexAuthManager(rootURL: root.url)
+        let account = try await manager.addAccount(
+            name: "format-check",
+            authJSONString: #"{"tokens":{"id_token":"id-token","access_token":"access-token"},"email":"pretty@example.com","auth_mode":"chatgpt","OPENAI_API_KEY":null}"#
+        )
+
+        let file = await manager.accountAuthFile(account)
+        let raw = try file.read()
+
+        #expect(raw.contains("\n  \"auth_mode\""))
+        let openAIKeyRange = try #require(raw.range(of: "\"OPENAI_API_KEY\""))
+        let authModeRange = try #require(raw.range(of: "\"auth_mode\""))
+        let emailRange = try #require(raw.range(of: "\"email\""))
+        #expect(openAIKeyRange.lowerBound < authModeRange.lowerBound)
+        #expect(authModeRange.lowerBound < emailRange.lowerBound)
+    }
+
     @Test("Given selected snapshot, when activating account, then provider auth is symlinked to snapshot")
     func activateAccountCreatesProviderAuthSymlink() async throws {
         let root = try makeTempRoot("codex-auth-clean")
@@ -341,10 +363,11 @@ struct CodexAuthManagerTests {
         let account = try await manager.finalizeCLILogin(provider: provider, newAccountName: "cli")
         let activeId = await manager.activeAccountId(for: provider)
         let syncedRaw = try #require(await manager.readAuthJSONString(from: provider))
+        let syncedJSON = try #require(try? JSON(data: Data(syncedRaw.utf8)))
 
         #expect(activeId == account.id)
-        #expect(syncedRaw.contains("\"id_token\":\"id-2\""))
-        #expect(syncedRaw.contains("\"access_token\":\"access-2\""))
+        #expect(syncedJSON["tokens"]["id_token"].string == "id-2")
+        #expect(syncedJSON["tokens"]["access_token"].string == "access-2")
     }
 
     @Test("Given preferred snapshot and CLI login payload, when recording login snapshot, then preferred snapshot is updated and sync metadata is refreshed")
@@ -440,7 +463,7 @@ struct CodexAuthManagerTests {
         #expect(tokenPair?.accessToken == "new-access")
     }
 
-    @Test("Given detached provider auth file with same email, when reconciling detached auth, then matching snapshot is overwritten, relinked, and marked active")
+    @Test("Given detached provider auth file with same account id and same email, when reconciling detached auth, then matching snapshot is overwritten, relinked, and marked active")
     func reconcileDetachedProviderAuthOverwritesByEmail() async throws {
         let root = try makeTempRoot("codex-auth-reconcile-detached")
         defer { try? root.delete() }
@@ -448,7 +471,7 @@ struct CodexAuthManagerTests {
         let manager = CodexAuthManager(rootURL: root.url)
         let existing = try await manager.addAccount(
             name: "existing",
-            authJSONString: #"{"tokens":{"id_token":"old-id","access_token":"old-access"},"email":"same@example.com"}"#
+            authJSONString: #"{"tokens":{"id_token":"old-id","access_token":"old-access","account_id":"acct-team"},"email":"same@example.com"}"#
         )
         let providerRoot = root.folder("provider")
         _ = providerRoot.createIfNotExists()
@@ -461,7 +484,7 @@ struct CodexAuthManagerTests {
         )
 
         let detachedAuthURL = providerRoot.file("auth.json").url
-        let detachedRaw = #"{"tokens":{"id_token":"new-id","access_token":"new-access"},"email":"same@example.com"}"#
+        let detachedRaw = #"{"tokens":{"id_token":"new-id","access_token":"new-access","account_id":"acct-team"},"email":"same@example.com"}"#
         try detachedRaw.write(to: detachedAuthURL, atomically: true, encoding: .utf8)
 
         let reconciled = try await manager.reconcileDetachedProviderAuthIfNeeded(for: provider)
@@ -480,6 +503,45 @@ struct CodexAuthManagerTests {
 
         let activeId = await manager.activeAccountId(for: provider)
         #expect(activeId == resolved.id)
+    }
+
+    @Test("Given detached provider auth with same account id but different email, when reconciling detached auth, then a new snapshot is created instead of overwriting existing one")
+    func reconcileDetachedProviderAuthCreatesNewWhenAccountIDMatchesButEmailDiffers() async throws {
+        let root = try makeTempRoot("codex-auth-reconcile-accountid-email-diff")
+        defer { try? root.delete() }
+
+        let manager = CodexAuthManager(rootURL: root.url)
+        let existing = try await manager.addAccount(
+            name: "existing",
+            authJSONString: #"{"tokens":{"id_token":"old-id","access_token":"old-access","account_id":"acct-shared"},"email":"existing@example.com"}"#
+        )
+        let existingPairBefore = try await manager.readTokenPair(for: existing)
+
+        let providerRoot = root.folder("provider")
+        _ = providerRoot.createIfNotExists()
+        let provider = Provider(
+            name: "Codex",
+            defaultSkillsPath: providerRoot.folder("skills").url.path,
+            workflowPath: providerRoot.folder("prompts").url.path,
+            installMethod: .symlink,
+            templateId: "codex"
+        )
+
+        let detachedAuthURL = providerRoot.file("auth.json").url
+        let detachedRaw = #"{"tokens":{"id_token":"new-id","access_token":"new-access","account_id":"acct-shared"},"email":"fresh@example.com"}"#
+        try detachedRaw.write(to: detachedAuthURL, atomically: true, encoding: .utf8)
+
+        let reconciled = try await manager.reconcileDetachedProviderAuthIfNeeded(for: provider)
+        let resolved = try #require(reconciled)
+        #expect(resolved.id != existing.id)
+
+        let all = try await manager.loadAccounts()
+        #expect(all.count == 2)
+
+        let existingAfter = try #require(all.first(where: { $0.id == existing.id }))
+        let existingPairAfter = try await manager.readTokenPair(for: existingAfter)
+        #expect(existingPairAfter?.idToken == existingPairBefore?.idToken)
+        #expect(existingPairAfter?.accessToken == existingPairBefore?.accessToken)
     }
 
     @Test("Given detached provider auth without matching snapshot, when reconciling detached auth, then migrate to new snapshot and relink provider auth")
@@ -683,13 +745,13 @@ struct CodexAuthManagerTests {
         #expect(matched?.id == emailMatch.id)
     }
 
-    @Test("Given auth payload missing email but containing account id, when matching snapshot then account id wins over api key")
-    func matchAccountPrioritizesAccountIDOverApiKey() async throws {
+    @Test("Given auth payload only contains account id, when matching snapshot then no snapshot is matched")
+    func matchAccountDoesNotMatchWhenOnlyAccountIDIsPresent() async throws {
         let root = try makeTempRoot("codex-auth-match-accountid")
         defer { try? root.delete() }
 
         let manager = CodexAuthManager(rootURL: root.url)
-        let accountIDMatch = try await manager.addAccount(
+        _ = try await manager.addAccount(
             name: "accountid-match",
             authJSONString: #"{"tokens":{"account_id":"acct-123"},"OPENAI_API_KEY":"sk-one-1111"}"#
         )
@@ -700,7 +762,65 @@ struct CodexAuthManagerTests {
         let payload = Data(#"{"tokens":{"account_id":"acct-123"},"OPENAI_API_KEY":"sk-other-7777"}"#.utf8)
 
         let matched = try await manager.matchAccountByAuthData(payload)
-        #expect(matched?.id == accountIDMatch.id)
+        #expect(matched == nil)
+    }
+
+    @Test("Given same account id and missing email without nolon account id, when recording login snapshot then a new snapshot is created")
+    func recordCLILoginSnapshotCreatesNewWhenMissingEmailAndNoNolonAccountID() async throws {
+        let root = try makeTempRoot("codex-auth-record-accountid-only")
+        defer { try? root.delete() }
+
+        let manager = CodexAuthManager(rootURL: root.url)
+        let existing = try await manager.addAccount(
+            name: "existing",
+            authJSONString: #"{"tokens":{"account_id":"acct-shared","id_token":"old-id","access_token":"old-access"},"email":"existing@example.com"}"#
+        )
+
+        let created = try await manager.recordCLILoginSnapshot(
+            authJSONString: #"{"tokens":{"account_id":"acct-shared","id_token":"new-id","access_token":"new-access"}}"#,
+            preferredAccountID: nil
+        )
+
+        #expect(created.id != existing.id)
+        let all = try await manager.loadAccounts()
+        #expect(all.count == 2)
+    }
+
+    @Test("Given same account id and same nolon account id with missing email, when recording login snapshot then existing snapshot is overwritten in place")
+    func recordCLILoginSnapshotOverwritesWhenMissingEmailButNolonAccountIDMatches() async throws {
+        let root = try makeTempRoot("codex-auth-record-accountid-nolon-id")
+        defer { try? root.delete() }
+
+        let manager = CodexAuthManager(rootURL: root.url)
+        let existing = try await manager.addAccount(
+            name: "existing",
+            authJSONString: #"{"tokens":{"account_id":"acct-shared","id_token":"old-id","access_token":"old-access"},"email":"existing@example.com"}"#
+        )
+
+        let updated = try await manager.recordCLILoginSnapshot(
+            authJSONString: #"""
+            {
+              "tokens": {
+                "account_id": "acct-shared",
+                "id_token": "new-id",
+                "access_token": "new-access"
+              },
+              "nolon": {
+                "account": {
+                  "id": "\#(existing.id.uuidString)"
+                }
+              }
+            }
+            """#,
+            preferredAccountID: nil
+        )
+
+        #expect(updated.id == existing.id)
+        let all = try await manager.loadAccounts()
+        #expect(all.count == 1)
+        let pair = try await manager.readTokenPair(for: updated)
+        #expect(pair?.idToken == "new-id")
+        #expect(pair?.accessToken == "new-access")
     }
 
     @Test("Given same email and same JWT chatgpt account id but stale token account id, when recording login snapshot then updates existing snapshot instead of creating duplicate")
@@ -795,7 +915,51 @@ struct CodexAuthManagerTests {
         #expect(updated.id == older.id)
 
         let newerRaw = try await manager.accountAuthFile(newer).read()
-        #expect(newerRaw.contains("\"OPENAI_API_KEY\":\"sk-beta-1234\""))
+        let newerJSON = try #require(try? JSON(data: Data(newerRaw.utf8)))
+        #expect(newerJSON["OPENAI_API_KEY"].string == "sk-beta-1234")
+    }
+
+    @Test("Given gateway virtual auth payload, when recording CLI login snapshot, then it is rejected to avoid polluting managed account snapshots")
+    func recordCLILoginSnapshotRejectsGatewayVirtualPayload() async throws {
+        let root = try makeTempRoot("codex-auth-record-gateway-virtual")
+        defer { try? root.delete() }
+
+        let manager = CodexAuthManager(rootURL: root.url)
+        let existing = try await manager.addAccount(
+            name: "existing",
+            authJSONString: #"{"email":"existing@example.com","tokens":{"id_token":"id-old","access_token":"access-old"}}"#
+        )
+        let existingRawBefore = try await manager.accountAuthFile(existing).read()
+
+        let gatewayVirtualPayload = #"""
+        {
+          "OPENAI_API_KEY": "nolon-gateway-virtual-api-key",
+          "auth_mode": "apikey",
+          "nolon": {
+            "relay": {
+              "base_url": "http://127.0.0.1:8080",
+              "model_provider": "openai",
+              "query_params": {
+                "nolon_gateway_virtual": "1",
+                "provider_id": "codex"
+              }
+            }
+          },
+          "tokens": null
+        }
+        """#
+
+        await #expect(throws: CodexAuthManager.CLILoginError.gatewayVirtualAuthPayload) {
+            _ = try await manager.recordCLILoginSnapshot(
+                authJSONString: gatewayVirtualPayload,
+                preferredAccountID: nil
+            )
+        }
+
+        let accounts = try await manager.loadAccounts()
+        #expect(accounts.count == 1)
+        let existingRawAfter = try await manager.accountAuthFile(existing).read()
+        #expect(existingRawAfter == existingRawBefore)
     }
 
     @Test("Given detached provider auth with invalid json and healthy snapshot, when preflight runs then snapshot is kept as source of truth")
@@ -839,7 +1003,7 @@ struct CodexAuthManagerTests {
         let manager = CodexAuthManager(rootURL: root.url)
         let active = try await manager.addAccount(
             name: "active",
-            authJSONString: #"{"tokens":{"id_token":"id-active","access_token":"access-active"},"email":"active@example.com"}"#
+            authJSONString: #"{"tokens":{"id_token":"id-active","access_token":"access-active","account_id":"acct-shared"},"email":"active@example.com"}"#
         )
 
         let providerRoot = root.folder("provider")
@@ -855,7 +1019,7 @@ struct CodexAuthManagerTests {
         try await manager.activateAccountAndMarkActive(active, for: provider)
         _ = try await manager.preflightManagedAuthIfNeeded(for: provider, forceBackup: true, reason: "seed_backup")
 
-        let driftedRaw = #"{"tokens":{"id_token":"id-drift","access_token":"access-drift"},"email":"drift@example.com"}"#
+        let driftedRaw = #"{"tokens":{"id_token":"id-drift","access_token":"access-drift","account_id":"acct-shared"},"email":"drift@example.com"}"#
         let activeID = try #require(await manager.activeAccountId(for: provider))
         let activeResolved = try #require((try await manager.loadAccounts()).first(where: { $0.id == activeID }))
         let activeFile = await manager.accountAuthFile(activeResolved)
@@ -879,6 +1043,247 @@ struct CodexAuthManagerTests {
             }
         }
         #expect(driftedFound == true)
+    }
+
+    @Test("Given active drift payload shares account id and email with an existing snapshot, when preflight runs then existing same-identity snapshot is overwritten")
+    func preflightOverwritesExistingSnapshotWhenDriftIdentityMatchesStrictly() async throws {
+        let root = try makeTempRoot("codex-auth-preflight-drift-strict-match")
+        defer { try? root.delete() }
+
+        let manager = CodexAuthManager(rootURL: root.url)
+        let active = try await manager.addAccount(
+            name: "active",
+            authJSONString: #"{"tokens":{"id_token":"id-active","access_token":"access-active","account_id":"acct-shared"},"email":"active@example.com"}"#
+        )
+        let peer = try await manager.addAccount(
+            name: "peer",
+            authJSONString: #"{"tokens":{"id_token":"id-peer-old","access_token":"access-peer-old","account_id":"acct-shared"},"email":"peer@example.com"}"#
+        )
+
+        let providerRoot = root.folder("provider")
+        _ = providerRoot.createIfNotExists()
+        let provider = Provider(
+            name: "Codex",
+            defaultSkillsPath: providerRoot.folder("skills").url.path,
+            workflowPath: providerRoot.folder("prompts").url.path,
+            installMethod: .symlink,
+            templateId: "codex"
+        )
+
+        try await manager.activateAccountAndMarkActive(active, for: provider)
+        _ = try await manager.preflightManagedAuthIfNeeded(for: provider, forceBackup: true, reason: "seed_backup")
+
+        let driftedRaw = #"""
+        {
+          "tokens": {
+            "id_token": "id-peer-new",
+            "access_token": "access-peer-new",
+            "account_id": "acct-shared"
+          },
+          "email": "peer@example.com",
+          "nolon": {
+            "account": {
+              "id": "\#(active.id.uuidString)"
+            }
+          }
+        }
+        """#
+        let activeID = try #require(await manager.activeAccountId(for: provider))
+        let activeResolved = try #require((try await manager.loadAccounts()).first(where: { $0.id == activeID }))
+        let activeFile = await manager.accountAuthFile(activeResolved)
+        try activeFile.overlay(with: Data(driftedRaw.utf8))
+
+        _ = try await manager.preflightManagedAuthIfNeeded(for: provider, forceBackup: false, reason: "detect_drift")
+
+        let accounts = try await manager.loadAccounts()
+        #expect(accounts.count == 2)
+
+        let peerAfter = try #require(accounts.first(where: { $0.id == peer.id }))
+        let peerPair = try await manager.readTokenPair(for: peerAfter)
+        #expect(peerPair?.idToken == "id-peer-new")
+        #expect(peerPair?.accessToken == "access-peer-new")
+
+        let restoredActiveID = try #require(await manager.activeAccountId(for: provider))
+        let restoredActive = try #require(accounts.first(where: { $0.id == restoredActiveID }))
+        let restoredSummary = CodexAuthSummary.fromJSONData(try await manager.accountAuthFile(restoredActive).data())
+        #expect(restoredSummary.email == "active@example.com")
+    }
+
+    @Test("Given active drift payload shares account id but has different email from existing snapshots, when preflight runs then drift payload is saved as a new snapshot")
+    func preflightCreatesNewSnapshotWhenDriftEmailDiffersUnderSameAccountID() async throws {
+        let root = try makeTempRoot("codex-auth-preflight-drift-email-diff")
+        defer { try? root.delete() }
+
+        let manager = CodexAuthManager(rootURL: root.url)
+        let active = try await manager.addAccount(
+            name: "active",
+            authJSONString: #"{"tokens":{"id_token":"id-active","access_token":"access-active","account_id":"acct-shared"},"email":"active@example.com"}"#
+        )
+        let peer = try await manager.addAccount(
+            name: "peer",
+            authJSONString: #"{"tokens":{"id_token":"id-peer-old","access_token":"access-peer-old","account_id":"acct-shared"},"email":"peer@example.com"}"#
+        )
+
+        let providerRoot = root.folder("provider")
+        _ = providerRoot.createIfNotExists()
+        let provider = Provider(
+            name: "Codex",
+            defaultSkillsPath: providerRoot.folder("skills").url.path,
+            workflowPath: providerRoot.folder("prompts").url.path,
+            installMethod: .symlink,
+            templateId: "codex"
+        )
+
+        try await manager.activateAccountAndMarkActive(active, for: provider)
+        _ = try await manager.preflightManagedAuthIfNeeded(for: provider, forceBackup: true, reason: "seed_backup")
+
+        let driftedRaw = #"""
+        {
+          "tokens": {
+            "id_token": "id-drift-new",
+            "access_token": "access-drift-new",
+            "account_id": "acct-shared"
+          },
+          "email": "newcomer@example.com",
+          "nolon": {
+            "account": {
+              "id": "\#(active.id.uuidString)"
+            }
+          }
+        }
+        """#
+        let activeID = try #require(await manager.activeAccountId(for: provider))
+        let activeResolved = try #require((try await manager.loadAccounts()).first(where: { $0.id == activeID }))
+        let activeFile = await manager.accountAuthFile(activeResolved)
+        try activeFile.overlay(with: Data(driftedRaw.utf8))
+
+        _ = try await manager.preflightManagedAuthIfNeeded(for: provider, forceBackup: false, reason: "detect_drift")
+
+        let accounts = try await manager.loadAccounts()
+        #expect(accounts.count == 3)
+
+        let peerAfter = try #require(accounts.first(where: { $0.id == peer.id }))
+        let peerPair = try await manager.readTokenPair(for: peerAfter)
+        #expect(peerPair?.idToken == "id-peer-old")
+        #expect(peerPair?.accessToken == "access-peer-old")
+
+        var newcomerCount = 0
+        for account in accounts {
+            guard let data = try? await manager.accountAuthFile(account).data() else { continue }
+            let summary = CodexAuthSummary.fromJSONData(data)
+            if summary.email == "newcomer@example.com" {
+                newcomerCount += 1
+            }
+        }
+        #expect(newcomerCount == 1)
+    }
+
+    @Test("Given gateway virtual account is active, when preflight runs then it must not be restored back to normal snapshot")
+    func preflightKeepsGatewayVirtualAccountActive() async throws {
+        let root = try makeTempRoot("codex-auth-preflight-gateway-virtual")
+        defer { try? root.delete() }
+
+        let manager = CodexAuthManager(rootURL: root.url)
+        let normal = try await manager.addAccount(
+            name: "normal",
+            authJSONString: #"{"tokens":{"id_token":"id-normal","access_token":"access-normal"},"email":"normal@example.com"}"#
+        )
+
+        let providerRoot = root.folder("provider")
+        _ = providerRoot.createIfNotExists()
+        let provider = Provider(
+            name: "Codex",
+            defaultSkillsPath: providerRoot.folder("skills").url.path,
+            workflowPath: providerRoot.folder("prompts").url.path,
+            installMethod: .symlink,
+            templateId: "codex"
+        )
+
+        try await manager.activateAccountAndMarkActive(normal, for: provider)
+        _ = try await manager.preflightManagedAuthIfNeeded(for: provider, forceBackup: true, reason: "seed_backup")
+
+        let virtual = try await manager.upsertGatewayVirtualAccount(
+            providerID: "codex",
+            name: "__gateway_reply__-codex",
+            apiKey: "nolon-gateway-virtual-api-key",
+            relay: .init(
+                baseURL: "http://127.0.0.1:18080",
+                modelProvider: "openai",
+                queryParams: [
+                    "nolon_gateway_virtual": "1",
+                    "provider_id": "codex",
+                ]
+            )
+        )
+        try await manager.activateAccountAndMarkActive(virtual, for: provider)
+
+        _ = try await manager.preflightManagedAuthIfNeeded(for: provider, forceBackup: false, reason: "gateway_virtual_reload")
+
+        let activeID = try #require(await manager.activeAccountId(for: provider))
+        #expect(activeID == virtual.id)
+        let authFile = try #require(await manager.authFile(for: provider))
+        let destination = try authFile.destinationOfSymbolicLink()
+        let virtualFile = await manager.accountAuthFile(virtual)
+        #expect(STPath.standardizedPath(destination.url.path).path == STPath.standardizedPath(virtualFile.url.path).path)
+    }
+
+    @Test("Given gateway was activated via canonical codex provider, when custom codex provider preflight runs then auth symlink remains gateway virtual")
+    func preflightKeepsGatewayVirtualWhenProviderIDDiffers() async throws {
+        let root = try makeTempRoot("codex-auth-preflight-gateway-provider-id-mismatch")
+        defer { try? root.delete() }
+
+        let manager = CodexAuthManager(rootURL: root.url)
+        let normal = try await manager.addAccount(
+            name: "normal",
+            authJSONString: #"{"tokens":{"id_token":"id-normal","access_token":"access-normal"},"email":"normal@example.com"}"#
+        )
+
+        let providerRoot = root.folder("provider")
+        _ = providerRoot.createIfNotExists()
+        let customProvider = Provider(
+            id: "D3B087EE-4BBF-495E-BAC6-8FDEFB5B88B0",
+            name: "Codex Custom",
+            defaultSkillsPath: providerRoot.folder("skills").url.path,
+            workflowPath: providerRoot.folder("prompts").url.path,
+            installMethod: .symlink,
+            templateId: "codex"
+        )
+        let canonicalProvider = Provider(
+            id: "codex",
+            name: "Codex",
+            defaultSkillsPath: providerRoot.folder("skills").url.path,
+            workflowPath: providerRoot.folder("prompts").url.path,
+            installMethod: .symlink,
+            templateId: "codex"
+        )
+
+        try await manager.activateAccountAndMarkActive(normal, for: customProvider)
+        _ = try await manager.preflightManagedAuthIfNeeded(for: customProvider, forceBackup: true, reason: "seed_custom_backup")
+
+        let virtual = try await manager.upsertGatewayVirtualAccount(
+            providerID: "codex",
+            name: "__gateway_reply__-codex",
+            apiKey: "nolon-gateway-virtual-api-key",
+            relay: .init(
+                baseURL: "http://127.0.0.1:18081",
+                modelProvider: "openai",
+                queryParams: [
+                    "nolon_gateway_virtual": "1",
+                    "provider_id": "codex",
+                ]
+            )
+        )
+        try await manager.activateAccountAndMarkActive(virtual, for: canonicalProvider)
+
+        _ = try await manager.preflightManagedAuthIfNeeded(for: customProvider, forceBackup: false, reason: "gateway_custom_reload")
+
+        let authFile = try #require(await manager.authFile(for: customProvider))
+        let destination = try authFile.destinationOfSymbolicLink()
+        let virtualFile = await manager.accountAuthFile(virtual)
+        let activeID = await manager.activeAccountId(for: customProvider)
+
+        #expect(STPath.standardizedPath(destination.url.path).path == STPath.standardizedPath(virtualFile.url.path).path)
+        #expect(activeID == virtual.id)
     }
 
     @Test("Given duplicate snapshot ids and wrong relative path metadata, when loading accounts then id collision is healed and relative path is corrected")

@@ -136,7 +136,7 @@ public actor CodexAuthManager {
     }
     private static let jsonEncoder: JSONEncoder = {
         let encoder = JSONEncoder()
-        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
         encoder.nonConformingFloatEncodingStrategy = .convertToString(
             positiveInfinity: "Infinity",
             negativeInfinity: "-Infinity",
@@ -736,11 +736,13 @@ public actor CodexAuthManager {
 
     /// Upsert account snapshot from a successful `codex login` output.
     /// - If `preferredAccountID` is provided and exists, update that account first.
-    /// - Else, if email matches existing snapshots, require exact account-id match to update.
-    /// - Else, try to match by auth data hash/content.
+    /// - Else, use `matchAccount` strict identity rules to decide update vs create.
     /// - If no match, create a new snapshot account.
     public func upsertAccountFromCLILogin(authJSONString: String, preferredAccountID: UUID?) async throws -> CodexAuthAccount {
         let data = Data(authJSONString.utf8)
+        if isGatewayVirtualAuthPayload(data) {
+            throw CLILoginError.gatewayVirtualAuthPayload
+        }
 
         if let preferredAccountID {
             let accounts = try await loadAccounts()
@@ -751,38 +753,6 @@ public actor CodexAuthManager {
         }
 
         let accounts = try await loadAccounts()
-        let summary = CodexAuthSummary.fromJSONData(data)
-        let authEmail = normalizedEmail(summary.email)
-        let authAccountID = normalizedAccountID(summary.accountID)
-
-        if let authEmail {
-            let snapshots = loadAccountSnapshots(for: accounts)
-            let emailMatches = snapshots.compactMap { snapshot -> CodexAuthAccount? in
-                guard let email = normalizedEmail(snapshot.summary.email), email == authEmail else { return nil }
-                return snapshot.account
-            }
-
-            if !emailMatches.isEmpty {
-                if let authAccountID {
-                    let accountIDMatches = snapshots.compactMap { snapshot -> CodexAuthAccount? in
-                        guard let email = normalizedEmail(snapshot.summary.email),
-                              email == authEmail,
-                              let accountID = normalizedAccountID(snapshot.summary.accountID),
-                              accountID == authAccountID
-                        else { return nil }
-                        return snapshot.account
-                    }
-                    if let matchedByEmailAndAccountID = pickLatestAccount(from: accountIDMatches) {
-                        try await updateAccount(matchedByEmailAndAccountID, authJSONString: authJSONString)
-                        return matchedByEmailAndAccountID
-                    }
-                }
-
-                let finalName = deriveAccountName(fromAuthJSONString: authJSONString)
-                return try await addAccount(name: finalName, authJSONString: authJSONString)
-            }
-        }
-
         if let matchedByAuth = matchAccount(authData: data, accounts: accounts) {
             try await updateAccount(matchedByAuth, authJSONString: authJSONString)
             return matchedByAuth
@@ -1305,6 +1275,7 @@ public actor CodexAuthManager {
         case codexHomeUnavailable
         case authFileNotFound
         case authFileInvalidEncoding
+        case gatewayVirtualAuthPayload
 
         public var errorDescription: String? {
             switch self {
@@ -1314,6 +1285,8 @@ public actor CodexAuthManager {
                 return "No auth.json found."
             case .authFileInvalidEncoding:
                 return "auth.json is not valid UTF-8."
+            case .gatewayVirtualAuthPayload:
+                return "CLI login returned a gateway virtual auth payload. Stop gateway mode and login again."
             }
         }
     }
@@ -1865,6 +1838,13 @@ private extension CodexAuthManager {
         let cleanedData: Data
         let summary: CodexAuthSummary
         let apiKey: String?
+        let identity: AccountIdentity
+    }
+
+    private struct AccountIdentity {
+        let accountID: String?
+        let email: String?
+        let nolonAccountID: String?
     }
 
     private struct AuthSourceCandidate {
@@ -1949,6 +1929,14 @@ private extension CodexAuthManager {
                     if activeID != linked.id {
                         try setActiveAccount(linked, for: provider)
                         return linked
+                    }
+                    return nil
+                }
+                if let gatewayVirtual = loadGatewayVirtualAccount(byStandardizedPath: standardizedDestination) {
+                    let activeID = activeAccountIdFromRegistry(for: provider, accounts: snapshots)
+                    if activeID != gatewayVirtual.id {
+                        try setActiveAccount(gatewayVirtual, for: provider)
+                        return gatewayVirtual
                     }
                     return nil
                 }
@@ -2118,6 +2106,26 @@ private extension CodexAuthManager {
             throw CocoaError(.fileReadInapplicableStringEncoding)
         }
 
+        let authSummary = CodexAuthSummary.fromJSONData(authData)
+        let authIdentity = accountIdentity(from: authData, summary: authSummary)
+        if let strictMatch = matchAccountByStrictIdentity(
+            authIdentity: authIdentity,
+            snapshots: loadAccountSnapshots(for: snapshots),
+            excludedAccountID: excludedAccountID
+        ) {
+            try writeAccountFile(
+                file: accountAuthFile(strictMatch),
+                relativeAuthPath: strictMatch.relativeAuthPath,
+                authJSONString: raw,
+                preferredId: strictMatch.id,
+                preferredCreatedAt: strictMatch.createdAt
+            )
+            return try loadAccount(
+                file: accountAuthFile(strictMatch),
+                relativeAuthPath: strictMatch.relativeAuthPath
+            )
+        }
+
         if let matched = matchAccount(authData: authData, accounts: snapshots),
            matched.id != excludedAccountID {
             try writeAccountFile(
@@ -2171,6 +2179,13 @@ private extension CodexAuthManager {
 
         let currentHash = cleanedHashHex(for: activeData)
         var fingerprints = loadActiveFingerprintMap()
+        if isGatewayVirtualAccount(activeAccount) {
+            if fingerprints[provider.id] != currentHash {
+                fingerprints[provider.id] = currentHash
+                try saveActiveFingerprintMap(fingerprints)
+            }
+            return nil
+        }
         guard let previousHash = fingerprints[provider.id] else {
             fingerprints[provider.id] = currentHash
             try saveActiveFingerprintMap(fingerprints)
@@ -2191,9 +2206,7 @@ private extension CodexAuthManager {
             return nil
         }
 
-        let backupSummary = CodexAuthSummary.fromJSONData(backupData)
-        let driftSummary = CodexAuthSummary.fromJSONData(activeData)
-        if isSameIdentity(backupSummary, driftSummary) {
+        if isSameIdentity(backupData, activeData) {
             fingerprints[provider.id] = currentHash
             try saveActiveFingerprintMap(fingerprints)
             return nil
@@ -2222,14 +2235,34 @@ private extension CodexAuthManager {
         return refreshedRestoredAccount
     }
 
-    private func isSameIdentity(_ lhs: CodexAuthSummary, _ rhs: CodexAuthSummary) -> Bool {
-        if let left = normalizedEmail(lhs.email),
-           let right = normalizedEmail(rhs.email) {
-            return left == right
+    private func isSameIdentity(_ lhsData: Data, _ rhsData: Data) -> Bool {
+        let lhsSummary = CodexAuthSummary.fromJSONData(lhsData)
+        let rhsSummary = CodexAuthSummary.fromJSONData(rhsData)
+        let lhsIdentity = accountIdentity(from: lhsData, summary: lhsSummary)
+        let rhsIdentity = accountIdentity(from: rhsData, summary: rhsSummary)
+
+        if let leftAccountID = lhsIdentity.accountID,
+           let rightAccountID = rhsIdentity.accountID
+        {
+            guard leftAccountID == rightAccountID else { return false }
+            if let leftEmail = lhsIdentity.email,
+               let rightEmail = rhsIdentity.email
+            {
+                return leftEmail == rightEmail
+            }
+            if lhsIdentity.email == nil, rhsIdentity.email == nil,
+               let leftNolonID = lhsIdentity.nolonAccountID,
+               let rightNolonID = rhsIdentity.nolonAccountID
+            {
+                return leftNolonID == rightNolonID
+            }
+            return false
         }
-        if let left = normalizedAccountID(lhs.accountID),
-           let right = normalizedAccountID(rhs.accountID) {
-            return left == right
+
+        if let leftEmail = lhsIdentity.email,
+           let rightEmail = rhsIdentity.email
+        {
+            return leftEmail == rightEmail
         }
         return false
     }
@@ -2478,10 +2511,66 @@ private extension CodexAuthManager {
             let cleaned = Self.cleanedAuthJSONData(from: data) ?? data
             let summary = CodexAuthSummary.fromJSONData(data)
             let apiKey = extractAPIKey(from: data)
-            snapshots.append(AccountSnapshot(account: account, data: data, cleanedData: cleaned, summary: summary, apiKey: apiKey))
+            let identity = accountIdentity(from: data, summary: summary)
+            snapshots.append(
+                AccountSnapshot(
+                    account: account,
+                    data: data,
+                    cleanedData: cleaned,
+                    summary: summary,
+                    apiKey: apiKey,
+                    identity: identity
+                )
+            )
         }
 
         return snapshots
+    }
+
+    private func accountIdentity(from data: Data, summary: CodexAuthSummary? = nil) -> AccountIdentity {
+        let resolvedSummary = summary ?? CodexAuthSummary.fromJSONData(data)
+        let root = Self.decodeJSONObject(from: data)
+        let nolonAccountID = normalizedNolonAccountID(
+            root.flatMap { getString($0, path: ["nolon", "account", "id"]) }
+        )
+        return AccountIdentity(
+            accountID: normalizedAccountID(resolvedSummary.accountID),
+            email: normalizedEmail(resolvedSummary.email),
+            nolonAccountID: nolonAccountID
+        )
+    }
+
+    private func matchAccountByStrictIdentity(
+        authIdentity: AccountIdentity,
+        snapshots: [AccountSnapshot],
+        excludedAccountID: UUID?
+    ) -> CodexAuthAccount? {
+        guard let authAccountID = authIdentity.accountID else { return nil }
+
+        if let authEmail = authIdentity.email {
+            let matches = snapshots.compactMap { snapshot -> CodexAuthAccount? in
+                guard snapshot.identity.accountID == authAccountID,
+                      snapshot.identity.email == authEmail,
+                      snapshot.account.id != excludedAccountID
+                else { return nil }
+                return snapshot.account
+            }
+            return pickLatestAccount(from: matches)
+        }
+
+        if let authNolonAccountID = authIdentity.nolonAccountID {
+            let matches = snapshots.compactMap { snapshot -> CodexAuthAccount? in
+                guard snapshot.identity.accountID == authAccountID,
+                      snapshot.identity.nolonAccountID == authNolonAccountID,
+                      snapshot.account.id != excludedAccountID
+                else { return nil }
+                return snapshot.account
+            }
+            return pickLatestAccount(from: matches)
+        }
+
+        // Only `account_id` is not enough to merge snapshots.
+        return nil
     }
 
     private func existingAuthRelativePaths() -> Set<String> {
@@ -2518,11 +2607,59 @@ private extension CodexAuthManager {
         return false
     }
 
+    private func loadGatewayVirtualAccount(byStandardizedPath path: String) -> CodexAuthAccount? {
+        let folder = nolonCodexGatewayVirtualAuthFolder()
+        let fileNames = stableAuthSnapshotFileNames(in: folder)
+        for fileName in fileNames {
+            let relativePath = "gateway/virtual-auth/\(fileName)"
+            let file = folder.file(fileName)
+            guard standardizedPathString(file) == path else { continue }
+            if let account = try? loadAccount(file: file, relativeAuthPath: relativePath) {
+                return account
+            }
+        }
+        return nil
+    }
+
     private func isRelayProfileAccount(_ account: CodexAuthAccount) -> Bool {
         guard let data = try? accountAuthFile(account).data(),
               !data.isEmpty
         else { return false }
         return CodexAuthSummary.fromJSONData(data).cardKind == .relayProfile
+    }
+
+    private func isGatewayVirtualAccount(_ account: CodexAuthAccount) -> Bool {
+        let relative = account.relativeAuthPath.lowercased()
+        if relative.hasPrefix("gateway/virtual-auth/") || relative.contains("/__gateway_reply__-") {
+            return true
+        }
+        guard let data = try? accountAuthFile(account).data(),
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let nolon = object["nolon"] as? [String: Any],
+              let relay = nolon["relay"] as? [String: Any],
+              let params = relay["query_params"] as? [String: Any]
+        else {
+            return false
+        }
+        return (params["nolon_gateway_virtual"] as? String) == "1"
+    }
+
+    private func isGatewayVirtualAuthPayload(_ data: Data) -> Bool {
+        guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let nolon = object["nolon"] as? [String: Any],
+              let relay = nolon["relay"] as? [String: Any],
+              let params = relay["query_params"] as? [String: Any]
+        else {
+            return false
+        }
+        if let marker = params["nolon_gateway_virtual"] as? String {
+            let normalized = marker.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            return normalized == "1" || normalized == "true"
+        }
+        if let marker = params["nolon_gateway_virtual"] as? NSNumber {
+            return marker.intValue != 0
+        }
+        return false
     }
 
     private func loadActiveAccountMap() -> [String: String] {
@@ -2558,24 +2695,15 @@ private extension CodexAuthManager {
     func matchAccount(authData: Data, accounts: [CodexAuthAccount]) -> CodexAuthAccount? {
         let snapshots = loadAccountSnapshots(for: accounts)
         let authSummary = CodexAuthSummary.fromJSONData(authData)
-        let authEmail = normalizedEmail(authSummary.email)
-        let authAccountID = normalizedAccountID(authSummary.accountID)
+        let authIdentity = accountIdentity(from: authData, summary: authSummary)
         let authAPIKey = extractAPIKey(from: authData)
 
-        let emailMatches = snapshots.compactMap { snapshot -> CodexAuthAccount? in
-            guard let authEmail,
-                  let email = normalizedEmail(snapshot.summary.email),
-                  email == authEmail
-            else { return nil }
-            return snapshot.account
-        }
-
-        let accountIDMatches = snapshots.compactMap { snapshot -> CodexAuthAccount? in
-            guard let authAccountID,
-                  let accountID = normalizedAccountID(snapshot.summary.accountID),
-                  accountID == authAccountID
-            else { return nil }
-            return snapshot.account
+        if let strictMatch = matchAccountByStrictIdentity(
+            authIdentity: authIdentity,
+            snapshots: snapshots,
+            excludedAccountID: nil
+        ) {
+            return strictMatch
         }
 
         let apiKeyMatches = snapshots.compactMap { snapshot -> CodexAuthAccount? in
@@ -2586,9 +2714,22 @@ private extension CodexAuthManager {
             return snapshot.account
         }
 
-        if let match = pickLatestAccount(from: accountIDMatches) {
-            return match
+        let emailMatches = snapshots.compactMap { snapshot -> CodexAuthAccount? in
+            guard let authEmail = authIdentity.email,
+                  snapshot.identity.email == authEmail
+            else { return nil }
+            return snapshot.account
         }
+
+        if authIdentity.accountID != nil {
+            // For account-scoped OAuth payloads, only strict identity matches can update snapshots.
+            let cleanedAuthData = Self.cleanedAuthJSONData(from: authData) ?? authData
+            if let match = snapshots.first(where: { $0.cleanedData == cleanedAuthData }) {
+                return match.account
+            }
+            return nil
+        }
+
         if let match = pickLatestAccount(from: apiKeyMatches) {
             return match
         }
@@ -2652,6 +2793,13 @@ private extension CodexAuthManager {
     }
 
     func normalizedAccountID(_ value: String?) -> String? {
+        guard let value = value?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !value.isEmpty
+        else { return nil }
+        return value.lowercased()
+    }
+
+    func normalizedNolonAccountID(_ value: String?) -> String? {
         guard let value = value?.trimmingCharacters(in: .whitespacesAndNewlines),
               !value.isEmpty
         else { return nil }
