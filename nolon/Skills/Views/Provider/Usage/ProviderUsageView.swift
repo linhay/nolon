@@ -6,6 +6,8 @@ import ProviderUsage
 import CodexBarProviderCatalog
 import CodexProvider
 import UniformTypeIdentifiers
+import NolonUIFoundation
+import NolonUI
 
 enum CodexUsageCardStatusKind: Equatable {
     case healthy
@@ -62,6 +64,17 @@ enum CodexUsageCardPresentationPolicy {
 }
 
 struct ProviderUsageView: View, DebugPageLocatable {
+    private enum CodexListLayout {
+        static let planColumnWidth: CGFloat = 96
+        static let usageColumnWidth: CGFloat = 232
+    }
+
+    private struct CodexListUsageWindow: Identifiable {
+        let id: String
+        let title: String
+        let remainingPercent: Double
+    }
+
     let provider: Provider
     let isEmbedded: Bool
     @State private var viewModel: ProviderUsageViewModel
@@ -103,6 +116,24 @@ struct ProviderUsageView: View, DebugPageLocatable {
 
     static func shouldShowActivateGatewayContextAction(isActiveGateway: Bool) -> Bool {
         !isActiveGateway
+    }
+
+    static func shouldUseCompactCodexListRows(
+        layoutMode: ProviderUsageViewModel.CodexAccountLayoutMode
+    ) -> Bool {
+        layoutMode == .list
+    }
+
+    static func gatewayMemberDisplayLimit(
+        layoutMode: ProviderUsageViewModel.CodexAccountLayoutMode
+    ) -> Int {
+        shouldUseCompactCodexListRows(layoutMode: layoutMode) ? 8 : 12
+    }
+
+    static func gatewayMemberRowMaxHeight(
+        layoutMode: ProviderUsageViewModel.CodexAccountLayoutMode
+    ) -> CGFloat {
+        shouldUseCompactCodexListRows(layoutMode: layoutMode) ? 48 : 70
     }
 
     var debugPageMarkerItems: [PageMarkerItem] {
@@ -928,9 +959,11 @@ struct ProviderUsageView: View, DebugPageLocatable {
             }
         } label: {
             Image(systemName: "ellipsis")
-                .dsIconButton()
+                .font(.body)
+                .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                .frame(width: DesignSystem.Metrics.iconButtonSize, height: DesignSystem.Metrics.iconButtonSize)
         }
-        .dsBorderlessMenu()
+        .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)
         .fixedSize()
     }
@@ -1212,7 +1245,8 @@ struct ProviderUsageView: View, DebugPageLocatable {
         }
         .padding()
         .frame(maxWidth: .infinity, alignment: .topLeading)
-        .dsCard()
+        .background(DesignSystem.Colors.Component.controlFillSubtle)
+        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusL, style: .continuous))
     }
 
     private var codexCurrentOutcome: ProviderAccountUsageOutcome? {
@@ -1371,7 +1405,8 @@ struct ProviderUsageView: View, DebugPageLocatable {
                 }
             }
             .padding(12)
-            .dsCard()
+            .background(DesignSystem.Colors.Component.controlFillSubtle)
+            .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusL, style: .continuous))
         }
     }
 
@@ -1419,12 +1454,26 @@ struct ProviderUsageView: View, DebugPageLocatable {
     @ViewBuilder
     private func codexOutcomesContainer(_ outcomes: [ProviderAccountUsageOutcome]) -> some View {
         Group {
-            if viewModel.codexAccountLayoutMode == .list {
-                LazyVStack(alignment: .leading, spacing: 12) {
-                    ForEach(outcomes) { outcome in
+            if Self.shouldUseCompactCodexListRows(layoutMode: viewModel.codexAccountLayoutMode) {
+                VStack(alignment: .leading, spacing: 0) {
+                    codexListTableHeader
+
+                    ForEach(Array(outcomes.enumerated()), id: \.element.id) { index, outcome in
                         codexOutcomeCard(outcome: outcome)
+                        if index < outcomes.count - 1 {
+                            Divider()
+                                .overlay(DesignSystem.Colors.Component.border.opacity(0.25))
+                        }
                     }
                 }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(DesignSystem.Colors.Background.surface)
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(DesignSystem.Colors.Component.border.opacity(0.3), lineWidth: 1)
+                )
             } else {
                 LazyVGrid(columns: codexAccountColumns, alignment: .leading, spacing: 12) {
                     ForEach(outcomes) { outcome in
@@ -1438,129 +1487,48 @@ struct ProviderUsageView: View, DebugPageLocatable {
 
     @ViewBuilder
     private func gatewayCardsContainer(_ cards: [CodexGatewayCard]) -> some View {
-        Group {
-            if viewModel.codexAccountLayoutMode == .list {
-                LazyVStack(alignment: .leading, spacing: 12) {
-                    ForEach(cards) { card in
-                        gatewayCardView(card: card)
-                    }
-                }
-            } else {
-                LazyVGrid(columns: codexAccountColumns, alignment: .leading, spacing: 12) {
-                    ForEach(cards) { card in
-                        gatewayCardView(card: card)
-                    }
-                }
-            }
+        UIGatewayCardListModule(
+            items: cards,
+            layoutMode: viewModel.codexAccountLayoutMode == .list ? .list : .cards,
+            columns: codexAccountColumns,
+            spacing: 12
+        ) { card in
+            gatewayCardView(card: card)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func gatewayCardView(card: CodexGatewayCard) -> some View {
         let members = viewModel.gatewayMembers(for: card)
+        let memberItems = members.map { member in
+            UIGatewayCardMemberItem(
+                id: member.id,
+                title: member.title,
+                plan: member.plan
+            )
+        }
         let isTargeted = targetingGatewayCardID == card.id
         let isActiveGateway = viewModel.gatewayCardsState.lastUsedCardID == card.id
         let presentation: AccountCardPresentation = (isTargeted || isActiveGateway) ? .selected : .neutral
+        let isCompact = Self.shouldUseCompactCodexListRows(layoutMode: viewModel.codexAccountLayoutMode)
+        let memberDisplayLimit = Self.gatewayMemberDisplayLimit(layoutMode: viewModel.codexAccountLayoutMode)
+        let memberRowMaxHeight = Self.gatewayMemberRowMaxHeight(layoutMode: viewModel.codexAccountLayoutMode)
         
-        return AccountSummaryCard(presentation: presentation) {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack(spacing: 12) {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 6, style: .continuous)
-                            .fill(DesignSystem.Colors.primary.opacity(0.15))
-                            .frame(width: 28, height: 28)
-                            .offset(x: 3, y: -3)
-
-                        RoundedRectangle(cornerRadius: 6, style: .continuous)
-                            .fill(DesignSystem.Colors.primary)
-                            .frame(width: 28, height: 28)
-                            .overlay(
-                                Image(systemName: "square.stack.3d.up.fill")
-                                    .font(.system(size: 14))
-                                    .foregroundStyle(.white)
-                            )
-                    }
-
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(card.name)
-                            .font(.system(size: 14, weight: .bold))
-                            .foregroundStyle(DesignSystem.Colors.Text.primary)
-
-                        Text("\(members.count) 个成员账号")
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundStyle(DesignSystem.Colors.Text.tertiary)
-                    }
-
-                    Spacer(minLength: 0)
-                }
-
-                Button {
-                    handleGatewayCardSelection(cardID: card.id, openPicker: true)
-                } label: {
-                    Label(
-                        NSLocalizedString(
-                            "codex.gateway.cards.action.add_accounts",
-                            value: "添加账号",
-                            comment: "Add accounts to gateway card"
-                        ),
-                        systemImage: "plus"
-                    )
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                .frame(maxWidth: .infinity, alignment: .leading)
-
-                if !members.isEmpty {
-                    FlowLayout(spacing: 6) {
-                        ForEach(members.prefix(12)) { member in
-                            HStack(spacing: 4) {
-                                Text(String(member.title.prefix(1)).uppercased())
-                                    .font(.system(size: 9, weight: .bold))
-                                    .frame(width: 20, height: 20)
-                                    .background(DesignSystem.Colors.primary.opacity(0.12))
-                                    .foregroundStyle(DesignSystem.Colors.primary)
-                                    .clipShape(Circle())
-
-                                Text(member.title)
-                                    .font(.system(size: 10, weight: .medium))
-                                    .foregroundStyle(DesignSystem.Colors.Text.secondary)
-                                    .lineLimit(1)
-
-                                Button {
-                                    viewModel.removeAccountFromGatewayCard(accountID: member.id, cardID: card.id)
-                                } label: {
-                                    Image(systemName: "xmark")
-                                        .font(.system(size: 7, weight: .black))
-                                        .foregroundStyle(DesignSystem.Colors.Text.tertiary)
-                                }
-                                .buttonStyle(.plain)
-                            }
-                            .padding(.leading, 2)
-                            .padding(.trailing, 6)
-                            .padding(.vertical, 2)
-                            .background(DesignSystem.Colors.Background.surface.opacity(0.5))
-                            .clipShape(Capsule())
-                            .overlay(
-                                Capsule()
-                                    .stroke(DesignSystem.Colors.Component.border.opacity(0.3), lineWidth: 0.5)
-                            )
-                        }
-
-                        if members.count > 12 {
-                            Text("+\(members.count - 12)")
-                                .font(.system(size: 9, weight: .bold))
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 4)
-                                .background(DesignSystem.Colors.Component.controlFillSubtle)
-                                .foregroundStyle(DesignSystem.Colors.Text.tertiary)
-                                .clipShape(Capsule())
-                        }
-                    }
-                    .frame(maxHeight: 70, alignment: .topLeading)
-                    .clipped()
-                }
-            }
-        }
+        return UIGatewayCardModule(
+            presentation: presentation,
+            title: card.name,
+            memberCountText: String(
+                format: NSLocalizedString(
+                    "codex.gateway.cards.members.count",
+                    value: "%d 个成员",
+                    comment: "Gateway card members count"
+                ),
+                members.count
+            ),
+            members: memberItems,
+            isCompact: isCompact,
+            memberDisplayLimit: memberDisplayLimit,
+            memberRowMaxHeight: memberRowMaxHeight
+        )
         .animation(DesignSystem.Animations.springQuick, value: isTargeted || isActiveGateway)
         .contentShape(Rectangle())
         .onTapGesture {
@@ -1575,6 +1543,21 @@ struct ProviderUsageView: View, DebugPageLocatable {
             handleLegacyGatewayCardDrop(items: items, cardID: card.id)
         }
         .contextMenu {
+            Button {
+                handleGatewayCardSelection(cardID: card.id, openPicker: true)
+            } label: {
+                Label(
+                    NSLocalizedString(
+                        "codex.gateway.cards.action.add_accounts",
+                        value: "添加账号",
+                        comment: "Add accounts to gateway card"
+                    ),
+                    systemImage: "plus"
+                )
+            }
+
+            Divider()
+
             if Self.shouldShowActivateGatewayContextAction(isActiveGateway: isActiveGateway) {
                 Button {
                     handleGatewayCardSelection(cardID: card.id)
@@ -2121,45 +2104,286 @@ struct ProviderUsageView: View, DebugPageLocatable {
             tapBehavior: .none
         )
 
-        UnifiedAccountCard(
-            data: data,
-            onTap: { _ in },
-            onAction: { _, action in
-                switch action {
-                case .refresh:
-                    onRefresh?()
-                case .relogin:
-                    onLogin?()
-                case .activate:
-                    if let accountId {
-                        Task { await viewModel.activateCodexAccountImmediately(id: accountId) }
+        Group {
+            if Self.shouldUseCompactCodexListRows(layoutMode: viewModel.codexAccountLayoutMode) {
+                codexCompactListRow(
+                    data: data,
+                    presentation: presentation,
+                    isRefreshing: isRefreshing,
+                    onRefresh: onRefresh,
+                    onLogin: onLogin,
+                    isLoggingIn: isLoggingIn,
+                    accountId: accountId,
+                    failureDetail: failureDetail
+                )
+            } else {
+                UnifiedAccountCard(
+                    data: data,
+                    onTap: { _ in },
+                    onAction: { _, action in
+                        handleCodexOutcomeAction(
+                            action: action,
+                            accountId: accountId,
+                            onRefresh: onRefresh,
+                            onLogin: onLogin,
+                            failureDetail: failureDetail
+                        )
                     }
-                case .copyError:
-                    if let failureDetail {
-                        viewModel.copyErrorText(failureDetail)
+                )
+            }
+        }
+        .textSelection(.enabled)
+    }
+
+    private func codexCompactListRow(
+        data: AccountCardViewData,
+        presentation: AccountCardPresentation,
+        isRefreshing: Bool,
+        onRefresh: (() -> Void)?,
+        onLogin: (() -> Void)?,
+        isLoggingIn: Bool,
+        accountId: UUID?,
+        failureDetail: String?
+    ) -> some View {
+        let usageWindows = compactUsageWindows(from: data)
+        return HStack(alignment: .center, spacing: 12) {
+            HStack(alignment: .top, spacing: 8) {
+                Circle()
+                    .fill(compactStatusColor(presentation: presentation, badge: data.header.badge))
+                    .frame(width: 6, height: 6)
+                    .padding(.top, 3)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(data.header.title)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(DesignSystem.Colors.Text.primary)
+                        .lineLimit(1)
+
+                    if let secondary = compactSecondaryText(from: data.header), !secondary.isEmpty {
+                        Text(secondary)
+                            .font(.caption2)
+                            .foregroundStyle(DesignSystem.Colors.Text.tertiary)
+                            .lineLimit(1)
                     }
-                case .revealInFinder:
-                    if let accountId {
-                        viewModel.revealCodexAccountInFinder(id: accountId)
-                    }
-                case .copyAuthJSON:
-                    if let accountId {
-                        viewModel.copyCodexAccountAuthJSON(id: accountId)
-                    }
-                case .editAuthJSON:
-                    if let accountId {
-                        viewModel.editCodexAccountAuthJSON(id: accountId)
-                    }
-                case .delete:
-                    if let accountId {
-                        viewModel.requestDeleteCodexAccount(id: accountId)
-                    }
-                default:
-                    break
                 }
             }
-        )
-        .textSelection(.enabled)
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            Text(compactPlanText(from: data.header))
+                .font(.caption)
+                .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                .lineLimit(1)
+                .frame(width: CodexListLayout.planColumnWidth, alignment: .leading)
+
+            VStack(alignment: .leading, spacing: 6) {
+                ForEach(usageWindows) { window in
+                    HStack(spacing: 6) {
+                        Text(window.title)
+                            .font(.caption2)
+                            .foregroundStyle(DesignSystem.Colors.Text.tertiary)
+                            .frame(width: 46, alignment: .leading)
+                        compactUsageProgressBar(remainingPercent: window.remainingPercent)
+                    }
+                }
+            }
+            .frame(width: CodexListLayout.usageColumnWidth, alignment: .leading)
+
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 10)
+        .background(compactRowBackgroundColor(presentation: presentation))
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .contextMenu {
+            ForEach(data.menuActions) { action in
+                Button(role: action.role) {
+                    handleCodexOutcomeAction(
+                        action: action.actionID,
+                        accountId: accountId,
+                        onRefresh: onRefresh,
+                        onLogin: onLogin,
+                        failureDetail: failureDetail
+                    )
+                } label: {
+                    if let symbol = action.systemImage, !symbol.isEmpty {
+                        Label(action.title, systemImage: symbol)
+                    } else {
+                        Text(action.title)
+                    }
+                }
+                .disabled(!action.isEnabled)
+            }
+        }
+    }
+
+    private func compactRowBackgroundColor(presentation: AccountCardPresentation) -> Color {
+        switch presentation {
+        case .selected:
+            return DesignSystem.Colors.primary.opacity(0.12)
+        default:
+            return .clear
+        }
+    }
+
+    private var codexListTableHeader: some View {
+        HStack(spacing: 12) {
+            Text(NSLocalizedString("codex.accounts.list.header.account", value: "Account", comment: "Codex account list table account column"))
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Text(NSLocalizedString("codex.accounts.list.header.plan", value: "Plan", comment: "Codex account list table plan column"))
+                .frame(width: CodexListLayout.planColumnWidth, alignment: .leading)
+            Text(NSLocalizedString("codex.accounts.list.header.usage", value: "Usage", comment: "Codex account list table usage column"))
+                .frame(width: CodexListLayout.usageColumnWidth, alignment: .leading)
+        }
+        .font(.caption2.weight(.semibold))
+        .foregroundStyle(DesignSystem.Colors.Text.tertiary)
+        .padding(.vertical, 8)
+    }
+
+    private func compactUsageWindows(from data: AccountCardViewData) -> [CodexListUsageWindow] {
+        guard case let .quota(quota) = data.body, let usage = quota.usage else {
+            return [.init(id: "none", title: "-", remainingPercent: 0)]
+        }
+        return ProviderQuotaSection
+            .displayWindows(for: usage, provider: quota.provider)
+            .prefix(3)
+            .map { item in
+                .init(
+                    id: item.id,
+                    title: compactUsageWindowTitle(item, provider: quota.provider),
+                    remainingPercent: item.window.remainingPercent
+                )
+            }
+    }
+
+    private func compactUsageWindowTitle(_ item: UsageWindow, provider: UsageProvider) -> String {
+        let metadata = ProviderUsageRegistry.metadata(for: provider)
+        switch item.id {
+        case "primary":
+            return metadata?.sessionLabel ?? "Session"
+        case "secondary":
+            return metadata?.weeklyLabel ?? "Weekly"
+        default:
+            return item.title
+        }
+    }
+
+    private func compactUsageProgressBar(remainingPercent: Double) -> some View {
+        let normalized = max(0, min(100, remainingPercent.isInfinite ? 100 : remainingPercent))
+        let progress = normalized / 100
+        let color = compactQuotaColor(for: remainingPercent)
+        return HStack(spacing: 8) {
+            GeometryReader { proxy in
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .fill(DesignSystem.Colors.Component.controlFill)
+                    .overlay(alignment: .leading) {
+                        RoundedRectangle(cornerRadius: 4, style: .continuous)
+                            .fill(color.opacity(0.22))
+                            .frame(width: proxy.size.width * progress)
+                    }
+            }
+            .frame(height: 8)
+
+            Text(remainingPercent.isInfinite ? "∞" : String(format: "%.0f%%", normalized))
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(color)
+        }
+    }
+
+    private func compactQuotaColor(for remainingPercent: Double) -> Color {
+        if remainingPercent.isInfinite { return DesignSystem.Colors.Status.success }
+        if remainingPercent < 10 { return DesignSystem.Colors.Status.error }
+        if remainingPercent < 25 { return DesignSystem.Colors.Status.warning }
+        return DesignSystem.Colors.primary
+    }
+
+    private func compactSecondaryText(from header: AccountSummaryCardHeaderModel) -> String? {
+        let eyebrow = header.eyebrow?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let meta = header.meta?.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if let eyebrow, !eyebrow.isEmpty, let meta, !meta.isEmpty {
+            return "\(eyebrow) • \(meta)"
+        }
+        if let eyebrow, !eyebrow.isEmpty {
+            return eyebrow
+        }
+        if let meta, !meta.isEmpty {
+            return meta
+        }
+        return nil
+    }
+
+    private func compactPlanText(from header: AccountSummaryCardHeaderModel) -> String {
+        let raw = header.subtitle ?? "-"
+        let plan = raw
+            .split(separator: "•")
+            .first?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return (plan?.isEmpty == false) ? plan! : "-"
+    }
+
+    private func compactStatusColor(
+        presentation: AccountCardPresentation,
+        badge: AccountSummaryCardBadgeModel?
+    ) -> Color {
+        if let badge {
+            switch badge.tone {
+            case .active:
+                return DesignSystem.Colors.primary
+            case .warning:
+                return DesignSystem.Colors.Status.warning
+            case .neutral:
+                return DesignSystem.Colors.Text.secondary
+            }
+        }
+        switch presentation.selectionStyle {
+        case .active, .selected:
+            return DesignSystem.Colors.primary
+        case .pending:
+            return DesignSystem.Colors.Status.warning
+        case .neutral:
+            return DesignSystem.Colors.Text.secondary
+        }
+    }
+
+    private func handleCodexOutcomeAction(
+        action: AccountCardActionID,
+        accountId: UUID?,
+        onRefresh: (() -> Void)?,
+        onLogin: (() -> Void)?,
+        failureDetail: String?
+    ) {
+        switch action {
+        case .refresh:
+            onRefresh?()
+        case .relogin:
+            onLogin?()
+        case .activate:
+            if let accountId {
+                Task { await viewModel.activateCodexAccountImmediately(id: accountId) }
+            }
+        case .copyError:
+            if let failureDetail {
+                viewModel.copyErrorText(failureDetail)
+            }
+        case .revealInFinder:
+            if let accountId {
+                viewModel.revealCodexAccountInFinder(id: accountId)
+            }
+        case .copyAuthJSON:
+            if let accountId {
+                viewModel.copyCodexAccountAuthJSON(id: accountId)
+            }
+        case .editAuthJSON:
+            if let accountId {
+                viewModel.editCodexAccountAuthJSON(id: accountId)
+            }
+        case .delete:
+            if let accountId {
+                viewModel.requestDeleteCodexAccount(id: accountId)
+            }
+        default:
+            break
+        }
     }
 
     private func statusColor(for statusKind: CodexUsageCardStatusKind) -> Color {
