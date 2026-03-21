@@ -1,0 +1,72 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version (e.g. 2.1.6)"
+        required: true
+        type: string
+      changelog_file:
+        description: "Optional changelog file path (e.g. docs/RELEASE_NOTES_2.1.6.md)"
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Build and Publish Release
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Ensure branch checkout
+        run: |
+          git fetch origin "${GITHUB_REF_NAME}"
+          git checkout -B "${GITHUB_REF_NAME}" "origin/${GITHUB_REF_NAME}"
+
+      - name: Configure git author
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Validate release input
+        run: |
+          if [[ ! "${{ github.event.inputs.version }}" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z]+)?$ ]]; then
+            echo "Invalid version: ${{ github.event.inputs.version }}"
+            exit 1
+          fi
+
+      - name: Validate required secrets
+        run: |
+          if [ -z "${{ secrets.SPARKLE_PRIVATE_KEY }}" ]; then
+            echo "Missing required secret: SPARKLE_PRIVATE_KEY"
+            exit 1
+          fi
+
+      - name: Run release script
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+          SIGNING_IDENTITY: ${{ secrets.SIGNING_IDENTITY }}
+          NOTARY_PROFILE: ${{ secrets.NOTARY_PROFILE }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+          TEAM_ID: ${{ secrets.TEAM_ID }}
+        run: |
+          chmod +x scripts/release.sh scripts/build-dmg.sh
+          if [ -n "${{ github.event.inputs.changelog_file }}" ]; then
+            ./scripts/release.sh "${{ github.event.inputs.version }}" "${{ github.event.inputs.changelog_file }}"
+          else
+            ./scripts/release.sh "${{ github.event.inputs.version }}"
+          fi

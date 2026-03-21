@@ -108,8 +108,22 @@ fi
 
 # Sign DMGs
 echo -e "${YELLOW}✍️  Signing updates with Sparkle...${NC}"
-SIGNATURE_ARM64=$("$SPARKLE_BIN/sign_update" "$DMG_ARM64")
-SIGNATURE_X86_64=$("$SPARKLE_BIN/sign_update" "$DMG_X86_64")
+sign_update_with_available_key() {
+    local update_path="$1"
+
+    if [ -n "${SPARKLE_PRIVATE_KEY:-}" ]; then
+        echo -e "${YELLOW}🔐 Using SPARKLE_PRIVATE_KEY from environment for signing...${NC}"
+        printf '%s' "${SPARKLE_PRIVATE_KEY}" | "$SPARKLE_BIN/sign_update" --ed-key-file - "$update_path"
+        return 0
+    fi
+
+    local keychain_account="${SPARKLE_KEYCHAIN_ACCOUNT:-ed25519}"
+    echo -e "${YELLOW}🔐 Using keychain account '${keychain_account}' for signing...${NC}"
+    "$SPARKLE_BIN/sign_update" --account "${keychain_account}" "$update_path"
+}
+
+SIGNATURE_ARM64=$(sign_update_with_available_key "$DMG_ARM64")
+SIGNATURE_X86_64=$(sign_update_with_available_key "$DMG_X86_64")
 
 # Helper to extract EdDSA signature
 get_signature() {
