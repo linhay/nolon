@@ -10,6 +10,8 @@
 #
 # Optional env:
 #   SKIP_BUILD=1            Skip ./scripts/build-dmg.sh all
+#   CI_TAG_MODE=1           Tag-trigger mode: skip creating tag, commit appcast back to RELEASE_PUSH_BRANCH
+#   RELEASE_PUSH_BRANCH=main Target branch for appcast sync when CI_TAG_MODE=1
 #   UPLOAD_RETRIES=5        Retry count for each asset upload
 #   UPLOAD_SLEEP_BASE=5     Base sleep seconds between retries (exponential-ish)
 #   UPLOAD_TIMEOUT_SECONDS=1800  Per-asset upload timeout in seconds (30 min default)
@@ -47,6 +49,7 @@ if [ -z "$VERSION" ]; then
 fi
 
 TAG="v${VERSION}"
+CI_TAG_MODE="${CI_TAG_MODE:-0}"
 
 # Check if gh is installed
 if ! command -v gh &> /dev/null; then
@@ -70,18 +73,23 @@ if ! git diff --quiet || ! git diff --cached --quiet; then
     exit 1
 fi
 
-# Update version in Xcode project
-echo -e "${YELLOW}📝 Updating version to ${VERSION}...${NC}"
 PROJECT_FILE="nolon.xcodeproj/project.pbxproj"
-
-# Update MARKETING_VERSION
-sed -i '' "s/MARKETING_VERSION = [^;]*;/MARKETING_VERSION = ${VERSION};/g" "$PROJECT_FILE"
-
-# Update CURRENT_PROJECT_VERSION (build number)
 BUILD_NUMBER=$(date +%Y%m%d%H%M)
-sed -i '' "s/CURRENT_PROJECT_VERSION = [^;]*;/CURRENT_PROJECT_VERSION = ${BUILD_NUMBER};/g" "$PROJECT_FILE"
 
-echo -e "${GREEN}✅ Version updated: ${VERSION} (build ${BUILD_NUMBER})${NC}"
+if [ "$CI_TAG_MODE" = "1" ]; then
+    echo -e "${YELLOW}🏷️ CI_TAG_MODE=1, skipping project version file updates...${NC}"
+else
+    # Update version in Xcode project
+    echo -e "${YELLOW}📝 Updating version to ${VERSION}...${NC}"
+
+    # Update MARKETING_VERSION
+    sed -i '' "s/MARKETING_VERSION = [^;]*;/MARKETING_VERSION = ${VERSION};/g" "$PROJECT_FILE"
+
+    # Update CURRENT_PROJECT_VERSION (build number)
+    sed -i '' "s/CURRENT_PROJECT_VERSION = [^;]*;/CURRENT_PROJECT_VERSION = ${BUILD_NUMBER};/g" "$PROJECT_FILE"
+
+    echo -e "${GREEN}✅ Version updated: ${VERSION} (build ${BUILD_NUMBER})${NC}"
+fi
 
 # Build DMGs for both architectures
 if [ "${SKIP_BUILD:-0}" = "1" ]; then
@@ -140,6 +148,9 @@ ED_SIG_X86_64=$(get_signature "$SIGNATURE_X86_64")
 echo -e "${YELLOW}📝 Generating release notes...${NC}"
 
 PREV_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+if [ "$CI_TAG_MODE" = "1" ] && [ "$PREV_TAG" = "$TAG" ]; then
+    PREV_TAG=$(git tag --sort=-creatordate | grep -vx "$TAG" | head -n1 || true)
+fi
 
 if [ -z "$PREV_TAG" ]; then
     CHANGELOG="- Initial release"
@@ -306,22 +317,34 @@ if [ ! -f "$DMG_X86_64" ]; then
     exit 1
 fi
 
-if git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then
+if [ "$CI_TAG_MODE" != "1" ] && git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then
     echo -e "${RED}❌ Tag already exists: ${TAG}${NC}"
     exit 1
 fi
 
 echo -e "${YELLOW}GIT committing version + appcast...${NC}"
-git add "$PROJECT_FILE" "$APPCAST_FILE" "$APPCAST_FILE_ROOT"
+if [ "$CI_TAG_MODE" = "1" ]; then
+    git add "$APPCAST_FILE" "$APPCAST_FILE_ROOT"
+else
+    git add "$PROJECT_FILE" "$APPCAST_FILE" "$APPCAST_FILE_ROOT"
+fi
 
 if [ -f "docs/RELEASE_NOTES_${VERSION}.md" ]; then
     git add "docs/RELEASE_NOTES_${VERSION}.md"
 fi
 
-git commit -m "chore(release): ${TAG}"
-git tag -a "${TAG}" -m "${APP_NAME} ${VERSION}"
-git push origin HEAD
-git push origin "${TAG}"
+if git diff --cached --quiet; then
+    echo -e "${YELLOW}ℹ️  No git changes to commit for this run.${NC}"
+elif [ "$CI_TAG_MODE" = "1" ]; then
+    RELEASE_PUSH_BRANCH="${RELEASE_PUSH_BRANCH:-main}"
+    git commit -m "chore(release): sync appcast for ${TAG}"
+    git push origin "HEAD:${RELEASE_PUSH_BRANCH}"
+else
+    git commit -m "chore(release): ${TAG}"
+    git tag -a "${TAG}" -m "${APP_NAME} ${VERSION}"
+    git push origin HEAD
+    git push origin "${TAG}"
+fi
 
 echo -e "${YELLOW}🚀 Preparing GitHub release ${TAG}...${NC}"
 

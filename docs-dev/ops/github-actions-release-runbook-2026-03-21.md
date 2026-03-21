@@ -8,7 +8,9 @@
 
 ## Workflow
 - 文件：`.github/workflows/release.yml`
-- 触发方式：`workflow_dispatch`
+- 触发方式：
+  - `workflow_dispatch`（手动）
+  - `push.tags = v*`（自动）
 - 输入参数：
   - `version`（必填）：例如 `2.1.6`
   - `changelog_file`（可选）：例如 `docs/RELEASE_NOTES_2.1.6.md`
@@ -26,13 +28,17 @@
 ## 发版流程（CI）
 1. checkout 代码并切到触发分支。
 2. 配置 git bot 提交身份。
-3. 校验版本号输入与必需 Secret。
-4. 调用 `./scripts/release.sh <version> [changelog_file]`。
-5. 脚本内完成：
+3. 校验版本号输入（仅手动触发）与必需 Secret。
+4. 计算 release 参数：
+   - 手动触发：`version` 来自输入
+   - tag 触发：`version = GITHUB_REF_NAME` 去掉前缀 `v`，并设置 `CI_TAG_MODE=1`
+5. 调用 `./scripts/release.sh <version> [changelog_file]`。
+6. 脚本内完成：
    - 更新版本号与 build number
    - 构建双架构 DMG
    - Sparkle 签名并更新 `docs/appcast.xml` + 根目录 `appcast.xml`
-   - 提交、打 tag、推送
+   - 手动模式：提交、打 tag、推送
+   - tag 模式：跳过创建 tag，仅同步 appcast commit 到 `main`
    - 创建/更新 GitHub Release 并上传 DMG
    - 等待 Pages appcast 可见后发布 Release
 

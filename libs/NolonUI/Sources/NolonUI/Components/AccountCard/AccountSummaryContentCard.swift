@@ -648,55 +648,7 @@ private struct AccountSummaryContentCardPreviewContainer: View {
     }
 
     private var usageChartScene: some View {
-        previewScene(
-            title: "Usage Chart Module",
-            presentation: .neutral,
-            header: .init(
-                eyebrow: "Analytics",
-                title: "Token Trend (7d)",
-                subtitle: "Daily usage overview",
-                meta: "Updated 3m ago",
-                badge: .init(text: "LIVE", tone: .active)
-            ),
-            showsDetailsSection: true,
-            showsActionsSection: true,
-            body: {
-                AccountUsageChartModule(
-                    points: [
-                        .init(day: "Mon", input: 0.48, output: 0.26),
-                        .init(day: "Tue", input: 0.62, output: 0.35),
-                        .init(day: "Wed", input: 0.55, output: 0.32),
-                        .init(day: "Thu", input: 0.82, output: 0.41),
-                        .init(day: "Fri", input: 0.74, output: 0.38),
-                        .init(day: "Sat", input: 0.44, output: 0.21),
-                        .init(day: "Sun", input: 0.69, output: 0.33)
-                    ]
-                )
-            },
-            details: {
-                AccountUsageMetricRow(
-                    metrics: [
-                        .init(title: "Input", value: "1.42M"),
-                        .init(title: "Output", value: "0.68M"),
-                        .init(title: "Total", value: "2.10M")
-                    ]
-                )
-            },
-            actions: {
-                HStack(spacing: 8) {
-                    Button("7D") {}
-                        .buttonStyle(.borderedProminent)
-                        .controlSize(.small)
-                    Button("30D") {}
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
-                    Button("Refresh") {}
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
-                }
-            }
-        )
-        .frame(maxWidth: .infinity, alignment: .leading)
+        AccountUsageContentCardScene()
     }
 
     private var lowQuotaScene: some View {
@@ -936,10 +888,6 @@ private struct AccountSummaryContentCardPreviewScene: View {
 
 #Preview("Account Card / Gateway List") {
     AccountSummaryContentCardPreviewScene(scene: .gatewayList)
-}
-
-#Preview("Account Card / Chart") {
-    AccountSummaryContentCardPreviewScene(scene: .usageChart)
 }
 
 #Preview("Account Card / Healthy") {

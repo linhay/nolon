@@ -59,4 +59,36 @@ final class NolonUITests: XCTestCase {
         XCTAssertEqual(ResourceCenterSidebarMetrics.headerHeight, 52)
         XCTAssertEqual(ResourceCenterSidebarMetrics.headerHorizontalPadding, 16)
     }
+
+    func testProviderContentTabSidebarMetrics_ExposeExpectedColumnWidth() {
+        XCTAssertEqual(ProviderContentTabSidebarMetrics.headerHeight, 52)
+        XCTAssertEqual(ProviderContentTabSidebarMetrics.headerHorizontalPadding, 16)
+        XCTAssertEqual(ProviderContentTabSidebarMetrics.columnMinWidth, 160)
+        XCTAssertEqual(ProviderContentTabSidebarMetrics.columnIdealWidth, 180)
+        XCTAssertEqual(ProviderContentTabSidebarMetrics.columnMaxWidth, 200)
+    }
+
+    func testSidebarMetrics_AreAlignedBetweenResourceAndProvider() {
+        XCTAssertEqual(ProviderContentTabSidebarMetrics.headerHeight, ResourceCenterSidebarMetrics.headerHeight)
+        XCTAssertEqual(ProviderContentTabSidebarMetrics.headerHorizontalPadding, ResourceCenterSidebarMetrics.headerHorizontalPadding)
+        XCTAssertEqual(ProviderContentTabSidebarMetrics.columnMinWidth, ResourceCenterSidebarMetrics.columnMinWidth)
+        XCTAssertEqual(ProviderContentTabSidebarMetrics.columnIdealWidth, ResourceCenterSidebarMetrics.columnIdealWidth)
+        XCTAssertEqual(ProviderContentTabSidebarMetrics.columnMaxWidth, ResourceCenterSidebarMetrics.columnMaxWidth)
+    }
+
+    func testProviderContentTabSidebarItem_RetainsAccessoryAndCount() {
+        let item = ProviderContentTabSidebarItem(
+            id: "advanced",
+            title: "Advanced",
+            iconName: "slider.horizontal.3",
+            countText: nil,
+            trailingSymbolName: "arrow.up.right.square",
+            trailingHelpText: "View Official Documentation"
+        )
+
+        XCTAssertEqual(item.id, "advanced")
+        XCTAssertNil(item.countText)
+        XCTAssertEqual(item.trailingSymbolName, "arrow.up.right.square")
+        XCTAssertEqual(item.trailingHelpText, "View Official Documentation")
+    }
 }

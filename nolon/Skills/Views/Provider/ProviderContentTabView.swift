@@ -6,6 +6,7 @@ import STFilePath
 import OSLog
 import NolonResourceKit
 import SKProcessRunner
+import NolonUI
 
 private let terminalLogger = Logger(subsystem: "com.nolon", category: "TerminalDetection")
 private let codexConfigDocsURL = "https://developers.openai.com/codex/config-basic"
@@ -381,34 +382,55 @@ struct ProviderContentTabView: View, DebugPageLocatable {
     var debugPageMarkerItems: [PageMarkerItem] {
         PageMarkerRouteResolver.providerNavigationItems(provider: provider)
     }
+
+    private var availableTabs: [ProviderContentTabType] {
+        guard let provider else { return [] }
+        return ProviderContentTabType.availableTabs(for: provider)
+    }
+
+    private var sidebarItems: [ProviderContentTabSidebarItem<ProviderContentTabType>] {
+        availableTabs.map { tab in
+            ProviderContentTabSidebarItem(
+                id: tab,
+                title: tab.localizedName(for: provider),
+                iconName: tab.icon,
+                countText: showsCount(for: tab) ? "\(viewModel.count(for: tab))" : nil,
+                trailingSymbolName: showsDocumentationButton(for: tab) ? "arrow.up.right.square" : nil,
+                trailingHelpText: showsDocumentationButton(for: tab)
+                    ? NSLocalizedString(
+                        "action.view_official_docs",
+                        value: "View Official Documentation",
+                        comment: "Open official docs"
+                    )
+                    : nil
+            )
+        }
+    }
     
     var body: some View {
-        Group {
-            if let provider = provider {
-                List(selection: $selectedTab) {
-                    ForEach(ProviderContentTabType.availableTabs(for: provider)) { tab in
-                        tabRow(tab)
-                            .tag(tab)
-                    }
+        UIProviderContentTabSidebarComponent(
+            selectedTab: $selectedTab,
+            providerTitle: provider?.displayName,
+            items: sidebarItems,
+            emptyTitle: NSLocalizedString("content.no_provider", comment: "Select a Provider"),
+            emptyDescription: NSLocalizedString(
+                "content.no_provider_desc",
+                comment: "Choose a provider from the sidebar"
+            ),
+            emptySystemImage: "sidebar.left",
+            onTapTrailingAccessory: { tab in
+                if showsDocumentationButton(for: tab) {
+                    openAdvancedDocs()
                 }
-                .listStyle(.sidebar)
-                .navigationTitle(provider.displayName)
-            } else {
-                ContentUnavailableView(
-                    NSLocalizedString("content.no_provider", comment: "Select a Provider"),
-                    systemImage: "sidebar.left",
-                    description: Text(NSLocalizedString("content.no_provider_desc", comment: "Choose a provider from the sidebar"))
-                        .dsSecondaryText(font: .body)
-                )
             }
-        }
+        )
         .onAppear {
             if selectedTab == nil {
                 selectedTab = .skills
             }
         }
         .onChange(of: provider?.id) { _, _ in
-            if let provider, let selectedTab, !ProviderContentTabType.availableTabs(for: provider).contains(selectedTab) {
+            if let selectedTab, !availableTabs.contains(selectedTab) {
                 self.selectedTab = .skills
             }
             viewModel.refreshTerminalApps(for: provider)
@@ -459,30 +481,19 @@ struct ProviderContentTabView: View, DebugPageLocatable {
             EmptyView()
         }
         .debugPageLocator(debugPageMarkerItems)
-        .navigationSplitViewColumnWidth(min: 160, ideal: 180, max: 200)
     }
 
-    @ViewBuilder
-    private func tabRow(_ tab: ProviderContentTabType) -> some View {
-        HStack {
-            Label(tab.localizedName(for: provider), systemImage: tab.icon)
-            Spacer()
-            if tab == .advanced, let provider, viewModel.isCodexProvider(provider) {
-                Button {
-                    guard let url = URL(string: codexConfigDocsURL) else { return }
-                    NSWorkspace.shared.open(url)
-                } label: {
-                    Image(systemName: "arrow.up.right.square")
-                        .font(.caption)
-                        .foregroundStyle(DesignSystem.Colors.Text.secondary)
-                }
-                .buttonStyle(.plain)
-                .help(NSLocalizedString("action.view_official_docs", value: "View Official Documentation", comment: "Open official docs"))
-            }
-            if tab == .skills || tab == .workflows || tab == .rules || tab == .agents || tab == .mcp {
-                Text("\(viewModel.count(for: tab))")
-                    .dsSecondaryText(font: .callout)
-            }
-        }
+    private func showsCount(for tab: ProviderContentTabType) -> Bool {
+        tab == .skills || tab == .workflows || tab == .rules || tab == .agents || tab == .mcp
+    }
+
+    private func showsDocumentationButton(for tab: ProviderContentTabType) -> Bool {
+        guard tab == .advanced, let provider else { return false }
+        return viewModel.isCodexProvider(provider)
+    }
+
+    private func openAdvancedDocs() {
+        guard let url = URL(string: codexConfigDocsURL) else { return }
+        NSWorkspace.shared.open(url)
     }
 }

@@ -2,11 +2,11 @@ import SwiftUI
 import NolonUIFoundation
 
 public enum ResourceCenterSidebarMetrics {
-    public static let headerHeight: CGFloat = 52
-    public static let headerHorizontalPadding: CGFloat = 16
-    public static let columnMinWidth: CGFloat = 160
-    public static let columnIdealWidth: CGFloat = 180
-    public static let columnMaxWidth: CGFloat = 200
+    public static let headerHeight: CGFloat = SidebarColumnMetrics.headerHeight
+    public static let headerHorizontalPadding: CGFloat = SidebarColumnMetrics.headerHorizontalPadding
+    public static let columnMinWidth: CGFloat = SidebarColumnMetrics.columnMinWidth
+    public static let columnIdealWidth: CGFloat = SidebarColumnMetrics.columnIdealWidth
+    public static let columnMaxWidth: CGFloat = SidebarColumnMetrics.columnMaxWidth
 }
 
 public struct ResourceCenterSidebarComponent: View {
@@ -39,7 +39,7 @@ public struct ResourceCenterSidebarComponent: View {
 
     public var body: some View {
         VStack(spacing: 0) {
-            compactHeader
+            SidebarColumnHeader(title: title)
             if showsEmptyState {
                 ContentUnavailableView(
                     emptyTitle,
@@ -75,24 +75,6 @@ public struct ResourceCenterSidebarComponent: View {
             ideal: ResourceCenterSidebarMetrics.columnIdealWidth,
             max: ResourceCenterSidebarMetrics.columnMaxWidth
         )
-    }
-
-    private var compactHeader: some View {
-        HStack(spacing: 12) {
-            Text(title)
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(DesignSystem.Colors.Text.primary)
-                .lineLimit(1)
-                .truncationMode(.tail)
-            Spacer(minLength: 0)
-        }
-        .frame(height: ResourceCenterSidebarMetrics.headerHeight)
-        .padding(.horizontal, ResourceCenterSidebarMetrics.headerHorizontalPadding)
-        .overlay(alignment: .bottom) {
-            Rectangle()
-                .fill(DesignSystem.Colors.Component.separator)
-                .frame(height: 1)
-        }
     }
 }
 

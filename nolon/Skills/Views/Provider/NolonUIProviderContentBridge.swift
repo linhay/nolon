@@ -1,0 +1,3 @@
+import NolonUI
+
+typealias UIProviderContentTabSidebarComponent = NolonUI.ProviderContentTabSidebarComponent

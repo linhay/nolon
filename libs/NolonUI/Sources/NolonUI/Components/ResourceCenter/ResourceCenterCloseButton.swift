@@ -60,26 +60,6 @@ private struct ResourceCenterCloseButtonCancelShortcutModifier: ViewModifier {
     }
 }
 
-@MainActor
-private struct ResourceCenterCloseButtonPreviewContainer: View {
-    var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(DesignSystem.Colors.Background.elevated)
-            VStack(spacing: 12) {
-                Text("Resource Center")
-                    .font(.headline)
-                    .foregroundStyle(DesignSystem.Colors.Text.primary)
-                ResourceCenterCloseButton(help: "Close Resource Center") {}
-            }
-            .padding()
-        }
-        .padding()
-        .background(DesignSystem.Colors.Background.canvas)
-    }
-}
-
 #Preview("Resource Center Close Button") {
-    ResourceCenterCloseButtonPreviewContainer()
-        .frame(width: 260, height: 180)
+    ResourceCenterCloseButton(help: "Close Resource Center") {}
 }

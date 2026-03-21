@@ -1,6 +1,9 @@
 name: Release
 
 on:
+  push:
+    tags:
+      - "v*"
   workflow_dispatch:
     inputs:
       version:
@@ -30,7 +33,8 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Ensure branch checkout
+      - name: Ensure branch checkout for manual runs
+        if: ${{ github.event_name == 'workflow_dispatch' }}
         run: |
           git fetch origin "${GITHUB_REF_NAME}"
           git checkout -B "${GITHUB_REF_NAME}" "origin/${GITHUB_REF_NAME}"
@@ -41,6 +45,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
       - name: Validate release input
+        if: ${{ github.event_name == 'workflow_dispatch' }}
         run: |
           if [[ ! "${{ github.event.inputs.version }}" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z]+)?$ ]]; then
             echo "Invalid version: ${{ github.event.inputs.version }}"
@@ -54,6 +59,22 @@ jobs:
             exit 1
           fi
 
+      - name: Resolve release parameters
+        id: params
+        run: |
+          if [ "${GITHUB_EVENT_NAME}" = "push" ]; then
+            version="${GITHUB_REF_NAME#v}"
+            echo "version=${version}" >> "$GITHUB_OUTPUT"
+            echo "ci_tag_mode=1" >> "$GITHUB_OUTPUT"
+            echo "release_push_branch=main" >> "$GITHUB_OUTPUT"
+            echo "changelog_file=" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=${{ github.event.inputs.version }}" >> "$GITHUB_OUTPUT"
+            echo "ci_tag_mode=0" >> "$GITHUB_OUTPUT"
+            echo "release_push_branch=" >> "$GITHUB_OUTPUT"
+            echo "changelog_file=${{ github.event.inputs.changelog_file }}" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Run release script
         env:
           GH_TOKEN: ${{ github.token }}
@@ -63,10 +84,12 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
           TEAM_ID: ${{ secrets.TEAM_ID }}
+          CI_TAG_MODE: ${{ steps.params.outputs.ci_tag_mode }}
+          RELEASE_PUSH_BRANCH: ${{ steps.params.outputs.release_push_branch }}
         run: |
           chmod +x scripts/release.sh scripts/build-dmg.sh
-          if [ -n "${{ github.event.inputs.changelog_file }}" ]; then
-            ./scripts/release.sh "${{ github.event.inputs.version }}" "${{ github.event.inputs.changelog_file }}"
+          if [ -n "${{ steps.params.outputs.changelog_file }}" ]; then
+            ./scripts/release.sh "${{ steps.params.outputs.version }}" "${{ steps.params.outputs.changelog_file }}"
           else
-            ./scripts/release.sh "${{ github.event.inputs.version }}"
+            ./scripts/release.sh "${{ steps.params.outputs.version }}"
           fi
