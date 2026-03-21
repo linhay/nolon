@@ -1,37 +1,40 @@
 import SwiftUI
 import Observation
+import AppKit
 import ProviderCatalog
 import NolonResourceKit
+import NolonUI
+import NolonUIFoundation
 
 // MARK: - ViewModel
 
 @Observable
 final class ProviderSidebarViewModel {
     var editingProvider: Provider?
-    
+
     var settings: ProviderSettings
-    
+
     init(settings: ProviderSettings) {
         self.settings = settings
     }
-    
+
     @MainActor
     func deleteProvider(_ provider: Provider, currentSelectionKey: Binding<String?>) {
         settings.removeProvider(provider)
-        if currentSelectionKey.wrappedValue == MainSidebarSelection.provider(provider.id).storageKey {
+        if currentSelectionKey.wrappedValue == ProviderSidebarAdapter.providerSelectionKey(provider.id) {
             if let firstProvider = settings.providers.first {
-                currentSelectionKey.wrappedValue = MainSidebarSelection.provider(firstProvider.id).storageKey
+                currentSelectionKey.wrappedValue = ProviderSidebarAdapter.providerSelectionKey(firstProvider.id)
             } else {
-                currentSelectionKey.wrappedValue = MainSidebarSelection.accounts.storageKey
+                currentSelectionKey.wrappedValue = ProviderSidebarAdapter.accountsSelectionKey
             }
         }
     }
-    
+
     @MainActor
     func deleteProviders(at offsets: IndexSet) {
         settings.removeProvider(at: offsets)
     }
-    
+
     @MainActor
     func moveProviders(from source: IndexSet, to destination: Int) {
         settings.moveProvider(from: source, to: destination)
@@ -59,18 +62,18 @@ final class ProviderSidebarViewModel {
 
         settings.providers = updatedProviders
     }
-    
+
     @MainActor
     func selectFirstProviderIfNone(selectionKey: Binding<String?>) {
         if selectionKey.wrappedValue == nil {
             if let firstProvider = settings.providers.first {
-                selectionKey.wrappedValue = MainSidebarSelection.provider(firstProvider.id).storageKey
+                selectionKey.wrappedValue = ProviderSidebarAdapter.providerSelectionKey(firstProvider.id)
             } else {
-                selectionKey.wrappedValue = MainSidebarSelection.accounts.storageKey
+                selectionKey.wrappedValue = ProviderSidebarAdapter.accountsSelectionKey
             }
         }
     }
-    
+
     @MainActor
     func showInFinder(_ provider: Provider) {
         let url = URL(fileURLWithPath: provider.defaultSkillsPath)
@@ -94,11 +97,12 @@ public struct ProviderSidebarView: View, DebugPageLocatable {
     let settings: ProviderSettings
     @State private var viewModel: ProviderSidebarViewModel
     @State private var showingAddSheet = false
+    @State private var commandState = AppCommandState.shared
 
-    private var providerSections: [ProviderPresentationSections.ProviderSection] {
-        ProviderPresentationSections.providerSections(providers: settings.providers)
+    private var sidebarSections: [SidebarSection] {
+        ProviderSidebarAdapter.sections(from: settings.providers)
     }
-    
+
     public init(
         selectedItemKey: Binding<String?>,
         settings: ProviderSettings
@@ -130,96 +134,93 @@ public struct ProviderSidebarView: View, DebugPageLocatable {
         }
         return items
     }
-    
+
     public var body: some View {
-        List(selection: $selectedItemKey) {
-            ForEach(providerSections) { section in
-                Section {
-                    ForEach(section.providers) { provider in
-                        ProviderRowView(
-                            provider: provider,
-                            isSelected: selectedItemKey == MainSidebarSelection.provider(provider.id).storageKey,
-                            onShowInFinder: { viewModel.showInFinder(provider) },
-                            onViewOfficialDocumentation: { viewModel.openOfficialDocumentation(for: provider) },
-                            onEdit: { viewModel.editingProvider = provider },
-                            onDelete: { viewModel.deleteProvider(provider, currentSelectionKey: $selectedItemKey) },
-                            debugLocatorText: providerDebugLocatorText(provider)
-                        )
-                        .tag(MainSidebarSelection.provider(provider.id).storageKey)
+        ProviderSidebarComponent(
+            selectedItemKey: $selectedItemKey,
+            sections: sidebarSections,
+            providerDebugLocatorText: { item in
+                providerDebugLocatorText(for: item)
+            },
+            onShowInFinder: { item in
+                guard let provider = provider(for: item) else { return }
+                viewModel.showInFinder(provider)
+            },
+            onViewOfficialDocumentation: { item in
+                guard let provider = provider(for: item) else { return }
+                viewModel.openOfficialDocumentation(for: provider)
+            },
+            onEdit: { item in
+                guard let provider = provider(for: item) else { return }
+                viewModel.editingProvider = provider
+            },
+            onDeleteProvider: { item in
+                guard let provider = provider(for: item) else { return }
+                viewModel.deleteProvider(provider, currentSelectionKey: $selectedItemKey)
+            },
+            onDeleteOffsets: { section, offsets in
+                let idsToDelete = Set(offsets.map { section.items[$0].id })
+                let originalIndices = IndexSet(
+                    settings.providers.enumerated().compactMap { index, provider in
+                        idsToDelete.contains(provider.id) ? index : nil
                     }
-                    .onDelete { offsets in
-                        let idsToDelete = Set(offsets.map { section.providers[$0].id })
-                        let originalIndices = IndexSet(
-                            settings.providers.enumerated().compactMap { index, provider in
-                                idsToDelete.contains(provider.id) ? index : nil
-                            }
-                        )
-                        viewModel.deleteProviders(at: originalIndices)
-                    }
-                    .onMove { source, destination in
-                        switch section.id {
-                        case .originalVendors:
-                            viewModel.moveProviders(
-                                in: \.vendorCategory,
-                                matching: .original,
-                                from: source,
-                                to: destination
-                            )
-                        case .integratedVendors:
-                            viewModel.moveProviders(
-                                in: \.vendorCategory,
-                                matching: .integrated,
-                                from: source,
-                                to: destination
-                            )
-                        case .projects:
-                            viewModel.moveProviders(in: \.kind, matching: .project, from: source, to: destination)
-                        }
-                    }
-                } header: {
-                    Text(NSLocalizedString(section.titleKey, value: section.fallbackTitle, comment: "Provider section title"))
+                )
+                viewModel.deleteProviders(at: originalIndices)
+            },
+            onMove: { section, source, destination in
+                switch section.id {
+                case .originalVendors:
+                    viewModel.moveProviders(
+                        in: \.vendorCategory,
+                        matching: .original,
+                        from: source,
+                        to: destination
+                    )
+                case .integratedVendors:
+                    viewModel.moveProviders(
+                        in: \.vendorCategory,
+                        matching: .integrated,
+                        from: source,
+                        to: destination
+                    )
+                case .projects:
+                    viewModel.moveProviders(in: \.kind, matching: .project, from: source, to: destination)
                 }
+            },
+            onAddProvider: {
+                showingAddSheet = true
+            },
+            onCopyDebugMarker: { locatorText in
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(locatorText, forType: .string)
+                DebugMarkerToastCenter.shared.showCopiedPageMarkerToast(locatorText)
             }
-
-            Section {
-                Label(
-                    NSLocalizedString("sidebar.tools.accounts", value: "Accounts", comment: "Accounts sidebar item"),
-                    systemImage: "person.crop.circle.badge.checkmark"
-                )
-                .tag(MainSidebarSelection.accounts.storageKey)
-
-                Label(
-                    NSLocalizedString("sidebar.plugins.management", value: "Plugin Management", comment: "Plugin management sidebar item"),
-                    systemImage: "puzzlepiece.extension"
-                )
-                .tag(MainSidebarSelection.pluginManagement.storageKey)
-            } header: {
-                Text(NSLocalizedString("sidebar.section.tools", value: "Tools", comment: "Tools section"))
-            }
-        }
-        .listStyle(.sidebar)
-        .navigationTitle(NSLocalizedString("app.title", comment: "nolon"))
-
+        )
         .sheet(item: $viewModel.editingProvider) { provider in
             EditProviderSheet(settings: viewModel.settings, provider: provider)
         }
         .onAppear {
             viewModel.selectFirstProviderIfNone(selectionKey: $selectedItemKey)
         }
-        .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                Button {
-                    showingAddSheet = true
-                } label: {
-                    Label(NSLocalizedString("action.add_provider", value: "Add Provider", comment: "Add Provider"), systemImage: "plus")
-                        .dsIconLabelButton()
-                }
-            }
-        }
         .sheet(isPresented: $showingAddSheet) {
             AddProviderSheet(settings: viewModel.settings)
         }
         .debugPageLocator(debugPageMarkerItems)
+    }
+
+    private func provider(for item: SidebarProviderItem) -> Provider? {
+        settings.providers.first(where: { $0.id == item.id })
+    }
+
+    private func providerDebugLocatorText(for item: SidebarProviderItem) -> String? {
+        guard PageMarkerRouteResolver.isEnabledInCurrentBuild,
+              commandState.isDebugPageMarkersEnabled,
+              let provider = provider(for: item)
+        else {
+            return nil
+        }
+
+        return providerDebugLocatorText(provider)
     }
 
     private func providerDebugLocatorText(

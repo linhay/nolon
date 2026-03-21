@@ -4,6 +4,7 @@ import NolonResourceKit
 import ProviderCatalog
 import ProviderUsage
 import CodexBarProviderCatalog
+import NolonUIFoundation
 @testable import nolon
 
 private final class CopyTextSink: @unchecked Sendable {

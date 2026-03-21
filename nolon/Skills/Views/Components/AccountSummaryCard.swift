@@ -2,63 +2,14 @@ import SwiftUI
 import ProviderUsage
 import CodexBarProviderCatalog
 import Shimmer
+import NolonUI
+import NolonUIFoundation
 
-enum AccountCardSelectionStyle: Equatable, Sendable {
-    case neutral
-    case active
-    case pending
-    case selected
-}
-
-struct AccountCardPresentation: Equatable, Sendable {
-    let selectionStyle: AccountCardSelectionStyle
-    let showsSelectionBadge: Bool
-
-    static let neutral = AccountCardPresentation(
-        selectionStyle: .neutral,
-        showsSelectionBadge: false
-    )
-
-    static let active = AccountCardPresentation(
-        selectionStyle: .active,
-        showsSelectionBadge: false
-    )
-
-    static let pending = AccountCardPresentation(
-        selectionStyle: .pending,
-        showsSelectionBadge: false
-    )
-
-    static let selected = AccountCardPresentation(
-        selectionStyle: .selected,
-        showsSelectionBadge: false
-    )
-
-    static func claude(isActive: Bool) -> AccountCardPresentation {
-        AccountCardPresentation(
-            selectionStyle: isActive ? .active : .neutral,
-            showsSelectionBadge: false
-        )
-    }
-
-    static func codex(
-        isActive: Bool,
-        isPending: Bool,
-        isBatchSelected: Bool,
-        selectableAccountCount: Int
-    ) -> AccountCardPresentation {
-        if isActive {
-            return AccountCardPresentation(selectionStyle: .active, showsSelectionBadge: false)
-        }
-        if isPending {
-            return AccountCardPresentation(selectionStyle: .pending, showsSelectionBadge: false)
-        }
-        if isBatchSelected, selectableAccountCount > 1 {
-            return AccountCardPresentation(selectionStyle: .selected, showsSelectionBadge: true)
-        }
-        return .neutral
-    }
-}
+typealias AccountCardSelectionStyle = NolonUIFoundation.AccountCardSelectionStyle
+typealias AccountCardPresentation = NolonUIFoundation.AccountCardPresentation
+typealias AccountSummaryCardBadgeTone = NolonUIFoundation.AccountSummaryCardBadgeTone
+typealias AccountSummaryCardBadgeModel = NolonUIFoundation.AccountSummaryCardBadgeModel
+typealias AccountSummaryCardHeaderModel = NolonUIFoundation.AccountSummaryCardHeaderModel
 
 struct AccountSummaryCard<Content: View>: View {
     let presentation: AccountCardPresentation
@@ -76,120 +27,25 @@ struct AccountSummaryCard<Content: View>: View {
     }
 
     var body: some View {
-        content
-            .padding(contentInsets)
-            .frame(maxWidth: .infinity, alignment: .topLeading)
-            .background(backgroundShape)
-            .overlay(borderShape)
-            .overlay(alignment: .topTrailing) {
-                if presentation.showsSelectionBadge {
-                    selectionBadge
-                }
-            }
-            .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusL, style: .continuous))
-            .contentShape(RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusL, style: .continuous))
-            .animation(DesignSystem.Animations.standard, value: presentation.selectionStyle)
-    }
-
-    private var backgroundShape: some View {
-        RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusL, style: .continuous)
-            .fill(backgroundColor)
-            .shadow(
-                color: presentation.selectionStyle == .active ? DesignSystem.Colors.primary.opacity(0.12) : Color.clear,
-                radius: 8, x: 0, y: 4
-            )
-    }
-
-    private var borderShape: some View {
-        RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusL, style: .continuous)
-            .strokeBorder(borderColor, style: borderStyle)
-    }
-    
-    private var selectionBadge: some View {
-        Image(systemName: "checkmark.circle.fill")
-            .font(.system(size: 18, weight: .bold))
-            .foregroundStyle(DesignSystem.Colors.primary)
-            .background(Circle().fill(Color.white))
-            .padding(10)
-            .transition(.scale.combined(with: .opacity))
-    }
-
-    private var backgroundColor: Color {
-        switch presentation.selectionStyle {
-        case .neutral:
-            return DesignSystem.Colors.Background.elevated
-        case .active, .pending, .selected:
-            return DesignSystem.Colors.primary.opacity(Self.backgroundOpacity(for: presentation.selectionStyle))
+        NolonUI.AccountSummaryCard(
+            presentation: presentation,
+            contentInsets: contentInsets
+        ) {
+            content
         }
     }
 
-    private var borderColor: Color {
-        switch presentation.selectionStyle {
-        case .neutral:
-            return DesignSystem.Colors.Component.border.opacity(0.5)
-        case .active:
-            return DesignSystem.Colors.primary
-        case .pending:
-            return DesignSystem.Colors.primary.opacity(0.6)
-        case .selected:
-            return DesignSystem.Colors.primary.opacity(0.8)
-        }
-    }
-
-    private var borderStyle: StrokeStyle {
-        return StrokeStyle(
-            lineWidth: Self.borderLineWidth(for: presentation.selectionStyle),
-            dash: Self.borderDash(for: presentation.selectionStyle)
-        )
-    }
-    
     static func backgroundOpacity(for selectionStyle: AccountCardSelectionStyle) -> Double {
-        switch selectionStyle {
-        case .neutral: return 0
-        case .active: return 0.08
-        case .pending: return 0.04
-        case .selected: return 0.06
-        }
+        NolonUI.AccountSummaryCard<Content>.backgroundOpacity(for: selectionStyle)
     }
-    
+
     static func borderLineWidth(for selectionStyle: AccountCardSelectionStyle) -> CGFloat {
-        switch selectionStyle {
-        case .active: return 2.0
-        case .selected: return 1.5
-        default: return 1.0
-        }
+        NolonUI.AccountSummaryCard<Content>.borderLineWidth(for: selectionStyle)
     }
-    
+
     static func borderDash(for selectionStyle: AccountCardSelectionStyle) -> [CGFloat] {
-        switch selectionStyle {
-        case .pending: return [5, 4]
-        default: return []
-        }
+        NolonUI.AccountSummaryCard<Content>.borderDash(for: selectionStyle)
     }
-}
-
-enum AccountSummaryCardBadgeTone: Equatable {
-    case neutral
-    case active
-    case warning
-}
-
-struct AccountSummaryCardBadgeModel: Equatable {
-    let text: String
-    let tone: AccountSummaryCardBadgeTone
-}
-
-struct AccountSummaryCardHeaderModel: Equatable {
-    let eyebrow: String?
-    let title: String
-    let subtitle: String?
-    let meta: String?
-    let badge: AccountSummaryCardBadgeModel?
-}
-
-private enum AccountSummaryContentCardLayout {
-    static let cardSpacing: CGFloat = 14
-    static let sectionSpacing: CGFloat = 10
 }
 
 struct AccountSummaryContentCard<Body: View, Details: View, Actions: View>: View {
@@ -220,86 +76,18 @@ struct AccountSummaryContentCard<Body: View, Details: View, Actions: View>: View
     }
 
     var body: some View {
-        AccountSummaryCard(presentation: presentation) {
-            VStack(alignment: .leading, spacing: AccountSummaryContentCardLayout.cardSpacing) {
-                headerSection
-                bodySection
-
-                if showsDetailsSection {
-                    supplementarySection(detailsContent)
-                }
-
-                if showsActionsSection {
-                    supplementarySection(actionsContent)
-                }
-            }
+        NolonUI.AccountSummaryContentCard(
+            presentation: presentation,
+            header: header,
+            showsDetailsSection: showsDetailsSection,
+            showsActionsSection: showsActionsSection
+        ) {
+            bodyContent
+        } details: {
+            detailsContent
+        } actions: {
+            actionsContent
         }
-    }
-
-    private var headerSection: some View {
-        HStack(alignment: .top, spacing: 12) {
-            VStack(alignment: .leading, spacing: 4) {
-                if let eyebrow = header.eyebrow, !eyebrow.isEmpty {
-                    Text(eyebrow)
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(DesignSystem.Colors.Text.tertiary)
-                        .textCase(.uppercase)
-                }
-
-                Text(header.title)
-                    .font(.headline)
-                    .foregroundStyle(DesignSystem.Colors.Text.primary)
-                    .lineLimit(1)
-                    .layoutPriority(2)
-
-                if let subtitle = header.subtitle, !subtitle.isEmpty {
-                    Text(subtitle)
-                        .font(.caption)
-                        .foregroundStyle(DesignSystem.Colors.Text.secondary)
-                        .lineLimit(2)
-                        .textSelection(.enabled)
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .layoutPriority(1)
-
-            if header.badge != nil || (header.meta?.isEmpty == false) {
-                VStack(alignment: .trailing, spacing: 6) {
-                    if let badge = header.badge {
-                        AccountSummaryCardBadge(badge: badge)
-                    }
-
-                    if let meta = header.meta, !meta.isEmpty {
-                        Text(meta)
-                            .font(.caption2)
-                            .foregroundStyle(DesignSystem.Colors.Text.tertiary)
-                            .multilineTextAlignment(.trailing)
-                            .lineLimit(1)
-                            .truncationMode(.tail)
-                    }
-                }
-                .fixedSize(horizontal: true, vertical: false)
-            }
-        }
-    }
-
-    private var bodySection: some View {
-        bodyContent
-            .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private func supplementarySection<Content: View>(_ content: Content) -> some View {
-        VStack(alignment: .leading, spacing: AccountSummaryContentCardLayout.sectionSpacing) {
-            sectionDivider
-            content
-                .frame(maxWidth: .infinity, alignment: .leading)
-        }
-    }
-
-    private var sectionDivider: some View {
-        Rectangle()
-            .fill(DesignSystem.Colors.Component.border.opacity(0.35))
-            .frame(height: 1)
     }
 }
 
@@ -375,25 +163,7 @@ struct UnifiedAccountCard: View, DebugCardLocatable {
     private var bodyContent: some View {
         switch data.body {
         case let .quota(quota):
-            ProviderQuotaSection(
-                provider: quota.provider,
-                accountTitle: quota.accountTitle,
-                usage: quota.usage,
-                credits: quota.credits,
-                creditsRefreshedAt: quota.creditsRefreshedAt,
-                loginAt: quota.loginAt,
-                syncedAt: quota.syncedAt,
-                isLoading: quota.isLoading,
-                showsEmptyState: quota.showsEmptyState,
-                errorMessage: quota.errorMessage,
-                onRefresh: quota.onRefreshActionID == nil ? nil : {
-                    if let actionID = quota.onRefreshActionID {
-                        onAction(data.recordID, actionID)
-                    }
-                },
-                usesCardChrome: false,
-                showsHeader: false
-            )
+            quotaBodyContent(quota)
         case let .rows(rows):
             VStack(alignment: .leading, spacing: 10) {
                 ForEach(rows) { row in
@@ -401,6 +171,95 @@ struct UnifiedAccountCard: View, DebugCardLocatable {
                 }
             }
         }
+    }
+
+    @ViewBuilder
+    private func quotaBodyContent(_ quota: AccountCardQuotaViewData) -> some View {
+        if quota.isLoading {
+            NolonUI.AccountLoadingStateModule()
+        } else if let message = quota.errorMessage?.trimmingCharacters(in: .whitespacesAndNewlines), !message.isEmpty {
+            NolonUI.AccountErrorStateModule(
+                title: NSLocalizedString("usage.error.title", value: "Sync Failed", comment: "Error title"),
+                message: message
+            )
+        } else if let usage = quota.usage {
+            NolonUI.AccountQuotaModule(
+                rows: quotaRows(usage: usage, provider: quota.provider),
+                creditsText: quotaCreditsText(quota.credits)
+            )
+        } else if quota.showsEmptyState {
+            NolonUI.AccountEmptyStateModule(
+                text: NSLocalizedString("usage.monitor.empty.desc", value: "No data available.", comment: "Empty data")
+            )
+        } else {
+            NolonUI.AccountEmptyStateModule(
+                text: NSLocalizedString("usage.monitor.empty.desc", value: "No data available.", comment: "Empty data")
+            )
+        }
+    }
+
+    private func quotaRows(usage: UsageSnapshot, provider: UsageProvider) -> [NolonUI.AccountQuotaRow] {
+        ProviderQuotaSection
+            .displayWindows(for: usage, provider: provider)
+            .map { item in
+                let percent = item.window.remainingPercent
+                let normalized = percent.isInfinite ? 1 : CGFloat(max(0, min(100, percent)) / 100)
+                return NolonUI.AccountQuotaRow(
+                    title: quotaWindowTitle(item, provider: provider),
+                    remainingText: quotaPercentText(percent),
+                    progress: normalized,
+                    meta: quotaWindowMetaText(item.window)
+                )
+            }
+    }
+
+    private func quotaWindowTitle(_ item: UsageWindow, provider: UsageProvider) -> String {
+        let metadata = ProviderUsageRegistry.metadata(for: provider)
+        switch item.id {
+        case "primary":
+            return metadata?.sessionLabel ?? "Session"
+        case "secondary":
+            return metadata?.weeklyLabel ?? "Weekly"
+        default:
+            return item.title
+        }
+    }
+
+    private func quotaWindowMetaText(_ window: RateWindow) -> String {
+        guard let resetsAt = window.resetsAt else {
+            return "-"
+        }
+        let remaining = resetsAt.timeIntervalSinceNow
+        if remaining <= 0 {
+            return NSLocalizedString("usage.reset.now", value: "now", comment: "reset now")
+        }
+        let formatter = DateComponentsFormatter()
+        formatter.allowedUnits = [.day, .hour, .minute]
+        formatter.unitsStyle = .abbreviated
+        formatter.maximumUnitCount = 1
+        let value = formatter.string(from: remaining) ?? "-"
+        return String(
+            format: NSLocalizedString("usage.reset.suffix", value: "%@ left", comment: "reset suffix"),
+            value
+        )
+    }
+
+    private func quotaPercentText(_ percent: Double) -> String {
+        if percent.isInfinite {
+            return "∞"
+        }
+        return String(format: "%.0f%%", max(0, min(100, percent)))
+    }
+
+    private func quotaCreditsText(_ credits: CreditsSnapshot?) -> String {
+        guard let credits else { return "-" }
+        if credits.remaining.isInfinite {
+            return NSLocalizedString("usage.metric.unlimited", value: "Unlimited", comment: "Unlimited")
+        }
+        if credits.remaining.isNaN {
+            return "-"
+        }
+        return String(format: "%.0f", credits.remaining)
     }
 
     private var detailsContent: some View {
@@ -636,43 +495,5 @@ struct UnifiedAccountCardSkeleton: View {
             bandSize: 0.32
         )
         .accessibilityLabel("\(providerName) loading")
-    }
-}
-
-private struct AccountSummaryCardBadge: View {
-    let badge: AccountSummaryCardBadgeModel
-
-    var body: some View {
-        Text(badge.text)
-            .font(.caption2.weight(.semibold))
-            .padding(.horizontal, 8)
-            .padding(.vertical, 3)
-            .background(
-                Capsule(style: .continuous)
-                    .fill(backgroundColor)
-            )
-            .foregroundStyle(foregroundColor)
-    }
-
-    private var backgroundColor: Color {
-        switch badge.tone {
-        case .neutral:
-            return DesignSystem.Colors.Component.controlFillSubtle
-        case .active:
-            return DesignSystem.Colors.primary.opacity(0.2)
-        case .warning:
-            return DesignSystem.Colors.Status.warning.opacity(0.18)
-        }
-    }
-
-    private var foregroundColor: Color {
-        switch badge.tone {
-        case .neutral:
-            return DesignSystem.Colors.Text.secondary
-        case .active:
-            return DesignSystem.Colors.primary
-        case .warning:
-            return DesignSystem.Colors.Status.warning
-        }
     }
 }

@@ -172,16 +172,19 @@ final class CodexAuthBackgroundPoller {
 struct nolonApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     static var updaterController: SPUStandardUpdaterController?
+    private let isRunningSwiftUIPreviews: Bool
 
     init() {
+        self.isRunningSwiftUIPreviews = RuntimeEnvironment.isSwiftUIPreview()
+
         // Load provider template configurations from JSON
         ProviderTemplateLoader.shared.load()
-        
-        // Apply app settings (appearance, etc.)
-        AppSettingsStore.shared.applyAllSettings()
-        
-        // Skip Sparkle in Previews to avoid launch timeout
-        if ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] != "1" {
+
+        // Skip startup side effects in SwiftUI previews to keep launch fast/stable.
+        if !isRunningSwiftUIPreviews {
+            // Apply app settings (appearance, etc.)
+            AppSettingsStore.shared.applyAllSettings()
+
             let controller = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
             Self.updaterController = controller
         }
@@ -189,6 +192,24 @@ struct nolonApp: App {
 
     var body: some Scene {
         Window("nolon", id: "main") {
+            rootContentView
+        }
+        .handlesExternalEvents(matching: [])  // Prevent new windows from URL events
+        .commands {
+            appCommands
+        }
+
+        MenuBarExtra("nolon", systemImage: "arrow.triangle.2.circlepath.circle") {
+            CodexQuickSwitchMenuBarView()
+        }
+        .menuBarExtraStyle(.window)
+    }
+
+    @ViewBuilder
+    private var rootContentView: some View {
+        if isRunningSwiftUIPreviews {
+            PreviewBootstrapView()
+        } else {
             ContentView()
                 .onOpenURL { url in
                     URLSchemeHandler.shared.handleURL(url)
@@ -199,38 +220,42 @@ struct nolonApp: App {
                     }
                 }
         }
-        .handlesExternalEvents(matching: [])  // Prevent new windows from URL events
-        
-        .commands {
-            CommandGroup(replacing: .appSettings) {
-                Button(NSLocalizedString("settings.app", value: "Settings...", comment: "Menu item")) {
-                    AppCommandState.shared.showingSettings = true
-                }
-                .keyboardShortcut(",", modifiers: .command)
-            }
+    }
 
-            #if DEBUG
-            CommandMenu(NSLocalizedString("debug.menu.title", value: "Debug", comment: "Debug menu")) {
-                Toggle(
-                    NSLocalizedString("debug.menu.page_markers", value: "Show Page Markers", comment: "Toggle debug page markers"),
-                    isOn: Binding(
-                        get: { AppCommandState.shared.isDebugPageMarkersEnabled },
-                        set: { AppCommandState.shared.isDebugPageMarkersEnabled = $0 }
-                    )
+    @CommandsBuilder
+    private var appCommands: some Commands {
+        SidebarCommands()
+
+        CommandGroup(replacing: .appSettings) {
+            Button(NSLocalizedString("settings.app", value: "Settings...", comment: "Menu item")) {
+                AppCommandState.shared.showingSettings = true
+            }
+            .keyboardShortcut(",", modifiers: .command)
+        }
+
+        #if DEBUG
+        CommandMenu(NSLocalizedString("debug.menu.title", value: "Debug", comment: "Debug menu")) {
+            Toggle(
+                NSLocalizedString("debug.menu.page_markers", value: "Show Page Markers", comment: "Toggle debug page markers"),
+                isOn: Binding(
+                    get: { AppCommandState.shared.isDebugPageMarkersEnabled },
+                    set: { AppCommandState.shared.isDebugPageMarkersEnabled = $0 }
                 )
-            }
-            #endif
-            
-            CommandGroup(after: .appInfo) {
-                if let controller = Self.updaterController {
-                    CheckForUpdatesView(updater: controller.updater)
-                }
+            )
+        }
+        #endif
+        
+        CommandGroup(after: .appInfo) {
+            if let controller = Self.updaterController {
+                CheckForUpdatesView(updater: controller.updater)
             }
         }
+    }
+}
 
-        MenuBarExtra("nolon", systemImage: "arrow.triangle.2.circlepath.circle") {
-            CodexQuickSwitchMenuBarView()
-        }
-        .menuBarExtraStyle(.window)
+private struct PreviewBootstrapView: View {
+    var body: some View {
+        Color.clear
+            .frame(width: 1, height: 1)
     }
 }

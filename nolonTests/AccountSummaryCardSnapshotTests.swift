@@ -2,6 +2,7 @@ import AppKit
 import SnapshotTesting
 import SwiftUI
 import Testing
+import NolonUIFoundation
 @testable import nolon
 
 @MainActor
@@ -97,6 +98,102 @@ struct AccountSummaryCardSnapshotTests {
                 of: host,
                 as: .image(size: Self.snapshotSize),
                 named: "grouped-card-content",
+                snapshotDirectory: Self.snapshotDirectory
+            )
+        }
+
+        #expect(failure == nil)
+    }
+
+    @Test("error body state stays readable with retry actions")
+    func errorBodyStateStaysReadableWithRetryActions() {
+        let header = AccountSummaryCardHeaderModel(
+            eyebrow: "Gemini",
+            title: "staging-account@flowup.dev",
+            subtitle: "Starter plan",
+            meta: "Failed 2m ago",
+            badge: AccountSummaryCardBadgeModel(text: "WARNING", tone: .warning)
+        )
+
+        let card = AccountSummaryContentCard(
+            presentation: .neutral,
+            header: header,
+            showsDetailsSection: false,
+            showsActionsSection: true
+        ) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Sync Failed")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(DesignSystem.Colors.Status.error)
+                Text("Rate service timeout. Retry after a short delay.")
+                    .font(.caption2)
+                    .foregroundStyle(DesignSystem.Colors.Text.secondary)
+            }
+            .padding(10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(DesignSystem.Colors.Status.error.opacity(0.08))
+            .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusM, style: .continuous))
+        } actions: {
+            HStack(spacing: 8) {
+                actionChip("Retry")
+                actionChip("Details")
+            }
+        }
+
+        let host = makeHost(card)
+
+        let failure = withSnapshotTesting(record: .failed) {
+            verifySnapshot(
+                of: host,
+                as: .image(size: Self.snapshotSize),
+                named: "error-body-state",
+                snapshotDirectory: Self.snapshotDirectory
+            )
+        }
+
+        #expect(failure == nil)
+    }
+
+    @Test("loading skeleton state keeps rhythm in compact body")
+    func loadingSkeletonStateKeepsRhythmInCompactBody() {
+        let header = AccountSummaryCardHeaderModel(
+            eyebrow: "OpenAI",
+            title: "loading-account@flowup.dev",
+            subtitle: "Syncing usage…",
+            meta: "Just now",
+            badge: AccountSummaryCardBadgeModel(text: "SYNCING", tone: .neutral)
+        )
+
+        let card = AccountSummaryContentCard(
+            presentation: .neutral,
+            header: header,
+            showsDetailsSection: false,
+            showsActionsSection: false
+        ) {
+            VStack(alignment: .leading, spacing: 8) {
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(DesignSystem.Colors.Component.controlFill)
+                    .frame(height: 12)
+                    .frame(maxWidth: 210)
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(DesignSystem.Colors.Component.controlFill)
+                    .frame(height: 12)
+                    .frame(maxWidth: 160)
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(DesignSystem.Colors.Component.controlFill)
+                    .frame(height: 12)
+                    .frame(maxWidth: 240)
+            }
+            .redacted(reason: .placeholder)
+        }
+
+        let host = makeHost(card)
+
+        let failure = withSnapshotTesting(record: .failed) {
+            verifySnapshot(
+                of: host,
+                as: .image(size: Self.snapshotSize),
+                named: "loading-skeleton-state",
                 snapshotDirectory: Self.snapshotDirectory
             )
         }

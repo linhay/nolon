@@ -248,6 +248,7 @@ final class ProviderUsageViewModel {
         let id: UUID
         let title: String
         let subtitle: String?
+        let plan: String?
     }
 
     struct CodexGatewayCandidateSection: Identifiable, Equatable {
@@ -1823,7 +1824,13 @@ final class ProviderUsageViewModel {
                 else { return nil }
                 return raw == title ? nil : raw
             }()
-            return CodexGatewayMemberDisplay(id: id, title: title, subtitle: subtitle)
+            let plan = summary?.plan?.trimmingCharacters(in: .whitespacesAndNewlines)
+            return CodexGatewayMemberDisplay(
+                id: id,
+                title: title,
+                subtitle: subtitle,
+                plan: (plan?.isEmpty == false) ? plan : nil
+            )
         }
     }
 

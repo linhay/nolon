@@ -1153,12 +1153,7 @@ struct ResourceCatalogGridView: View {
                 )
             }
             if let onClose {
-                topActionButton(
-                    systemImage: "xmark",
-                    help: NSLocalizedString("Close", comment: "Close"),
-                    isCancelAction: true,
-                    action: onClose
-                )
+                ResourceCenterCloseButton(action: onClose)
             }
         }
         .padding(.horizontal)
@@ -1169,7 +1164,6 @@ struct ResourceCatalogGridView: View {
     private func topActionButton(
         systemImage: String,
         help: String,
-        isCancelAction: Bool = false,
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
@@ -1190,7 +1184,6 @@ struct ResourceCatalogGridView: View {
         .buttonStyle(.plain)
         .help(help)
         .accessibilityLabel(help)
-        .modifier(ResourceCatalogCancelShortcutModifier(isEnabled: isCancelAction))
     }
 
     private func sectionHeader(_ title: String, count: Int) -> some View {
@@ -1772,18 +1765,5 @@ func filterResourceCatalogSkills(
     return skills.filter { skill in
         skill.displayName.localizedStandardContains(trimmedQuery)
         || (skill.summary?.localizedStandardContains(trimmedQuery) ?? false)
-    }
-}
-
-private struct ResourceCatalogCancelShortcutModifier: ViewModifier {
-    let isEnabled: Bool
-
-    @ViewBuilder
-    func body(content: Content) -> some View {
-        if isEnabled {
-            content.keyboardShortcut(.cancelAction)
-        } else {
-            content
-        }
     }
 }

@@ -221,6 +221,7 @@ struct ResourceCenterView: View, DebugPageLocatable {
         )
     }
 
+    @MainActor
     private func handlePendingImportURLIfNeeded() {
         guard let pendingImportURL = settings.pendingImportURL else { return }
         let intent = draftService.parseImportIntent(from: pendingImportURL)
@@ -548,14 +549,13 @@ struct ResourceCenterView: View, DebugPageLocatable {
         .textSelection(.enabled)
         .onAppear {
             applyUITestInitialStateIfNeeded()
-            handlePendingImportURLIfNeeded()
             refreshData()
             if viewModel.selectedRepository?.templateType == .clawdhub {
                 viewModel.selectedTab = .skills
             }
         }
-        .onChange(of: settings.pendingImportURL) { _, newValue in
-            guard newValue != nil else { return }
+        .task(id: settings.pendingImportURL) {
+            guard settings.pendingImportURL != nil else { return }
             handlePendingImportURLIfNeeded()
         }
         .onChange(of: viewModel.selectedRepository) { _, repository in

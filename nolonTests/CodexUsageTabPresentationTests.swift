@@ -2,6 +2,7 @@ import XCTest
 import ProviderCatalog
 import ProviderUsage
 import CodexBarProviderCatalog
+import NolonUIFoundation
 @testable import nolon
 
 @MainActor
@@ -77,6 +78,30 @@ final class CodexUsageTabPresentationTests: XCTestCase {
     func testBDD_GivenGatewayActivationState_WhenResolvingContextMenuPolicy_ThenOnlyInactiveShowsActivateAction() {
         XCTAssertTrue(ProviderUsageView.shouldShowActivateGatewayContextAction(isActiveGateway: false))
         XCTAssertFalse(ProviderUsageView.shouldShowActivateGatewayContextAction(isActiveGateway: true))
+    }
+
+    func testBDD_GivenCodexLayoutMode_WhenResolvingListPresentationStyle_ThenListUsesCompactRowsAndCardsUseCardStyle() {
+        XCTAssertTrue(
+            ProviderUsageView.shouldUseCompactCodexListRows(layoutMode: .list)
+        )
+        XCTAssertFalse(
+            ProviderUsageView.shouldUseCompactCodexListRows(layoutMode: .cards)
+        )
+    }
+
+    func testBDD_GivenGatewayMemberRows_WhenResolvingCompactMetrics_ThenListModeUsesTighterLimitsThanCards() {
+        XCTAssertEqual(
+            ProviderUsageView.gatewayMemberDisplayLimit(layoutMode: .list),
+            8
+        )
+        XCTAssertEqual(
+            ProviderUsageView.gatewayMemberDisplayLimit(layoutMode: .cards),
+            12
+        )
+        XCTAssertLessThan(
+            ProviderUsageView.gatewayMemberRowMaxHeight(layoutMode: .list),
+            ProviderUsageView.gatewayMemberRowMaxHeight(layoutMode: .cards)
+        )
     }
 
     func testBDD_GivenNewRelayMode_WhenResolvingConfigPresentation_ThenSubtitleAndPrimaryActionGuideMinimalSetup() {

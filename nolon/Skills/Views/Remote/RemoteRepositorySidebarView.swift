@@ -203,6 +203,13 @@ final class RemoteRepositorySidebarViewModel {
         tokenInputRepository = nil
         inputToken = ""
     }
+
+    func shouldPresentAddRepositorySheet(for pendingURL: String?) -> Bool {
+        guard !showingAddRepository, editingRepository == nil else { return false }
+        guard let pendingURL else { return false }
+        let intent = RepositoryDraftService().parseImportIntent(from: pendingURL)
+        return intent.kind == .gitRepository
+    }
 }
 
 /// Left column 1: Repository sidebar with list and add button
@@ -317,13 +324,9 @@ struct RemoteRepositorySidebarView: View, DebugPageLocatable {
             if selectedRepository == nil {
                 selectedRepository = orderedRepositories.first
             }
-            // Check for pending import immediately on appear
-            if shouldOpenAddRepositorySheet(for: settings.pendingImportURL) {
-                viewModel.showingAddRepository = true
-            }
         }
-        .onChange(of: settings.pendingImportURL) { _, newValue in
-            if shouldOpenAddRepositorySheet(for: newValue) {
+        .task(id: settings.pendingImportURL) {
+            if viewModel.shouldPresentAddRepositorySheet(for: settings.pendingImportURL) {
                 viewModel.showingAddRepository = true
             }
         }
@@ -336,13 +339,6 @@ struct RemoteRepositorySidebarView: View, DebugPageLocatable {
         .debugPageLocator(debugPageMarkerItems)
 
     }
-
-    private func shouldOpenAddRepositorySheet(for pendingURL: String?) -> Bool {
-        guard let pendingURL else { return false }
-        let intent = RepositoryDraftService().parseImportIntent(from: pendingURL)
-        return intent.kind == .gitRepository
-    }
-    
     private func gitStatusRow(_ repo: RemoteRepository) -> some View {
         Group {
             if viewModel.isSyncing, viewModel.syncingRepositoryID == repo.id {

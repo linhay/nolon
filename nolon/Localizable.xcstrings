@@ -135,9 +135,6 @@
         }
       }
     },
-    "%lld 个成员账号" : {
-
-    },
     "%lld%%" : {
 
     },
@@ -160,9 +157,6 @@
           }
         }
       }
-    },
-    "+%lld" : {
-
     },
     "~/.codex/%@" : {
 
@@ -612,7 +606,7 @@
     },
     "action.add_provider" : {
       "comment" : "Add Provider",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1476,6 +1470,7 @@
     },
     "app.title" : {
       "comment" : "nolon",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -3603,6 +3598,42 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "布局"
+          }
+        }
+      }
+    },
+    "codex.accounts.list.header.account" : {
+      "comment" : "Codex account list table account column",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Account"
+          }
+        }
+      }
+    },
+    "codex.accounts.list.header.plan" : {
+      "comment" : "Codex account list table plan column",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Plan"
+          }
+        }
+      }
+    },
+    "codex.accounts.list.header.usage" : {
+      "comment" : "Codex account list table usage column",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Usage"
           }
         }
       }
@@ -7604,6 +7635,18 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "网关 %d"
+          }
+        }
+      }
+    },
+    "codex.gateway.cards.members.count" : {
+      "comment" : "Gateway card members count",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%d 个成员"
           }
         }
       }
@@ -13932,18 +13975,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "厂商"
-          }
-        }
-      }
-    },
-    "sidebar.section.tools" : {
-      "comment" : "Tools section",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Tools"
           }
         }
       }

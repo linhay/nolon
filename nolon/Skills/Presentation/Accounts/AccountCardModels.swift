@@ -2,6 +2,7 @@ import Foundation
 import SwiftUI
 import ProviderUsage
 import CodexBarProviderCatalog
+import NolonUIFoundation
 
 enum AccountCardActionID: String, Equatable, Sendable {
     case activate

@@ -32,6 +32,8 @@
 		CDFA67412F3599FB0053E30A /* STFilePath in Frameworks */ = {isa = PBXBuildFile; productRef = CDFA67402F3599FB0053E30A /* STFilePath */; };
 		CDFA67442F359A110053E30A /* STJSON in Frameworks */ = {isa = PBXBuildFile; productRef = CDFA67432F359A110053E30A /* STJSON */; };
 		CE11A9A130D0000100A1B2C3 /* Shimmer in Frameworks */ = {isa = PBXBuildFile; productRef = CE11A9A030D0000100A1B2C3 /* Shimmer */; };
+		E1A001152F40000100A1B2C3 /* NolonUIFoundation in Frameworks */ = {isa = PBXBuildFile; productRef = E1A001132F40000100A1B2C3 /* NolonUIFoundation */; };
+		E1A001162F40000100A1B2C3 /* NolonUI in Frameworks */ = {isa = PBXBuildFile; productRef = E1A001142F40000100A1B2C3 /* NolonUI */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -123,6 +125,8 @@
 				CDA190472F3DA580000DBF77 /* ProviderUsage in Frameworks */,
 				CDA190492F3DA580000DBF77 /* NolonResourceKit in Frameworks */,
 				CDA1904B2F3DA580000DBF77 /* NolonCoreCLIKit in Frameworks */,
+				E1A001152F40000100A1B2C3 /* NolonUIFoundation in Frameworks */,
+				E1A001162F40000100A1B2C3 /* NolonUI in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -242,6 +246,8 @@
 				CDA190462F3DA580000DBF77 /* ProviderUsage */,
 				CDA190482F3DA580000DBF77 /* NolonResourceKit */,
 				CDA1904A2F3DA580000DBF77 /* NolonCoreCLIKit */,
+				E1A001132F40000100A1B2C3 /* NolonUIFoundation */,
+				E1A001142F40000100A1B2C3 /* NolonUI */,
 			);
 			productName = nolon;
 			productReference = CD2B1A922F1F624900DF4A2B /* nolon.app */;
@@ -316,6 +322,8 @@
 				CE11A9A230D0000100A1B2C3 /* XCRemoteSwiftPackageReference "SwiftUI-Shimmer" */,
 				CD68A7062F371C8E008772E7 /* XCRemoteSwiftPackageReference "SKProcessRunner" */,
 				CDA190392F3DA580000DBF77 /* XCLocalSwiftPackageReference "libs/Providers" */,
+				E1A001112F40000100A1B2C3 /* XCLocalSwiftPackageReference "libs/NolonUIFoundation" */,
+				E1A001122F40000100A1B2C3 /* XCLocalSwiftPackageReference "libs/NolonUI" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = CD2B1A932F1F624900DF4A2B /* Products */;
@@ -722,6 +730,14 @@
 			isa = XCLocalSwiftPackageReference;
 			relativePath = libs/Providers;
 		};
+		E1A001112F40000100A1B2C3 /* XCLocalSwiftPackageReference "libs/NolonUIFoundation" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = libs/NolonUIFoundation;
+		};
+		E1A001122F40000100A1B2C3 /* XCLocalSwiftPackageReference "libs/NolonUI" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = libs/NolonUI;
+		};
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCRemoteSwiftPackageReference section */
@@ -905,6 +921,14 @@
 			isa = XCSwiftPackageProductDependency;
 			package = CE11A9A230D0000100A1B2C3 /* XCRemoteSwiftPackageReference "SwiftUI-Shimmer" */;
 			productName = Shimmer;
+		};
+		E1A001132F40000100A1B2C3 /* NolonUIFoundation */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = NolonUIFoundation;
+		};
+		E1A001142F40000100A1B2C3 /* NolonUI */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = NolonUI;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

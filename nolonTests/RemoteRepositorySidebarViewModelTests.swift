@@ -61,4 +61,35 @@ final class RemoteRepositorySidebarViewModelTests: XCTestCase {
         existing.skillsPaths = ["."]
         XCTAssertEqual(updated, existing)
     }
+
+    func testShouldPresentAddRepositorySheet_WithGitURLAndIdleState_ReturnsTrue() {
+        let viewModel = RemoteRepositorySidebarViewModel()
+
+        let shouldPresent = viewModel.shouldPresentAddRepositorySheet(
+            for: "https://github.com/acme/repo"
+        )
+
+        XCTAssertTrue(shouldPresent)
+    }
+
+    func testShouldPresentAddRepositorySheet_WithClawhubURL_ReturnsFalse() {
+        let viewModel = RemoteRepositorySidebarViewModel()
+
+        let shouldPresent = viewModel.shouldPresentAddRepositorySheet(
+            for: "https://clawhub.ai/steipete/gemini"
+        )
+
+        XCTAssertFalse(shouldPresent)
+    }
+
+    func testShouldPresentAddRepositorySheet_WhenSheetAlreadyPresented_ReturnsFalse() {
+        let viewModel = RemoteRepositorySidebarViewModel()
+        viewModel.showingAddRepository = true
+
+        let shouldPresent = viewModel.shouldPresentAddRepositorySheet(
+            for: "https://github.com/acme/repo"
+        )
+
+        XCTAssertFalse(shouldPresent)
+    }
 }

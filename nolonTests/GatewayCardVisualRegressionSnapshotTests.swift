@@ -2,6 +2,7 @@ import AppKit
 import SnapshotTesting
 import SwiftUI
 import Testing
+import NolonUIFoundation
 @testable import nolon
 
 @MainActor

@@ -82,30 +82,16 @@ struct ResourceCenterTabView: View, DebugPageLocatable {
     var body: some View {
         let repoSyncToken = watchCenter.token(for: repository)
         let cacheBuster = "\(refreshTrigger)-\(repoSyncToken)"
-        VStack(spacing: 0) {
-            compactHeader
-            if repository != nil {
-                List(selection: $selectedTab) {
-                    ForEach(ResourceContentTabType.allCases) { tab in
-                        HStack {
-                            Label(tab.localizedName, systemImage: tab.icon)
-                            Spacer()
-                            Text("\(viewModel.count(for: tab))")
-                                .dsSecondaryText(font: .callout)
-                        }
-                        .tag(tab)
-                    }
-                }
-                .listStyle(.sidebar)
-            } else {
-                ContentUnavailableView(
-                    NSLocalizedString("content.no_repository", comment: "Select a Repository"),
-                    systemImage: "tray",
-                    description: Text(NSLocalizedString("content.no_repository_desc", comment: "Choose a repository from the sidebar"))
-                        .dsSecondaryText(font: .body)
-                )
-            }
-        }
+        ResourceCenterSidebar(
+            title: repository?.name ?? NSLocalizedString("resource.center.title", value: "Resource Center", comment: "Resource center title"),
+            selectedTab: $selectedTab,
+            tabCounts: [
+                .skills: viewModel.skillsCount,
+                .workflows: viewModel.workflowsCount,
+                .mcps: viewModel.mcpsCount
+            ],
+            hasRepository: repository != nil
+        )
         .onAppear {
             if selectedTab == nil {
                 selectedTab = .skills
@@ -121,25 +107,5 @@ struct ResourceCenterTabView: View, DebugPageLocatable {
             EmptyView()
         }
         .debugPageLocator(debugPageMarkerItems)
-        .navigationSplitViewColumnWidth(min: 160, ideal: 180, max: 200)
-    }
-
-    @ViewBuilder
-    private var compactHeader: some View {
-        HStack(spacing: 12) {
-            Text(repository?.name ?? NSLocalizedString("resource.center.title", value: "Resource Center", comment: "Resource center title"))
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(DesignSystem.Colors.Text.primary)
-                .lineLimit(1)
-                .truncationMode(.tail)
-            Spacer(minLength: 0)
-        }
-        .frame(height: 52)
-        .padding(.horizontal, 16)
-        .overlay(alignment: .bottom) {
-            Rectangle()
-                .fill(DesignSystem.Colors.Component.separator)
-                .frame(height: 1)
-        }
     }
 }
