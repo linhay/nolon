@@ -719,6 +719,7 @@ final class ResourceCatalogGridViewModel {
 
 /// Detail 区域 - Grid 布局显示资源中心内容
 struct ResourceCatalogGridView: View {
+    @Environment(\.openWindow) private var openWindow
     private static let logger = Logger(subsystem: "com.nolon", category: "ResourceCatalogGrid")
     private static let installTimeoutNanoseconds: UInt64 = 45_000_000_000
 
@@ -921,18 +922,17 @@ struct ResourceCatalogGridView: View {
 
     private var contentWithDetailSheets: some View {
         contentWithPendingSync
-            .sheet(item: $viewModel.selectedSkillForDetail) { skill in
-                RemoteSkillDetailView(
+            .onChange(of: viewModel.selectedSkillForDetail?.slug) { _, _ in
+                guard let skill = viewModel.selectedSkillForDetail else { return }
+                SkillDetailWindowCoordinator.shared.presentRemote(
                     skill: skill,
                     providers: providers,
                     targetProvider: targetProvider,
-                    isInstalled: installedSlugs.contains(skill.slug),
                     onInstall: { provider in
                         onInstall(skill, provider)
                     }
                 )
-                .frame(minWidth: 920, idealWidth: 1100, maxWidth: .infinity,
-                       minHeight: 620, idealHeight: 720, maxHeight: .infinity)
+                openWindow(id: SkillDetailWindowCoordinator.windowID)
             }
             .sheet(item: $viewModel.selectedWorkflowForDetail) { workflow in
                 RemoteWorkflowDetailView(

@@ -6,6 +6,7 @@ import NolonResourceKit
 
 /// Detail 区域 - Grid 布局显示 Skills 或 Workflows
 struct ProviderDetailGridView: View, DebugPageLocatable {
+    @Environment(\.openWindow) private var openWindow
     let provider: Provider?
     let selectedTab: ProviderContentTabType?
     let settings: ProviderSettings
@@ -88,13 +89,14 @@ struct ProviderDetailGridView: View, DebugPageLocatable {
                 await viewModel.updateProvider(newProvider)
             }
         }
-        .sheet(item: $viewModel.selectedSkillForDetail, onDismiss: {
-            Task {
-                await viewModel.loadData()
-            }
-        }) { skill in
-            SkillDetailView(skill: skill, provider: provider, settings: settings)
-                .frame(minWidth: 900, maxWidth: .infinity, minHeight: 600, maxHeight: .infinity)
+        .onChange(of: viewModel.selectedSkillForDetail?.uniqueId) { _, _ in
+            guard let skill = viewModel.selectedSkillForDetail else { return }
+            SkillDetailWindowCoordinator.shared.presentLocal(
+                skill: skill,
+                provider: provider,
+                settings: settings
+            )
+            openWindow(id: SkillDetailWindowCoordinator.windowID)
         }
         .sheet(item: $viewModel.showingRemoteBrowser) { browserType in
             if let provider = provider {

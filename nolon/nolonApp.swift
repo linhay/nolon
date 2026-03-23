@@ -199,6 +199,14 @@ struct nolonApp: App {
             appCommands
         }
 
+        Window(
+            NSLocalizedString("detail.skill.window.title", value: "Skill Detail", comment: "Skill detail window title"),
+            id: SkillDetailWindowCoordinator.windowID
+        ) {
+            SkillDetailWindowRootView()
+        }
+        .defaultSize(width: 1100, height: 720)
+
         MenuBarExtra("nolon", systemImage: "arrow.triangle.2.circlepath.circle") {
             CodexQuickSwitchMenuBarView()
         }
