@@ -42,7 +42,7 @@ struct WorkflowCardView: View {
 
     var body: some View {
         NolonUI.WorkflowCardView(
-            workflow: foundationModel,
+            workflow: workflow.uiFoundationModel,
             searchText: searchText,
             onReveal: onReveal,
             onDelete: onDelete,
@@ -54,31 +54,6 @@ struct WorkflowCardView: View {
                     PageMarkerItem(title: workflow.name)
                 ]
             )
-        }
-    }
-
-    private var foundationModel: NolonUIFoundation.WorkflowInfo {
-        NolonUIFoundation.WorkflowInfo(
-            id: workflow.id,
-            name: workflow.name,
-            description: workflow.description,
-            path: workflow.path,
-            source: workflow.source.foundationSource
-        )
-    }
-}
-
-private extension WorkflowSource {
-    var foundationSource: NolonUIFoundation.WorkflowSource {
-        switch self {
-        case .skill:
-            return .skill
-        case .user:
-            return .user
-        case .mcp:
-            return .mcp
-        case .unknown:
-            return .unknown
         }
     }
 }

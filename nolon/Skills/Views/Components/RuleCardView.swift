@@ -19,7 +19,7 @@ struct RuleCardView: View {
 
     var body: some View {
         NolonUI.RuleCardView(
-            rule: foundationModel,
+            rule: rule.uiFoundationModel,
             searchText: searchText,
             onReveal: onReveal,
             onDelete: onDelete,
@@ -32,15 +32,5 @@ struct RuleCardView: View {
                 ]
             )
         }
-    }
-
-    private var foundationModel: NolonUIFoundation.RuleInfo {
-        NolonUIFoundation.RuleInfo(
-            id: rule.id,
-            name: rule.name,
-            preview: rule.preview,
-            relativePath: rule.relativePath,
-            path: rule.path
-        )
     }
 }

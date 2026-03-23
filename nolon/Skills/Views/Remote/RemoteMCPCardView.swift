@@ -65,20 +65,7 @@ struct RemoteMCPCardView: View, DebugPageLocatable {
     }
 
     private var mappedMetaItems: [NolonUI.ResourceCardMetaItem] {
-        ResourceCardMetaBuilder.mcpItems(mcp).map { item in
-            switch item {
-            case let .stars(value):
-                return .stars(value)
-            case let .downloads(value):
-                return .downloads(value)
-            case let .usages(value):
-                return .usages(value)
-            case let .installs(value):
-                return .installs(value)
-            case let .command(value):
-                return .command(value)
-            }
-        }
+        NolonUIAdapter.resourceMetaItems(ResourceCardMetaBuilder.mcpItems(mcp))
     }
 
     private var revealInFinderAction: (() -> Void)? {

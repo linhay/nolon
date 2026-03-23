@@ -23,7 +23,7 @@ struct McpServerCard: View {
             searchText: searchText,
             hasWorkflow: hasWorkflow,
             isEnabled: mcp.isEnabled,
-            cacheState: mappedCacheState,
+            cacheState: cacheState.uiCacheState,
             onLinkWorkflow: onLinkWorkflow,
             onUnlinkWorkflow: onUnlinkWorkflow,
             onSetEnabled: onSetEnabled,
@@ -52,17 +52,6 @@ struct McpServerCard: View {
     private var commandText: String? {
         guard let dict = mcp.json.value as? [String: Any] else { return nil }
         return dict["command"] as? String
-    }
-
-    private var mappedCacheState: NolonUI.McpServerCardCacheState {
-        switch cacheState {
-        case .notMigrated:
-            return .notMigrated
-        case .migratedUpToDate:
-            return .migratedUpToDate
-        case .migratedNeedsUpdate:
-            return .migratedNeedsUpdate
-        }
     }
 
     private var mcpLogoName: String? {

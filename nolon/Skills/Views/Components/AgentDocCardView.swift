@@ -24,7 +24,7 @@ struct AgentDocCardView: View {
 
     var body: some View {
         NolonUI.AgentDocCardView(
-            doc: foundationModel,
+            doc: doc.uiFoundationModel,
             searchText: searchText,
             onReveal: onReveal,
             onDelete: onDelete,
@@ -37,15 +37,5 @@ struct AgentDocCardView: View {
                 ]
             )
         }
-    }
-
-    private var foundationModel: NolonUIFoundation.AgentDocInfo {
-        NolonUIFoundation.AgentDocInfo(
-            id: doc.id,
-            fileName: doc.fileName,
-            path: doc.path,
-            preview: doc.preview,
-            kind: doc.kind == .override ? .override : .base
-        )
     }
 }
