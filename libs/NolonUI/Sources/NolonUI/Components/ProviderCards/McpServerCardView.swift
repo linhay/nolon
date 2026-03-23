@@ -69,18 +69,18 @@ public struct McpServerCardView<TitleContent: View, ExtraContextMenu: View>: Vie
     }
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: DesignSystem.Metrics.spacingM) {
+        ProviderCardTemplate(
+            minHeight: 156,
+            showsActionDivider: true
+        ) {
             headerRow
+        } bodyContent: {
             commandRow
+        } footerContent: {
             statusRow
-            Divider()
+        } actionContent: {
             actionRow
-        }
-        .padding(DesignSystem.Metrics.spacingL)
-        .frame(maxWidth: .infinity, minHeight: 156, alignment: .topLeading)
-        .providerTabCardStyle()
-        .contentShape(Rectangle())
-        .contextMenu {
+        } contextMenuContent: {
             contextMenuItems
         }
         .confirmationDialog(
@@ -262,10 +262,6 @@ public struct McpServerCardView<TitleContent: View, ExtraContextMenu: View>: Vie
             .help(title)
             .accessibilityLabel(title)
         }
-    }
-
-    private var maintenanceAction: McpServerMaintenanceAction {
-        Self.resolveMaintenanceAction(for: cacheState)
     }
 
     private var primaryAction: McpServerPrimaryAction {

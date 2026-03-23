@@ -91,6 +91,24 @@ final class NolonUITests: XCTestCase {
         XCTAssertEqual(states.count, 3)
     }
 
+    @MainActor
+    func testProviderCardTemplate_CanConstructWithAllSections() {
+        _ = ProviderCardTemplate(
+            minHeight: 140,
+            showsActionDivider: true
+        ) {
+            Text("Header")
+        } bodyContent: {
+            Text("Body")
+        } footerContent: {
+            Text("Footer")
+        } actionContent: {
+            Text("Action")
+        } contextMenuContent: {
+            Button("Menu") {}
+        }
+    }
+
     func testMcpServerMaintenanceAction_ResolvesFromCacheState() {
         XCTAssertEqual(McpServerCardView<EmptyView, EmptyView>.resolveMaintenanceAction(for: .notMigrated), .migrate)
         XCTAssertEqual(McpServerCardView<EmptyView, EmptyView>.resolveMaintenanceAction(for: .migratedNeedsUpdate), .update)

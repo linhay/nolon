@@ -90,109 +90,54 @@ public struct SkillCardView<ExtraContextMenu: View>: View {
     }
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: DesignSystem.Metrics.spacingM) {
+        ProviderCardTemplate(
+            minHeight: 140,
+            onTap: onTap
+        ) {
             HStack(alignment: .center) {
                 HighlightedText(text: name, query: searchText)
                     .font(.headline)
                     .lineLimit(1)
-
                 Spacer()
-
                 moreMenu
             }
-
-            HStack(spacing: 4) {
-                Text("v\(version)")
-                    .dsBadge(
-                        foreground: DesignSystem.Colors.Text.primary,
-                        background: DesignSystem.Colors.Component.controlFillSubtle,
-                        horizontalPadding: 6,
-                        verticalPadding: 2,
-                        cornerRadius: DesignSystem.Metrics.cornerRadiusXS
-                    )
-                if isOrphaned {
-                    Text(NSLocalizedString("skill.orphaned", value: "Needs Migration", comment: "Orphaned skill badge"))
+        } bodyContent: {
+            VStack(alignment: .leading, spacing: DesignSystem.Metrics.spacingM) {
+                HStack(spacing: 4) {
+                    Text("v\(version)")
                         .dsBadge(
-                            foreground: DesignSystem.Colors.Text.onAccent,
-                            background: DesignSystem.Colors.Status.warning,
+                            foreground: DesignSystem.Colors.Text.primary,
+                            background: DesignSystem.Colors.Component.controlFillSubtle,
                             horizontalPadding: 6,
                             verticalPadding: 2,
                             cornerRadius: DesignSystem.Metrics.cornerRadiusXS
                         )
+                    if isOrphaned {
+                        Text(NSLocalizedString("skill.orphaned", value: "Needs Migration", comment: "Orphaned skill badge"))
+                            .dsBadge(
+                                foreground: DesignSystem.Colors.Text.onAccent,
+                                background: DesignSystem.Colors.Status.warning,
+                                horizontalPadding: 6,
+                                verticalPadding: 2,
+                                cornerRadius: DesignSystem.Metrics.cornerRadiusXS
+                            )
+                    }
                 }
+
+                HighlightedText(text: description, query: searchText)
+                    .font(.caption)
+                    .dsSecondaryText(font: .caption)
+                    .lineLimit(3)
+                    .truncationMode(.tail)
+                    .frame(maxWidth: .infinity, minHeight: descriptionHeight, maxHeight: descriptionHeight, alignment: .topLeading)
             }
-
-            HighlightedText(text: description, query: searchText)
-                .font(.caption)
-                .dsSecondaryText(font: .caption)
-                .lineLimit(3)
-                .truncationMode(.tail)
-                .frame(maxWidth: .infinity, minHeight: descriptionHeight, maxHeight: descriptionHeight, alignment: .topLeading)
-
-            if hasWorkflow {
-                HStack {
-                    Button {
-                        onUnlinkWorkflow()
-                    } label: {
-                        HStack(spacing: DesignSystem.Metrics.spacingS - 2) {
-                            Image(systemName: "arrow.triangle.branch")
-                            Text("Workflow")
-                        }
-                        .fontWeight(.semibold)
-                        .dsBadge(
-                            foreground: DesignSystem.Colors.primary,
-                            background: DesignSystem.Colors.primary.opacity(DesignSystem.Colors.Opacity.subtle),
-                            horizontalPadding: 10,
-                            verticalPadding: 6,
-                            cornerRadius: DesignSystem.Metrics.cornerRadiusS
-                        )
-                    }
-                    .dsLinkButton()
-
-                    Spacer()
-                }
-            } else {
-                HStack(spacing: DesignSystem.Metrics.spacingM) {
-                    Button {
-                        onLinkWorkflow()
-                    } label: {
-                        HStack(spacing: DesignSystem.Metrics.spacingS - 2) {
-                            Image(systemName: "plus.circle")
-                            Text(NSLocalizedString("action.link_workflow", comment: "Link to Workflow"))
-                        }
-                        .fontWeight(.semibold)
-                        .dsBadge(
-                            foreground: DesignSystem.Colors.Text.secondary,
-                            background: DesignSystem.Colors.Component.controlFill,
-                            horizontalPadding: 10,
-                            verticalPadding: 6,
-                            cornerRadius: DesignSystem.Metrics.cornerRadiusS
-                        )
-                    }
-                    .dsLinkButton()
-
-                    Spacer()
-
-                    if referenceCount > 0 {
-                        Label("\(referenceCount)", systemImage: "doc.text")
-                            .dsIconLabelButton(foreground: DesignSystem.Colors.Text.secondary, font: .caption2)
-                    }
-                    if scriptCount > 0 {
-                        Label("\(scriptCount)", systemImage: "terminal")
-                            .dsIconLabelButton(foreground: DesignSystem.Colors.Text.secondary, font: .caption2)
-                    }
-                }
-                .font(.caption2)
-                .dsSecondaryText(font: .caption2)
-            }
+        } footerContent: {
+            EmptyView()
+        } actionContent: {
+            actionRow
+        } contextMenuContent: {
+            contextMenuItems
         }
-        .padding(DesignSystem.Metrics.spacingL)
-        .frame(maxWidth: .infinity, alignment: .topLeading)
-        .frame(minHeight: 140)
-        .providerTabCardStyle()
-        .contentShape(Rectangle())
-        .onTapGesture { onTap() }
-        .contextMenu { contextMenuItems }
         .confirmationDialog(
             NSLocalizedString("action.uninstall_confirm_title", value: "Confirm Uninstall", comment: "Uninstall confirmation title"),
             isPresented: $showingUninstallConfirmation,
@@ -210,6 +155,66 @@ public struct SkillCardView<ExtraContextMenu: View>: View {
                     comment: "Uninstall confirmation message"
                 )
             )
+        }
+    }
+
+    @ViewBuilder
+    private var actionRow: some View {
+        if hasWorkflow {
+            HStack {
+                Button {
+                    onUnlinkWorkflow()
+                } label: {
+                    HStack(spacing: DesignSystem.Metrics.spacingS - 2) {
+                        Image(systemName: "arrow.triangle.branch")
+                        Text("Workflow")
+                    }
+                    .fontWeight(.semibold)
+                    .dsBadge(
+                        foreground: DesignSystem.Colors.primary,
+                        background: DesignSystem.Colors.primary.opacity(DesignSystem.Colors.Opacity.subtle),
+                        horizontalPadding: 10,
+                        verticalPadding: 6,
+                        cornerRadius: DesignSystem.Metrics.cornerRadiusS
+                    )
+                }
+                .dsLinkButton()
+
+                Spacer()
+            }
+        } else {
+            HStack(spacing: DesignSystem.Metrics.spacingM) {
+                Button {
+                    onLinkWorkflow()
+                } label: {
+                    HStack(spacing: DesignSystem.Metrics.spacingS - 2) {
+                        Image(systemName: "plus.circle")
+                        Text(NSLocalizedString("action.link_workflow", comment: "Link to Workflow"))
+                    }
+                    .fontWeight(.semibold)
+                    .dsBadge(
+                        foreground: DesignSystem.Colors.Text.secondary,
+                        background: DesignSystem.Colors.Component.controlFill,
+                        horizontalPadding: 10,
+                        verticalPadding: 6,
+                        cornerRadius: DesignSystem.Metrics.cornerRadiusS
+                    )
+                }
+                .dsLinkButton()
+
+                Spacer()
+
+                if referenceCount > 0 {
+                    Label("\(referenceCount)", systemImage: "doc.text")
+                        .dsIconLabelButton(foreground: DesignSystem.Colors.Text.secondary, font: .caption2)
+                }
+                if scriptCount > 0 {
+                    Label("\(scriptCount)", systemImage: "terminal")
+                        .dsIconLabelButton(foreground: DesignSystem.Colors.Text.secondary, font: .caption2)
+                }
+            }
+            .font(.caption2)
+            .dsSecondaryText(font: .caption2)
         }
     }
 

@@ -46,7 +46,10 @@ public struct WorkflowCardView<ExtraContextMenu: View>: View {
     }
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: DesignSystem.Metrics.spacingM) {
+        ProviderCardTemplate(
+            minHeight: 140,
+            onTap: onTap
+        ) {
             HStack(alignment: .center) {
                 HStack(spacing: DesignSystem.Metrics.spacingS) {
                     HighlightedText(text: workflow.name, query: searchText)
@@ -60,29 +63,23 @@ public struct WorkflowCardView<ExtraContextMenu: View>: View {
 
                 moreMenu
             }
-
+        } bodyContent: {
             HighlightedText(text: workflow.description, query: searchText)
                 .font(.caption)
                 .dsSecondaryText(font: .caption)
                 .lineLimit(3)
                 .truncationMode(.tail)
                 .frame(maxWidth: .infinity, minHeight: descriptionHeight, maxHeight: descriptionHeight, alignment: .topLeading)
-
+        } footerContent: {
             HStack {
                 Label("Workflow", systemImage: "arrow.triangle.branch")
                     .dsIconLabelText(foreground: DesignSystem.Colors.Text.secondary, font: .caption2)
 
                 Spacer()
             }
-        }
-        .padding(DesignSystem.Metrics.spacingL)
-        .frame(minHeight: 140)
-        .providerTabCardStyle()
-        .contentShape(Rectangle())
-        .onTapGesture {
-            onTap()
-        }
-        .contextMenu {
+        } actionContent: {
+            EmptyView()
+        } contextMenuContent: {
             contextMenuItems
         }
         .confirmationDialog(
