@@ -1,10 +1,15 @@
 import SwiftUI
+import NolonUI
 
 struct SheetHeaderView: View {
+    private enum TrailingContent {
+        case close(isDisabled: Bool, onClose: () -> Void)
+        case custom(() -> AnyView)
+    }
+
     private let title: String
-    private var subtitle: String?
-    private var isCloseDisabled: Bool
-    private let trailing: AnyView
+    private let subtitle: String?
+    private let trailingContent: TrailingContent
 
     init(
         title: String,
@@ -14,52 +19,35 @@ struct SheetHeaderView: View {
     ) {
         self.title = title
         self.subtitle = subtitle
-        self.isCloseDisabled = isCloseDisabled
-        self.trailing = AnyView(
-            Button {
-                onClose()
-            } label: {
-                Image(systemName: "xmark.circle.fill")
-                    .dsIconButton(size: 24, foreground: DesignSystem.Colors.Text.tertiary)
-            }
-            .accessibilityLabel(NSLocalizedString("Close", comment: "Close"))
-            .dsLinkButton()
-            .disabled(isCloseDisabled)
-        )
+        self.trailingContent = .close(isDisabled: isCloseDisabled, onClose: onClose)
     }
 
     init(
         title: String,
         subtitle: String? = nil,
-        @ViewBuilder trailing: () -> some View
+        @ViewBuilder trailing: @escaping () -> some View
     ) {
         self.title = title
         self.subtitle = subtitle
-        self.isCloseDisabled = false
-        self.trailing = AnyView(trailing())
+        self.trailingContent = .custom { AnyView(trailing()) }
     }
 
     var body: some View {
-        HStack(alignment: .center, spacing: DesignSystem.Metrics.spacingL) {
-            VStack(alignment: .leading, spacing: DesignSystem.Metrics.spacingXS) {
-                Text(title)
-                    .font(DesignSystem.Typography.h3)
-                    .foregroundStyle(DesignSystem.Colors.Text.primary)
-
-                if let subtitle {
-                    Text(subtitle)
-                        .font(.subheadline)
-                        .dsSecondaryText(font: .subheadline)
-                        .lineLimit(2)
-                }
+        switch trailingContent {
+        case let .close(isDisabled, onClose):
+            NolonUI.SheetHeaderView(
+                title: title,
+                subtitle: subtitle,
+                isCloseDisabled: isDisabled,
+                onClose: onClose
+            )
+        case let .custom(trailing):
+            NolonUI.SheetHeaderView(
+                title: title,
+                subtitle: subtitle
+            ) {
+                trailing()
             }
-
-            Spacer(minLength: 0)
-
-            trailing
         }
-        .padding(.horizontal, SheetLayout.horizontalPadding)
-        .padding(.top, SheetLayout.horizontalPadding)
-        .padding(.bottom, SheetLayout.contentVerticalPadding)
     }
 }

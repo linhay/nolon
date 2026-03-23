@@ -1,6 +1,7 @@
 import SwiftUI
 import ProviderCatalog
 import NolonResourceKit
+import NolonUI
 
 struct SkillDetailView: View, DebugPageLocatable {
     @Environment(\.dismiss) private var dismiss
@@ -40,43 +41,15 @@ struct SkillDetailView: View, DebugPageLocatable {
     }
     
     var body: some View {
-        ZStack(alignment: .topTrailing) {
-            // 1. Two-Column Layout
-            HStack(spacing: 0) {
-                // Left Sidebar
+        NolonUI.SkillDetailScaffold(onClose: { dismiss() }) {
                 SkillDetailSidebar(
                     viewModel: viewModel,
                     providers: providers,
                     currentProvider: currentProvider
                 )
-                
-                // Right Content Area
+        } content: {
                 SkillDetailContent(viewModel: viewModel)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            
-            // 2. Floating Close Button
-            Button(action: { dismiss() }) {
-                ZStack {
-                    Circle()
-                        .fill(.white.opacity(0.1))
-                        .background(
-                            Circle()
-                                .stroke(.white.opacity(0.1), lineWidth: 1)
-                        )
-                    
-                    Image(systemName: "xmark")
-                        .font(.system(size: 13, weight: .bold))
-                        .foregroundStyle(DesignSystem.Colors.Text.secondary)
-                }
-                .frame(width: 32, height: 32)
-                .background(.ultraThinMaterial, in: Circle())
-            }
-            .buttonStyle(.plain)
-            .padding(16)
         }
-        .background(DesignSystem.Colors.Background.canvas)
-        .ignoresSafeArea()
         .task {
             await viewModel.loadData(checkProviders: providers, currentProvider: currentProvider)
         }

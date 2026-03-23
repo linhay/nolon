@@ -168,9 +168,81 @@ final class RemoteRepositorySidebarViewModel {
     }
     
     func revealInFinder(_ repo: RemoteRepository) {
-        let paths = repo.effectiveSkillsPaths.map { URL(fileURLWithPath: $0) }
-        guard !paths.isEmpty else { return }
-        NSWorkspace.shared.activateFileViewerSelecting(paths)
+        let targets = revealTargets(for: repo)
+        guard !targets.isEmpty else {
+            logger.warning("Reveal in Finder skipped: no resolvable path for repository \(repo.name, privacy: .public)")
+            return
+        }
+        NSWorkspace.shared.activateFileViewerSelecting(targets)
+    }
+
+    func revealTargets(
+        for repo: RemoteRepository,
+        baseClonePath: URL? = nil,
+        fileManager: FileManager = .default
+    ) -> [URL] {
+        let candidatePaths = revealCandidatePaths(for: repo, baseClonePath: baseClonePath)
+        var result: [URL] = []
+        var seen = Set<String>()
+
+        for path in candidatePaths {
+            guard let resolved = nearestExistingRevealURL(forPath: path, fileManager: fileManager) else { continue }
+            let standardized = resolved.standardizedFileURL
+            guard seen.insert(standardized.path).inserted else { continue }
+            result.append(standardized)
+        }
+
+        if result.isEmpty, repo.templateType == .git {
+            let fallbackRoot = (baseClonePath ?? repo.localClonePath).standardizedFileURL.path
+            if let fallback = nearestExistingRevealURL(forPath: fallbackRoot, fileManager: fileManager) {
+                let standardized = fallback.standardizedFileURL
+                if seen.insert(standardized.path).inserted {
+                    result.append(standardized)
+                }
+            }
+        }
+
+        return result
+    }
+
+    private func revealCandidatePaths(for repo: RemoteRepository, baseClonePath: URL?) -> [String] {
+        guard repo.templateType == .git else {
+            return repo.effectiveSkillsPaths
+        }
+
+        let clonePath = (baseClonePath ?? repo.localClonePath).standardizedFileURL
+        guard !repo.skillsPaths.isEmpty else {
+            return [clonePath.path]
+        }
+
+        return repo.skillsPaths.map { rawPath in
+            let trimmed = rawPath.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.isEmpty || trimmed == "." {
+                return clonePath.path
+            }
+            if (trimmed as NSString).isAbsolutePath {
+                return URL(fileURLWithPath: trimmed).standardizedFileURL.path
+            }
+            return clonePath.appendingPathComponent(trimmed).standardizedFileURL.path
+        }
+    }
+
+    private func nearestExistingRevealURL(forPath path: String, fileManager: FileManager) -> URL? {
+        guard !path.isEmpty else { return nil }
+
+        var candidate = URL(fileURLWithPath: path).standardizedFileURL
+        while candidate.path != "/" {
+            if fileManager.fileExists(atPath: candidate.path) {
+                return candidate
+            }
+            let parent = candidate.deletingLastPathComponent().standardizedFileURL
+            if parent.path == candidate.path {
+                break
+            }
+            candidate = parent
+        }
+
+        return nil
     }
     
     func confirmDirectorySelection(settings: ProviderSettings) {

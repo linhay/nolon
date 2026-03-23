@@ -339,139 +339,78 @@ struct ResourceCenterView: View, DebugPageLocatable {
             for: viewModel.selectedRepository,
             fallback: targetProvider
         )
-        Group {
+        let layoutMode: UIThreeColumnScaffoldMode = isClawdhub ? .twoColumn : .threeColumn
+        let selectedResourceTab: ResourceContentTabType? = isClawdhub ? .skills : viewModel.selectedTab
+        UIThreeColumnScaffold(
+            mode: layoutMode,
+            columnVisibility: $viewModel.columnVisibility,
+            sidebarWidth: .init(min: 200, ideal: 220, max: 240)
+        ) {
+            RemoteRepositorySidebarView(
+                selectedRepository: $viewModel.selectedRepository,
+                settings: settings,
+                showsHeader: false,
+                title: NSLocalizedString("resource.center.title", value: "Resource Center", comment: "Resource center title")
+            )
+        } content: {
             if isClawdhub {
-                NavigationSplitView {
-                    // Column 1: Repository sidebar
-                    RemoteRepositorySidebarView(
-                        selectedRepository: $viewModel.selectedRepository,
-                        settings: settings,
-                        showsHeader: false,
-                        title: NSLocalizedString("resource.center.title", value: "Resource Center", comment: "Resource center title")
-                    )
-                    .navigationSplitViewColumnWidth(min: 200, ideal: 220, max: 240)
-                } detail: {
-                    // Column 2: Grid view (Clawdhub only)
-                    ResourceCatalogGridView(
-                        repository: viewModel.selectedRepository,
-                        selectedTab: .skills,
-                        searchText: $viewModel.searchText,
-                        installedSlugs: viewModel.installedSlugs,
-                        installedSkills: viewModel.installedSkills,
-                        installedWorkflowSlugs: viewModel.installedWorkflowSlugs,
-                        installedMcpSlugs: viewModel.installedMcpSlugs,
-                        providers: settings.providers,
-                        refreshTrigger: viewModel.refreshTrigger,
-                        targetProvider: effectiveTargetProvider,
-                        onInstall: { skill, provider in
-                            onInstall(skill, provider)
-                            viewModel.schedulePostInstallRefresh(
-                                kind: .skill,
-                                repository: repository,
-                                selectedRepository: viewModel.selectedRepository,
-                                fallbackTargetProvider: targetProvider,
-                                settings: settings
-                            )
-                        },
-                        onInstallWorkflow: { workflow, provider in
-                            onInstallWorkflow?(workflow, provider)
-                            viewModel.schedulePostInstallRefresh(
-                                kind: .workflow,
-                                repository: repository,
-                                selectedRepository: viewModel.selectedRepository,
-                                fallbackTargetProvider: targetProvider,
-                                settings: settings
-                            )
-                        },
-                        onInstallMCP: { mcp, provider in
-                            onInstallMCP?(mcp, provider)
-                            viewModel.schedulePostInstallRefresh(
-                                kind: .mcp,
-                                repository: repository,
-                                selectedRepository: viewModel.selectedRepository,
-                                fallbackTargetProvider: targetProvider,
-                                settings: settings
-                            )
-                        },
-                        onRegisterDeleteRequest: onRegisterDeleteRequest,
-                        onMakeDeleteRequestExecutor: onMakeDeleteRequestExecutor,
-                        onRefresh: {
-                            refreshData()
-                        },
-                        onClose: onClose
-                    )
-                }
-                .navigationSplitViewStyle(.balanced)
+                EmptyView()
             } else {
-                NavigationSplitView(columnVisibility: $viewModel.columnVisibility) {
-                    // Column 1: Repository sidebar
-                    RemoteRepositorySidebarView(
-                        selectedRepository: $viewModel.selectedRepository,
-                        settings: settings,
-                        showsHeader: false,
-                        title: NSLocalizedString("resource.center.title", value: "Resource Center", comment: "Resource center title")
-                    )
-                    .navigationSplitViewColumnWidth(min: 200, ideal: 220, max: 240)
-                } content: {
-                    // Column 2: Tab navigation (类似 ProviderContentTabView)
-                    ResourceCenterTabView(
-                        repository: viewModel.selectedRepository,
-                        selectedTab: $viewModel.selectedTab,
-                        refreshTrigger: viewModel.refreshTrigger
-                    )
-                } detail: {
-                    // Column 3: Grid view
-                    ResourceCatalogGridView(
-                        repository: viewModel.selectedRepository,
-                        selectedTab: viewModel.selectedTab,
-                        searchText: $viewModel.searchText,
-                        installedSlugs: viewModel.installedSlugs,
-                        installedSkills: viewModel.installedSkills,
-                        installedWorkflowSlugs: viewModel.installedWorkflowSlugs,
-                        installedMcpSlugs: viewModel.installedMcpSlugs,
-                        providers: settings.providers,
-                        refreshTrigger: viewModel.refreshTrigger,
-                        targetProvider: effectiveTargetProvider,
-                        onInstall: { skill, provider in
-                            onInstall(skill, provider)
-                            viewModel.schedulePostInstallRefresh(
-                                kind: .skill,
-                                repository: repository,
-                                selectedRepository: viewModel.selectedRepository,
-                                fallbackTargetProvider: targetProvider,
-                                settings: settings
-                            )
-                        },
-                        onInstallWorkflow: { workflow, provider in
-                            onInstallWorkflow?(workflow, provider)
-                            viewModel.schedulePostInstallRefresh(
-                                kind: .workflow,
-                                repository: repository,
-                                selectedRepository: viewModel.selectedRepository,
-                                fallbackTargetProvider: targetProvider,
-                                settings: settings
-                            )
-                        },
-                        onInstallMCP: { mcp, provider in
-                            onInstallMCP?(mcp, provider)
-                            viewModel.schedulePostInstallRefresh(
-                                kind: .mcp,
-                                repository: repository,
-                                selectedRepository: viewModel.selectedRepository,
-                                fallbackTargetProvider: targetProvider,
-                                settings: settings
-                            )
-                        },
-                        onRegisterDeleteRequest: onRegisterDeleteRequest,
-                        onMakeDeleteRequestExecutor: onMakeDeleteRequestExecutor,
-                        onRefresh: {
-                            refreshData()
-                        },
-                        onClose: onClose
-                    )
-                }
-                .navigationSplitViewStyle(.balanced)
+                ResourceCenterTabView(
+                    repository: viewModel.selectedRepository,
+                    selectedTab: $viewModel.selectedTab,
+                    refreshTrigger: viewModel.refreshTrigger
+                )
             }
+        } detail: {
+            ResourceCatalogGridView(
+                repository: viewModel.selectedRepository,
+                selectedTab: selectedResourceTab,
+                searchText: $viewModel.searchText,
+                installedSlugs: viewModel.installedSlugs,
+                installedSkills: viewModel.installedSkills,
+                installedWorkflowSlugs: viewModel.installedWorkflowSlugs,
+                installedMcpSlugs: viewModel.installedMcpSlugs,
+                providers: settings.providers,
+                refreshTrigger: viewModel.refreshTrigger,
+                targetProvider: effectiveTargetProvider,
+                onInstall: { skill, provider in
+                    onInstall(skill, provider)
+                    viewModel.schedulePostInstallRefresh(
+                        kind: .skill,
+                        repository: repository,
+                        selectedRepository: viewModel.selectedRepository,
+                        fallbackTargetProvider: targetProvider,
+                        settings: settings
+                    )
+                },
+                onInstallWorkflow: { workflow, provider in
+                    onInstallWorkflow?(workflow, provider)
+                    viewModel.schedulePostInstallRefresh(
+                        kind: .workflow,
+                        repository: repository,
+                        selectedRepository: viewModel.selectedRepository,
+                        fallbackTargetProvider: targetProvider,
+                        settings: settings
+                    )
+                },
+                onInstallMCP: { mcp, provider in
+                    onInstallMCP?(mcp, provider)
+                    viewModel.schedulePostInstallRefresh(
+                        kind: .mcp,
+                        repository: repository,
+                        selectedRepository: viewModel.selectedRepository,
+                        fallbackTargetProvider: targetProvider,
+                        settings: settings
+                    )
+                },
+                onRegisterDeleteRequest: onRegisterDeleteRequest,
+                onMakeDeleteRequestExecutor: onMakeDeleteRequestExecutor,
+                onRefresh: {
+                    refreshData()
+                },
+                onClose: onClose
+            )
         }
         .debugPageLocator(debugPageMarkerItems)
         .overlay(alignment: .top) {

@@ -406,24 +406,49 @@ struct ProviderContentTabView: View, DebugPageLocatable {
             )
         }
     }
+
+    nonisolated static func shouldShowSidebarComponent(provider: Provider?) -> Bool {
+        provider != nil
+    }
+
+    // NOTE:
+    // Avoid using an exact zero-width split column on macOS.
+    // AppKit text field hosting may emit Auto Layout warnings when the column is
+    // fully collapsed to 0 with strict equal constraints.
+    private static let hiddenColumnMinWidth: CGFloat = 1
+    private static let hiddenColumnIdealWidth: CGFloat = 1
+    private static let hiddenColumnMaxWidth: CGFloat = 2
     
     var body: some View {
-        UIProviderContentTabSidebarComponent(
-            selectedTab: $selectedTab,
-            providerTitle: provider?.displayName,
-            items: sidebarItems,
-            emptyTitle: NSLocalizedString("content.no_provider", comment: "Select a Provider"),
-            emptyDescription: NSLocalizedString(
-                "content.no_provider_desc",
-                comment: "Choose a provider from the sidebar"
-            ),
-            emptySystemImage: "sidebar.left",
-            onTapTrailingAccessory: { tab in
-                if showsDocumentationButton(for: tab) {
-                    openAdvancedDocs()
-                }
+        Group {
+            if Self.shouldShowSidebarComponent(provider: provider) {
+                UIProviderContentTabSidebarComponent(
+                    selectedTab: $selectedTab,
+                    hasProviderSelection: true,
+                    items: sidebarItems,
+                    emptyTitle: NSLocalizedString("content.no_provider", comment: "Select a Provider"),
+                    emptyDescription: NSLocalizedString(
+                        "content.no_provider_desc",
+                        comment: "Choose a provider from the sidebar"
+                    ),
+                    emptySystemImage: "sidebar.left",
+                    onTapTrailingAccessory: { tab in
+                        if showsDocumentationButton(for: tab) {
+                            openAdvancedDocs()
+                        }
+                    }
+                )
+            } else {
+                EmptyView()
+                    .navigationSplitViewColumnWidth(
+                        min: Self.hiddenColumnMinWidth,
+                        ideal: Self.hiddenColumnIdealWidth,
+                        max: Self.hiddenColumnMaxWidth
+                    )
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
             }
-        )
+        }
         .onAppear {
             if selectedTab == nil {
                 selectedTab = .skills

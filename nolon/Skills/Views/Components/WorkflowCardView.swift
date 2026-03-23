@@ -1,13 +1,24 @@
 import SwiftUI
+import NolonUI
+import NolonUIFoundation
 import NolonResourceKit
 
-/// Workflow 来源类型
 enum WorkflowSource: String, CaseIterable {
-    case skill      // 从技能生成的
-    case user       // 用户自定义的
-    case mcp        // MCP 相关的
-    case unknown    // 未知
+    case skill
+    case user
+    case mcp
+    case unknown
+}
 
+struct WorkflowInfo: Identifiable, Hashable {
+    let id: String
+    let name: String
+    let description: String
+    let path: String
+    let source: WorkflowSource
+}
+
+extension WorkflowSource {
     init(kind: WorkflowSourceKind) {
         switch kind {
         case .skill:
@@ -20,158 +31,54 @@ enum WorkflowSource: String, CaseIterable {
             self = .unknown
         }
     }
-    
-    var displayName: String {
-        switch self {
-        case .skill: return NSLocalizedString("workflow.source.skill", value: "Skill", comment: "Source: Skill")
-        case .user: return NSLocalizedString("workflow.source.user", value: "User", comment: "Source: User")
-        case .mcp: return NSLocalizedString("workflow.source.mcp", value: "MCP", comment: "Source: MCP")
-        case .unknown: return NSLocalizedString("workflow.source.unknown", value: "Unknown", comment: "Source: Unknown")
-        }
-    }
-    
-    var color: Color {
-        switch self {
-        case .skill: return DesignSystem.Colors.primary
-        case .user: return DesignSystem.Colors.Status.warning
-        case .mcp: return DesignSystem.Colors.secondary
-        case .unknown: return DesignSystem.Colors.Text.secondary
-        }
-    }
 }
 
-/// Workflow 信息模型
-struct WorkflowInfo: Identifiable, Hashable {
-    let id: String  // 文件名
-    let name: String
-    let description: String
-    let path: String
-    let source: WorkflowSource
-}
-
-/// Workflow 卡片视图
 struct WorkflowCardView: View {
     let workflow: WorkflowInfo
     let searchText: String
     let onReveal: () -> Void
     let onDelete: () async -> Void
     let onTap: () -> Void
-    
-    @State private var showingDeleteConfirmation = false
-    private let descriptionHeight: CGFloat = 44
-    
+
     var body: some View {
-        VStack(alignment: .leading, spacing: DesignSystem.Metrics.spacingM) {
-            // 1. 标题 (Name + Source Badge) | 更多菜单
-            HStack(alignment: .center) {
-                HStack(spacing: DesignSystem.Metrics.spacingS) {
-                    HighlightedText(text: workflow.name, query: searchText)
-                        .font(.headline)
-                        .lineLimit(1)
-
-                    sourceBadge
-                }
-
-                Spacer()
-
-                moreMenu
-            }
-
-            // 2. 描述区
-            HighlightedText(text: workflow.description, query: searchText)
-                .font(.caption)
-                .dsSecondaryText(font: .caption)
-                .lineLimit(3)
-                .truncationMode(.tail)
-                .frame(maxWidth: .infinity, minHeight: descriptionHeight, maxHeight: descriptionHeight, alignment: .topLeading)
-
-            // 3. 操作区
-            HStack {
-                Label("Workflow", systemImage: "arrow.triangle.branch")
-                    .dsIconLabelText(foreground: DesignSystem.Colors.Text.secondary, font: .caption2)
-
-                Spacer()
-            }
-        }
-        .padding(DesignSystem.Metrics.spacingL)
-        .frame(minHeight: 140)
-        .providerTabCardStyle()
-        .contentShape(Rectangle())
-        .onTapGesture {
-            onTap()
-        }
-        .contextMenu {
-            contextMenuItems
-        }
-        .confirmationDialog(
-            NSLocalizedString("action.delete_confirm_title", value: "Confirm Delete", comment: "Delete confirmation title"),
-            isPresented: $showingDeleteConfirmation,
-            titleVisibility: .visible
-        ) {
-            Button(NSLocalizedString("action.delete", comment: "Delete"), role: .destructive) {
-                Task { await onDelete() }
-            }
-            Button(NSLocalizedString("action.cancel", value: "Cancel", comment: "Cancel action"), role: .cancel) {}
-        } message: {
-            Text(NSLocalizedString("action.delete_confirm_message", value: "Are you sure you want to delete this workflow? This action cannot be undone.", comment: "Delete confirmation message"))
+        NolonUI.WorkflowCardView(
+            workflow: foundationModel,
+            searchText: searchText,
+            onReveal: onReveal,
+            onDelete: onDelete,
+            onTap: onTap
+        ) { workflow in
+            debugPageMarkerMenuItem(
+                [
+                    PageMarkerItem(title: NSLocalizedString("tab.workflows", comment: "Workflows")),
+                    PageMarkerItem(title: workflow.name)
+                ]
+            )
         }
     }
 
-    @ViewBuilder
-    private var sourceBadge: some View {
-        Text(workflow.source.displayName)
-            .font(DesignSystem.Typography.caption2)
-            .fontWeight(.bold)
-            .dsBadge(
-                foreground: workflow.source.color,
-                background: workflow.source.color.opacity(0.15),
-                horizontalPadding: 6,
-                verticalPadding: 2
-            )
-    }
-    
-    @ViewBuilder
-    private var contextMenuItems: some View {
-        Button {
-            onReveal()
-        } label: {
-            Label(
-                NSLocalizedString("action.show_in_finder", comment: "Show in Finder"),
-                systemImage: "folder"
-            )
-            .dsIconLabelButton()
-        }
-        
-        Divider()
-        
-        Button(role: .destructive) {
-            showingDeleteConfirmation = true
-        } label: {
-            Label(
-                NSLocalizedString("action.delete", comment: "Delete"),
-                systemImage: "trash"
-            )
-            .dsIconLabelButton()
-        }
-
-        debugPageMarkerMenuItem(
-            [
-                PageMarkerItem(title: NSLocalizedString("tab.workflows", comment: "Workflows")),
-                PageMarkerItem(title: workflow.name)
-            ]
+    private var foundationModel: NolonUIFoundation.WorkflowInfo {
+        NolonUIFoundation.WorkflowInfo(
+            id: workflow.id,
+            name: workflow.name,
+            description: workflow.description,
+            path: workflow.path,
+            source: workflow.source.foundationSource
         )
     }
-    
-    private var moreMenu: some View {
-        Menu {
-            contextMenuItems
-        } label: {
-            Image(systemName: "ellipsis")
-                .dsIconButton()
-        }
-        .dsBorderlessMenu()
-        .menuIndicator(.hidden)
-        .fixedSize()
-    }
+}
 
+private extension WorkflowSource {
+    var foundationSource: NolonUIFoundation.WorkflowSource {
+        switch self {
+        case .skill:
+            return .skill
+        case .user:
+            return .user
+        case .mcp:
+            return .mcp
+        case .unknown:
+            return .unknown
+        }
+    }
 }

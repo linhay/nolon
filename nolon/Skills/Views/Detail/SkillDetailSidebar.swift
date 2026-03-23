@@ -1,6 +1,7 @@
 import SwiftUI
 import ProviderCatalog
 import NolonResourceKit
+import NolonUI
 
 struct SkillDetailSidebar: View {
     @Bindable var viewModel: SkillDetailViewModel
@@ -8,7 +9,7 @@ struct SkillDetailSidebar: View {
     let currentProvider: Provider?
     
     var body: some View {
-        VStack(spacing: 0) {
+        NolonUI.SkillDetailSidebarContainer {
             ScrollView {
                 VStack(spacing: 32) {
                     SkillIdentityModule(
@@ -16,7 +17,7 @@ struct SkillDetailSidebar: View {
                         version: viewModel.version,
                         showsLocalBadge: viewModel.showsLocalBadge
                     )
-                        .padding(.top, 32)
+                    .padding(.top, 32)
 
                     SkillInstallationSection(viewModel: viewModel, providers: providers)
 
@@ -35,7 +36,7 @@ struct SkillDetailSidebar: View {
                 }
                 .padding(.bottom, 24)
             }
-
+        } footer: {
             if viewModel.showsRevealInFinder {
                 VStack(spacing: 0) {
                     Divider()
@@ -63,13 +64,5 @@ struct SkillDetailSidebar: View {
                 .background(DesignSystem.Colors.Background.elevated)
             }
         }
-        .frame(width: 280)
-        .background(DesignSystem.Colors.Background.elevated)
-        .overlay(
-            Rectangle()
-                .frame(width: 1)
-                .foregroundStyle(DesignSystem.Colors.Component.border.opacity(0.3)),
-            alignment: .trailing
-        )
     }
 }
