@@ -1278,7 +1278,6 @@ struct ResourceCatalogGridView: View {
                                         isInstalled: true,
                                         isInstalling: false,
                                         installErrorMessage: nil,
-                                        isSelected: viewModel.selectedSkillForDetail?.slug == skill.slug,
                                         targetProvider: targetProvider,
                                         providers: providers,
                                         onInstall: { provider in
@@ -1308,7 +1307,6 @@ struct ResourceCatalogGridView: View {
                                         isInstalled: false,
                                         isInstalling: true,
                                         installErrorMessage: nil,
-                                        isSelected: viewModel.selectedSkillForDetail?.slug == skill.slug,
                                         targetProvider: targetProvider,
                                         providers: providers,
                                         onInstall: { _ in },
@@ -1331,7 +1329,6 @@ struct ResourceCatalogGridView: View {
                                         isInstalled: false,
                                         isInstalling: false,
                                         installErrorMessage: skillInstallErrors[skill.slug],
-                                        isSelected: viewModel.selectedSkillForDetail?.slug == skill.slug,
                                         targetProvider: targetProvider,
                                         providers: providers,
                                         onInstall: { provider in

@@ -2,6 +2,7 @@ import SwiftUI
 import ProviderCatalog
 import AppKit
 import NolonResourceKit
+import NolonUI
 
 /// 资源中心技能卡片视图 - Grid 布局中的卡片
 struct RemoteSkillCardView: View, DebugPageLocatable {
@@ -9,7 +10,7 @@ struct RemoteSkillCardView: View, DebugPageLocatable {
     let isInstalled: Bool
     let isInstalling: Bool
     let installErrorMessage: String?
-    let isSelected: Bool
+    let isSelected: Bool = false
     let targetProvider: Provider?
     let providers: [Provider]
     let onInstall: (Provider) -> Void
@@ -27,83 +28,22 @@ struct RemoteSkillCardView: View, DebugPageLocatable {
     }
     
     var body: some View {
-        ResourceCardShell(
-            minHeight: 140,
+        NolonUI.ResourceSkillCardView(
+            name: skill.displayName,
+            version: skill.latestVersion?.version,
+            summary: skill.summary,
+            metaItems: mappedMetaItems,
+            isInstalled: isInstalled,
+            isInstalling: isInstalling,
+            installErrorMessage: installErrorMessage,
             isSelected: isSelected,
-            locatorItems: debugPageMarkerItems,
+            isDeleting: isDeleting,
             onTap: onTap,
-            headerContent: { headerView },
-            summaryContent: { summaryView },
-            metaContent: { metaView },
-            actionContent: { installActionView },
-            menuContent: { contextMenuItems }
-        )
-        .sheet(isPresented: $showingInstallSheet) {
-            SkillInstallSheet(providers: providers, skillName: skill.displayName) { provider in
-                onInstall(provider)
-            }
-        }
-    }
-    
-    // MARK: - Subviews
-    
-    @ViewBuilder
-    private var headerView: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(skill.displayName)
-                .font(.headline.weight(.semibold))
-                .lineLimit(1)
-
-            if let version = skill.latestVersion {
-                Text(version.version)
-                    .font(.system(size: 10, weight: .bold))
-                    .dsBadge(
-                        foreground: DesignSystem.Colors.primary,
-                        background: DesignSystem.Colors.primary.opacity(0.15),
-                        horizontalPadding: 6,
-                        verticalPadding: 2
-                    )
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var summaryView: some View {
-        if let summary = skill.summary {
-            Text(summary)
-                .dsSecondaryText(font: .subheadline)
-                .lineSpacing(2)
-                .lineLimit(3)
-                .frame(maxHeight: .infinity, alignment: .topLeading)
-        } else {
-            Spacer()
-        }
-    }
-
-    @ViewBuilder
-    private var metaView: some View {
-        let items = ResourceCardMetaBuilder.skillItems(skill)
-        if items.isEmpty {
-            EmptyView()
-        } else {
-            HStack(spacing: 8) {
-                ForEach(Array(items.enumerated()), id: \.offset) { _, item in
-                    metaLabel(for: item)
-                }
-            }
-        }
-    }
-
-    private var installActionView: some View {
-        HStack(spacing: 8) {
-            ResourceInstallStateView(
-                isInstalled: isInstalled,
-                isInstalling: isInstalling,
-                errorMessage: installErrorMessage,
-                onInstall: handleInstall,
-                onRetry: handleInstall
-            )
-
+            onInstall: handleInstall,
+            onRetry: handleInstall,
+            onRevealInFinder: revealInFinderAction,
+            onDeleteRequest: onDeleteRequest
+        ) {
             if UITestSupport.shouldExposeDirectDeleteButton,
                (isInstalled || UITestSupport.isEnabled),
                !isDeleting,
@@ -117,46 +57,14 @@ struct RemoteSkillCardView: View, DebugPageLocatable {
                 .buttonStyle(.bordered)
                 .accessibilityIdentifier("uitest.direct-delete.skill.\(skill.slug)")
             }
+        } extraContextMenu: {
+            debugPageMarkerMenuItem(debugPageMarkerItems)
         }
-    }
-    
-    @ViewBuilder
-    private var contextMenuItems: some View {
-        Button {
-            onTap()
-        } label: {
-            Label(NSLocalizedString("View Details", comment: "View resource details"), systemImage: "info.circle")
-                .dsIconLabelButton()
-        }
-
-        if let revealURL = revealInFinderURL {
-            Button {
-                NSWorkspace.shared.activateFileViewerSelecting([revealURL])
-            } label: {
-                Label(NSLocalizedString("action.show_in_finder", comment: "Show in Finder"), systemImage: "folder")
-                    .dsIconLabelButton()
+        .debugCardLocator(debugPageMarkerItems)
+        .sheet(isPresented: $showingInstallSheet) {
+            SkillInstallSheet(providers: providers, skillName: skill.displayName) { provider in
+                onInstall(provider)
             }
-        }
-
-        if !isInstalled && !isInstalling {
-            Divider()
-            Button {
-                handleInstall()
-            } label: {
-                Label(NSLocalizedString("action.install", value: "Install", comment: "Install action"), systemImage: "arrow.down.circle")
-                    .dsIconLabelButton()
-            }
-        }
-
-        if isInstalled && !isDeleting {
-            Divider()
-            Button(role: .destructive) {
-                onDeleteRequest?()
-            } label: {
-                Label(NSLocalizedString("action.delete", value: "Delete", comment: "Delete action"), systemImage: "trash")
-                    .dsIconLabelButton()
-            }
-            .disabled(onDeleteRequest == nil)
         }
     }
     
@@ -172,38 +80,30 @@ struct RemoteSkillCardView: View, DebugPageLocatable {
         onDeleteRequest?()
     }
 
-    @ViewBuilder
-    private func metaLabel(for item: ResourceCardMetaItem) -> some View {
-        switch item {
-        case let .stars(value):
-            Label("\(value)", systemImage: "star.fill")
-                .dsIconLabelText(foreground: DesignSystem.Colors.Status.warning, font: .caption2)
-        case let .downloads(value):
-            Label("\(value)", systemImage: "arrow.down.circle")
-                .dsIconLabelText()
-        case let .usages(value):
-            Label("\(value)", systemImage: "arrow.triangle.branch")
-                .dsIconLabelText()
-        case let .installs(value):
-            Label("\(value)", systemImage: "server.rack")
-                .dsIconLabelText()
-        case let .command(value):
-            HStack(spacing: 4) {
-                Image(systemName: "terminal")
-                    .font(.caption2)
-                Text(value)
-                    .font(.system(size: 10, design: .monospaced))
-                    .lineLimit(1)
-                    .truncationMode(.middle)
+    private var mappedMetaItems: [NolonUI.ResourceCardMetaItem] {
+        ResourceCardMetaBuilder.skillItems(skill).map { item in
+            switch item {
+            case let .stars(value):
+                return .stars(value)
+            case let .downloads(value):
+                return .downloads(value)
+            case let .usages(value):
+                return .usages(value)
+            case let .installs(value):
+                return .installs(value)
+            case let .command(value):
+                return .command(value)
             }
-            .dsBadge(
-                foreground: DesignSystem.Colors.Text.secondary,
-                background: DesignSystem.Colors.Component.controlFillSubtle,
-                horizontalPadding: 6,
-                verticalPadding: 3,
-                cornerRadius: DesignSystem.Metrics.cornerRadiusXS
-            )
-            .frame(maxWidth: 160, alignment: .leading)
+        }
+    }
+
+    private var revealInFinderAction: (() -> Void)? {
+        guard let revealURL = revealInFinderURL else {
+            return nil
+        }
+
+        return {
+            NSWorkspace.shared.activateFileViewerSelecting([revealURL])
         }
     }
 
