@@ -41,7 +41,6 @@ final class MainSplitViewModel {
     var columnVisibility: NavigationSplitViewVisibility = .all
     
     var showingSettings = false
-    var showingResourceCenter = false
     var refreshTrigger: Int = 0
 
     init(
@@ -632,18 +631,6 @@ final class MainSplitViewModel {
         refreshTrigger += 1
     }
 
-    @MainActor
-    func presentResourceCenter() {
-        showingResourceCenter = true
-    }
-
-    @MainActor
-    func dismissResourceCenter() {
-        guard showingResourceCenter else { return }
-        showingResourceCenter = false
-        onResourceCenterDismissed()
-    }
-
     private func currentRemoteBaseURL() -> String {
         settings.remoteRepositories.first { $0.templateType == .clawdhub }?.baseURL
             ?? RepositoryTemplate.clawdhub.createRepository().baseURL
@@ -677,6 +664,7 @@ final class MainSplitViewModel {
 @MainActor
 public struct MainSplitView: View, DebugPageLocatable {
     
+    @Environment(\.openWindow) private var openWindow
     @State private var viewModel = MainSplitViewModel()
     @State private var urlSchemeHandler = URLSchemeHandler.shared
 
@@ -702,83 +690,76 @@ public struct MainSplitView: View, DebugPageLocatable {
     }
 
     public var body: some View {
-        ZStack {
-            if viewModel.isAccountsSelected {
-                NavigationSplitView {
-                    ProviderSidebarView(
-                        selectedItemKey: $viewModel.selectedSidebarSelectionKey,
-                        settings: viewModel.settings
-                    )
-                } detail: {
-                    NolonAccountsView(
+        UIMainSplitScaffold(
+            isAccountsSelected: viewModel.isAccountsSelected,
+            showsOverlay: false
+        ) {
+            UIThreeColumnScaffold(
+                mode: .twoColumn,
+                columnVisibility: .constant(.all)
+            ) {
+                ProviderSidebarView(
+                    selectedItemKey: $viewModel.selectedSidebarSelectionKey,
+                    settings: viewModel.settings
+                )
+            } content: {
+                EmptyView()
+            } detail: {
+                NolonAccountsView(
+                    settings: viewModel.settings,
+                    onSelectProvider: { providerID in
+                        viewModel.openProviderFromAccounts(providerID)
+                    }
+                )
+            }
+        } mainLayout: {
+            UIThreeColumnScaffold(
+                mode: .threeColumn,
+                columnVisibility: $viewModel.columnVisibility
+            ) {
+                ProviderSidebarView(
+                    selectedItemKey: $viewModel.selectedSidebarSelectionKey,
+                    settings: viewModel.settings
+                )
+            } content: {
+                if viewModel.isPluginManagementSelected {
+                    PluginManagementNavigationView()
+                } else {
+                    ProviderContentTabView(
+                        provider: viewModel.selectedProvider,
+                        selectedTab: $viewModel.selectedTab,
                         settings: viewModel.settings,
+                        refreshTrigger: viewModel.refreshTrigger
+                    )
+                }
+            } detail: {
+                if viewModel.isPluginManagementSelected {
+                    PluginManagementView()
+                } else {
+                    ProviderDetailGridView(
+                        provider: viewModel.selectedProvider,
+                        selectedTab: viewModel.selectedTab,
+                        settings: viewModel.settings,
+                        refreshTrigger: viewModel.refreshTrigger,
                         onSelectProvider: { providerID in
-                            viewModel.openProviderFromAccounts(providerID)
+                            viewModel.selectedSidebarItem = .provider(providerID)
+                        },
+                        onSelectTab: { tab in
+                            viewModel.selectedTab = tab
                         }
                     )
                 }
-                .navigationSplitViewStyle(.balanced)
-                .toolbar {
-                    resourceCenterToolbar
-                }
-            } else {
-                NavigationSplitView(columnVisibility: $viewModel.columnVisibility) {
-                    // Left 1: Provider sidebar
-                    ProviderSidebarView(
-                        selectedItemKey: $viewModel.selectedSidebarSelectionKey,
-                        settings: viewModel.settings
-                    )
-                } content: {
-                    if viewModel.isPluginManagementSelected {
-                        PluginManagementNavigationView()
-                    } else {
-                        // Left 2: Skills/Workflows tab navigation
-                        ProviderContentTabView(
-                            provider: viewModel.selectedProvider,
-                            selectedTab: $viewModel.selectedTab,
-                            settings: viewModel.settings,
-                            refreshTrigger: viewModel.refreshTrigger
-                        )
-                    }
-                } detail: {
-                    if viewModel.isPluginManagementSelected {
-                        PluginManagementView()
-                    } else {
-                        // Left 3: Grid cards (skills or workflows)
-                        ProviderDetailGridView(
-                            provider: viewModel.selectedProvider,
-                            selectedTab: viewModel.selectedTab,
-                            settings: viewModel.settings,
-                            refreshTrigger: viewModel.refreshTrigger,
-                            onSelectProvider: { providerID in
-                                viewModel.selectedSidebarItem = .provider(providerID)
-                            },
-                            onSelectTab: { tab in
-                                viewModel.selectedTab = tab
-                            }
-                        )
-                    }
-                }
-                .navigationSplitViewStyle(.balanced)
-                .toolbar {
-                    resourceCenterToolbar
-                }
             }
-
-            if viewModel.showingResourceCenter {
-                resourceCenterOverlay
-                    .transition(.opacity.combined(with: .scale(scale: 0.98)))
-                    .zIndex(10)
-            }
+        } overlay: {
+            EmptyView()
         }
-        .animation(.easeInOut(duration: 0.18), value: viewModel.showingResourceCenter)
+        .toolbar {
+            resourceCenterToolbar
+        }
         .debugPageLocator(debugPageMarkerItems)
         .sheet(isPresented: Bindable(AppCommandState.shared).showingSettings) {
             AppSettingsView()
                 .frame(minWidth: 720, minHeight: 480)
-        }
-        .onExitCommand {
-            viewModel.dismissResourceCenter()
         }
         .onChange(of: urlSchemeHandler.pendingURL) { _, pendingURL in
             guard let url = pendingURL else { return }
@@ -790,8 +771,8 @@ public struct MainSplitView: View, DebugPageLocatable {
             viewModel.settings.pendingImportURL = urlString
             MainSplitViewModel.logger.info("pendingImportURL after set: \(viewModel.settings.pendingImportURL ?? "nil", privacy: .public)")
             
-            MainSplitViewModel.logger.info("Opening ResourceCenterView overlay")
-            viewModel.presentResourceCenter()
+            MainSplitViewModel.logger.info("Opening ResourceCenter window")
+            presentResourceCenterWindow(selectedTab: .skills)
             
             // Clear the pending URL after consuming
             urlSchemeHandler.pendingURL = nil
@@ -799,7 +780,7 @@ public struct MainSplitView: View, DebugPageLocatable {
         .onAppear {
             viewModel.setup()
             if UITestSupport.shouldOpenResourceCenterOnLaunch {
-                viewModel.presentResourceCenter()
+                presentResourceCenterWindow(selectedTab: .skills)
             }
         }
         .onChange(of: viewModel.selectedSidebarSelectionKey) { _, _ in
@@ -822,7 +803,7 @@ public struct MainSplitView: View, DebugPageLocatable {
     private var resourceCenterToolbar: some ToolbarContent {
         ToolbarItemGroup(placement: .primaryAction) {
             Button {
-                viewModel.presentResourceCenter()
+                presentResourceCenterWindow(selectedTab: .skills)
             } label: {
                 Label(
                     NSLocalizedString("toolbar.clawdhub", comment: "Clawdhub"),
@@ -833,23 +814,13 @@ public struct MainSplitView: View, DebugPageLocatable {
         }
     }
 
-    @ViewBuilder
-    private var resourceCenterOverlay: some View {
-        ZStack {
-            DesignSystem.Colors.Overlay.scrim
-                .ignoresSafeArea()
-                .onTapGesture {
-                    viewModel.dismissResourceCenter()
-                }
-
-            ResourceCenterView(
+    private func presentResourceCenterWindow(selectedTab: ResourceContentTabType) {
+        ResourceCenterWindowCoordinator.shared.present(
+            payload: .init(
                 settings: viewModel.settings,
                 repository: viewModel.repository,
                 targetProvider: viewModel.selectedProvider,
-                selectedTab: .skills,
-                onClose: {
-                    viewModel.dismissResourceCenter()
-                },
+                selectedTab: selectedTab,
                 onInstall: { skill, provider in
                     Task {
                         await viewModel.installRemoteSkill(skill, to: provider)
@@ -878,11 +849,13 @@ public struct MainSplitView: View, DebugPageLocatable {
                     {
                         await viewModel.executeRegisteredDeleteRequest(id: requestID)
                     }
+                },
+                onClose: {
+                    viewModel.onResourceCenterDismissed()
                 }
             )
-            .dsGlassPanel(cornerRadius: DesignSystem.Metrics.cornerRadiusXL)
-            .padding(ResourceCenterOverlayLayout.outerInset)
-        }
+        )
+        openWindow(id: ResourceCenterWindowCoordinator.windowID)
     }
 
 }
@@ -900,10 +873,6 @@ private struct PluginManagementNavigationView: View {
             NSLocalizedString("plugins.navigation.group", value: "Plugins", comment: "Plugins navigation group title")
         )
     }
-}
-
-enum ResourceCenterOverlayLayout {
-    static let outerInset: CGFloat = 40
 }
 
 #Preview {

@@ -17,8 +17,8 @@ final class MainSplitViewModelTests: XCTestCase {
         fixture.cleanup()
     }
 
-    func testResourceCenterOverlayOuterInset_IsForty() {
-        XCTAssertEqual(ResourceCenterOverlayLayout.outerInset, 40)
+    func testResourceCenterWindowID_IsStable() {
+        XCTAssertEqual(ResourceCenterWindowCoordinator.windowID, "resource-center")
     }
 
     func testBDD_GivenFixtureProviders_WhenLookingUpCodexIndex_ThenLookupSucceedsWithoutSetup() {

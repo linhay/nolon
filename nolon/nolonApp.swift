@@ -207,6 +207,14 @@ struct nolonApp: App {
         }
         .defaultSize(width: 1100, height: 720)
 
+        Window(
+            NSLocalizedString("resource.center.window.title", value: "Resource Center", comment: "Resource center window title"),
+            id: ResourceCenterWindowCoordinator.windowID
+        ) {
+            ResourceCenterWindowRootView()
+        }
+        .defaultSize(width: 1180, height: 780)
+
         MenuBarExtra("nolon", systemImage: "arrow.triangle.2.circlepath.circle") {
             CodexQuickSwitchMenuBarView()
         }

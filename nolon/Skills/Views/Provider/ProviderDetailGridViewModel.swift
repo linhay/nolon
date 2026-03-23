@@ -46,7 +46,7 @@ final class ProviderDetailGridViewModel {
     var isSavingCodexModel = false
     var codexModelStatusMessage: String?
     
-    enum RemoteBrowserType: Identifiable {
+    enum RemoteBrowserType: Identifiable, Equatable {
         case skill, workflow, mcp
         
         var id: Self { self }

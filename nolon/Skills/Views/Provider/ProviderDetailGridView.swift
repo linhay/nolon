@@ -98,10 +98,19 @@ struct ProviderDetailGridView: View, DebugPageLocatable {
             )
             openWindow(id: SkillDetailWindowCoordinator.windowID)
         }
-        .sheet(item: $viewModel.showingRemoteBrowser) { browserType in
-            if let provider = provider {
-                let tabType: ResourceContentTabType = browserType == .skill ? .skills : (browserType == .workflow ? .workflows : .mcps)
-                ResourceCenterView(
+        .onChange(of: viewModel.showingRemoteBrowser) { _, browserType in
+            guard let provider, let browserType else { return }
+            let tabType: ResourceContentTabType
+            switch browserType {
+            case .skill:
+                tabType = .skills
+            case .workflow:
+                tabType = .workflows
+            case .mcp:
+                tabType = .mcps
+            }
+            ResourceCenterWindowCoordinator.shared.present(
+                payload: .init(
                     settings: settings,
                     repository: viewModel.repository,
                     targetProvider: provider,
@@ -120,11 +129,14 @@ struct ProviderDetailGridView: View, DebugPageLocatable {
                         Task {
                             await viewModel.installRemoteMCP(mcp, to: provider)
                         }
-                    }
+                    },
+                    onRegisterDeleteRequest: nil,
+                    onMakeDeleteRequestExecutor: nil,
+                    onClose: nil
                 )
-                .frame(minWidth: 980, idealWidth: 1100, maxWidth: .infinity,
-                       minHeight: 700, idealHeight: 760, maxHeight: .infinity)
-            }
+            )
+            openWindow(id: ResourceCenterWindowCoordinator.windowID)
+            viewModel.showingRemoteBrowser = nil
         }
         .sheet(isPresented: $isAddingCodexProvider) {
             AddProviderSheet(settings: settings)
