@@ -88,5 +88,5 @@
 
 1. BDD 场景齐备并可追踪。
 2. 对应 TDD 测试存在且通过。
-3. `docs-dev/features` 与 `docs-dev/dev` 同步更新。
+3. `docs-linhay/features` 与 `docs-linhay/dev` 同步更新。
 4. 关键决策写入 `memory/YYYY-MM-DD.md` 并 `qmd update && qmd embed`。

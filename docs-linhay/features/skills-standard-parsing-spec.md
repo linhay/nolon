@@ -2,7 +2,7 @@
 
 - 状态：Draft
 - 更新时间：2026-02-12
-- 关联：`docs-dev/dev/codex-runtime-refactor.md`
+- 关联：`docs-linhay/dev/codex-runtime-refactor.md`
 - 参考规范：<https://agentskills.io/specification>
 
 ## 背景

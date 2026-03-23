@@ -168,7 +168,7 @@
 - `CodexConfigEditorSheet`：改成基础信息优先的分层编辑器，支持 Advanced / HTTP / Mapping 折叠。
 
 ## 后续扩展
-- HTTP 用量查询能力已单独落到 [codex-http-usage-query-2026-03-07.md](/Users/linhey/Desktop/FlowUp-Libs/nolon/docs-dev/features/codex-http-usage-query-2026-03-07.md)，并作为配置型卡片的可选能力接在 Codex CLI 用量链路前面。
+- HTTP 用量查询能力已单独落到 [codex-http-usage-query-2026-03-07.md](/Users/linhey/Desktop/FlowUp-Libs/nolon/docs-linhay/features/codex-http-usage-query-2026-03-07.md)，并作为配置型卡片的可选能力接在 Codex CLI 用量链路前面。
 - `nolon.account.name` 已弃用：
   - 新 auth 文件不再写这个字段
   - 旧文件在加载/保存时自动迁移清理

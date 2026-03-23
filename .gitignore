@@ -59,7 +59,7 @@ Carthage/Build/
 fastlane/report.xml
 fastlane/Preview.html
 fastlane/screenshots/**/*.png
-screenshots/
+/screenshots/
 fastlane/test_output
 .shared
 build
@@ -75,7 +75,7 @@ nolon/参考
 
 reference-projects/
 nolonTests/Snapshots
-references
+/references
 
 
 /projects/leaderboard-template/

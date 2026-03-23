@@ -2,7 +2,7 @@
 
 - 状态：Draft
 - 更新时间：2026-02-12
-- 关联里程碑：`docs-dev/features/nolon-core-cli-milestones.md`（M3）
+- 关联里程碑：`docs-linhay/features/nolon-core-cli-milestones.md`（M3）
 
 ## 目标
 

@@ -1,7 +1,7 @@
 # macOS UI 自动化落地方案（2026-03-06）
 
 ## 关联文档
-- `docs-dev/dev/resource-center-delete-implementation-2026-03-04.md`
+- `docs-linhay/dev/resource-center-delete-implementation-2026-03-04.md`
 
 ## 背景
 当前 `nolon` 的资源中心、远程技能安装/删除、仓库切换等功能已具备较完整的单元测试与集成测试覆盖，但在“用户真实点击路径是否能稳定触发业务链路”这一层，仍需要 macOS UI 自动化作为回归门禁。

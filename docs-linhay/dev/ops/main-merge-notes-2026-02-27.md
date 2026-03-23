@@ -82,7 +82,7 @@
 
 ## Suggested Merge Strategy
 
-1. 先将 `docs-dev/ops/main-merge-notes-2026-02-27.md` 作为合并说明附件。
+1. 先将 `docs-linhay/dev/ops/main-merge-notes-2026-02-27.md` 作为合并说明附件。
 2. 若需要降风险，可按域拆分 PR：
 - A: SDK 下沉 + CLI 对齐
 - B: 资源中心 + 添加仓库 UI

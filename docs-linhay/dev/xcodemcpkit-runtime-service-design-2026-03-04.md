@@ -1,7 +1,7 @@
 # XcodeMCPKit Runtime Service 设计（2026-03-04）
 
 ## 关联需求
-- `docs-dev/features/xcodemcpkit-runtime-controls-2026-03-04.md`
+- `docs-linhay/features/xcodemcpkit-runtime-controls-2026-03-04.md`
 
 ## 设计摘要
 1. 新增 `XcodeMCPKitRuntimeService` 管理会话内进程：

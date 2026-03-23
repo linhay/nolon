@@ -1254,7 +1254,7 @@
 - refactor(remote): replace browser debug prints with OSLog
 - feat(remote): track installed MCP status in browser grid
 - refactor(codex): tighten concurrency isolation and simplify folder-create calls
-- docs: scaffold docs-dev api/features/ops and log build verification
+- docs: scaffold docs-linhay api/features/ops and log build verification
 - test(codex): make runtime switcher cache behavior verifiable
 - test(codex): cover login runner env override and unify resolver
 - refactor(codex): dedupe runtime rpc and path resolution

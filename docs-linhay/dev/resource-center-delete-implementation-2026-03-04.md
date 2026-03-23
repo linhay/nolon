@@ -1,7 +1,7 @@
 # 资源中心删除实现说明（2026-03-04）
 
 ## 关联需求
-- `docs-dev/features/resource-center-delete-and-text-selection-2026-03-04.md`
+- `docs-linhay/features/resource-center-delete-and-text-selection-2026-03-04.md`
 
 ## 设计摘要
 1. 新增删除编排器 `ResourceDeletionCoordinator`：

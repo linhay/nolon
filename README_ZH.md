@@ -94,10 +94,10 @@ swift test --package-path libs/Providers
 
 ## 文档索引
 
-- 功能规格：[`docs-dev/features/`](docs-dev/features/)
-- 研发文档：[`docs-dev/dev/`](docs-dev/dev/)
-- API 文档：[`docs-dev/api/`](docs-dev/api/)
-- 运维发布：[`docs-dev/ops/`](docs-dev/ops/)
+- 功能规格：[`docs-linhay/features/`](docs-linhay/features/)
+- 研发文档：[`docs-linhay/dev/`](docs-linhay/dev/)
+- API 文档：[`docs-linhay/dev/api/`](docs-linhay/dev/api/)
+- 运维发布：[`docs-linhay/dev/ops/`](docs-linhay/dev/ops/)
 
 ## 常见问题
 
@@ -107,7 +107,7 @@ swift test --package-path libs/Providers
 
 ### README 为什么不放路线图和详细变更？
 
-README 只保留稳定入口信息。时效性内容统一放在 `docs-dev/ops/`，避免首页失真和长期维护负担。
+README 只保留稳定入口信息。时效性内容统一放在 `docs-linhay/dev/ops/`，避免首页失真和长期维护负担。
 
 ## License
 

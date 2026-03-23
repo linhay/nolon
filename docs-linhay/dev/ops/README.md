@@ -8,4 +8,4 @@
 - `metrics.md`：关键指标与观测口径
 
 当前可用文档：
-- `docs-dev/ops/codex-runtime-runbook.md`：Codex 运行与排障手册（含回归门禁）。
+- `docs-linhay/dev/ops/codex-runtime-runbook.md`：Codex 运行与排障手册（含回归门禁）。

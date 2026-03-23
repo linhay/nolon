@@ -617,7 +617,7 @@
   - `JsonRPCKit` 的 JSON-RPC over stdio 场景必须使用 pipe 语义，不适合直接迁到 PTY。
 - 处理：
  1. `JsonRPCLineProcessSession` 暂保留 `Process + Pipe` 实现（唯一剩余例外）。
- 2. 新增 issue 草案文档：`docs-dev/dev/skprocessrunner-jsonrpc-session-issue.md`。
+ 2. 新增 issue 草案文档：`docs-linhay/dev/skprocessrunner-jsonrpc-session-issue.md`。
 
 ## Phase 2.34（response_item schema drift guard 对齐 codex 源）
 - 背景：

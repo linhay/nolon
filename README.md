@@ -94,10 +94,10 @@ swift test --package-path libs/Providers
 
 ## Documentation Index
 
-- Feature specs: [`docs-dev/features/`](docs-dev/features/)
-- Engineering docs: [`docs-dev/dev/`](docs-dev/dev/)
-- API docs: [`docs-dev/api/`](docs-dev/api/)
-- Ops/release docs: [`docs-dev/ops/`](docs-dev/ops/)
+- Feature specs: [`docs-linhay/features/`](docs-linhay/features/)
+- Engineering docs: [`docs-linhay/dev/`](docs-linhay/dev/)
+- API docs: [`docs-linhay/dev/api/`](docs-linhay/dev/api/)
+- Ops/release docs: [`docs-linhay/dev/ops/`](docs-linhay/dev/ops/)
 
 ## FAQ
 
@@ -107,7 +107,7 @@ It creates a reusable, migratable, repairable source of truth and removes duplic
 
 ### Why no roadmap/changelog in README?
 
-README is intentionally stable and entry-focused. Time-sensitive updates live in `docs-dev/ops/`.
+README is intentionally stable and entry-focused. Time-sensitive updates live in `docs-linhay/dev/ops/`.
 
 ## License
 

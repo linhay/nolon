@@ -19,7 +19,7 @@
 ## CLI Coverage
 - Typed builders cover all top-level commands listed in current `codex --help`.
 - Typed subcommand builders cover high-value command trees (`exec`, `login`, `mcp`, `app-server`, `sandbox`, `debug`, `cloud`, `features`).
-- Coverage details live in `docs-dev/codex/codex-clikit/cli-reference-coverage.md`.
+- Coverage details live in `docs-linhay/dev/codex/codex-clikit/cli-reference-coverage.md`.
 
 ## Error Layers
 - Transport: process spawn / io.
