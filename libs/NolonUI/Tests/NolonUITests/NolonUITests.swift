@@ -103,6 +103,25 @@ final class NolonUITests: XCTestCase {
         XCTAssertTrue(McpServerCardView<EmptyView, EmptyView>.isMissingCommand(nil))
     }
 
+    func testMcpServerPrimaryAction_ResolvesWithHierarchy() {
+        XCTAssertEqual(
+            McpServerCardView<EmptyView, EmptyView>.resolvePrimaryAction(cacheState: .notMigrated, hasWorkflow: true),
+            .migrate
+        )
+        XCTAssertEqual(
+            McpServerCardView<EmptyView, EmptyView>.resolvePrimaryAction(cacheState: .migratedNeedsUpdate, hasWorkflow: false),
+            .update
+        )
+        XCTAssertEqual(
+            McpServerCardView<EmptyView, EmptyView>.resolvePrimaryAction(cacheState: .migratedUpToDate, hasWorkflow: false),
+            .linkWorkflow
+        )
+        XCTAssertEqual(
+            McpServerCardView<EmptyView, EmptyView>.resolvePrimaryAction(cacheState: .migratedUpToDate, hasWorkflow: true),
+            .none
+        )
+    }
+
     func testResourceCardMetaItem_CommandPayload_RetainsValue() {
         let item = ResourceCardMetaItem.command("npx -y @modelcontextprotocol/server-git")
 
