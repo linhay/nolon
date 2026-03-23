@@ -1487,7 +1487,7 @@ struct ProviderUsageView: View, DebugPageLocatable {
 
     @ViewBuilder
     private func gatewayCardsContainer(_ cards: [CodexGatewayCard]) -> some View {
-        UIGatewayCardListModule(
+        NolonUI.GatewayCardListModule(
             items: cards,
             layoutMode: viewModel.codexAccountLayoutMode == .list ? .list : .cards,
             columns: codexAccountColumns,
@@ -1500,7 +1500,7 @@ struct ProviderUsageView: View, DebugPageLocatable {
     private func gatewayCardView(card: CodexGatewayCard) -> some View {
         let members = viewModel.gatewayMembers(for: card)
         let memberItems = members.map { member in
-            UIGatewayCardMemberItem(
+            NolonUI.GatewayCardMemberItem(
                 id: member.id,
                 title: member.title,
                 plan: member.plan
@@ -1513,7 +1513,7 @@ struct ProviderUsageView: View, DebugPageLocatable {
         let memberDisplayLimit = Self.gatewayMemberDisplayLimit(layoutMode: viewModel.codexAccountLayoutMode)
         let memberRowMaxHeight = Self.gatewayMemberRowMaxHeight(layoutMode: viewModel.codexAccountLayoutMode)
         
-        return UIGatewayCardModule(
+        return NolonUI.GatewayCardModule(
             presentation: presentation,
             title: card.name,
             memberCountText: String(

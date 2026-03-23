@@ -422,7 +422,7 @@ struct ProviderContentTabView: View, DebugPageLocatable {
     var body: some View {
         Group {
             if Self.shouldShowSidebarComponent(provider: provider) {
-                UIProviderContentTabSidebarComponent(
+                NolonUI.ProviderContentTabSidebarComponent(
                     selectedTab: $selectedTab,
                     hasProviderSelection: true,
                     items: sidebarItems,
