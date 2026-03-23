@@ -237,13 +237,14 @@ public struct McpServerCardView<TitleContent: View, ExtraContextMenu: View>: Vie
         let title = hasWorkflow
             ? NSLocalizedString("action.unlink_workflow", value: "Unlink Workflow", comment: "Unlink from Workflow")
             : NSLocalizedString("action.link_workflow", value: "Link Workflow", comment: "Link to Workflow")
-        let icon = hasWorkflow ? "link.slash" : "link.badge.plus"
+        let icon = hasWorkflow ? "arrow.triangle.branch" : "plus.circle"
 
         if primaryAction == .none {
             Button {
                 hasWorkflow ? onUnlinkWorkflow() : onLinkWorkflow()
             } label: {
                 Image(systemName: icon)
+                    .frame(minWidth: 16, minHeight: 16)
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.small)
@@ -254,6 +255,7 @@ public struct McpServerCardView<TitleContent: View, ExtraContextMenu: View>: Vie
                 hasWorkflow ? onUnlinkWorkflow() : onLinkWorkflow()
             } label: {
                 Image(systemName: icon)
+                    .frame(minWidth: 16, minHeight: 16)
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
