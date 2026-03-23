@@ -38,8 +38,7 @@ public struct ResourceCenterSidebarComponent: View {
     }
 
     public var body: some View {
-        VStack(spacing: 0) {
-            SidebarColumnHeader(title: title)
+        SidebarColumnScaffold(title: title) {
             if showsEmptyState {
                 ContentUnavailableView(
                     emptyTitle,
@@ -70,11 +69,6 @@ public struct ResourceCenterSidebarComponent: View {
                 .listStyle(.sidebar)
             }
         }
-        .navigationSplitViewColumnWidth(
-            min: ResourceCenterSidebarMetrics.columnMinWidth,
-            ideal: ResourceCenterSidebarMetrics.columnIdealWidth,
-            max: ResourceCenterSidebarMetrics.columnMaxWidth
-        )
     }
 }
 

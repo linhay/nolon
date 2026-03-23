@@ -2,11 +2,24 @@ import SwiftUI
 
 struct SidebarColumnScaffold<Content: View>: View {
     let title: String
+    let showsHeader: Bool
     @ViewBuilder let content: Content
+
+    init(
+        title: String,
+        showsHeader: Bool = true,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.title = title
+        self.showsHeader = showsHeader
+        self.content = content()
+    }
 
     var body: some View {
         VStack(spacing: 0) {
-            SidebarColumnHeader(title: title)
+            if showsHeader {
+                SidebarColumnHeader(title: title)
+            }
             content
         }
         .navigationSplitViewColumnWidth(

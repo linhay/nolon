@@ -36,7 +36,7 @@ public struct ProviderContentTabSidebarItem<Tab: Hashable>: Identifiable, Hashab
 public struct ProviderContentTabSidebarComponent<Tab: Hashable>: View {
     @Binding private var selectedTab: Tab?
 
-    private let providerTitle: String?
+    private let hasProviderSelection: Bool
     private let items: [ProviderContentTabSidebarItem<Tab>]
     private let emptyTitle: String
     private let emptyDescription: String
@@ -45,7 +45,7 @@ public struct ProviderContentTabSidebarComponent<Tab: Hashable>: View {
 
     public init(
         selectedTab: Binding<Tab?>,
-        providerTitle: String?,
+        hasProviderSelection: Bool,
         items: [ProviderContentTabSidebarItem<Tab>],
         emptyTitle: String = "Select a Provider",
         emptyDescription: String = "Choose a provider from the sidebar",
@@ -53,7 +53,7 @@ public struct ProviderContentTabSidebarComponent<Tab: Hashable>: View {
         onTapTrailingAccessory: ((Tab) -> Void)? = nil
     ) {
         self._selectedTab = selectedTab
-        self.providerTitle = providerTitle
+        self.hasProviderSelection = hasProviderSelection
         self.items = items
         self.emptyTitle = emptyTitle
         self.emptyDescription = emptyDescription
@@ -62,11 +62,12 @@ public struct ProviderContentTabSidebarComponent<Tab: Hashable>: View {
     }
 
     public var body: some View {
-        VStack(spacing: 0) {
-            SidebarColumnHeader(title: providerTitle ?? emptyTitle)
-
+        SidebarColumnScaffold(
+            title: Self.resolveHeaderTitle(hasProviderSelection: hasProviderSelection, emptyTitle: emptyTitle),
+            showsHeader: !hasProviderSelection
+        ) {
             Group {
-                if providerTitle != nil {
+                if hasProviderSelection {
                     List(selection: $selectedTab) {
                         ForEach(items) { item in
                             HStack {
@@ -104,11 +105,10 @@ public struct ProviderContentTabSidebarComponent<Tab: Hashable>: View {
                 }
             }
         }
-        .navigationSplitViewColumnWidth(
-            min: ProviderContentTabSidebarMetrics.columnMinWidth,
-            ideal: ProviderContentTabSidebarMetrics.columnIdealWidth,
-            max: ProviderContentTabSidebarMetrics.columnMaxWidth
-        )
+    }
+
+    nonisolated static func resolveHeaderTitle(hasProviderSelection: Bool, emptyTitle: String) -> String {
+        hasProviderSelection ? "" : emptyTitle
     }
 }
 
@@ -127,7 +127,7 @@ private struct ProviderContentTabSidebarComponentPreviewContainer: View {
         HStack(spacing: 0) {
             ProviderContentTabSidebarComponent(
                 selectedTab: $selectedTab,
-                providerTitle: "Codex",
+                hasProviderSelection: true,
                 items: [
                     .init(id: .skills, title: "Skills", iconName: "square.grid.2x2", countText: "12"),
                     .init(id: .workflows, title: "Workflows", iconName: "arrow.triangle.branch", countText: "3"),
