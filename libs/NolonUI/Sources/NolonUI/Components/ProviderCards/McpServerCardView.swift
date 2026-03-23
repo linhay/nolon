@@ -74,6 +74,7 @@ public struct McpServerCardView<TitleContent: View, ExtraContextMenu: View>: Vie
             headerRow
             commandRow
             statusRow
+            Divider()
             actionRow
         }
         .padding(DesignSystem.Metrics.spacingL)
@@ -139,26 +140,6 @@ public struct McpServerCardView<TitleContent: View, ExtraContextMenu: View>: Vie
         HStack(alignment: .center, spacing: DesignSystem.Metrics.spacingS) {
             titleContent()
             Spacer(minLength: DesignSystem.Metrics.spacingS)
-            Toggle(
-                isOn: Binding(
-                    get: { isEnabled },
-                    set: { onSetEnabled($0) }
-                )
-            ) {
-                Text(
-                    isEnabled
-                        ? NSLocalizedString("mcp.status.enabled", value: "Enabled", comment: "MCP runtime enabled")
-                        : NSLocalizedString("mcp.status.disabled", value: "Disabled", comment: "MCP runtime disabled")
-                )
-            }
-            .labelsHidden()
-            .toggleStyle(.switch)
-            .controlSize(.small)
-            .accessibilityLabel(
-                isEnabled
-                    ? NSLocalizedString("mcp.action.disable", value: "Disable MCP", comment: "Disable MCP")
-                    : NSLocalizedString("mcp.action.enable", value: "Enable MCP", comment: "Enable MCP")
-            )
             moreMenu
         }
     }
@@ -232,8 +213,6 @@ public struct McpServerCardView<TitleContent: View, ExtraContextMenu: View>: Vie
                 .controlSize(.small)
             }
 
-            Spacer(minLength: 0)
-
             if hasWorkflow {
                 Button {
                     onUnlinkWorkflow()
@@ -243,7 +222,32 @@ public struct McpServerCardView<TitleContent: View, ExtraContextMenu: View>: Vie
                 .buttonStyle(.borderless)
                 .controlSize(.small)
             }
+
+            Spacer(minLength: 0)
+
+            Toggle(
+                isOn: Binding(
+                    get: { isEnabled },
+                    set: { onSetEnabled($0) }
+                )
+            ) {
+                Text(
+                    isEnabled
+                        ? NSLocalizedString("mcp.status.enabled", value: "Enabled", comment: "MCP runtime enabled")
+                        : NSLocalizedString("mcp.status.disabled", value: "Disabled", comment: "MCP runtime disabled")
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
+            .toggleStyle(.switch)
+            .controlSize(.small)
+            .accessibilityLabel(
+                isEnabled
+                    ? NSLocalizedString("mcp.action.disable", value: "Disable MCP", comment: "Disable MCP")
+                    : NSLocalizedString("mcp.action.enable", value: "Enable MCP", comment: "Enable MCP")
+            )
         }
+        .padding(.top, 2)
     }
 
     private var maintenanceAction: McpServerMaintenanceAction {
