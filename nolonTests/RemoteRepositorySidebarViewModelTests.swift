@@ -92,4 +92,68 @@ final class RemoteRepositorySidebarViewModelTests: XCTestCase {
 
         XCTAssertFalse(shouldPresent)
     }
+
+    func testRevealTargets_GivenGitRelativeSkillsPath_ResolvesUnderClonePath() throws {
+        let fixture = try TestFixture()
+        defer { fixture.cleanup() }
+
+        let cloneRoot = fixture.tempRoot.appendingPathComponent("git-clone", isDirectory: true)
+        let skillsDir = cloneRoot.appendingPathComponent("skills", isDirectory: true)
+        try fixture.fileManager.createDirectory(at: skillsDir, withIntermediateDirectories: true)
+
+        let repo = RemoteRepository(
+            name: "Repo",
+            templateType: .git,
+            gitURL: "https://github.com/acme/repo.git",
+            skillsPaths: ["skills"]
+        )
+
+        let viewModel = RemoteRepositorySidebarViewModel()
+        let urls = viewModel.revealTargets(for: repo, baseClonePath: cloneRoot, fileManager: fixture.fileManager)
+
+        XCTAssertEqual(urls, [skillsDir.standardizedFileURL])
+    }
+
+    func testRevealTargets_GivenGitLegacyAbsoluteSkillsPath_UsesAbsolutePathAsIs() throws {
+        let fixture = try TestFixture()
+        defer { fixture.cleanup() }
+
+        let cloneRoot = fixture.tempRoot.appendingPathComponent("git-clone", isDirectory: true)
+        let legacyAbsolute = fixture.tempRoot
+            .appendingPathComponent("legacy-absolute", isDirectory: true)
+            .appendingPathComponent("skills", isDirectory: true)
+        try fixture.fileManager.createDirectory(at: legacyAbsolute, withIntermediateDirectories: true)
+
+        let repo = RemoteRepository(
+            name: "Repo",
+            templateType: .git,
+            gitURL: "https://github.com/acme/repo.git",
+            skillsPaths: [legacyAbsolute.path]
+        )
+
+        let viewModel = RemoteRepositorySidebarViewModel()
+        let urls = viewModel.revealTargets(for: repo, baseClonePath: cloneRoot, fileManager: fixture.fileManager)
+
+        XCTAssertEqual(urls, [legacyAbsolute.standardizedFileURL])
+    }
+
+    func testRevealTargets_GivenGitMissingConfiguredPath_FallsBackToCloneRoot() throws {
+        let fixture = try TestFixture()
+        defer { fixture.cleanup() }
+
+        let cloneRoot = fixture.tempRoot.appendingPathComponent("git-clone", isDirectory: true)
+        try fixture.fileManager.createDirectory(at: cloneRoot, withIntermediateDirectories: true)
+
+        let repo = RemoteRepository(
+            name: "Repo",
+            templateType: .git,
+            gitURL: "https://github.com/acme/repo.git",
+            skillsPaths: ["skills"]
+        )
+
+        let viewModel = RemoteRepositorySidebarViewModel()
+        let urls = viewModel.revealTargets(for: repo, baseClonePath: cloneRoot, fileManager: fixture.fileManager)
+
+        XCTAssertEqual(urls, [cloneRoot.standardizedFileURL])
+    }
 }

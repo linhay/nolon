@@ -623,7 +623,7 @@
       }
     },
     "action.cancel" : {
-      "comment" : "Cancel\nCancel action",
+      "comment" : "Cancel",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
@@ -641,7 +641,7 @@
       }
     },
     "action.delete" : {
-      "comment" : "Delete\nDelete action\nDelete skill",
+      "comment" : "Delete\nDelete action",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
@@ -660,7 +660,7 @@
     },
     "action.delete_confirm_message" : {
       "comment" : "Delete confirmation message",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -678,7 +678,7 @@
     },
     "action.delete_confirm_message_mcp" : {
       "comment" : "MCP Delete confirmation message",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -696,7 +696,7 @@
     },
     "action.delete_confirm_title" : {
       "comment" : "Delete confirmation title",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -714,7 +714,7 @@
     },
     "action.delete_confirm_title_mcp" : {
       "comment" : "MCP Delete confirmation title",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -784,20 +784,9 @@
         }
       }
     },
-    "action.install" : {
-      "comment" : "Install action",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Install"
-          }
-        }
-      }
-    },
     "action.link_workflow" : {
       "comment" : "Link to Workflow",
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -808,7 +797,7 @@
       }
     },
     "action.migrate" : {
-      "comment" : "Migrate\nMigrate orphaned skill",
+      "comment" : "Migrate",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
@@ -902,7 +891,7 @@
     },
     "action.uninstall_confirm_message" : {
       "comment" : "Uninstall confirmation message",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -920,7 +909,7 @@
     },
     "action.uninstall_confirm_title" : {
       "comment" : "Uninstall confirmation title",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -938,7 +927,7 @@
     },
     "action.unlink_workflow" : {
       "comment" : "Unlink from Workflow",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1381,18 +1370,6 @@
         }
       }
     },
-    "agents.delete_confirm_message" : {
-      "comment" : "AGENTS document delete confirmation message",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Are you sure you want to delete this AGENTS document? This action cannot be undone."
-          }
-        }
-      }
-    },
     "agents.empty" : {
       "comment" : "No AGENTS files",
       "extractionState" : "extracted_with_value",
@@ -1431,7 +1408,7 @@
     },
     "agents.priority.base" : {
       "comment" : "Base priority hint",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1449,7 +1426,7 @@
     },
     "agents.priority.override" : {
       "comment" : "Override priority hint",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -9198,6 +9175,7 @@
     },
     "Copy Command" : {
       "comment" : "Copy command",
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -9366,6 +9344,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "选择一个选项卡"
+          }
+        }
+      }
+    },
+    "detail.skill.empty.desc" : {
+      "comment" : "Skill detail empty description",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Select a skill to view details."
+          }
+        }
+      }
+    },
+    "detail.skill.empty.title" : {
+      "comment" : "Skill detail empty title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "No Skill Selected"
+          }
+        }
+      }
+    },
+    "detail.skill.window.title" : {
+      "comment" : "Skill detail window title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Skill Detail"
           }
         }
       }
@@ -10429,7 +10443,7 @@
     },
     "mcp.action.disable" : {
       "comment" : "Disable MCP",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -10447,7 +10461,7 @@
     },
     "mcp.action.enable" : {
       "comment" : "Enable MCP",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -10699,7 +10713,7 @@
     },
     "mcp.no_command" : {
       "comment" : "Placeholder when MCP command is missing",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -10793,7 +10807,7 @@
     },
     "mcp.workflow" : {
       "comment" : "Workflow badge",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -12757,30 +12771,6 @@
         }
       }
     },
-    "remote.status.installed" : {
-      "comment" : "Remote installed status",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Installed"
-          }
-        }
-      }
-    },
-    "remote.status.installing" : {
-      "comment" : "Remote installing status",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Installing"
-          }
-        }
-      }
-    },
     "remote.workflows.empty" : {
       "comment" : "No workflows",
       "extractionState" : "extracted_with_value",
@@ -12901,6 +12891,30 @@
         }
       }
     },
+    "resource.center.empty.desc" : {
+      "comment" : "Resource center empty description",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Open Resource Center from toolbar or provider view."
+          }
+        }
+      }
+    },
+    "resource.center.empty.title" : {
+      "comment" : "Resource center empty title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "No Resource Center Context"
+          }
+        }
+      }
+    },
     "resource.center.title" : {
       "comment" : "Resource center title",
       "extractionState" : "extracted_with_value",
@@ -12915,6 +12929,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "资源中心"
+          }
+        }
+      }
+    },
+    "resource.center.window.title" : {
+      "comment" : "Resource center window title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Resource Center"
           }
         }
       }
@@ -13048,18 +13074,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "在 Finder 中显示"
-          }
-        }
-      }
-    },
-    "rules.delete_confirm_message" : {
-      "comment" : "Rule delete confirmation message",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Are you sure you want to delete this rule? This action cannot be undone."
           }
         }
       }
@@ -15576,6 +15590,7 @@
     },
     "View Details" : {
       "comment" : "View resource details",
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -15586,6 +15601,7 @@
       }
     },
     "Workflow" : {
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -15608,7 +15624,7 @@
     },
     "workflow.source.mcp" : {
       "comment" : "Source: MCP",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -15626,7 +15642,7 @@
     },
     "workflow.source.skill" : {
       "comment" : "Source: Skill",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -15644,7 +15660,7 @@
     },
     "workflow.source.unknown" : {
       "comment" : "Source: Unknown",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -15662,7 +15678,7 @@
     },
     "workflow.source.user" : {
       "comment" : "Source: User",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
