@@ -353,7 +353,7 @@ public struct McpServerCardView<TitleContent: View, ExtraContextMenu: View>: Vie
             } label: {
                 Label(
                     NSLocalizedString("action.unlink_workflow", value: "Unlink Workflow", comment: "Unlink from Workflow"),
-                    systemImage: "link.badge.plus"
+                    systemImage: "link.slash"
                 )
             }
         } else {
@@ -401,10 +401,11 @@ private struct McpServerCardViewPreviewContainer: View {
     let hasWorkflow: Bool
     let isEnabled: Bool
     let cacheState: McpServerCardCacheState
+    let commandText: String
 
     var body: some View {
         McpServerCardView(
-            commandText: "npx -y @modelcontextprotocol/server-filesystem /tmp",
+            commandText: commandText,
             searchText: "server",
             hasWorkflow: hasWorkflow,
             isEnabled: isEnabled,
@@ -430,7 +431,17 @@ private struct McpServerCardViewPreviewContainer: View {
     McpServerCardViewPreviewContainer(
         hasWorkflow: true,
         isEnabled: true,
-        cacheState: .migratedUpToDate
+        cacheState: .migratedUpToDate,
+        commandText: "npx -y @modelcontextprotocol/server-filesystem /tmp"
+    )
+}
+
+#Preview("MCP Link") {
+    McpServerCardViewPreviewContainer(
+        hasWorkflow: false,
+        isEnabled: true,
+        cacheState: .migratedUpToDate,
+        commandText: "npx -y @modelcontextprotocol/server-filesystem /tmp"
     )
 }
 
@@ -438,7 +449,8 @@ private struct McpServerCardViewPreviewContainer: View {
     McpServerCardViewPreviewContainer(
         hasWorkflow: false,
         isEnabled: false,
-        cacheState: .notMigrated
+        cacheState: .notMigrated,
+        commandText: "npx -y @modelcontextprotocol/server-git --repository ~/Code --branch main --deep-scan"
     )
 }
 
@@ -446,6 +458,7 @@ private struct McpServerCardViewPreviewContainer: View {
     McpServerCardViewPreviewContainer(
         hasWorkflow: false,
         isEnabled: true,
-        cacheState: .migratedNeedsUpdate
+        cacheState: .migratedNeedsUpdate,
+        commandText: "uvx mcp-server --config ~/.config/mcp/server.json --transport stdio --retry 3"
     )
 }
