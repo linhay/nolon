@@ -6,6 +6,12 @@ public enum McpServerCardCacheState: Sendable, Hashable {
     case migratedNeedsUpdate
 }
 
+public enum McpServerMaintenanceAction: Sendable, Hashable {
+    case none
+    case migrate
+    case update
+}
+
 public struct McpServerCardView<TitleContent: View, ExtraContextMenu: View>: View {
     private let commandText: String?
     private let searchText: String
@@ -58,130 +64,13 @@ public struct McpServerCardView<TitleContent: View, ExtraContextMenu: View>: Vie
 
     public var body: some View {
         VStack(alignment: .leading, spacing: DesignSystem.Metrics.spacingM) {
-            HStack(alignment: .center) {
-                titleContent()
-                Spacer()
-                moreMenu
-            }
-
-            VStack(alignment: .leading, spacing: DesignSystem.Metrics.spacingXS) {
-                if let commandText, !commandText.isEmpty {
-                    HighlightedText(text: commandText, query: searchText)
-                        .font(.caption)
-                        .fontDesign(.monospaced)
-                        .dsSecondaryText(font: .caption)
-                        .lineLimit(2)
-                        .truncationMode(.middle)
-                } else {
-                    Text(NSLocalizedString("mcp.no_command", value: "No command specified", comment: "Placeholder when MCP command is missing"))
-                        .font(.caption)
-                        .dsSecondaryText(font: .caption)
-                        .italic()
-                }
-            }
-            .frame(maxHeight: .infinity, alignment: .topLeading)
-
-            HStack {
-                if hasWorkflow {
-                    Button {
-                        onUnlinkWorkflow()
-                    } label: {
-                        HStack(spacing: DesignSystem.Metrics.spacingS - 2) {
-                            Image(systemName: "arrow.triangle.branch")
-                            Text(NSLocalizedString("mcp.workflow", value: "Workflow", comment: "Workflow badge"))
-                        }
-                        .fontWeight(.semibold)
-                        .dsBadge(
-                            foreground: DesignSystem.Colors.primary,
-                            background: DesignSystem.Colors.primary.opacity(DesignSystem.Colors.Opacity.subtle),
-                            horizontalPadding: 10,
-                            verticalPadding: 6,
-                            cornerRadius: DesignSystem.Metrics.cornerRadiusS
-                        )
-                    }
-                    .dsLinkButton()
-                } else {
-                    Button {
-                        onLinkWorkflow()
-                    } label: {
-                        HStack(spacing: DesignSystem.Metrics.spacingS - 2) {
-                            Image(systemName: "plus.circle")
-                            Text(NSLocalizedString("action.link_workflow", comment: "Link to Workflow"))
-                        }
-                        .fontWeight(.semibold)
-                        .dsBadge(
-                            foreground: DesignSystem.Colors.Text.secondary,
-                            background: DesignSystem.Colors.Component.controlFillSubtle,
-                            horizontalPadding: 10,
-                            verticalPadding: 6,
-                            cornerRadius: DesignSystem.Metrics.cornerRadiusS
-                        )
-                    }
-                    .dsLinkButton()
-                }
-
-                if cacheState == .notMigrated {
-                    Button(action: onMigrateToNolon) {
-                        HStack(spacing: DesignSystem.Metrics.spacingS - 2) {
-                            Image(systemName: "tray.and.arrow.down")
-                            Text(NSLocalizedString("action.migrate", value: "Migrate", comment: "Migrate"))
-                        }
-                        .fontWeight(.semibold)
-                        .dsBadge(
-                            foreground: DesignSystem.Colors.primary,
-                            background: DesignSystem.Colors.primary.opacity(DesignSystem.Colors.Opacity.subtle),
-                            horizontalPadding: 10,
-                            verticalPadding: 6,
-                            cornerRadius: DesignSystem.Metrics.cornerRadiusS
-                        )
-                    }
-                    .dsLinkButton()
-                } else if cacheState == .migratedNeedsUpdate {
-                    Button(action: onUpdateNolonCache) {
-                        HStack(spacing: DesignSystem.Metrics.spacingS - 2) {
-                            Image(systemName: "arrow.triangle.2.circlepath")
-                            Text(NSLocalizedString("action.update", value: "Update", comment: "Update"))
-                        }
-                        .fontWeight(.semibold)
-                        .dsBadge(
-                            foreground: DesignSystem.Colors.primary,
-                            background: DesignSystem.Colors.primary.opacity(DesignSystem.Colors.Opacity.subtle),
-                            horizontalPadding: 10,
-                            verticalPadding: 6,
-                            cornerRadius: DesignSystem.Metrics.cornerRadiusS
-                        )
-                    }
-                    .dsLinkButton()
-                }
-
-                Button {
-                    onSetEnabled(!isEnabled)
-                } label: {
-                    HStack(spacing: DesignSystem.Metrics.spacingS - 2) {
-                        Image(systemName: isEnabled ? "pause.circle" : "play.circle")
-                        Text(
-                            isEnabled
-                                ? NSLocalizedString("mcp.action.disable", value: "Disable", comment: "Disable MCP")
-                                : NSLocalizedString("mcp.action.enable", value: "Enable", comment: "Enable MCP")
-                        )
-                    }
-                    .fontWeight(.semibold)
-                    .dsBadge(
-                        foreground: isEnabled ? DesignSystem.Colors.Text.secondary : DesignSystem.Colors.primary,
-                        background: isEnabled ? DesignSystem.Colors.Component.controlFillSubtle : DesignSystem.Colors.primary.opacity(DesignSystem.Colors.Opacity.subtle),
-                        horizontalPadding: 10,
-                        verticalPadding: 6,
-                        cornerRadius: DesignSystem.Metrics.cornerRadiusS
-                    )
-                }
-                .dsLinkButton()
-
-                Spacer()
-            }
+            headerRow
+            commandRow
+            statusRow
+            actionRow
         }
         .padding(DesignSystem.Metrics.spacingL)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .frame(minHeight: 140)
+        .frame(maxWidth: .infinity, minHeight: 156, alignment: .topLeading)
         .providerTabCardStyle()
         .contentShape(Rectangle())
         .contextMenu {
@@ -205,6 +94,192 @@ public struct McpServerCardView<TitleContent: View, ExtraContextMenu: View>: Vie
                 )
             )
         }
+    }
+
+    nonisolated static func resolveMaintenanceAction(for cacheState: McpServerCardCacheState) -> McpServerMaintenanceAction {
+        switch cacheState {
+        case .notMigrated:
+            return .migrate
+        case .migratedNeedsUpdate:
+            return .update
+        case .migratedUpToDate:
+            return .none
+        }
+    }
+
+    nonisolated static func isMissingCommand(_ commandText: String?) -> Bool {
+        guard let commandText else {
+            return true
+        }
+        return commandText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var headerRow: some View {
+        HStack(alignment: .center, spacing: DesignSystem.Metrics.spacingS) {
+            titleContent()
+            Spacer(minLength: DesignSystem.Metrics.spacingS)
+            runtimeBadge
+            moreMenu
+        }
+    }
+
+    private var commandRow: some View {
+        HStack(alignment: .top, spacing: DesignSystem.Metrics.spacingS) {
+            Image(systemName: "terminal")
+                .font(.caption)
+                .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                .padding(.top, 2)
+
+            if Self.isMissingCommand(commandText) {
+                Text(NSLocalizedString("mcp.no_command", value: "No command specified", comment: "Placeholder when MCP command is missing"))
+                    .font(.caption)
+                    .dsSecondaryText(font: .caption)
+                    .italic()
+            } else {
+                HighlightedText(text: commandText ?? "", query: searchText)
+                    .font(.caption)
+                    .fontDesign(.monospaced)
+                    .dsSecondaryText(font: .caption)
+                    .lineLimit(2)
+                    .truncationMode(.middle)
+            }
+        }
+        .padding(.horizontal, DesignSystem.Metrics.spacingM)
+        .padding(.vertical, DesignSystem.Metrics.spacingS + 2)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(DesignSystem.Colors.Component.controlFillSubtle)
+        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusS))
+    }
+
+    private var statusRow: some View {
+        HStack(spacing: DesignSystem.Metrics.spacingS) {
+            statusChip(
+                title: hasWorkflow
+                    ? NSLocalizedString("mcp.workflow", value: "Workflow", comment: "Workflow badge")
+                    : NSLocalizedString("action.link_workflow", comment: "Link to Workflow"),
+                icon: hasWorkflow ? "arrow.triangle.branch" : "link.badge.plus",
+                foreground: hasWorkflow ? DesignSystem.Colors.primary : DesignSystem.Colors.Text.secondary,
+                background: hasWorkflow
+                    ? DesignSystem.Colors.primary.opacity(DesignSystem.Colors.Opacity.subtle)
+                    : DesignSystem.Colors.Component.controlFillSubtle
+            )
+
+            if maintenanceAction != .none {
+                statusChip(
+                    title: maintenanceAction == .migrate
+                        ? NSLocalizedString("action.migrate", value: "Migrate", comment: "Migrate")
+                        : NSLocalizedString("action.update", value: "Update", comment: "Update"),
+                    icon: maintenanceAction == .migrate ? "tray.and.arrow.down" : "arrow.triangle.2.circlepath",
+                    foreground: DesignSystem.Colors.secondary,
+                    background: DesignSystem.Colors.secondary.opacity(DesignSystem.Colors.Opacity.subtle)
+                )
+            }
+
+            Spacer(minLength: 0)
+        }
+    }
+
+    private var actionRow: some View {
+        HStack(spacing: DesignSystem.Metrics.spacingS) {
+            Button {
+                hasWorkflow ? onUnlinkWorkflow() : onLinkWorkflow()
+            } label: {
+                actionChip(
+                    title: hasWorkflow
+                        ? NSLocalizedString("action.unlink_workflow", value: "Unlink Workflow", comment: "Unlink from Workflow")
+                        : NSLocalizedString("action.link_workflow", comment: "Link to Workflow"),
+                    icon: hasWorkflow ? "arrow.triangle.branch" : "plus.circle",
+                    foreground: hasWorkflow ? DesignSystem.Colors.primary : DesignSystem.Colors.Text.secondary,
+                    background: hasWorkflow
+                        ? DesignSystem.Colors.primary.opacity(DesignSystem.Colors.Opacity.subtle)
+                        : DesignSystem.Colors.Component.controlFillSubtle
+                )
+            }
+            .dsLinkButton()
+
+            if maintenanceAction != .none {
+                Button(action: maintenanceAction == .migrate ? onMigrateToNolon : onUpdateNolonCache) {
+                    actionChip(
+                        title: maintenanceAction == .migrate
+                            ? NSLocalizedString("action.migrate", value: "Migrate", comment: "Migrate")
+                            : NSLocalizedString("action.update", value: "Update", comment: "Update"),
+                        icon: maintenanceAction == .migrate ? "tray.and.arrow.down" : "arrow.triangle.2.circlepath",
+                        foreground: DesignSystem.Colors.secondary,
+                        background: DesignSystem.Colors.secondary.opacity(DesignSystem.Colors.Opacity.subtle)
+                    )
+                }
+                .dsLinkButton()
+            }
+
+            Spacer(minLength: 0)
+
+            Button {
+                onSetEnabled(!isEnabled)
+            } label: {
+                actionChip(
+                    title: isEnabled
+                        ? NSLocalizedString("mcp.action.disable", value: "Disable", comment: "Disable MCP")
+                        : NSLocalizedString("mcp.action.enable", value: "Enable", comment: "Enable MCP"),
+                    icon: isEnabled ? "pause.circle" : "play.circle",
+                    foreground: isEnabled ? DesignSystem.Colors.Text.secondary : DesignSystem.Colors.primary,
+                    background: isEnabled
+                        ? DesignSystem.Colors.Component.controlFillSubtle
+                        : DesignSystem.Colors.primary.opacity(DesignSystem.Colors.Opacity.subtle)
+                )
+            }
+            .dsLinkButton()
+        }
+    }
+
+    private var runtimeBadge: some View {
+        Text(
+            isEnabled
+                ? NSLocalizedString("mcp.status.enabled", value: "Enabled", comment: "MCP runtime enabled")
+                : NSLocalizedString("mcp.status.disabled", value: "Disabled", comment: "MCP runtime disabled")
+        )
+        .font(DesignSystem.Typography.caption2)
+        .fontWeight(.bold)
+        .dsBadge(
+            foreground: isEnabled ? DesignSystem.Colors.Status.success : DesignSystem.Colors.Text.secondary,
+            background: isEnabled
+                ? DesignSystem.Colors.Status.success.opacity(DesignSystem.Colors.Opacity.subtle)
+                : DesignSystem.Colors.Component.controlFillSubtle,
+            horizontalPadding: 6,
+            verticalPadding: 2
+        )
+    }
+
+    private var maintenanceAction: McpServerMaintenanceAction {
+        Self.resolveMaintenanceAction(for: cacheState)
+    }
+
+    private func statusChip(title: String, icon: String, foreground: Color, background: Color) -> some View {
+        Label(title, systemImage: icon)
+            .font(DesignSystem.Typography.caption2)
+            .fontWeight(.semibold)
+            .lineLimit(1)
+            .dsBadge(
+                foreground: foreground,
+                background: background,
+                horizontalPadding: 8,
+                verticalPadding: 4,
+                cornerRadius: DesignSystem.Metrics.cornerRadiusXS
+            )
+    }
+
+    private func actionChip(title: String, icon: String, foreground: Color, background: Color) -> some View {
+        HStack(spacing: DesignSystem.Metrics.spacingS - 2) {
+            Image(systemName: icon)
+            Text(title)
+        }
+        .fontWeight(.semibold)
+        .dsBadge(
+            foreground: foreground,
+            background: background,
+            horizontalPadding: 10,
+            verticalPadding: 6,
+            cornerRadius: DesignSystem.Metrics.cornerRadiusS
+        )
     }
 
     @ViewBuilder
@@ -291,13 +366,17 @@ public struct McpServerCardView<TitleContent: View, ExtraContextMenu: View>: Vie
 }
 
 private struct McpServerCardViewPreviewContainer: View {
+    let hasWorkflow: Bool
+    let isEnabled: Bool
+    let cacheState: McpServerCardCacheState
+
     var body: some View {
         McpServerCardView(
             commandText: "npx -y @modelcontextprotocol/server-filesystem /tmp",
             searchText: "server",
-            hasWorkflow: false,
-            isEnabled: true,
-            cacheState: .notMigrated,
+            hasWorkflow: hasWorkflow,
+            isEnabled: isEnabled,
+            cacheState: cacheState,
             onLinkWorkflow: {},
             onUnlinkWorkflow: {},
             onSetEnabled: { _ in },
@@ -315,6 +394,26 @@ private struct McpServerCardViewPreviewContainer: View {
     }
 }
 
-#Preview("MCP Server Card") {
-    McpServerCardViewPreviewContainer()
+#Preview("MCP On") {
+    McpServerCardViewPreviewContainer(
+        hasWorkflow: true,
+        isEnabled: true,
+        cacheState: .migratedUpToDate
+    )
+}
+
+#Preview("MCP Migrate") {
+    McpServerCardViewPreviewContainer(
+        hasWorkflow: false,
+        isEnabled: false,
+        cacheState: .notMigrated
+    )
+}
+
+#Preview("MCP Update") {
+    McpServerCardViewPreviewContainer(
+        hasWorkflow: false,
+        isEnabled: true,
+        cacheState: .migratedNeedsUpdate
+    )
 }

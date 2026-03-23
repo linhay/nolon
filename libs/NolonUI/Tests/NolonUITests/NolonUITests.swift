@@ -91,6 +91,18 @@ final class NolonUITests: XCTestCase {
         XCTAssertEqual(states.count, 3)
     }
 
+    func testMcpServerMaintenanceAction_ResolvesFromCacheState() {
+        XCTAssertEqual(McpServerCardView<EmptyView, EmptyView>.resolveMaintenanceAction(for: .notMigrated), .migrate)
+        XCTAssertEqual(McpServerCardView<EmptyView, EmptyView>.resolveMaintenanceAction(for: .migratedNeedsUpdate), .update)
+        XCTAssertEqual(McpServerCardView<EmptyView, EmptyView>.resolveMaintenanceAction(for: .migratedUpToDate), .none)
+    }
+
+    func testMcpServerCommandAvailability_ResolvesFromCommandText() {
+        XCTAssertFalse(McpServerCardView<EmptyView, EmptyView>.isMissingCommand("npx -y @modelcontextprotocol/server-filesystem"))
+        XCTAssertTrue(McpServerCardView<EmptyView, EmptyView>.isMissingCommand("  "))
+        XCTAssertTrue(McpServerCardView<EmptyView, EmptyView>.isMissingCommand(nil))
+    }
+
     func testResourceCardMetaItem_CommandPayload_RetainsValue() {
         let item = ResourceCardMetaItem.command("npx -y @modelcontextprotocol/server-git")
 
