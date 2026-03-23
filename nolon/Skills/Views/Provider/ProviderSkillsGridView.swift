@@ -34,6 +34,7 @@ struct ProviderSkillsGridView: View {
                                 onMigrate: { await viewModel.migrateSkill(skill) },
                                 onTap: { viewModel.selectedSkillForDetail = skill }
                             )
+                            .id(skill.uniqueId)
                             .debugCardLocator(markerBaseItems + [PageMarkerItem(title: skill.name)])
                         }
                     } header: {

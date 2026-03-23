@@ -58,8 +58,18 @@ struct RemoteSkillCardView: View, DebugPageLocatable {
                 .accessibilityIdentifier("uitest.direct-delete.skill.\(skill.slug)")
             }
         } extraContextMenu: {
+            Divider()
+            Button {
+                ResourceCardCopySupport.copyTitle(skill.displayName)
+            } label: {
+                Label(
+                    NSLocalizedString("resource.card.copy_title", value: "Copy Title", comment: "Copy resource title"),
+                    systemImage: "doc.on.doc"
+                )
+            }
             debugPageMarkerMenuItem(debugPageMarkerItems)
         }
+        .textSelection(.disabled)
         .debugCardLocator(debugPageMarkerItems)
         .sheet(isPresented: $showingInstallSheet) {
             SkillInstallSheet(providers: providers, skillName: skill.displayName) { provider in

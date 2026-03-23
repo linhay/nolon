@@ -153,27 +153,29 @@ struct ProviderDetailGridView: View, DebugPageLocatable {
     private var gridContent: some View {
         NavigationStack {
             ZStack(alignment: .bottomTrailing) {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
-                        if shouldShowSearch {
-                            HStack {
-                                SearchField(
-                                    placeholder: NSLocalizedString("search.placeholder", value: "Search", comment: "Search placeholder"),
-                                    text: $viewModel.searchText
-                                )
-                                Spacer()
+                ScrollViewReader { scrollProxy in
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 16) {
+                            if shouldShowSearch {
+                                HStack {
+                                    SearchField(
+                                        placeholder: NSLocalizedString("search.placeholder", value: "Search", comment: "Search placeholder"),
+                                        text: $viewModel.searchText
+                                    )
+                                    Spacer()
+                                }
                             }
+                            if isCodexXcodeProvider && !codexXcodeNoticeDismissed {
+                                codexXcodeNotice
+                            }
+                            codexLinkedHint
+                            resourceHealthSummary(scrollProxy: scrollProxy)
+                            tabContent
                         }
-                        if isCodexXcodeProvider && !codexXcodeNoticeDismissed {
-                            codexXcodeNotice
-                        }
-                        codexLinkedHint
-                        resourceHealthSummary
-                        tabContent
+                        .frame(maxWidth: .infinity, alignment: .topLeading)
                     }
-                    .frame(maxWidth: .infinity, alignment: .topLeading)
+                    .padding()
                 }
-                .padding()
                 
                 // Floating Action Button - 根据当前 tab 显示
                 if shouldShowQuickInstallButton {
@@ -267,7 +269,7 @@ struct ProviderDetailGridView: View, DebugPageLocatable {
     }
 
     @ViewBuilder
-    private var resourceHealthSummary: some View {
+    private func resourceHealthSummary(scrollProxy: ScrollViewProxy) -> some View {
         let summary = currentTabIssueSummary
         if summary.total > 0 {
             VStack(alignment: .leading, spacing: 8) {
@@ -285,20 +287,32 @@ struct ProviderDetailGridView: View, DebugPageLocatable {
                 }
                 HStack(spacing: 12) {
                     if summary.orphanedSkillCount > 0 {
-                        Text(
-                            String(
-                                format: NSLocalizedString(
-                                    "provider.resources.health.orphaned_skills_count",
-                                    value: "orphaned skills %d",
-                                    comment: "Provider orphaned skills count"
+                        Button {
+                            scrollToFirstOrphanedSkill(using: scrollProxy)
+                        } label: {
+                            Text(
+                                String(
+                                    format: NSLocalizedString(
+                                        "provider.resources.health.orphaned_skills_count",
+                                        value: "orphaned skills %d",
+                                        comment: "Provider orphaned skills count"
+                                    ),
+                                    summary.orphanedSkillCount
                                 ),
-                                summary.orphanedSkillCount
                             )
-                        )
-                        .font(.caption)
-                        .dsBadge(
-                            foreground: DesignSystem.Colors.Status.warning,
-                            background: DesignSystem.Colors.Status.warning.opacity(0.14)
+                            .font(.caption)
+                            .dsBadge(
+                                foreground: DesignSystem.Colors.Status.warning,
+                                background: DesignSystem.Colors.Status.warning.opacity(0.14)
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        .help(
+                            NSLocalizedString(
+                                "provider.resources.health.orphaned_skills_scroll",
+                                value: "Scroll to first orphaned skill",
+                                comment: "Scroll to first orphaned skill help"
+                            )
                         )
                     }
                     if summary.brokenSkillCount > 0 {
@@ -363,6 +377,21 @@ struct ProviderDetailGridView: View, DebugPageLocatable {
                 borderWidth: 1
             )
         }
+    }
+
+    private func scrollToFirstOrphanedSkill(using scrollProxy: ScrollViewProxy) {
+        guard selectedTab == .skills else { return }
+        guard let targetID = Self.firstOrphanedSkillScrollID(from: viewModel.groupedFilteredSkills) else { return }
+        withAnimation(.easeInOut(duration: 0.2)) {
+            scrollProxy.scrollTo(targetID, anchor: .center)
+        }
+    }
+
+    static func firstOrphanedSkillScrollID(from groupedSkills: [(path: String, skills: [Skill])]) -> String? {
+        groupedSkills.lazy
+            .flatMap(\.skills)
+            .first(where: { $0.installationState == .orphaned })?
+            .uniqueId
     }
 
     @ViewBuilder

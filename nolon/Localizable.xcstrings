@@ -12247,6 +12247,24 @@
         }
       }
     },
+    "provider.resources.health.orphaned_skills_scroll" : {
+      "comment" : "Scroll to first orphaned skill help",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Scroll to first orphaned skill"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "滚动到第一个孤立技能"
+          }
+        }
+      }
+    },
     "provider.resources.health.unknown_workflows_count" : {
       "comment" : "Provider unknown workflows count",
       "extractionState" : "extracted_with_value",
@@ -12887,6 +12905,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "仓库类型"
+          }
+        }
+      }
+    },
+    "resource.card.copy_title" : {
+      "comment" : "Copy resource title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Copy Title"
           }
         }
       }

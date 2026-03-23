@@ -8,10 +8,17 @@ struct SkillDetailView: View, DebugPageLocatable {
     @State private var viewModel: SkillDetailViewModel
     private let providers: [Provider]
     private let currentProvider: Provider?
+    private let onCloseAction: (() -> Void)?
 
-    init(skill: Skill, provider: Provider?, settings: ProviderSettings) {
+    init(
+        skill: Skill,
+        provider: Provider?,
+        settings: ProviderSettings,
+        onClose: (() -> Void)? = nil
+    ) {
         self.currentProvider = provider
         self.providers = settings.providers
+        self.onCloseAction = onClose
         self._viewModel = State(initialValue: SkillDetailViewModel(skill: skill, settings: settings))
     }
 
@@ -19,10 +26,12 @@ struct SkillDetailView: View, DebugPageLocatable {
         remoteSkill: RemoteSkill,
         providers: [Provider],
         targetProvider: Provider? = nil,
+        onClose: (() -> Void)? = nil,
         onInstall: @escaping (Provider) -> Void
     ) {
         self.currentProvider = nil
         self.providers = targetProvider.map { [$0] } ?? providers
+        self.onCloseAction = onClose
         self._viewModel = State(
             initialValue: SkillDetailViewModel(
                 remoteSkill: remoteSkill,
@@ -41,7 +50,9 @@ struct SkillDetailView: View, DebugPageLocatable {
     }
     
     var body: some View {
-        NolonUI.SkillDetailScaffold(onClose: { dismiss() }) {
+        NolonUI.SkillDetailScaffold(onClose: {
+            Self.handleClose(onClose: onCloseAction, dismiss: dismiss.callAsFunction)
+        }) {
                 SkillDetailSidebar(
                     viewModel: viewModel,
                     providers: providers,
@@ -57,5 +68,13 @@ struct SkillDetailView: View, DebugPageLocatable {
             EmptyView()
         }
         .debugPageLocator(debugPageMarkerItems)
+    }
+
+    static func handleClose(onClose: (() -> Void)?, dismiss: () -> Void) {
+        if let onClose {
+            onClose()
+            return
+        }
+        dismiss()
     }
 }

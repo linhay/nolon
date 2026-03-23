@@ -173,15 +173,16 @@ public struct SkillCardView<ExtraContextMenu: View>: View {
                     .dsBadge(
                         foreground: DesignSystem.Colors.primary,
                         background: DesignSystem.Colors.primary.opacity(DesignSystem.Colors.Opacity.subtle),
-                        horizontalPadding: 10,
+                        horizontalPadding: 6,
                         verticalPadding: 6,
                         cornerRadius: DesignSystem.Metrics.cornerRadiusS
                     )
                 }
-                .dsLinkButton()
+                .buttonStyle(.plain)
 
                 Spacer()
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         } else {
             HStack(spacing: DesignSystem.Metrics.spacingM) {
                 Button {
@@ -195,12 +196,12 @@ public struct SkillCardView<ExtraContextMenu: View>: View {
                     .dsBadge(
                         foreground: DesignSystem.Colors.Text.secondary,
                         background: DesignSystem.Colors.Component.controlFill,
-                        horizontalPadding: 10,
+                        horizontalPadding: 6,
                         verticalPadding: 6,
                         cornerRadius: DesignSystem.Metrics.cornerRadiusS
                     )
                 }
-                .dsLinkButton()
+                .buttonStyle(.plain)
 
                 Spacer()
 
@@ -213,6 +214,7 @@ public struct SkillCardView<ExtraContextMenu: View>: View {
                         .dsIconLabelButton(foreground: DesignSystem.Colors.Text.secondary, font: .caption2)
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
             .font(.caption2)
             .dsSecondaryText(font: .caption2)
         }

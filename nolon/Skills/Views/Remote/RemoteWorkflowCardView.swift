@@ -44,8 +44,18 @@ struct RemoteWorkflowCardView: View, DebugPageLocatable {
             onRevealInFinder: revealInFinderAction,
             onDeleteRequest: onDeleteRequest
         ) {
+            Divider()
+            Button {
+                ResourceCardCopySupport.copyTitle(workflow.displayName)
+            } label: {
+                Label(
+                    NSLocalizedString("resource.card.copy_title", value: "Copy Title", comment: "Copy resource title"),
+                    systemImage: "doc.on.doc"
+                )
+            }
             debugPageMarkerMenuItem(debugPageMarkerItems)
         }
+        .textSelection(.disabled)
         .debugCardLocator(debugPageMarkerItems)
         .sheet(isPresented: $showingInstallSheet) {
             WorkflowInstallSheet(providers: providers, workflowName: workflow.displayName) { provider in

@@ -46,8 +46,18 @@ struct RemoteMCPCardView: View, DebugPageLocatable {
             onDeleteRequest: onDeleteRequest,
             onCopyCommand: copyCommandAction
         ) {
+            Divider()
+            Button {
+                ResourceCardCopySupport.copyTitle(mcp.displayName)
+            } label: {
+                Label(
+                    NSLocalizedString("resource.card.copy_title", value: "Copy Title", comment: "Copy resource title"),
+                    systemImage: "doc.on.doc"
+                )
+            }
             debugPageMarkerMenuItem(debugPageMarkerItems)
         }
+        .textSelection(.disabled)
         .debugCardLocator(debugPageMarkerItems)
         .sheet(isPresented: $showingInstallSheet) {
             MCPInstallSheet(providers: providers, mcpName: mcp.displayName) { provider in

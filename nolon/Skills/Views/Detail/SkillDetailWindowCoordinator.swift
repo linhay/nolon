@@ -60,6 +60,7 @@ final class SkillDetailWindowCoordinator {
 
 struct SkillDetailWindowRootView: View {
     @State private var coordinator = SkillDetailWindowCoordinator.shared
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         Group {
@@ -68,13 +69,19 @@ struct SkillDetailWindowRootView: View {
                 SkillDetailView(
                     skill: payload.skill,
                     provider: payload.provider,
-                    settings: payload.settings
+                    settings: payload.settings,
+                    onClose: {
+                        dismiss()
+                    }
                 )
             case .remote(let payload):
                 SkillDetailView(
                     remoteSkill: payload.skill,
                     providers: payload.providers,
                     targetProvider: payload.targetProvider,
+                    onClose: {
+                        dismiss()
+                    },
                     onInstall: payload.onInstall
                 )
             case .none:
