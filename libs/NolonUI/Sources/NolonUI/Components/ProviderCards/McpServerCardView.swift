@@ -14,7 +14,6 @@ public enum McpServerMaintenanceAction: Sendable, Hashable {
 
 public enum McpServerPrimaryAction: Sendable, Hashable {
     case none
-    case linkWorkflow
     case migrate
     case update
 }
@@ -123,8 +122,7 @@ public struct McpServerCardView<TitleContent: View, ExtraContextMenu: View>: Vie
     }
 
     nonisolated static func resolvePrimaryAction(
-        cacheState: McpServerCardCacheState,
-        hasWorkflow: Bool
+        cacheState: McpServerCardCacheState
     ) -> McpServerPrimaryAction {
         switch cacheState {
         case .notMigrated:
@@ -132,7 +130,7 @@ public struct McpServerCardView<TitleContent: View, ExtraContextMenu: View>: Vie
         case .migratedNeedsUpdate:
             return .update
         case .migratedUpToDate:
-            return hasWorkflow ? .none : .linkWorkflow
+            return .none
         }
     }
 
@@ -157,12 +155,13 @@ public struct McpServerCardView<TitleContent: View, ExtraContextMenu: View>: Vie
                     .dsSecondaryText(font: .caption)
                     .italic()
             } else {
-                HighlightedText(text: commandText ?? "", query: searchText)
+                Text(commandText ?? "")
                     .font(.caption)
                     .fontDesign(.monospaced)
                     .dsSecondaryText(font: .caption)
-                    .lineLimit(2)
-                    .truncationMode(.middle)
+                    .lineLimit(4)
+                    .textSelection(.enabled)
+                    .truncationMode(.tail)
             }
         }
         .padding(.horizontal, DesignSystem.Metrics.spacingM)
@@ -174,15 +173,6 @@ public struct McpServerCardView<TitleContent: View, ExtraContextMenu: View>: Vie
 
     private var statusRow: some View {
         HStack(spacing: DesignSystem.Metrics.spacingS) {
-            Label(
-                hasWorkflow
-                    ? NSLocalizedString("mcp.workflow", value: "Workflow linked", comment: "Workflow linked state")
-                    : NSLocalizedString("mcp.workflow.none", value: "No workflow linked", comment: "Workflow not linked state"),
-                systemImage: hasWorkflow ? "arrow.triangle.branch" : "link.badge.plus"
-            )
-            .font(.caption)
-            .foregroundStyle(.secondary)
-
             if let cacheStatusLabel {
                 Label(cacheStatusLabel, systemImage: cacheStatusIcon)
                     .font(.caption)
@@ -197,8 +187,6 @@ public struct McpServerCardView<TitleContent: View, ExtraContextMenu: View>: Vie
             if primaryAction != .none {
                 Button {
                     switch primaryAction {
-                    case .linkWorkflow:
-                        onLinkWorkflow()
                     case .migrate:
                         onMigrateToNolon()
                     case .update:
@@ -213,15 +201,7 @@ public struct McpServerCardView<TitleContent: View, ExtraContextMenu: View>: Vie
                 .controlSize(.small)
             }
 
-            if hasWorkflow {
-                Button {
-                    onUnlinkWorkflow()
-                } label: {
-                    Text(NSLocalizedString("action.unlink_workflow", value: "Unlink Workflow", comment: "Unlink from Workflow"))
-                }
-                .buttonStyle(.borderless)
-                .controlSize(.small)
-            }
+            workflowActionButton
 
             Spacer(minLength: 0)
 
@@ -250,18 +230,44 @@ public struct McpServerCardView<TitleContent: View, ExtraContextMenu: View>: Vie
         .padding(.top, 2)
     }
 
+    @ViewBuilder
+    private var workflowActionButton: some View {
+        let label = Label(
+            hasWorkflow
+                ? NSLocalizedString("action.unlink_workflow", value: "Unlink Workflow", comment: "Unlink from Workflow")
+                : NSLocalizedString("action.link_workflow", value: "Link Workflow", comment: "Link to Workflow"),
+            systemImage: hasWorkflow ? "link.badge.minus" : "link.badge.plus"
+        )
+
+        if primaryAction == .none {
+            Button {
+                hasWorkflow ? onUnlinkWorkflow() : onLinkWorkflow()
+            } label: {
+                label
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.small)
+        } else {
+            Button {
+                hasWorkflow ? onUnlinkWorkflow() : onLinkWorkflow()
+            } label: {
+                label
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+        }
+    }
+
     private var maintenanceAction: McpServerMaintenanceAction {
         Self.resolveMaintenanceAction(for: cacheState)
     }
 
     private var primaryAction: McpServerPrimaryAction {
-        Self.resolvePrimaryAction(cacheState: cacheState, hasWorkflow: hasWorkflow)
+        Self.resolvePrimaryAction(cacheState: cacheState)
     }
 
     private var primaryActionTitle: String {
         switch primaryAction {
-        case .linkWorkflow:
-            return NSLocalizedString("action.link_workflow", value: "Link Workflow", comment: "Link to Workflow")
         case .migrate:
             return NSLocalizedString("action.migrate", value: "Migrate", comment: "Migrate")
         case .update:
@@ -273,8 +279,6 @@ public struct McpServerCardView<TitleContent: View, ExtraContextMenu: View>: Vie
 
     private var primaryActionIcon: String {
         switch primaryAction {
-        case .linkWorkflow:
-            return "link.badge.plus"
         case .migrate:
             return "tray.and.arrow.down"
         case .update:

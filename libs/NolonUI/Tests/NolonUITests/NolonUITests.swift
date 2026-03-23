@@ -105,19 +105,15 @@ final class NolonUITests: XCTestCase {
 
     func testMcpServerPrimaryAction_ResolvesWithHierarchy() {
         XCTAssertEqual(
-            McpServerCardView<EmptyView, EmptyView>.resolvePrimaryAction(cacheState: .notMigrated, hasWorkflow: true),
+            McpServerCardView<EmptyView, EmptyView>.resolvePrimaryAction(cacheState: .notMigrated),
             .migrate
         )
         XCTAssertEqual(
-            McpServerCardView<EmptyView, EmptyView>.resolvePrimaryAction(cacheState: .migratedNeedsUpdate, hasWorkflow: false),
+            McpServerCardView<EmptyView, EmptyView>.resolvePrimaryAction(cacheState: .migratedNeedsUpdate),
             .update
         )
         XCTAssertEqual(
-            McpServerCardView<EmptyView, EmptyView>.resolvePrimaryAction(cacheState: .migratedUpToDate, hasWorkflow: false),
-            .linkWorkflow
-        )
-        XCTAssertEqual(
-            McpServerCardView<EmptyView, EmptyView>.resolvePrimaryAction(cacheState: .migratedUpToDate, hasWorkflow: true),
+            McpServerCardView<EmptyView, EmptyView>.resolvePrimaryAction(cacheState: .migratedUpToDate),
             .none
         )
     }
