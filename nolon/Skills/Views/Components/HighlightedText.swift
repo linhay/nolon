@@ -1,5 +1,6 @@
-import SwiftUI
 import NolonUI
+
+import SwiftUI
 
 struct HighlightedText: View {
     let text: String
