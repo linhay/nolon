@@ -195,10 +195,12 @@ public struct McpServerCardView<TitleContent: View, ExtraContextMenu: View>: Vie
                         break
                     }
                 } label: {
-                    Label(primaryActionTitle, systemImage: primaryActionIcon)
+                    Image(systemName: primaryActionIcon)
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)
+                .help(primaryActionTitle)
+                .accessibilityLabel(primaryActionTitle)
             }
 
             workflowActionButton
@@ -232,29 +234,31 @@ public struct McpServerCardView<TitleContent: View, ExtraContextMenu: View>: Vie
 
     @ViewBuilder
     private var workflowActionButton: some View {
-        let label = Label(
-            hasWorkflow
-                ? NSLocalizedString("action.unlink_workflow", value: "Unlink Workflow", comment: "Unlink from Workflow")
-                : NSLocalizedString("action.link_workflow", value: "Link Workflow", comment: "Link to Workflow"),
-            systemImage: hasWorkflow ? "link.badge.minus" : "link.badge.plus"
-        )
+        let title = hasWorkflow
+            ? NSLocalizedString("action.unlink_workflow", value: "Unlink Workflow", comment: "Unlink from Workflow")
+            : NSLocalizedString("action.link_workflow", value: "Link Workflow", comment: "Link to Workflow")
+        let icon = hasWorkflow ? "link.badge.minus" : "link.badge.plus"
 
         if primaryAction == .none {
             Button {
                 hasWorkflow ? onUnlinkWorkflow() : onLinkWorkflow()
             } label: {
-                label
+                Image(systemName: icon)
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.small)
+            .help(title)
+            .accessibilityLabel(title)
         } else {
             Button {
                 hasWorkflow ? onUnlinkWorkflow() : onLinkWorkflow()
             } label: {
-                label
+                Image(systemName: icon)
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
+            .help(title)
+            .accessibilityLabel(title)
         }
     }
 
