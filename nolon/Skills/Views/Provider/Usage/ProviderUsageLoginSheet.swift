@@ -9,7 +9,7 @@ struct UsageLoginSheet: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            SheetHeaderView(title: title) {
+            UISheetHeaderView(title: title) {
                 dismiss()
             }
 

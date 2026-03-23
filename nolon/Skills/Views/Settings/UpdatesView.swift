@@ -42,7 +42,7 @@ struct UpdatesView: View {
     }
     
     private var headerView: some View {
-        SheetHeaderView(
+        UISheetHeaderView(
             title: NSLocalizedString("updates.title", comment: "Updates view title"),
             subtitle: lastCheckSubtitle
         ) {

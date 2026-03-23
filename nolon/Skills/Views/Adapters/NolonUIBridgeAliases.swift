@@ -1,8 +1,7 @@
+import SwiftUI
 import NolonUI
 
-import SwiftUI
-
-struct SheetHeaderView: View {
+struct UISheetHeaderView: View {
     private enum TrailingContent {
         case close(isDisabled: Bool, onClose: () -> Void)
         case custom(() -> AnyView)
@@ -43,12 +42,25 @@ struct SheetHeaderView: View {
                 onClose: onClose
             )
         case let .custom(trailing):
-            NolonUI.SheetHeaderView(
-                title: title,
-                subtitle: subtitle
-            ) {
+            NolonUI.SheetHeaderView(title: title, subtitle: subtitle) {
                 trailing()
             }
         }
+    }
+}
+
+struct UIResourceCenterCloseButton: View {
+    private let action: () -> Void
+
+    init(action: @escaping () -> Void) {
+        self.action = action
+    }
+
+    var body: some View {
+        NolonUI.ResourceCenterCloseButton(
+            help: NSLocalizedString("Close", comment: "Close"),
+            enableCancelShortcut: true,
+            action: action
+        )
     }
 }

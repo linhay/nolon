@@ -28,7 +28,7 @@ struct AppSettingsView: View {
     
     var body: some View {
         VStack(spacing: 0) {
-            SheetHeaderView(title: NSLocalizedString("settings.title", value: "Settings", comment: "Title")) {
+            UISheetHeaderView(title: NSLocalizedString("settings.title", value: "Settings", comment: "Title")) {
                 dismiss()
             }
 

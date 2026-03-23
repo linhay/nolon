@@ -24,7 +24,7 @@ struct RemoteMCPDetailView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            SheetHeaderView(
+            UISheetHeaderView(
                 title: mcp.displayName,
                 subtitle: mcpSubtitle
             ) {

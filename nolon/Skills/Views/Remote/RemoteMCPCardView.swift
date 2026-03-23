@@ -120,7 +120,7 @@ private struct MCPInstallSheet: View {
     
     var body: some View {
         VStack(spacing: 0) {
-            SheetHeaderView(
+            UISheetHeaderView(
                 title: NSLocalizedString("Install", comment: "Install"),
                 subtitle: mcpName
             ) {

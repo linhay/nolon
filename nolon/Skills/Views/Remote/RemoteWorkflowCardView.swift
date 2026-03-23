@@ -109,7 +109,7 @@ private struct WorkflowInstallSheet: View {
     
     var body: some View {
         VStack(spacing: 0) {
-            SheetHeaderView(
+            UISheetHeaderView(
                 title: NSLocalizedString("Install", comment: "Install"),
                 subtitle: workflowName
             ) {

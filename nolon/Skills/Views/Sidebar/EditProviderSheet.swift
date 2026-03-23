@@ -150,7 +150,7 @@ struct EditProviderSheet: View {
     var body: some View {
         @Bindable var viewModel = viewModel
         VStack(spacing: 0) {
-            SheetHeaderView(title: NSLocalizedString("Edit Provider", comment: "Edit Provider")) {
+            UISheetHeaderView(title: NSLocalizedString("Edit Provider", comment: "Edit Provider")) {
                 dismiss()
             }
 

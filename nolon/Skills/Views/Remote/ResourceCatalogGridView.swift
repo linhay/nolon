@@ -1153,7 +1153,7 @@ struct ResourceCatalogGridView: View {
                 )
             }
             if let onClose {
-                ResourceCenterCloseButton(action: onClose)
+                UIResourceCenterCloseButton(action: onClose)
             }
         }
         .padding(.horizontal)

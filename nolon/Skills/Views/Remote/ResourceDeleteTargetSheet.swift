@@ -18,7 +18,7 @@ struct ResourceDeleteTargetSheet: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            SheetHeaderView(
+            UISheetHeaderView(
                 title: NSLocalizedString("action.delete", value: "Delete", comment: "Delete action"),
                 subtitle: "\(resourceTypeName): \(resourceName)"
             ) {

@@ -10,7 +10,7 @@ struct DirectoryPickerSheet: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            SheetHeaderView(
+            UISheetHeaderView(
                 title: NSLocalizedString("Choose Skills Directories", comment: "Choose skills directories"),
                 subtitle: NSLocalizedString("Select one or more directories containing skills:", comment: "Select directories")
             ) {

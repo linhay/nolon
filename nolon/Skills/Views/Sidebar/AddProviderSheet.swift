@@ -154,7 +154,7 @@ struct AddProviderSheet: View {
     
     var body: some View {
         VStack(spacing: 0) {
-            SheetHeaderView(title: NSLocalizedString("Add Provider", comment: "Add Provider")) {
+            UISheetHeaderView(title: NSLocalizedString("Add Provider", comment: "Add Provider")) {
                 dismiss()
             }
 

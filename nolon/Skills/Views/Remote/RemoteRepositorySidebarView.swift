@@ -304,7 +304,7 @@ struct RemoteRepositorySidebarView: View, DebugPageLocatable {
         let orderedRepositories = sections.flatMap { $0.repositories }
         VStack(spacing: 0) {
             if showsHeader {
-                SheetHeaderView(title: NSLocalizedString("Sources", comment: "Sources")) { EmptyView() }
+                UISheetHeaderView(title: NSLocalizedString("Sources", comment: "Sources")) { EmptyView() }
                 SheetDivider()
             } else if let title, !title.isEmpty {
                 HStack(spacing: 12) {
@@ -800,7 +800,7 @@ struct TokenInputSheet: View {
     
     var body: some View {
         VStack(spacing: 0) {
-            SheetHeaderView(title: NSLocalizedString("SSH Authentication Unavailable", comment: "SSH unavailable")) {
+            UISheetHeaderView(title: NSLocalizedString("SSH Authentication Unavailable", comment: "SSH unavailable")) {
                 isPresented = false
             }
 

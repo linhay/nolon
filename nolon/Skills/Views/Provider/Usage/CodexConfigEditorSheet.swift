@@ -101,7 +101,7 @@ struct CodexConfigEditorSheet: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            SheetHeaderView(title: title, subtitle: subtitle) {
+            UISheetHeaderView(title: title, subtitle: subtitle) {
                 onCancel()
             }
 
