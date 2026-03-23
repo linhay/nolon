@@ -237,7 +237,7 @@ public struct McpServerCardView<TitleContent: View, ExtraContextMenu: View>: Vie
         let title = hasWorkflow
             ? NSLocalizedString("action.unlink_workflow", value: "Unlink Workflow", comment: "Unlink from Workflow")
             : NSLocalizedString("action.link_workflow", value: "Link Workflow", comment: "Link to Workflow")
-        let icon = hasWorkflow ? "link.badge.minus" : "link.badge.plus"
+        let icon = hasWorkflow ? "link.slash" : "link.badge.plus"
 
         if primaryAction == .none {
             Button {
