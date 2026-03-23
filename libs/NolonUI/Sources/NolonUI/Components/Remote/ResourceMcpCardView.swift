@@ -97,15 +97,16 @@ public struct ResourceMcpCardView<ExtraContextMenu: View>: View {
     }
 
     public var body: some View {
-        ResourceCardScaffold(
+        ProviderCardTemplate(
             minHeight: 160,
             isSelected: isSelected,
+            showsActionDivider: true,
             onTap: onTap,
             headerContent: { headerView },
-            summaryContent: { summaryView },
-            metaContent: { ResourceCardMetaItemsView(items: metaItems) },
+            bodyContent: { summaryView },
+            footerContent: { ResourceCardMetaItemsView(items: metaItems) },
             actionContent: { actionView },
-            menuContent: { contextMenuItems }
+            contextMenuContent: { contextMenuItems }
         )
     }
 
@@ -204,4 +205,3 @@ public struct ResourceMcpCardView<ExtraContextMenu: View>: View {
         extraContextMenu()
     }
 }
-

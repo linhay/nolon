@@ -8,6 +8,7 @@ public struct ProviderCardTemplate<
     ContextMenuContent: View
 >: View {
     private let minHeight: CGFloat
+    private let isSelected: Bool
     private let showsActionDivider: Bool
     private let onTap: (() -> Void)?
     private let headerContent: () -> HeaderContent
@@ -18,6 +19,7 @@ public struct ProviderCardTemplate<
 
     public init(
         minHeight: CGFloat = 140,
+        isSelected: Bool = false,
         showsActionDivider: Bool = false,
         onTap: (() -> Void)? = nil,
         @ViewBuilder headerContent: @escaping () -> HeaderContent,
@@ -27,6 +29,7 @@ public struct ProviderCardTemplate<
         @ViewBuilder contextMenuContent: @escaping () -> ContextMenuContent
     ) {
         self.minHeight = minHeight
+        self.isSelected = isSelected
         self.showsActionDivider = showsActionDivider
         self.onTap = onTap
         self.headerContent = headerContent
@@ -56,7 +59,7 @@ public struct ProviderCardTemplate<
         }
         .padding(DesignSystem.Metrics.spacingL)
         .frame(maxWidth: .infinity, minHeight: minHeight, alignment: .topLeading)
-        .providerTabCardStyle()
+        .providerTabCardStyle(isSelected: isSelected)
         .contentShape(Rectangle())
         .contextMenu {
             contextMenuContent()
