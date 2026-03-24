@@ -1161,7 +1161,12 @@ struct NolonResourceKitTests {
         #expect(imported.template == .git)
         #expect(imported.name == "repo2")
         #expect(imported.normalizedGitURL == "https://github.com/acme/repo2.git")
-        #expect(imported.skillsPaths == ["tree/main/skills"])
+        #expect(imported.skillsPaths == ["skills"])
+
+        let importedSkillFile = service.importedDraft(
+            from: "https://gitlab.dxy.net/f2e/axure-helper/axure-skill-group/-/blob/main/axure-skill/SKILL.md"
+        )
+        #expect(importedSkillFile.skillsPaths == ["axure-skill"])
     }
 
     @Test("RepositoryDraftService extracts Clawhub skill query from marketplace URL")
@@ -1198,6 +1203,24 @@ struct NolonResourceKitTests {
         let sshGitIntent = service.parseImportIntent(from: "git@github.com:acme/repo.git")
         #expect(sshGitIntent.kind == .gitRepository)
         #expect(sshGitIntent.normalizedGitURL == "git@github.com:acme/repo.git")
+
+        let gitlabNestedSSHIntent = service.parseImportIntent(
+            from: "git@gitlab.dxy.net:f2e/axure-helper/axure-skill-group.git"
+        )
+        #expect(gitlabNestedSSHIntent.kind == .gitRepository)
+        #expect(
+            gitlabNestedSSHIntent.normalizedGitURL
+                == "git@gitlab.dxy.net:f2e/axure-helper/axure-skill-group.git"
+        )
+
+        let gitlabNestedIntent = service.parseImportIntent(
+            from: "https://gitlab.dxy.net/f2e/axure-helper/axure-skill-group"
+        )
+        #expect(gitlabNestedIntent.kind == .gitRepository)
+        #expect(
+            gitlabNestedIntent.normalizedGitURL
+                == "https://gitlab.dxy.net/f2e/axure-helper/axure-skill-group.git"
+        )
 
         let unknownIntent = service.parseImportIntent(from: "https://clawhub.ai")
         #expect(unknownIntent.kind == .unknown)

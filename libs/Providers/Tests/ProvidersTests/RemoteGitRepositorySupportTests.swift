@@ -17,8 +17,8 @@ struct RemoteGitRepositorySupportTests {
                 == "https://github.com/owner/repo.git"
         )
         #expect(
-            RemoteGitRepositorySupport.normalizeGitURL("https://gitlab.com/owner/repo/sub/path")
-                == "https://gitlab.com/owner/repo.git"
+            RemoteGitRepositorySupport.normalizeGitURL("https://gitlab.com/group/subgroup/project")
+                == "https://gitlab.com/group/subgroup/project.git"
         )
     }
 
@@ -27,8 +27,26 @@ struct RemoteGitRepositorySupportTests {
         #expect(RemoteGitRepositorySupport.extractSubpath(from: "owner/repo") == nil)
         #expect(RemoteGitRepositorySupport.extractSubpath(from: "owner/repo/skills/foo") == "skills/foo")
         #expect(
+            RemoteGitRepositorySupport.extractSubpath(
+                from: "https://github.com/owner/repo/tree/main/skills/foo"
+            ) == "skills/foo"
+        )
+        #expect(
             RemoteGitRepositorySupport.extractSubpath(from: "https://github.com/owner/repo/skills/foo")
                 == "skills/foo"
+        )
+        #expect(
+            RemoteGitRepositorySupport.extractSubpath(from: "https://gitlab.com/group/subgroup/project")
+                == nil
+        )
+        #expect(
+            RemoteGitRepositorySupport.extractSubpath(from: "https://gitlab.com/group/subgroup/project/-/tree/main/skills/foo")
+                == "skills/foo"
+        )
+        #expect(
+            RemoteGitRepositorySupport.extractSubpath(
+                from: "https://gitlab.com/group/subgroup/project/-/blob/main/skills/foo/SKILL.md"
+            ) == "skills/foo"
         )
     }
 
@@ -39,10 +57,24 @@ struct RemoteGitRepositorySupportTests {
         #expect(https?.owner == "team")
         #expect(https?.repo == "repo")
 
+        let gitlabNested = RemoteGitRepositorySupport.extractURLComponents(
+            from: "https://gitlab.example.com/group/subgroup/project.git"
+        )
+        #expect(gitlabNested?.host == "gitlab.example.com")
+        #expect(gitlabNested?.owner == "group/subgroup")
+        #expect(gitlabNested?.repo == "project")
+
         let ssh = RemoteGitRepositorySupport.extractURLComponents(from: "git@github.com:vercel/agent-skills.git")
         #expect(ssh?.host == "github.com")
         #expect(ssh?.owner == "vercel")
         #expect(ssh?.repo == "agent-skills")
+
+        let gitlabNestedSSH = RemoteGitRepositorySupport.extractURLComponents(
+            from: "git@gitlab.dxy.net:f2e/axure-helper/axure-skill-group.git"
+        )
+        #expect(gitlabNestedSSH?.host == "gitlab.dxy.net")
+        #expect(gitlabNestedSSH?.owner == "f2e/axure-helper")
+        #expect(gitlabNestedSSH?.repo == "axure-skill-group")
     }
 
     @Test("discover skill directories supports agent-skills style layout")

@@ -191,27 +191,48 @@ public class ProviderSettings {
     private func migrateRemoteRepositories(_ repositories: [RemoteRepository]) -> [RemoteRepository] {
         var migratedCount = 0
         let migrated = repositories.map { repository in
-            guard repository.templateType == .clawdhub else { return repository }
-
             var updated = repository
-            let expectedBaseURL = RepositoryTemplate.clawdhub.defaultBaseURL
-            if updated.baseURL != expectedBaseURL {
-                updated.baseURL = expectedBaseURL
-                migratedCount += 1
+            if repository.templateType == .clawdhub {
+                let expectedBaseURL = RepositoryTemplate.clawdhub.defaultBaseURL
+                if updated.baseURL != expectedBaseURL {
+                    updated.baseURL = expectedBaseURL
+                    migratedCount += 1
+                }
+
+                let expectedLogoName = RepositoryTemplate.clawdhub.logoName
+                if updated.logoName != expectedLogoName {
+                    updated.logoName = expectedLogoName
+                    migratedCount += 1
+                }
             }
 
-            let expectedLogoName = RepositoryTemplate.clawdhub.logoName
-            if updated.logoName != expectedLogoName {
-                updated.logoName = expectedLogoName
-                migratedCount += 1
+            if repository.templateType == .git, !repository.skillsPaths.isEmpty {
+                let normalizedSkillsPaths = Self.normalizedSkillsPaths(repository.skillsPaths)
+                if normalizedSkillsPaths != repository.skillsPaths {
+                    updated.skillsPaths = normalizedSkillsPaths
+                    migratedCount += 1
+                }
             }
 
             return updated
         }
         if migratedCount > 0 {
-            Self.logger.info("Migrated clawhub repository config fields. changes=\(migratedCount, privacy: .public)")
+            Self.logger.info("Migrated remote repository config fields. changes=\(migratedCount, privacy: .public)")
         }
         return migrated
+    }
+
+    private static func normalizedSkillsPaths(_ rawPaths: [String]) -> [String] {
+        var seen = Set<String>()
+        var results: [String] = []
+
+        for raw in rawPaths {
+            let normalized = SkillsRepositoryFacade.normalizeSkillsPath(raw) ?? raw
+            if seen.insert(normalized).inserted {
+                results.append(normalized)
+            }
+        }
+        return results
     }
     
     private func syncWithTemplates() {

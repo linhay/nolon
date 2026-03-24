@@ -67,6 +67,40 @@ struct ProviderSettingsTests {
         #expect(storedClawdhub.baseURL == "https://clawhub.ai")
     }
 
+    @Test("ProviderSettings migrates git skills paths from file path to directory path")
+    func migratesGitSkillsPaths() throws {
+        let root = STFolder("/tmp").folder("provider-settings-git-skills-path-\(UUID().uuidString)")
+        _ = root.createIfNotExists()
+        defer { try? root.deleteIncludingBrokenSymlink() }
+
+        let defaultsSuite = "provider-settings-git-skills-path-\(UUID().uuidString)"
+        let userDefaults = UserDefaults(suiteName: defaultsSuite)!
+        userDefaults.removePersistentDomain(forName: defaultsSuite)
+        defer {
+            userDefaults.removePersistentDomain(forName: defaultsSuite)
+        }
+
+        let gitRepo = RemoteRepository(
+            name: "axure-skill-group",
+            templateType: .git,
+            gitURL: "https://gitlab.dxy.net/f2e/axure-helper/axure-skill-group.git",
+            provider: .gitlab,
+            skillsPaths: ["axure-skill/SKILL.md", "tree/main/skills"]
+        )
+        let encoded = try JSONEncoder().encode([gitRepo])
+        userDefaults.set(encoded, forKey: "remote_repositories")
+
+        let manager = NolonManager(rootURL: root.url)
+        let settings = ProviderSettings(userDefaults: userDefaults, nolonManager: manager)
+        let migrated = try #require(settings.remoteRepositories.first(where: { $0.id == gitRepo.id }))
+        #expect(migrated.skillsPaths == ["axure-skill", "skills"])
+
+        let storedData = try #require(userDefaults.data(forKey: "remote_repositories"))
+        let storedRepos = try JSONDecoder().decode([RemoteRepository].self, from: storedData)
+        let storedRepo = try #require(storedRepos.first(where: { $0.id == gitRepo.id }))
+        #expect(storedRepo.skillsPaths == ["axure-skill", "skills"])
+    }
+
     @Test("ProviderSettings syncs missing vendor category from template defaults")
     func syncsMissingVendorCategoryFromTemplates() throws {
         let root = STFolder("/tmp").folder("provider-settings-vendor-category-\(UUID().uuidString)")

@@ -883,6 +883,10 @@ public enum SkillsRepositoryFacade {
         RemoteGitRepositorySupport.extractSubpath(from: input)
     }
 
+    public static func normalizeSkillsPath(_ raw: String) -> String? {
+        RemoteGitRepositorySupport.normalizeSkillsPath(raw)
+    }
+
     public static func extractURLComponents(from input: String) -> ParsedGitURLComponents? {
         guard let components = RemoteGitRepositorySupport.extractURLComponents(from: input) else {
             return nil

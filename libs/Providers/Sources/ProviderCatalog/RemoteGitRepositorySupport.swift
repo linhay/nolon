@@ -3,6 +3,17 @@ import SKProcessRunner
 import STFilePath
 
 public enum RemoteGitRepositorySupport {
+    private enum GitLabTreeKind: String {
+        case tree
+        case blob
+    }
+
+    private struct ParsedGitLabPath {
+        let owner: String
+        let repo: String
+        let subpath: String?
+    }
+
     public struct URLComponents: Sendable, Equatable {
         public let host: String
         public let owner: String
@@ -148,12 +159,21 @@ public enum RemoteGitRepositorySupport {
             if let colonIndex = withoutPrefix.firstIndex(of: ":") {
                 let host = String(withoutPrefix[..<colonIndex])
                 let path = String(withoutPrefix[withoutPrefix.index(after: colonIndex)...])
-                let pathComponents = path.split(separator: "/")
+                let pathComponents = path
+                    .split(separator: "/")
+                    .map(String.init)
+                if isGitLabHost(host), let parsed = parseGitLabPath(pathComponents) {
+                    return .init(
+                        host: host,
+                        owner: parsed.owner,
+                        repo: parsed.repo
+                    )
+                }
                 if pathComponents.count >= 2 {
                     return .init(
                         host: host,
-                        owner: String(pathComponents[0]),
-                        repo: String(pathComponents[1])
+                        owner: pathComponents[0],
+                        repo: pathComponents[1]
                     )
                 }
             }
@@ -163,11 +183,19 @@ public enum RemoteGitRepositorySupport {
             let pathComponents = urlObj.path
                 .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
                 .split(separator: "/")
+                .map(String.init)
+            if isGitLabHost(host), let parsed = parseGitLabPath(pathComponents) {
+                return .init(
+                    host: host,
+                    owner: parsed.owner,
+                    repo: parsed.repo
+                )
+            }
             if pathComponents.count >= 2 {
                 return .init(
                     host: host,
-                    owner: String(pathComponents[0]),
-                    repo: String(pathComponents[1])
+                    owner: pathComponents[0],
+                    repo: pathComponents[1]
                 )
             }
         }
@@ -204,9 +232,14 @@ public enum RemoteGitRepositorySupport {
             let pathComponents = url.path
                 .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
                 .split(separator: "/")
+                .map(String.init)
+            if isGitLabHost(host), let parsed = parseGitLabPath(pathComponents) {
+                let scheme = url.scheme ?? "https"
+                return "\(scheme)://\(host)/\(parsed.owner)/\(parsed.repo).git"
+            }
             if pathComponents.count >= 2 {
                 let owner = pathComponents[0]
-                var repo = String(pathComponents[1])
+                var repo = pathComponents[1]
                 if repo.hasSuffix(".git") {
                     repo = String(repo.dropLast(4))
                 }
@@ -228,21 +261,141 @@ public enum RemoteGitRepositorySupport {
         if !trimmed.contains("://") && !trimmed.contains("@") {
             let components = trimmed.split(separator: "/")
             if components.count > 2 {
-                return components.dropFirst(2).joined(separator: "/")
+                return normalizeSkillsPath(components.dropFirst(2).joined(separator: "/"))
             }
             return nil
         }
 
         if let url = URL(string: trimmed) {
+            let host = url.host?.lowercased()
             let pathComponents = url.path
                 .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
                 .split(separator: "/")
+                .map(String.init)
+            if let host, isGitLabHost(host), let parsed = parseGitLabPath(pathComponents) {
+                return parsed.subpath.flatMap { normalizeSkillsPath($0) }
+            }
             if pathComponents.count > 2 {
-                return pathComponents.dropFirst(2).joined(separator: "/")
+                return normalizeSkillsPath(pathComponents.dropFirst(2).joined(separator: "/"))
             }
         }
 
         return nil
+    }
+
+    public static func normalizeSkillsPath(_ raw: String) -> String? {
+        var normalized = raw
+            .replacingOccurrences(of: "\\", with: "/")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !normalized.isEmpty else { return nil }
+
+        // Backward-compatible: absolute paths may already be persisted; keep as-is except SKILL.md suffix.
+        let isAbsolutePath = normalized.hasPrefix("/")
+
+        if !isAbsolutePath {
+            if normalized.hasPrefix("./") {
+                normalized = String(normalized.dropFirst(2))
+            }
+            normalized = normalized.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        } else {
+            while normalized.count > 1, normalized.hasSuffix("/") {
+                normalized.removeLast()
+            }
+        }
+
+        guard !normalized.isEmpty else {
+            return isAbsolutePath ? "/" : "."
+        }
+
+        if !isAbsolutePath {
+            let components = normalized.split(separator: "/").map(String.init)
+            if components.count >= 3,
+               (components[0] == "tree" || components[0] == "blob")
+            {
+                normalized = components.dropFirst(2).joined(separator: "/")
+            } else if components.count >= 4,
+                      components[0] == "-",
+                      (components[1] == "tree" || components[1] == "blob")
+            {
+                normalized = components.dropFirst(3).joined(separator: "/")
+            }
+        }
+
+        let lowercased = normalized.lowercased()
+        if lowercased == "skill.md" {
+            return isAbsolutePath ? "/" : "."
+        }
+        if lowercased.hasSuffix("/skill.md") {
+            normalized = String(normalized.dropLast("/skill.md".count))
+        }
+
+        if !isAbsolutePath {
+            normalized = normalized.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+            return normalized.isEmpty ? "." : normalized
+        }
+
+        if normalized.isEmpty {
+            return "/"
+        }
+        return normalized
+    }
+
+    private static func isGitLabHost(_ host: String) -> Bool {
+        host.lowercased().contains("gitlab")
+    }
+
+    private static func parseGitLabPath(_ components: [String]) -> ParsedGitLabPath? {
+        guard components.count >= 2 else { return nil }
+
+        if let treeMarker = components.firstIndex(of: "-"), treeMarker >= 2 {
+            let repoPath = Array(components[..<treeMarker])
+            guard let parsedRepoPath = parseNamespaceRepo(repoPath) else { return nil }
+            let subpath = parseGitLabTreeSubpath(components, markerIndex: treeMarker)
+            return .init(owner: parsedRepoPath.owner, repo: parsedRepoPath.repo, subpath: subpath)
+        }
+
+        if let gitIndex = components.firstIndex(where: { $0.hasSuffix(".git") }), gitIndex >= 1 {
+            let repoPath = Array(components[...gitIndex])
+            guard let parsedRepoPath = parseNamespaceRepo(repoPath) else { return nil }
+            let subpath: String?
+            if components.count > gitIndex + 1 {
+                subpath = components[(gitIndex + 1)...].joined(separator: "/")
+            } else {
+                subpath = nil
+            }
+            return .init(owner: parsedRepoPath.owner, repo: parsedRepoPath.repo, subpath: subpath)
+        }
+
+        guard let parsedRepoPath = parseNamespaceRepo(components) else { return nil }
+        return .init(owner: parsedRepoPath.owner, repo: parsedRepoPath.repo, subpath: nil)
+    }
+
+    private static func parseNamespaceRepo(_ components: [String]) -> (owner: String, repo: String)? {
+        guard components.count >= 2 else { return nil }
+        let owner = components.dropLast().joined(separator: "/")
+        var repo = components.last ?? ""
+        if repo.hasSuffix(".git") {
+            repo = String(repo.dropLast(4))
+        }
+        guard !owner.isEmpty, !repo.isEmpty else { return nil }
+        return (owner, repo)
+    }
+
+    private static func parseGitLabTreeSubpath(_ components: [String], markerIndex: Int) -> String? {
+        let treeIndex = markerIndex + 1
+        guard components.indices.contains(treeIndex) else { return nil }
+        guard GitLabTreeKind(rawValue: components[treeIndex]) != nil else {
+            if components.count > treeIndex {
+                return components[treeIndex...].joined(separator: "/")
+            }
+            return nil
+        }
+
+        let branchIndex = markerIndex + 2
+        let subpathStart = markerIndex + 3
+        guard components.indices.contains(branchIndex), components.count > subpathStart else { return nil }
+        return components[subpathStart...].joined(separator: "/")
     }
 
     public static func suggestedClonePath(gitURL: String, repositoriesRoot: URL) -> URL? {
@@ -281,12 +434,45 @@ public enum RemoteGitRepositorySupport {
         )
 
         _ = STFolder(localClonePath.deletingLastPathComponent()).createIfNotExists()
-        try runGit(arguments: ["clone", "--depth=1", cloneEndpoint.url, localClonePath.path])
-        return .init(
-            mode: .cloned,
-            defaultBranch: detectDefaultBranch(at: localClonePath),
-            credentialMode: cloneEndpoint.mode
-        )
+        do {
+            try runGit(arguments: ["clone", "--depth=1", cloneEndpoint.url, localClonePath.path])
+            return .init(
+                mode: .cloned,
+                defaultBranch: detectDefaultBranch(at: localClonePath),
+                credentialMode: cloneEndpoint.mode
+            )
+        } catch let error as SyncError {
+            guard shouldRetryCloneWithSSH(
+                strategy: options.credentialStrategy,
+                cloneMode: cloneEndpoint.mode
+            ) else {
+                throw error
+            }
+
+            let sshAvailable = await testSSHConnection(host: components.host)
+            guard sshAvailable else {
+                throw error
+            }
+
+            cleanupFailedCloneDirectory(localClonePath)
+
+            let sshURL = "git@\(components.host):\(components.owner)/\(components.repo).git"
+            do {
+                try runGit(arguments: ["clone", "--depth=1", sshURL, localClonePath.path])
+                return .init(
+                    mode: .cloned,
+                    defaultBranch: detectDefaultBranch(at: localClonePath),
+                    credentialMode: .ssh
+                )
+            } catch let sshError as SyncError {
+                if case let .cloneFailed(httpsMessage) = error,
+                   case let .cloneFailed(sshMessage) = sshError
+                {
+                    throw SyncError.cloneFailed("\(httpsMessage)\nSSH fallback failed: \(sshMessage)")
+                }
+                throw sshError
+            }
+        }
     }
 
     public static func detectDefaultBranch(at repositoryPath: URL) -> String? {
@@ -495,6 +681,21 @@ public enum RemoteGitRepositorySupport {
             }
         }
         return deduped
+    }
+
+    private static func shouldRetryCloneWithSSH(
+        strategy: CredentialStrategy,
+        cloneMode: CredentialMode
+    ) -> Bool {
+        strategy == .automatic && cloneMode == .httpsAnonymous
+    }
+
+    private static func cleanupFailedCloneDirectory(_ localClonePath: URL) {
+        if STPath(localClonePath).isExists {
+            try? STPath(localClonePath).delete()
+        } else {
+            try? FileManager.default.removeItem(at: localClonePath)
+        }
     }
 
     private static func resolveCloneURL(

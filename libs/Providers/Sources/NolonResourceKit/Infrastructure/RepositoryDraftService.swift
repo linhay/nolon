@@ -1,4 +1,5 @@
 import Foundation
+import ProviderCatalog
 
 public struct RepositoryDraftInput: Sendable, Equatable {
     public let selectedTemplate: RepositoryTemplate
@@ -86,6 +87,7 @@ public struct RepositoryDraftService: Sendable {
         let normalized = RemoteRepository.normalizeGitURL(rawURL)
         let name = RemoteRepository.extractRepoName(from: normalized)
         let subpath = RemoteRepository.extractSubpath(from: rawURL)
+            .flatMap { SkillsRepositoryFacade.normalizeSkillsPath($0) }
 
         return ImportedRepositoryDraft(
             template: .git,
