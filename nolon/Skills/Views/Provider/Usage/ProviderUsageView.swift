@@ -124,6 +124,12 @@ struct ProviderUsageView: View, DebugPageLocatable {
         layoutMode == .list
     }
 
+    static func shouldEnableCodexTextSelection(
+        layoutMode: ProviderUsageViewModel.CodexAccountLayoutMode
+    ) -> Bool {
+        layoutMode != .list
+    }
+
     static func gatewayMemberDisplayLimit(
         layoutMode: ProviderUsageViewModel.CodexAccountLayoutMode
     ) -> Int {
@@ -2132,7 +2138,9 @@ struct ProviderUsageView: View, DebugPageLocatable {
                 )
             }
         }
-        .textSelection(.enabled)
+        .if(Self.shouldEnableCodexTextSelection(layoutMode: viewModel.codexAccountLayoutMode)) { view in
+            view.textSelection(.enabled)
+        }
     }
 
     private func codexCompactListRow(
@@ -2194,6 +2202,7 @@ struct ProviderUsageView: View, DebugPageLocatable {
         .padding(.vertical, 10)
         .background(compactRowBackgroundColor(presentation: presentation))
         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .contentShape(Rectangle())
         .contextMenu {
             ForEach(data.menuActions) { action in
                 Button(role: action.role) {

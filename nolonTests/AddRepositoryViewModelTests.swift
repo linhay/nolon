@@ -46,4 +46,18 @@ final class AddRepositoryViewModelTests: XCTestCase {
 
         XCTAssertNil(prefill)
     }
+
+    func testPendingImportPrefill_WithGitLabNestedGroupURL_UsesFullRepositoryPath() {
+        let prefill = AddRepositoryViewModel.pendingImportPrefill(
+            for: "https://gitlab.dxy.net/f2e/axure-helper/axure-skill-group"
+        )
+
+        XCTAssertEqual(prefill?.template, .git)
+        XCTAssertEqual(
+            prefill?.normalizedGitURL,
+            "https://gitlab.dxy.net/f2e/axure-helper/axure-skill-group.git"
+        )
+        XCTAssertEqual(prefill?.name, "axure-skill-group")
+        XCTAssertEqual(prefill?.skillsPaths, [])
+    }
 }

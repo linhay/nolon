@@ -42,6 +42,14 @@ final class RemoteRepositoryTests: XCTestCase {
         let gitlab = "https://gitlab.com/owner/repo"
         XCTAssertEqual(RemoteRepository.normalizeGitURL(gitlab), "https://gitlab.com/owner/repo.git")
     }
+
+    func testNormalizeGitURL_GitLabNestedGroupURL() {
+        let gitlabNested = "https://gitlab.dxy.net/f2e/axure-helper/axure-skill-group"
+        XCTAssertEqual(
+            RemoteRepository.normalizeGitURL(gitlabNested),
+            "https://gitlab.dxy.net/f2e/axure-helper/axure-skill-group.git"
+        )
+    }
     
     func testNormalizeGitURL_LocalPath() {
         XCTAssertEqual(RemoteRepository.normalizeGitURL("./skills"), "./skills")
@@ -77,6 +85,20 @@ final class RemoteRepositoryTests: XCTestCase {
         // 完整 URL 不应提取 subpath (需要使用 URL 解析)
         XCTAssertNil(RemoteRepository.extractSubpath(from: "https://github.com/owner/repo"))
     }
+
+    func testExtractSubpath_GitLabNestedGroupURL() {
+        XCTAssertNil(
+            RemoteRepository.extractSubpath(
+                from: "https://gitlab.dxy.net/f2e/axure-helper/axure-skill-group"
+            )
+        )
+        XCTAssertEqual(
+            RemoteRepository.extractSubpath(
+                from: "https://gitlab.dxy.net/f2e/axure-helper/axure-skill-group/-/tree/main/skills/web"
+            ),
+            "skills/web"
+        )
+    }
     
     func testExtractSubpath_LocalPath() {
         XCTAssertNil(RemoteRepository.extractSubpath(from: "./local/path"))
@@ -93,6 +115,12 @@ final class RemoteRepositoryTests: XCTestCase {
         XCTAssertEqual(
             RemoteRepository.extractRepoName(from: "git@gitlab.example.com:team/repo.git"),
             "repo"
+        )
+        XCTAssertEqual(
+            RemoteRepository.extractRepoName(
+                from: "https://gitlab.dxy.net/f2e/axure-helper/axure-skill-group"
+            ),
+            "axure-skill-group"
         )
     }
 

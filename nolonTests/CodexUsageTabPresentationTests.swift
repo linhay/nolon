@@ -89,6 +89,15 @@ final class CodexUsageTabPresentationTests: XCTestCase {
         )
     }
 
+    func testBDD_GivenCodexLayoutMode_WhenResolvingTextSelectionPolicy_ThenListDisablesSelectionToKeepTapSwitching() {
+        XCTAssertFalse(
+            ProviderUsageView.shouldEnableCodexTextSelection(layoutMode: .list)
+        )
+        XCTAssertTrue(
+            ProviderUsageView.shouldEnableCodexTextSelection(layoutMode: .cards)
+        )
+    }
+
     func testBDD_GivenGatewayMemberRows_WhenResolvingCompactMetrics_ThenListModeUsesTighterLimitsThanCards() {
         XCTAssertEqual(
             ProviderUsageView.gatewayMemberDisplayLimit(layoutMode: .list),

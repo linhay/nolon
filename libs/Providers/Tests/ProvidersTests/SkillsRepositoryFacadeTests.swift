@@ -42,6 +42,36 @@ struct SkillsRepositoryFacadeTests {
         #expect(plan.localClonePath.path == "/tmp/nolon-repositories/gitlab.example.com/team@repo")
     }
 
+    @Test("build git import plan from nested gitlab ssh url")
+    func buildPlanFromNestedGitLabSSH() throws {
+        let root = STFolder("/tmp").folder("nolon-repositories")
+        let plan = try SkillsRepositoryFacade.planGitImport(
+            source: "git@gitlab.dxy.net:f2e/axure-helper/axure-skill-group.git",
+            repositoriesRoot: root.url
+        )
+
+        #expect(plan.normalizedGitURL == "git@gitlab.dxy.net:f2e/axure-helper/axure-skill-group.git")
+        #expect(plan.providerHost == "gitlab.dxy.net")
+        #expect(plan.owner == "f2e/axure-helper")
+        #expect(plan.repo == "axure-skill-group")
+        #expect(plan.localClonePath.path == "/tmp/nolon-repositories/gitlab.dxy.net/f2e/axure-helper@axure-skill-group")
+    }
+
+    @Test("build git import plan from gitlab nested group url")
+    func buildPlanFromGitLabNestedGroupURL() throws {
+        let root = STFolder("/tmp").folder("nolon-repositories")
+        let plan = try SkillsRepositoryFacade.planGitImport(
+            source: "https://gitlab.dxy.net/f2e/axure-helper/axure-skill-group",
+            repositoriesRoot: root.url
+        )
+
+        #expect(plan.normalizedGitURL == "https://gitlab.dxy.net/f2e/axure-helper/axure-skill-group.git")
+        #expect(plan.subpath == nil)
+        #expect(plan.providerHost == "gitlab.dxy.net")
+        #expect(plan.owner == "f2e/axure-helper")
+        #expect(plan.repo == "axure-skill-group")
+    }
+
     @Test("discover skills via facade uses standard name parsing")
     func discoverSkillsViaFacade() throws {
         let root = try makeTempRoot("skills-facade")
@@ -185,6 +215,18 @@ struct SkillsRepositoryFacadeTests {
         #expect(identity?.owner == "team")
         #expect(identity?.repo == "repo")
         #expect(identity?.repoFullName == "team@repo")
+        #expect(identity?.provider == .gitlab)
+    }
+
+    @Test("parse repository identity from gitlab nested group url")
+    func parseRepositoryIdentityFromGitLabNestedURL() {
+        let identity = SkillsRepositoryFacade.parseRepositoryIdentity(
+            from: "https://gitlab.dxy.net/f2e/axure-helper/axure-skill-group"
+        )
+        #expect(identity?.host == "gitlab.dxy.net")
+        #expect(identity?.owner == "f2e/axure-helper")
+        #expect(identity?.repo == "axure-skill-group")
+        #expect(identity?.repoFullName == "f2e/axure-helper@axure-skill-group")
         #expect(identity?.provider == .gitlab)
     }
 
