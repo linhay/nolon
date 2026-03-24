@@ -68,6 +68,18 @@ jobs:
             echo "Missing required secret: SPARKLE_PRIVATE_KEY"
             exit 1
           fi
+          if [ -z "${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}" ]; then
+            echo "Missing required secret: MACOS_CERTIFICATE_P12_BASE64"
+            exit 1
+          fi
+          if [ -z "${{ secrets.MACOS_CERTIFICATE_P12_PASSWORD }}" ]; then
+            echo "Missing required secret: MACOS_CERTIFICATE_P12_PASSWORD"
+            exit 1
+          fi
+          if [ -z "${{ secrets.SIGNING_IDENTITY }}" ]; then
+            echo "Missing required secret: SIGNING_IDENTITY"
+            exit 1
+          fi
 
       - name: Resolve release parameters
         id: params
@@ -84,6 +96,32 @@ jobs:
             echo "release_push_branch=" >> "$GITHUB_OUTPUT"
             echo "changelog_file=${{ github.event.inputs.changelog_file }}" >> "$GITHUB_OUTPUT"
           fi
+
+      - name: Import signing certificate
+        env:
+          MACOS_CERTIFICATE_P12_BASE64: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}
+          MACOS_CERTIFICATE_P12_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_P12_PASSWORD }}
+        run: |
+          set -euo pipefail
+
+          CERT_PATH="${RUNNER_TEMP}/nolon-signing.p12"
+          KEYCHAIN_PATH="${RUNNER_TEMP}/nolon-signing.keychain-db"
+          KEYCHAIN_PASSWORD="$(openssl rand -base64 24)"
+
+          echo "${MACOS_CERTIFICATE_P12_BASE64}" | base64 --decode > "${CERT_PATH}"
+          security create-keychain -p "${KEYCHAIN_PASSWORD}" "${KEYCHAIN_PATH}"
+          security set-keychain-settings -lut 21600 "${KEYCHAIN_PATH}"
+          security unlock-keychain -p "${KEYCHAIN_PASSWORD}" "${KEYCHAIN_PATH}"
+          security list-keychains -d user -s "${KEYCHAIN_PATH}"
+          security import "${CERT_PATH}" \
+            -k "${KEYCHAIN_PATH}" \
+            -P "${MACOS_CERTIFICATE_P12_PASSWORD}" \
+            -T /usr/bin/codesign \
+            -T /usr/bin/security \
+            -T /usr/bin/xcodebuild
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "${KEYCHAIN_PASSWORD}" "${KEYCHAIN_PATH}"
+          security find-identity -v -p codesigning "${KEYCHAIN_PATH}"
+          rm -f "${CERT_PATH}"
 
       - name: Run release script
         env:
@@ -103,3 +141,9 @@ jobs:
           else
             ./scripts/release.sh "${{ steps.params.outputs.version }}"
           fi
+
+      - name: Cleanup signing keychain
+        if: ${{ always() }}
+        run: |
+          rm -f "${RUNNER_TEMP}/nolon-signing.p12" || true
+          security delete-keychain "${RUNNER_TEMP}/nolon-signing.keychain-db" || true

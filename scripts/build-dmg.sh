@@ -129,7 +129,8 @@ build_for_arch() {
         -configuration Release \
         -derivedDataPath "${BUILD_DIR}-${build_suffix}" \
         -arch "$arch" \
-        clean build
+        clean build \
+        CODE_SIGNING_ALLOWED=NO
     
     APP_PATH="${BUILD_DIR}-${build_suffix}/Build/Products/Release/${APP_NAME}.app"
     
@@ -251,7 +252,8 @@ case "$ARCH" in
             -scheme "$SCHEME" \
             -configuration Release \
             -derivedDataPath "$BUILD_DIR" \
-            clean build
+            clean build \
+            CODE_SIGNING_ALLOWED=NO
         
         APP_PATH="$BUILD_DIR/Build/Products/Release/${APP_NAME}.app"
         
