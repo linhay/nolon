@@ -115,6 +115,20 @@ final class ResourceCatalogGridViewModel {
             || (mcp.summary?.lowercased().contains(searchLower) ?? false)
         }
     }
+
+    func requestSkillDetail(_ skill: RemoteSkill) {
+        selectedSkillForDetail = skill
+    }
+
+    func consumeSelectedSkillForDetail() -> RemoteSkill? {
+        Self.consumeSkillDetailSelection(&selectedSkillForDetail)
+    }
+
+    static func consumeSkillDetailSelection(_ selection: inout RemoteSkill?) -> RemoteSkill? {
+        let skill = selection
+        selection = nil
+        return skill
+    }
     
     func loadContent(for repository: RemoteRepository?, tab: ResourceContentTabType?, searchQuery: String, cacheBuster: String) async {
         guard let repository = repository, let tab = tab else {
@@ -923,7 +937,7 @@ struct ResourceCatalogGridView: View {
     private var contentWithDetailSheets: some View {
         contentWithPendingSync
             .onChange(of: viewModel.selectedSkillForDetail?.slug) { _, _ in
-                guard let skill = viewModel.selectedSkillForDetail else { return }
+                guard let skill = viewModel.consumeSelectedSkillForDetail() else { return }
                 SkillDetailWindowCoordinator.shared.presentRemote(
                     skill: skill,
                     providers: providers,
@@ -1291,7 +1305,7 @@ struct ResourceCatalogGridView: View {
                                         },
                                         isDeleting: viewModel.pendingSkillDeletes.contains(skill.slug),
                                         onTap: {
-                                            viewModel.selectedSkillForDetail = skill
+                                            viewModel.requestSkillDetail(skill)
                                         }
                                     )
                                 }
@@ -1313,7 +1327,7 @@ struct ResourceCatalogGridView: View {
                                         onDeleteRequest: nil,
                                         isDeleting: false,
                                         onTap: {
-                                            viewModel.selectedSkillForDetail = skill
+                                            viewModel.requestSkillDetail(skill)
                                         }
                                     )
                                 }
@@ -1337,7 +1351,7 @@ struct ResourceCatalogGridView: View {
                                         onDeleteRequest: nil,
                                         isDeleting: false,
                                         onTap: {
-                                            viewModel.selectedSkillForDetail = skill
+                                            viewModel.requestSkillDetail(skill)
                                         }
                                     )
                                 }
