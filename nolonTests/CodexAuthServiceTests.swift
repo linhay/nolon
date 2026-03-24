@@ -267,8 +267,9 @@ final class CodexAuthCompatSyncTests: XCTestCase {
         XCTAssertEqual(active, account.id)
         let authRawValue = try await service.readAuthJSONString(from: provider)
         let authRaw = try XCTUnwrap(authRawValue)
-        XCTAssertTrue(authRaw.contains("\"id_token\":\"id-2\""))
-        XCTAssertTrue(authRaw.contains("\"access_token\":\"access-2\""))
+        let authJSON = try XCTUnwrap(try? JSON(data: Data(authRaw.utf8)))
+        XCTAssertEqual(authJSON["tokens"]["id_token"].string, "id-2")
+        XCTAssertEqual(authJSON["tokens"]["access_token"].string, "access-2")
     }
 
     func testBDD_GivenPreferredAccount_WhenUpsertingCLILogin_ThenUpdatesPreferredSnapshot() async throws {

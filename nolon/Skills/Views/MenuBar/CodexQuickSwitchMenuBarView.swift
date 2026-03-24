@@ -11,7 +11,8 @@ enum CodexQuickSwitchProviderResolver {
     static func providers(from providers: [Provider]) -> [Provider] {
         let acceptedTemplateIDs: Set<String> = [
             ProviderTemplate.codex.rawValue.lowercased(),
-            ProviderTemplate.codexXcode.rawValue.lowercased()
+            ProviderTemplate.codexXcode.rawValue.lowercased(),
+            ProviderTemplate.gemini.rawValue.lowercased()
         ]
         return providers.filter { provider in
             acceptedTemplateIDs.contains((provider.templateId ?? "").lowercased())
