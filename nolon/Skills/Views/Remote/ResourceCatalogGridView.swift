@@ -212,7 +212,7 @@ final class ResourceCatalogGridViewModel {
                     canLoadMore: loadMoreEnabled
                 )
             case .mcps:
-                let result = appendBuiltInMCPs(to: queryResult.items.map { itemMapper.toRemoteMCP($0) })
+                let result = queryResult.items.map { itemMapper.toRemoteMCP($0) }
                 guard currentLoadID == loadID else { return }
                 mcps = result
                 canLoadMore = loadMoreEnabled
@@ -316,7 +316,7 @@ final class ResourceCatalogGridViewModel {
                     canLoadMore: canLoad
                 )
             case .mcps:
-                let result = appendBuiltInMCPs(to: queryResult.items.map { itemMapper.toRemoteMCP($0) })
+                let result = queryResult.items.map { itemMapper.toRemoteMCP($0) }
                 guard currentLoadID == loadID else { return }
                 mcps = result
                 let canLoad = queryResult.canLoadMore && nextLimit < pagingStore.maxLimit
@@ -377,33 +377,6 @@ final class ResourceCatalogGridViewModel {
         workflows = []
         mcps = []
         canLoadMore = false
-    }
-
-    private func appendBuiltInMCPs(to items: [RemoteMCP]) -> [RemoteMCP] {
-        var result = items
-        let hasXcodeMCPKit = result.contains { $0.slug == "xcodemcpkit" }
-        guard !hasXcodeMCPKit else { return result }
-
-        result.insert(
-            RemoteMCP(
-                slug: "xcodemcpkit",
-                displayName: "XcodeMCPKit",
-                summary: "Xcode MCP proxy plugin package",
-                latestVersion: nil,
-                updatedAt: nil,
-                downloads: nil,
-                stars: nil,
-                installs: nil,
-                configuration: .init(
-                    command: "xcode-mcp-server",
-                    args: nil,
-                    env: nil
-                ),
-                localPath: nil
-            ),
-            at: 0
-        )
-        return result
     }
 
     func requestDelete(skill: RemoteSkill, repositoryTemplateType: RepositoryTemplate?) {

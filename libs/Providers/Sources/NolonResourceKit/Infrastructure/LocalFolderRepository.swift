@@ -209,9 +209,15 @@ public actor LocalFolderRepository: RemoteResourceRepository {
         for file in files {
             let itemPath = file.url.path
             let item = file.url.lastPathComponent
+            let lowercasedItem = item.lowercased()
             
             // Check if this is a markdown file
-            guard item.hasSuffix(".md") else {
+            guard lowercasedItem.hasSuffix(".md") else {
+                continue
+            }
+
+            // SKILL.md is a skill specification, not a workflow resource.
+            guard lowercasedItem != "skill.md" else {
                 continue
             }
             

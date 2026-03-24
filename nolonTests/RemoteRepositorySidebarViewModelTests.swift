@@ -49,13 +49,14 @@ final class RemoteRepositorySidebarViewModelTests: XCTestCase {
         viewModel.handleDirectoryCandidatesFound(repo: existing, candidates: candidates)
         viewModel.selectedDirectoryIndices = [0]
 
-        viewModel.confirmDirectorySelection(settings: fixture.providerSettings)
+        let selectedRepository = viewModel.confirmDirectorySelection(settings: fixture.providerSettings)
 
         XCTAssertEqual(fixture.providerSettings.remoteRepositories.count, initialCount)
         guard let updated = fixture.providerSettings.remoteRepositories.first(where: { $0.id == existing.id }) else {
             XCTFail("Expected updated repository by id")
             return
         }
+        XCTAssertEqual(selectedRepository?.id, existing.id)
         XCTAssertEqual(updated.skillsPaths, ["."])
 
         existing.skillsPaths = ["."]
@@ -91,6 +92,38 @@ final class RemoteRepositorySidebarViewModelTests: XCTestCase {
         )
 
         XCTAssertFalse(shouldPresent)
+    }
+
+    func testSelectedRepositoryAfterRemoving_WhenCurrentSelectionRemoved_ReturnsNil() {
+        let viewModel = RemoteRepositorySidebarViewModel()
+        let selected = RemoteRepository(
+            name: "Repo",
+            templateType: .git,
+            gitURL: "https://github.com/acme/repo.git"
+        )
+
+        let result = viewModel.selectedRepositoryAfterRemoving(
+            removedRepositoryIDs: [selected.id],
+            currentSelection: selected
+        )
+
+        XCTAssertNil(result)
+    }
+
+    func testSelectedRepositoryAfterRemoving_WhenCurrentSelectionNotRemoved_KeepsSelection() {
+        let viewModel = RemoteRepositorySidebarViewModel()
+        let selected = RemoteRepository(
+            name: "Repo",
+            templateType: .git,
+            gitURL: "https://github.com/acme/repo.git"
+        )
+
+        let result = viewModel.selectedRepositoryAfterRemoving(
+            removedRepositoryIDs: ["another-id"],
+            currentSelection: selected
+        )
+
+        XCTAssertEqual(result?.id, selected.id)
     }
 
     func testRevealTargets_GivenGitRelativeSkillsPath_ResolvesUnderClonePath() throws {

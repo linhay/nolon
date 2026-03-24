@@ -166,6 +166,14 @@ final class RemoteRepositorySidebarViewModel {
         
         settings.removeRemoteRepository(repo)
     }
+
+    func selectedRepositoryAfterRemoving(
+        removedRepositoryIDs: Set<String>,
+        currentSelection: RemoteRepository?
+    ) -> RemoteRepository? {
+        guard let currentSelection else { return nil }
+        return removedRepositoryIDs.contains(currentSelection.id) ? nil : currentSelection
+    }
     
     func revealInFinder(_ repo: RemoteRepository) {
         let targets = revealTargets(for: repo)
@@ -245,8 +253,8 @@ final class RemoteRepositorySidebarViewModel {
         return nil
     }
     
-    func confirmDirectorySelection(settings: ProviderSettings) {
-        guard var repo = pendingRepository else { return }
+    func confirmDirectorySelection(settings: ProviderSettings) -> RemoteRepository? {
+        guard var repo = pendingRepository else { return nil }
         
         let selectedPaths = selectedDirectoryIndices.compactMap { index -> String? in
             guard index < detectedCandidates.count else { return nil }
@@ -259,6 +267,7 @@ final class RemoteRepositorySidebarViewModel {
         pendingRepository = nil
         detectedCandidates = []
         selectedDirectoryIndices = []
+        return repo
     }
     
     func confirmTokenInput(settings: ProviderSettings) {
@@ -356,6 +365,9 @@ struct RemoteRepositorySidebarView: View, DebugPageLocatable {
                 settings: settings,
                 onDirectoryCandidatesFound: { repo, candidates in
                     viewModel.handleDirectoryCandidatesFound(repo: repo, candidates: candidates)
+                },
+                onRepositorySaved: { repo in
+                    selectedRepository = repo
                 }
             )
         }
@@ -365,7 +377,9 @@ struct RemoteRepositorySidebarView: View, DebugPageLocatable {
                 candidates: viewModel.detectedCandidates,
                 selectedIndices: $viewModel.selectedDirectoryIndices,
                 onConfirm: {
-                    viewModel.confirmDirectorySelection(settings: settings)
+                    if let repo = viewModel.confirmDirectorySelection(settings: settings) {
+                        selectedRepository = repo
+                    }
                 }
             )
         }
@@ -389,6 +403,9 @@ struct RemoteRepositorySidebarView: View, DebugPageLocatable {
                 repositoryToEdit: repo,
                 onDirectoryCandidatesFound: { updatedRepo, candidates in
                     viewModel.handleDirectoryCandidatesFound(repo: updatedRepo, candidates: candidates)
+                },
+                onRepositorySaved: { savedRepo in
+                    selectedRepository = savedRepo
                 }
             )
         }
@@ -542,7 +559,13 @@ struct RemoteRepositorySidebarView: View, DebugPageLocatable {
             if !repo.isBuiltIn {
                 Divider()
                 Button(role: .destructive) {
-                    Task { await viewModel.removeRepository(repo, settings: settings) }
+                    Task {
+                        await viewModel.removeRepository(repo, settings: settings)
+                        selectedRepository = viewModel.selectedRepositoryAfterRemoving(
+                            removedRepositoryIDs: [repo.id],
+                            currentSelection: selectedRepository
+                        )
+                    }
                 } label: {
                     Label("Remove", systemImage: "trash")
                         .dsIconLabelButton()
@@ -649,13 +672,19 @@ struct RemoteRepositorySidebarView: View, DebugPageLocatable {
     }
     
     private func deleteRepositories(_ offsets: IndexSet, in repos: [RemoteRepository]) {
+        var removedRepositoryIDs = Set<String>()
         for index in offsets {
             guard index < repos.count else { continue }
             let repo = repos[index]
             if !repo.isBuiltIn {
                 settings.removeRemoteRepository(repo)
+                removedRepositoryIDs.insert(repo.id)
             }
         }
+        selectedRepository = viewModel.selectedRepositoryAfterRemoving(
+            removedRepositoryIDs: removedRepositoryIDs,
+            currentSelection: selectedRepository
+        )
     }
 }
 

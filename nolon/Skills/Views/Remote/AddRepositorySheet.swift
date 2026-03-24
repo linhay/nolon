@@ -42,6 +42,7 @@ final class AddRepositoryViewModel {
     @ObservationIgnored var settings: ProviderSettings
     
     @ObservationIgnored var onDirectoryCandidatesFound: ((RemoteRepository, [GitRepository.SkillsDirectoryCandidate]) -> Void)?
+    @ObservationIgnored var onRepositorySaved: ((RemoteRepository) -> Void)?
     @ObservationIgnored var onDismiss: (() -> Void)?
     @ObservationIgnored private let syncOrchestrator = RepositorySyncOrchestrator()
     @ObservationIgnored private let draftService = RepositoryDraftService()
@@ -293,6 +294,7 @@ final class AddRepositoryViewModel {
                     repo = plan.repository
                     if !preferredSkillsPaths.isEmpty || !plan.shouldPromptDirectorySelection {
                         settings.upsertRemoteRepository(repo)
+                        onRepositorySaved?(repo)
                     } else {
                         onDirectoryCandidatesFound?(repo, plan.detectedDirectories)
                     }
@@ -306,6 +308,7 @@ final class AddRepositoryViewModel {
                 // URL unchanged in edit mode, just update metadata
                 if isEditing {
                     settings.updateRemoteRepository(repo)
+                    onRepositorySaved?(repo)
                     onDismiss?()
                     return
                 }
@@ -313,6 +316,7 @@ final class AddRepositoryViewModel {
         }
 
         settings.upsertRemoteRepository(repo)
+        onRepositorySaved?(repo)
         onDismiss?()
     }
 
@@ -341,11 +345,18 @@ struct AddRepositorySheet: View {
     @State private var viewModel: AddRepositoryViewModel
     @State private var isLocalFolderDropTargeted = false
 
-    init(isPresented: Binding<Bool>, settings: ProviderSettings, repositoryToEdit: RemoteRepository? = nil, onDirectoryCandidatesFound: @escaping (RemoteRepository, [GitRepository.SkillsDirectoryCandidate]) -> Void) {
+    init(
+        isPresented: Binding<Bool>,
+        settings: ProviderSettings,
+        repositoryToEdit: RemoteRepository? = nil,
+        onDirectoryCandidatesFound: @escaping (RemoteRepository, [GitRepository.SkillsDirectoryCandidate]) -> Void,
+        onRepositorySaved: ((RemoteRepository) -> Void)? = nil
+    ) {
         self._isPresented = isPresented
         
         let vm = AddRepositoryViewModel(settings: settings, repositoryToEdit: repositoryToEdit)
         vm.onDirectoryCandidatesFound = onDirectoryCandidatesFound
+        vm.onRepositorySaved = onRepositorySaved
         self._viewModel = State(initialValue: vm)
     }
 

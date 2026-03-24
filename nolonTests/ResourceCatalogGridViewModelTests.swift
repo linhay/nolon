@@ -5,12 +5,14 @@ import ProviderCatalog
 
 final class ResourceCatalogGridViewModelTests: XCTestCase {
     @MainActor
-    func testLoadContentMCPs_IncludesBuiltInXcodeMCPKitPlugin() async {
+    func testLoadContentMCPs_UsesRepositoryResultOnly() async {
         let service = MockRemoteCatalogQueryService(
             responses: [
                 .success(
                     .init(
-                        items: [],
+                        items: [
+                            Self.makeMCPItem(slug: "playwright", displayName: "Playwright MCP")
+                        ],
                         canLoadMore: false
                     )
                 )
@@ -26,10 +28,8 @@ final class ResourceCatalogGridViewModelTests: XCTestCase {
             cacheBuster: "v1"
         )
 
-        let plugin = viewModel.mcps.first(where: { $0.slug == "xcodemcpkit" })
-        XCTAssertNotNil(plugin)
-        XCTAssertEqual(plugin?.displayName, "XcodeMCPKit")
-        XCTAssertEqual(plugin?.configuration?.command, "xcode-mcp-server")
+        XCTAssertEqual(viewModel.mcps.map(\.slug), ["playwright"])
+        XCTAssertNil(viewModel.mcps.first(where: { $0.slug == "xcodemcpkit" }))
     }
 
     @MainActor
@@ -358,6 +358,21 @@ final class ResourceCatalogGridViewModelTests: XCTestCase {
             updatedAt: nil,
             downloads: 1,
             stars: 1,
+            installs: nil,
+            localPath: nil
+        )
+    }
+
+    private static func makeMCPItem(slug: String, displayName: String) -> SkillsRepositoryFacade.RemoteCatalogItem {
+        SkillsRepositoryFacade.RemoteCatalogItem(
+            kind: .mcp,
+            slug: slug,
+            displayName: displayName,
+            summary: "summary",
+            latestVersion: "1.0.0",
+            updatedAt: nil,
+            downloads: nil,
+            stars: nil,
             installs: nil,
             localPath: nil
         )

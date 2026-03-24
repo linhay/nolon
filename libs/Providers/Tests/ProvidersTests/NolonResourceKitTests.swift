@@ -978,6 +978,35 @@ struct NolonResourceKitTests {
         #expect(mcps.items.first?.localPath?.hasSuffix("/playwright.json") == true)
     }
 
+    @Test("RemoteCatalogQueryService workflow query skips SKILL.md")
+    func remoteCatalogQueryServiceWorkflowQuerySkipsSkillSpec() async throws {
+        let root = try STFolder(sanbox: .temporary)
+            .folder("nolon-remote-query-skip-skill-md-\(UUID().uuidString)")
+            .create()
+        defer { try? root.deleteIncludingBrokenSymlink() }
+
+        let base = root.folder("skills")
+        _ = base.createIfNotExists()
+
+        try """
+        ---
+        name: Axure Skill
+        description: Skill specification
+        ---
+        """.write(to: base.file("SKILL.md").url, atomically: true, encoding: .utf8)
+
+        let repository = RemoteRepository(
+            name: "local",
+            templateType: .localFolder,
+            localPath: base.url.path
+        )
+        let service = RemoteCatalogQueryService()
+
+        let workflows = try await service.query(repository: repository, kind: .workflow, query: nil, limit: 20)
+
+        #expect(workflows.items.isEmpty)
+    }
+
     @Test("RemoteRepositoryCountService aggregates counts from shared query service")
     func remoteRepositoryCountServiceAggregates() async throws {
         let root = try STFolder(sanbox: .temporary)

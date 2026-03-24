@@ -60,4 +60,31 @@ final class AddRepositoryViewModelTests: XCTestCase {
         XCTAssertEqual(prefill?.name, "axure-skill-group")
         XCTAssertEqual(prefill?.skillsPaths, [])
     }
+
+    func testSaveRepository_LocalFolder_TriggersOnRepositorySavedCallback() async throws {
+        let fixture = try TestFixture()
+        defer { fixture.cleanup() }
+
+        let viewModel = AddRepositoryViewModel(settings: fixture.providerSettings)
+        viewModel.selectedTemplate = .localFolder
+        viewModel.newRepoName = "Local Repo"
+        viewModel.newLocalPath = fixture.tempRoot.path
+
+        var savedRepository: RemoteRepository?
+        viewModel.onRepositorySaved = { savedRepository = $0 }
+
+        await viewModel.saveRepository()
+
+        guard let savedRepository else {
+            XCTFail("Expected onRepositorySaved callback to be triggered")
+            return
+        }
+
+        XCTAssertEqual(savedRepository.templateType, .localFolder)
+        XCTAssertEqual(savedRepository.name, "Local Repo")
+        XCTAssertEqual(savedRepository.localPath, fixture.tempRoot.path)
+        XCTAssertTrue(
+            fixture.providerSettings.remoteRepositories.contains(where: { $0.id == savedRepository.id })
+        )
+    }
 }
