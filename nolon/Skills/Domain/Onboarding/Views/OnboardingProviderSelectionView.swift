@@ -47,20 +47,18 @@ struct OnboardingProviderSelectionView: View {
 
                             LazyVGrid(columns: columns, spacing: 16) {
                                 ForEach(section.templates) { template in
-                                    ProviderSelectionCard(
-                                        template: template,
-                                        isSelected: selectedProviders.contains(template),
-                                        isDetected: detectedProviders.contains(template),
-                                        onToggle: {
-                                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                                if selectedProviders.contains(template) {
-                                                    selectedProviders.remove(template)
-                                                } else {
-                                                    selectedProviders.insert(template)
-                                                }
-                                            }
-                                        }
-                                    )
+                                    GenericSelectionControl(
+                                        value: template,
+                                        selections: $selectedProviders
+                                    ) { isSelected in
+                                        ProviderSelectionCard(
+                                            template: template,
+                                            isSelected: isSelected,
+                                            isDetected: detectedProviders.contains(template)
+                                        )
+                                        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isSelected)
+                                    }
+                                    .dsLinkButton()
                                 }
                             }
                         }
@@ -76,51 +74,47 @@ private struct ProviderSelectionCard: View {
     let template: ProviderTemplate
     let isSelected: Bool
     let isDetected: Bool
-    let onToggle: () -> Void
     
     var body: some View {
-        Button(action: onToggle) {
-            VStack(spacing: 12) {
-                // Logo Container
-                ProviderLogoView(
-                    name: template.displayName,
-                    logoName: template.logoFile,
-                    iconSize: 32
-                )
-                .grayscale(isSelected ? 0 : 1)
-                .opacity(isSelected ? 1 : 0.6)
+        VStack(spacing: 12) {
+            // Logo Container
+            ProviderLogoView(
+                name: template.displayName,
+                logoName: template.logoFile,
+                iconSize: 32
+            )
+            .grayscale(isSelected ? 0 : 1)
+            .opacity(isSelected ? 1 : 0.6)
+            
+            // Name & Status
+            VStack(spacing: 4) {
+                Text(template.displayName)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(isSelected ? DesignSystem.Colors.Text.primary : DesignSystem.Colors.Text.secondary)
+                    .lineLimit(1)
                 
-                // Name & Status
-                VStack(spacing: 4) {
-                    Text(template.displayName)
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(isSelected ? DesignSystem.Colors.Text.primary : DesignSystem.Colors.Text.secondary)
-                        .lineLimit(1)
-                    
-                    if isDetected {
-                        Text("onboarding.provider.detected")
-                            .font(.system(size: 8, weight: .bold))
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(DesignSystem.Colors.primary.opacity(0.12))
-                            .foregroundStyle(DesignSystem.Colors.primary)
-                            .cornerRadius(DesignSystem.Metrics.cornerRadiusXS)
-                    }
+                if isDetected {
+                    Text("onboarding.provider.detected")
+                        .font(.system(size: 8, weight: .bold))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(DesignSystem.Colors.primary.opacity(0.12))
+                        .foregroundStyle(DesignSystem.Colors.primary)
+                        .cornerRadius(DesignSystem.Metrics.cornerRadiusXS)
                 }
             }
-            .frame(maxWidth: .infinity)
-            .frame(height: 100)
-            .background(
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(isSelected ? DesignSystem.Colors.primary.opacity(0.10) : DesignSystem.Colors.Background.surface.opacity(0.45))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 16)
-                            .stroke(isSelected ? DesignSystem.Colors.primary.opacity(0.35) : DesignSystem.Colors.Component.border.opacity(0.22), lineWidth: 1)
-                    )
-            )
-            .scaleEffect(isSelected ? 1.02 : 1.0)
         }
-        .dsLinkButton()
+        .frame(maxWidth: .infinity)
+        .frame(height: 100)
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(isSelected ? DesignSystem.Colors.primary.opacity(0.10) : DesignSystem.Colors.Background.surface.opacity(0.45))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(isSelected ? DesignSystem.Colors.primary.opacity(0.35) : DesignSystem.Colors.Component.border.opacity(0.22), lineWidth: 1)
+                )
+        )
+        .scaleEffect(isSelected ? 1.02 : 1.0)
     }
 }
 

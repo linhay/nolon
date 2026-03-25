@@ -126,13 +126,11 @@ struct AddRepositorySheet: View {
     }
     
     private func templateButton(for template: RepositoryTemplate) -> some View {
-        let isSelected = viewModel.selectedTemplate == template
-        
-        return Button {
-            if !viewModel.isEditing {
-                viewModel.selectedTemplate = template
-            }
-        } label: {
+        GenericSelectionControl(
+            value: template,
+            selection: $viewModel.selectedTemplate,
+            disabled: viewModel.isEditing
+        ) { isSelected in
             HStack(spacing: 8) {
                 if let logoName = template.logoName {
                     ProviderLogoView(name: template.displayName, logoName: logoName, iconSize: 16)
@@ -152,11 +150,10 @@ struct AddRepositorySheet: View {
                 borderColor: isSelected ? DesignSystem.Colors.primary : DesignSystem.Colors.Component.border.opacity(0.25),
                 borderWidth: 1,
                 horizontalPadding: 12,
-                verticalPadding: 5
-            )
+                    verticalPadding: 5
+                )
         }
         .dsLinkButton()
-        .disabled(viewModel.isEditing)
     }
 
     // MARK: - Type-Specific Section

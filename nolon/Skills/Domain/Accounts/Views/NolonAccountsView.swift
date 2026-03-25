@@ -194,20 +194,20 @@ struct NolonAccountsView: View, DebugPageLocatable {
 
                 HStack(spacing: 8) {
                     ForEach(AccountTimeWindow.allCases, id: \.self) { window in
-                        Button {
-                            selectedWindow = window
-                        } label: {
+                        GenericSelectionControl(
+                            value: window,
+                            selection: $selectedWindow
+                        ) { isSelected in
                             Text(window.label)
                                 .font(.system(size: 10, weight: .bold))
-                                .foregroundStyle(selectedWindow == window ? primaryText : secondaryText)
+                                .foregroundStyle(isSelected ? primaryText : secondaryText)
                                 .padding(.horizontal, 8)
                                 .padding(.vertical, 4)
                                 .background(
                                     Capsule(style: .continuous)
-                                        .fill(selectedWindow == window ? subtleFillStrong : subtleFill)
+                                        .fill(isSelected ? subtleFillStrong : subtleFill)
                                 )
                         }
-                        .buttonStyle(.plain)
                     }
                 }
             }

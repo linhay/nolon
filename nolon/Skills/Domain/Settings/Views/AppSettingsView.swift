@@ -67,8 +67,10 @@ struct AppSettingsView: View {
     }
 
     private func categoryRow(category: SettingsCategory) -> some View {
-        let isSelected = selectedCategory == category
-        return Button(action: { selectedCategory = category }) {
+        GenericSelectionControl(
+            value: category,
+            selection: $selectedCategory
+        ) { isSelected in
             Text(category.displayName)
                 .font(.system(size: 13, weight: isSelected ? .medium : .regular))
                 .foregroundStyle(isSelected ? DesignSystem.Colors.Text.primary : DesignSystem.Colors.Text.secondary)

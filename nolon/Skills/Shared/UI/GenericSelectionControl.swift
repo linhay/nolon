@@ -1,0 +1,94 @@
+import SwiftUI
+
+enum GenericSelectionStateResolver {
+    static func resolveSingleSelection<Value: Hashable>(
+        current: Value?,
+        tapped: Value,
+        allowsEmptySelection: Bool
+    ) -> Value? {
+        if current == tapped {
+            return allowsEmptySelection ? nil : current
+        }
+        return tapped
+    }
+
+    static func resolveMultiSelection<Value: Hashable>(
+        current: Set<Value>,
+        tapped: Value
+    ) -> Set<Value> {
+        var next = current
+        if next.contains(tapped) {
+            next.remove(tapped)
+        } else {
+            next.insert(tapped)
+        }
+        return next
+    }
+}
+
+struct GenericSelectionControl<Value: Hashable, Content: View>: View {
+    @State private var viewModel = GenericSelectionControlViewModel()
+
+    private let isSelected: Bool
+    private let onToggle: () -> Void
+    private let content: (Bool) -> Content
+    private let disabled: Bool
+
+    init(
+        value: Value,
+        selection: Binding<Value>,
+        disabled: Bool = false,
+        @ViewBuilder content: @escaping (_ isSelected: Bool) -> Content
+    ) {
+        self.isSelected = selection.wrappedValue == value
+        self.onToggle = {
+            selection.wrappedValue = value
+        }
+        self.content = content
+        self.disabled = disabled
+    }
+
+    init(
+        value: Value,
+        selection: Binding<Value?>,
+        allowsEmptySelection: Bool = false,
+        disabled: Bool = false,
+        @ViewBuilder content: @escaping (_ isSelected: Bool) -> Content
+    ) {
+        self.isSelected = selection.wrappedValue == value
+        self.onToggle = {
+            selection.wrappedValue = GenericSelectionStateResolver.resolveSingleSelection(
+                current: selection.wrappedValue,
+                tapped: value,
+                allowsEmptySelection: allowsEmptySelection
+            )
+        }
+        self.content = content
+        self.disabled = disabled
+    }
+
+    init(
+        value: Value,
+        selections: Binding<Set<Value>>,
+        disabled: Bool = false,
+        @ViewBuilder content: @escaping (_ isSelected: Bool) -> Content
+    ) {
+        self.isSelected = selections.wrappedValue.contains(value)
+        self.onToggle = {
+            selections.wrappedValue = GenericSelectionStateResolver.resolveMultiSelection(
+                current: selections.wrappedValue,
+                tapped: value
+            )
+        }
+        self.content = content
+        self.disabled = disabled
+    }
+
+    var body: some View {
+        Button(action: onToggle) {
+            content(isSelected)
+        }
+        .buttonStyle(.plain)
+        .disabled(disabled)
+    }
+}

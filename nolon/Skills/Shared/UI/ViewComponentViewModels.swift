@@ -66,6 +66,11 @@ final class EditProviderSheetViewModel {
 }
 
 @Observable
+final class GenericSelectionControlViewModel {
+    init() {}
+}
+
+@Observable
 final class HighlightedTextViewModel {
     init() {}
 }

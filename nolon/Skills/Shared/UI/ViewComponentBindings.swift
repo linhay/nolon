@@ -60,6 +60,10 @@ extension EditProviderSheet: ViewComponentBindable {
     typealias ComponentViewModel = EditProviderSheetViewModel
 }
 
+extension GenericSelectionControl: ViewComponentBindable {
+    typealias ComponentViewModel = GenericSelectionControlViewModel
+}
+
 extension HighlightedText: ViewComponentBindable {
     typealias ComponentViewModel = HighlightedTextViewModel
 }
