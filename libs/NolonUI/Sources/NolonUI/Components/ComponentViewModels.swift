@@ -1,4 +1,5 @@
 import Observation
+import SwiftUI
 
 // Auto-generated baseline view models for NolonUI components.
 @Observable
@@ -73,7 +74,11 @@ public final class GatewayCardModuleViewModel {
 
 @Observable
 public final class SkillDetailScaffoldViewModel {
-    public init() {}
+    public var columnVisibility: NavigationSplitViewVisibility
+
+    public init(columnVisibility: NavigationSplitViewVisibility = .all) {
+        self.columnVisibility = columnVisibility
+    }
 }
 
 @Observable
@@ -88,27 +93,47 @@ public final class MainSplitScaffoldViewModel {
 
 @Observable
 public final class AgentDocCardViewViewModel {
-    public init() {}
+    public var showingDeleteConfirmation: Bool
+
+    public init(showingDeleteConfirmation: Bool = false) {
+        self.showingDeleteConfirmation = showingDeleteConfirmation
+    }
 }
 
 @Observable
 public final class McpServerCardViewViewModel {
-    public init() {}
+    public var showingDeleteConfirmation: Bool
+
+    public init(showingDeleteConfirmation: Bool = false) {
+        self.showingDeleteConfirmation = showingDeleteConfirmation
+    }
 }
 
 @Observable
 public final class RuleCardViewViewModel {
-    public init() {}
+    public var showingDeleteConfirmation: Bool
+
+    public init(showingDeleteConfirmation: Bool = false) {
+        self.showingDeleteConfirmation = showingDeleteConfirmation
+    }
 }
 
 @Observable
 public final class SkillCardViewViewModel {
-    public init() {}
+    public var showingUninstallConfirmation: Bool
+
+    public init(showingUninstallConfirmation: Bool = false) {
+        self.showingUninstallConfirmation = showingUninstallConfirmation
+    }
 }
 
 @Observable
 public final class WorkflowCardViewViewModel {
-    public init() {}
+    public var showingDeleteConfirmation: Bool
+
+    public init(showingDeleteConfirmation: Bool = false) {
+        self.showingDeleteConfirmation = showingDeleteConfirmation
+    }
 }
 
 @Observable
@@ -118,7 +143,11 @@ public final class ProviderCardTemplateViewModel {
 
 @Observable
 public final class ResourceCardScaffoldViewModel {
-    public init() {}
+    public var isHovered: Bool
+
+    public init(isHovered: Bool = false) {
+        self.isHovered = isHovered
+    }
 }
 
 @Observable

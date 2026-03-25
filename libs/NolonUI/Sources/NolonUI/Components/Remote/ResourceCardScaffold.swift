@@ -19,8 +19,6 @@ struct ResourceCardScaffold<HeaderContent: View, SummaryContent: View, MetaConte
     @ViewBuilder let actionContent: ActionContent
     @ViewBuilder let menuContent: MenuContent
 
-    @State private var isHovered = false
-
     init(
         minHeight: CGFloat = 140,
         isSelected: Bool = false,
@@ -69,21 +67,21 @@ struct ResourceCardScaffold<HeaderContent: View, SummaryContent: View, MetaConte
                 : DesignSystem.Colors.Background.elevated,
             borderColor: isSelected
                 ? DesignSystem.Colors.primary
-                : (isHovered
+                : (viewModel.isHovered
                     ? DesignSystem.Colors.primary.opacity(0.24)
                     : DesignSystem.Colors.Component.border.opacity(0.60)),
             borderWidth: isSelected ? 2 : 1
         )
         .contentShape(Rectangle())
         .shadow(
-            color: DesignSystem.Colors.Shadow.floating.opacity(isHovered ? 0.28 : 0.18),
-            radius: isHovered ? 12 : 7,
-            y: isHovered ? 6 : 3
+            color: DesignSystem.Colors.Shadow.floating.opacity(viewModel.isHovered ? 0.28 : 0.18),
+            radius: viewModel.isHovered ? 12 : 7,
+            y: viewModel.isHovered ? 6 : 3
         )
-        .scaleEffect(isHovered ? 1.015 : 1.0)
-        .animation(.easeInOut(duration: 0.2), value: isHovered)
+        .scaleEffect(viewModel.isHovered ? 1.015 : 1.0)
+        .animation(.easeInOut(duration: 0.2), value: viewModel.isHovered)
         .onHover { hovering in
-            isHovered = hovering
+            viewModel.isHovered = hovering
         }
         .onTapGesture {
             onTap()

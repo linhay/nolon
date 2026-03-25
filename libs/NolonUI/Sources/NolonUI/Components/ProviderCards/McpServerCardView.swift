@@ -35,8 +35,6 @@ public struct McpServerCardView<TitleContent: View, ExtraContextMenu: View>: Vie
     private let titleContent: () -> TitleContent
     private let extraContextMenu: () -> ExtraContextMenu
 
-    @State private var showingDeleteConfirmation = false
-
     public init(
         commandText: String?,
         searchText: String,
@@ -86,7 +84,7 @@ public struct McpServerCardView<TitleContent: View, ExtraContextMenu: View>: Vie
         }
         .confirmationDialog(
             NSLocalizedString("action.delete_confirm_title_mcp", value: "Confirm Delete MCP", comment: "MCP Delete confirmation title"),
-            isPresented: $showingDeleteConfirmation,
+            isPresented: $viewModel.showingDeleteConfirmation,
             titleVisibility: .visible
         ) {
             Button(NSLocalizedString("action.delete", comment: "Delete"), role: .destructive) {
@@ -374,7 +372,7 @@ public struct McpServerCardView<TitleContent: View, ExtraContextMenu: View>: Vie
         }
 
         Button(role: .destructive) {
-            showingDeleteConfirmation = true
+            viewModel.showingDeleteConfirmation = true
         } label: {
             Label(NSLocalizedString("action.delete", comment: "Delete"), systemImage: "trash")
                 .dsIconLabelButton()

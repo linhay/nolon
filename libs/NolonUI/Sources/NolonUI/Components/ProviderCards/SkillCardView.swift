@@ -18,7 +18,6 @@ public struct SkillCardView<ExtraContextMenu: View>: View {
     private let onTap: () -> Void
     private let extraContextMenu: () -> ExtraContextMenu
 
-    @State private var showingUninstallConfirmation = false
     private let descriptionHeight: CGFloat = 44
 
     public init(
@@ -141,7 +140,7 @@ public struct SkillCardView<ExtraContextMenu: View>: View {
         }
         .confirmationDialog(
             NSLocalizedString("action.uninstall_confirm_title", value: "Confirm Uninstall", comment: "Uninstall confirmation title"),
-            isPresented: $showingUninstallConfirmation,
+            isPresented: $viewModel.showingUninstallConfirmation,
             titleVisibility: .visible
         ) {
             Button(NSLocalizedString("action.uninstall", comment: "Uninstall"), role: .destructive) {
@@ -281,7 +280,7 @@ public struct SkillCardView<ExtraContextMenu: View>: View {
             Divider()
 
             Button(role: .destructive) {
-                showingUninstallConfirmation = true
+                viewModel.showingUninstallConfirmation = true
             } label: {
                 Label(
                     NSLocalizedString("action.uninstall", comment: "Uninstall"),

@@ -11,7 +11,6 @@ public struct SkillDetailScaffold<Sidebar: View, Content: View>: View {
     private let onClose: () -> Void
     private let sidebar: Sidebar
     private let content: Content
-    @State private var columnVisibility: NavigationSplitViewVisibility = .all
 
     public init(
         onClose: @escaping () -> Void,
@@ -27,7 +26,7 @@ public struct SkillDetailScaffold<Sidebar: View, Content: View>: View {
         ZStack(alignment: .topTrailing) {
             ThreeColumnScaffold(
                 mode: .twoColumn,
-                columnVisibility: $columnVisibility,
+                columnVisibility: $viewModel.columnVisibility,
                 sidebarWidth: .init(
                     min: SkillDetailScaffoldMetrics.sidebarWidth,
                     ideal: SkillDetailScaffoldMetrics.sidebarWidth,

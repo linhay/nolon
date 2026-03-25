@@ -10,7 +10,6 @@ public struct WorkflowCardView<ExtraContextMenu: View>: View {
     private let onTap: () -> Void
     private let extraContextMenu: (WorkflowInfo) -> ExtraContextMenu
 
-    @State private var showingDeleteConfirmation = false
     private let descriptionHeight: CGFloat = 44
 
     public init(
@@ -85,7 +84,7 @@ public struct WorkflowCardView<ExtraContextMenu: View>: View {
         }
         .confirmationDialog(
             NSLocalizedString("action.delete_confirm_title", value: "Confirm Delete", comment: "Delete confirmation title"),
-            isPresented: $showingDeleteConfirmation,
+            isPresented: $viewModel.showingDeleteConfirmation,
             titleVisibility: .visible
         ) {
             Button(NSLocalizedString("action.delete", comment: "Delete"), role: .destructive) {
@@ -131,7 +130,7 @@ public struct WorkflowCardView<ExtraContextMenu: View>: View {
         Divider()
 
         Button(role: .destructive) {
-            showingDeleteConfirmation = true
+            viewModel.showingDeleteConfirmation = true
         } label: {
             Label(
                 NSLocalizedString("action.delete", comment: "Delete"),

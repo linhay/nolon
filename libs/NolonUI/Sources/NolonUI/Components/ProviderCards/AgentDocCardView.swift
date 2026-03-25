@@ -10,8 +10,6 @@ public struct AgentDocCardView<ExtraContextMenu: View>: View {
     private let onTap: () -> Void
     private let extraContextMenu: (AgentDocInfo) -> ExtraContextMenu
 
-    @State private var showingDeleteConfirmation = false
-
     public init(
         doc: AgentDocInfo,
         searchText: String,
@@ -88,7 +86,7 @@ public struct AgentDocCardView<ExtraContextMenu: View>: View {
         .contextMenu { contextMenuItems }
         .confirmationDialog(
             NSLocalizedString("action.delete_confirm_title", value: "Confirm Delete", comment: "Delete confirmation title"),
-            isPresented: $showingDeleteConfirmation,
+            isPresented: $viewModel.showingDeleteConfirmation,
             titleVisibility: .visible
         ) {
             Button(NSLocalizedString("action.delete", comment: "Delete"), role: .destructive) {
@@ -121,7 +119,7 @@ public struct AgentDocCardView<ExtraContextMenu: View>: View {
         Divider()
 
         Button(role: .destructive) {
-            showingDeleteConfirmation = true
+            viewModel.showingDeleteConfirmation = true
         } label: {
             Label(
                 NSLocalizedString("action.delete", comment: "Delete"),
