@@ -15,12 +15,16 @@ final class ViewComponentParadigmTests: XCTestCase {
         let observableViewModelRegex = try NSRegularExpression(
             pattern: #"@Observable[\s\S]*?\bclass\s+(\w+(?:ViewModel|Model))\b"#
         )
+        let viewModelTypealiasRegex = try NSRegularExpression(
+            pattern: #"(?m)^\s*typealias\s+(\w+(?:ViewModel|Model))\s*=\s*[\w\.]+"#
+        )
         let bindableExtensionRegex = try NSRegularExpression(
             pattern: #"extension\s+(\w+)\s*:\s*ViewComponentBindable\b"#
         )
 
         var allViewNames: [String] = []
         var observableViewModelNames: Set<String> = []
+        var typealiasViewModelNames: Set<String> = []
         var bindableViewNames: Set<String> = []
 
         for file in swiftFiles {
@@ -40,6 +44,12 @@ final class ViewComponentParadigmTests: XCTestCase {
             ) {
                 observableViewModelNames.insert(nsContent.substring(with: match.range(at: 1)))
             }
+            for match in viewModelTypealiasRegex.matches(
+                in: content,
+                range: NSRange(location: 0, length: nsContent.length)
+            ) {
+                typealiasViewModelNames.insert(nsContent.substring(with: match.range(at: 1)))
+            }
 
             for match in bindableExtensionRegex.matches(
                 in: content,
@@ -50,7 +60,8 @@ final class ViewComponentParadigmTests: XCTestCase {
         }
 
         let missing = allViewNames.filter { viewName in
-            !observableViewModelNames.contains(expectedViewModelName(for: viewName))
+            let expectedName = expectedViewModelName(for: viewName)
+            return !observableViewModelNames.contains(expectedName) && !typealiasViewModelNames.contains(expectedName)
         }
         let missingBindable = allViewNames.filter { viewName in
             !bindableViewNames.contains(viewName)

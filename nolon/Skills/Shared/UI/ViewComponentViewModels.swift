@@ -1,15 +1,9 @@
 import Observation
+import NolonUI
 
 // Generated baseline component ViewModels to satisfy 1:1 View -> ViewModel convention.
-@Observable
-final class AccountSummaryCardViewModel {
-    init() {}
-}
-
-@Observable
-final class AccountSummaryContentCardViewModel {
-    init() {}
-}
+typealias AccountSummaryCardViewModel = NolonUI.AccountSummaryCardViewModel
+typealias AccountSummaryContentCardViewModel = NolonUI.AccountSummaryContentCardViewModel
 
 @Observable
 final class AddProviderSheetViewModel {

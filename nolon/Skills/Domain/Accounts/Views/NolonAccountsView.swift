@@ -87,7 +87,7 @@ struct NolonAccountsView: View, DebugPageLocatable {
     @ViewBuilder
     private func accountSection(_ section: ProviderPresentationSections.ProviderSection) -> some View {
         VStack(alignment: .leading, spacing: 20) {
-            AccountProviderSectionHeader(section: section)
+            AccountSectionHeader(style: .section(section))
 
             ForEach(section.providers) { provider in
                 accountProviderGroup(provider)
@@ -98,7 +98,7 @@ struct NolonAccountsView: View, DebugPageLocatable {
     @ViewBuilder
     private func accountProviderGroup(_ provider: Provider) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            AccountVendorGroupHeader(provider: provider)
+            AccountSectionHeader(style: .provider(provider))
             ProviderUsageView(provider: provider, isEmbedded: true)
         }
     }
@@ -364,16 +364,30 @@ private enum AccountTimeWindow: CaseIterable, Hashable {
     }
 }
 
-private struct AccountProviderSectionHeader: View {
-    let section: ProviderPresentationSections.ProviderSection
+private struct AccountSectionHeader: View {
+    enum Style {
+        case section(ProviderPresentationSections.ProviderSection)
+        case provider(Provider)
+    }
+
+    let style: Style
 
     var body: some View {
+        switch style {
+        case let .section(section):
+            sectionHeader(section)
+        case let .provider(provider):
+            providerHeader(provider)
+        }
+    }
+
+    private func sectionHeader(_ section: ProviderPresentationSections.ProviderSection) -> some View {
         HStack(spacing: 12) {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(accent)
+                .fill(accent(for: section))
                 .frame(width: 28, height: 28)
                 .overlay(
-                    Text(shortLabel)
+                    Text(sectionShortLabel(for: section))
                         .font(.system(size: 13, weight: .black))
                         .foregroundStyle(.white)
                 )
@@ -396,35 +410,9 @@ private struct AccountProviderSectionHeader: View {
         }
     }
 
-    private var shortLabel: String {
-        let title = NSLocalizedString(section.titleKey, value: section.fallbackTitle, comment: "Account provider section")
-        return String(title.prefix(1)).uppercased()
-    }
-
-    private var accent: Color {
-        switch section.id {
-        case .originalVendors:
-            return DesignSystem.Colors.primary
-        case .integratedVendors:
-            return DesignSystem.Colors.secondary
-        case .projects:
-            return Color(light: 0x34C759, dark: 0x34C759)
-        }
-    }
-}
-
-
-private struct AccountVendorGroupHeader: View {
-    let provider: Provider
-
-    private var template: ProviderTemplate? {
-        guard let templateId = provider.templateId else { return nil }
-        return ProviderTemplate(rawValue: templateId)
-    }
-
-    var body: some View {
+    private func providerHeader(_ provider: Provider) -> some View {
         HStack(spacing: 10) {
-            if let template {
+            if let template = providerTemplate(for: provider) {
                 ProviderLogoView(
                     name: provider.name,
                     logoName: template.logoFile,
@@ -442,6 +430,27 @@ private struct AccountVendorGroupHeader: View {
 
             Spacer()
         }
+    }
+
+    private func sectionShortLabel(for section: ProviderPresentationSections.ProviderSection) -> String {
+        let title = NSLocalizedString(section.titleKey, value: section.fallbackTitle, comment: "Account provider section")
+        return String(title.prefix(1)).uppercased()
+    }
+
+    private func accent(for section: ProviderPresentationSections.ProviderSection) -> Color {
+        switch section.id {
+        case .originalVendors:
+            return DesignSystem.Colors.primary
+        case .integratedVendors:
+            return DesignSystem.Colors.secondary
+        case .projects:
+            return Color(light: 0x34C759, dark: 0x34C759)
+        }
+    }
+
+    private func providerTemplate(for provider: Provider) -> ProviderTemplate? {
+        guard let templateId = provider.templateId else { return nil }
+        return ProviderTemplate(rawValue: templateId)
     }
 }
 
