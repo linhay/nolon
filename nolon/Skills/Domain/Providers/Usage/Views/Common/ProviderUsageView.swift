@@ -649,34 +649,8 @@ struct ProviderUsageView: View, DebugPageLocatable {
                 }
                 actionsMenu
             } else {
-                if viewModel.usageProvider == .claude {
-                    Button(NSLocalizedString("claude.accounts.migrate", value: "迁移", comment: "Migrate Claude accounts")) {
-                        Task { await viewModel.claude.migrateFromCurrentSettings() }
-                    }
-                    .disabled(viewModel.isLoading)
-                    if ProviderUsageLoginPolicy.shouldShowDashboardSignIn(for: provider, dashboardURL: loginFlowViewModel.dashboardURL) {
-                        Button(NSLocalizedString("usage.monitor.login", value: "Sign in…", comment: "Sign in")) {
-                            loginFlowViewModel.isShowingLogin = true
-                        }
-                    }
-                } else if ProviderUsageLoginPolicy.shouldUseCLILogin(for: provider) {
-                    Button(NSLocalizedString("codex.accounts.login", value: "登录", comment: "Codex login")) {
-                        loginFlowViewModel.startLoginFlow()
-                    }
-                    .disabled(loginFlowViewModel.isRunningCLILogin)
-                    Button(NSLocalizedString("usage.monitor.refresh", value: "Refresh", comment: "Refresh")) {
-                        Task { await viewModel.load() }
-                    }
-                    .disabled(viewModel.isLoading)
-                } else if ProviderUsageLoginPolicy.shouldShowDashboardSignIn(for: provider, dashboardURL: loginFlowViewModel.dashboardURL) {
-                    Button(NSLocalizedString("usage.monitor.login", value: "Sign in…", comment: "Sign in")) {
-                        loginFlowViewModel.isShowingLogin = true
-                    }
-                } else {
-                    Button(NSLocalizedString("usage.monitor.refresh", value: "Refresh", comment: "Refresh")) {
-                        Task { await viewModel.load() }
-                    }
-                    .disabled(viewModel.isLoading)
+                ForEach(nonCodexHeaderActions) { action in
+                    nonCodexHeaderActionButton(action)
                 }
                 actionsMenu
             }
@@ -691,6 +665,65 @@ struct ProviderUsageView: View, DebugPageLocatable {
             return NSLocalizedString("tab.account_usage", value: "账号与用量", comment: "Account and usage")
         }
         return NSLocalizedString("tab.usage", value: "Usage", comment: "Usage")
+    }
+
+    private enum NonCodexHeaderAction: String, Identifiable {
+        case claudeMigrate
+        case signIn
+        case cliLogin
+        case refresh
+
+        var id: String { rawValue }
+    }
+
+    private var nonCodexHeaderActions: [NonCodexHeaderAction] {
+        let showsDashboardSignIn = ProviderUsageLoginPolicy.shouldShowDashboardSignIn(
+            for: provider,
+            dashboardURL: loginFlowViewModel.dashboardURL
+        )
+
+        if viewModel.usageProvider == .claude {
+            var actions: [NonCodexHeaderAction] = [.claudeMigrate]
+            if showsDashboardSignIn {
+                actions.append(.signIn)
+            }
+            return actions
+        }
+
+        if ProviderUsageLoginPolicy.shouldUseCLILogin(for: provider) {
+            return [.cliLogin, .refresh]
+        }
+
+        if showsDashboardSignIn {
+            return [.signIn]
+        }
+
+        return [.refresh]
+    }
+
+    @ViewBuilder
+    private func nonCodexHeaderActionButton(_ action: NonCodexHeaderAction) -> some View {
+        switch action {
+        case .claudeMigrate:
+            Button(NSLocalizedString("claude.accounts.migrate", value: "迁移", comment: "Migrate Claude accounts")) {
+                Task { await viewModel.claude.migrateFromCurrentSettings() }
+            }
+            .disabled(viewModel.isLoading)
+        case .signIn:
+            Button(NSLocalizedString("usage.monitor.login", value: "Sign in…", comment: "Sign in")) {
+                loginFlowViewModel.isShowingLogin = true
+            }
+        case .cliLogin:
+            Button(NSLocalizedString("codex.accounts.login", value: "登录", comment: "Codex login")) {
+                loginFlowViewModel.startLoginFlow()
+            }
+            .disabled(loginFlowViewModel.isRunningCLILogin)
+        case .refresh:
+            Button(NSLocalizedString("usage.monitor.refresh", value: "Refresh", comment: "Refresh")) {
+                Task { await viewModel.load() }
+            }
+            .disabled(viewModel.isLoading)
+        }
     }
 
     @ViewBuilder
@@ -739,248 +772,9 @@ struct ProviderUsageView: View, DebugPageLocatable {
     private var actionsMenu: some View {
         Menu {
             if viewModel.capabilities.isCodexFamily {
-                Section {
-                    Picker(
-                        selection: Binding(
-                            get: { viewModel.codex.accountGroupingOption },
-                            set: { viewModel.codex.accountGroupingOption = $0 }
-                        )
-                    ) {
-                        Text(NSLocalizedString("codex.accounts.grouping.none", value: "无分组", comment: "No grouping"))
-                            .tag(ProviderUsageEngine.CodexAccountGroupingOption.none)
-                        Text(NSLocalizedString("codex.accounts.grouping.type_info", value: "按套餐/提供商分组", comment: "Group by type info"))
-                            .tag(ProviderUsageEngine.CodexAccountGroupingOption.typeInfo)
-                    } label: {
-                        Label(
-                            NSLocalizedString("codex.accounts.grouping.title", value: "分组", comment: "Grouping title"),
-                            systemImage: "square.grid.2x2"
-                        )
-                    }
-
-                    Picker(
-                        selection: Binding(
-                            get: { viewModel.codex.accountLayoutMode },
-                            set: { viewModel.codex.setAccountLayoutMode($0) }
-                        )
-                    ) {
-                        Text(NSLocalizedString("codex.accounts.layout.cards", value: "卡片", comment: "Codex account card layout"))
-                            .tag(ProviderUsageEngine.CodexAccountLayoutMode.cards)
-                        Text(NSLocalizedString("codex.accounts.layout.list", value: "列表", comment: "Codex account list layout"))
-                            .tag(ProviderUsageEngine.CodexAccountLayoutMode.list)
-                    } label: {
-                        Label(
-                            NSLocalizedString("codex.accounts.layout.title", value: "布局", comment: "Codex account layout title"),
-                            systemImage: "rectangle.grid.1x2"
-                        )
-                    }
-
-                    Menu {
-                        ForEach(viewModel.codex.sortMenuOptions) { option in
-                            Button {
-                                viewModel.codex.selectSortOption(option)
-                            } label: {
-                                let isSelected = viewModel.codex.accountSortOption == option
-                                HStack {
-                                    Text(
-                                        ProviderUsageEngine.codexSortMenuItemTitle(
-                                            for: option,
-                                            direction: isSelected ? viewModel.codex.direction(for: option) : nil
-                                        )
-                                    )
-                                    if isSelected {
-                                        Spacer(minLength: 8)
-                                        Image(systemName: "checkmark")
-                                    }
-                                }
-                            }
-                        }
-                    } label: {
-                        Label(
-                            NSLocalizedString("codex.accounts.sorting.title", value: "排序", comment: "Sorting title"),
-                            systemImage: "arrow.up.arrow.down"
-                        )
-                    }
-
-                    if !accountsViewModel.codex.isMultiSelectionEnabled {
-                        Button {
-                            viewModel.codex.toggleMultiSelectionMode()
-                        } label: {
-                            Label(
-                                NSLocalizedString("codex.accounts.action.multi_select", value: "进入多选", comment: "Enter Codex multi-select mode"),
-                                systemImage: "checklist"
-                            )
-                        }
-                    }
-                } header: {
-                    Text(NSLocalizedString("codex.accounts.menu.section.view", value: "显示", comment: "Codex menu section for view options"))
-                }
-
-                Section {
-                    Button {
-                        viewModel.codex.beginNewAPIKeyAccount()
-                    } label: {
-                        Label(
-                            NSLocalizedString("codex.accounts.action.new_api_key", value: "新增 API Key", comment: "New API key account"),
-                            systemImage: "key"
-                        )
-                    }
-
-                    Button {
-                        viewModel.codex.beginNewRelayAccount()
-                    } label: {
-                        Label(
-                            NSLocalizedString("codex.accounts.action.new_relay", value: "新增 Relay", comment: "New relay account"),
-                            systemImage: "point.3.connected.trianglepath.dotted"
-                        )
-                    }
-
-                    Button {
-                        createGatewayCardWithPrompt()
-                    } label: {
-                        Label(
-                            NSLocalizedString("codex.gateway.cards.create.title", value: "新建网关卡片", comment: "Create gateway card title"),
-                            systemImage: "square.stack.3d.up.badge.a"
-                        )
-                    }
-                } header: {
-                    Text(NSLocalizedString("codex.accounts.menu.section.account", value: "账号管理", comment: "Codex menu section for account management"))
-                }
-
-                Section {
-                    Toggle(
-                        isOn: Binding(
-                            get: { viewModel.codex.autoSwitchConfig.enabled },
-                            set: { viewModel.codex.setAutoSwitchEnabled($0) }
-                        )
-                    ) {
-                        Label(
-                            NSLocalizedString("codex.accounts.auto_switch.enabled", value: "自动切号", comment: "Codex auto switch enabled"),
-                            systemImage: "arrow.left.arrow.right.circle"
-                        )
-                    }
-
-                    if viewModel.codex.autoSwitchConfig.enabled {
-                        Menu {
-                            ForEach(codexAutoSwitchThresholdOptions, id: \.self) { option in
-                                Button {
-                                    viewModel.codex.setAutoSwitchThresholdPercent(Int(option))
-                                } label: {
-                                    HStack {
-                                        Text(
-                                            String(
-                                                format: NSLocalizedString(
-                                                    "codex.accounts.auto_switch.threshold.option",
-                                                    value: "低于 %d%% 时切换",
-                                                    comment: "Codex auto switch threshold option"
-                                                ),
-                                                Int(option)
-                                            )
-                                        )
-                                        if viewModel.codex.autoSwitchConfig.thresholdPercent == option {
-                                            Spacer(minLength: 8)
-                                            Image(systemName: "checkmark")
-                                        }
-                                    }
-                                }
-                            }
-                        } label: {
-                            Label(
-                                String(
-                                    format: NSLocalizedString(
-                                        "codex.accounts.auto_switch.threshold.title",
-                                        value: "切号阈值：%d%%",
-                                        comment: "Codex auto switch threshold title"
-                                    ),
-                                    Int(viewModel.codex.autoSwitchConfig.thresholdPercent)
-                                ),
-                                systemImage: "gauge.with.dots.needle.33percent"
-                            )
-                        }
-
-                        Menu {
-                            ForEach(codexAutoSwitchCandidateOptions, id: \.self) { option in
-                                Button {
-                                    viewModel.codex.setAutoSwitchMinimumCandidateRemainingPercent(Int(option))
-                                } label: {
-                                    HStack {
-                                        Text(
-                                            String(
-                                                format: NSLocalizedString(
-                                                    "codex.accounts.auto_switch.candidate.option",
-                                                    value: "候选至少保留 %d%%",
-                                                    comment: "Codex auto switch candidate threshold option"
-                                                ),
-                                                Int(option)
-                                            )
-                                        )
-                                        if viewModel.codex.autoSwitchConfig.minimumCandidateRemainingPercent == option {
-                                            Spacer(minLength: 8)
-                                            Image(systemName: "checkmark")
-                                        }
-                                    }
-                                }
-                            }
-                        } label: {
-                            Label(
-                                String(
-                                    format: NSLocalizedString(
-                                        "codex.accounts.auto_switch.candidate.title",
-                                        value: "候选余量：%d%%",
-                                        comment: "Codex auto switch candidate threshold title"
-                                    ),
-                                    Int(viewModel.codex.autoSwitchConfig.minimumCandidateRemainingPercent)
-                                ),
-                                systemImage: "battery.75"
-                            )
-                        }
-
-                        Toggle(
-                            isOn: Binding(
-                                get: { viewModel.codex.autoSwitchConfig.skipRelayAccounts },
-                                set: { viewModel.codex.setAutoSwitchSkipRelay($0) }
-                            )
-                        ) {
-                            Label(
-                                NSLocalizedString("codex.accounts.auto_switch.skip_relay", value: "跳过 Relay 账号", comment: "Skip relay accounts in auto switch"),
-                                systemImage: "point.3.connected.trianglepath.dotted"
-                            )
-                        }
-                    }
-                } header: {
-                    Text(NSLocalizedString("codex.accounts.menu.section.auto_switch", value: "自动切号", comment: "Codex menu section for auto switch"))
-                }
+                codexActionsMenuContent
             } else {
-                Section {
-                    Button {
-                        Task { await viewModel.load() }
-                    } label: {
-                        Label(NSLocalizedString("usage.monitor.refresh", value: "Refresh", comment: "Refresh"), systemImage: "arrow.clockwise")
-                    }
-                }
-
-                if viewModel.usageProvider == .claude {
-                    Section {
-                        Button {
-                            Task { await viewModel.claude.migrateFromCurrentSettings() }
-                        } label: {
-                            Label(
-                                NSLocalizedString("claude.accounts.migrate.current", value: "迁移当前配置", comment: "Migrate Claude from current settings"),
-                                systemImage: "tray.and.arrow.down"
-                            )
-                        }
-
-                        Button {
-                            Task { await viewModel.claude.importFromCCSwitch() }
-                        } label: {
-                            Label(
-                                NSLocalizedString("claude.accounts.migrate.cc_switch", value: "从 cc-switch 导入", comment: "Import Claude from cc-switch"),
-                                systemImage: "square.and.arrow.down"
-                            )
-                        }
-                    } header: {
-                        Text(NSLocalizedString("usage.menu.section.account", value: "账号管理", comment: "Generic menu section for account management"))
-                    }
-                }
+                nonCodexActionsMenuContent
             }
 
             Section {
@@ -1021,6 +815,255 @@ struct ProviderUsageView: View, DebugPageLocatable {
         .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)
         .fixedSize()
+    }
+
+    @ViewBuilder
+    private var codexActionsMenuContent: some View {
+        Section {
+            Picker(
+                selection: Binding(
+                    get: { viewModel.codex.accountGroupingOption },
+                    set: { viewModel.codex.accountGroupingOption = $0 }
+                )
+            ) {
+                Text(NSLocalizedString("codex.accounts.grouping.none", value: "无分组", comment: "No grouping"))
+                    .tag(ProviderUsageEngine.CodexAccountGroupingOption.none)
+                Text(NSLocalizedString("codex.accounts.grouping.type_info", value: "按套餐/提供商分组", comment: "Group by type info"))
+                    .tag(ProviderUsageEngine.CodexAccountGroupingOption.typeInfo)
+            } label: {
+                Label(
+                    NSLocalizedString("codex.accounts.grouping.title", value: "分组", comment: "Grouping title"),
+                    systemImage: "square.grid.2x2"
+                )
+            }
+
+            Picker(
+                selection: Binding(
+                    get: { viewModel.codex.accountLayoutMode },
+                    set: { viewModel.codex.setAccountLayoutMode($0) }
+                )
+            ) {
+                Text(NSLocalizedString("codex.accounts.layout.cards", value: "卡片", comment: "Codex account card layout"))
+                    .tag(ProviderUsageEngine.CodexAccountLayoutMode.cards)
+                Text(NSLocalizedString("codex.accounts.layout.list", value: "列表", comment: "Codex account list layout"))
+                    .tag(ProviderUsageEngine.CodexAccountLayoutMode.list)
+            } label: {
+                Label(
+                    NSLocalizedString("codex.accounts.layout.title", value: "布局", comment: "Codex account layout title"),
+                    systemImage: "rectangle.grid.1x2"
+                )
+            }
+
+            Menu {
+                ForEach(viewModel.codex.sortMenuOptions) { option in
+                    Button {
+                        viewModel.codex.selectSortOption(option)
+                    } label: {
+                        let isSelected = viewModel.codex.accountSortOption == option
+                        HStack {
+                            Text(
+                                ProviderUsageEngine.codexSortMenuItemTitle(
+                                    for: option,
+                                    direction: isSelected ? viewModel.codex.direction(for: option) : nil
+                                )
+                            )
+                            if isSelected {
+                                Spacer(minLength: 8)
+                                Image(systemName: "checkmark")
+                            }
+                        }
+                    }
+                }
+            } label: {
+                Label(
+                    NSLocalizedString("codex.accounts.sorting.title", value: "排序", comment: "Sorting title"),
+                    systemImage: "arrow.up.arrow.down"
+                )
+            }
+
+            if !accountsViewModel.codex.isMultiSelectionEnabled {
+                Button {
+                    viewModel.codex.toggleMultiSelectionMode()
+                } label: {
+                    Label(
+                        NSLocalizedString("codex.accounts.action.multi_select", value: "进入多选", comment: "Enter Codex multi-select mode"),
+                        systemImage: "checklist"
+                    )
+                }
+            }
+        } header: {
+            Text(NSLocalizedString("codex.accounts.menu.section.view", value: "显示", comment: "Codex menu section for view options"))
+        }
+
+        Section {
+            Button {
+                viewModel.codex.beginNewAPIKeyAccount()
+            } label: {
+                Label(
+                    NSLocalizedString("codex.accounts.action.new_api_key", value: "新增 API Key", comment: "New API key account"),
+                    systemImage: "key"
+                )
+            }
+
+            Button {
+                viewModel.codex.beginNewRelayAccount()
+            } label: {
+                Label(
+                    NSLocalizedString("codex.accounts.action.new_relay", value: "新增 Relay", comment: "New relay account"),
+                    systemImage: "point.3.connected.trianglepath.dotted"
+                )
+            }
+
+            Button {
+                createGatewayCardWithPrompt()
+            } label: {
+                Label(
+                    NSLocalizedString("codex.gateway.cards.create.title", value: "新建网关卡片", comment: "Create gateway card title"),
+                    systemImage: "square.stack.3d.up.badge.a"
+                )
+            }
+        } header: {
+            Text(NSLocalizedString("codex.accounts.menu.section.account", value: "账号管理", comment: "Codex menu section for account management"))
+        }
+
+        Section {
+            Toggle(
+                isOn: Binding(
+                    get: { viewModel.codex.autoSwitchConfig.enabled },
+                    set: { viewModel.codex.setAutoSwitchEnabled($0) }
+                )
+            ) {
+                Label(
+                    NSLocalizedString("codex.accounts.auto_switch.enabled", value: "自动切号", comment: "Codex auto switch enabled"),
+                    systemImage: "arrow.left.arrow.right.circle"
+                )
+            }
+
+            if viewModel.codex.autoSwitchConfig.enabled {
+                Menu {
+                    ForEach(codexAutoSwitchThresholdOptions, id: \.self) { option in
+                        Button {
+                            viewModel.codex.setAutoSwitchThresholdPercent(Int(option))
+                        } label: {
+                            HStack {
+                                Text(
+                                    String(
+                                        format: NSLocalizedString(
+                                            "codex.accounts.auto_switch.threshold.option",
+                                            value: "低于 %d%% 时切换",
+                                            comment: "Codex auto switch threshold option"
+                                        ),
+                                        Int(option)
+                                    )
+                                )
+                                if viewModel.codex.autoSwitchConfig.thresholdPercent == option {
+                                    Spacer(minLength: 8)
+                                    Image(systemName: "checkmark")
+                                }
+                            }
+                        }
+                    }
+                } label: {
+                    Label(
+                        String(
+                            format: NSLocalizedString(
+                                "codex.accounts.auto_switch.threshold.title",
+                                value: "切号阈值：%d%%",
+                                comment: "Codex auto switch threshold title"
+                            ),
+                            Int(viewModel.codex.autoSwitchConfig.thresholdPercent)
+                        ),
+                        systemImage: "gauge.with.dots.needle.33percent"
+                    )
+                }
+
+                Menu {
+                    ForEach(codexAutoSwitchCandidateOptions, id: \.self) { option in
+                        Button {
+                            viewModel.codex.setAutoSwitchMinimumCandidateRemainingPercent(Int(option))
+                        } label: {
+                            HStack {
+                                Text(
+                                    String(
+                                        format: NSLocalizedString(
+                                            "codex.accounts.auto_switch.candidate.option",
+                                            value: "候选至少保留 %d%%",
+                                            comment: "Codex auto switch candidate threshold option"
+                                        ),
+                                        Int(option)
+                                    )
+                                )
+                                if viewModel.codex.autoSwitchConfig.minimumCandidateRemainingPercent == option {
+                                    Spacer(minLength: 8)
+                                    Image(systemName: "checkmark")
+                                }
+                            }
+                        }
+                    }
+                } label: {
+                    Label(
+                        String(
+                            format: NSLocalizedString(
+                                "codex.accounts.auto_switch.candidate.title",
+                                value: "候选余量：%d%%",
+                                comment: "Codex auto switch candidate threshold title"
+                            ),
+                            Int(viewModel.codex.autoSwitchConfig.minimumCandidateRemainingPercent)
+                        ),
+                        systemImage: "battery.75"
+                    )
+                }
+
+                Toggle(
+                    isOn: Binding(
+                        get: { viewModel.codex.autoSwitchConfig.skipRelayAccounts },
+                        set: { viewModel.codex.setAutoSwitchSkipRelay($0) }
+                    )
+                ) {
+                    Label(
+                        NSLocalizedString("codex.accounts.auto_switch.skip_relay", value: "跳过 Relay 账号", comment: "Skip relay accounts in auto switch"),
+                        systemImage: "point.3.connected.trianglepath.dotted"
+                    )
+                }
+            }
+        } header: {
+            Text(NSLocalizedString("codex.accounts.menu.section.auto_switch", value: "自动切号", comment: "Codex menu section for auto switch"))
+        }
+    }
+
+    @ViewBuilder
+    private var nonCodexActionsMenuContent: some View {
+        Section {
+            Button {
+                Task { await viewModel.load() }
+            } label: {
+                Label(NSLocalizedString("usage.monitor.refresh", value: "Refresh", comment: "Refresh"), systemImage: "arrow.clockwise")
+            }
+        }
+
+        if viewModel.usageProvider == .claude {
+            Section {
+                Button {
+                    Task { await viewModel.claude.migrateFromCurrentSettings() }
+                } label: {
+                    Label(
+                        NSLocalizedString("claude.accounts.migrate.current", value: "迁移当前配置", comment: "Migrate Claude from current settings"),
+                        systemImage: "tray.and.arrow.down"
+                    )
+                }
+
+                Button {
+                    Task { await viewModel.claude.importFromCCSwitch() }
+                } label: {
+                    Label(
+                        NSLocalizedString("claude.accounts.migrate.cc_switch", value: "从 cc-switch 导入", comment: "Import Claude from cc-switch"),
+                        systemImage: "square.and.arrow.down"
+                    )
+                }
+            } header: {
+                Text(NSLocalizedString("usage.menu.section.account", value: "账号管理", comment: "Generic menu section for account management"))
+            }
+        }
     }
 
 }

@@ -12,18 +12,14 @@ extension ProviderUsageView {
 
         return Group {
             switch state {
-            case .empty:
+            case let .empty(emptyState):
                 ContentUnavailableView(
-                    NSLocalizedString("codex.accounts.empty.title", value: "No accounts", comment: "Empty state title"),
-                    systemImage: "person.crop.circle.badge.plus",
-                    description: Text(NSLocalizedString(
-                        "codex.accounts.empty.desc",
-                        value: "Add a snapshot of Codex auth.json to quickly switch accounts.",
-                        comment: "Empty state description"
-                    ))
-                    .dsSecondaryText(font: .body)
+                    emptyState.title,
+                    systemImage: emptyState.systemImage,
+                    description: Text(emptyState.description)
+                        .dsSecondaryText(font: .body)
                 )
-                .debugCardLocator(debugPageMarkerItems + [PageMarkerItem(title: NSLocalizedString("codex.accounts.empty.title", value: "No accounts", comment: "Empty state title"))])
+                .debugCardLocator(debugPageMarkerItems + [PageMarkerItem(title: emptyState.title)])
             case .loading:
                 Group {
                     if viewModel.codex.accountLayoutMode == .list {
@@ -47,16 +43,6 @@ extension ProviderUsageView {
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-            case .filteredEmpty:
-                ContentUnavailableView(
-                    NSLocalizedString("codex.accounts.filtered_empty.title", value: "没有可显示的账号", comment: "All accounts hidden by zero quota filter title"),
-                    systemImage: "line.3.horizontal.decrease.circle",
-                    description: Text(
-                        codexFilteredEmptyDescription
-                    )
-                    .dsSecondaryText(font: .body)
-                )
-                .debugCardLocator(debugPageMarkerItems + [PageMarkerItem(title: NSLocalizedString("codex.accounts.filtered_empty.title", value: "没有可显示的账号", comment: "All accounts hidden by zero quota filter title"))])
             case let .content(sections):
                 ForEach(sections) { section in
                     VStack(alignment: .leading, spacing: 10) {
@@ -72,22 +58,31 @@ extension ProviderUsageView {
         }
     }
 
-    private enum CodexAccountsSectionState {
-        case empty
-        case loading
-        case filteredEmpty
-        case content([ProviderUsageEngine.CodexAccountDisplaySection])
-    }
-
-    private var codexAccountsSectionState: CodexAccountsSectionState {
+    private var codexAccountsSectionState: ProviderUsageAccountsSectionState<[ProviderUsageEngine.CodexAccountDisplaySection]> {
         if accountsViewModel.codex.accounts.isEmpty && !viewModel.isLoading {
-            return .empty
+            return .empty(
+                .init(
+                    title: NSLocalizedString("codex.accounts.empty.title", value: "No accounts", comment: "Empty state title"),
+                    systemImage: "person.crop.circle.badge.plus",
+                    description: NSLocalizedString(
+                        "codex.accounts.empty.desc",
+                        value: "Add a snapshot of Codex auth.json to quickly switch accounts.",
+                        comment: "Empty state description"
+                    )
+                )
+            )
         }
         if viewModel.isLoading && accountsViewModel.codex.accountOutcomes.isEmpty {
             return .loading
         }
         if viewModel.codex.accountDisplaySections.isEmpty && viewModel.codex.hasActiveAccountFilters {
-            return .filteredEmpty
+            return .empty(
+                .init(
+                    title: NSLocalizedString("codex.accounts.filtered_empty.title", value: "没有可显示的账号", comment: "All accounts hidden by zero quota filter title"),
+                    systemImage: "line.3.horizontal.decrease.circle",
+                    description: codexFilteredEmptyDescription
+                )
+            )
         }
         return .content(viewModel.codex.accountDisplaySections)
     }

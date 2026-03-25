@@ -6,6 +6,18 @@ import CodexBarProviderCatalog
 import NolonUIFoundation
 import NolonUI
 
+struct ProviderUsageSectionEmptyState {
+    let title: String
+    let systemImage: String
+    let description: String
+}
+
+enum ProviderUsageAccountsSectionState<Content> {
+    case loading
+    case empty(ProviderUsageSectionEmptyState)
+    case content(Content)
+}
+
 extension ProviderUsageView {
     var usageContent: some View {
         let capabilities = viewModel.capabilities
@@ -50,15 +62,13 @@ extension ProviderUsageView {
             case .loading:
                 nonCodexLoadingContent
             case let .empty(emptyState):
-                if let emptyState {
-                    ProviderUsageEmptyStateCard(
-                        title: LocalizedStringKey(emptyState.title),
-                        systemImage: emptyState.systemImage,
-                        descriptionText: Text(emptyState.description)
-                    )
-                    .debugCardLocator(debugPageMarkerItems + [PageMarkerItem(title: emptyState.title)])
-                }
-            case let .content(cards, outcomes):
+                ProviderUsageEmptyStateCard(
+                    title: LocalizedStringKey(emptyState.title),
+                    systemImage: emptyState.systemImage,
+                    descriptionText: Text(emptyState.description)
+                )
+                .debugCardLocator(debugPageMarkerItems + [PageMarkerItem(title: emptyState.title)])
+            case let .content((cards, outcomes)):
                 if !cards.isEmpty {
                     VStack(alignment: .leading, spacing: 10) {
                         if let title = viewModel.unifiedAccountSectionTitle(defaultProviderName: provider.name) {
@@ -121,23 +131,23 @@ extension ProviderUsageView {
         }
     }
 
-    private enum NonCodexAccountsSectionState {
-        case loading
-        case empty((title: String, systemImage: String, description: String)?)
-        case content([ProviderUsageUnifiedAccountCardModel], [ProviderAccountUsageOutcome])
-    }
-
     private func nonCodexSectionState(
         cards: [ProviderUsageUnifiedAccountCardModel],
         outcomes: [ProviderAccountUsageOutcome]
-    ) -> NonCodexAccountsSectionState {
+    ) -> ProviderUsageAccountsSectionState<([ProviderUsageUnifiedAccountCardModel], [ProviderAccountUsageOutcome])> {
         if viewModel.isLoading && cards.isEmpty && outcomes.isEmpty {
             return .loading
         }
-        if cards.isEmpty {
-            return .empty(viewModel.unifiedAccountEmptyState)
+        if cards.isEmpty, let emptyState = viewModel.unifiedAccountEmptyState {
+            return .empty(
+                .init(
+                    title: emptyState.title,
+                    systemImage: emptyState.systemImage,
+                    description: emptyState.description
+                )
+            )
         }
-        return .content(cards, outcomes)
+        return .content((cards, outcomes))
     }
 
     var geminiImportCallout: some View {
