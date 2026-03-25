@@ -263,7 +263,7 @@ public actor ClaudeAccountManager {
         request.httpBody = Data("{}".utf8)
 
         do {
-            let (_, response) = try await URLSession.shared.data(for: request)
+            let (_, response) = try await dataWithInvalidReuseRetry(request: request)
             guard let http = response as? HTTPURLResponse else {
                 return ClaudeAccountValidationResult(isEffective: false, statusCode: nil, message: "Non-HTTP response", validatedAt: validatedAt)
             }
@@ -277,6 +277,45 @@ public actor ClaudeAccountManager {
             )
         } catch {
             return ClaudeAccountValidationResult(isEffective: false, statusCode: nil, message: error.localizedDescription, validatedAt: validatedAt)
+        }
+    }
+
+    static func isInvalidReuseAfterInitializationFailure(error: Error) -> Bool {
+        if containsInvalidReuseMarker(in: error.localizedDescription) {
+            return true
+        }
+
+        let nsError = error as NSError
+        if let description = nsError.userInfo[NSLocalizedDescriptionKey] as? String,
+           containsInvalidReuseMarker(in: description) {
+            return true
+        }
+        if let failureReason = nsError.userInfo[NSLocalizedFailureReasonErrorKey] as? String,
+           containsInvalidReuseMarker(in: failureReason) {
+            return true
+        }
+        if let underlying = nsError.userInfo[NSUnderlyingErrorKey] as? Error {
+            return isInvalidReuseAfterInitializationFailure(error: underlying)
+        }
+
+        return false
+    }
+
+    private static func containsInvalidReuseMarker(in text: String) -> Bool {
+        text.lowercased().contains("invalid reuse after initialization failure")
+    }
+
+    private static func dataWithInvalidReuseRetry(request: URLRequest) async throws -> (Data, URLResponse) {
+        do {
+            return try await URLSession.shared.data(for: request)
+        } catch {
+            guard isInvalidReuseAfterInitializationFailure(error: error) else {
+                throw error
+            }
+
+            let session = URLSession(configuration: .ephemeral)
+            defer { session.invalidateAndCancel() }
+            return try await session.data(for: request)
         }
     }
 

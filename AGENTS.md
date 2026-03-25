@@ -75,6 +75,10 @@ Nolon is a macOS skill manager for AI coding assistants. It centralizes skill ma
 
 ## COMMANDS
 ```bash
+# Test (默认)
+# 后续测试统一使用 xcodebuild；除非用户明确要求，不使用 swift test
+xcodebuild test -project nolon.xcodeproj -scheme nolon-tests -destination 'platform=macOS'
+
 # Verify Build
 ./build.sh
 

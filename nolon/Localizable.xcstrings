@@ -10,6 +10,16 @@
     "(%@)" : {
 
     },
+    "(%lld / %lld)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "(%1$lld / %2$lld)"
+          }
+        }
+      }
+    },
     "#%@" : {
 
     },
@@ -316,6 +326,24 @@
         }
       }
     },
+    "accounts.filter.hide_error_off" : {
+      "comment" : "Hide errored accounts in accounts page",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hide Errored Accounts"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "隐藏报错账号"
+          }
+        }
+      }
+    },
     "accounts.provider.method" : {
       "comment" : "Account method",
       "extractionState" : "extracted_with_value",
@@ -462,18 +490,6 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "accounts"
-          }
-        }
-      }
-    },
-    "accounts.section.accounts_count" : {
-      "comment" : "Accounts count in provider group",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%d accounts"
           }
         }
       }
@@ -3033,6 +3049,60 @@
         }
       }
     },
+    "codex.accounts.filter.hide_error.help" : {
+      "comment" : "Help for hide errored accounts filter",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Toggle whether errored accounts are hidden"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "切换是否隐藏报错账号"
+          }
+        }
+      }
+    },
+    "codex.accounts.filter.hide_error_off" : {
+      "comment" : "Hide errored Codex accounts",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hide Errored Accounts"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "隐藏报错账号"
+          }
+        }
+      }
+    },
+    "codex.accounts.filter.hide_error_on" : {
+      "comment" : "Show errored Codex accounts",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show Errored Accounts"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "显示报错账号"
+          }
+        }
+      }
+    },
     "codex.accounts.filter.hide_zero_off" : {
       "comment" : "Hide zero-quota Codex accounts",
       "extractionState" : "manual",
@@ -3095,6 +3165,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "当前已隐藏最长额度窗口为 0% 的账号。关闭筛选后可查看全部账号。"
+          }
+        }
+      }
+    },
+    "codex.accounts.filtered_empty.desc.hide_error" : {
+      "comment" : "All accounts hidden by errored filter description",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Errored accounts are currently hidden. Turn off the filter to see all accounts."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当前已隐藏报错账号。关闭筛选后可查看全部账号。"
+          }
+        }
+      }
+    },
+    "codex.accounts.filtered_empty.desc.hide_zero_and_error" : {
+      "comment" : "All accounts hidden by zero quota and errored filters",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Accounts with 0% longest quota window or errors are hidden. Turn off filters to see all accounts."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当前已隐藏无额度或报错账号。关闭筛选后可查看全部账号。"
           }
         }
       }

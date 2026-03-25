@@ -1,4 +1,6 @@
 import SwiftUI
+import NolonUI
+import NolonUIFoundation
 
 struct ProviderAgentsGridView: View {
     let viewModel: ProviderDetailGridViewModel
@@ -23,13 +25,20 @@ struct ProviderAgentsGridView: View {
         } else {
             LazyVGrid(columns: columns, spacing: 16) {
                 ForEach(viewModel.filteredAgentsFiles) { doc in
-                    AgentDocCardView(
-                        doc: doc,
+                    NolonUI.AgentDocCardView(
+                        doc: doc.uiFoundationModel,
                         searchText: viewModel.searchText,
                         onReveal: { viewModel.revealAgentDocInFinder(doc) },
                         onDelete: { await viewModel.deleteAgentDoc(doc) },
                         onTap: { onEditDoc(doc) }
-                    )
+                    ) { doc in
+                        debugPageMarkerMenuItem(
+                            [
+                                PageMarkerItem(title: NSLocalizedString("tab.agents", value: "Agents", comment: "Agents tab")),
+                                PageMarkerItem(title: doc.fileName)
+                            ]
+                        )
+                    }
                 }
             }
         }

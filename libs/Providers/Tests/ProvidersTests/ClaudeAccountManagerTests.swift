@@ -6,6 +6,29 @@ import STFilePath
 
 @Suite("ClaudeAccountManager")
 struct ClaudeAccountManagerTests {
+    private struct WrappedUnderlyingError: LocalizedError, CustomNSError {
+        let underlying: Error
+
+        static var errorDomain: String {
+            "ClaudeAccountManagerTests.WrappedUnderlyingError"
+        }
+
+        var errorCode: Int {
+            1
+        }
+
+        var errorUserInfo: [String: Any] {
+            [
+                NSLocalizedDescriptionKey: "request failed",
+                NSUnderlyingErrorKey: underlying
+            ]
+        }
+
+        var errorDescription: String? {
+            "request failed"
+        }
+    }
+
     private func makeTempRoot(_ prefix: String) -> STFolder {
         let root = STFolder("/tmp").folder("\(prefix)-\(UUID().uuidString)")
         _ = root.createIfNotExists()
@@ -204,5 +227,28 @@ struct ClaudeAccountManagerTests {
         #expect(account.credentialType == .apiKey)
         #expect(account.credentialValue == "candidate-key")
         #expect(account.normalizedBaseURL == "https://relay.example.com/v1")
+    }
+
+    @Test("Given direct invalid reuse message, detector returns true")
+    func invalidReuseDetectorMatchesDirectMessage() {
+        let error = NSError(
+            domain: NSURLErrorDomain,
+            code: NSURLErrorUnknown,
+            userInfo: [NSLocalizedDescriptionKey: "invalid reuse after initialization failure"]
+        )
+
+        #expect(ClaudeAccountManager.isInvalidReuseAfterInitializationFailure(error: error))
+    }
+
+    @Test("Given wrapped invalid reuse message, detector returns true")
+    func invalidReuseDetectorMatchesWrappedUnderlyingError() {
+        let underlying = NSError(
+            domain: NSURLErrorDomain,
+            code: NSURLErrorUnknown,
+            userInfo: [NSLocalizedDescriptionKey: "invalid reuse after initialization failure"]
+        )
+        let error = WrappedUnderlyingError(underlying: underlying)
+
+        #expect(ClaudeAccountManager.isInvalidReuseAfterInitializationFailure(error: error))
     }
 }

@@ -5,6 +5,7 @@ import Observation
 import OSLog
 import STFilePath
 import NolonResourceKit
+import NolonUI
 
 /// Main three-column split view for the app
 /// Left 1: Provider sidebar (collapsible)
@@ -690,11 +691,11 @@ public struct MainSplitView: View, DebugPageLocatable {
     }
 
     public var body: some View {
-        UIMainSplitScaffold(
+        NolonUI.MainSplitScaffold(
             isAccountsSelected: viewModel.isAccountsSelected,
             showsOverlay: false
         ) {
-            UIThreeColumnScaffold(
+            NolonUI.ThreeColumnScaffold(
                 mode: .twoColumn,
                 columnVisibility: .constant(.all)
             ) {
@@ -713,7 +714,7 @@ public struct MainSplitView: View, DebugPageLocatable {
                 )
             }
         } mainLayout: {
-            UIThreeColumnScaffold(
+            NolonUI.ThreeColumnScaffold(
                 mode: .threeColumn,
                 columnVisibility: $viewModel.columnVisibility
             ) {

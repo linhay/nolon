@@ -1,7 +1,3 @@
-import SwiftUI
-import NolonUI
-import NolonUIFoundation
-
 enum AgentDocKind: String, Sendable {
     case override
     case base
@@ -13,29 +9,4 @@ struct AgentDocInfo: Identifiable, Hashable, Sendable {
     let path: String
     let preview: String
     let kind: AgentDocKind
-}
-
-struct AgentDocCardView: View {
-    let doc: AgentDocInfo
-    let searchText: String
-    let onReveal: () -> Void
-    let onDelete: () async -> Void
-    let onTap: () -> Void
-
-    var body: some View {
-        NolonUI.AgentDocCardView(
-            doc: doc.uiFoundationModel,
-            searchText: searchText,
-            onReveal: onReveal,
-            onDelete: onDelete,
-            onTap: onTap
-        ) { doc in
-            debugPageMarkerMenuItem(
-                [
-                    PageMarkerItem(title: NSLocalizedString("tab.agents", value: "Agents", comment: "Agents tab")),
-                    PageMarkerItem(title: doc.fileName)
-                ]
-            )
-        }
-    }
 }

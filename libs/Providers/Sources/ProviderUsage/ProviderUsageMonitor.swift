@@ -9,6 +9,7 @@ public struct ProviderUsageMonitorSettings: Sendable, Codable, Equatable {
     public var autoRefreshIntervalMinutes: Int
     public var costWindowDays: Int?
     public var codexHideZeroQuotaAccounts: Bool
+    public var codexHideErroredAccounts: Bool
     public var codexUseListLayout: Bool
 
     public init(
@@ -18,6 +19,7 @@ public struct ProviderUsageMonitorSettings: Sendable, Codable, Equatable {
         autoRefreshIntervalMinutes: Int = 0,
         costWindowDays: Int? = 30,
         codexHideZeroQuotaAccounts: Bool = false,
+        codexHideErroredAccounts: Bool = false,
         codexUseListLayout: Bool = false
     ) {
         self.sourceMode = sourceMode
@@ -26,6 +28,7 @@ public struct ProviderUsageMonitorSettings: Sendable, Codable, Equatable {
         self.autoRefreshIntervalMinutes = autoRefreshIntervalMinutes
         self.costWindowDays = costWindowDays
         self.codexHideZeroQuotaAccounts = codexHideZeroQuotaAccounts
+        self.codexHideErroredAccounts = codexHideErroredAccounts
         self.codexUseListLayout = codexUseListLayout
     }
 
@@ -40,6 +43,7 @@ public struct ProviderUsageMonitorSettings: Sendable, Codable, Equatable {
         case autoRefreshIntervalMinutes
         case costWindowDays
         case codexHideZeroQuotaAccounts
+        case codexHideErroredAccounts
         case codexUseListLayout
     }
 
@@ -50,6 +54,7 @@ public struct ProviderUsageMonitorSettings: Sendable, Codable, Equatable {
         webTimeoutSeconds = (try? container.decode(Int.self, forKey: .webTimeoutSeconds)) ?? 30
         autoRefreshIntervalMinutes = (try? container.decode(Int.self, forKey: .autoRefreshIntervalMinutes)) ?? 0
         codexHideZeroQuotaAccounts = (try? container.decode(Bool.self, forKey: .codexHideZeroQuotaAccounts)) ?? false
+        codexHideErroredAccounts = (try? container.decode(Bool.self, forKey: .codexHideErroredAccounts)) ?? false
         codexUseListLayout = (try? container.decode(Bool.self, forKey: .codexUseListLayout)) ?? false
         if container.contains(.costWindowDays) {
             // Keep explicit `null` as nil ("All"), only default when key is absent (legacy data).
@@ -66,6 +71,7 @@ public struct ProviderUsageMonitorSettings: Sendable, Codable, Equatable {
         try container.encode(webTimeoutSeconds, forKey: .webTimeoutSeconds)
         try container.encode(autoRefreshIntervalMinutes, forKey: .autoRefreshIntervalMinutes)
         try container.encode(codexHideZeroQuotaAccounts, forKey: .codexHideZeroQuotaAccounts)
+        try container.encode(codexHideErroredAccounts, forKey: .codexHideErroredAccounts)
         try container.encode(codexUseListLayout, forKey: .codexUseListLayout)
         if let costWindowDays {
             try container.encode(costWindowDays, forKey: .costWindowDays)
