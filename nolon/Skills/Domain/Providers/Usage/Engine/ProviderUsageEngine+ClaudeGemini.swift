@@ -5,7 +5,7 @@ import CodexBarProviderCatalog
 import OSLog
 
 @MainActor
-extension ProviderUsageViewModel {
+extension ProviderUsageEngine {
     func migrateClaudeFromCurrentSettings() async {
         guard usageProvider == .claude else { return }
         do {

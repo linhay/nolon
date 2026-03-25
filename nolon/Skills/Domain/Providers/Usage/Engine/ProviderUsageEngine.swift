@@ -16,8 +16,8 @@ import STJSON
 
 @MainActor
 @Observable
-final class ProviderUsageViewModel {
-    static let logger = Logger(subsystem: "com.nolon", category: "ProviderUsageViewModel")
+final class ProviderUsageEngine {
+    static let logger = Logger(subsystem: "com.nolon", category: "ProviderUsageEngine")
     private static var codexInitialFullRefreshProviderIDs: Set<String> = []
     private static let codexOfficialAPIBaseURL = "https://api.openai.com/v1"
     private static let codexGatewayDefaultHost = "127.0.0.1"
@@ -487,7 +487,7 @@ final class ProviderUsageViewModel {
         self.codexAutoSwitchSettingsStore = resolvedCodexAutoSwitchSettingsStore
         self.codexGatewayCardsStore = resolvedCodexGatewayCardsStore
         self.provider = provider
-        self.usageProvider = ProviderUsageViewModel.mapToUsageProvider(provider)
+        self.usageProvider = ProviderUsageEngine.mapToUsageProvider(provider)
         self.codexRefreshTimeoutGraceSeconds = codexRefreshTimeoutGraceSeconds
         let initialSettings = initialSettingsOverride ?? settingsStore.settings(for: provider)
         self.settings = initialSettings
@@ -496,7 +496,7 @@ final class ProviderUsageViewModel {
         self.codexAccountLayoutMode = initialSettings.codexUseListLayout ? .list : .cards
         self.codexAutoSwitchConfig = resolvedCodexAutoSwitchSettingsStore.settings(for: provider)
         self.gatewayCardsState = resolvedCodexGatewayCardsStore.load(for: provider)
-        if ProviderUsageViewModel.mapToUsageProvider(provider) == .codex {
+        if ProviderUsageEngine.mapToUsageProvider(provider) == .codex {
             self.isMultiAccountEnabled = true
         } else {
             self.isMultiAccountEnabled = settingsStore.isMultiAccountEnabled(for: provider)
@@ -2039,7 +2039,7 @@ final class ProviderUsageViewModel {
         do {
             guard let query = try makeCodexUsageQuery(from: draft) else {
                 throw NSError(
-                    domain: "ProviderUsageViewModel.CodexUsageQuery",
+                    domain: "ProviderUsageEngine.CodexUsageQuery",
                     code: 3,
                     userInfo: [NSLocalizedDescriptionKey: NSLocalizedString(
                         "codex.accounts.http_usage.test.missing",
@@ -3406,7 +3406,7 @@ final class ProviderUsageViewModel {
             lastUsed: nil
         )
         let error = NSError(
-            domain: "ProviderUsageViewModel.CodexRefresh",
+            domain: "ProviderUsageEngine.CodexRefresh",
             code: 408,
             userInfo: [
                 NSLocalizedDescriptionKey: String(
@@ -3620,7 +3620,7 @@ final class ProviderUsageViewModel {
                 let fetchOutcome = ProviderFetchOutcome(
                     fetchKind: .web,
                     result: .failure(NSError(
-                        domain: "ProviderUsageViewModel.CodexImportHTTP",
+                        domain: "ProviderUsageEngine.CodexImportHTTP",
                         code: 1,
                         userInfo: [NSLocalizedDescriptionKey: NSLocalizedString(
                             "codex.import.sheet.test.skipped.no_explicit_http",

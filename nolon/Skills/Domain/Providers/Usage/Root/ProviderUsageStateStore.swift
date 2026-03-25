@@ -8,9 +8,9 @@ import CodexBarProviderCatalog
 final class ProviderUsageStateStore {
     let provider: Provider
     let usageProvider: UsageProvider?
-    let engine: ProviderUsageViewModel
+    let engine: ProviderUsageEngine
 
-    init(provider: Provider, engine: ProviderUsageViewModel) {
+    init(provider: Provider, engine: ProviderUsageEngine) {
         self.provider = provider
         self.usageProvider = engine.usageProvider
         self.engine = engine

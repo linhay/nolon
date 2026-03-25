@@ -44,7 +44,7 @@ enum ProviderUsageLoginPolicy {
 }
 
 enum CodexUsageCardPresentationPolicy {
-    static func statusKind(for state: ProviderUsageViewModel.CodexAccountDisplayState) -> CodexUsageCardStatusKind {
+    static func statusKind(for state: ProviderUsageEngine.CodexAccountDisplayState) -> CodexUsageCardStatusKind {
         switch state {
         case .needsReauth, .failed:
             return .error
@@ -127,9 +127,9 @@ struct ProviderUsageView: View, DebugPageLocatable {
     }
 
     static func visibleCodexPrimaryHeaderActions(
-        from actions: [ProviderUsageViewModel.CodexPrimaryHeaderAction],
+        from actions: [ProviderUsageEngine.CodexPrimaryHeaderAction],
         isCodexMultiSelectionEnabled: Bool
-    ) -> [ProviderUsageViewModel.CodexPrimaryHeaderAction] {
+    ) -> [ProviderUsageEngine.CodexPrimaryHeaderAction] {
         guard !isCodexMultiSelectionEnabled else { return [] }
         return Array(actions.prefix(2))
     }
@@ -143,25 +143,25 @@ struct ProviderUsageView: View, DebugPageLocatable {
     }
 
     static func shouldUseCompactCodexListRows(
-        layoutMode: ProviderUsageViewModel.CodexAccountLayoutMode
+        layoutMode: ProviderUsageEngine.CodexAccountLayoutMode
     ) -> Bool {
         layoutMode == .list
     }
 
     static func shouldEnableCodexTextSelection(
-        layoutMode: ProviderUsageViewModel.CodexAccountLayoutMode
+        layoutMode: ProviderUsageEngine.CodexAccountLayoutMode
     ) -> Bool {
         layoutMode != .list
     }
 
     static func gatewayMemberDisplayLimit(
-        layoutMode: ProviderUsageViewModel.CodexAccountLayoutMode
+        layoutMode: ProviderUsageEngine.CodexAccountLayoutMode
     ) -> Int {
         shouldUseCompactCodexListRows(layoutMode: layoutMode) ? 8 : 12
     }
 
     static func gatewayMemberRowMaxHeight(
-        layoutMode: ProviderUsageViewModel.CodexAccountLayoutMode
+        layoutMode: ProviderUsageEngine.CodexAccountLayoutMode
     ) -> CGFloat {
         shouldUseCompactCodexListRows(layoutMode: layoutMode) ? 48 : 70
     }
@@ -564,9 +564,9 @@ struct ProviderUsageView: View, DebugPageLocatable {
                     )
                 ) {
                     Text(NSLocalizedString("codex.accounts.layout.cards", value: "卡片", comment: "Codex account card layout"))
-                        .tag(ProviderUsageViewModel.CodexAccountLayoutMode.cards)
+                        .tag(ProviderUsageEngine.CodexAccountLayoutMode.cards)
                     Text(NSLocalizedString("codex.accounts.layout.list", value: "列表", comment: "Codex account list layout"))
-                        .tag(ProviderUsageViewModel.CodexAccountLayoutMode.list)
+                        .tag(ProviderUsageEngine.CodexAccountLayoutMode.list)
                 } label: {
                     EmptyView()
                 }
@@ -710,7 +710,7 @@ struct ProviderUsageView: View, DebugPageLocatable {
     }
 
     @ViewBuilder
-    private func codexPrimaryActionButton(_ action: ProviderUsageViewModel.CodexPrimaryHeaderAction) -> some View {
+    private func codexPrimaryActionButton(_ action: ProviderUsageEngine.CodexPrimaryHeaderAction) -> some View {
         switch action {
         case .refreshAll:
             Button {
@@ -763,9 +763,9 @@ struct ProviderUsageView: View, DebugPageLocatable {
                         )
                     ) {
                         Text(NSLocalizedString("codex.accounts.grouping.none", value: "无分组", comment: "No grouping"))
-                            .tag(ProviderUsageViewModel.CodexAccountGroupingOption.none)
+                            .tag(ProviderUsageEngine.CodexAccountGroupingOption.none)
                         Text(NSLocalizedString("codex.accounts.grouping.type_info", value: "按套餐/提供商分组", comment: "Group by type info"))
-                            .tag(ProviderUsageViewModel.CodexAccountGroupingOption.typeInfo)
+                            .tag(ProviderUsageEngine.CodexAccountGroupingOption.typeInfo)
                     } label: {
                         Label(
                             NSLocalizedString("codex.accounts.grouping.title", value: "分组", comment: "Grouping title"),
@@ -780,9 +780,9 @@ struct ProviderUsageView: View, DebugPageLocatable {
                         )
                     ) {
                         Text(NSLocalizedString("codex.accounts.layout.cards", value: "卡片", comment: "Codex account card layout"))
-                            .tag(ProviderUsageViewModel.CodexAccountLayoutMode.cards)
+                            .tag(ProviderUsageEngine.CodexAccountLayoutMode.cards)
                         Text(NSLocalizedString("codex.accounts.layout.list", value: "列表", comment: "Codex account list layout"))
-                            .tag(ProviderUsageViewModel.CodexAccountLayoutMode.list)
+                            .tag(ProviderUsageEngine.CodexAccountLayoutMode.list)
                     } label: {
                         Label(
                             NSLocalizedString("codex.accounts.layout.title", value: "布局", comment: "Codex account layout title"),
@@ -798,7 +798,7 @@ struct ProviderUsageView: View, DebugPageLocatable {
                                 let isSelected = viewModel.codex.accountSortOption == option
                                 HStack {
                                     Text(
-                                        ProviderUsageViewModel.codexSortMenuItemTitle(
+                                        ProviderUsageEngine.codexSortMenuItemTitle(
                                             for: option,
                                             direction: isSelected ? viewModel.codex.direction(for: option) : nil
                                         )

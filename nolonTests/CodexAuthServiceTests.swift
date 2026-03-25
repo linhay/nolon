@@ -301,7 +301,7 @@ final class CodexAuthCompatSyncTests: XCTestCase {
 }
 
 @MainActor
-final class ProviderUsageViewModelCLILoginTests: XCTestCase {
+final class ProviderUsageEngineCLILoginTests: XCTestCase {
     func testBDD_GivenCodexUsageWatcher_WhenRebuilding_ThenProviderAuthFileIsNotWatched() async {
         let provider = Provider(
             name: "Codex",
@@ -310,7 +310,7 @@ final class ProviderUsageViewModelCLILoginTests: XCTestCase {
             installMethod: .symlink,
             templateId: "codex"
         )
-        let viewModel = ProviderUsageViewModel(provider: provider)
+        let viewModel = ProviderUsageEngine(provider: provider)
 
         await viewModel.rebuildUsageWatcherForTesting()
         let watched = viewModel.watchedPathsForTesting()
@@ -343,7 +343,7 @@ final class ProviderUsageViewModelCLILoginTests: XCTestCase {
             }
         }
 
-        let viewModel = ProviderUsageViewModel(provider: provider)
+        let viewModel = ProviderUsageEngine(provider: provider)
         let firstHome = try viewModel.prepareCLILoginHomeDirectory()
 
         let expectedHome = isolatedRoot
@@ -379,7 +379,7 @@ final class ProviderUsageViewModelCLILoginTests: XCTestCase {
             installMethod: .symlink,
             templateId: "codex"
         )
-        let viewModel = ProviderUsageViewModel(provider: provider)
+        let viewModel = ProviderUsageEngine(provider: provider)
         viewModel.isRunningCLILogin = true
         viewModel.cliLoginPreferredAccountId = nil
 
@@ -400,7 +400,7 @@ final class ProviderUsageViewModelCLILoginTests: XCTestCase {
             templateId: "codex"
         )
         let stoppedGatewayProviderID = LockedBox<String?>(nil)
-        let viewModel = ProviderUsageViewModel(
+        let viewModel = ProviderUsageEngine(
             provider: provider,
             codexGatewayStopAction: { providerID in
                 await stoppedGatewayProviderID.set(providerID)
@@ -424,7 +424,7 @@ final class ProviderUsageViewModelCLILoginTests: XCTestCase {
             installMethod: .symlink,
             templateId: "codex"
         )
-        let viewModel = ProviderUsageViewModel(provider: provider)
+        let viewModel = ProviderUsageEngine(provider: provider)
         viewModel.isRunningCLILogin = true
         viewModel.isShowingLoginURLSheet = true
         viewModel.loginURLForSheet = URL(string: "https://auth.openai.com/oauth/authorize?foo=bar")
@@ -446,7 +446,7 @@ final class ProviderUsageViewModelCLILoginTests: XCTestCase {
             installMethod: .symlink,
             templateId: "codex"
         )
-        let viewModel = ProviderUsageViewModel(provider: provider)
+        let viewModel = ProviderUsageEngine(provider: provider)
         viewModel.isRunningCLILogin = true
         viewModel.isShowingLoginURLSheet = true
         viewModel.loginURLForSheet = URL(string: "https://auth.openai.com/oauth/authorize?foo=bar")
@@ -468,7 +468,7 @@ final class ProviderUsageViewModelCLILoginTests: XCTestCase {
             installMethod: .symlink,
             templateId: "codex"
         )
-        let viewModel = ProviderUsageViewModel(provider: provider)
+        let viewModel = ProviderUsageEngine(provider: provider)
         viewModel.loginModeForSheet = "CLI(AppServer)"
 
         viewModel.handleAppServerLoginFailure(UsageViewModelTestError(message: "app-server login failed"))
@@ -483,22 +483,22 @@ final class ProviderUsageViewModelCLILoginTests: XCTestCase {
 
     func testBDD_Given401Unauthorized_WhenCheckingAuthFailure_ThenReturnsTrue() {
         let error = UsageViewModelTestError(message: "Codex protocol error: 401 Unauthorized")
-        XCTAssertTrue(ProviderUsageViewModel.isAuthFailure(error: error))
+        XCTAssertTrue(ProviderUsageEngine.isAuthFailure(error: error))
     }
 
     func testBDD_GivenRefreshTokenRevoked_WhenCheckingAuthFailure_ThenReturnsTrue() {
         let error = UsageViewModelTestError(message: "refresh_token_revoked")
-        XCTAssertTrue(ProviderUsageViewModel.isAuthFailure(error: error))
+        XCTAssertTrue(ProviderUsageEngine.isAuthFailure(error: error))
     }
 
     func testBDD_GivenTimeoutFailure_WhenCheckingAuthFailure_ThenReturnsFalse() {
         let error = UsageViewModelTestError(message: "request timed out")
-        XCTAssertFalse(ProviderUsageViewModel.isAuthFailure(error: error))
+        XCTAssertFalse(ProviderUsageEngine.isAuthFailure(error: error))
     }
 
     func testBDD_GivenAuthFailure_WhenBuildingSummary_ThenReturnsReauthMessage() {
         let error = UsageViewModelTestError(message: "401 Unauthorized")
-        let summary = ProviderUsageViewModel.errorSummaryText(error: error)
+        let summary = ProviderUsageEngine.errorSummaryText(error: error)
         XCTAssertEqual(
             summary,
             NSLocalizedString("codex.accounts.error.auth_expired", value: "Authentication expired. Please sign in again.", comment: "Codex auth expired summary")
@@ -508,7 +508,7 @@ final class ProviderUsageViewModelCLILoginTests: XCTestCase {
     func testBDD_GivenLongProtocolError_WhenBuildingSummary_ThenReturnsTrimmedText() {
         let raw = "Codex protocol error: failed to fetch codex rate limits: GET https://chatgpt.com/backend-api/wham/usage failed"
         let error = UsageViewModelTestError(message: raw)
-        let summary = ProviderUsageViewModel.errorSummaryText(error: error)
+        let summary = ProviderUsageEngine.errorSummaryText(error: error)
         XCTAssertFalse(summary.isEmpty)
         XCTAssertTrue(summary.count <= 140)
     }
@@ -521,7 +521,7 @@ final class ProviderUsageViewModelCLILoginTests: XCTestCase {
             installMethod: .symlink,
             templateId: "codex"
         )
-        let viewModel = ProviderUsageViewModel(provider: provider)
+        let viewModel = ProviderUsageEngine(provider: provider)
         let message = "Codex protocol error: 401 Unauthorized"
 
         viewModel.copyErrorText(message)
@@ -536,7 +536,7 @@ final class ProviderUsageViewModelCLILoginTests: XCTestCase {
 }
 
 @MainActor
-final class ProviderUsageViewModelAuthSignalAggregationTests: XCTestCase {
+final class ProviderUsageEngineAuthSignalAggregationTests: XCTestCase {
     func testBDD_GivenBurstAuthSignals_WhenDebouncedByCombine_ThenOnlyOneReloadIsTriggered() async {
         let provider = Provider(
             name: "Codex",
@@ -545,7 +545,7 @@ final class ProviderUsageViewModelAuthSignalAggregationTests: XCTestCase {
             installMethod: .symlink,
             templateId: "codex"
         )
-        let viewModel = ProviderUsageViewModel(provider: provider)
+        let viewModel = ProviderUsageEngine(provider: provider)
 
         viewModel.emitCodexAuthReloadSignalForTesting()
         viewModel.emitCodexAuthReloadSignalForTesting()
@@ -562,7 +562,7 @@ final class ProviderUsageViewModelAuthSignalAggregationTests: XCTestCase {
             installMethod: .symlink,
             templateId: "codex"
         )
-        let viewModel = ProviderUsageViewModel(provider: provider)
+        let viewModel = ProviderUsageEngine(provider: provider)
 
         viewModel.emitCodexAuthReloadSignalForTesting()
         try? await Task.sleep(nanoseconds: 450_000_000)
@@ -574,7 +574,7 @@ final class ProviderUsageViewModelAuthSignalAggregationTests: XCTestCase {
 }
 
 @MainActor
-final class ProviderUsageViewModelActivationTests: XCTestCase {
+final class ProviderUsageEngineActivationTests: XCTestCase {
     func testBDD_GivenActivationSuccess_WhenConfirmActivate_ThenClearsPendingAndReloadRuns() async {
         let provider = Provider(
             name: "Codex",
@@ -584,7 +584,7 @@ final class ProviderUsageViewModelActivationTests: XCTestCase {
             templateId: "codex"
         )
         let reloadFlag = AsyncFlagBox()
-        let viewModel = ProviderUsageViewModel(
+        let viewModel = ProviderUsageEngine(
             provider: provider,
             codexActivateAction: { _, _ in
                 CodexAuthActivationResult(
@@ -616,7 +616,7 @@ final class ProviderUsageViewModelActivationTests: XCTestCase {
             templateId: "codex"
         )
         let reloadFlag = AsyncFlagBox()
-        let viewModel = ProviderUsageViewModel(
+        let viewModel = ProviderUsageEngine(
             provider: provider,
             codexActivateAction: { _, _ in
                 CodexAuthActivationResult(
@@ -646,7 +646,7 @@ final class ProviderUsageViewModelActivationTests: XCTestCase {
             installMethod: .symlink,
             templateId: "codex"
         )
-        let viewModel = ProviderUsageViewModel(
+        let viewModel = ProviderUsageEngine(
             provider: provider,
             codexActivateAction: { _, _ in
                 throw ActivationTestError.failed
@@ -670,7 +670,7 @@ final class ProviderUsageViewModelActivationTests: XCTestCase {
 }
 
 @MainActor
-final class ProviderUsageViewModelDeleteTests: XCTestCase {
+final class ProviderUsageEngineDeleteTests: XCTestCase {
     func testBDD_GivenAccountId_WhenRequestDelete_ThenPendingDeleteAndConfirmAreSet() {
         let provider = Provider(
             name: "Codex",
@@ -680,7 +680,7 @@ final class ProviderUsageViewModelDeleteTests: XCTestCase {
             templateId: "codex"
         )
         let account = CodexAuthAccount(name: "work", relativeAuthPath: "auth/work.json")
-        let viewModel = ProviderUsageViewModel(provider: provider)
+        let viewModel = ProviderUsageEngine(provider: provider)
         viewModel.codexAccounts = [account]
 
         viewModel.requestDeleteCodexAccount(id: account.id)
@@ -700,7 +700,7 @@ final class ProviderUsageViewModelDeleteTests: XCTestCase {
         let account = CodexAuthAccount(name: "work", relativeAuthPath: "auth/work.json")
         let reloadFlag = AsyncFlagBox()
         let deletedId = LockedBox<UUID?>(nil)
-        let viewModel = ProviderUsageViewModel(
+        let viewModel = ProviderUsageEngine(
             provider: provider,
             codexDeleteAction: { id in
                 await deletedId.set(id)
@@ -733,7 +733,7 @@ final class ProviderUsageViewModelDeleteTests: XCTestCase {
             templateId: "codex"
         )
         let account = CodexAuthAccount(name: "work", relativeAuthPath: "auth/work.json")
-        let viewModel = ProviderUsageViewModel(
+        let viewModel = ProviderUsageEngine(
             provider: provider,
             codexDeleteAction: { _ in
                 throw EmptyLocalizedError()
@@ -798,7 +798,7 @@ final class ProviderUsageViewModelDeleteTests: XCTestCase {
         let activeFileURL = await service.accountAuthFile(canonicalActive).url
         let before = try Data(contentsOf: activeFileURL)
 
-        let viewModel = ProviderUsageViewModel(provider: provider)
+        let viewModel = ProviderUsageEngine(provider: provider)
         viewModel.settings.webTimeoutSeconds = 1
         viewModel.codexAccounts = [canonicalActive, canonicalRemovable]
         viewModel.pendingDeleteCodexAccount = canonicalRemovable
@@ -821,7 +821,7 @@ final class ProviderUsageViewModelDeleteTests: XCTestCase {
 }
 
 @MainActor
-final class ProviderUsageViewModelManualRefreshTests: XCTestCase {
+final class ProviderUsageEngineManualRefreshTests: XCTestCase {
     func testBDD_GivenCachedCodexUsage_WhenLoadStarts_ThenCachedCardsAppearBeforePreflightFinishes() async throws {
         let isolatedRoot = FileManager.default.temporaryDirectory
             .appendingPathComponent("nolon-codex-cached-load-\(UUID().uuidString)", isDirectory: true)
@@ -876,7 +876,7 @@ final class ProviderUsageViewModelManualRefreshTests: XCTestCase {
         try await service.storeUsageCache(cache, for: account)
 
         let gate = AsyncGate()
-        let viewModel = ProviderUsageViewModel(
+        let viewModel = ProviderUsageEngine(
             provider: provider,
             codexPreflightAction: { _, forceBackup, reason in
                 XCTAssertTrue(forceBackup)
@@ -959,7 +959,7 @@ final class ProviderUsageViewModelManualRefreshTests: XCTestCase {
 
         let account = CodexAuthAccount(name: "test", relativeAuthPath: "auth/test.json")
         let refreshCount = LockedBox<Int>(0)
-        let viewModel = ProviderUsageViewModel(
+        let viewModel = ProviderUsageEngine(
             provider: provider,
             codexOutcomeFetchAction: { account, _, _ in
                 await refreshCount.set((await refreshCount.value()) + 1)
@@ -1004,7 +1004,7 @@ final class ProviderUsageViewModelManualRefreshTests: XCTestCase {
         let healthy = CodexAuthAccount(name: "healthy", relativeAuthPath: "auth/healthy.json")
         let refreshedIDs = LockedBox<[UUID]>([])
 
-        let viewModel = ProviderUsageViewModel(
+        let viewModel = ProviderUsageEngine(
             provider: provider,
             codexRefreshAllAction: { accounts in
                 await refreshedIDs.set(accounts.map(\.id))
@@ -1036,7 +1036,7 @@ final class ProviderUsageViewModelManualRefreshTests: XCTestCase {
         let fallback = CodexAuthAccount(name: "fallback", relativeAuthPath: "auth/fallback.json")
         let autoSwitchCount = LockedBox<Int>(0)
 
-        let viewModel = ProviderUsageViewModel(
+        let viewModel = ProviderUsageEngine(
             provider: provider,
             codexOutcomeFetchAction: { account, _, _ in
                 let usedPercent: Double = account.id == active.id ? 95 : 20
@@ -1114,7 +1114,7 @@ final class ProviderUsageViewModelManualRefreshTests: XCTestCase {
 
         let failed = CodexAuthAccount(name: "failed", relativeAuthPath: "auth/failed.json")
         let normal = CodexAuthAccount(name: "normal", relativeAuthPath: "auth/normal.json")
-        let viewModel = ProviderUsageViewModel(provider: provider)
+        let viewModel = ProviderUsageEngine(provider: provider)
         viewModel.codexAccounts = [failed, normal]
         viewModel.codexAccountSummaries = [
             failed.id: CodexAuthSummary(lastSyncFailedAt: Date(), lastSyncFailureMessage: "auth expired")
@@ -1134,7 +1134,7 @@ final class ProviderUsageViewModelManualRefreshTests: XCTestCase {
             templateId: "codexXcode"
         )
 
-        let viewModel = ProviderUsageViewModel(provider: provider)
+        let viewModel = ProviderUsageEngine(provider: provider)
 
         XCTAssertEqual(viewModel.usageProvider, .codex)
         XCTAssertTrue(viewModel.isMultiAccountEnabled)
@@ -1149,7 +1149,7 @@ final class ProviderUsageViewModelManualRefreshTests: XCTestCase {
             templateId: "codex"
         )
         let account = CodexAuthAccount(name: "test", relativeAuthPath: "auth/test.json")
-        let viewModel = ProviderUsageViewModel(
+        let viewModel = ProviderUsageEngine(
             provider: provider,
             codexOutcomeFetchAction: { account, _, _ in
                 try? await Task.sleep(nanoseconds: 80_000_000)
@@ -1187,7 +1187,7 @@ final class ProviderUsageViewModelManualRefreshTests: XCTestCase {
             templateId: "codex"
         )
         let account = CodexAuthAccount(name: "test", relativeAuthPath: "auth/test.json")
-        let viewModel = ProviderUsageViewModel(
+        let viewModel = ProviderUsageEngine(
             provider: provider,
             codexOutcomeFetchAction: { account, _, _ in
                 try? await Task.sleep(nanoseconds: 5_000_000_000)
@@ -1231,7 +1231,7 @@ final class ProviderUsageViewModelManualRefreshTests: XCTestCase {
         )
         if case let .failure(error) = refreshed.outcome.result {
             let nsError = error as NSError
-            XCTAssertEqual(nsError.domain, "ProviderUsageViewModel.CodexRefresh")
+            XCTAssertEqual(nsError.domain, "ProviderUsageEngine.CodexRefresh")
             XCTAssertEqual(nsError.code, 408)
         } else {
             XCTFail("Expected timeout failure outcome")
@@ -1248,7 +1248,7 @@ final class ProviderUsageViewModelManualRefreshTests: XCTestCase {
         )
         let account = CodexAuthAccount(name: "test", relativeAuthPath: "auth/test.json")
         let startedCount = AsyncIntBox(0)
-        let viewModel = ProviderUsageViewModel(
+        let viewModel = ProviderUsageEngine(
             provider: provider,
             codexRefreshAllAction: { _ in
                 await startedCount.increment()
@@ -1304,7 +1304,7 @@ final class ProviderUsageViewModelManualRefreshTests: XCTestCase {
 }
 
 @MainActor
-final class ProviderUsageViewModelOutcomeOrderingTests: XCTestCase {
+final class ProviderUsageEngineOutcomeOrderingTests: XCTestCase {
     func testBDD_GivenOutcomeOrderMismatch_WhenReplacingByAccountId_ThenUsageDoesNotDriftAcrossAccounts() {
         let provider = Provider(
             name: "Codex",
@@ -1316,7 +1316,7 @@ final class ProviderUsageViewModelOutcomeOrderingTests: XCTestCase {
 
         let first = CodexAuthAccount(name: "first", relativeAuthPath: "auth/first.json")
         let second = CodexAuthAccount(name: "second", relativeAuthPath: "auth/second.json")
-        let viewModel = ProviderUsageViewModel(provider: provider)
+        let viewModel = ProviderUsageEngine(provider: provider)
 
         viewModel.codexAccounts = [first, second]
         viewModel.codexAccountOutcomes = [makeOutcome(account: second, label: "old-second"), makeOutcome(account: first, label: "old-first")]
@@ -1342,7 +1342,7 @@ final class ProviderUsageViewModelOutcomeOrderingTests: XCTestCase {
 
         let first = CodexAuthAccount(name: "first", relativeAuthPath: "auth/first.json")
         let second = CodexAuthAccount(name: "second", relativeAuthPath: "auth/second.json")
-        let viewModel = ProviderUsageViewModel(provider: provider)
+        let viewModel = ProviderUsageEngine(provider: provider)
 
         viewModel.codexAccounts = [first, second]
         viewModel.codexAccountOutcomes = [
@@ -1369,7 +1369,7 @@ final class ProviderUsageViewModelOutcomeOrderingTests: XCTestCase {
 
         let duplicated = CodexAuthAccount(name: "duplicated", relativeAuthPath: "auth/duplicated.json")
         let normal = CodexAuthAccount(name: "normal", relativeAuthPath: "auth/normal.json")
-        let viewModel = ProviderUsageViewModel(provider: provider)
+        let viewModel = ProviderUsageEngine(provider: provider)
 
         viewModel.codexAccounts = [duplicated, duplicated, normal]
         viewModel.codexAccountOutcomes = [
@@ -1395,7 +1395,7 @@ final class ProviderUsageViewModelOutcomeOrderingTests: XCTestCase {
 
         let existing = CodexAuthAccount(name: "existing", relativeAuthPath: "auth/existing.json")
         let stale = CodexAuthAccount(name: "stale", relativeAuthPath: "auth/stale.json")
-        let viewModel = ProviderUsageViewModel(provider: provider)
+        let viewModel = ProviderUsageEngine(provider: provider)
 
         viewModel.codexAccounts = [existing]
         viewModel.codexAccountOutcomes = [

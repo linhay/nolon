@@ -50,13 +50,13 @@ final class CodexUsageTabPresentationTests: XCTestCase {
     }
 
     func testBDD_GivenChatGPTCard_WhenResolvingCodexHeaderActions_ThenActionOrderIsRefreshLoginImport() {
-        let actions = ProviderUsageViewModel.codexPrimaryHeaderActions(for: .chatgptAccount)
+        let actions = ProviderUsageEngine.codexPrimaryHeaderActions(for: .chatgptAccount)
 
         XCTAssertEqual(actions, [.refreshAll, .login, .importAuth])
     }
 
     func testBDD_GivenRelayCard_WhenResolvingCodexHeaderActions_ThenActionOrderKeepsLoginImportAndConfigActions() {
-        let actions = ProviderUsageViewModel.codexPrimaryHeaderActions(for: .relayProfile)
+        let actions = ProviderUsageEngine.codexPrimaryHeaderActions(for: .relayProfile)
 
         XCTAssertEqual(actions, [.refreshAll, .login, .importAuth, .editConfig, .validateConfig])
     }
@@ -114,8 +114,8 @@ final class CodexUsageTabPresentationTests: XCTestCase {
     }
 
     func testBDD_GivenNewRelayMode_WhenResolvingConfigPresentation_ThenSubtitleAndPrimaryActionGuideMinimalSetup() {
-        let subtitle = ProviderUsageViewModel.codexConfigEditorSubtitle(for: .newRelay)
-        let actionTitle = ProviderUsageViewModel.codexConfigEditorPrimaryActionTitle(for: .newRelay)
+        let subtitle = ProviderUsageEngine.codexConfigEditorSubtitle(for: .newRelay)
+        let actionTitle = ProviderUsageEngine.codexConfigEditorPrimaryActionTitle(for: .newRelay)
 
         XCTAssertEqual(
             subtitle,
@@ -132,24 +132,24 @@ final class CodexUsageTabPresentationTests: XCTestCase {
     }
 
     func testBDD_GivenOneDayTokenTrendRange_WhenResolvingPresentation_ThenUsesOneDayWindow() {
-        XCTAssertEqual(ProviderUsageViewModel.TokenTrendRange.days1.trailingDays, 1)
+        XCTAssertEqual(ProviderUsageEngine.TokenTrendRange.days1.trailingDays, 1)
         XCTAssertEqual(
-            ProviderUsageViewModel.TokenTrendRange.days1.title,
+            ProviderUsageEngine.TokenTrendRange.days1.title,
             NSLocalizedString("codex.usage.range.1d", value: "1D", comment: "Codex usage trend range 1 day")
         )
     }
 
     func testBDD_GivenTokenTrendSection_WhenResolvingQuickActions_ThenCardsCoverAllRangesWithoutHeaderSegment() {
-        XCTAssertEqual(ProviderTokenTrendSection.quickActionRanges, ProviderUsageViewModel.TokenTrendRange.allCases)
+        XCTAssertEqual(ProviderTokenTrendSection.quickActionRanges, ProviderUsageEngine.TokenTrendRange.allCases)
         XCTAssertFalse(ProviderTokenTrendSection.usesHeaderRangePicker)
         XCTAssertTrue(ProviderTokenTrendSection.usesFullCardTapTarget)
         XCTAssertEqual(ProviderTokenTrendSection.summaryCardMinHeight, 84)
     }
 
     func testBDD_GivenEditMode_WhenResolvingConfigPresentation_ThenPrimaryActionUsesSave() {
-        let title = ProviderUsageViewModel.codexConfigEditorTitle(for: .edit(accountID: UUID()))
-        let subtitle = ProviderUsageViewModel.codexConfigEditorSubtitle(for: .edit(accountID: UUID()))
-        let actionTitle = ProviderUsageViewModel.codexConfigEditorPrimaryActionTitle(for: .edit(accountID: UUID()))
+        let title = ProviderUsageEngine.codexConfigEditorTitle(for: .edit(accountID: UUID()))
+        let subtitle = ProviderUsageEngine.codexConfigEditorSubtitle(for: .edit(accountID: UUID()))
+        let actionTitle = ProviderUsageEngine.codexConfigEditorPrimaryActionTitle(for: .edit(accountID: UUID()))
 
         XCTAssertEqual(title, NSLocalizedString("codex.accounts.config.edit", value: "Edit Config", comment: "Edit config title"))
         XCTAssertTrue(subtitle.contains("HTTP"))
@@ -194,7 +194,7 @@ final class CodexUsageTabPresentationTests: XCTestCase {
             )
         )
 
-        let options = ProviderUsageViewModel.codexSortMenuOptions(from: [outcome])
+        let options = ProviderUsageEngine.codexSortMenuOptions(from: [outcome])
 
         XCTAssertEqual(
             options,
@@ -204,29 +204,29 @@ final class CodexUsageTabPresentationTests: XCTestCase {
 
     func testBDD_GivenSortOptionAndDirection_WhenResolvingMenuTitle_ThenOnlySelectedItemIncludesInlineDirectionIndicator() {
         XCTAssertEqual(
-            ProviderUsageViewModel.codexSortMenuItemTitle(for: .remainingCredits, direction: .descending),
+            ProviderUsageEngine.codexSortMenuItemTitle(for: .remainingCredits, direction: .descending),
             "按剩余额度 ↓"
         )
         XCTAssertEqual(
-            ProviderUsageViewModel.codexSortMenuItemTitle(for: .expiryTime, direction: nil),
+            ProviderUsageEngine.codexSortMenuItemTitle(for: .expiryTime, direction: nil),
             "按到期时间"
         )
         XCTAssertEqual(
-            ProviderUsageViewModel.codexSortMenuItemTitle(for: .expiryTime, direction: .ascending),
+            ProviderUsageEngine.codexSortMenuItemTitle(for: .expiryTime, direction: .ascending),
             "按到期时间 ↑"
         )
         XCTAssertEqual(
-            ProviderUsageViewModel.codexSortMenuItemTitle(for: .quotaWindowRemaining(windowMinutes: 60), direction: nil),
+            ProviderUsageEngine.codexSortMenuItemTitle(for: .quotaWindowRemaining(windowMinutes: 60), direction: nil),
             "按 1h 剩余比例"
         )
         XCTAssertEqual(
-            ProviderUsageViewModel.codexSortMenuItemTitle(for: .quotaWindowRemaining(windowMinutes: 60), direction: .descending),
+            ProviderUsageEngine.codexSortMenuItemTitle(for: .quotaWindowRemaining(windowMinutes: 60), direction: .descending),
             "按 1h 剩余比例 ↓"
         )
     }
 
     func testBDD_GivenNewRelayDraft_WhenOpeningConfigEditor_ThenHTTPUsageDefaultsAreInitialized() {
-        let viewModel = ProviderUsageViewModel(provider: Provider(
+        let viewModel = ProviderUsageEngine(provider: Provider(
             name: "Codex",
             defaultSkillsPath: "~/.codex/skills",
             workflowPath: "~/.codex/prompts",
@@ -242,7 +242,7 @@ final class CodexUsageTabPresentationTests: XCTestCase {
     }
 
     func testBDD_GivenNewAPIKeyDraft_WhenOpeningConfigEditor_ThenOfficialBaseURLIsPreloaded() {
-        let viewModel = ProviderUsageViewModel(provider: Provider(
+        let viewModel = ProviderUsageEngine(provider: Provider(
             name: "Codex",
             defaultSkillsPath: "~/.codex/skills",
             workflowPath: "~/.codex/prompts",
@@ -258,7 +258,7 @@ final class CodexUsageTabPresentationTests: XCTestCase {
     }
 
     func testBDD_GivenNewAPIKeyMode_WhenResolvingConfigPresentation_ThenSubtitleExplainsOptionalDefaults() {
-        let subtitle = ProviderUsageViewModel.codexConfigEditorSubtitle(for: .newAPIKey)
+        let subtitle = ProviderUsageEngine.codexConfigEditorSubtitle(for: .newAPIKey)
 
         XCTAssertEqual(
             subtitle,
@@ -271,7 +271,7 @@ final class CodexUsageTabPresentationTests: XCTestCase {
     }
 
     func testBDD_GivenAPIKeyDraftWithoutName_WhenSavingConfig_ThenShowsNameRequiredError() async {
-        let viewModel = ProviderUsageViewModel(provider: Provider(
+        let viewModel = ProviderUsageEngine(provider: Provider(
             name: "Codex",
             defaultSkillsPath: "~/.codex/skills",
             workflowPath: "~/.codex/prompts",
@@ -326,7 +326,7 @@ final class CodexUsageTabPresentationTests: XCTestCase {
             templateId: "codex"
         )
         var capturedURL: String?
-        let viewModel = ProviderUsageViewModel(
+        let viewModel = ProviderUsageEngine(
             provider: provider,
             codexUsageQueryTestAction: { resolved, _ in
                 capturedURL = resolved.query.request?.url
@@ -423,7 +423,7 @@ final class CodexUsageTabPresentationTests: XCTestCase {
     }
 
     func testBDD_GivenImportSheetOpened_WhenInitialized_ThenStartsWithEmptyCandidates() {
-        let viewModel = ProviderUsageViewModel(provider: Self.makeCodexProvider())
+        let viewModel = ProviderUsageEngine(provider: Self.makeCodexProvider())
 
         viewModel.beginImportAuthFiles()
 
@@ -437,7 +437,7 @@ final class CodexUsageTabPresentationTests: XCTestCase {
     }
 
     func testBDD_GivenImportSheetDismissed_WhenReopened_ThenDraftStateIsReset() {
-        let viewModel = ProviderUsageViewModel(provider: Self.makeCodexProvider())
+        let viewModel = ProviderUsageEngine(provider: Self.makeCodexProvider())
         viewModel.beginImportAuthFiles()
         viewModel.codexImportSearchText = "demo"
         viewModel.codexImportCandidates = [
@@ -467,7 +467,7 @@ final class CodexUsageTabPresentationTests: XCTestCase {
     }
 
     func testBDD_GivenImportCandidatesAcrossGroups_WhenSearching_ThenOnlyMatchingSectionsRemainVisible() {
-        let viewModel = ProviderUsageViewModel(provider: Self.makeCodexProvider())
+        let viewModel = ProviderUsageEngine(provider: Self.makeCodexProvider())
         viewModel.codexImportCandidates = [
             .init(
                 sourceFileURL: URL(fileURLWithPath: "/tmp/team-alpha/oauth.json"),
@@ -526,7 +526,7 @@ final class CodexUsageTabPresentationTests: XCTestCase {
     }
 
     func testBDD_GivenImportCandidatesExist_WhenSearchHasNoMatch_ThenSearchResultsBecomeEmpty() {
-        let viewModel = ProviderUsageViewModel(provider: Self.makeCodexProvider())
+        let viewModel = ProviderUsageEngine(provider: Self.makeCodexProvider())
         viewModel.codexImportCandidates = [
             .init(
                 sourceFileURL: URL(fileURLWithPath: "/tmp/demo.json"),
@@ -563,7 +563,7 @@ final class CodexUsageTabPresentationTests: XCTestCase {
         XCTAssertNoThrow(try "{}".write(to: firstURL, atomically: true, encoding: .utf8))
         XCTAssertNoThrow(try Data("PK".utf8).write(to: secondURL))
 
-        let viewModel = ProviderUsageViewModel(
+        let viewModel = ProviderUsageEngine(
             provider: Self.makeCodexProvider(),
             codexImportConnectionTestAction: { validationResult, _ in
                 ProviderAccountUsageOutcome(
@@ -586,7 +586,7 @@ final class CodexUsageTabPresentationTests: XCTestCase {
 
     func testBDD_GivenImportSheetPickerCancelled_WhenPresentingPicker_ThenKeepsCandidatesUnchanged() async {
         let existingURL = URL(fileURLWithPath: "/tmp/existing.json")
-        let viewModel = ProviderUsageViewModel(
+        let viewModel = ProviderUsageEngine(
             provider: Self.makeCodexProvider(),
             codexImportOpenPanelAction: { [] }
         )
@@ -615,7 +615,7 @@ final class CodexUsageTabPresentationTests: XCTestCase {
     }
 
     func testBDD_GivenValidAndInvalidCandidates_WhenSelectionChanges_ThenOnlyValidRemainSelectable() {
-        let viewModel = ProviderUsageViewModel(provider: Self.makeCodexProvider())
+        let viewModel = ProviderUsageEngine(provider: Self.makeCodexProvider())
         let validID = UUID()
         let invalidID = UUID()
         viewModel.codexImportCandidates = [
@@ -664,7 +664,7 @@ final class CodexUsageTabPresentationTests: XCTestCase {
         let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("codex-paste-auth-\(UUID().uuidString).json")
         defer { try? FileManager.default.removeItem(at: tempURL) }
 
-        let viewModel = ProviderUsageViewModel(
+        let viewModel = ProviderUsageEngine(
             provider: Self.makeCodexProvider(),
             codexImportConnectionTestAction: { validation, _ in
                 ProviderAccountUsageOutcome(
@@ -710,7 +710,7 @@ final class CodexUsageTabPresentationTests: XCTestCase {
         let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("codex-paste-callback-\(UUID().uuidString).txt")
         defer { try? FileManager.default.removeItem(at: tempURL) }
 
-        let viewModel = ProviderUsageViewModel(
+        let viewModel = ProviderUsageEngine(
             provider: Self.makeCodexProvider(),
             codexImportConnectionTestAction: { validation, _ in
                 ProviderAccountUsageOutcome(
@@ -746,7 +746,7 @@ final class CodexUsageTabPresentationTests: XCTestCase {
         let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("codex-paste-callback-alt-\(UUID().uuidString).txt")
         defer { try? FileManager.default.removeItem(at: tempURL) }
 
-        let viewModel = ProviderUsageViewModel(
+        let viewModel = ProviderUsageEngine(
             provider: Self.makeCodexProvider(),
             codexImportConnectionTestAction: { validation, _ in
                 ProviderAccountUsageOutcome(
@@ -782,7 +782,7 @@ final class CodexUsageTabPresentationTests: XCTestCase {
         let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("codex-paste-no-http-\(UUID().uuidString).json")
         defer { try? FileManager.default.removeItem(at: tempURL) }
 
-        let viewModel = ProviderUsageViewModel(provider: Self.makeCodexProvider())
+        let viewModel = ProviderUsageEngine(provider: Self.makeCodexProvider())
 
         let raw = """
         {
@@ -808,7 +808,7 @@ final class CodexUsageTabPresentationTests: XCTestCase {
         let destinationURL = FileManager.default.temporaryDirectory.appendingPathComponent("codex-import-export-\(UUID().uuidString).zip")
         var capturedResults: [CodexAuthManager.CodexImportValidationResult] = []
         var capturedDestinationURL: URL?
-        let viewModel = ProviderUsageViewModel(
+        let viewModel = ProviderUsageEngine(
             provider: Self.makeCodexProvider(),
             codexExportSavePanelAction: { _, _ in destinationURL },
             codexImportExportArchiveAction: { results, url in
@@ -877,7 +877,7 @@ final class CodexUsageTabPresentationTests: XCTestCase {
     func testBDD_GivenSelectedImportCandidatesContainRelay_WhenExportingSub2API_ThenAlertIncludesSkippedRelayCount() async {
         let destinationURL = FileManager.default.temporaryDirectory.appendingPathComponent("codex-import-export-\(UUID().uuidString).json")
         var capturedResults: [CodexAuthManager.CodexImportValidationResult] = []
-        let viewModel = ProviderUsageViewModel(
+        let viewModel = ProviderUsageEngine(
             provider: Self.makeCodexProvider(),
             codexExportSavePanelAction: { _, _ in destinationURL },
             codexImportExportSub2APIAction: { results, _ in
@@ -1011,7 +1011,7 @@ final class CodexUsageTabPresentationTests: XCTestCase {
     }
 
     func testBDD_GivenGeminiCandidate_WhenEvaluatingInlineImportPolicy_ThenShowsImportAction() {
-        let shouldShow = ProviderUsageViewModel.shouldShowGeminiImportAction(
+        let shouldShow = ProviderUsageEngine.shouldShowGeminiImportAction(
             usageProvider: .gemini,
             outcomes: [],
             candidateAvailable: true
@@ -1021,7 +1021,7 @@ final class CodexUsageTabPresentationTests: XCTestCase {
     }
 
     func testBDD_GivenGeminiWithoutCandidate_WhenEvaluatingInlineImportPolicy_ThenHidesImportAction() {
-        let shouldShow = ProviderUsageViewModel.shouldShowGeminiImportAction(
+        let shouldShow = ProviderUsageEngine.shouldShowGeminiImportAction(
             usageProvider: .gemini,
             outcomes: [],
             candidateAvailable: false
@@ -1040,7 +1040,7 @@ final class CodexUsageTabPresentationTests: XCTestCase {
             )
         )
 
-        let shouldShow = ProviderUsageViewModel.shouldShowGeminiImportAction(
+        let shouldShow = ProviderUsageEngine.shouldShowGeminiImportAction(
             usageProvider: .antigravity,
             outcomes: [outcome],
             candidateAvailable: true
@@ -1078,7 +1078,7 @@ final class CodexUsageTabPresentationTests: XCTestCase {
             )
         )
 
-        let displayed = ProviderUsageViewModel.displayedGenericUsageOutcomes(
+        let displayed = ProviderUsageEngine.displayedGenericUsageOutcomes(
             usageProvider: .gemini,
             hasGeminiAccounts: true,
             outcomes: [outcome]
@@ -1097,7 +1097,7 @@ final class CodexUsageTabPresentationTests: XCTestCase {
             )
         )
 
-        let displayed = ProviderUsageViewModel.displayedGenericUsageOutcomes(
+        let displayed = ProviderUsageEngine.displayedGenericUsageOutcomes(
             usageProvider: .gemini,
             hasGeminiAccounts: false,
             outcomes: [outcome]
@@ -1117,7 +1117,7 @@ final class CodexUsageTabPresentationTests: XCTestCase {
             )
         )
 
-        let displayed = ProviderUsageViewModel.displayedClaudeUsageOutcomes(
+        let displayed = ProviderUsageEngine.displayedClaudeUsageOutcomes(
             hasClaudeAccounts: false,
             outcomes: [outcome]
         )
@@ -1135,7 +1135,7 @@ final class CodexUsageTabPresentationTests: XCTestCase {
             )
         )
 
-        let displayed = ProviderUsageViewModel.displayedClaudeUsageOutcomes(
+        let displayed = ProviderUsageEngine.displayedClaudeUsageOutcomes(
             hasClaudeAccounts: true,
             outcomes: [outcome]
         )
@@ -1145,7 +1145,7 @@ final class CodexUsageTabPresentationTests: XCTestCase {
     }
 
     func testBDD_GivenCodexInitialSettingsOverride_WhenInitializingViewModel_ThenHideZeroQuotaStateFollowsSettings() {
-        let viewModel = ProviderUsageViewModel(
+        let viewModel = ProviderUsageEngine(
             provider: Self.makeCodexProvider(),
             initialSettingsOverride: UsageMonitorProviderSettings(
                 sourceMode: .auto,
@@ -1162,7 +1162,7 @@ final class CodexUsageTabPresentationTests: XCTestCase {
     }
 
     func testBDD_GivenCodexUsageViewModel_WhenTogglingHideZeroQuota_ThenSettingsAreUpdated() {
-        let viewModel = ProviderUsageViewModel(
+        let viewModel = ProviderUsageEngine(
             provider: Self.makeCodexProvider(),
             initialSettingsOverride: UsageMonitorProviderSettings(
                 sourceMode: .auto,
@@ -1181,7 +1181,7 @@ final class CodexUsageTabPresentationTests: XCTestCase {
     }
 
     func testBDD_GivenCodexInitialSettingsOverride_WhenInitializingViewModel_ThenHideErroredStateFollowsSettings() {
-        let viewModel = ProviderUsageViewModel(
+        let viewModel = ProviderUsageEngine(
             provider: Self.makeCodexProvider(),
             initialSettingsOverride: UsageMonitorProviderSettings(
                 sourceMode: .auto,
@@ -1199,7 +1199,7 @@ final class CodexUsageTabPresentationTests: XCTestCase {
     }
 
     func testBDD_GivenCodexUsageViewModel_WhenTogglingHideErrored_ThenSettingsAreUpdated() {
-        let viewModel = ProviderUsageViewModel(
+        let viewModel = ProviderUsageEngine(
             provider: Self.makeCodexProvider(),
             initialSettingsOverride: UsageMonitorProviderSettings(
                 sourceMode: .auto,
@@ -1223,10 +1223,10 @@ final class CodexUsageTabPresentationTests: XCTestCase {
         let store = UsageMonitorSettingsStore.shared
         store.update(settings: UsageMonitorProviderSettings(codexHideErroredAccounts: false), for: provider)
 
-        let first = ProviderUsageViewModel(provider: provider)
+        let first = ProviderUsageEngine(provider: provider)
         first.setCodexHideErroredAccounts(true)
 
-        let second = ProviderUsageViewModel(provider: provider)
+        let second = ProviderUsageEngine(provider: provider)
         XCTAssertTrue(second.codexHideErroredAccounts)
         XCTAssertTrue(second.settings.codexHideErroredAccounts)
 
@@ -1234,7 +1234,7 @@ final class CodexUsageTabPresentationTests: XCTestCase {
     }
 
     func testBDD_GivenCodexInitialSettingsOverride_WhenInitializingViewModel_ThenLayoutModeFollowsSettings() {
-        let viewModel = ProviderUsageViewModel(
+        let viewModel = ProviderUsageEngine(
             provider: Self.makeCodexProvider(),
             initialSettingsOverride: UsageMonitorProviderSettings(
                 sourceMode: .auto,
@@ -1252,7 +1252,7 @@ final class CodexUsageTabPresentationTests: XCTestCase {
     }
 
     func testBDD_GivenCodexUsageViewModel_WhenSwitchingLayoutMode_ThenSettingsAreUpdated() {
-        let viewModel = ProviderUsageViewModel(
+        let viewModel = ProviderUsageEngine(
             provider: Self.makeCodexProvider(),
             initialSettingsOverride: UsageMonitorProviderSettings(
                 sourceMode: .auto,
@@ -1295,7 +1295,7 @@ final class CodexUsageTabPresentationTests: XCTestCase {
             for: provider
         )
 
-        let viewModel = ProviderUsageViewModel(
+        let viewModel = ProviderUsageEngine(
             provider: provider,
             codexAutoSwitchSettingsStore: store
         )
@@ -1316,7 +1316,7 @@ final class CodexUsageTabPresentationTests: XCTestCase {
 
         let provider = Self.makeCodexProvider()
         let store = CodexAutoSwitchSettingsStore(userDefaults: userDefaults)
-        let viewModel = ProviderUsageViewModel(
+        let viewModel = ProviderUsageEngine(
             provider: provider,
             codexAutoSwitchSettingsStore: store
         )
@@ -1343,7 +1343,7 @@ final class CodexUsageTabPresentationTests: XCTestCase {
             )
         )
 
-        let shouldForce = ProviderUsageViewModel.shouldForceRefreshOnAppearForFailedOutcomes([failed])
+        let shouldForce = ProviderUsageEngine.shouldForceRefreshOnAppearForFailedOutcomes([failed])
 
         XCTAssertTrue(shouldForce)
     }
@@ -1373,7 +1373,7 @@ final class CodexUsageTabPresentationTests: XCTestCase {
             )
         )
 
-        let shouldForce = ProviderUsageViewModel.shouldForceRefreshOnAppearForFailedOutcomes([success])
+        let shouldForce = ProviderUsageEngine.shouldForceRefreshOnAppearForFailedOutcomes([success])
 
         XCTAssertFalse(shouldForce)
     }

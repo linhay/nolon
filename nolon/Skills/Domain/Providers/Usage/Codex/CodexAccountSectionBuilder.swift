@@ -6,13 +6,13 @@ enum CodexAccountSectionBuilder {
         accounts: [CodexAuthAccount],
         outcomes: [ProviderAccountUsageOutcome],
         summaries: [UUID: CodexAuthSummary],
-        grouping: ProviderUsageViewModel.CodexAccountGroupingOption,
-        sorting: ProviderUsageViewModel.CodexAccountSortOption,
-        sortDirection: ProviderUsageViewModel.CodexSortDirection,
+        grouping: ProviderUsageEngine.CodexAccountGroupingOption,
+        sorting: ProviderUsageEngine.CodexAccountSortOption,
+        sortDirection: ProviderUsageEngine.CodexSortDirection,
         hideZeroQuotaAccounts: Bool,
         hideErroredAccounts: Bool
-    ) -> [ProviderUsageViewModel.CodexAccountDisplaySection] {
-        ProviderUsageViewModel.makeCodexAccountDisplaySections(
+    ) -> [ProviderUsageEngine.CodexAccountDisplaySection] {
+        ProviderUsageEngine.makeCodexAccountDisplaySections(
             accounts: accounts,
             outcomes: outcomes,
             summaries: summaries,

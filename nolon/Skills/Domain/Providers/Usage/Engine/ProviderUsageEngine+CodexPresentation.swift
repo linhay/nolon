@@ -4,7 +4,7 @@ import CodexBarProviderCatalog
 import STJSON
 
 @MainActor
-extension ProviderUsageViewModel {
+extension ProviderUsageEngine {
     static func displayedGenericUsageOutcomes(
         usageProvider: UsageProvider?,
         hasGeminiAccounts: Bool,
@@ -213,7 +213,7 @@ extension ProviderUsageViewModel {
             let parts = line.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false)
             guard parts.count == 2 else {
                 throw NSError(
-                    domain: "ProviderUsageViewModel.CodexConfig",
+                    domain: "ProviderUsageEngine.CodexConfig",
                     code: 1,
                     userInfo: [NSLocalizedDescriptionKey: "Invalid key=value line: \(line)"]
                 )
@@ -222,7 +222,7 @@ extension ProviderUsageViewModel {
             let value = String(parts[1]).trimmingCharacters(in: .whitespacesAndNewlines)
             guard !key.isEmpty else {
                 throw NSError(
-                    domain: "ProviderUsageViewModel.CodexConfig",
+                    domain: "ProviderUsageEngine.CodexConfig",
                     code: 2,
                     userInfo: [NSLocalizedDescriptionKey: "Key cannot be empty."]
                 )

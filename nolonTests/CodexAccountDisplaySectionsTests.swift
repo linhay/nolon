@@ -8,7 +8,7 @@ import NolonCoreCLIKit
 @MainActor
 final class CodexAccountDisplaySectionsTests: XCTestCase {
     func testBDD_GivenDefaultCodexDisplayOptions_WhenInitialized_ThenUsesTypeGroupingAndRemainingCreditsSort() {
-        let viewModel = ProviderUsageViewModel(provider: Self.makeCodexProvider())
+        let viewModel = ProviderUsageEngine(provider: Self.makeCodexProvider())
 
         XCTAssertEqual(viewModel.codexAccountGroupingOption, .typeInfo)
         XCTAssertEqual(viewModel.codexAccountSortOption, .remainingCredits)
@@ -36,7 +36,7 @@ final class CodexAccountDisplaySectionsTests: XCTestCase {
             relativeAuthPath: "auth/work-relay.json"
         )
 
-        let sections = ProviderUsageViewModel.makeCodexAccountDisplaySections(
+        let sections = ProviderUsageEngine.makeCodexAccountDisplaySections(
             accounts: [chatgptAccount, apiKeyAccount, relayAccount],
             outcomes: [
                 Self.makeOutcome(account: chatgptAccount, label: "Personal", remaining: 8),
@@ -64,7 +64,7 @@ final class CodexAccountDisplaySectionsTests: XCTestCase {
             relativeAuthPath: "auth/flat.json"
         )
 
-        let sections = ProviderUsageViewModel.makeCodexAccountDisplaySections(
+        let sections = ProviderUsageEngine.makeCodexAccountDisplaySections(
             accounts: [account],
             outcomes: [Self.makeOutcome(account: account, label: "Flat", remaining: nil)],
             summaries: [account.id: CodexAuthSummary(name: "Flat", cardKind: .officialAPIKey)],
@@ -82,7 +82,7 @@ final class CodexAccountDisplaySectionsTests: XCTestCase {
         let low = CodexAuthAccount(id: UUID(), name: "Low", createdAt: .distantPast, relativeAuthPath: "auth/low.json")
         let none = CodexAuthAccount(id: UUID(), name: "None", createdAt: .distantPast, relativeAuthPath: "auth/none.json")
 
-        let sections = ProviderUsageViewModel.makeCodexAccountDisplaySections(
+        let sections = ProviderUsageEngine.makeCodexAccountDisplaySections(
             accounts: [high, low, none],
             outcomes: [
                 Self.makeOutcome(account: high, label: "High", remaining: 20),
@@ -107,7 +107,7 @@ final class CodexAccountDisplaySectionsTests: XCTestCase {
         let low = CodexAuthAccount(id: UUID(), name: "Low", createdAt: .distantPast, relativeAuthPath: "auth/low.json")
         let missing = CodexAuthAccount(id: UUID(), name: "Missing", createdAt: .distantPast, relativeAuthPath: "auth/missing.json")
 
-        let sections = ProviderUsageViewModel.makeCodexAccountDisplaySections(
+        let sections = ProviderUsageEngine.makeCodexAccountDisplaySections(
             accounts: [high, low, missing],
             outcomes: [
                 Self.makeOutcome(
@@ -142,7 +142,7 @@ final class CodexAccountDisplaySectionsTests: XCTestCase {
         let low = CodexAuthAccount(id: UUID(), name: "Low", createdAt: .distantPast, relativeAuthPath: "auth/low-window.json")
         let missing = CodexAuthAccount(id: UUID(), name: "Missing", createdAt: .distantPast, relativeAuthPath: "auth/missing-window.json")
 
-        let sections = ProviderUsageViewModel.makeCodexAccountDisplaySections(
+        let sections = ProviderUsageEngine.makeCodexAccountDisplaySections(
             accounts: [high, low, missing],
             outcomes: [
                 Self.makeOutcome(
@@ -176,7 +176,7 @@ final class CodexAccountDisplaySectionsTests: XCTestCase {
         let high = CodexAuthAccount(id: UUID(), name: "High", createdAt: .distantPast, relativeAuthPath: "auth/high-window.json")
         let low = CodexAuthAccount(id: UUID(), name: "Low", createdAt: .distantPast, relativeAuthPath: "auth/low-window.json")
 
-        let sections = ProviderUsageViewModel.makeCodexAccountDisplaySections(
+        let sections = ProviderUsageEngine.makeCodexAccountDisplaySections(
             accounts: [high, low],
             outcomes: [
                 Self.makeOutcome(
@@ -208,7 +208,7 @@ final class CodexAccountDisplaySectionsTests: XCTestCase {
         let first = CodexAuthAccount(id: UUID(), name: "Relay Lower", createdAt: .distantPast, relativeAuthPath: "auth/relay-lower.json")
         let second = CodexAuthAccount(id: UUID(), name: "Relay Upper", createdAt: .distantPast, relativeAuthPath: "auth/relay-upper.json")
 
-        let sections = ProviderUsageViewModel.makeCodexAccountDisplaySections(
+        let sections = ProviderUsageEngine.makeCodexAccountDisplaySections(
             accounts: [first, second],
             outcomes: [
                 Self.makeOutcome(account: first, label: "Relay Lower", remaining: 20),
@@ -232,7 +232,7 @@ final class CodexAccountDisplaySectionsTests: XCTestCase {
         let availableLongest = CodexAuthAccount(id: UUID(), name: "Available Longest", createdAt: .distantPast, relativeAuthPath: "auth/available-longest.json")
         let missingWindows = CodexAuthAccount(id: UUID(), name: "Missing Windows", createdAt: .distantPast, relativeAuthPath: "auth/missing-windows.json")
 
-        let sections = ProviderUsageViewModel.makeCodexAccountDisplaySections(
+        let sections = ProviderUsageEngine.makeCodexAccountDisplaySections(
             accounts: [zeroLongest, availableLongest, missingWindows],
             outcomes: [
                 Self.makeOutcome(
@@ -272,7 +272,7 @@ final class CodexAccountDisplaySectionsTests: XCTestCase {
     func testBDD_GivenHideZeroQuotaDisabled_WhenLongestWindowRemainingIsZero_ThenAccountRemainsVisible() {
         let zeroLongest = CodexAuthAccount(id: UUID(), name: "Zero Longest", createdAt: .distantPast, relativeAuthPath: "auth/zero-longest.json")
 
-        let sections = ProviderUsageViewModel.makeCodexAccountDisplaySections(
+        let sections = ProviderUsageEngine.makeCodexAccountDisplaySections(
             accounts: [zeroLongest],
             outcomes: [
                 Self.makeOutcome(
@@ -297,7 +297,7 @@ final class CodexAccountDisplaySectionsTests: XCTestCase {
         let healthy = CodexAuthAccount(id: UUID(), name: "Healthy", createdAt: .distantPast, relativeAuthPath: "auth/healthy.json")
         let failed = CodexAuthAccount(id: UUID(), name: "Failed", createdAt: .distantPast, relativeAuthPath: "auth/failed.json")
 
-        let sections = ProviderUsageViewModel.makeCodexAccountDisplaySections(
+        let sections = ProviderUsageEngine.makeCodexAccountDisplaySections(
             accounts: [healthy, failed],
             outcomes: [
                 Self.makeOutcome(account: healthy, label: "Healthy", remaining: 70),
@@ -320,7 +320,7 @@ final class CodexAccountDisplaySectionsTests: XCTestCase {
     func testBDD_GivenHideErroredDisabled_WhenOutcomeIsFailure_ThenErroredAccountRemainsVisible() {
         let failed = CodexAuthAccount(id: UUID(), name: "Failed", createdAt: .distantPast, relativeAuthPath: "auth/failed.json")
 
-        let sections = ProviderUsageViewModel.makeCodexAccountDisplaySections(
+        let sections = ProviderUsageEngine.makeCodexAccountDisplaySections(
             accounts: [failed],
             outcomes: [Self.makeFailureOutcome(account: failed, label: "Failed")],
             summaries: [failed.id: CodexAuthSummary(cardKind: .officialAPIKey)],
@@ -334,7 +334,7 @@ final class CodexAccountDisplaySectionsTests: XCTestCase {
     }
 
     func testBDD_GivenSelectingCurrentSortOption_WhenTappedAgain_ThenTogglesDirection() {
-        let viewModel = ProviderUsageViewModel(provider: Self.makeCodexProvider())
+        let viewModel = ProviderUsageEngine(provider: Self.makeCodexProvider())
 
         XCTAssertEqual(viewModel.codexAccountSortOption, .remainingCredits)
         XCTAssertEqual(viewModel.codexCurrentSortDirection, .descending)
@@ -347,7 +347,7 @@ final class CodexAccountDisplaySectionsTests: XCTestCase {
     }
 
     func testBDD_GivenSelectingDifferentSortOption_WhenTapped_ThenUsesThatOptionDefaultDirection() {
-        let viewModel = ProviderUsageViewModel(provider: Self.makeCodexProvider())
+        let viewModel = ProviderUsageEngine(provider: Self.makeCodexProvider())
 
         viewModel.selectCodexSortOption(.name)
         XCTAssertEqual(viewModel.codexAccountSortOption, .name)
@@ -363,7 +363,7 @@ final class CodexAccountDisplaySectionsTests: XCTestCase {
     }
 
     func testBDD_GivenPreviousSortDirectionWasToggled_WhenSwitchingAwayAndBack_ThenNonSelectedSortResetsToDefaultDirection() {
-        let viewModel = ProviderUsageViewModel(provider: Self.makeCodexProvider())
+        let viewModel = ProviderUsageEngine(provider: Self.makeCodexProvider())
 
         viewModel.selectCodexSortOption(.name)
         XCTAssertEqual(viewModel.codexCurrentSortDirection, .ascending)
@@ -381,7 +381,7 @@ final class CodexAccountDisplaySectionsTests: XCTestCase {
     }
 
     func testBDD_GivenConfigCardAuthFailure_WhenResolvingDisplayState_ThenDoesNotRequireRelogin() {
-        let viewModel = ProviderUsageViewModel(provider: Self.makeCodexProvider())
+        let viewModel = ProviderUsageEngine(provider: Self.makeCodexProvider())
         let outcome = ProviderAccountUsageOutcome(
             provider: .codex,
             account: .tokenAccount(.init(id: UUID(), label: "Relay", token: "", addedAt: 0, lastUsed: nil)),
@@ -401,13 +401,13 @@ final class CodexAccountDisplaySectionsTests: XCTestCase {
     }
 
     func testBDD_GivenRelayActiveCard_WhenResolvingHeaderActions_ThenKeepsLoginImportAlongsideConfigActions() {
-        let actions = ProviderUsageViewModel.codexPrimaryHeaderActions(for: .relayProfile)
+        let actions = ProviderUsageEngine.codexPrimaryHeaderActions(for: .relayProfile)
 
         XCTAssertEqual(actions, [.refreshAll, .login, .importAuth, .editConfig, .validateConfig])
     }
 
     func testBDD_GivenSectionID_WhenTogglingCollapse_ThenMembershipFlips() {
-        let viewModel = ProviderUsageViewModel(provider: Self.makeCodexProvider())
+        let viewModel = ProviderUsageEngine(provider: Self.makeCodexProvider())
 
         XCTAssertFalse(viewModel.isCodexSectionCollapsed("OpenAI"))
         viewModel.toggleCodexSection("OpenAI")
@@ -417,7 +417,7 @@ final class CodexAccountDisplaySectionsTests: XCTestCase {
     }
 
     func testBDD_GivenGatewayCardsSection_WhenTogglingCollapse_ThenExpandedStateFlips() {
-        let viewModel = ProviderUsageViewModel(provider: Self.makeCodexProvider())
+        let viewModel = ProviderUsageEngine(provider: Self.makeCodexProvider())
 
         XCTAssertFalse(viewModel.isGatewayCardsSectionCollapsed)
         viewModel.toggleGatewayCardsSectionCollapsed()
@@ -427,7 +427,7 @@ final class CodexAccountDisplaySectionsTests: XCTestCase {
     }
 
     func testBDD_GivenCodexMultiSelectionMode_WhenToggledOff_ThenSelectionsAreCleared() {
-        let viewModel = ProviderUsageViewModel(provider: Self.makeCodexProvider())
+        let viewModel = ProviderUsageEngine(provider: Self.makeCodexProvider())
         let id = UUID()
 
         viewModel.setCodexMultiSelectionEnabled(true)
@@ -442,7 +442,7 @@ final class CodexAccountDisplaySectionsTests: XCTestCase {
     }
 
     func testBDD_GivenCodexMultiSelectionMode_WhenSelectingAccounts_ThenExportAvailabilityTracksSelectionCount() {
-        let viewModel = ProviderUsageViewModel(provider: Self.makeCodexProvider())
+        let viewModel = ProviderUsageEngine(provider: Self.makeCodexProvider())
         let first = UUID()
         let second = UUID()
 
@@ -462,7 +462,7 @@ final class CodexAccountDisplaySectionsTests: XCTestCase {
     }
 
     func testBDD_GivenCodexSectionInMultiSelection_WhenTogglingSelectAll_ThenSelectsAllAccountsInSection() {
-        let viewModel = ProviderUsageViewModel(provider: Self.makeCodexProvider())
+        let viewModel = ProviderUsageEngine(provider: Self.makeCodexProvider())
         let first = CodexAuthAccount(id: UUID(), name: "A", createdAt: .distantPast, relativeAuthPath: "auth/a.json")
         let second = CodexAuthAccount(id: UUID(), name: "B", createdAt: .distantPast, relativeAuthPath: "auth/b.json")
         let third = CodexAuthAccount(id: UUID(), name: "C", createdAt: .distantPast, relativeAuthPath: "auth/c.json")
@@ -485,7 +485,7 @@ final class CodexAccountDisplaySectionsTests: XCTestCase {
     }
 
     func testBDD_GivenCodexSectionAlreadyFullySelected_WhenTogglingSelectAll_ThenClearsSectionSelection() {
-        let viewModel = ProviderUsageViewModel(provider: Self.makeCodexProvider())
+        let viewModel = ProviderUsageEngine(provider: Self.makeCodexProvider())
         let first = CodexAuthAccount(id: UUID(), name: "A", createdAt: .distantPast, relativeAuthPath: "auth/a.json")
         let second = CodexAuthAccount(id: UUID(), name: "B", createdAt: .distantPast, relativeAuthPath: "auth/b.json")
         viewModel.codexAccounts = [first, second]
@@ -495,7 +495,7 @@ final class CodexAccountDisplaySectionsTests: XCTestCase {
         ]
         viewModel.setCodexMultiSelectionEnabled(true)
 
-        let section = ProviderUsageViewModel.CodexAccountDisplaySection(
+        let section = ProviderUsageEngine.CodexAccountDisplaySection(
             id: "all",
             title: "All",
             items: viewModel.codexAccountOutcomes
@@ -510,7 +510,7 @@ final class CodexAccountDisplaySectionsTests: XCTestCase {
     }
 
     func testBDD_GivenMultipleSections_WhenSelectingOneSection_ThenOtherSectionSelectionRemainsUnchanged() {
-        let viewModel = ProviderUsageViewModel(provider: Self.makeCodexProvider())
+        let viewModel = ProviderUsageEngine(provider: Self.makeCodexProvider())
         let first = CodexAuthAccount(id: UUID(), name: "A", createdAt: .distantPast, relativeAuthPath: "auth/a.json")
         let second = CodexAuthAccount(id: UUID(), name: "B", createdAt: .distantPast, relativeAuthPath: "auth/b.json")
         let third = CodexAuthAccount(id: UUID(), name: "C", createdAt: .distantPast, relativeAuthPath: "auth/c.json")
@@ -519,7 +519,7 @@ final class CodexAccountDisplaySectionsTests: XCTestCase {
         viewModel.setCodexMultiSelectionEnabled(true)
         viewModel.selectedCodexAccountIDs = [third.id]
 
-        let firstSection = ProviderUsageViewModel.CodexAccountDisplaySection(
+        let firstSection = ProviderUsageEngine.CodexAccountDisplaySection(
             id: "first",
             title: "First",
             items: [firstOutcome, secondOutcome]
@@ -531,7 +531,7 @@ final class CodexAccountDisplaySectionsTests: XCTestCase {
     }
 
     func testBDD_GivenImportCandidates_WhenSelectingAllAndClearing_ThenSelectionCountTracksValidItems() {
-        let viewModel = ProviderUsageViewModel(provider: Self.makeCodexProvider())
+        let viewModel = ProviderUsageEngine(provider: Self.makeCodexProvider())
         viewModel.codexImportCandidates = [
             .init(
                 sourceFileURL: URL(fileURLWithPath: "/tmp/a.json"),
@@ -577,7 +577,7 @@ final class CodexAccountDisplaySectionsTests: XCTestCase {
     }
 
     func testBDD_GivenImportCandidates_WhenSelectingWholeGroup_ThenOnlyThatGroupChanges() {
-        let viewModel = ProviderUsageViewModel(provider: Self.makeCodexProvider())
+        let viewModel = ProviderUsageEngine(provider: Self.makeCodexProvider())
         viewModel.codexImportCandidates = [
             .init(
                 sourceFileURL: URL(fileURLWithPath: "/tmp/a-1.json"),
@@ -647,7 +647,7 @@ final class CodexAccountDisplaySectionsTests: XCTestCase {
     }
 
     func testBDD_GivenGatewayCard_WhenAddingSingleAccount_ThenMemberAppearsWithoutDuplicates() {
-        let viewModel = ProviderUsageViewModel(provider: Self.makeCodexProvider())
+        let viewModel = ProviderUsageEngine(provider: Self.makeCodexProvider())
         let account = CodexAuthAccount(
             id: UUID(),
             name: "A",
@@ -668,7 +668,7 @@ final class CodexAccountDisplaySectionsTests: XCTestCase {
     }
 
     func testBDD_GivenGatewayCardWithMembers_WhenSelectingCard_ThenCardBecomesActiveAndNoAutoPicker() {
-        let viewModel = ProviderUsageViewModel(provider: Self.makeCodexProvider())
+        let viewModel = ProviderUsageEngine(provider: Self.makeCodexProvider())
         let account = CodexAuthAccount(id: UUID(), name: "A", createdAt: .distantPast, relativeAuthPath: "auth/a.json")
         viewModel.codexAccounts = [account]
         let card = try! XCTUnwrap(viewModel.createGatewayCard(name: "网关激活"))
@@ -682,7 +682,7 @@ final class CodexAccountDisplaySectionsTests: XCTestCase {
     }
 
     func testBDD_GivenEmptyGatewayCard_WhenSelectingCard_ThenCardBecomesActiveAndAutoPickerIsNeeded() {
-        let viewModel = ProviderUsageViewModel(provider: Self.makeCodexProvider())
+        let viewModel = ProviderUsageEngine(provider: Self.makeCodexProvider())
         let card = try! XCTUnwrap(viewModel.createGatewayCard(name: "空网关激活"))
         viewModel.gatewayCardsState.lastUsedCardID = nil
 
@@ -693,7 +693,7 @@ final class CodexAccountDisplaySectionsTests: XCTestCase {
     }
 
     func testBDD_GivenGatewayCardSelected_WhenClearingGatewaySelection_ThenNoGatewayCardIsSelected() {
-        let viewModel = ProviderUsageViewModel(provider: Self.makeCodexProvider())
+        let viewModel = ProviderUsageEngine(provider: Self.makeCodexProvider())
         let card = try! XCTUnwrap(viewModel.createGatewayCard(name: "网关互斥"))
         viewModel.gatewayCardsState.lastUsedCardID = card.id
 
@@ -705,7 +705,7 @@ final class CodexAccountDisplaySectionsTests: XCTestCase {
 
     func testBDD_GivenGatewayCardWithMembers_WhenStartingGatewayFromSelection_ThenInvokesGatewayStartAction() async {
         var received: (providerID: String, host: String, port: Int)?
-        let viewModel = ProviderUsageViewModel(
+        let viewModel = ProviderUsageEngine(
             provider: Self.makeCodexProvider(),
             codexGatewayStartAction: { providerID, host, port in
                 received = (providerID, host, port)
@@ -727,7 +727,7 @@ final class CodexAccountDisplaySectionsTests: XCTestCase {
         var receivedProviderID: String?
         var provider = Self.makeCodexProvider()
         provider.templateId = ProviderTemplate.codexXcode.rawValue
-        let viewModel = ProviderUsageViewModel(
+        let viewModel = ProviderUsageEngine(
             provider: provider,
             codexGatewayStartAction: { providerID, _, _ in
                 receivedProviderID = providerID
@@ -745,7 +745,7 @@ final class CodexAccountDisplaySectionsTests: XCTestCase {
 
     func testBDD_GivenEmptyGatewayCard_WhenStartingGatewayFromSelection_ThenSkipsGatewayStartAction() async {
         var invokeCount = 0
-        let viewModel = ProviderUsageViewModel(
+        let viewModel = ProviderUsageEngine(
             provider: Self.makeCodexProvider(),
             codexGatewayStartAction: { _, _, _ in
                 invokeCount += 1
@@ -760,7 +760,7 @@ final class CodexAccountDisplaySectionsTests: XCTestCase {
 
     func testBDD_GivenGatewayCardNotSelected_WhenStartingGatewayFromSelection_ThenSelectsCardAndStartsGateway() async {
         var invokeCount = 0
-        let viewModel = ProviderUsageViewModel(
+        let viewModel = ProviderUsageEngine(
             provider: Self.makeCodexProvider(),
             codexGatewayStartAction: { _, _, _ in
                 invokeCount += 1
@@ -781,7 +781,7 @@ final class CodexAccountDisplaySectionsTests: XCTestCase {
     func testBDD_GivenGatewayAlreadyRunning_WhenStartingSelectedGatewayCard_ThenStopsAndRestartsGateway() async {
         var startInvocations = 0
         var stopInvocations = 0
-        let viewModel = ProviderUsageViewModel(
+        let viewModel = ProviderUsageEngine(
             provider: Self.makeCodexProvider(),
             codexGatewayStartAction: { _, _, _ in
                 startInvocations += 1
@@ -811,7 +811,7 @@ final class CodexAccountDisplaySectionsTests: XCTestCase {
     func testBDD_GivenGatewayCardSelected_WhenConfirmingAccountActivation_ThenGatewaySelectionIsCleared() async {
         let account = CodexAuthAccount(id: UUID(), name: "A", createdAt: .distantPast, relativeAuthPath: "auth/a.json")
         var stoppedProviderID: String?
-        let viewModel = ProviderUsageViewModel(
+        let viewModel = ProviderUsageEngine(
             provider: Self.makeCodexProvider(),
             codexActivateAction: { _, _ in
                 CodexAuthActivationResult(runtimeSwitched: false, runtimeErrorDescription: nil)
@@ -837,7 +837,7 @@ final class CodexAccountDisplaySectionsTests: XCTestCase {
         let account = CodexAuthAccount(id: UUID(), name: "A", createdAt: .distantPast, relativeAuthPath: "auth/a.json")
         var stoppedProviderID: String?
         var activationCount = 0
-        let viewModel = ProviderUsageViewModel(
+        let viewModel = ProviderUsageEngine(
             provider: Self.makeCodexProvider(),
             codexActivateAction: { _, _ in
                 activationCount += 1
@@ -864,7 +864,7 @@ final class CodexAccountDisplaySectionsTests: XCTestCase {
 
     func testBDD_GivenActiveCodexAccountAndNoGatewaySelection_WhenTappingCard_ThenActivationIsSkipped() {
         let account = CodexAuthAccount(id: UUID(), name: "A", createdAt: .distantPast, relativeAuthPath: "auth/a.json")
-        let viewModel = ProviderUsageViewModel(provider: Self.makeCodexProvider())
+        let viewModel = ProviderUsageEngine(provider: Self.makeCodexProvider())
         viewModel.codexAccounts = [account]
         viewModel.activeCodexAccountId = account.id
 
@@ -878,7 +878,7 @@ final class CodexAccountDisplaySectionsTests: XCTestCase {
 
     func testBDD_GivenActiveCodexAccountAndGatewaySelection_WhenTappingCard_ThenActivationIsForcedForGatewayStop() {
         let account = CodexAuthAccount(id: UUID(), name: "A", createdAt: .distantPast, relativeAuthPath: "auth/a.json")
-        let viewModel = ProviderUsageViewModel(provider: Self.makeCodexProvider())
+        let viewModel = ProviderUsageEngine(provider: Self.makeCodexProvider())
         viewModel.codexAccounts = [account]
         viewModel.activeCodexAccountId = account.id
         let card = try! XCTUnwrap(viewModel.createGatewayCard(name: "网关"))
@@ -893,7 +893,7 @@ final class CodexAccountDisplaySectionsTests: XCTestCase {
     }
 
     func testBDD_GivenMultiSelectedAccounts_WhenConfirmingTargetGatewayCard_ThenAllSelectedAreAdded() {
-        let viewModel = ProviderUsageViewModel(provider: Self.makeCodexProvider())
+        let viewModel = ProviderUsageEngine(provider: Self.makeCodexProvider())
         let first = CodexAuthAccount(id: UUID(), name: "A", createdAt: .distantPast, relativeAuthPath: "auth/a.json")
         let second = CodexAuthAccount(id: UUID(), name: "B", createdAt: .distantPast, relativeAuthPath: "auth/b.json")
         viewModel.codexAccounts = [first, second]
@@ -915,7 +915,7 @@ final class CodexAccountDisplaySectionsTests: XCTestCase {
     }
 
     func testBDD_GivenMultiSelectedAccountsOutOfOrder_WhenOpeningGatewayPicker_ThenPendingIDsFollowAccountOrder() {
-        let viewModel = ProviderUsageViewModel(provider: Self.makeCodexProvider())
+        let viewModel = ProviderUsageEngine(provider: Self.makeCodexProvider())
         let first = CodexAuthAccount(id: UUID(), name: "A", createdAt: .distantPast, relativeAuthPath: "auth/a.json")
         let second = CodexAuthAccount(id: UUID(), name: "B", createdAt: .distantPast, relativeAuthPath: "auth/b.json")
         let third = CodexAuthAccount(id: UUID(), name: "C", createdAt: .distantPast, relativeAuthPath: "auth/c.json")
@@ -931,7 +931,7 @@ final class CodexAccountDisplaySectionsTests: XCTestCase {
     }
 
     func testBDD_GivenGatewayCardMembers_WhenRemovingAccount_ThenRemovedAccountDisappears() {
-        let viewModel = ProviderUsageViewModel(provider: Self.makeCodexProvider())
+        let viewModel = ProviderUsageEngine(provider: Self.makeCodexProvider())
         let first = CodexAuthAccount(id: UUID(), name: "A", createdAt: .distantPast, relativeAuthPath: "auth/a.json")
         let second = CodexAuthAccount(id: UUID(), name: "B", createdAt: .distantPast, relativeAuthPath: "auth/b.json")
         viewModel.codexAccounts = [first, second]
@@ -946,7 +946,7 @@ final class CodexAccountDisplaySectionsTests: XCTestCase {
     }
 
     func testBDD_GivenAccountListChanged_WhenAnyGatewayMutationOccurs_ThenInvalidMembersAreCleaned() {
-        let viewModel = ProviderUsageViewModel(provider: Self.makeCodexProvider())
+        let viewModel = ProviderUsageEngine(provider: Self.makeCodexProvider())
         let valid = CodexAuthAccount(id: UUID(), name: "A", createdAt: .distantPast, relativeAuthPath: "auth/a.json")
         let removed = CodexAuthAccount(id: UUID(), name: "B", createdAt: .distantPast, relativeAuthPath: "auth/b.json")
         viewModel.codexAccounts = [valid, removed]
@@ -962,7 +962,7 @@ final class CodexAccountDisplaySectionsTests: XCTestCase {
     }
 
     func testBDD_GivenMultipleGatewayCards_WhenDeletingOne_ThenOtherCardsRemainUnchanged() {
-        let viewModel = ProviderUsageViewModel(provider: Self.makeCodexProvider())
+        let viewModel = ProviderUsageEngine(provider: Self.makeCodexProvider())
         let account = CodexAuthAccount(id: UUID(), name: "A", createdAt: .distantPast, relativeAuthPath: "auth/a.json")
         viewModel.codexAccounts = [account]
 
@@ -981,7 +981,7 @@ final class CodexAccountDisplaySectionsTests: XCTestCase {
     }
 
     func testBDD_GivenGatewayCardWithExistingMembers_WhenQueryingCandidateAccounts_ThenExcludesExistingMembers() {
-        let viewModel = ProviderUsageViewModel(provider: Self.makeCodexProvider())
+        let viewModel = ProviderUsageEngine(provider: Self.makeCodexProvider())
         let first = CodexAuthAccount(id: UUID(), name: "A", createdAt: .distantPast, relativeAuthPath: "auth/a.json")
         let second = CodexAuthAccount(id: UUID(), name: "B", createdAt: .distantPast, relativeAuthPath: "auth/b.json")
         let third = CodexAuthAccount(id: UUID(), name: "C", createdAt: .distantPast, relativeAuthPath: "auth/c.json")
@@ -996,7 +996,7 @@ final class CodexAccountDisplaySectionsTests: XCTestCase {
     }
 
     func testBDD_GivenUnknownGatewayCardID_WhenQueryingCandidateAccounts_ThenReturnsAllAccounts() {
-        let viewModel = ProviderUsageViewModel(provider: Self.makeCodexProvider())
+        let viewModel = ProviderUsageEngine(provider: Self.makeCodexProvider())
         let first = CodexAuthAccount(id: UUID(), name: "A", createdAt: .distantPast, relativeAuthPath: "auth/a.json")
         let second = CodexAuthAccount(id: UUID(), name: "B", createdAt: .distantPast, relativeAuthPath: "auth/b.json")
         viewModel.codexAccounts = [first, second]
@@ -1007,7 +1007,7 @@ final class CodexAccountDisplaySectionsTests: XCTestCase {
     }
 
     func testBDD_GivenGatewayCandidates_WhenBuildingCandidateSections_ThenContainsGroupingInfoAndKeepsOrderInEachGroup() {
-        let viewModel = ProviderUsageViewModel(provider: Self.makeCodexProvider())
+        let viewModel = ProviderUsageEngine(provider: Self.makeCodexProvider())
         let plus = CodexAuthAccount(id: UUID(), name: "Plus", createdAt: .distantPast, relativeAuthPath: "auth/plus.json")
         let relayA = CodexAuthAccount(id: UUID(), name: "Relay A", createdAt: .distantPast, relativeAuthPath: "auth/relay-a.json")
         let openAI = CodexAuthAccount(id: UUID(), name: "OpenAI", createdAt: .distantPast, relativeAuthPath: "auth/openai.json")
@@ -1031,7 +1031,7 @@ final class CodexAccountDisplaySectionsTests: XCTestCase {
     }
 
     func testBDD_GivenGatewayCardHasMembers_WhenBuildingCandidateSections_ThenExistingMembersAreExcluded() {
-        let viewModel = ProviderUsageViewModel(provider: Self.makeCodexProvider())
+        let viewModel = ProviderUsageEngine(provider: Self.makeCodexProvider())
         let first = CodexAuthAccount(id: UUID(), name: "A", createdAt: .distantPast, relativeAuthPath: "auth/a.json")
         let second = CodexAuthAccount(id: UUID(), name: "B", createdAt: .distantPast, relativeAuthPath: "auth/b.json")
         viewModel.codexAccounts = [first, second]
@@ -1066,7 +1066,7 @@ final class CodexAccountDisplaySectionsTests: XCTestCase {
         """
         let data = try XCTUnwrap(raw.data(using: .utf8))
 
-        let isVirtual = ProviderUsageViewModel.isGatewayVirtualCodexAccount(
+        let isVirtual = ProviderUsageEngine.isGatewayVirtualCodexAccount(
             relativeAuthPath: "auth/openai.json",
             authData: data
         )
@@ -1092,7 +1092,7 @@ final class CodexAccountDisplaySectionsTests: XCTestCase {
         """
         let data = try XCTUnwrap(raw.data(using: .utf8))
 
-        let isVirtual = ProviderUsageViewModel.isGatewayVirtualCodexAccount(
+        let isVirtual = ProviderUsageEngine.isGatewayVirtualCodexAccount(
             relativeAuthPath: "auth/my-relay.json",
             authData: data
         )
@@ -1110,7 +1110,7 @@ final class CodexAccountDisplaySectionsTests: XCTestCase {
         """
         let data = try XCTUnwrap(raw.data(using: .utf8))
 
-        let isVirtual = ProviderUsageViewModel.isGatewayVirtualCodexAccount(
+        let isVirtual = ProviderUsageEngine.isGatewayVirtualCodexAccount(
             relativeAuthPath: "auth/polluted-virtual.json",
             authData: data
         )

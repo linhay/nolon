@@ -9,7 +9,7 @@ struct CodexImportSheet: View {
         hasAnyCandidates ? 560 : 320
     }
 
-    let sections: [ProviderUsageViewModel.CodexImportCandidateSection]
+    let sections: [ProviderUsageEngine.CodexImportCandidateSection]
     let hasAnyCandidates: Bool
     let isRunningValidation: Bool
     let isRunningConnectionTests: Bool
@@ -257,7 +257,7 @@ struct CodexImportSheet: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
-    private func sectionView(_ section: ProviderUsageViewModel.CodexImportCandidateSection) -> some View {
+    private func sectionView(_ section: ProviderUsageEngine.CodexImportCandidateSection) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .firstTextBaseline, spacing: 10) {
                 VStack(alignment: .leading, spacing: 2) {
@@ -308,7 +308,7 @@ struct CodexImportSheet: View {
         }
     }
 
-    private func row(_ candidate: ProviderUsageViewModel.CodexImportCandidate) -> some View {
+    private func row(_ candidate: ProviderUsageEngine.CodexImportCandidate) -> some View {
         let isValid = candidate.validation.isValid
 
         return VStack(alignment: .leading, spacing: 8) {
@@ -402,7 +402,7 @@ struct CodexImportSheet: View {
         }
     }
 
-    private func statusBadge(for candidate: ProviderUsageViewModel.CodexImportCandidate) -> some View {
+    private func statusBadge(for candidate: ProviderUsageEngine.CodexImportCandidate) -> some View {
         let label: String
         let color: Color
         switch candidate.testStatus {

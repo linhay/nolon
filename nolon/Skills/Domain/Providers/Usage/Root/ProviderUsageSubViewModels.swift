@@ -14,16 +14,16 @@ final class ProviderUsageAccountsViewModel {
             self.state = state
         }
 
-        private var engine: ProviderUsageViewModel { state.engine }
+        private var engine: ProviderUsageEngine { state.engine }
 
         var accounts: [CodexAuthAccount] { engine.codexAccounts }
         var accountOutcomes: [ProviderAccountUsageOutcome] { engine.codexAccountOutcomes }
         var accountSummaries: [UUID: CodexAuthSummary] { engine.codexAccountSummaries }
         var accountCreditsRefreshedAt: [UUID: Date] { engine.codexAccountCreditsRefreshedAt }
-        var accountDisplaySections: [ProviderUsageViewModel.CodexAccountDisplaySection] { engine.codexAccountDisplaySections }
+        var accountDisplaySections: [ProviderUsageEngine.CodexAccountDisplaySection] { engine.codexAccountDisplaySections }
         var accountSectionTotalCountByID: [String: Int] { engine.codexAccountSectionTotalCountByID }
-        var primaryHeaderActions: [ProviderUsageViewModel.CodexPrimaryHeaderAction] { engine.codexPrimaryHeaderActions }
-        var sortMenuOptions: [ProviderUsageViewModel.CodexAccountSortOption] { engine.codexSortMenuOptions }
+        var primaryHeaderActions: [ProviderUsageEngine.CodexPrimaryHeaderAction] { engine.codexPrimaryHeaderActions }
+        var sortMenuOptions: [ProviderUsageEngine.CodexAccountSortOption] { engine.codexSortMenuOptions }
         var authFilePath: String? { engine.codexAuthFilePath }
         var activeAccountId: UUID? { engine.activeCodexAccountId }
         var refreshingAccountIds: Set<UUID> { engine.codexRefreshingAccountIds }
@@ -38,7 +38,7 @@ final class ProviderUsageAccountsViewModel {
             set { engine.pendingActivateCodexAccount = newValue }
         }
         var managementStatus: CodexAuthManager.CodexManagementStatus? { engine.codexManagementStatus }
-        var configEditorDraft: ProviderUsageViewModel.CodexConfigEditorDraft? {
+        var configEditorDraft: ProviderUsageEngine.CodexConfigEditorDraft? {
             get { engine.codexConfigEditorDraft }
             set { engine.codexConfigEditorDraft = newValue }
         }
@@ -54,15 +54,15 @@ final class ProviderUsageAccountsViewModel {
         var hideErroredAccounts: Bool { engine.codexHideErroredAccounts }
         var hasActiveAccountFilters: Bool { engine.hasActiveCodexAccountFilters }
         var autoSwitchConfig: CodexAutoSwitchConfig { engine.codexAutoSwitchConfig }
-        var accountGroupingOption: ProviderUsageViewModel.CodexAccountGroupingOption {
+        var accountGroupingOption: ProviderUsageEngine.CodexAccountGroupingOption {
             get { engine.codexAccountGroupingOption }
             set { engine.codexAccountGroupingOption = newValue }
         }
-        var accountSortOption: ProviderUsageViewModel.CodexAccountSortOption {
+        var accountSortOption: ProviderUsageEngine.CodexAccountSortOption {
             get { engine.codexAccountSortOption }
             set { engine.codexAccountSortOption = newValue }
         }
-        var accountLayoutMode: ProviderUsageViewModel.CodexAccountLayoutMode { engine.codexAccountLayoutMode }
+        var accountLayoutMode: ProviderUsageEngine.CodexAccountLayoutMode { engine.codexAccountLayoutMode }
         var collapsedSectionIDs: Set<String> { engine.collapsedCodexSectionIDs }
         var isHeaderRefreshing: Bool { engine.isCodexHeaderRefreshing }
         var canExportSelectedAccounts: Bool { engine.canExportSelectedCodexAccounts }
@@ -187,7 +187,7 @@ final class ProviderUsageAccountsViewModel {
             engine.beginNewCodexAPIKeyAccount()
         }
 
-        func selectSortOption(_ option: ProviderUsageViewModel.CodexAccountSortOption) {
+        func selectSortOption(_ option: ProviderUsageEngine.CodexAccountSortOption) {
             engine.selectCodexSortOption(option)
         }
 
@@ -200,7 +200,7 @@ final class ProviderUsageAccountsViewModel {
             engine.toggleCodexSectionSelection(section)
         }
 
-        func toggleSectionSelection(_ section: ProviderUsageViewModel.CodexAccountDisplaySection) {
+        func toggleSectionSelection(_ section: ProviderUsageEngine.CodexAccountDisplaySection) {
             engine.toggleCodexSectionSelection(section)
         }
 
@@ -252,7 +252,7 @@ final class ProviderUsageAccountsViewModel {
             engine.editCodexAccountAuthJSON(id: id)
         }
 
-        func setAccountLayoutMode(_ mode: ProviderUsageViewModel.CodexAccountLayoutMode) {
+        func setAccountLayoutMode(_ mode: ProviderUsageEngine.CodexAccountLayoutMode) {
             engine.setCodexAccountLayoutMode(mode)
         }
 
@@ -264,11 +264,11 @@ final class ProviderUsageAccountsViewModel {
             engine.isCodexSectionCollapsed(sectionID)
         }
 
-        func isSectionFullySelected(_ section: ProviderUsageViewModel.CodexAccountDisplaySection) -> Bool {
+        func isSectionFullySelected(_ section: ProviderUsageEngine.CodexAccountDisplaySection) -> Bool {
             engine.isCodexSectionFullySelected(section)
         }
 
-        func direction(for option: ProviderUsageViewModel.CodexAccountSortOption) -> ProviderUsageViewModel.CodexSortDirection? {
+        func direction(for option: ProviderUsageEngine.CodexAccountSortOption) -> ProviderUsageEngine.CodexSortDirection? {
             engine.codexDirection(for: option)
         }
 
@@ -284,7 +284,7 @@ final class ProviderUsageAccountsViewModel {
             engine.copyErrorText(text)
         }
 
-        func gatewayMembers(for card: CodexGatewayCard) -> [ProviderUsageViewModel.CodexGatewayMemberDisplay] {
+        func gatewayMembers(for card: CodexGatewayCard) -> [ProviderUsageEngine.CodexGatewayMemberDisplay] {
             engine.gatewayMembers(for: card)
         }
     }
@@ -297,7 +297,7 @@ final class ProviderUsageAccountsViewModel {
             self.state = state
         }
 
-        private var engine: ProviderUsageViewModel { state.engine }
+        private var engine: ProviderUsageEngine { state.engine }
 
         var accounts: [ClaudeAccount] { engine.claudeAccounts }
 
@@ -326,7 +326,7 @@ final class ProviderUsageAccountsViewModel {
             self.state = state
         }
 
-        private var engine: ProviderUsageViewModel { state.engine }
+        private var engine: ProviderUsageEngine { state.engine }
 
         var accounts: [GeminiAuthAccount] { engine.geminiAccounts }
         var shouldShowImportAction: Bool { engine.shouldShowGeminiImportAction }
@@ -373,7 +373,7 @@ final class ProviderUsageAccountsViewModel {
         self.gemini = GeminiState(state: state)
     }
 
-    private var engine: ProviderUsageViewModel { state.engine }
+    private var engine: ProviderUsageEngine { state.engine }
     var outcomes: [ProviderAccountUsageOutcome] { state.engine.outcomes }
     var usageProvider: UsageProvider? { state.engine.usageProvider }
     var settings: UsageMonitorProviderSettings {
@@ -423,13 +423,13 @@ final class ProviderTokenTrendViewModel {
         self.state = state
     }
 
-    var tokenTrendRange: ProviderUsageViewModel.TokenTrendRange { state.engine.tokenTrendRange }
+    var tokenTrendRange: ProviderUsageEngine.TokenTrendRange { state.engine.tokenTrendRange }
     var tokenTrendSnapshot: ProviderTokenTrendSnapshot? { state.engine.tokenTrendSnapshot }
     var tokenTrendErrorMessage: String? { state.engine.tokenTrendErrorMessage }
     var isLoadingTokenTrend: Bool { state.engine.isLoadingTokenTrend }
     var shouldShowLoadingSkeleton: Bool { state.engine.shouldShowTokenTrendLoadingSkeleton }
 
-    func setRange(_ range: ProviderUsageViewModel.TokenTrendRange) {
+    func setRange(_ range: ProviderUsageEngine.TokenTrendRange) {
         state.engine.setTokenTrendRange(range)
     }
 
@@ -452,7 +452,7 @@ final class CodexImportExportViewModel {
         set { state.engine.isShowingCodexImportSheet = newValue }
     }
 
-    var codexImportCandidateSections: [ProviderUsageViewModel.CodexImportCandidateSection] {
+    var codexImportCandidateSections: [ProviderUsageEngine.CodexImportCandidateSection] {
         state.engine.codexImportCandidateSections
     }
 
@@ -616,7 +616,7 @@ final class CodexGatewayCardsViewModel {
         state.engine.gatewayCandidateAccounts(for: cardID)
     }
 
-    func gatewayCandidateSections(for cardID: UUID) -> [ProviderUsageViewModel.CodexGatewayCandidateSection] {
+    func gatewayCandidateSections(for cardID: UUID) -> [ProviderUsageEngine.CodexGatewayCandidateSection] {
         state.engine.gatewayCandidateSections(for: cardID)
     }
 

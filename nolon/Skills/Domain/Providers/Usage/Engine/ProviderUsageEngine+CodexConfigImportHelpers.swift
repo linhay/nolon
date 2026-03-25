@@ -4,7 +4,7 @@ import CodexProvider
 import STJSON
 
 @MainActor
-extension ProviderUsageViewModel {
+extension ProviderUsageEngine {
     func makeCodexUsageQuery(from draft: CodexConfigEditorDraft) throws -> CodexHTTPUsageQuery? {
         let hasAnyHTTPField =
             draft.httpUsageEnabled
@@ -40,7 +40,7 @@ extension ProviderUsageViewModel {
             usesBaseURLTemplate || (URL(string: url)?.scheme != nil)
         else {
             throw NSError(
-                domain: "ProviderUsageViewModel.CodexUsageQuery",
+                domain: "ProviderUsageEngine.CodexUsageQuery",
                 code: 1,
                 userInfo: [NSLocalizedDescriptionKey: NSLocalizedString(
                     "codex.accounts.http_usage.error.url_required",
@@ -93,7 +93,7 @@ extension ProviderUsageViewModel {
            query.mapping?.costLast30DaysUSDPath == nil
         {
             throw NSError(
-                domain: "ProviderUsageViewModel.CodexUsageQuery",
+                domain: "ProviderUsageEngine.CodexUsageQuery",
                 code: 4,
                 userInfo: [NSLocalizedDescriptionKey: NSLocalizedString(
                     "codex.accounts.http_usage.error.mapping_required",

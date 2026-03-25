@@ -6,8 +6,8 @@ struct ProviderTokenTrendSection: View, DebugPageLocatable {
     let snapshot: ProviderTokenTrendSnapshot?
     let isLoading: Bool
     let errorMessage: String?
-    let range: ProviderUsageViewModel.TokenTrendRange
-    let onRangeChange: (ProviderUsageViewModel.TokenTrendRange) -> Void
+    let range: ProviderUsageEngine.TokenTrendRange
+    let onRangeChange: (ProviderUsageEngine.TokenTrendRange) -> Void
     let onRefresh: () -> Void
     let debugPageMarkerItems: [PageMarkerItem]
 
@@ -19,8 +19,8 @@ struct ProviderTokenTrendSection: View, DebugPageLocatable {
         snapshot: ProviderTokenTrendSnapshot?,
         isLoading: Bool,
         errorMessage: String?,
-        range: ProviderUsageViewModel.TokenTrendRange,
-        onRangeChange: @escaping (ProviderUsageViewModel.TokenTrendRange) -> Void,
+        range: ProviderUsageEngine.TokenTrendRange,
+        onRangeChange: @escaping (ProviderUsageEngine.TokenTrendRange) -> Void,
         onRefresh: @escaping () -> Void,
         debugPageMarkerItems: [PageMarkerItem] = []
     ) {
@@ -489,7 +489,7 @@ struct ProviderTokenTrendSection: View, DebugPageLocatable {
 }
 
 extension ProviderTokenTrendSection {
-    static let quickActionRanges = ProviderUsageViewModel.TokenTrendRange.allCases
+    static let quickActionRanges = ProviderUsageEngine.TokenTrendRange.allCases
     static let usesHeaderRangePicker = false
     static let usesFullCardTapTarget = true
     static let summaryCardMinHeight: CGFloat = 84
@@ -552,7 +552,7 @@ private extension ProviderTokenTrendSection {
         let detail: String
         let accentColor: Color
         let secondaryAccentColor: Color
-        let targetRange: ProviderUsageViewModel.TokenTrendRange
+        let targetRange: ProviderUsageEngine.TokenTrendRange
     }
 
     @ViewBuilder

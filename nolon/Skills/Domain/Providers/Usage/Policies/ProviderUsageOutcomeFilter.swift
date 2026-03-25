@@ -9,7 +9,7 @@ enum ProviderUsageOutcomeFilter {
         hasGeminiAccounts: Bool,
         outcomes: [ProviderAccountUsageOutcome],
     ) -> [ProviderAccountUsageOutcome] {
-        ProviderUsageViewModel.displayedGenericUsageOutcomes(
+        ProviderUsageEngine.displayedGenericUsageOutcomes(
             usageProvider: usageProvider,
             hasGeminiAccounts: hasGeminiAccounts,
             outcomes: outcomes,
@@ -20,7 +20,7 @@ enum ProviderUsageOutcomeFilter {
         hasClaudeAccounts: Bool,
         outcomes: [ProviderAccountUsageOutcome]
     ) -> [ProviderAccountUsageOutcome] {
-        ProviderUsageViewModel.displayedClaudeUsageOutcomes(
+        ProviderUsageEngine.displayedClaudeUsageOutcomes(
             hasClaudeAccounts: hasClaudeAccounts,
             outcomes: outcomes
         )

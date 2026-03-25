@@ -17,7 +17,7 @@ final class ProviderUsageRootViewModel {
     var usageProvider: UsageProvider? { state.usageProvider }
 
     init(provider: Provider) {
-        let engine = ProviderUsageViewModel(provider: provider)
+        let engine = ProviderUsageEngine(provider: provider)
         let state = ProviderUsageStateStore(provider: provider, engine: engine)
         self.state = state
         self.accountsViewModel = ProviderUsageAccountsViewModel(state: state)
@@ -30,9 +30,9 @@ final class ProviderUsageRootViewModel {
     init(
         provider: Provider,
         usageMonitor: ProviderUsageMonitorService,
-        codexActivateAction: @escaping ProviderUsageViewModel.CodexActivateAction
+        codexActivateAction: @escaping ProviderUsageEngine.CodexActivateAction
     ) {
-        let engine = ProviderUsageViewModel(
+        let engine = ProviderUsageEngine(
             provider: provider,
             usageMonitor: usageMonitor,
             codexActivateAction: codexActivateAction

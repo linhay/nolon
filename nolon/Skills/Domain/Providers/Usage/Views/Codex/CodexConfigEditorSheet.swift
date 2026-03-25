@@ -2,7 +2,7 @@ import SwiftUI
 import ProviderUsage
 
 struct CodexConfigEditorSheet: View {
-    @Binding var draft: ProviderUsageViewModel.CodexConfigEditorDraft?
+    @Binding var draft: ProviderUsageEngine.CodexConfigEditorDraft?
     let errorMessage: String?
     let testSuccessMessage: String?
     let testErrorMessage: String?
@@ -17,7 +17,7 @@ struct CodexConfigEditorSheet: View {
     @State private var isHTTPCredentialsExpanded = false
     @State private var isHTTPMappingExpanded = false
 
-    private var currentDraft: ProviderUsageViewModel.CodexConfigEditorDraft? {
+    private var currentDraft: ProviderUsageEngine.CodexConfigEditorDraft? {
         draft
     }
 
@@ -33,7 +33,7 @@ struct CodexConfigEditorSheet: View {
         }
     }
 
-    private var editorMode: ProviderUsageViewModel.CodexConfigEditorMode? {
+    private var editorMode: ProviderUsageEngine.CodexConfigEditorMode? {
         currentDraft?.mode
     }
 
@@ -41,19 +41,19 @@ struct CodexConfigEditorSheet: View {
         guard let editorMode else {
             return NSLocalizedString("codex.accounts.config.title", value: "Codex Config", comment: "Codex config title")
         }
-        return ProviderUsageViewModel.codexConfigEditorTitle(for: editorMode)
+        return ProviderUsageEngine.codexConfigEditorTitle(for: editorMode)
     }
 
     private var subtitle: String? {
         guard let editorMode else { return nil }
-        return ProviderUsageViewModel.codexConfigEditorSubtitle(for: editorMode)
+        return ProviderUsageEngine.codexConfigEditorSubtitle(for: editorMode)
     }
 
     private var primaryActionTitle: String {
         guard let editorMode else {
             return NSLocalizedString("generic.save", value: "Save", comment: "Save")
         }
-        return ProviderUsageViewModel.codexConfigEditorPrimaryActionTitle(for: editorMode)
+        return ProviderUsageEngine.codexConfigEditorPrimaryActionTitle(for: editorMode)
     }
 
     private var canRunTest: Bool {
@@ -73,7 +73,7 @@ struct CodexConfigEditorSheet: View {
             && !draft.apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
-    private func binding(_ keyPath: WritableKeyPath<ProviderUsageViewModel.CodexConfigEditorDraft, String>) -> Binding<String> {
+    private func binding(_ keyPath: WritableKeyPath<ProviderUsageEngine.CodexConfigEditorDraft, String>) -> Binding<String> {
         Binding(
             get: { draft?[keyPath: keyPath] ?? "" },
             set: { draft?[keyPath: keyPath] = $0 }
