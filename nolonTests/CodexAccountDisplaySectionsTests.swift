@@ -293,6 +293,46 @@ final class CodexAccountDisplaySectionsTests: XCTestCase {
         XCTAssertEqual(sections[0].items.map(\.displayName), ["Zero Longest"])
     }
 
+    func testBDD_GivenHideErroredEnabled_WhenOutcomeIsFailure_ThenErroredAccountIsFilteredOut() {
+        let healthy = CodexAuthAccount(id: UUID(), name: "Healthy", createdAt: .distantPast, relativeAuthPath: "auth/healthy.json")
+        let failed = CodexAuthAccount(id: UUID(), name: "Failed", createdAt: .distantPast, relativeAuthPath: "auth/failed.json")
+
+        let sections = ProviderUsageViewModel.makeCodexAccountDisplaySections(
+            accounts: [healthy, failed],
+            outcomes: [
+                Self.makeOutcome(account: healthy, label: "Healthy", remaining: 70),
+                Self.makeFailureOutcome(account: failed, label: "Failed")
+            ],
+            summaries: [
+                healthy.id: CodexAuthSummary(cardKind: .officialAPIKey),
+                failed.id: CodexAuthSummary(cardKind: .officialAPIKey)
+            ],
+            grouping: .none,
+            sorting: .name,
+            hideZeroQuotaAccounts: false,
+            hideErroredAccounts: true
+        )
+
+        XCTAssertEqual(sections.count, 1)
+        XCTAssertEqual(sections[0].items.map(\.displayName), ["Healthy"])
+    }
+
+    func testBDD_GivenHideErroredDisabled_WhenOutcomeIsFailure_ThenErroredAccountRemainsVisible() {
+        let failed = CodexAuthAccount(id: UUID(), name: "Failed", createdAt: .distantPast, relativeAuthPath: "auth/failed.json")
+
+        let sections = ProviderUsageViewModel.makeCodexAccountDisplaySections(
+            accounts: [failed],
+            outcomes: [Self.makeFailureOutcome(account: failed, label: "Failed")],
+            summaries: [failed.id: CodexAuthSummary(cardKind: .officialAPIKey)],
+            grouping: .none,
+            sorting: .name,
+            hideZeroQuotaAccounts: false,
+            hideErroredAccounts: false
+        )
+
+        XCTAssertEqual(sections[0].items.map(\.displayName), ["Failed"])
+    }
+
     func testBDD_GivenSelectingCurrentSortOption_WhenTappedAgain_ThenTogglesDirection() {
         let viewModel = ProviderUsageViewModel(provider: Self.makeCodexProvider())
 
@@ -1122,6 +1162,25 @@ final class CodexAccountDisplaySectionsTests: XCTestCase {
             provider: .codex,
             account: .tokenAccount(tokenAccount),
             outcome: .init(fetchKind: .cli, result: .success(result))
+        )
+    }
+
+    private static func makeFailureOutcome(
+        account: CodexAuthAccount,
+        label: String
+    ) -> ProviderAccountUsageOutcome {
+        let tokenAccount = ProviderTokenAccount(
+            id: account.id,
+            label: label,
+            token: "",
+            addedAt: account.createdAt.timeIntervalSince1970,
+            lastUsed: nil
+        )
+
+        return ProviderAccountUsageOutcome(
+            provider: .codex,
+            account: .tokenAccount(tokenAccount),
+            outcome: .init(fetchKind: .cli, result: .failure(ProviderUsageError.authExpired(.codex)))
         )
     }
 }

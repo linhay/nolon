@@ -77,7 +77,7 @@ struct ProviderUsageView: View, DebugPageLocatable {
 
     let provider: Provider
     let isEmbedded: Bool
-    @State private var viewModel: ProviderUsageViewModel
+    @State private var rootViewModel: ProviderUsageRootViewModel
     @State private var targetingGatewayCardID: UUID?
     @State private var gatewayAccountPickerCardID: UUID?
     @State private var gatewayAccountPickerSelection: Set<UUID> = []
@@ -95,7 +95,31 @@ struct ProviderUsageView: View, DebugPageLocatable {
     init(provider: Provider, isEmbedded: Bool = false) {
         self.provider = provider
         self.isEmbedded = isEmbedded
-        self._viewModel = State(initialValue: ProviderUsageViewModelStore.shared.viewModel(for: provider))
+        self._rootViewModel = State(initialValue: ProviderUsageRootViewModelStore.shared.viewModel(for: provider))
+    }
+
+    private var viewModel: ProviderUsageAccountsViewModel {
+        rootViewModel.accountsViewModel
+    }
+
+    private var accountsViewModel: ProviderUsageAccountsViewModel {
+        rootViewModel.accountsViewModel
+    }
+
+    private var tokenTrendViewModel: ProviderTokenTrendViewModel {
+        rootViewModel.tokenTrendViewModel
+    }
+
+    private var importExportViewModel: CodexImportExportViewModel {
+        rootViewModel.importExportViewModel
+    }
+
+    private var loginFlowViewModel: ProviderLoginFlowViewModel {
+        rootViewModel.loginFlowViewModel
+    }
+
+    private var gatewayCardsViewModel: CodexGatewayCardsViewModel {
+        rootViewModel.gatewayCardsViewModel
     }
 
     static func shouldUseFullWidthGeminiCardLayout(accountCount: Int) -> Bool {
@@ -174,248 +198,248 @@ struct ProviderUsageView: View, DebugPageLocatable {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            header
+        let baseView = AnyView(
+            VStack(alignment: .leading, spacing: 12) {
+                header
+                content
+            }
+            .if(!isEmbedded) { view in
+                view.navigationTitle(usageNavigationTitle)
+            }
+            .task(id: provider.id) {
+                _ = await rootViewModel.loadIfNeeded()
+            }
+            .onChange(of: provider.id) { _, _ in
+                rootViewModel = ProviderUsageRootViewModelStore.shared.viewModel(for: provider)
+                Task { _ = await rootViewModel.loadIfNeeded() }
+            }
+            .onChange(of: viewModel.settings) { _, _ in
+                Task { await viewModel.load() }
+            }
+        )
 
-            content
-
-        }
-        .if(!isEmbedded) { view in
-            view.navigationTitle(usageNavigationTitle)
-        }
-        .task(id: provider.id) {
-            await viewModel.loadIfNeeded()
-        }
-        .onChange(of: provider.id) { _, _ in
-            viewModel = ProviderUsageViewModelStore.shared.viewModel(for: provider)
-            Task { await viewModel.loadIfNeeded() }
-        }
-        .onChange(of: viewModel.settings) { _, _ in
-            Task { await viewModel.load() }
-        }
-        .sheet(isPresented: Bindable(viewModel).isShowingLogin) {
-            UsageLoginSheet(title: provider.name, url: viewModel.dashboardURL)
-        }
-        .sheet(isPresented: $viewModel.isShowingLoginURLSheet, onDismiss: {
-            viewModel.handleLoginURLSheetDismissed()
-        }) {
-            CodexLoginURLSheet(
-                mode: viewModel.loginModeForSheet ?? "Login",
-                url: viewModel.loginURLForSheet,
-                onCopy: { viewModel.copyLoginURL() },
-                onOpen: { viewModel.reopenLoginURLInBrowser() },
-                onCancel: { viewModel.cancelCLILoginIfNeeded() }
-            )
-        }
-        .sheet(isPresented: $viewModel.isShowingCodexImportSheet, onDismiss: {
-            viewModel.dismissCodexImportSheet()
-        }) {
-            CodexImportSheet(
-                sections: viewModel.codexImportCandidateSections,
-                hasAnyCandidates: viewModel.hasCodexImportCandidates,
-                isRunningValidation: viewModel.isRunningCodexImportValidation,
-                isRunningConnectionTests: viewModel.isRunningCodexImportConnectionTests,
-                isTargetingDropZone: Binding(
-                    get: { viewModel.isTargetingCodexImportDropZone },
-                    set: { viewModel.isTargetingCodexImportDropZone = $0 }
-                ),
-                searchText: Binding(
-                    get: { viewModel.codexImportSearchText },
-                    set: { viewModel.codexImportSearchText = $0 }
-                ),
-                globalErrorMessage: viewModel.codexImportGlobalErrorMessage,
-                onPickFiles: {
-                    Task { await viewModel.presentCodexImportFilePicker() }
-                },
-                onPaste: {
-                    Task { await viewModel.pasteCodexImportFromClipboard() }
-                },
-                onDropFiles: { urls in
-                    Task { await viewModel.handleCodexImportURLs(urls) }
-                },
-                onToggleSelection: { id, selected in
-                    Task { @MainActor in
-                        viewModel.setCodexImportCandidateSelected(selected, id: id)
+        let withSheets = AnyView(
+            AnyView(
+                AnyView(
+                    AnyView(
+                        AnyView(
+                            baseView.sheet(isPresented: isShowingLoginBinding) {
+                                UsageLoginSheet(title: provider.name, url: loginFlowViewModel.dashboardURL)
+                            }
+                        )
+                        .sheet(isPresented: isShowingLoginURLSheetBinding, onDismiss: {
+                            loginFlowViewModel.handleLoginURLSheetDismissed()
+                        }) {
+                            CodexLoginURLSheet(
+                                mode: loginFlowViewModel.loginModeForSheet ?? "Login",
+                                url: loginFlowViewModel.loginURLForSheet,
+                                onCopy: { loginFlowViewModel.copyLoginURL() },
+                                onOpen: { loginFlowViewModel.reopenLoginURLInBrowser() },
+                                onCancel: { loginFlowViewModel.cancelCLILoginIfNeeded() }
+                            )
+                        }
+                    )
+                    .sheet(isPresented: isShowingCodexImportSheetBinding, onDismiss: {
+                        importExportViewModel.dismissCodexImportSheet()
+                    }) {
+                        CodexImportSheet(
+                            sections: importExportViewModel.codexImportCandidateSections,
+                            hasAnyCandidates: importExportViewModel.hasCodexImportCandidates,
+                            isRunningValidation: importExportViewModel.isRunningCodexImportValidation,
+                            isRunningConnectionTests: importExportViewModel.isRunningCodexImportConnectionTests,
+                            isTargetingDropZone: Binding(
+                                get: { importExportViewModel.isTargetingCodexImportDropZone },
+                                set: { importExportViewModel.isTargetingCodexImportDropZone = $0 }
+                            ),
+                            searchText: Binding(
+                                get: { importExportViewModel.codexImportSearchText },
+                                set: { importExportViewModel.codexImportSearchText = $0 }
+                            ),
+                            globalErrorMessage: importExportViewModel.codexImportGlobalErrorMessage,
+                            onPickFiles: { Task { await importExportViewModel.presentCodexImportFilePicker() } },
+                            onPaste: { Task { await importExportViewModel.pasteCodexImportFromClipboard() } },
+                            onDropFiles: { urls in Task { await importExportViewModel.handleCodexImportURLs(urls) } },
+                            onToggleSelection: { id, selected in
+                                Task { @MainActor in importExportViewModel.setCodexImportCandidateSelected(selected, id: id) }
+                            },
+                            onToggleGroupSelection: { groupID, selected in
+                                Task { @MainActor in importExportViewModel.setCodexImportCandidatesSelected(selected, sourceGroupID: groupID) }
+                            },
+                            onSelectAll: { Task { @MainActor in importExportViewModel.setAllCodexImportCandidatesSelected(true) } },
+                            onDeselectAll: { Task { @MainActor in importExportViewModel.setAllCodexImportCandidatesSelected(false) } },
+                            onRetry: { id in Task { await importExportViewModel.retryCodexImportConnectionTest(id: id) } },
+                            onRetryAll: { Task { await importExportViewModel.retryAllCodexImportConnectionTests() } },
+                            onRemove: { id in importExportViewModel.removeCodexImportCandidate(id: id) },
+                            onExportZIP: { Task { await importExportViewModel.exportSelectedCodexImportCandidatesAsZIP() } },
+                            onExportSub2API: { Task { await importExportViewModel.exportSelectedCodexImportCandidatesAsSub2API() } },
+                            onImport: { Task { await importExportViewModel.applySelectedCodexImports() } },
+                            onCancel: { importExportViewModel.dismissCodexImportSheet() }
+                        )
                     }
-                },
-                onToggleGroupSelection: { groupID, selected in
-                    Task { @MainActor in
-                        viewModel.setCodexImportCandidatesSelected(selected, sourceGroupID: groupID)
-                    }
-                },
-                onSelectAll: {
-                    Task { @MainActor in
-                        viewModel.setAllCodexImportCandidatesSelected(true)
-                    }
-                },
-                onDeselectAll: {
-                    Task { @MainActor in
-                        viewModel.setAllCodexImportCandidatesSelected(false)
-                    }
-                },
-                onRetry: { id in
-                    Task { await viewModel.retryCodexImportConnectionTest(id: id) }
-                },
-                onRetryAll: {
-                    Task { await viewModel.retryAllCodexImportConnectionTests() }
-                },
-                onRemove: { id in
-                    viewModel.removeCodexImportCandidate(id: id)
-                },
-                onExportZIP: {
-                    Task { await viewModel.exportSelectedCodexImportCandidatesAsZIP() }
-                },
-                onExportSub2API: {
-                    Task { await viewModel.exportSelectedCodexImportCandidatesAsSub2API() }
-                },
-                onImport: {
-                    Task { await viewModel.applySelectedCodexImports() }
-                },
-                onCancel: { viewModel.dismissCodexImportSheet() }
-            )
-        }
-        .sheet(isPresented: $viewModel.isShowingCodexConfigEditor) {
-            CodexConfigEditorSheet(
-                draft: Binding(
-                    get: { viewModel.codexConfigEditorDraft },
-                    set: { viewModel.codexConfigEditorDraft = $0 }
-                ),
-                errorMessage: viewModel.codexConfigEditorErrorMessage,
-                testSuccessMessage: viewModel.codexUsageQueryTestSuccessMessage,
-                testErrorMessage: viewModel.codexUsageQueryTestErrorMessage,
-                isTestingUsageQuery: viewModel.isTestingCodexUsageQuery,
-                onCancel: { viewModel.dismissCodexConfigEditor() },
-                onTest: { Task { await viewModel.testCodexUsageQueryDraft() } },
-                onSave: { Task { await viewModel.saveCodexConfigEditor() } }
-            )
-        }
-        .sheet(
-            isPresented: Binding(
-                get: { viewModel.isShowingGatewayCardPicker },
-                set: { if !$0 { viewModel.dismissGatewayCardPicker() } }
-            )
-        ) {
-            gatewayCardPickerSheet
-        }
-        .sheet(
-            isPresented: Binding(
-                get: { gatewayAccountPickerCardID != nil },
-                set: { if !$0 { dismissGatewayAccountPicker() } }
-            )
-        ) {
-            if let cardID = gatewayAccountPickerCardID {
-                gatewayAccountSelectionSheet(cardID: cardID)
-            }
-        }
-        .alert(
-            NSLocalizedString("gemini.import.confirm.title", value: "Import Existing Gemini Login?", comment: "Gemini import confirmation title"),
-            isPresented: $viewModel.isShowingGeminiImportConfirm
-        ) {
-            Button(
-                NSLocalizedString("gemini.import.confirm.skip", value: "Continue OAuth Login", comment: "Continue OAuth login"),
-                role: .cancel
-            ) {
-                viewModel.continueGeminiOAuthLoginWithoutImport()
-            }
-            Button(NSLocalizedString("gemini.import.confirm.import", value: "Import", comment: "Import existing Gemini login")) {
-                Task { await viewModel.importGeminiGlobalSessionAfterConfirmation() }
-            }
-        } message: {
-            let email = viewModel.pendingGeminiImportCandidate?.email ?? NSLocalizedString("generic.unknown", value: "Unknown", comment: "Unknown")
-            let path = viewModel.pendingGeminiImportCandidate?.geminiDirectoryPath ?? "~/.gemini"
-            let format = NSLocalizedString(
-                "gemini.import.confirm.message",
-                value: "Detected an existing Gemini CLI login (%@) at:\n%@\n\nImport it into Nolon now?",
-                comment: "Gemini import confirmation message"
-            )
-            Text(String(format: format, email, path))
-        }
-        .alert(viewModel.alertTitle ?? "", isPresented: Binding(get: {
-            viewModel.alertTitle != nil || viewModel.alertMessage != nil
-        }, set: { newValue in
-            if !newValue {
-                viewModel.alertTitle = nil
-                viewModel.alertMessage = nil
-            }
-        })) {
-            Button(NSLocalizedString("generic.ok", value: "OK", comment: "OK")) {
-                viewModel.alertTitle = nil
-                viewModel.alertMessage = nil
-            }
-        } message: {
-            Text(viewModel.alertMessage ?? "")
-        }
-        .alert(
-            NSLocalizedString("codex.accounts.activate.title", value: "Activate Account", comment: "Activate account title"),
-            isPresented: $viewModel.isShowingActivateConfirm
-        ) {
-            Button(NSLocalizedString("generic.cancel", value: "Cancel", comment: "Cancel"), role: .cancel) {
-                viewModel.pendingActivateCodexAccount = nil
-            }
-            Button(NSLocalizedString("codex.accounts.action.activate", value: "Activate", comment: "Activate account")) {
-                Task { await viewModel.confirmActivate() }
-            }
-        } message: {
-            let name = viewModel.pendingActivateCodexAccount?.name ?? ""
-            let path = viewModel.codexAuthFilePath ?? "~/.codex/auth.json"
-            let format = NSLocalizedString(
-                "codex.accounts.activate.message",
-                value: "Switch to \"%@\"? This will overwrite:\n%@",
-                comment: "Activate account message"
-            )
-            Text(String(format: format, name, path))
-        }
-        .alert(
-            NSLocalizedString("codex.accounts.delete.title", value: "Delete Account", comment: "Delete account title"),
-            isPresented: $viewModel.isShowingDeleteConfirm
-        ) {
-            Button(NSLocalizedString("generic.cancel", value: "Cancel", comment: "Cancel"), role: .cancel) {
-                viewModel.pendingDeleteCodexAccount = nil
-            }
-            Button(NSLocalizedString("generic.delete", value: "Delete", comment: "Delete"), role: .destructive) {
-                Task { await viewModel.confirmDeleteCodexAccount() }
-            }
-        } message: {
-            let account = viewModel.pendingDeleteCodexAccount
-            let baseName = account?.name ?? ""
-            let email = account.flatMap { candidate in
-                viewModel.codexAccountSummaries[candidate.id]?.email?.trimmingCharacters(in: .whitespacesAndNewlines)
-            }
-            let displayName: String = {
-                guard let email, !email.isEmpty else { return baseName }
-                return "\(baseName) (\(email))"
-            }()
-            let format = NSLocalizedString(
-                "codex.accounts.delete.message",
-                value: "Delete \"%@\"? This will not log you out of Codex, it only removes the saved snapshot in Nolon.",
-                comment: "Delete account message"
-            )
-            Text(String(format: format, displayName))
-        }
-        .task(id: viewModel.settings.autoRefreshIntervalMinutes) {
-            let minutes = viewModel.settings.autoRefreshIntervalMinutes
-            guard minutes > 0 else { return }
-            let interval = UInt64(minutes) * 60 * 1_000_000_000
-            while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: interval)
-                if Task.isCancelled { break }
-                await viewModel.performAutoRefresh()
-            }
-        }
-        .overlay(alignment: .bottomTrailing) {
-            if viewModel.isShowingCopyToast {
-                ToastView(
-                    text: viewModel.copyToastMessage,
-                    systemImage: "doc.on.doc",
-                    style: .success
                 )
-                .padding(.trailing, 16)
-                .padding(.bottom, 16)
-                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .sheet(isPresented: Binding(
+                    get: { viewModel.codex.isShowingConfigEditor },
+                    set: { viewModel.codex.isShowingConfigEditor = $0 }
+                )) {
+                    CodexConfigEditorSheet(
+                        draft: Binding(
+                            get: { viewModel.codex.configEditorDraft },
+                            set: { viewModel.codex.configEditorDraft = $0 }
+                        ),
+                        errorMessage: viewModel.codex.configEditorErrorMessage,
+                        testSuccessMessage: viewModel.codex.usageQueryTestSuccessMessage,
+                        testErrorMessage: viewModel.codex.usageQueryTestErrorMessage,
+                        isTestingUsageQuery: viewModel.codex.isTestingUsageQuery,
+                        onCancel: { viewModel.codex.dismissConfigEditor() },
+                        onTest: { Task { await viewModel.codex.testUsageQueryDraft() } },
+                        onSave: { Task { await viewModel.codex.saveConfigEditor() } }
+                    )
+                }
+            )
+            .sheet(
+                isPresented: Binding(
+                    get: { viewModel.codex.isShowingGatewayCardPicker },
+                    set: { if !$0 { gatewayCardsViewModel.dismissGatewayCardPicker() } }
+                )
+            ) { gatewayCardPickerSheet }
+            .sheet(
+                isPresented: Binding(
+                    get: { gatewayAccountPickerCardID != nil },
+                    set: { if !$0 { dismissGatewayAccountPicker() } }
+                )
+            ) {
+                if let cardID = gatewayAccountPickerCardID {
+                    gatewayAccountSelectionSheet(cardID: cardID)
+                }
             }
-        }
-        .animation(.easeOut(duration: 0.2), value: viewModel.isShowingCopyToast)
-        .debugPageLocator(debugPageMarkerItems)
+        )
+
+        let withAlerts = AnyView(
+            AnyView(
+                AnyView(
+                    withSheets.alert(
+                        NSLocalizedString("gemini.import.confirm.title", value: "Import Existing Gemini Login?", comment: "Gemini import confirmation title"),
+                        isPresented: Binding(
+                            get: { viewModel.gemini.isShowingImportConfirm },
+                            set: { viewModel.gemini.isShowingImportConfirm = $0 }
+                        )
+                    ) {
+                        Button(
+                            NSLocalizedString("gemini.import.confirm.skip", value: "Continue OAuth Login", comment: "Continue OAuth login"),
+                            role: .cancel
+                        ) {
+                            viewModel.gemini.continueOAuthLoginWithoutImport()
+                        }
+                        Button(NSLocalizedString("gemini.import.confirm.import", value: "Import", comment: "Import existing Gemini login")) {
+                            Task { await viewModel.gemini.importGlobalSessionAfterConfirmation() }
+                        }
+                    } message: {
+                        let email = viewModel.gemini.pendingImportCandidate?.email ?? NSLocalizedString("generic.unknown", value: "Unknown", comment: "Unknown")
+                        let path = viewModel.gemini.pendingImportCandidate?.geminiDirectoryPath ?? "~/.gemini"
+                        let format = NSLocalizedString(
+                            "gemini.import.confirm.message",
+                            value: "Detected an existing Gemini CLI login (%@) at:\n%@\n\nImport it into Nolon now?",
+                            comment: "Gemini import confirmation message"
+                        )
+                        Text(String(format: format, email, path))
+                    }
+                )
+                .alert(viewModel.alertTitle ?? "", isPresented: Binding(get: {
+                    viewModel.alertTitle != nil || viewModel.alertMessage != nil
+                }, set: { newValue in
+                    if !newValue {
+                        viewModel.alertTitle = nil
+                        viewModel.alertMessage = nil
+                    }
+                })) {
+                    Button(NSLocalizedString("generic.ok", value: "OK", comment: "OK")) {
+                        viewModel.alertTitle = nil
+                        viewModel.alertMessage = nil
+                    }
+                } message: {
+                    Text(viewModel.alertMessage ?? "")
+                }
+            )
+            .alert(
+                NSLocalizedString("codex.accounts.activate.title", value: "Activate Account", comment: "Activate account title"),
+                isPresented: Binding(
+                    get: { viewModel.codex.isShowingActivateConfirm },
+                    set: { viewModel.codex.isShowingActivateConfirm = $0 }
+                )
+            ) {
+                Button(NSLocalizedString("generic.cancel", value: "Cancel", comment: "Cancel"), role: .cancel) {
+                    viewModel.codex.pendingActivateAccount = nil
+                }
+                Button(NSLocalizedString("codex.accounts.action.activate", value: "Activate", comment: "Activate account")) {
+                    Task { await viewModel.codex.confirmActivate() }
+                }
+            } message: {
+                let name = viewModel.codex.pendingActivateAccount?.name ?? ""
+                let path = viewModel.codex.authFilePath ?? "~/.codex/auth.json"
+                let format = NSLocalizedString(
+                    "codex.accounts.activate.message",
+                    value: "Switch to \"%@\"? This will overwrite:\n%@",
+                    comment: "Activate account message"
+                )
+                Text(String(format: format, name, path))
+            }
+            .alert(
+                NSLocalizedString("codex.accounts.delete.title", value: "Delete Account", comment: "Delete account title"),
+                isPresented: Binding(
+                    get: { viewModel.codex.isShowingDeleteConfirm },
+                    set: { viewModel.codex.isShowingDeleteConfirm = $0 }
+                )
+            ) {
+                Button(NSLocalizedString("generic.cancel", value: "Cancel", comment: "Cancel"), role: .cancel) {
+                    viewModel.codex.pendingDeleteAccount = nil
+                }
+                Button(NSLocalizedString("generic.delete", value: "Delete", comment: "Delete"), role: .destructive) {
+                    Task { await accountsViewModel.codex.confirmDeleteAccount() }
+                }
+            } message: {
+                let account = viewModel.codex.pendingDeleteAccount
+                let baseName = account?.name ?? ""
+                let email = account.flatMap { candidate in
+                    viewModel.codex.accountSummaries[candidate.id]?.email?.trimmingCharacters(in: .whitespacesAndNewlines)
+                }
+                let displayName: String = {
+                    guard let email, !email.isEmpty else { return baseName }
+                    return "\(baseName) (\(email))"
+                }()
+                let format = NSLocalizedString(
+                    "codex.accounts.delete.message",
+                    value: "Delete \"%@\"? This will not log you out of Codex, it only removes the saved snapshot in Nolon.",
+                    comment: "Delete account message"
+                )
+                Text(String(format: format, displayName))
+            }
+        )
+
+        return withAlerts
+            .task(id: viewModel.settings.autoRefreshIntervalMinutes) {
+                let minutes = viewModel.settings.autoRefreshIntervalMinutes
+                guard minutes > 0 else { return }
+                let interval = UInt64(minutes) * 60 * 1_000_000_000
+                while !Task.isCancelled {
+                    try? await Task.sleep(nanoseconds: interval)
+                    if Task.isCancelled { break }
+                    await viewModel.performAutoRefresh()
+                }
+            }
+            .overlay(alignment: Alignment.bottomTrailing) {
+                if viewModel.isShowingCopyToast {
+                    ToastView(
+                        text: viewModel.copyToastMessage ?? "",
+                        systemImage: "doc.on.doc",
+                        style: .success
+                    )
+                    .padding(.trailing, 16)
+                    .padding(.bottom, 16)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+            }
+            .animation(Animation.easeOut(duration: 0.2), value: viewModel.isShowingCopyToast)
+            .debugPageLocator(debugPageMarkerItems)
     }
 
     private var autoRefreshIntervalBinding: Binding<Int> {
@@ -426,6 +450,27 @@ struct ProviderUsageView: View, DebugPageLocatable {
                 updated.autoRefreshIntervalMinutes = newValue
                 viewModel.settings = updated
             }
+        )
+    }
+
+    private var isShowingLoginBinding: Binding<Bool> {
+        Binding(
+            get: { loginFlowViewModel.isShowingLogin },
+            set: { loginFlowViewModel.isShowingLogin = $0 }
+        )
+    }
+
+    private var isShowingLoginURLSheetBinding: Binding<Bool> {
+        Binding(
+            get: { loginFlowViewModel.isShowingLoginURLSheet },
+            set: { loginFlowViewModel.isShowingLoginURLSheet = $0 }
+        )
+    }
+
+    private var isShowingCodexImportSheetBinding: Binding<Bool> {
+        Binding(
+            get: { importExportViewModel.isShowingCodexImportSheet },
+            set: { importExportViewModel.isShowingCodexImportSheet = $0 }
         )
     }
 
@@ -473,10 +518,10 @@ struct ProviderUsageView: View, DebugPageLocatable {
 
             if viewModel.usageProvider == .codex {
                 Button {
-                    viewModel.setCodexHideZeroQuotaAccounts(!viewModel.codexHideZeroQuotaAccounts)
+                    viewModel.codex.setHideZeroQuotaAccounts(!viewModel.codex.hideZeroQuotaAccounts)
                 } label: {
                     Label(
-                        viewModel.codexHideZeroQuotaAccounts
+                        viewModel.codex.hideZeroQuotaAccounts
                             ? NSLocalizedString("codex.accounts.filter.hide_zero_on", value: "显示全部账号", comment: "Show all Codex accounts")
                             : NSLocalizedString("codex.accounts.filter.hide_zero_off", value: "隐藏无额度账号", comment: "Hide zero-quota Codex accounts"),
                         systemImage: "line.3.horizontal.decrease.circle"
@@ -492,10 +537,30 @@ struct ProviderUsageView: View, DebugPageLocatable {
                     )
                 )
 
+                Button {
+                    viewModel.codex.setHideErroredAccounts(!viewModel.codex.hideErroredAccounts)
+                } label: {
+                    Label(
+                        viewModel.codex.hideErroredAccounts
+                            ? NSLocalizedString("codex.accounts.filter.hide_error_on", value: "显示报错账号", comment: "Show errored Codex accounts")
+                            : NSLocalizedString("codex.accounts.filter.hide_error_off", value: "隐藏报错账号", comment: "Hide errored Codex accounts"),
+                        systemImage: "exclamationmark.triangle"
+                    )
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .help(
+                    NSLocalizedString(
+                        "codex.accounts.filter.hide_error.help",
+                        value: "切换是否隐藏报错账号",
+                        comment: "Help for hide errored accounts filter"
+                    )
+                )
+
                 Picker(
                     selection: Binding(
-                        get: { viewModel.codexAccountLayoutMode },
-                        set: { viewModel.setCodexAccountLayoutMode($0) }
+                        get: { viewModel.codex.accountLayoutMode },
+                        set: { viewModel.codex.setAccountLayoutMode($0) }
                     )
                 ) {
                     Text(NSLocalizedString("codex.accounts.layout.cards", value: "卡片", comment: "Codex account card layout"))
@@ -516,14 +581,14 @@ struct ProviderUsageView: View, DebugPageLocatable {
                     )
                 )
 
-                if viewModel.isCodexMultiSelectionEnabled {
+                if accountsViewModel.codex.isMultiSelectionEnabled {
                     Text(String(
                         format: NSLocalizedString(
                             "codex.accounts.selection.count",
                             value: "已选 %d",
                             comment: "Selected Codex account count"
                         ),
-                        viewModel.codexSelectedAccountCount
+                        viewModel.codex.selectedAccountCount
                     ))
                     .font(.caption)
                     .monospacedDigit()
@@ -531,46 +596,46 @@ struct ProviderUsageView: View, DebugPageLocatable {
 
                     Menu {
                         Button {
-                            Task { await viewModel.exportSelectedCodexAccountsAsZIP() }
+                            Task { await viewModel.codex.exportSelectedAccountsAsZIP() }
                         } label: {
                             Label(
                                 NSLocalizedString("codex.accounts.action.export_zip", value: "导出 ZIP", comment: "Export selected Codex accounts to ZIP"),
                                 systemImage: "square.and.arrow.up"
                             )
                         }
-                        .disabled(!viewModel.canExportSelectedCodexAccounts)
+                        .disabled(!viewModel.codex.canExportSelectedAccounts)
 
                         Button {
-                            Task { await viewModel.exportSelectedCodexAccountsAsSub2API() }
+                            Task { await viewModel.codex.exportSelectedAccountsAsSub2API() }
                         } label: {
                             Label(
                                 NSLocalizedString("codex.accounts.action.export_sub2api", value: "导出 sub2api", comment: "Export selected Codex accounts to sub2api"),
                                 systemImage: "doc.badge.arrow.up"
                             )
                         }
-                        .disabled(!viewModel.canExportSelectedCodexAccounts)
+                        .disabled(!viewModel.codex.canExportSelectedAccounts)
 
                         Button {
-                            viewModel.addSelectedToGatewayCard()
+                            viewModel.codex.addSelectedToGatewayCard()
                         } label: {
                             Label(
                                 NSLocalizedString("codex.gateway.cards.action.add_selected", value: "加入网关卡片", comment: "Add selected accounts to gateway card"),
                                 systemImage: "rectangle.stack.badge.plus"
                             )
                         }
-                        .disabled(!viewModel.canAddSelectedToGatewayCard)
+                        .disabled(!viewModel.codex.canAddSelectedToGatewayCard)
 
                         Divider()
 
                         Button {
-                            viewModel.selectedCodexAccountIDs.removeAll()
+                            accountsViewModel.codex.selectedAccountIDs.removeAll()
                         } label: {
                             Label(
                                 NSLocalizedString("codex.accounts.action.clear_selection", value: "清空选择", comment: "Clear Codex selection"),
                                 systemImage: "xmark.circle"
                             )
                         }
-                        .disabled(viewModel.selectedCodexAccountIDs.isEmpty)
+                        .disabled(accountsViewModel.codex.selectedAccountIDs.isEmpty)
                     } label: {
                         Label(
                             NSLocalizedString("codex.accounts.bulk_actions", value: "批量操作", comment: "Bulk account actions"),
@@ -581,7 +646,7 @@ struct ProviderUsageView: View, DebugPageLocatable {
                     .controlSize(.small)
 
                     Button(NSLocalizedString("codex.accounts.action.done_selecting", value: "完成", comment: "Done selecting Codex accounts")) {
-                        viewModel.setCodexMultiSelectionEnabled(false)
+                        viewModel.codex.setMultiSelectionEnabled(false)
                     }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.small)
@@ -589,8 +654,8 @@ struct ProviderUsageView: View, DebugPageLocatable {
 
                 ForEach(
                     Self.visibleCodexPrimaryHeaderActions(
-                        from: viewModel.codexPrimaryHeaderActions,
-                        isCodexMultiSelectionEnabled: viewModel.isCodexMultiSelectionEnabled
+                        from: viewModel.codex.primaryHeaderActions,
+                        isCodexMultiSelectionEnabled: accountsViewModel.codex.isMultiSelectionEnabled
                     ),
                     id: \.id
                 ) { action in
@@ -602,26 +667,26 @@ struct ProviderUsageView: View, DebugPageLocatable {
             } else {
                 if viewModel.usageProvider == .claude {
                     Button(NSLocalizedString("claude.accounts.migrate", value: "迁移", comment: "Migrate Claude accounts")) {
-                        Task { await viewModel.migrateClaudeFromCurrentSettings() }
+                        Task { await viewModel.claude.migrateFromCurrentSettings() }
                     }
                     .disabled(viewModel.isLoading)
-                    if ProviderUsageLoginPolicy.shouldShowDashboardSignIn(for: provider, dashboardURL: viewModel.dashboardURL) {
+                    if ProviderUsageLoginPolicy.shouldShowDashboardSignIn(for: provider, dashboardURL: loginFlowViewModel.dashboardURL) {
                         Button(NSLocalizedString("usage.monitor.login", value: "Sign in…", comment: "Sign in")) {
-                            viewModel.isShowingLogin = true
+                            loginFlowViewModel.isShowingLogin = true
                         }
                     }
                 } else if ProviderUsageLoginPolicy.shouldUseCLILogin(for: provider) {
                     Button(NSLocalizedString("codex.accounts.login", value: "登录", comment: "Codex login")) {
-                        viewModel.startLoginFlow()
+                        loginFlowViewModel.startLoginFlow()
                     }
-                    .disabled(viewModel.isRunningCLILogin)
+                    .disabled(loginFlowViewModel.isRunningCLILogin)
                     Button(NSLocalizedString("usage.monitor.refresh", value: "Refresh", comment: "Refresh")) {
                         Task { await viewModel.load() }
                     }
                     .disabled(viewModel.isLoading)
-                } else if ProviderUsageLoginPolicy.shouldShowDashboardSignIn(for: provider, dashboardURL: viewModel.dashboardURL) {
+                } else if ProviderUsageLoginPolicy.shouldShowDashboardSignIn(for: provider, dashboardURL: loginFlowViewModel.dashboardURL) {
                     Button(NSLocalizedString("usage.monitor.login", value: "Sign in…", comment: "Sign in")) {
-                        viewModel.isShowingLogin = true
+                        loginFlowViewModel.isShowingLogin = true
                     }
                 } else {
                     Button(NSLocalizedString("usage.monitor.refresh", value: "Refresh", comment: "Refresh")) {
@@ -653,36 +718,36 @@ struct ProviderUsageView: View, DebugPageLocatable {
             } label: {
                 Label(NSLocalizedString("codex.accounts.refresh_all", value: "刷新", comment: "Codex refresh all"), systemImage: "arrow.clockwise")
             }
-            .disabled(viewModel.isLoading && !viewModel.isCodexHeaderRefreshing)
+            .disabled(viewModel.isLoading && !viewModel.codex.isHeaderRefreshing)
         case .login:
             Button {
-                viewModel.startLoginFlow()
+                loginFlowViewModel.startLoginFlow()
             } label: {
                 Label(NSLocalizedString("codex.accounts.login", value: "登录", comment: "Codex login"), systemImage: "person.badge.key")
             }
-            .disabled(viewModel.isRunningCLILogin)
+            .disabled(loginFlowViewModel.isRunningCLILogin)
         case .importAuth:
             Button {
-                viewModel.beginImportAuthFiles()
+                viewModel.codex.beginImportAuthFiles()
             } label: {
                 Label(NSLocalizedString("codex.accounts.import", value: "导入", comment: "Codex import"), systemImage: "tray.and.arrow.down")
             }
         case .editConfig:
             Button {
-                viewModel.beginEditActiveCodexConfiguredAccount()
+                viewModel.codex.beginEditActiveConfiguredAccount()
             } label: {
                 Label(NSLocalizedString("codex.accounts.action.edit", value: "Edit", comment: "Edit configured account"), systemImage: "pencil")
             }
-            .disabled(!viewModel.codexAccountSupportsEditing(accountID: viewModel.activeCodexAccountId))
+            .disabled(!viewModel.codex.accountSupportsEditing(accountID: viewModel.codex.activeAccountId))
         case .validateConfig:
             Button {
-                viewModel.validateActiveCodexConfiguredAccount()
+                viewModel.codex.validateActiveConfiguredAccount()
             } label: {
                 Label(NSLocalizedString("codex.accounts.action.validate", value: "Validate", comment: "Validate configured account"), systemImage: "checkmark.shield")
             }
             .disabled({
-                guard let activeID = viewModel.activeCodexAccountId else { return true }
-                return viewModel.codexRefreshingAccountIds.contains(activeID)
+                guard let activeID = viewModel.codex.activeAccountId else { return true }
+                return viewModel.codex.refreshingAccountIds.contains(activeID)
             }())
         }
     }
@@ -693,8 +758,8 @@ struct ProviderUsageView: View, DebugPageLocatable {
                 Section {
                     Picker(
                         selection: Binding(
-                            get: { viewModel.codexAccountGroupingOption },
-                            set: { viewModel.codexAccountGroupingOption = $0 }
+                            get: { viewModel.codex.accountGroupingOption },
+                            set: { viewModel.codex.accountGroupingOption = $0 }
                         )
                     ) {
                         Text(NSLocalizedString("codex.accounts.grouping.none", value: "无分组", comment: "No grouping"))
@@ -710,8 +775,8 @@ struct ProviderUsageView: View, DebugPageLocatable {
 
                     Picker(
                         selection: Binding(
-                            get: { viewModel.codexAccountLayoutMode },
-                            set: { viewModel.setCodexAccountLayoutMode($0) }
+                            get: { viewModel.codex.accountLayoutMode },
+                            set: { viewModel.codex.setAccountLayoutMode($0) }
                         )
                     ) {
                         Text(NSLocalizedString("codex.accounts.layout.cards", value: "卡片", comment: "Codex account card layout"))
@@ -726,16 +791,16 @@ struct ProviderUsageView: View, DebugPageLocatable {
                     }
 
                     Menu {
-                        ForEach(viewModel.codexSortMenuOptions) { option in
+                        ForEach(viewModel.codex.sortMenuOptions) { option in
                             Button {
-                                viewModel.selectCodexSortOption(option)
+                                viewModel.codex.selectSortOption(option)
                             } label: {
-                                let isSelected = viewModel.codexAccountSortOption == option
+                                let isSelected = viewModel.codex.accountSortOption == option
                                 HStack {
                                     Text(
                                         ProviderUsageViewModel.codexSortMenuItemTitle(
                                             for: option,
-                                            direction: isSelected ? viewModel.codexDirection(for: option) : nil
+                                            direction: isSelected ? viewModel.codex.direction(for: option) : nil
                                         )
                                     )
                                     if isSelected {
@@ -752,9 +817,9 @@ struct ProviderUsageView: View, DebugPageLocatable {
                         )
                     }
 
-                    if !viewModel.isCodexMultiSelectionEnabled {
+                    if !accountsViewModel.codex.isMultiSelectionEnabled {
                         Button {
-                            viewModel.toggleCodexMultiSelectionMode()
+                            viewModel.codex.toggleMultiSelectionMode()
                         } label: {
                             Label(
                                 NSLocalizedString("codex.accounts.action.multi_select", value: "进入多选", comment: "Enter Codex multi-select mode"),
@@ -768,7 +833,7 @@ struct ProviderUsageView: View, DebugPageLocatable {
 
                 Section {
                     Button {
-                        viewModel.beginNewCodexAPIKeyAccount()
+                        viewModel.codex.beginNewAPIKeyAccount()
                     } label: {
                         Label(
                             NSLocalizedString("codex.accounts.action.new_api_key", value: "新增 API Key", comment: "New API key account"),
@@ -777,7 +842,7 @@ struct ProviderUsageView: View, DebugPageLocatable {
                     }
 
                     Button {
-                        viewModel.beginNewCodexRelayAccount()
+                        viewModel.codex.beginNewRelayAccount()
                     } label: {
                         Label(
                             NSLocalizedString("codex.accounts.action.new_relay", value: "新增 Relay", comment: "New relay account"),
@@ -800,8 +865,8 @@ struct ProviderUsageView: View, DebugPageLocatable {
                 Section {
                     Toggle(
                         isOn: Binding(
-                            get: { viewModel.codexAutoSwitchConfig.enabled },
-                            set: { viewModel.setCodexAutoSwitchEnabled($0) }
+                            get: { viewModel.codex.autoSwitchConfig.enabled },
+                            set: { viewModel.codex.setAutoSwitchEnabled($0) }
                         )
                     ) {
                         Label(
@@ -810,11 +875,11 @@ struct ProviderUsageView: View, DebugPageLocatable {
                         )
                     }
 
-                    if viewModel.codexAutoSwitchConfig.enabled {
+                    if viewModel.codex.autoSwitchConfig.enabled {
                         Menu {
                             ForEach(codexAutoSwitchThresholdOptions, id: \.self) { option in
                                 Button {
-                                    viewModel.setCodexAutoSwitchThresholdPercent(Int(option))
+                                    viewModel.codex.setAutoSwitchThresholdPercent(Int(option))
                                 } label: {
                                     HStack {
                                         Text(
@@ -827,7 +892,7 @@ struct ProviderUsageView: View, DebugPageLocatable {
                                                 Int(option)
                                             )
                                         )
-                                        if viewModel.codexAutoSwitchConfig.thresholdPercent == option {
+                                        if viewModel.codex.autoSwitchConfig.thresholdPercent == option {
                                             Spacer(minLength: 8)
                                             Image(systemName: "checkmark")
                                         }
@@ -842,7 +907,7 @@ struct ProviderUsageView: View, DebugPageLocatable {
                                         value: "切号阈值：%d%%",
                                         comment: "Codex auto switch threshold title"
                                     ),
-                                    Int(viewModel.codexAutoSwitchConfig.thresholdPercent)
+                                    Int(viewModel.codex.autoSwitchConfig.thresholdPercent)
                                 ),
                                 systemImage: "gauge.with.dots.needle.33percent"
                             )
@@ -851,7 +916,7 @@ struct ProviderUsageView: View, DebugPageLocatable {
                         Menu {
                             ForEach(codexAutoSwitchCandidateOptions, id: \.self) { option in
                                 Button {
-                                    viewModel.setCodexAutoSwitchMinimumCandidateRemainingPercent(Int(option))
+                                    viewModel.codex.setAutoSwitchMinimumCandidateRemainingPercent(Int(option))
                                 } label: {
                                     HStack {
                                         Text(
@@ -864,7 +929,7 @@ struct ProviderUsageView: View, DebugPageLocatable {
                                                 Int(option)
                                             )
                                         )
-                                        if viewModel.codexAutoSwitchConfig.minimumCandidateRemainingPercent == option {
+                                        if viewModel.codex.autoSwitchConfig.minimumCandidateRemainingPercent == option {
                                             Spacer(minLength: 8)
                                             Image(systemName: "checkmark")
                                         }
@@ -879,7 +944,7 @@ struct ProviderUsageView: View, DebugPageLocatable {
                                         value: "候选余量：%d%%",
                                         comment: "Codex auto switch candidate threshold title"
                                     ),
-                                    Int(viewModel.codexAutoSwitchConfig.minimumCandidateRemainingPercent)
+                                    Int(viewModel.codex.autoSwitchConfig.minimumCandidateRemainingPercent)
                                 ),
                                 systemImage: "battery.75"
                             )
@@ -887,8 +952,8 @@ struct ProviderUsageView: View, DebugPageLocatable {
 
                         Toggle(
                             isOn: Binding(
-                                get: { viewModel.codexAutoSwitchConfig.skipRelayAccounts },
-                                set: { viewModel.setCodexAutoSwitchSkipRelay($0) }
+                                get: { viewModel.codex.autoSwitchConfig.skipRelayAccounts },
+                                set: { viewModel.codex.setAutoSwitchSkipRelay($0) }
                             )
                         ) {
                             Label(
@@ -912,7 +977,7 @@ struct ProviderUsageView: View, DebugPageLocatable {
                 if viewModel.usageProvider == .claude {
                     Section {
                         Button {
-                            Task { await viewModel.migrateClaudeFromCurrentSettings() }
+                            Task { await viewModel.claude.migrateFromCurrentSettings() }
                         } label: {
                             Label(
                                 NSLocalizedString("claude.accounts.migrate.current", value: "迁移当前配置", comment: "Migrate Claude from current settings"),
@@ -921,7 +986,7 @@ struct ProviderUsageView: View, DebugPageLocatable {
                         }
 
                         Button {
-                            Task { await viewModel.importClaudeFromCCSwitch() }
+                            Task { await viewModel.claude.importFromCCSwitch() }
                         } label: {
                             Label(
                                 NSLocalizedString("claude.accounts.migrate.cc_switch", value: "从 cc-switch 导入", comment: "Import Claude from cc-switch"),
@@ -949,10 +1014,10 @@ struct ProviderUsageView: View, DebugPageLocatable {
                 Text(NSLocalizedString("usage.menu.section.system", value: "系统", comment: "Menu section for system options"))
             }
 
-            if viewModel.isRunningCLILogin {
+            if loginFlowViewModel.isRunningCLILogin {
                 Section {
                     Button(role: .destructive) {
-                        viewModel.cancelCLILoginIfNeeded()
+                        loginFlowViewModel.cancelCLILoginIfNeeded()
                     } label: {
                         Label(
                             NSLocalizedString("codex.cli_login.cancel", value: "Cancel Login", comment: "Cancel CLI login"),
@@ -975,33 +1040,33 @@ struct ProviderUsageView: View, DebugPageLocatable {
     }
 
     private var genericUsageContent: some View {
-        let displayedOutcomes = ProviderUsageViewModel.displayedGenericUsageOutcomes(
+        let displayedOutcomes = ProviderUsageOutcomeFilter.displayedGenericOutcomes(
             usageProvider: viewModel.usageProvider,
-            hasGeminiAccounts: !viewModel.geminiAccounts.isEmpty,
+            hasGeminiAccounts: !viewModel.gemini.accounts.isEmpty,
             outcomes: viewModel.outcomes
         )
         return ScrollView {
             LazyVStack(alignment: .leading, spacing: 12) {
-                if viewModel.shouldShowGeminiImportAction {
+                if viewModel.gemini.shouldShowImportAction {
                     geminiImportCallout
                 }
                 if let usageProvider = viewModel.usageProvider,
                    (usageProvider == .gemini || usageProvider == .antigravity),
-                   !viewModel.geminiAccounts.isEmpty {
+                   !viewModel.gemini.accounts.isEmpty {
                     VStack(alignment: .leading, spacing: 10) {
                         Text(provider.name)
                             .font(.headline)
 
-                        if Self.shouldUseFullWidthGeminiCardLayout(accountCount: viewModel.geminiAccounts.count) {
+                        if Self.shouldUseFullWidthGeminiCardLayout(accountCount: viewModel.gemini.accounts.count) {
                             VStack(alignment: .leading, spacing: 12) {
-                                ForEach(viewModel.geminiAccounts, id: \.id) { account in
+                                ForEach(viewModel.gemini.accounts, id: \.id) { account in
                                     geminiAccountCard(account: account)
                                         .frame(maxWidth: .infinity, alignment: .topLeading)
                                 }
                             }
                         } else {
                             LazyVGrid(columns: claudeAccountColumns, alignment: .leading, spacing: 12) {
-                                ForEach(viewModel.geminiAccounts, id: \.id) { account in
+                                ForEach(viewModel.gemini.accounts, id: \.id) { account in
                                     geminiAccountCard(account: account)
                                 }
                             }
@@ -1048,7 +1113,7 @@ struct ProviderUsageView: View, DebugPageLocatable {
     private var claudeContent: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                if viewModel.claudeAccounts.isEmpty {
+                if viewModel.claude.accounts.isEmpty {
                     ProviderUsageEmptyStateCard(
                         title: LocalizedStringKey(
                             NSLocalizedString(
@@ -1073,15 +1138,15 @@ struct ProviderUsageView: View, DebugPageLocatable {
                             .font(.headline)
 
                         LazyVGrid(columns: claudeAccountColumns, alignment: .leading, spacing: 12) {
-                            ForEach(viewModel.claudeAccounts, id: \.id) { account in
+                            ForEach(viewModel.claude.accounts, id: \.id) { account in
                                 claudeAccountCard(account: account)
                             }
                         }
                     }
                 }
 
-                let usageOutcomes = ProviderUsageViewModel.displayedClaudeUsageOutcomes(
-                    hasClaudeAccounts: !viewModel.claudeAccounts.isEmpty,
+                let usageOutcomes = ProviderUsageOutcomeFilter.displayedClaudeOutcomes(
+                    hasClaudeAccounts: !viewModel.claude.accounts.isEmpty,
                     outcomes: viewModel.outcomes
                 ).filter { outcome in
                     if case let .failure(error) = outcome.outcome.result,
@@ -1102,7 +1167,7 @@ struct ProviderUsageView: View, DebugPageLocatable {
     }
 
     private func claudeAccountCard(account: ClaudeAccount) -> some View {
-        let isActive = viewModel.isActiveClaudeAccount(account)
+        let isActive = viewModel.claude.isActiveAccount(account)
         let record = AccountRecordBuilder.claude(
             providerName: "Claude",
             account: account,
@@ -1127,17 +1192,17 @@ struct ProviderUsageView: View, DebugPageLocatable {
             data: data,
             onTap: { _ in
                 guard !isActive else { return }
-                Task { await viewModel.activateClaudeAccount(id: account.id) }
+                Task { await viewModel.claude.activateAccount(id: account.id) }
             },
             onAction: { _, action in
                 guard action == .activate else { return }
-                Task { await viewModel.activateClaudeAccount(id: account.id) }
+                Task { await viewModel.claude.activateAccount(id: account.id) }
             }
         )
     }
 
     private func geminiAccountCard(account: GeminiAuthAccount) -> some View {
-        let isActive = viewModel.isActiveGeminiAccount(account)
+        let isActive = viewModel.gemini.isActiveAccount(account)
         let liveOutcome = viewModel.outcomes.first
         let quota: AccountRecordQuota? = {
             guard isActive, let liveOutcome else { return nil }
@@ -1167,7 +1232,7 @@ struct ProviderUsageView: View, DebugPageLocatable {
                     syncedAt: nil,
                     isLoading: viewModel.isLoading,
                     showsEmptyState: false,
-                    errorMessage: ProviderUsageViewModel.errorDetailText(error: error)
+                    errorMessage: ProviderUsageErrorFormatter.detailText(error: error)
                 )
             }
         }()
@@ -1195,16 +1260,16 @@ struct ProviderUsageView: View, DebugPageLocatable {
             data: data,
             onTap: { _ in
                 guard !isActive else { return }
-                Task { await viewModel.activateGeminiAccount(id: account.id) }
+                Task { await viewModel.gemini.activateAccount(id: account.id) }
             },
             onAction: { _, action in
                 switch action {
                 case .activate:
-                    Task { await viewModel.activateGeminiAccount(id: account.id) }
+                    Task { await viewModel.gemini.activateAccount(id: account.id) }
                 case .refresh:
                     Task { await viewModel.load() }
                 case .delete:
-                    Task { await viewModel.deleteGeminiAccount(id: account.id) }
+                    Task { await viewModel.gemini.deleteAccount(id: account.id) }
                 default:
                     break
                 }
@@ -1235,7 +1300,7 @@ struct ProviderUsageView: View, DebugPageLocatable {
                     value: "Import Existing Login",
                     comment: "Inline Gemini import CTA"
                 )) {
-                    viewModel.presentGeminiImportConfirmation()
+                    viewModel.gemini.presentImportConfirmation()
                 }
                 .buttonStyle(.borderedProminent)
 
@@ -1244,7 +1309,7 @@ struct ProviderUsageView: View, DebugPageLocatable {
                     value: "Sign in with OAuth",
                     comment: "Inline Gemini OAuth CTA"
                 )) {
-                    viewModel.continueGeminiOAuthLoginWithoutImport()
+                    viewModel.gemini.continueOAuthLoginWithoutImport()
                 }
                 .buttonStyle(.bordered)
             }
@@ -1269,10 +1334,10 @@ struct ProviderUsageView: View, DebugPageLocatable {
         guard viewModel.usageProvider == .codex else { return nil }
         switch outcome.account {
         case let .tokenAccount(account):
-            return viewModel.codexAccountCreditsRefreshedAt[account.id]
+            return viewModel.codex.accountCreditsRefreshedAt[account.id]
         case .default:
-            if let activeId = viewModel.activeCodexAccountId {
-                return viewModel.codexAccountCreditsRefreshedAt[activeId]
+            if let activeId = accountsViewModel.codex.activeAccountId {
+                return viewModel.codex.accountCreditsRefreshedAt[activeId]
             }
             return nil
         }
@@ -1282,11 +1347,11 @@ struct ProviderUsageView: View, DebugPageLocatable {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 codexManagementCard
-                if !viewModel.gatewayCards.isEmpty {
+                if !gatewayCardsViewModel.gatewayCards.isEmpty {
                     gatewayCardsSection
                 }
 
-                if viewModel.codexAccounts.isEmpty && !viewModel.isLoading {
+                if accountsViewModel.codex.accounts.isEmpty && !viewModel.isLoading {
                     ContentUnavailableView(
                         NSLocalizedString("codex.accounts.empty.title", value: "No accounts", comment: "Empty state title"),
                         systemImage: "person.crop.circle.badge.plus",
@@ -1300,9 +1365,9 @@ struct ProviderUsageView: View, DebugPageLocatable {
                     .debugCardLocator(debugPageMarkerItems + [PageMarkerItem(title: NSLocalizedString("codex.accounts.empty.title", value: "No accounts", comment: "Empty state title"))])
                 }
 
-                if viewModel.isLoading && viewModel.codexAccountOutcomes.isEmpty {
+                if viewModel.isLoading && accountsViewModel.codex.accountOutcomes.isEmpty {
                     Group {
-                        if viewModel.codexAccountLayoutMode == .list {
+                        if viewModel.codex.accountLayoutMode == .list {
                             LazyVStack(alignment: .leading, spacing: 12) {
                                 ForEach(0..<ProviderUsageSkeletonPolicy.codexCardCount, id: \.self) { _ in
                                     switch ProviderUsageSkeletonPolicy.codexLoadingSkeletonStyle {
@@ -1323,36 +1388,34 @@ struct ProviderUsageView: View, DebugPageLocatable {
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
-                } else if viewModel.codexAccountDisplaySections.isEmpty && viewModel.codexHideZeroQuotaAccounts {
+                } else if viewModel.codex.accountDisplaySections.isEmpty && viewModel.codex.hasActiveAccountFilters {
                     ContentUnavailableView(
                         NSLocalizedString("codex.accounts.filtered_empty.title", value: "没有可显示的账号", comment: "All accounts hidden by zero quota filter title"),
                         systemImage: "line.3.horizontal.decrease.circle",
                         description: Text(
-                            NSLocalizedString(
-                                "codex.accounts.filtered_empty.desc",
-                                value: "当前已隐藏最长额度窗口为 0% 的账号。关闭筛选后可查看全部账号。",
-                                comment: "All accounts hidden by zero quota filter description"
-                            )
+                            codexFilteredEmptyDescription
                         )
                         .dsSecondaryText(font: .body)
                     )
                     .debugCardLocator(debugPageMarkerItems + [PageMarkerItem(title: NSLocalizedString("codex.accounts.filtered_empty.title", value: "没有可显示的账号", comment: "All accounts hidden by zero quota filter title"))])
                 } else {
-                    ForEach(viewModel.codexAccountDisplaySections) { section in
+                    ForEach(viewModel.codex.accountDisplaySections) { section in
                         VStack(alignment: .leading, spacing: 10) {
                             if let title = section.title {
                                 HStack(spacing: 8) {
                                     Button {
-                                        viewModel.toggleCodexSection(section.id)
+                                        viewModel.codex.toggleSection(section.id)
                                     } label: {
                                         HStack(spacing: 8) {
-                                            Image(systemName: viewModel.isCodexSectionCollapsed(section.id) ? "chevron.right" : "chevron.down")
+                                            Image(systemName: viewModel.codex.isSectionCollapsed(section.id) ? "chevron.right" : "chevron.down")
                                                 .font(.caption)
                                                 .foregroundStyle(DesignSystem.Colors.Text.secondary)
                                             Text(title)
                                                 .font(.headline)
                                                 .foregroundStyle(DesignSystem.Colors.Text.primary)
-                                            Text("\(section.items.count)")
+                                            Text(
+                                                "(\(section.items.count) / \(viewModel.codex.accountSectionTotalCountByID[section.id, default: section.items.count]))"
+                                            )
                                                 .font(.caption)
                                                 .foregroundStyle(DesignSystem.Colors.Text.tertiary)
                                         }
@@ -1362,12 +1425,12 @@ struct ProviderUsageView: View, DebugPageLocatable {
 
                                     Spacer(minLength: 0)
 
-                                    if viewModel.isCodexMultiSelectionEnabled && !section.items.isEmpty {
-                                        Button(viewModel.isCodexSectionFullySelected(section)
+                                    if accountsViewModel.codex.isMultiSelectionEnabled && !section.items.isEmpty {
+                                        Button(viewModel.codex.isSectionFullySelected(section)
                                             ? NSLocalizedString("codex.import.sheet.deselect_all", value: "取消全选", comment: "Deselect all")
                                             : NSLocalizedString("codex.import.sheet.select_all", value: "全选", comment: "Select all")
                                         ) {
-                                            viewModel.toggleCodexSectionSelection(section)
+                                            viewModel.codex.toggleSectionSelection(section)
                                         }
                                         .buttonStyle(.bordered)
                                         .controlSize(.mini)
@@ -1375,12 +1438,12 @@ struct ProviderUsageView: View, DebugPageLocatable {
                                 }
                             }
 
-                            if !viewModel.isCodexSectionCollapsed(section.id) {
+                            if !viewModel.codex.isSectionCollapsed(section.id) {
                                 codexOutcomesContainer(section.items)
                             }
                         }
                     }
-                    .animation(.snappy(duration: 0.2), value: viewModel.collapsedCodexSectionIDs)
+                    .animation(.snappy(duration: 0.2), value: viewModel.codex.collapsedSectionIDs)
                 }
 
                 tokenTrendSection
@@ -1391,9 +1454,38 @@ struct ProviderUsageView: View, DebugPageLocatable {
         }
     }
 
+    private var codexFilteredEmptyDescription: String {
+        switch (viewModel.codex.hideZeroQuotaAccounts, viewModel.codex.hideErroredAccounts) {
+        case (true, true):
+            return NSLocalizedString(
+                "codex.accounts.filtered_empty.desc.hide_zero_and_error",
+                value: "当前已隐藏无额度或报错账号。关闭筛选后可查看全部账号。",
+                comment: "All accounts hidden by zero quota and errored filters"
+            )
+        case (true, false):
+            return NSLocalizedString(
+                "codex.accounts.filtered_empty.desc",
+                value: "当前已隐藏最长额度窗口为 0% 的账号。关闭筛选后可查看全部账号。",
+                comment: "All accounts hidden by zero quota filter description"
+            )
+        case (false, true):
+            return NSLocalizedString(
+                "codex.accounts.filtered_empty.desc.hide_error",
+                value: "当前已隐藏报错账号。关闭筛选后可查看全部账号。",
+                comment: "All accounts hidden by errored filter description"
+            )
+        case (false, false):
+            return NSLocalizedString(
+                "codex.accounts.filtered_empty.desc",
+                value: "当前已隐藏最长额度窗口为 0% 的账号。关闭筛选后可查看全部账号。",
+                comment: "All accounts hidden by zero quota filter description"
+            )
+        }
+    }
+
     @ViewBuilder
     private var codexManagementCard: some View {
-        if let status = viewModel.codexManagementStatus, status.needsEnable || status.needsMigration {
+        if let status = viewModel.codex.managementStatus, status.needsEnable || status.needsMigration {
             HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(NSLocalizedString("codex.management.title", value: "管理状态", comment: "Codex management status"))
@@ -1404,10 +1496,10 @@ struct ProviderUsageView: View, DebugPageLocatable {
                 }
                 Spacer()
                 Button(NSLocalizedString("codex.management.enable", value: "启用管理", comment: "Enable codex management")) {
-                    Task { await viewModel.enableCodexManagement() }
+                    Task { await viewModel.codex.enableManagement() }
                 }
                 Button(NSLocalizedString("codex.management.migrate", value: "数据迁移", comment: "Migrate codex data")) {
-                    Task { await viewModel.migrateCodexManagementData() }
+                    Task { await viewModel.codex.migrateManagementData() }
                 }
             }
             .padding(12)
@@ -1419,11 +1511,11 @@ struct ProviderUsageView: View, DebugPageLocatable {
     private var gatewayCardsSection: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 8) {
-                Button {
-                    viewModel.toggleGatewayCardsSectionCollapsed()
-                } label: {
-                    HStack(spacing: 8) {
-                        Image(systemName: viewModel.isGatewayCardsSectionCollapsed ? "chevron.right" : "chevron.down")
+                    Button {
+                        gatewayCardsViewModel.toggleGatewayCardsSectionCollapsed()
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: gatewayCardsViewModel.isGatewayCardsSectionCollapsed ? "chevron.right" : "chevron.down")
                             .font(.caption)
                             .foregroundStyle(DesignSystem.Colors.Text.secondary)
 
@@ -1434,7 +1526,7 @@ struct ProviderUsageView: View, DebugPageLocatable {
                         .font(.system(size: 14, weight: .bold))
                         .foregroundStyle(DesignSystem.Colors.Text.primary)
 
-                        Text("\(viewModel.gatewayCards.count)")
+                        Text("\(gatewayCardsViewModel.gatewayCards.count)")
                             .font(.system(size: 10, weight: .bold, design: .monospaced))
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
@@ -1449,18 +1541,18 @@ struct ProviderUsageView: View, DebugPageLocatable {
                 Spacer()
             }
 
-            if !viewModel.isGatewayCardsSectionCollapsed {
-                gatewayCardsContainer(viewModel.gatewayCards)
+            if !gatewayCardsViewModel.isGatewayCardsSectionCollapsed {
+                gatewayCardsContainer(gatewayCardsViewModel.gatewayCards)
             }
         }
-        .animation(.snappy(duration: 0.2), value: viewModel.isGatewayCardsSectionCollapsed)
+        .animation(.snappy(duration: 0.2), value: gatewayCardsViewModel.isGatewayCardsSectionCollapsed)
         .debugCardLocator(gatewayCardsDebugPageMarkerItems)
     }
 
     @ViewBuilder
     private func codexOutcomesContainer(_ outcomes: [ProviderAccountUsageOutcome]) -> some View {
         Group {
-            if Self.shouldUseCompactCodexListRows(layoutMode: viewModel.codexAccountLayoutMode) {
+            if Self.shouldUseCompactCodexListRows(layoutMode: viewModel.codex.accountLayoutMode) {
                 VStack(alignment: .leading, spacing: 0) {
                     codexListTableHeader
 
@@ -1495,7 +1587,7 @@ struct ProviderUsageView: View, DebugPageLocatable {
     private func gatewayCardsContainer(_ cards: [CodexGatewayCard]) -> some View {
         NolonUI.GatewayCardListModule(
             items: cards,
-            layoutMode: viewModel.codexAccountLayoutMode == .list ? .list : .cards,
+            layoutMode: viewModel.codex.accountLayoutMode == .list ? .list : .cards,
             columns: codexAccountColumns,
             spacing: 12
         ) { card in
@@ -1504,7 +1596,7 @@ struct ProviderUsageView: View, DebugPageLocatable {
     }
 
     private func gatewayCardView(card: CodexGatewayCard) -> some View {
-        let members = viewModel.gatewayMembers(for: card)
+        let members = viewModel.codex.gatewayMembers(for: card)
         let memberItems = members.map { member in
             NolonUI.GatewayCardMemberItem(
                 id: member.id,
@@ -1513,11 +1605,11 @@ struct ProviderUsageView: View, DebugPageLocatable {
             )
         }
         let isTargeted = targetingGatewayCardID == card.id
-        let isActiveGateway = viewModel.gatewayCardsState.lastUsedCardID == card.id
+        let isActiveGateway = gatewayCardsViewModel.gatewayCardsState.lastUsedCardID == card.id
         let presentation: AccountCardPresentation = (isTargeted || isActiveGateway) ? .selected : .neutral
-        let isCompact = Self.shouldUseCompactCodexListRows(layoutMode: viewModel.codexAccountLayoutMode)
-        let memberDisplayLimit = Self.gatewayMemberDisplayLimit(layoutMode: viewModel.codexAccountLayoutMode)
-        let memberRowMaxHeight = Self.gatewayMemberRowMaxHeight(layoutMode: viewModel.codexAccountLayoutMode)
+        let isCompact = Self.shouldUseCompactCodexListRows(layoutMode: viewModel.codex.accountLayoutMode)
+        let memberDisplayLimit = Self.gatewayMemberDisplayLimit(layoutMode: viewModel.codex.accountLayoutMode)
+        let memberRowMaxHeight = Self.gatewayMemberRowMaxHeight(layoutMode: viewModel.codex.accountLayoutMode)
         
         return NolonUI.GatewayCardModule(
             presentation: presentation,
@@ -1576,13 +1668,13 @@ struct ProviderUsageView: View, DebugPageLocatable {
                     title: NSLocalizedString("codex.gateway.cards.rename.title", value: "重命名网关卡片", comment: "Rename gateway card title"),
                     defaultValue: card.name
                 ) {
-                    viewModel.renameGatewayCard(cardID: card.id, name: name)
+                    gatewayCardsViewModel.renameGatewayCard(cardID: card.id, name: name)
                 }
             } label: {
                 Label(NSLocalizedString("rename", value: "Rename", comment: "Rename"), systemImage: "pencil")
             }
             Button(role: .destructive) {
-                viewModel.deleteGatewayCard(cardID: card.id)
+                gatewayCardsViewModel.deleteGatewayCard(cardID: card.id)
             } label: {
                 Label(NSLocalizedString("delete", value: "Delete", comment: "Delete"), systemImage: "trash")
             }
@@ -1601,15 +1693,15 @@ struct ProviderUsageView: View, DebugPageLocatable {
                         value: "将加入 %d 个已选账号",
                         comment: "Gateway picker selected count"
                     ),
-                    viewModel.pendingGatewaySelectionAccountIDs.count
+                    gatewayCardsViewModel.pendingGatewaySelectionAccountIDs.count
                 )
             )
             .font(.caption)
             .foregroundStyle(DesignSystem.Colors.Text.secondary)
 
-            List(viewModel.gatewayCards) { card in
+            List(gatewayCardsViewModel.gatewayCards) { card in
                 Button {
-                    viewModel.confirmAddPendingAccounts(to: card.id)
+                    gatewayCardsViewModel.confirmAddPendingAccounts(to: card.id)
                 } label: {
                     HStack {
                         Text(card.name)
@@ -1626,7 +1718,7 @@ struct ProviderUsageView: View, DebugPageLocatable {
             HStack {
                 Spacer(minLength: 0)
                 Button(NSLocalizedString("cancel", value: "Cancel", comment: "Cancel")) {
-                    viewModel.dismissGatewayCardPicker()
+                    gatewayCardsViewModel.dismissGatewayCardPicker()
                 }
             }
         }
@@ -1635,9 +1727,9 @@ struct ProviderUsageView: View, DebugPageLocatable {
     }
 
     private func gatewayAccountSelectionSheet(cardID: UUID) -> some View {
-        let card = viewModel.gatewayCards.first(where: { $0.id == cardID })
-        let candidates = viewModel.gatewayCandidateAccounts(for: cardID)
-        let candidateSections = viewModel.gatewayCandidateSections(for: cardID)
+        let card = gatewayCardsViewModel.gatewayCards.first(where: { $0.id == cardID })
+        let candidates = gatewayCardsViewModel.gatewayCandidateAccounts(for: cardID)
+        let candidateSections = gatewayCardsViewModel.gatewayCandidateSections(for: cardID)
         let cardName = card?.name ?? NSLocalizedString("codex.gateway.cards.unknown", value: "网关卡片", comment: "Gateway card fallback name")
 
         return VStack(alignment: .leading, spacing: 12) {
@@ -1762,7 +1854,7 @@ struct ProviderUsageView: View, DebugPageLocatable {
 
     private func gatewayCandidateTitle(for account: CodexAuthAccount) -> String {
         CodexAccountDisplayNameResolver.resolve(
-            summary: viewModel.codexAccountSummaries[account.id],
+            summary: accountsViewModel.codex.accountSummaries[account.id],
             relativeAuthPath: account.relativeAuthPath,
             defaultName: account.name,
             accountID: account.id
@@ -1802,7 +1894,7 @@ struct ProviderUsageView: View, DebugPageLocatable {
     }
 
     private func gatewayCandidateSubtitle(for account: CodexAuthAccount, title: String) -> String? {
-        guard let raw = viewModel.codexAccountSummaries[account.id]?.email?.trimmingCharacters(in: .whitespacesAndNewlines),
+        guard let raw = accountsViewModel.codex.accountSummaries[account.id]?.email?.trimmingCharacters(in: .whitespacesAndNewlines),
               !raw.isEmpty else { return nil }
         return raw == title ? nil : raw
     }
@@ -1813,12 +1905,12 @@ struct ProviderUsageView: View, DebugPageLocatable {
     }
 
     private func handleGatewayCardSelection(cardID: UUID, openPicker: Bool = false) {
-        let shouldPromptAddAccounts = viewModel.activateGatewayCard(cardID: cardID)
+        let shouldPromptAddAccounts = gatewayCardsViewModel.activateGatewayCard(cardID: cardID)
         if openPicker || shouldPromptAddAccounts {
             presentGatewayAccountPicker(for: cardID)
             return
         }
-        Task { await viewModel.startGatewayForCardSelection(cardID: cardID) }
+        Task { await gatewayCardsViewModel.startGatewayForCardSelection(cardID: cardID) }
     }
 
     private func dismissGatewayAccountPicker() {
@@ -1836,7 +1928,7 @@ struct ProviderUsageView: View, DebugPageLocatable {
 
     private func confirmGatewayAccountPickerSelection() {
         guard let cardID = gatewayAccountPickerCardID else { return }
-        let orderedIDs = viewModel
+        let orderedIDs = gatewayCardsViewModel
             .gatewayCandidateAccounts(for: cardID)
             .map(\.id)
             .filter { gatewayAccountPickerSelection.contains($0) }
@@ -1844,9 +1936,9 @@ struct ProviderUsageView: View, DebugPageLocatable {
             dismissGatewayAccountPicker()
             return
         }
-        viewModel.addAccountsToGatewayCard(accountIDs: orderedIDs, cardID: cardID)
+        gatewayCardsViewModel.addAccountsToGatewayCard(accountIDs: orderedIDs, cardID: cardID)
         dismissGatewayAccountPicker()
-        Task { await viewModel.startGatewayForCardSelection(cardID: cardID) }
+        Task { await gatewayCardsViewModel.startGatewayForCardSelection(cardID: cardID) }
     }
 
     private func handleGatewayCardDrop(items: [CodexGatewayAccountDropItem], cardID: UUID) -> Bool {
@@ -1862,14 +1954,14 @@ struct ProviderUsageView: View, DebugPageLocatable {
 
     private func handleGatewayCardDrop(accountIDs droppedIDs: [UUID], cardID: UUID) -> Bool {
         guard let firstID = droppedIDs.first else { return false }
-        if viewModel.isCodexMultiSelectionEnabled, viewModel.selectedCodexAccountIDs.contains(firstID) {
-            viewModel.addAccountsToGatewayCard(
-                accountIDs: Array(viewModel.selectedCodexAccountIDs),
+        if accountsViewModel.codex.isMultiSelectionEnabled, accountsViewModel.codex.selectedAccountIDs.contains(firstID) {
+            gatewayCardsViewModel.addAccountsToGatewayCard(
+                accountIDs: Array(accountsViewModel.codex.selectedAccountIDs),
                 cardID: cardID
             )
             return true
         }
-        viewModel.addAccountsToGatewayCard(accountIDs: droppedIDs, cardID: cardID)
+        gatewayCardsViewModel.addAccountsToGatewayCard(accountIDs: droppedIDs, cardID: cardID)
         return true
     }
 
@@ -1880,13 +1972,13 @@ struct ProviderUsageView: View, DebugPageLocatable {
                 value: "网关 %d",
                 comment: "Gateway default card name"
             ),
-            viewModel.gatewayCards.count + 1
+            gatewayCardsViewModel.gatewayCards.count + 1
         )
         if let name = promptGatewayCardName(
             title: NSLocalizedString("codex.gateway.cards.create.title", value: "新建网关卡片", comment: "Create gateway card title"),
             defaultValue: defaultName
         ) {
-            _ = viewModel.createGatewayCard(name: name)
+            _ = gatewayCardsViewModel.createGatewayCard(name: name)
         }
     }
 
@@ -1908,12 +2000,12 @@ struct ProviderUsageView: View, DebugPageLocatable {
 
     private var tokenTrendSection: some View {
         ProviderTokenTrendSection(
-            snapshot: viewModel.tokenTrendSnapshot,
-            isLoading: viewModel.shouldShowTokenTrendLoadingSkeleton,
-            errorMessage: viewModel.tokenTrendErrorMessage,
-            range: viewModel.tokenTrendRange,
-            onRangeChange: { viewModel.setTokenTrendRange($0) },
-            onRefresh: { viewModel.refreshTokenTrendNow() },
+            snapshot: tokenTrendViewModel.tokenTrendSnapshot,
+            isLoading: tokenTrendViewModel.shouldShowLoadingSkeleton,
+            errorMessage: tokenTrendViewModel.tokenTrendErrorMessage,
+            range: tokenTrendViewModel.tokenTrendRange,
+            onRangeChange: { tokenTrendViewModel.setRange($0) },
+            onRefresh: { tokenTrendViewModel.refreshNow() },
             debugPageMarkerItems: tokenTrendDebugPageMarkerItems
         )
     }
@@ -1931,36 +2023,36 @@ struct ProviderUsageView: View, DebugPageLocatable {
 
         let isPending: Bool = {
             guard let accountId else { return false }
-            return viewModel.pendingActivateCodexAccount?.id == accountId
+            return accountsViewModel.codex.pendingActivateAccount?.id == accountId
         }()
 
         let isActive: Bool = {
             guard let accountId else { return false }
-            guard let saved = viewModel.codexAccounts.first(where: { $0.id == accountId }) else { return false }
-            return viewModel.isActiveCodexAccount(saved)
+            guard let saved = accountsViewModel.codex.accounts.first(where: { $0.id == accountId }) else { return false }
+            return accountsViewModel.codex.isActiveAccount(saved)
         }()
-        let hasActiveGatewayCardSelection = viewModel.hasActiveGatewayCardSelection
+        let hasActiveGatewayCardSelection = gatewayCardsViewModel.hasActiveGatewayCardSelection
         let isActivePresentation = isActive && !hasActiveGatewayCardSelection
 
-        let isBatchSelected = viewModel.isCodexAccountSelected(id: accountId)
+        let isBatchSelected = accountsViewModel.codex.isAccountSelected(id: accountId)
 
         let cardPresentation = AccountCardPresentation.codex(
             isActive: isActivePresentation,
             isPending: isPending,
             isBatchSelected: isBatchSelected,
-            selectableAccountCount: viewModel.codexAccounts.count
+            selectableAccountCount: accountsViewModel.codex.accounts.count
         )
-        let summary = accountId.flatMap { viewModel.codexAccountSummaries[$0] }
+        let summary = accountId.flatMap { accountsViewModel.codex.accountSummaries[$0] }
         let isRefreshing: Bool = {
             guard let id = accountId else { return false }
-            return viewModel.codexRefreshingAccountIds.contains(id)
+            return accountsViewModel.codex.refreshingAccountIds.contains(id)
         }()
-        let canLogin = viewModel.codexAccountSupportsLogin(accountID: accountId)
+        let canLogin = accountsViewModel.codex.accountSupportsLogin(accountID: accountId)
         let isLoggingIn = accountId != nil
-            && viewModel.isRunningCLILogin
-            && viewModel.cliLoginPreferredAccountId == accountId
+            && loginFlowViewModel.isRunningCLILogin
+            && viewModel.codex.cliLoginPreferredAccountId == accountId
         let onLogin: (() -> Void)? = canLogin ? accountId.map { id in
-            { viewModel.requestLoginForCodexAccount(id: id) }
+            { accountsViewModel.codex.requestLoginForAccount(id: id) }
         } : nil
         let cardView = codexCompactSnapshotView(
             outcome: outcome,
@@ -1968,7 +2060,7 @@ struct ProviderUsageView: View, DebugPageLocatable {
             isRefreshing: isRefreshing,
             summary: summary,
             onRefresh: accountId.map { id in
-                { viewModel.refreshCodexAccount(id: id) }
+                { accountsViewModel.codex.refreshAccount(id: id) }
             },
             onLogin: onLogin,
             isLoggingIn: isLoggingIn
@@ -1976,18 +2068,18 @@ struct ProviderUsageView: View, DebugPageLocatable {
         .onTapGesture {
             guard let accountId else { return }
             if hasActiveGatewayCardSelection {
-                viewModel.clearActiveGatewayCardSelection()
+                gatewayCardsViewModel.clearActiveGatewayCardSelection()
             }
-            if viewModel.isCodexMultiSelectionEnabled {
-                viewModel.toggleCodexAccountSelection(id: accountId)
+            if accountsViewModel.codex.isMultiSelectionEnabled {
+                accountsViewModel.codex.toggleAccountSelection(id: accountId)
                 return
             }
-            let shouldActivate = viewModel.shouldActivateCodexAccountOnTap(
+            let shouldActivate = accountsViewModel.codex.shouldActivateAccountOnTap(
                 id: accountId,
                 hasActiveGatewayCardSelection: hasActiveGatewayCardSelection
             )
             guard shouldActivate else { return }
-            viewModel.requestActivateCodexAccount(id: accountId)
+            accountsViewModel.codex.requestActivateAccount(id: accountId)
         }
 
         if let accountId {
@@ -2016,7 +2108,7 @@ struct ProviderUsageView: View, DebugPageLocatable {
             }
         }()
         let savedAccount = accountId.flatMap { id in
-            viewModel.codexAccounts.first(where: { $0.id == id })
+            accountsViewModel.codex.accounts.first(where: { $0.id == id })
         }
         let title = CodexAccountDisplayNameResolver.resolve(
             summary: summary,
@@ -2032,7 +2124,7 @@ struct ProviderUsageView: View, DebugPageLocatable {
         let persistedFailureDetail = summary?.lastSyncFailureMessage?.trimmingCharacters(in: .whitespacesAndNewlines)
         let failureDetail: String? = {
             if let persistedFailureDetail, !persistedFailureDetail.isEmpty { return persistedFailureDetail }
-            if let liveFailureError { return ProviderUsageViewModel.errorDetailText(error: liveFailureError) }
+            if let liveFailureError { return ProviderUsageErrorFormatter.detailText(error: liveFailureError) }
             return nil
         }()
         let isActiveCodexAccount = presentation.selectionStyle == .active
@@ -2111,7 +2203,7 @@ struct ProviderUsageView: View, DebugPageLocatable {
         )
 
         Group {
-            if Self.shouldUseCompactCodexListRows(layoutMode: viewModel.codexAccountLayoutMode) {
+            if Self.shouldUseCompactCodexListRows(layoutMode: viewModel.codex.accountLayoutMode) {
                 codexCompactListRow(
                     data: data,
                     presentation: presentation,
@@ -2138,7 +2230,7 @@ struct ProviderUsageView: View, DebugPageLocatable {
                 )
             }
         }
-        .if(Self.shouldEnableCodexTextSelection(layoutMode: viewModel.codexAccountLayoutMode)) { view in
+        .if(Self.shouldEnableCodexTextSelection(layoutMode: viewModel.codex.accountLayoutMode)) { view in
             view.textSelection(.enabled)
         }
     }
@@ -2368,27 +2460,27 @@ struct ProviderUsageView: View, DebugPageLocatable {
             onLogin?()
         case .activate:
             if let accountId {
-                Task { await viewModel.activateCodexAccountImmediately(id: accountId) }
+                Task { await accountsViewModel.codex.activateAccountImmediately(id: accountId) }
             }
         case .copyError:
             if let failureDetail {
-                viewModel.copyErrorText(failureDetail)
+                viewModel.codex.copyErrorText(failureDetail)
             }
         case .revealInFinder:
             if let accountId {
-                viewModel.revealCodexAccountInFinder(id: accountId)
+                viewModel.codex.revealAccountInFinder(id: accountId)
             }
         case .copyAuthJSON:
             if let accountId {
-                viewModel.copyCodexAccountAuthJSON(id: accountId)
+                viewModel.codex.copyAccountAuthJSON(id: accountId)
             }
         case .editAuthJSON:
             if let accountId {
-                viewModel.editCodexAccountAuthJSON(id: accountId)
+                viewModel.codex.editAccountAuthJSON(id: accountId)
             }
         case .delete:
             if let accountId {
-                viewModel.requestDeleteCodexAccount(id: accountId)
+                accountsViewModel.codex.requestDeleteAccount(id: accountId)
             }
         default:
             break

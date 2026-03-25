@@ -271,7 +271,7 @@ enum AccountRecordBuilder {
                 return .loading
             }
             if case let .failure(error) = outcome.outcome.result,
-               CodexAuthFailureClassifier.isAuthFailure(errorText: ProviderUsageViewModel.errorDetailText(error: error)) {
+               CodexAuthFailureClassifier.isAuthFailure(errorText: ProviderUsageErrorFormatter.detailText(error: error)) {
                 return .warning
             }
             if summary?.lastSyncFailureMessage?.isEmpty == false && canRelogin {
@@ -289,12 +289,12 @@ enum AccountRecordBuilder {
         let persistedFailureDetail = summary?.lastSyncFailureMessage?.trimmingCharacters(in: .whitespacesAndNewlines)
         let failureDetail: String? = {
             if let persistedFailureDetail, !persistedFailureDetail.isEmpty { return persistedFailureDetail }
-            if let liveFailureError { return ProviderUsageViewModel.errorDetailText(error: liveFailureError) }
+            if let liveFailureError { return ProviderUsageErrorFormatter.detailText(error: liveFailureError) }
             return nil
         }()
         let failureSummary: String? = {
             if let liveFailureError {
-                return ProviderUsageViewModel.errorSummaryText(error: liveFailureError)
+                return ProviderUsageErrorFormatter.summaryText(error: liveFailureError)
             }
             if let failureDetail, canRelogin, CodexAuthFailureClassifier.isAuthFailure(errorText: failureDetail) {
                 return NSLocalizedString(

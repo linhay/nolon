@@ -115,13 +115,13 @@ final class CodexQuickSwitchMenuBarViewModel {
     }
 
     private let settings: ProviderSettings
-    private var usageViewModel: ProviderUsageViewModel?
+    private var usageRootViewModel: ProviderUsageRootViewModel?
     private let userDefaults: UserDefaults
     private static let selectedProviderIDDefaultsKey = "menu.codex.quick_switch.selected_provider_id"
 
     var rows: [Row] {
-        guard let usageViewModel else { return [] }
-        return Self.makeRows(from: usageViewModel)
+        guard let usageRootViewModel else { return [] }
+        return Self.makeRows(from: usageRootViewModel.accountsViewModel)
     }
     
     var activeRows: [Row] {
@@ -164,18 +164,18 @@ final class CodexQuickSwitchMenuBarViewModel {
         }
         providerDisplayName = provider?.name ?? "Codex"
         guard let provider else {
-            usageViewModel = nil
+            usageRootViewModel = nil
             return
         }
 
-        if usageViewModel?.provider.id != provider.id {
-            usageViewModel = ProviderUsageViewModelStore.shared.viewModel(for: provider)
+        if usageRootViewModel?.provider.id != provider.id {
+            usageRootViewModel = ProviderUsageRootViewModelStore.shared.viewModel(for: provider)
         }
-        guard let usageViewModel else { return }
+        guard let usageRootViewModel else { return }
 
         isLoading = true
         defer { isLoading = false }
-        await usageViewModel.load()
+        await usageRootViewModel.load()
     }
 
     func selectProvider(id: Provider.ID) async {
@@ -186,24 +186,21 @@ final class CodexQuickSwitchMenuBarViewModel {
     }
 
     func activateAccount(id: UUID) async {
-        guard let usageViewModel else { return }
-        usageViewModel.requestActivateCodexAccount(id: id)
-        if usageViewModel.pendingActivateCodexAccount != nil {
-            await usageViewModel.confirmActivate()
-        }
+        guard let usageRootViewModel else { return }
+        _ = await usageRootViewModel.accountsViewModel.codex.activateAccount(id: id)
     }
 
     func refreshQuotas() async {
-        guard let usageViewModel else { return }
-        for account in usageViewModel.codexAccounts {
-            await usageViewModel.refreshCodexAccountImmediately(id: account.id)
+        guard let usageRootViewModel else { return }
+        for account in usageRootViewModel.accountsViewModel.codex.accounts {
+            await usageRootViewModel.accountsViewModel.codex.refreshAccountImmediately(id: account.id)
         }
     }
 
     func deleteAccount(id: UUID) async {
-        guard let usageViewModel else { return }
-        usageViewModel.requestDeleteCodexAccount(id: id)
-        await usageViewModel.confirmDeleteCodexAccount()
+        guard let usageRootViewModel else { return }
+        usageRootViewModel.accountsViewModel.codex.requestDeleteAccount(id: id)
+        await usageRootViewModel.accountsViewModel.codex.confirmDeleteAccount()
     }
 
     func openAuthJSON() {
@@ -216,20 +213,20 @@ final class CodexQuickSwitchMenuBarViewModel {
         NSWorkspace.shared.open(provider.codexHomeFolder.file("config.toml").url)
     }
 
-    private static func makeRows(from usageViewModel: ProviderUsageViewModel) -> [Row] {
+    private static func makeRows(from accountsViewModel: ProviderUsageAccountsViewModel) -> [Row] {
         let outcomesByAccountID: [UUID: ProviderAccountUsageOutcome] = Dictionary(
-            uniqueKeysWithValues: usageViewModel.codexAccountOutcomes.compactMap { outcome -> (UUID, ProviderAccountUsageOutcome)? in
+            uniqueKeysWithValues: accountsViewModel.codex.accountOutcomes.compactMap { outcome -> (UUID, ProviderAccountUsageOutcome)? in
                 guard case let .tokenAccount(account) = outcome.account else { return nil }
                 return (account.id, outcome)
             }
         )
 
-        return usageViewModel.codexAccounts
+        return accountsViewModel.codex.accounts
             .sorted { lhs, rhs in
                 lhs.createdAt > rhs.createdAt
             }
             .map { account in
-                let summary = usageViewModel.codexAccountSummaries[account.id]
+                let summary = accountsViewModel.codex.accountSummaries[account.id]
                 let outcome = outcomesByAccountID[account.id]
                 let usage: UsageSnapshot? = {
                     guard let outcome else { return nil }
@@ -245,7 +242,7 @@ final class CodexQuickSwitchMenuBarViewModel {
                         ? (summary?.email ?? account.name)
                         : account.name,
                     detail: CodexQuickSwitchUsageFormatter.summaryLine(usage: usage),
-                    isActive: usageViewModel.activeCodexAccountId == account.id,
+                    isActive: accountsViewModel.codex.activeAccountId == account.id,
                     usageWindows: usage?.allWindows ?? []
                 )
             }

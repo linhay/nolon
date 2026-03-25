@@ -3,10 +3,10 @@ import ProviderCatalog
 @testable import nolon
 
 @MainActor
-struct ProviderUsageViewModelStoreTests {
-    @Test("BDD: Given same provider id when resolving usage view model then returns the same instance")
-    func testBDD_GivenSameProviderID_WhenResolvingUsageViewModel_ThenReturnsSameInstance() {
-        let store = ProviderUsageViewModelStore()
+struct ProviderUsageRootViewModelStoreTests {
+    @Test("BDD: Given same provider id when resolving root usage view model then returns the same instance")
+    func testBDD_GivenSameProviderID_WhenResolvingRootUsageViewModel_ThenReturnsSameInstance() {
+        let store = ProviderUsageRootViewModelStore()
         let provider = Provider(
             id: "codex",
             kind: .vendor,
@@ -23,3 +23,4 @@ struct ProviderUsageViewModelStoreTests {
         #expect(ObjectIdentifier(first) == ObjectIdentifier(second))
     }
 }
+

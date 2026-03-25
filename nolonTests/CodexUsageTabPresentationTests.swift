@@ -928,8 +928,9 @@ final class CodexUsageTabPresentationTests: XCTestCase {
         )
     }
 
-    private static func makeCodexProvider() -> Provider {
+    private static func makeCodexProvider(id: String = "codex") -> Provider {
         Provider(
+            id: id,
             name: "Codex",
             defaultSkillsPath: "~/.codex/skills",
             workflowPath: "~/.codex/prompts",
@@ -1177,6 +1178,59 @@ final class CodexUsageTabPresentationTests: XCTestCase {
 
         XCTAssertTrue(viewModel.codexHideZeroQuotaAccounts)
         XCTAssertTrue(viewModel.settings.codexHideZeroQuotaAccounts)
+    }
+
+    func testBDD_GivenCodexInitialSettingsOverride_WhenInitializingViewModel_ThenHideErroredStateFollowsSettings() {
+        let viewModel = ProviderUsageViewModel(
+            provider: Self.makeCodexProvider(),
+            initialSettingsOverride: UsageMonitorProviderSettings(
+                sourceMode: .auto,
+                includeCredits: false,
+                webTimeoutSeconds: 30,
+                autoRefreshIntervalMinutes: 0,
+                costWindowDays: 30,
+                codexHideZeroQuotaAccounts: false,
+                codexHideErroredAccounts: true
+            )
+        )
+
+        XCTAssertTrue(viewModel.codexHideErroredAccounts)
+        XCTAssertTrue(viewModel.settings.codexHideErroredAccounts)
+    }
+
+    func testBDD_GivenCodexUsageViewModel_WhenTogglingHideErrored_ThenSettingsAreUpdated() {
+        let viewModel = ProviderUsageViewModel(
+            provider: Self.makeCodexProvider(),
+            initialSettingsOverride: UsageMonitorProviderSettings(
+                sourceMode: .auto,
+                includeCredits: false,
+                webTimeoutSeconds: 30,
+                autoRefreshIntervalMinutes: 0,
+                costWindowDays: 30,
+                codexHideZeroQuotaAccounts: false,
+                codexHideErroredAccounts: false
+            )
+        )
+
+        viewModel.setCodexHideErroredAccounts(true)
+
+        XCTAssertTrue(viewModel.codexHideErroredAccounts)
+        XCTAssertTrue(viewModel.settings.codexHideErroredAccounts)
+    }
+
+    func testBDD_GivenCodexUsageViewModel_WhenRecreatingWithSameProvider_ThenHideErroredSettingPersists() {
+        let provider = Self.makeCodexProvider(id: "codex-hide-errored-\(UUID().uuidString)")
+        let store = UsageMonitorSettingsStore.shared
+        store.update(settings: UsageMonitorProviderSettings(codexHideErroredAccounts: false), for: provider)
+
+        let first = ProviderUsageViewModel(provider: provider)
+        first.setCodexHideErroredAccounts(true)
+
+        let second = ProviderUsageViewModel(provider: provider)
+        XCTAssertTrue(second.codexHideErroredAccounts)
+        XCTAssertTrue(second.settings.codexHideErroredAccounts)
+
+        store.update(settings: UsageMonitorProviderSettings(codexHideErroredAccounts: false), for: provider)
     }
 
     func testBDD_GivenCodexInitialSettingsOverride_WhenInitializingViewModel_ThenLayoutModeFollowsSettings() {

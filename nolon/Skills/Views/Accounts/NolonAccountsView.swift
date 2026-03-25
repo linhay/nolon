@@ -16,7 +16,7 @@ final class NolonAccountsViewModel {
     typealias CodexGatewayStopAction = @Sendable (String) async throws -> Void
     typealias CopyTextAction = @Sendable (String) -> Void
     typealias OpenURLAction = @Sendable (URL) -> Void
-    typealias ProviderUsageViewModelFactory = @MainActor @Sendable (Provider) -> ProviderUsageViewModel
+    typealias ProviderUsageRootViewModelFactory = @MainActor @Sendable (Provider) -> ProviderUsageRootViewModel
 
     struct UsageSummary: Sendable, Equatable {
         let provider: UsageProvider
@@ -57,8 +57,8 @@ final class NolonAccountsViewModel {
     private let codexGatewayStopAction: CodexGatewayStopAction
     private let copyTextAction: CopyTextAction
     private let openURLAction: OpenURLAction
-    private let providerUsageViewModelFactory: ProviderUsageViewModelFactory
-    @ObservationIgnored private var providerUsageViewModelsByProviderID: [Provider.ID: ProviderUsageViewModel] = [:]
+    private let providerUsageRootViewModelFactory: ProviderUsageRootViewModelFactory
+    @ObservationIgnored private var providerUsageRootViewModelsByProviderID: [Provider.ID: ProviderUsageRootViewModel] = [:]
 
     var usageSummaryByProviderID: [Provider.ID: UsageSummary] = [:]
     var accountSummariesByProviderID: [Provider.ID: [AccountUsageSummary]] = [:]
@@ -81,7 +81,7 @@ final class NolonAccountsViewModel {
         codexGatewayStopAction: CodexGatewayStopAction? = nil,
         copyTextAction: CopyTextAction? = nil,
         openURLAction: OpenURLAction? = nil,
-        providerUsageViewModelFactory: ProviderUsageViewModelFactory? = nil
+        providerUsageViewModelFactory: ProviderUsageRootViewModelFactory? = nil
     ) {
         let hasCustomViewModelDependencies = usageMonitor != nil || codexActivateAction != nil
         let tokenStore = FileTokenAccountStore(fileURL: ProviderUsagePaths.defaultTokenAccountsFileURL())
@@ -109,10 +109,10 @@ final class NolonAccountsViewModel {
             NSWorkspace.shared.open(url)
         }
         if let providerUsageViewModelFactory {
-            self.providerUsageViewModelFactory = providerUsageViewModelFactory
+            self.providerUsageRootViewModelFactory = providerUsageViewModelFactory
         } else if hasCustomViewModelDependencies {
-            self.providerUsageViewModelFactory = { provider in
-                ProviderUsageViewModel(
+            self.providerUsageRootViewModelFactory = { provider in
+                ProviderUsageRootViewModel(
                     provider: provider,
                     usageMonitor: resolvedUsageMonitor,
                     codexActivateAction: { account, provider in
@@ -122,8 +122,8 @@ final class NolonAccountsViewModel {
                 )
             }
         } else {
-            self.providerUsageViewModelFactory = { provider in
-                ProviderUsageViewModelStore.shared.viewModel(for: provider)
+            self.providerUsageRootViewModelFactory = { provider in
+                ProviderUsageRootViewModelStore.shared.viewModel(for: provider)
             }
         }
     }
@@ -155,11 +155,12 @@ final class NolonAccountsViewModel {
 
         for section in sections {
             for provider in section.providers {
-                let usageViewModel = providerUsageViewModel(for: provider)
-                guard let usageProvider = usageViewModel.usageProvider else { continue }
-                usageViewModel.settings = usageSettingsStore.settings(for: provider)
-                await usageViewModel.load()
-                let outcomes = usageViewModel.outcomes
+                let rootViewModel = providerUsageViewModel(for: provider)
+                let accountsViewModel = rootViewModel.accountsViewModel
+                guard let usageProvider = accountsViewModel.usageProvider else { continue }
+                accountsViewModel.settings = usageSettingsStore.settings(for: provider)
+                await rootViewModel.load()
+                let outcomes = accountsViewModel.outcomes
 
                 let accountSummaries = Self.makeAccountSummaries(outcomes: outcomes)
                 if let summary = Self.makeUsageSummary(provider: provider, usageProvider: usageProvider, outcomes: outcomes) {
@@ -226,21 +227,20 @@ final class NolonAccountsViewModel {
 
     func activateCodexAccount(id: UUID, for provider: Provider) async {
         do {
-            let usageViewModel = providerUsageViewModel(for: provider)
-            usageViewModel.clearActiveGatewayCardSelection()
+            let rootViewModel = providerUsageViewModel(for: provider)
+            rootViewModel.gatewayCardsViewModel.clearActiveGatewayCardSelection()
             if let gatewayProviderID = Self.gatewayProviderID(for: provider) {
                 try? await codexGatewayStopAction(gatewayProviderID)
             }
-            _ = await usageViewModel.loadIfNeeded()
-            usageViewModel.requestActivateCodexAccount(id: id)
-            if usageViewModel.pendingActivateCodexAccount != nil {
-                await usageViewModel.confirmActivate()
+            _ = await rootViewModel.loadIfNeeded()
+            if await rootViewModel.accountsViewModel.codex.activateAccount(id: id) {
+                await refreshAsync()
             } else {
                 let accounts = try await codexAuthManager.loadAccounts()
                 guard let account = accounts.first(where: { $0.id == id }) else { return }
                 try await codexActivateAction(account, provider)
+                await refreshAsync()
             }
-            await refreshAsync()
         } catch {
         }
     }
@@ -286,12 +286,12 @@ final class NolonAccountsViewModel {
         openURLAction(file.url)
     }
 
-    private func providerUsageViewModel(for provider: Provider) -> ProviderUsageViewModel {
-        if let cached = providerUsageViewModelsByProviderID[provider.id] {
+    private func providerUsageViewModel(for provider: Provider) -> ProviderUsageRootViewModel {
+        if let cached = providerUsageRootViewModelsByProviderID[provider.id] {
             return cached
         }
-        let created = providerUsageViewModelFactory(provider)
-        providerUsageViewModelsByProviderID[provider.id] = created
+        let created = providerUsageRootViewModelFactory(provider)
+        providerUsageRootViewModelsByProviderID[provider.id] = created
         return created
     }
 }
@@ -301,6 +301,8 @@ struct NolonAccountsView: View, DebugPageLocatable {
     let onSelectProvider: (Provider.ID) -> Void
     @State private var viewModel: NolonAccountsViewModel
     @State private var selectedWindow: AccountTimeWindow = .d7
+    @State private var hideZeroQuotaAccounts = false
+    @State private var hideErroredAccounts = false
     private let accountCardColumns: [GridItem] = [
         GridItem(.adaptive(minimum: 240, maximum: 340), spacing: 12, alignment: .topLeading)
     ]
@@ -386,11 +388,17 @@ struct NolonAccountsView: View, DebugPageLocatable {
 
     @ViewBuilder
     private func accountProviderGroup(_ provider: Provider) -> some View {
-        let cards = viewModel.accountCards(for: provider)
-        let cardCount = max(cards.count, 1)
+        let allCards = viewModel.accountCards(for: provider)
+        let cards = NolonAccountsViewModel.filteredAccountCards(
+            allCards,
+            hideZeroQuotaAccounts: hideZeroQuotaAccounts,
+            hideErroredAccounts: hideErroredAccounts
+        )
+        let visibleCount = NolonAccountsViewModel.visibleAccountCount(in: cards)
+        let totalCount = NolonAccountsViewModel.visibleAccountCount(in: allCards)
 
         VStack(alignment: .leading, spacing: 12) {
-            AccountVendorGroupHeader(provider: provider, accountCount: cardCount)
+            AccountVendorGroupHeader(provider: provider, visibleCount: visibleCount, totalCount: totalCount)
             accountCardGrid(provider: provider, cards: cards)
         }
     }
@@ -519,6 +527,28 @@ struct NolonAccountsView: View, DebugPageLocatable {
                 .buttonStyle(.plain)
                 .disabled(viewModel.isRefreshing)
 
+                filterChip(
+                    title: NSLocalizedString(
+                        "codex.accounts.filter.hide_zero_off",
+                        value: "Hide Zero-Quota Accounts",
+                        comment: "Hide zero-quota Codex accounts"
+                    ),
+                    isOn: hideZeroQuotaAccounts
+                ) {
+                    hideZeroQuotaAccounts.toggle()
+                }
+
+                filterChip(
+                    title: NSLocalizedString(
+                        "accounts.filter.hide_error_off",
+                        value: "Hide Errored Accounts",
+                        comment: "Hide errored accounts in accounts page"
+                    ),
+                    isOn: hideErroredAccounts
+                ) {
+                    hideErroredAccounts.toggle()
+                }
+
                 Button {} label: {
                     Text(NSLocalizedString("accounts.action.add_account", value: "+ Add Account", comment: "Add account action"))
                         .font(.system(size: 12, weight: .bold))
@@ -533,6 +563,30 @@ struct NolonAccountsView: View, DebugPageLocatable {
                 .buttonStyle(.plain)
             }
         }
+    }
+
+    private func filterChip(title: String, isOn: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                Image(systemName: isOn ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
+                    .font(.system(size: 12, weight: .semibold))
+                Text(title)
+                    .lineLimit(1)
+            }
+            .font(.system(size: 12, weight: .semibold))
+            .foregroundStyle(isOn ? primaryText : secondaryText)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(isOn ? subtleFillStrong : subtleFill)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(subtleBorder, lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
     }
 
     private var accountsDashboard: some View {
@@ -784,7 +838,8 @@ private struct AccountProviderSectionHeader: View {
 
 private struct AccountVendorGroupHeader: View {
     let provider: Provider
-    let accountCount: Int
+    let visibleCount: Int
+    let totalCount: Int
 
     private var template: ProviderTemplate? {
         guard let templateId = provider.templateId else { return nil }
@@ -811,12 +866,7 @@ private struct AccountVendorGroupHeader: View {
 
             Spacer()
 
-            Text(
-                String(
-                    format: NSLocalizedString("accounts.section.accounts_count", value: "%d accounts", comment: "Accounts count in provider group"),
-                    accountCount
-                )
-            )
+            Text("(\(visibleCount) / \(totalCount))")
             .font(.system(size: 11, weight: .medium))
             .foregroundStyle(DesignSystem.Colors.Text.tertiary)
         }
@@ -849,6 +899,61 @@ enum NolonAccountsThemeTokens {
 }
 
 extension NolonAccountsViewModel {
+    static func filteredAccountCards(
+        _ cards: [AccountCardViewData],
+        hideZeroQuotaAccounts: Bool,
+        hideErroredAccounts: Bool
+    ) -> [AccountCardViewData] {
+        cards.filter { card in
+            if hideZeroQuotaAccounts, shouldHideCardForZeroQuota(card) {
+                return false
+            }
+            if hideErroredAccounts, shouldHideCardForError(card) {
+                return false
+            }
+            return true
+        }
+    }
+
+    static func visibleAccountCount(in cards: [AccountCardViewData]) -> Int {
+        cards.filter { !isPlaceholderCard($0) }.count
+    }
+
+    private static func shouldHideCardForZeroQuota(_ card: AccountCardViewData) -> Bool {
+        guard case let .quota(quota) = card.body,
+              let usage = quota.usage,
+              let window = longestQuotaWindow(from: usage)
+        else {
+            return false
+        }
+        return window.remainingPercent <= 0
+    }
+
+    private static func shouldHideCardForError(_ card: AccountCardViewData) -> Bool {
+        guard case let .quota(quota) = card.body else { return false }
+        guard let message = quota.errorMessage?.trimmingCharacters(in: .whitespacesAndNewlines) else {
+            return false
+        }
+        return !message.isEmpty
+    }
+
+    private static func longestQuotaWindow(from usage: UsageSnapshot) -> RateWindow? {
+        let explicitWindow = usage.allWindows
+            .map(\.window)
+            .filter { ($0.windowMinutes ?? 0) > 0 }
+            .max { lhs, rhs in
+                (lhs.windowMinutes ?? 0) < (rhs.windowMinutes ?? 0)
+            }
+        if let explicitWindow {
+            return explicitWindow
+        }
+        return usage.primary ?? usage.secondary ?? usage.tertiary
+    }
+
+    private static func isPlaceholderCard(_ card: AccountCardViewData) -> Bool {
+        card.recordID.rawValue.hasSuffix(".empty")
+    }
+
     nonisolated static func resolveCodexAccountID(from summaryID: String) -> UUID? {
         if let directID = UUID(uuidString: summaryID) {
             return directID

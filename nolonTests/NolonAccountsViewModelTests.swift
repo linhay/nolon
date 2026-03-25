@@ -302,15 +302,7 @@ final class NolonAccountsViewModelTests: XCTestCase {
     }
 
     func testBDD_GivenActiveCodexSnapshotCard_WhenBuildingAccountCards_ThenShowsActiveStateWithoutActivateAction() {
-        let provider = Provider(
-            id: "codex",
-            kind: .vendor,
-            name: "Codex",
-            defaultSkillsPath: "/tmp/codex/skills",
-            workflowPath: "/tmp/codex/prompts",
-            vendorCategory: .original,
-            templateId: ProviderTemplate.codex.rawValue
-        )
+        let provider = makeCodexProvider()
         let id = UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE")!
         let viewModel = NolonAccountsViewModel(settings: ProviderSettings())
         viewModel.accountSummariesByProviderID[provider.id] = [
@@ -336,6 +328,109 @@ final class NolonAccountsViewModelTests: XCTestCase {
         XCTAssertEqual(cards[0].presentation.selectionStyle, .active)
         XCTAssertTrue(cards[0].primaryActions.isEmpty)
         XCTAssertEqual(cards[0].tapBehavior, .openProvider)
+    }
+
+    func testBDD_GivenMixedQuotaCards_WhenFilteringZeroQuota_ThenOnlyZeroQuotaCardsAreHidden() {
+        let provider = makeCodexProvider()
+        let zeroQuotaID = UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE")!
+        let remainingQuotaID = UUID(uuidString: "11111111-2222-3333-4444-555555555555")!
+
+        let viewModel = NolonAccountsViewModel(settings: ProviderSettings())
+        viewModel.accountSummariesByProviderID[provider.id] = [
+            .init(
+                id: zeroQuotaID.uuidString,
+                accountLabel: "Zero",
+                accountEmail: "zero@example.com",
+                plan: "plus",
+                totalCount: 1,
+                successCount: 1,
+                failureCount: 0,
+                latestUpdatedAt: Date(timeIntervalSince1970: 1_700_600_000),
+                primaryUsedPercent: 100,
+                errorMessage: nil,
+                isSnapshotOnly: false
+            ),
+            .init(
+                id: remainingQuotaID.uuidString,
+                accountLabel: "Healthy",
+                accountEmail: "healthy@example.com",
+                plan: "plus",
+                totalCount: 1,
+                successCount: 1,
+                failureCount: 0,
+                latestUpdatedAt: Date(timeIntervalSince1970: 1_700_600_000),
+                primaryUsedPercent: 30,
+                errorMessage: nil,
+                isSnapshotOnly: false
+            )
+        ]
+
+        let cards = viewModel.accountCards(for: provider)
+        let filtered = NolonAccountsViewModel.filteredAccountCards(
+            cards,
+            hideZeroQuotaAccounts: true,
+            hideErroredAccounts: false
+        )
+
+        XCTAssertEqual(filtered.count, 1)
+        XCTAssertEqual(filtered.first?.id, remainingQuotaID.uuidString)
+    }
+
+    func testBDD_GivenMixedCards_WhenFilteringErroredAccounts_ThenOnlyErroredCardsAreHidden() {
+        let provider = makeCodexProvider()
+        let erroredID = UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE")!
+        let healthyID = UUID(uuidString: "11111111-2222-3333-4444-555555555555")!
+
+        let viewModel = NolonAccountsViewModel(settings: ProviderSettings())
+        viewModel.accountSummariesByProviderID[provider.id] = [
+            .init(
+                id: erroredID.uuidString,
+                accountLabel: "Errored",
+                accountEmail: "error@example.com",
+                plan: "pro",
+                totalCount: 1,
+                successCount: 0,
+                failureCount: 1,
+                latestUpdatedAt: nil,
+                primaryUsedPercent: nil,
+                errorMessage: "authentication failed",
+                isSnapshotOnly: false
+            ),
+            .init(
+                id: healthyID.uuidString,
+                accountLabel: "Healthy",
+                accountEmail: "healthy@example.com",
+                plan: "plus",
+                totalCount: 1,
+                successCount: 1,
+                failureCount: 0,
+                latestUpdatedAt: Date(timeIntervalSince1970: 1_700_600_000),
+                primaryUsedPercent: 35,
+                errorMessage: nil,
+                isSnapshotOnly: false
+            )
+        ]
+
+        let cards = viewModel.accountCards(for: provider)
+        let filtered = NolonAccountsViewModel.filteredAccountCards(
+            cards,
+            hideZeroQuotaAccounts: false,
+            hideErroredAccounts: true
+        )
+
+        XCTAssertEqual(filtered.count, 1)
+        XCTAssertEqual(filtered.first?.id, healthyID.uuidString)
+    }
+
+    func testBDD_GivenProviderWithoutAccounts_WhenCountingVisibleAccounts_ThenPlaceholderCardIsIgnored() {
+        let provider = makeCodexProvider(id: "codex-empty")
+        let viewModel = NolonAccountsViewModel(settings: ProviderSettings())
+
+        let cards = viewModel.accountCards(for: provider)
+        let visibleCount = NolonAccountsViewModel.visibleAccountCount(in: cards)
+
+        XCTAssertEqual(cards.count, 1)
+        XCTAssertEqual(visibleCount, 0)
     }
 
     func testBDD_GivenCodexSnapshotID_WhenCopyingAuthPath_ThenPasteboardWriterReceivesSnapshotPath() async throws {
@@ -558,5 +653,17 @@ final class NolonAccountsViewModelTests: XCTestCase {
         }
         XCTAssertEqual(rows.map(\.id), ["method", "project"])
         XCTAssertEqual(card.detailRows.first?.value, ".gemini/work")
+    }
+
+    private func makeCodexProvider(id: String = "codex") -> Provider {
+        Provider(
+            id: id,
+            kind: .vendor,
+            name: "Codex",
+            defaultSkillsPath: "/tmp/\(id)/skills",
+            workflowPath: "/tmp/\(id)/prompts",
+            vendorCategory: .original,
+            templateId: ProviderTemplate.codex.rawValue
+        )
     }
 }
