@@ -39,7 +39,7 @@ struct ProviderUsageUnifiedAccountsPipelineTests {
         #expect(cards.count == 1)
         #expect(cards.first?.provider == .claude)
         #expect(cards.first?.isActive == true)
-        #expect(root.accountsViewModel.nonCodexEmptyState != nil)
+        #expect(root.accountsViewModel.unifiedAccountEmptyState != nil)
     }
 
     @Test("BDD: Given Gemini provider account state when building unified cards then emits Gemini card models")
@@ -79,6 +79,6 @@ struct ProviderUsageUnifiedAccountsPipelineTests {
         #expect(cards.count == 1)
         #expect(cards.first?.provider == .gemini)
         #expect(cards.first?.isActive == true)
-        #expect(root.accountsViewModel.nonCodexEmptyState == nil)
+        #expect(root.accountsViewModel.unifiedAccountEmptyState == nil)
     }
 }

@@ -500,7 +500,7 @@ struct ProviderUsageView: View, DebugPageLocatable {
 
             Spacer()
 
-            if viewModel.usageProvider == .codex {
+            if viewModel.capabilities.isCodexFamily {
                 Button {
                     viewModel.codex.setHideZeroQuotaAccounts(!viewModel.codex.hideZeroQuotaAccounts)
                 } label: {
@@ -738,7 +738,7 @@ struct ProviderUsageView: View, DebugPageLocatable {
 
     private var actionsMenu: some View {
         Menu {
-            if viewModel.usageProvider == .codex {
+            if viewModel.capabilities.isCodexFamily {
                 Section {
                     Picker(
                         selection: Binding(

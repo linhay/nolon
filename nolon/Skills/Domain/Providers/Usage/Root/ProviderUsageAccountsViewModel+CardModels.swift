@@ -4,16 +4,6 @@ import NolonUIFoundation
 import ProviderUsage
 import CodexBarProviderCatalog
 
-struct ProviderUsageClaudeCardModel {
-    let data: AccountCardViewData
-    let isActive: Bool
-}
-
-struct ProviderUsageGeminiCardModel {
-    let data: AccountCardViewData
-    let isActive: Bool
-}
-
 struct ProviderUsageCodexCardModel {
     let accountID: UUID?
     let data: AccountCardViewData
@@ -28,18 +18,27 @@ enum ProviderUsageUnifiedAccountProvider: String {
     case gemini
 }
 
+struct ProviderUsageCapabilities {
+    let isCodexFamily: Bool
+    let showsTokenTrend: Bool
+    let usesUnifiedCardSkeleton: Bool
+    let showsUnifiedImportCallout: Bool
+}
+
 struct ProviderUsageUnifiedAccountCardModel: Identifiable {
     let provider: ProviderUsageUnifiedAccountProvider
     let accountID: UUID
     let data: AccountCardViewData
     let isActive: Bool
+    let onTap: () async -> Void
+    let onAction: (AccountCardActionID) async -> Void
 
     var id: String { "\(provider.rawValue)-\(accountID.uuidString)" }
 }
 
 @MainActor
 extension ProviderUsageAccountsViewModel.ClaudeState {
-    func makeCardModel(account: ClaudeAccount) -> ProviderUsageClaudeCardModel {
+    func makeCardData(account: ClaudeAccount) -> (data: AccountCardViewData, isActive: Bool) {
         let isActive = isActiveAccount(account)
         let record = AccountRecordBuilder.claude(
             providerName: "Claude",
@@ -61,23 +60,54 @@ extension ProviderUsageAccountsViewModel.ClaudeState {
             ],
             tapBehavior: isActive ? .none : .activate
         )
-        return .init(data: data, isActive: isActive)
+        return (data: data, isActive: isActive)
     }
 }
 
 @MainActor
 extension ProviderUsageAccountsViewModel {
-    var shouldShowUnifiedImportCallout: Bool {
-        guard let usageProvider else { return false }
+    var capabilities: ProviderUsageCapabilities {
+        guard let usageProvider else {
+            return .init(
+                isCodexFamily: false,
+                showsTokenTrend: false,
+                usesUnifiedCardSkeleton: false,
+                showsUnifiedImportCallout: false
+            )
+        }
         switch usageProvider {
+        case .codex:
+            return .init(
+                isCodexFamily: true,
+                showsTokenTrend: true,
+                usesUnifiedCardSkeleton: true,
+                showsUnifiedImportCallout: false
+            )
+        case .claude:
+            return .init(
+                isCodexFamily: false,
+                showsTokenTrend: false,
+                usesUnifiedCardSkeleton: false,
+                showsUnifiedImportCallout: false
+            )
         case .gemini, .antigravity:
-            return gemini.shouldShowImportAction
+            return .init(
+                isCodexFamily: false,
+                showsTokenTrend: true,
+                usesUnifiedCardSkeleton: true,
+                showsUnifiedImportCallout: gemini.shouldShowImportAction
+            )
         default:
-            return false
+            return .init(
+                isCodexFamily: false,
+                showsTokenTrend: false,
+                usesUnifiedCardSkeleton: false,
+                showsUnifiedImportCallout: false
+            )
         }
     }
 
-    func nonCodexAccountSectionTitle(defaultProviderName: String) -> String? {
+    func unifiedAccountSectionTitle(defaultProviderName: String) -> String? {
         guard let usageProvider else { return nil }
         switch usageProvider {
         case .claude:
@@ -89,7 +119,7 @@ extension ProviderUsageAccountsViewModel {
         }
     }
 
-    var nonCodexEmptyState: (title: String, systemImage: String, description: String)? {
+    var unifiedAccountEmptyState: (title: String, systemImage: String, description: String)? {
         guard usageProvider == .claude else { return nil }
         return (
             title: NSLocalizedString("claude.accounts.empty.title", value: "No Claude accounts", comment: "Empty Claude accounts title"),
@@ -111,17 +141,25 @@ extension ProviderUsageAccountsViewModel {
         switch usageProvider {
         case .claude:
             return claude.accounts.map { account in
-                let model = claude.makeCardModel(account: account)
+                let model = claude.makeCardData(account: account)
                 return .init(
                     provider: .claude,
                     accountID: account.id,
                     data: model.data,
-                    isActive: model.isActive
+                    isActive: model.isActive,
+                    onTap: { [claude] in
+                        guard !model.isActive else { return }
+                        await claude.activateAccount(id: account.id)
+                    },
+                    onAction: { [claude] action in
+                        guard action == .activate else { return }
+                        await claude.activateAccount(id: account.id)
+                    }
                 )
             }
         case .gemini, .antigravity:
             return gemini.accounts.map { account in
-                let model = gemini.makeCardModel(
+                let model = gemini.makeCardData(
                     account: account,
                     providerName: providerName,
                     liveOutcome: liveOutcome,
@@ -131,7 +169,23 @@ extension ProviderUsageAccountsViewModel {
                     provider: .gemini,
                     accountID: account.id,
                     data: model.data,
-                    isActive: model.isActive
+                    isActive: model.isActive,
+                    onTap: { [gemini] in
+                        guard !model.isActive else { return }
+                        await gemini.activateAccount(id: account.id)
+                    },
+                    onAction: { [gemini] action in
+                        switch action {
+                        case .activate:
+                            await gemini.activateAccount(id: account.id)
+                        case .refresh:
+                            await self.load()
+                        case .delete:
+                            await gemini.deleteAccount(id: account.id)
+                        default:
+                            break
+                        }
+                    }
                 )
             }
         default:
@@ -139,35 +193,7 @@ extension ProviderUsageAccountsViewModel {
         }
     }
 
-    func handleUnifiedAccountTap(_ card: ProviderUsageUnifiedAccountCardModel) async {
-        guard !card.isActive else { return }
-        switch card.provider {
-        case .claude:
-            await claude.activateAccount(id: card.accountID)
-        case .gemini:
-            await gemini.activateAccount(id: card.accountID)
-        }
-    }
-
-    func handleUnifiedAccountAction(
-        _ action: AccountCardActionID,
-        card: ProviderUsageUnifiedAccountCardModel
-    ) async {
-        switch (card.provider, action) {
-        case (.claude, .activate):
-            await claude.activateAccount(id: card.accountID)
-        case (.gemini, .activate):
-            await gemini.activateAccount(id: card.accountID)
-        case (.gemini, .refresh):
-            await load()
-        case (.gemini, .delete):
-            await gemini.deleteAccount(id: card.accountID)
-        default:
-            break
-        }
-    }
-
-    func displayedOutcomesForNonCodex() -> [ProviderAccountUsageOutcome] {
+    func displayedOutcomesForUnifiedAccounts() -> [ProviderAccountUsageOutcome] {
         guard let usageProvider else { return [] }
         if usageProvider == .claude {
             return ProviderUsageOutcomeFilter.displayedClaudeOutcomes(
@@ -192,12 +218,12 @@ extension ProviderUsageAccountsViewModel {
 
 @MainActor
 extension ProviderUsageAccountsViewModel.GeminiState {
-    func makeCardModel(
+    func makeCardData(
         account: GeminiAuthAccount,
         providerName: String,
         liveOutcome: ProviderAccountUsageOutcome?,
         isLoading: Bool
-    ) -> ProviderUsageGeminiCardModel {
+    ) -> (data: AccountCardViewData, isActive: Bool) {
         let isActive = isActiveAccount(account)
         let quota: AccountRecordQuota? = {
             guard isActive, let liveOutcome else { return nil }
@@ -274,7 +300,7 @@ extension ProviderUsageAccountsViewModel.GeminiState {
             quotaRefreshActionID: isActive ? .refresh : nil,
             tapBehavior: isActive ? .none : .activate
         )
-        return .init(data: data, isActive: isActive)
+        return (data: data, isActive: isActive)
     }
 }
 

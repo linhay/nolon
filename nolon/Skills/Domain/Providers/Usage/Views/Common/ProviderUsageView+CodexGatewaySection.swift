@@ -8,8 +8,11 @@ import NolonUI
 
 extension ProviderUsageView {
     var codexAccountsSection: some View {
-        Group {
-            if accountsViewModel.codex.accounts.isEmpty && !viewModel.isLoading {
+        let state = codexAccountsSectionState
+
+        return Group {
+            switch state {
+            case .empty:
                 ContentUnavailableView(
                     NSLocalizedString("codex.accounts.empty.title", value: "No accounts", comment: "Empty state title"),
                     systemImage: "person.crop.circle.badge.plus",
@@ -21,9 +24,7 @@ extension ProviderUsageView {
                     .dsSecondaryText(font: .body)
                 )
                 .debugCardLocator(debugPageMarkerItems + [PageMarkerItem(title: NSLocalizedString("codex.accounts.empty.title", value: "No accounts", comment: "Empty state title"))])
-            }
-
-            if viewModel.isLoading && accountsViewModel.codex.accountOutcomes.isEmpty {
+            case .loading:
                 Group {
                     if viewModel.codex.accountLayoutMode == .list {
                         LazyVStack(alignment: .leading, spacing: 12) {
@@ -46,7 +47,7 @@ extension ProviderUsageView {
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-            } else if viewModel.codex.accountDisplaySections.isEmpty && viewModel.codex.hasActiveAccountFilters {
+            case .filteredEmpty:
                 ContentUnavailableView(
                     NSLocalizedString("codex.accounts.filtered_empty.title", value: "没有可显示的账号", comment: "All accounts hidden by zero quota filter title"),
                     systemImage: "line.3.horizontal.decrease.circle",
@@ -56,45 +57,10 @@ extension ProviderUsageView {
                     .dsSecondaryText(font: .body)
                 )
                 .debugCardLocator(debugPageMarkerItems + [PageMarkerItem(title: NSLocalizedString("codex.accounts.filtered_empty.title", value: "没有可显示的账号", comment: "All accounts hidden by zero quota filter title"))])
-            } else {
-                ForEach(viewModel.codex.accountDisplaySections) { section in
+            case let .content(sections):
+                ForEach(sections) { section in
                     VStack(alignment: .leading, spacing: 10) {
-                        if let title = section.title {
-                            HStack(spacing: 8) {
-                                Button {
-                                    viewModel.codex.toggleSection(section.id)
-                                } label: {
-                                    HStack(spacing: 8) {
-                                        Image(systemName: viewModel.codex.isSectionCollapsed(section.id) ? "chevron.right" : "chevron.down")
-                                            .font(.caption)
-                                            .foregroundStyle(DesignSystem.Colors.Text.secondary)
-                                        Text(title)
-                                            .font(.headline)
-                                            .foregroundStyle(DesignSystem.Colors.Text.primary)
-                                        Text(
-                                            "(\(section.items.count) / \(viewModel.codex.accountSectionTotalCountByID[section.id, default: section.items.count]))"
-                                        )
-                                            .font(.caption)
-                                            .foregroundStyle(DesignSystem.Colors.Text.tertiary)
-                                    }
-                                    .contentShape(Rectangle())
-                                }
-                                .buttonStyle(.plain)
-
-                                Spacer(minLength: 0)
-
-                                if accountsViewModel.codex.isMultiSelectionEnabled && !section.items.isEmpty {
-                                    Button(viewModel.codex.isSectionFullySelected(section)
-                                        ? NSLocalizedString("codex.import.sheet.deselect_all", value: "取消全选", comment: "Deselect all")
-                                        : NSLocalizedString("codex.import.sheet.select_all", value: "全选", comment: "Select all")
-                                    ) {
-                                        viewModel.codex.toggleSectionSelection(section)
-                                    }
-                                    .buttonStyle(.bordered)
-                                    .controlSize(.mini)
-                                }
-                            }
-                        }
+                        codexAccountSectionHeader(section: section)
 
                         if !viewModel.codex.isSectionCollapsed(section.id) {
                             codexOutcomesContainer(section.items)
@@ -102,6 +68,68 @@ extension ProviderUsageView {
                     }
                 }
                 .animation(.snappy(duration: 0.2), value: viewModel.codex.collapsedSectionIDs)
+            }
+        }
+    }
+
+    private enum CodexAccountsSectionState {
+        case empty
+        case loading
+        case filteredEmpty
+        case content([ProviderUsageEngine.CodexAccountDisplaySection])
+    }
+
+    private var codexAccountsSectionState: CodexAccountsSectionState {
+        if accountsViewModel.codex.accounts.isEmpty && !viewModel.isLoading {
+            return .empty
+        }
+        if viewModel.isLoading && accountsViewModel.codex.accountOutcomes.isEmpty {
+            return .loading
+        }
+        if viewModel.codex.accountDisplaySections.isEmpty && viewModel.codex.hasActiveAccountFilters {
+            return .filteredEmpty
+        }
+        return .content(viewModel.codex.accountDisplaySections)
+    }
+
+    @ViewBuilder
+    private func codexAccountSectionHeader(
+        section: ProviderUsageEngine.CodexAccountDisplaySection
+    ) -> some View {
+        if let title = section.title {
+            HStack(spacing: 8) {
+                Button {
+                    viewModel.codex.toggleSection(section.id)
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: viewModel.codex.isSectionCollapsed(section.id) ? "chevron.right" : "chevron.down")
+                            .font(.caption)
+                            .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                        Text(title)
+                            .font(.headline)
+                            .foregroundStyle(DesignSystem.Colors.Text.primary)
+                        Text(
+                            "(\(section.items.count) / \(viewModel.codex.accountSectionTotalCountByID[section.id, default: section.items.count]))"
+                        )
+                            .font(.caption)
+                            .foregroundStyle(DesignSystem.Colors.Text.tertiary)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+
+                Spacer(minLength: 0)
+
+                if accountsViewModel.codex.isMultiSelectionEnabled && !section.items.isEmpty {
+                    Button(viewModel.codex.isSectionFullySelected(section)
+                        ? NSLocalizedString("codex.import.sheet.deselect_all", value: "取消全选", comment: "Deselect all")
+                        : NSLocalizedString("codex.import.sheet.select_all", value: "全选", comment: "Select all")
+                    ) {
+                        viewModel.codex.toggleSectionSelection(section)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.mini)
+                }
             }
         }
     }
