@@ -7,6 +7,7 @@ public enum SkillDetailScaffoldMetrics {
 }
 
 public struct SkillDetailScaffold<Sidebar: View, Content: View>: View {
+    @State private var viewModel = SkillDetailScaffoldViewModel()
     private let onClose: () -> Void
     private let sidebar: Sidebar
     private let content: Content
@@ -54,6 +55,7 @@ public struct SkillDetailScaffold<Sidebar: View, Content: View>: View {
 }
 
 public struct SkillDetailSidebarContainer<Content: View, Footer: View>: View {
+    @State private var viewModel = SkillDetailSidebarContainerViewModel()
     private let content: Content
     private let footer: Footer
 

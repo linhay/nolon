@@ -15,6 +15,7 @@ public struct GatewayCardMemberItem: Identifiable, Equatable, Sendable {
 }
 
 public struct GatewayCardModule: View {
+    @State private var viewModel = GatewayCardModuleViewModel()
     public let presentation: AccountCardPresentation
     public let title: String
     public let memberCountText: String

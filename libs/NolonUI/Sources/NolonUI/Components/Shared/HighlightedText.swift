@@ -27,6 +27,7 @@ public enum HighlightedTextMatcher {
 }
 
 public struct HighlightedText: View {
+    @State private var viewModel = HighlightedTextViewModel()
     private let text: String
     private let query: String
     private let highlightColor: Color

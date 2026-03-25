@@ -19,6 +19,7 @@ public enum McpServerPrimaryAction: Sendable, Hashable {
 }
 
 public struct McpServerCardView<TitleContent: View, ExtraContextMenu: View>: View {
+    @State private var viewModel = McpServerCardViewViewModel()
     private let commandText: String?
     private let searchText: String
     private let hasWorkflow: Bool

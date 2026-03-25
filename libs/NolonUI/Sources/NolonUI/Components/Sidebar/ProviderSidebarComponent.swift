@@ -2,6 +2,7 @@ import SwiftUI
 import NolonUIFoundation
 
 public struct ProviderSidebarComponent: View {
+    @State private var viewModel = ProviderSidebarComponentViewModel()
     @Binding private var selectedItemKey: String?
 
     private let sections: [SidebarSection]

@@ -10,6 +10,7 @@ public enum SidebarColumnMetrics {
 }
 
 struct SidebarColumnHeader: View {
+    @State private var viewModel = SidebarColumnHeaderViewModel()
     let title: String
 
     var body: some View {

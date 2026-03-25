@@ -34,6 +34,7 @@ public struct ProviderContentTabSidebarItem<Tab: Hashable>: Identifiable, Hashab
 }
 
 public struct ProviderContentTabSidebarComponent<Tab: Hashable>: View {
+    @State private var viewModel = ProviderContentTabSidebarComponentViewModel()
     @Binding private var selectedTab: Tab?
 
     private let hasProviderSelection: Bool

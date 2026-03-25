@@ -7,6 +7,7 @@ private enum AccountSummaryContentCardLayout {
 }
 
 public struct AccountSummaryContentCard<Body: View, Details: View, Actions: View>: View {
+    @State private var viewModel = AccountSummaryContentCardViewModel()
     private let presentation: AccountCardPresentation
     private let header: AccountSummaryCardHeaderModel
     private let showsDetailsSection: Bool

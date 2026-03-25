@@ -1,0 +1,212 @@
+import Observation
+
+// Auto-generated baseline view models for NolonUI components.
+@Observable
+public final class AccountListModeModuleViewModel {
+    public init() {}
+}
+
+@Observable
+public final class AccountQuotaModuleViewModel {
+    public init() {}
+}
+
+@Observable
+public final class AccountInlineQuotaProgressViewModel {
+    public init() {}
+}
+
+@Observable
+public final class AccountErrorStateModuleViewModel {
+    public init() {}
+}
+
+@Observable
+public final class AccountLoadingStateModuleViewModel {
+    public init() {}
+}
+
+@Observable
+public final class AccountEmptyStateModuleViewModel {
+    public init() {}
+}
+
+@Observable
+public final class AccountSummaryCardViewModel {
+    public init() {}
+}
+
+@Observable
+public final class AccountSummaryContentCardViewModel {
+    public init() {}
+}
+
+@Observable
+public final class AccountUsageChartModuleViewModel {
+    public init() {}
+}
+
+@Observable
+public final class AccountUsageMetricRowViewModel {
+    public init() {}
+}
+
+@Observable
+public final class AccountUsageContentCardViewModel {
+    public init() {}
+}
+
+@Observable
+public final class AccountUsageContentCardSceneViewModel {
+    public init() {}
+}
+
+@Observable
+public final class GatewayCardListModuleViewModel {
+    public init() {}
+}
+
+@Observable
+public final class GatewayCardModuleViewModel {
+    public init() {}
+}
+
+@Observable
+public final class SkillDetailScaffoldViewModel {
+    public init() {}
+}
+
+@Observable
+public final class SkillDetailSidebarContainerViewModel {
+    public init() {}
+}
+
+@Observable
+public final class MainSplitScaffoldViewModel {
+    public init() {}
+}
+
+@Observable
+public final class AgentDocCardViewViewModel {
+    public init() {}
+}
+
+@Observable
+public final class McpServerCardViewViewModel {
+    public init() {}
+}
+
+@Observable
+public final class RuleCardViewViewModel {
+    public init() {}
+}
+
+@Observable
+public final class SkillCardViewViewModel {
+    public init() {}
+}
+
+@Observable
+public final class WorkflowCardViewViewModel {
+    public init() {}
+}
+
+@Observable
+public final class ProviderCardTemplateViewModel {
+    public init() {}
+}
+
+@Observable
+public final class ResourceCardScaffoldViewModel {
+    public init() {}
+}
+
+@Observable
+public final class ResourceCardMetaItemsViewViewModel {
+    public init() {}
+}
+
+@Observable
+public final class ResourceInstallStateViewViewModel {
+    public init() {}
+}
+
+@Observable
+public final class ResourceMcpCardViewViewModel {
+    public init() {}
+}
+
+@Observable
+public final class ResourceSkillCardViewViewModel {
+    public init() {}
+}
+
+@Observable
+public final class ResourceWorkflowCardViewViewModel {
+    public init() {}
+}
+
+@Observable
+public final class ResourceCenterCloseButtonViewModel {
+    public init() {}
+}
+
+@Observable
+public final class ResourceCenterSidebarComponentViewModel {
+    public init() {}
+}
+
+@Observable
+public final class FloatingCloseButtonViewModel {
+    public init() {}
+}
+
+@Observable
+public final class HighlightedTextViewModel {
+    public init() {}
+}
+
+@Observable
+public final class SheetHeaderViewViewModel {
+    public init() {}
+}
+
+@Observable
+public final class SidebarColumnHeaderViewModel {
+    public init() {}
+}
+
+@Observable
+public final class SidebarColumnScaffoldViewModel {
+    public init() {}
+}
+
+@Observable
+public final class ThreeColumnScaffoldViewModel {
+    public init() {}
+}
+
+@Observable
+public final class ProviderContentTabSidebarComponentViewModel {
+    public init() {}
+}
+
+@Observable
+public final class ProviderSidebarComponentViewModel {
+    public init() {}
+}
+
+@Observable
+public final class SidebarProviderRowViewViewModel {
+    public init() {}
+}
+
+@Observable
+public final class SidebarSectionHeaderViewViewModel {
+    public init() {}
+}
+
+@Observable
+public final class SidebarToolRowViewViewModel {
+    public init() {}
+}

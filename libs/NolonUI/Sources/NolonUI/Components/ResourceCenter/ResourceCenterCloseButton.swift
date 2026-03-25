@@ -3,6 +3,7 @@ import SwiftUI
 public typealias ResourceCenterCloseButtonMetrics = FloatingCloseButtonMetrics
 
 public struct ResourceCenterCloseButton: View {
+    @State private var viewModel = ResourceCenterCloseButtonViewModel()
     private let help: String
     private let enableCancelShortcut: Bool
     private let action: () -> Void

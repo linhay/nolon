@@ -2,6 +2,7 @@ import SwiftUI
 import NolonUIFoundation
 
 struct SidebarToolRowView: View {
+    @State private var viewModel = SidebarToolRowViewViewModel()
     let item: SidebarToolItem
 
     var body: some View {

@@ -7,6 +7,7 @@ public enum SheetHeaderMetrics {
 }
 
 public struct SheetHeaderView: View {
+    @State private var viewModel = SheetHeaderViewViewModel()
     private let title: String
     private var subtitle: String?
     private var isCloseDisabled: Bool

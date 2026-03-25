@@ -1,6 +1,7 @@
 import SwiftUI
 
 public struct ResourceMcpCardView<ExtraContextMenu: View>: View {
+    @State private var viewModel = ResourceMcpCardViewViewModel()
     private let name: String
     private let version: String?
     private let summary: String?

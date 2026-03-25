@@ -24,6 +24,7 @@ enum ResourceInstallState: Equatable {
 }
 
 public struct ResourceInstallStateView: View {
+    @State private var viewModel = ResourceInstallStateViewViewModel()
     private let state: ResourceInstallState
     private let onInstall: () -> Void
     private let onRetry: () -> Void

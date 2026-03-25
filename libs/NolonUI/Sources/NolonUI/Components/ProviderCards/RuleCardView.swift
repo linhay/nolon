@@ -2,6 +2,7 @@ import SwiftUI
 import NolonUIFoundation
 
 public struct RuleCardView<ExtraContextMenu: View>: View {
+    @State private var viewModel = RuleCardViewViewModel()
     private let rule: RuleInfo
     private let searchText: String
     private let onReveal: () -> Void

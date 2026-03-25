@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct SidebarSectionHeaderView: View {
+    @State private var viewModel = SidebarSectionHeaderViewViewModel()
     let title: String
     let style: ProviderSidebarStyle
 

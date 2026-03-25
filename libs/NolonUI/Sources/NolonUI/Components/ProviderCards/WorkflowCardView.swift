@@ -2,6 +2,7 @@ import SwiftUI
 import NolonUIFoundation
 
 public struct WorkflowCardView<ExtraContextMenu: View>: View {
+    @State private var viewModel = WorkflowCardViewViewModel()
     private let workflow: WorkflowInfo
     private let searchText: String
     private let onReveal: () -> Void

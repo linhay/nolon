@@ -2,6 +2,7 @@ import SwiftUI
 import NolonUIFoundation
 
 struct SidebarProviderRowView: View {
+    @State private var viewModel = SidebarProviderRowViewViewModel()
     @Environment(\.sidebarRowSize) private var sidebarRowSize
 
     let item: SidebarProviderItem

@@ -10,6 +10,7 @@ public enum ResourceCenterSidebarMetrics {
 }
 
 public struct ResourceCenterSidebarComponent: View {
+    @State private var viewModel = ResourceCenterSidebarComponentViewModel()
     @Binding private var selectedTab: ResourceCenterTabID?
 
     private let title: String

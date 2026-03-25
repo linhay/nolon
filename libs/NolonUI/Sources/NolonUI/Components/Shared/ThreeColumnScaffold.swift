@@ -22,6 +22,7 @@ public struct ThreeColumnScaffold<
     Content: View,
     Detail: View
 >: View {
+    @State private var viewModel = ThreeColumnScaffoldViewModel()
     @Binding private var columnVisibility: NavigationSplitViewVisibility
 
     private let mode: ThreeColumnScaffoldMode

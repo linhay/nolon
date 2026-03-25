@@ -28,6 +28,7 @@ public enum AccountQuotaStyle {
 }
 
 public struct AccountQuotaModule: View {
+    @State private var viewModel = AccountQuotaModuleViewModel()
     public let rows: [AccountQuotaRow]
     public let creditsText: String
 
@@ -84,6 +85,7 @@ public struct AccountQuotaModule: View {
 }
 
 public struct AccountInlineQuotaProgress: View {
+    @State private var viewModel = AccountInlineQuotaProgressViewModel()
     public let progress: CGFloat
     public let percentText: String
 

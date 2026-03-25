@@ -2,6 +2,7 @@ import SwiftUI
 import NolonUIFoundation
 
 public struct GatewayCardListModule<Item: Identifiable, Content: View>: View {
+    @State private var viewModel = GatewayCardListModuleViewModel()
     public enum LayoutMode: Sendable {
         case list
         case cards

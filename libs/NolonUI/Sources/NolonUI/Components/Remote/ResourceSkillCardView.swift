@@ -1,6 +1,7 @@
 import SwiftUI
 
 public struct ResourceSkillCardView<ExtraAction: View, ExtraContextMenu: View>: View {
+    @State private var viewModel = ResourceSkillCardViewViewModel()
     private let name: String
     private let version: String?
     private let summary: String?

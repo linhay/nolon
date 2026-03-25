@@ -1,6 +1,7 @@
 import SwiftUI
 
 public struct AccountErrorStateModule: View {
+    @State private var viewModel = AccountErrorStateModuleViewModel()
     public let title: String
     public let message: String
 
@@ -29,6 +30,7 @@ public struct AccountErrorStateModule: View {
 }
 
 public struct AccountLoadingStateModule: View {
+    @State private var viewModel = AccountLoadingStateModuleViewModel()
     public init() {}
 
     public var body: some View {
@@ -51,6 +53,7 @@ public struct AccountLoadingStateModule: View {
 }
 
 public struct AccountEmptyStateModule: View {
+    @State private var viewModel = AccountEmptyStateModuleViewModel()
     public let text: String
 
     public init(text: String) {

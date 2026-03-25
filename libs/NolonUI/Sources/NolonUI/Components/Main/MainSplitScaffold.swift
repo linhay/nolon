@@ -10,6 +10,7 @@ public struct MainSplitScaffold<
     MainLayout: View,
     Overlay: View
 >: View {
+    @State private var viewModel = MainSplitScaffoldViewModel()
     private let isAccountsSelected: Bool
     private let showsOverlay: Bool
     private let accountsLayout: () -> AccountsLayout

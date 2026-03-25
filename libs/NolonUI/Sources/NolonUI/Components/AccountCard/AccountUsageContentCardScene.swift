@@ -2,6 +2,7 @@ import SwiftUI
 import NolonUIFoundation
 
 struct AccountUsageContentCard: View {
+    @State private var viewModel = AccountUsageContentCardViewModel()
     let presentation: AccountCardPresentation
     let header: AccountSummaryCardHeaderModel
     let points: [AccountUsageChartPoint]
@@ -64,6 +65,7 @@ struct AccountUsageContentCard: View {
 }
 
 struct AccountUsageContentCardScene: View {
+    @State private var viewModel = AccountUsageContentCardSceneViewModel()
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Usage Chart Module")

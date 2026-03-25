@@ -1,6 +1,7 @@
 import SwiftUI
 
 public struct SkillCardView<ExtraContextMenu: View>: View {
+    @State private var viewModel = SkillCardViewViewModel()
     private let name: String
     private let description: String
     private let version: String

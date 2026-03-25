@@ -61,6 +61,7 @@ struct AccountListModeSection: Identifiable {
 }
 
 struct AccountListModeModule: View {
+    @State private var viewModel = AccountListModeModuleViewModel()
     let title: String
     let sections: [AccountListModeSection]
 

@@ -7,6 +7,7 @@ public struct ProviderCardTemplate<
     ActionContent: View,
     ContextMenuContent: View
 >: View {
+    @State private var viewModel = ProviderCardTemplateViewModel()
     private let minHeight: CGFloat
     private let isSelected: Bool
     private let showsActionDivider: Bool

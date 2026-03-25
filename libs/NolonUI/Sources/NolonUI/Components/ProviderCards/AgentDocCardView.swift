@@ -2,6 +2,7 @@ import SwiftUI
 import NolonUIFoundation
 
 public struct AgentDocCardView<ExtraContextMenu: View>: View {
+    @State private var viewModel = AgentDocCardViewViewModel()
     private let doc: AgentDocInfo
     private let searchText: String
     private let onReveal: () -> Void

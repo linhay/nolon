@@ -2,6 +2,7 @@ import SwiftUI
 import NolonUIFoundation
 
 public struct AccountSummaryCard<Content: View>: View {
+    @State private var viewModel = AccountSummaryCardViewModel()
     private let presentation: AccountCardPresentation
     private let contentInsets: EdgeInsets
     @ViewBuilder private var content: Content

@@ -14,6 +14,7 @@ struct AccountUsageMetric: Identifiable {
 }
 
 struct AccountUsageChartModule: View {
+    @State private var viewModel = AccountUsageChartModuleViewModel()
     let points: [AccountUsageChartPoint]
 
     var body: some View {
@@ -65,6 +66,7 @@ struct AccountUsageChartModule: View {
 }
 
 struct AccountUsageMetricRow: View {
+    @State private var viewModel = AccountUsageMetricRowViewModel()
     let metrics: [AccountUsageMetric]
 
     var body: some View {

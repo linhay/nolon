@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct SidebarColumnScaffold<Content: View>: View {
+    @State private var viewModel = SidebarColumnScaffoldViewModel()
     let title: String
     let showsHeader: Bool
     @ViewBuilder let content: Content

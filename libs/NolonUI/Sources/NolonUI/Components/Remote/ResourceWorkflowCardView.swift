@@ -1,6 +1,7 @@
 import SwiftUI
 
 public struct ResourceWorkflowCardView<ExtraContextMenu: View>: View {
+    @State private var viewModel = ResourceWorkflowCardViewViewModel()
     private let name: String
     private let version: String?
     private let summary: String?

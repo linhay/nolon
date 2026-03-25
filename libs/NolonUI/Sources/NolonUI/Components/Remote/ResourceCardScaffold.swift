@@ -9,6 +9,7 @@ public enum ResourceCardMetaItem: Equatable, Sendable {
 }
 
 struct ResourceCardScaffold<HeaderContent: View, SummaryContent: View, MetaContent: View, ActionContent: View, MenuContent: View>: View {
+    @State private var viewModel = ResourceCardScaffoldViewModel()
     let minHeight: CGFloat
     let isSelected: Bool
     let onTap: () -> Void
@@ -106,6 +107,7 @@ struct ResourceCardScaffold<HeaderContent: View, SummaryContent: View, MetaConte
 }
 
 struct ResourceCardMetaItemsView: View {
+    @State private var viewModel = ResourceCardMetaItemsViewViewModel()
     let items: [ResourceCardMetaItem]
 
     var body: some View {

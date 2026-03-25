@@ -7,6 +7,7 @@ public enum FloatingCloseButtonMetrics {
 }
 
 public struct FloatingCloseButton: View {
+    @State private var viewModel = FloatingCloseButtonViewModel()
     private let help: String
     private let enableCancelShortcut: Bool
     private let action: () -> Void
