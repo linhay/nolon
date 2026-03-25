@@ -381,6 +381,7 @@ final class ProviderUsageAccountsViewModel {
         set { state.engine.settings = newValue }
     }
     var isLoading: Bool { state.engine.isLoading }
+    var accountLayoutMode: ProviderUsageEngine.CodexAccountLayoutMode { state.engine.codexAccountLayoutMode }
     var isShowingCopyToast: Bool { state.engine.isShowingCopyToast }
     var copyToastMessage: String? { state.engine.copyToastMessage }
     var alertTitle: String? {
@@ -410,6 +411,10 @@ final class ProviderUsageAccountsViewModel {
 
     func handleHeaderRefreshButtonTap() {
         engine.handleHeaderRefreshButtonTap()
+    }
+
+    func setAccountLayoutMode(_ mode: ProviderUsageEngine.CodexAccountLayoutMode) {
+        engine.setCodexAccountLayoutMode(mode)
     }
 
 }

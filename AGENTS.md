@@ -1,99 +1,97 @@
-# PROJECT KNOWLEDGE BASE
+# 项目知识库
 
-**Generated:** 2026-01-24
-**Project:** Nolon (macOS SwiftUI App)
+**生成时间：** 2026-01-24
+**项目：** Nolon（macOS SwiftUI 应用）
 
-## OVERVIEW
-Nolon is a macOS skill manager for AI coding assistants. It centralizes skill management in `~/.nolon/skills` and installs them via symlinks or copying. Supports browsing and installing skills from **Clawdhub** remote repository, and managing **MCP (Model Context Protocol)** configurations. Supports 25+ providers including Codex, Claude, OpenCode, Cursor, Windsurf, Cline, and more. Built with SwiftUI and Clean Architecture.
+## 概览
+Nolon 是一个面向 AI 编程助手的 macOS 技能管理器。项目采用 SwiftUI + Clean Architecture，核心关注点包括：
+- 本地技能管理与安装。
+- 提供商能力适配与 CLI 集成。
+- 统一 UI 设计系统与组件复用。
+- 本地化与工程化发布流程。
 
-## STRUCTURE
+## 目录结构
 ```
 .
-├── nolon/
-│   ├── DesignSystem/     # **MANDATORY** color system & reusable UI components
-│   ├── Skills/           # Core feature module (Clean Architecture)
-│   │   ├── Models/       # Domain entities (Immutable structs)
-│   │   │   ├── Skill.swift           # Local skill model
-│   │   │   ├── Provider.swift        # Unified provider model
-│   │   │   ├── RemoteSkill.swift     # Remote skill from Clawdhub
-│   │   │   └── RemoteRepository.swift # Remote repository config
-│   │   ├── Infrastructure/ # Side effects (Files, Parsing, Installation)
-│   │   │   ├── SkillRepository.swift  # Local skill storage
-│   │   │   ├── SkillInstaller.swift   # Install/Uninstall/Migrate
-│   │   │   └── ClawdhubService.swift  # Clawdhub API client
-│   │   └── Views/        # SwiftUI Views (SplitView pattern)
-│   │       ├── MainSplitView.swift           # Main 3-column layout
-│   │       ├── RemoteSkillsBrowserView.swift # Clawdhub browser (3-column)
-│   │       └── ...
-│   ├── Resources/        # Application resources
-│   └── nolonApp.swift    # Entry point (@main)
-├── Localizable.xcstrings # Modern localization source (En/Zh)
-└── build.sh              # Custom CLI build/verification script
+├── AGENTS.md
+├── build.sh                         # 自定义 CLI 构建/校验脚本
+├── nolon.xcodeproj/                 # Xcode 工程
+├── nolon/                           # 主应用（SwiftUI）
+│   ├── DesignSystem/                # **必须**：颜色系统与可复用 UI 组件
+│   ├── Skills/                      # 核心功能模块（Clean Architecture）
+│   │   ├── Models/                  # 领域实体（不可变结构体）
+│   │   ├── Infrastructure/          # 副作用层（文件、解析、安装）
+│   │   └── Views/                   # SwiftUI 视图层（SplitView 模式）
+│   ├── Resources/                   # 应用资源
+│   ├── Localizable.xcstrings        # 主应用本地化资源
+│   └── nolonApp.swift               # 入口点（@main）
+├── libs/
+│   ├── Providers/                   # 提供商能力与 CLI 集成（含 Codex 边界）
+│   ├── NolonUI/                     # 共享 UI 组件库
+│   └── NolonUIFoundation/           # UI 基础能力
+├── nolonTests/                      # 单元与快照测试
+├── nolonUITests/                    # UI 自动化测试
+├── docs/                            # 发布说明与文档站点资源
+├── scripts/                         # 脚本工具
+├── design-proposals/                # 设计提案
+└── memory/                          # 项目工作记录
 ```
 
-## WHERE TO LOOK
-| Task | Location | Notes |
-|------|----------|-------|
-| **UI Colors** | `nolon/DesignSystem/AppColors.swift` | **MANDATORY**: Use `DesignSystem.Colors` ONLY. |
-| **Domain Logic** | `nolon/Skills/Models/` | Pure Swift structs, `Sendable`, `Codable`. |
-| **File Ops** | `nolon/Skills/Infrastructure/` | `SkillRepository`, `SkillInstaller`. |
-| **Remote API** | `nolon/Skills/Infrastructure/ClawdhubService.swift` | Clawdhub API client. |
-| **Parsing** | `nolon/Skills/Infrastructure/SkillParser.swift` | Custom regex parser for SKILL.md. |
-| **Strings** | `Localizable.xcstrings` | Edit this for all text changes. |
+## 最佳范式
+- **一对一绑定**：1 个 UI 组件必须拥有 1 个对应的 ViewModel。
+- **可观测性要求**：每个 ViewModel 必须使用 `@Observable`。
+- **职责分离**：UI 组件只负责展示与交互；ViewModel 负责数据处理、状态管理与视图数据组装。
+- **命名约定**：ViewModel 命名使用 `{组件名}ViewModel`，并与组件保持语义一致。
 
-## KEY CONCEPTS
+示例：
 
-### Installation Flow (Remote Skills)
-1. Download zip from Clawdhub
-2. Extract to `~/.nolon/skills/{slug}` (global storage)
-3. Parse SKILL.md to create Skill model
-4. Link/copy to provider directory based on `Provider.installMethod`
+```swift
+@Observable
+final class NolonAccountsViewModel {}
+```
 
-### MCP Configuration
-- Each provider can have a default MCP configuration path (`defaultMcpConfigPath`)
-- Nolon reads/writes provider-specific `mcp_settings.json` files
-- MCP documentation URLs are available per provider
+在该范式下：
+- UI 组件负责展示。
+- `NolonAccountsViewModel` 使用 `@Observable` 提供状态可观测能力，并负责数据处理和组装。
 
-### Provider Model
-- Unified `Provider` struct with configurable `installMethod` (`.symlink` or `.copy`)
-- `ProviderTemplate` enum for quick provider setup (25+ built-in templates)
-- `ProviderSettings` manages persistence via `@AppStorage`
-- Provider logos sourced from `lobe-icons` library
+## 工程约定
+- **架构边界**：遵循 Models -> Infrastructure -> Views 分层。
+- **Codex 边界**：Codex CLI / app-server 与 JSON-RPC 逻辑必须位于 `libs/Providers`；应用层只负责调用编排。
+- **设计系统**：UI 颜色与组件能力优先复用 `DesignSystem` 与 `libs/NolonUI*`。
+- **本地化**：新增文案统一进入 `Localizable.xcstrings`，不新增 `*.lproj` 资源文件。
+- **问题求解策略**：优先查询可用 skills；不确定时先搜索资料或代码再结论，禁止硬猜。
+- **优化策略**：性能或行为优化优先增加可观测日志，基于日志定位瓶颈后再实施优化。
+- **日志最小标准**：关键路径日志至少包含 traceId（或请求标识）、耗时、关键输入摘要、结果状态（成功/失败）；失败场景需记录错误码或错误类型。
 
-## CONVENTIONS
-- **Architecture**: Strict Clean Architecture (Models -> Infrastructure -> Views).
-- **Concurrency**: Use `async/await`, `Sendable`, and `@MainActor` for all UI/State updates.
-- **State**: `@StateObject` for view models, `@AppStorage` for simple settings.
-- **Localization**: All UI strings MUST be localized.
-- **Codex CLI Boundary**: Codex CLI / app-server process & JSON-RPC logic must live under `libs/Providers` (`CodexCLIKit` / `CodexProvider`). `nolon` app layer only orchestrates calls.
+## 执行检查清单
+1. 新增或重构 UI 组件时，是否同步创建/维护 1 个对应 ViewModel。
+2. ViewModel 是否使用 `@Observable`。
+3. ViewModel 命名是否符合 `{组件名}ViewModel`。
+4. UI 组件是否仅负责展示与交互，数据处理是否位于 ViewModel。
+5. 代码是否遵循 Models -> Infrastructure -> Views 分层，且无反向依赖。
+6. 涉及 Codex CLI / app-server / JSON-RPC 的逻辑是否仅放在 `libs/Providers`。
+7. UI 颜色与组件是否优先复用 `DesignSystem`、`libs/NolonUI*`，避免重复实现。
+8. 新增或修改文案是否已写入 `Localizable.xcstrings`，且未新增 `*.lproj` 文件。
+9. 遇到不确定问题时，是否先查询可用 skills，并在必要时完成搜索验证后再输出结论。
+10. 优化任务是否先通过日志或指标定位，再进行针对性优化。
+11. 关键路径日志是否满足最小标准（标识、耗时、输入摘要、结果状态、错误信息）。
 
-## ANTI-PATTERNS (THIS PROJECT)
-- **Forbidden Colors**: `Color.blue`, `Color.white`, `Color.label`. **USE** `DesignSystem.Colors.Brand`, `DesignSystem.Colors.Background`, etc.
-- **Forbidden Logging**: `print()` in production code. Use `OSLog` or structured error handling.
-- **Implicit Dependencies**: Infrastructure layer should not import Views.
-- **Old Strings**: Do not add new files to `nolon/Resources/*.lproj`. Use `.xcstrings`.
-
-## COMMANDS
+## 常用命令
 ```bash
-# Test (默认)
+# 测试（默认）
 # 后续测试统一使用 xcodebuild；除非用户明确要求，不使用 swift test
 xcodebuild test -project nolon.xcodeproj -scheme nolon-tests -destination 'platform=macOS'
 
-# Verify Build
+# 校验构建
 ./build.sh
 
-# Build Release
+# 构建 Release
 xcodebuild -project nolon.xcodeproj -scheme nolon -configuration Release
 ```
 
-## NOTES
-- **Remote Skills**: Supports browsing and installing from Clawdhub (https://clawdhub.com).
-- **Migration**: The app includes a "Migration Assistant" to adopt orphaned skills found in provider directories.
-- **Symlinks**: The app relies heavily on symlinks. Broken links are detected/repaired automatically.
-
-## LOCALIZATION WORKFLOW
-To translate new strings using an Agent:
-1. **Extract**: Run `python3 nolon/scripts/extract_missing_translations.py` to generate `missing_translations.json`.
-2. **Translate**: Provide the JSON content to an AI Agent to generate translations.
-3. **Save**: Save the agent's output to `nolon/scripts/translated_items.json`.
-4. **Import**: Run `python3 nolon/scripts/import_translations.py` to update `Localizable.xcstrings`.
+## 本地化流程
+使用 Agent 翻译新增文案时：
+1. **提取**：运行 `python3 nolon/scripts/extract_missing_translations.py` 生成 `missing_translations.json`。
+2. **翻译**：将 JSON 内容交给 AI Agent 生成翻译。
+3. **保存**：将 Agent 输出保存为 `nolon/scripts/translated_items.json`。
+4. **导入**：运行 `python3 nolon/scripts/import_translations.py` 更新 `Localizable.xcstrings`。

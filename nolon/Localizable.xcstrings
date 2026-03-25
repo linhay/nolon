@@ -3049,24 +3049,6 @@
         }
       }
     },
-    "codex.accounts.filter.hide_error.help" : {
-      "comment" : "Help for hide errored accounts filter",
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Toggle whether errored accounts are hidden"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "切换是否隐藏报错账号"
-          }
-        }
-      }
-    },
     "codex.accounts.filter.hide_error_off" : {
       "comment" : "Hide errored Codex accounts",
       "extractionState" : "manual",
@@ -3099,6 +3081,24 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "显示报错账号"
+          }
+        }
+      }
+    },
+    "codex.accounts.filter.hide_error.help" : {
+      "comment" : "Help for hide errored accounts filter",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Toggle whether errored accounts are hidden"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "切换是否隐藏报错账号"
           }
         }
       }
@@ -3319,18 +3319,6 @@
         }
       }
     },
-    "codex.accounts.http_usage.error.timeout" : {
-      "comment" : "HTTP usage timeout validation",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "HTTP usage timeout must be a number."
-          }
-        }
-      }
-    },
     "codex.accounts.http_usage.error.url_required" : {
       "comment" : "HTTP usage URL required",
       "extractionState" : "extracted_with_value",
@@ -3338,7 +3326,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "HTTP usage request URL is required."
+            "value" : "Please provide a valid HTTP usage URL."
           }
         }
       }
@@ -3686,7 +3674,7 @@
       }
     },
     "codex.accounts.list.header.account" : {
-      "comment" : "Codex account list table account column",
+      "comment" : "Account list table account column\nCodex account list table account column",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
@@ -3698,7 +3686,7 @@
       }
     },
     "codex.accounts.list.header.plan" : {
-      "comment" : "Codex account list table plan column",
+      "comment" : "Account list table plan column\nCodex account list table plan column",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
@@ -3710,7 +3698,7 @@
       }
     },
     "codex.accounts.list.header.usage" : {
-      "comment" : "Codex account list table usage column",
+      "comment" : "Account list table usage column\nCodex account list table usage column",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
@@ -15098,18 +15086,6 @@
         }
       }
     },
-    "usage.metric.unknown" : {
-      "comment" : "Unknown",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Unknown"
-          }
-        }
-      }
-    },
     "usage.metric.unlimited" : {
       "comment" : "Unlimited",
       "extractionState" : "extracted_with_value",
@@ -15255,25 +15231,13 @@
       }
     },
     "usage.monitor.empty.desc" : {
-      "comment" : "Empty data\nEmpty description",
+      "comment" : "Empty data",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "new",
             "value" : "No data available."
-          }
-        }
-      }
-    },
-    "usage.monitor.empty.title" : {
-      "comment" : "Empty title",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "No usage data"
           }
         }
       }

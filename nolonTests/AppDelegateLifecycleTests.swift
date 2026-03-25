@@ -10,4 +10,20 @@ final class AppDelegateLifecycleTests: XCTestCase {
 
         XCTAssertFalse(shouldTerminate)
     }
+
+    func testBDD_GivenAppTermination_WhenCheckingStateSavePolicy_ThenAppStateDoesNotPersist() {
+        let delegate = AppDelegate()
+
+        let shouldSaveState = delegate.applicationShouldSaveApplicationState(NSApplication.shared)
+
+        XCTAssertFalse(shouldSaveState)
+    }
+
+    func testBDD_GivenAppLaunch_WhenCheckingStateRestorePolicy_ThenPreviousWindowsAreNotRestored() {
+        let delegate = AppDelegate()
+
+        let shouldRestoreState = delegate.applicationShouldRestoreApplicationState(NSApplication.shared)
+
+        XCTAssertFalse(shouldRestoreState)
+    }
 }

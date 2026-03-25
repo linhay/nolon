@@ -13,16 +13,15 @@ extension ProviderUsageView {
         return Group {
             switch state {
             case let .empty(emptyState):
-                ContentUnavailableView(
-                    emptyState.title,
+                ProviderUsageEmptyStateCard(
+                    title: LocalizedStringKey(emptyState.title),
                     systemImage: emptyState.systemImage,
-                    description: Text(emptyState.description)
-                        .dsSecondaryText(font: .body)
+                    descriptionText: Text(emptyState.description)
                 )
                 .debugCardLocator(debugPageMarkerItems + [PageMarkerItem(title: emptyState.title)])
             case .loading:
                 Group {
-                    if viewModel.codex.accountLayoutMode == .list {
+                    if viewModel.accountLayoutMode == .list {
                         LazyVStack(alignment: .leading, spacing: 12) {
                             ForEach(0..<ProviderUsageSkeletonPolicy.genericCardCount(for: provider), id: \.self) { _ in
                                 UnifiedAccountCardSkeleton(providerName: provider.name)
@@ -222,7 +221,7 @@ extension ProviderUsageView {
     private func gatewayCardsContainer(_ cards: [CodexGatewayCard]) -> some View {
         NolonUI.GatewayCardListModule(
             items: cards,
-            layoutMode: viewModel.codex.accountLayoutMode == .list ? .list : .cards,
+            layoutMode: viewModel.accountLayoutMode == .list ? .list : .cards,
             columns: codexAccountColumns,
             spacing: 12
         ) { card in
@@ -242,9 +241,9 @@ extension ProviderUsageView {
         let isTargeted = targetingGatewayCardID == card.id
         let isActiveGateway = gatewayCardsViewModel.gatewayCardsState.lastUsedCardID == card.id
         let presentation: AccountCardPresentation = (isTargeted || isActiveGateway) ? .selected : .neutral
-        let isCompact = Self.shouldUseCompactCodexListRows(layoutMode: viewModel.codex.accountLayoutMode)
-        let memberDisplayLimit = Self.gatewayMemberDisplayLimit(layoutMode: viewModel.codex.accountLayoutMode)
-        let memberRowMaxHeight = Self.gatewayMemberRowMaxHeight(layoutMode: viewModel.codex.accountLayoutMode)
+        let isCompact = Self.shouldUseCompactCodexListRows(layoutMode: viewModel.accountLayoutMode)
+        let memberDisplayLimit = Self.gatewayMemberDisplayLimit(layoutMode: viewModel.accountLayoutMode)
+        let memberRowMaxHeight = Self.gatewayMemberRowMaxHeight(layoutMode: viewModel.accountLayoutMode)
         
         return NolonUI.GatewayCardModule(
             presentation: presentation,

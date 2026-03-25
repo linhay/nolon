@@ -60,7 +60,7 @@ extension ProviderUsageView {
 
             switch state {
             case .loading:
-                nonCodexLoadingContent
+                nonCodexLoadingContent(provider: provider)
             case let .empty(emptyState):
                 ProviderUsageEmptyStateCard(
                     title: LocalizedStringKey(emptyState.title),
@@ -76,20 +76,25 @@ extension ProviderUsageView {
                                 .font(.headline)
                         }
 
-                        if Self.shouldUseFullWidthGeminiCardLayout(accountCount: cards.count) {
-                            VStack(alignment: .leading, spacing: 12) {
-                                ForEach(cards) { card in
-                                    unifiedAccountCard(card: card)
-                                        .frame(maxWidth: .infinity, alignment: .topLeading)
-                                }
+                        ProviderUsageUnifiedAccountCardGrid(
+                            provider: provider,
+                            cards: cards.map(\.data),
+                            isLoading: false,
+                            columns: claudeAccountColumns,
+                            layoutMode: Self.shouldUseCompactUnifiedListRows(
+                                layoutMode: viewModel.accountLayoutMode,
+                                accountCount: cards.count
+                            ) ? .list : .cards,
+                            onTap: { cardData in
+                                guard let card = cards.first(where: { $0.data.id == cardData.id }) else { return }
+                                Task { await card.onTap() }
+                            },
+                            onAction: { cardData, action in
+                                guard let card = cards.first(where: { $0.data.id == cardData.id }) else { return }
+                                Task { await card.onAction(action) }
                             }
-                        } else {
-                            LazyVGrid(columns: claudeAccountColumns, alignment: .leading, spacing: 12) {
-                                ForEach(cards) { card in
-                                    unifiedAccountCard(card: card)
-                                }
-                            }
-                        }
+                        )
+                        .id(cards.map(\.id).joined(separator: "|"))
                     }
                 }
 
@@ -100,24 +105,16 @@ extension ProviderUsageView {
         }
     }
 
-    private func unifiedAccountCard(card: ProviderUsageUnifiedAccountCardModel) -> some View {
-        UnifiedAccountCard(
-            data: card.data,
-            onTap: { _ in
-                Task { await card.onTap() }
-            },
-            onAction: { _, action in
-                Task { await card.onAction(action) }
-            }
+    private func nonCodexLoadingContent(provider: Provider) -> some View {
+        ProviderUsageUnifiedAccountCardGrid(
+            provider: provider,
+            cards: [],
+            isLoading: true,
+            columns: claudeAccountColumns,
+            layoutMode: .cards,
+            onTap: { _ in },
+            onAction: { _, _ in }
         )
-    }
-
-    private var nonCodexLoadingContent: some View {
-        Group {
-            ForEach(0..<ProviderUsageSkeletonPolicy.genericCardCount(for: provider), id: \.self) { _ in
-                UnifiedAccountCardSkeleton(providerName: provider.name)
-            }
-        }
     }
 
     private func nonCodexSectionState(

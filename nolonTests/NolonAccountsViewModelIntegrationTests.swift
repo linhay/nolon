@@ -9,7 +9,7 @@ import NolonUIFoundation
 
 @MainActor
 final class NolonAccountsViewModelIntegrationTests: XCTestCase {
-    func testBDD_GivenRootFactory_WhenBuildingAccountsViewModel_ThenAcceptsRootViewModelDependency() {
+    func testBDD_GivenAccountsFactory_WhenBuildingAccountsViewModel_ThenAcceptsAccountsViewModelDependency() {
         let provider = Provider(
             id: "codex",
             kind: .vendor,
@@ -22,7 +22,7 @@ final class NolonAccountsViewModelIntegrationTests: XCTestCase {
         let viewModel = NolonAccountsViewModel(
             settings: ProviderSettings(),
             providerUsageViewModelFactory: { _ in
-                ProviderUsageRootViewModel(provider: provider)
+                ProviderUsageRootViewModel(provider: provider).accountsViewModel
             }
         )
 

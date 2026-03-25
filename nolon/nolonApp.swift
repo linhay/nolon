@@ -90,6 +90,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         false
     }
 
+    func applicationShouldSaveApplicationState(_ app: NSApplication) -> Bool {
+        false
+    }
+
+    func applicationShouldRestoreApplicationState(_ app: NSApplication) -> Bool {
+        false
+    }
+
     func application(_ application: NSApplication, open urls: [URL]) {
         logger.info("Received URL count: \(urls.count, privacy: .public)")
         for url in urls {

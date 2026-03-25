@@ -126,6 +126,13 @@ struct ProviderUsageView: View, DebugPageLocatable {
         accountCount == 1
     }
 
+    static func shouldUseCompactUnifiedListRows(
+        layoutMode: ProviderUsageEngine.CodexAccountLayoutMode,
+        accountCount: Int
+    ) -> Bool {
+        layoutMode == .list && accountCount > 0
+    }
+
     static func visibleCodexPrimaryHeaderActions(
         from actions: [ProviderUsageEngine.CodexPrimaryHeaderAction],
         isCodexMultiSelectionEnabled: Bool
@@ -541,29 +548,7 @@ struct ProviderUsageView: View, DebugPageLocatable {
                     )
                 )
 
-                Picker(
-                    selection: Binding(
-                        get: { viewModel.codex.accountLayoutMode },
-                        set: { viewModel.codex.setAccountLayoutMode($0) }
-                    )
-                ) {
-                    Text(NSLocalizedString("codex.accounts.layout.cards", value: "卡片", comment: "Codex account card layout"))
-                        .tag(ProviderUsageEngine.CodexAccountLayoutMode.cards)
-                    Text(NSLocalizedString("codex.accounts.layout.list", value: "列表", comment: "Codex account list layout"))
-                        .tag(ProviderUsageEngine.CodexAccountLayoutMode.list)
-                } label: {
-                    EmptyView()
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .frame(width: 126)
-                .help(
-                    NSLocalizedString(
-                        "codex.accounts.layout.help",
-                        value: "切换账号显示为卡片或列表模式",
-                        comment: "Codex account layout picker help"
-                    )
-                )
+                accountLayoutPicker
 
                 if accountsViewModel.codex.isMultiSelectionEnabled {
                     Text(String(
@@ -649,6 +634,7 @@ struct ProviderUsageView: View, DebugPageLocatable {
                 }
                 actionsMenu
             } else {
+                accountLayoutPicker
                 ForEach(nonCodexHeaderActions) { action in
                     nonCodexHeaderActionButton(action)
                 }
@@ -817,6 +803,34 @@ struct ProviderUsageView: View, DebugPageLocatable {
         .fixedSize()
     }
 
+    private var accountLayoutPicker: some View {
+        Picker(selection: accountLayoutModeBinding) {
+            Text(NSLocalizedString("codex.accounts.layout.cards", value: "卡片", comment: "Codex account card layout"))
+                .tag(ProviderUsageEngine.CodexAccountLayoutMode.cards)
+            Text(NSLocalizedString("codex.accounts.layout.list", value: "列表", comment: "Codex account list layout"))
+                .tag(ProviderUsageEngine.CodexAccountLayoutMode.list)
+        } label: {
+            EmptyView()
+        }
+        .pickerStyle(.segmented)
+        .labelsHidden()
+        .frame(width: 126)
+        .help(
+            NSLocalizedString(
+                "codex.accounts.layout.help",
+                value: "切换账号显示为卡片或列表模式",
+                comment: "Codex account layout picker help"
+            )
+        )
+    }
+
+    private var accountLayoutModeBinding: Binding<ProviderUsageEngine.CodexAccountLayoutMode> {
+        Binding(
+            get: { viewModel.accountLayoutMode },
+            set: { viewModel.setAccountLayoutMode($0) }
+        )
+    }
+
     @ViewBuilder
     private var codexActionsMenuContent: some View {
         Section {
@@ -837,12 +851,7 @@ struct ProviderUsageView: View, DebugPageLocatable {
                 )
             }
 
-            Picker(
-                selection: Binding(
-                    get: { viewModel.codex.accountLayoutMode },
-                    set: { viewModel.codex.setAccountLayoutMode($0) }
-                )
-            ) {
+            Picker(selection: accountLayoutModeBinding) {
                 Text(NSLocalizedString("codex.accounts.layout.cards", value: "卡片", comment: "Codex account card layout"))
                     .tag(ProviderUsageEngine.CodexAccountLayoutMode.cards)
                 Text(NSLocalizedString("codex.accounts.layout.list", value: "列表", comment: "Codex account list layout"))
@@ -1033,6 +1042,22 @@ struct ProviderUsageView: View, DebugPageLocatable {
 
     @ViewBuilder
     private var nonCodexActionsMenuContent: some View {
+        Section {
+            Picker(selection: accountLayoutModeBinding) {
+                Text(NSLocalizedString("codex.accounts.layout.cards", value: "卡片", comment: "Codex account card layout"))
+                    .tag(ProviderUsageEngine.CodexAccountLayoutMode.cards)
+                Text(NSLocalizedString("codex.accounts.layout.list", value: "列表", comment: "Codex account list layout"))
+                    .tag(ProviderUsageEngine.CodexAccountLayoutMode.list)
+            } label: {
+                Label(
+                    NSLocalizedString("codex.accounts.layout.title", value: "布局", comment: "Codex account layout title"),
+                    systemImage: "rectangle.grid.1x2"
+                )
+            }
+        } header: {
+            Text(NSLocalizedString("codex.accounts.menu.section.view", value: "显示", comment: "Codex menu section for view options"))
+        }
+
         Section {
             Button {
                 Task { await viewModel.load() }

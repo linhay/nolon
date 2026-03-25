@@ -61,6 +61,7 @@ final class SkillDetailWindowCoordinator {
 struct SkillDetailWindowRootView: View {
     @State private var coordinator = SkillDetailWindowCoordinator.shared
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.dismissWindow) private var dismissWindow
 
     var body: some View {
         Group {
@@ -71,7 +72,7 @@ struct SkillDetailWindowRootView: View {
                     provider: payload.provider,
                     settings: payload.settings,
                     onClose: {
-                        dismiss()
+                        closeWindow()
                     }
                 )
             case .remote(let payload):
@@ -80,7 +81,7 @@ struct SkillDetailWindowRootView: View {
                     providers: payload.providers,
                     targetProvider: payload.targetProvider,
                     onClose: {
-                        dismiss()
+                        closeWindow()
                     },
                     onInstall: payload.onInstall
                 )
@@ -95,5 +96,10 @@ struct SkillDetailWindowRootView: View {
             }
         }
         .frame(minWidth: 900, minHeight: 600)
+    }
+
+    private func closeWindow() {
+        dismissWindow(id: SkillDetailWindowCoordinator.windowID)
+        dismiss()
     }
 }

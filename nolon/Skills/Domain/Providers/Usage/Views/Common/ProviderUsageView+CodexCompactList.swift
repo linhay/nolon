@@ -7,7 +7,7 @@ import NolonUIFoundation
 extension ProviderUsageView {
     func codexOutcomesContainer(_ outcomes: [ProviderAccountUsageOutcome]) -> some View {
         Group {
-            if Self.shouldUseCompactCodexListRows(layoutMode: viewModel.codex.accountLayoutMode) {
+            if Self.shouldUseCompactCodexListRows(layoutMode: viewModel.accountLayoutMode) {
                 VStack(alignment: .leading, spacing: 0) {
                     codexListTableHeader
 
@@ -76,7 +76,7 @@ extension ProviderUsageView {
         model: ProviderUsageCodexCardModel
     ) -> some View {
         Group {
-            if Self.shouldUseCompactCodexListRows(layoutMode: viewModel.codex.accountLayoutMode) {
+            if Self.shouldUseCompactCodexListRows(layoutMode: viewModel.accountLayoutMode) {
                 codexCompactListRow(
                     model: model
                 )
@@ -90,7 +90,7 @@ extension ProviderUsageView {
                 )
             }
         }
-        .if(Self.shouldEnableCodexTextSelection(layoutMode: viewModel.codex.accountLayoutMode)) { view in
+        .if(Self.shouldEnableCodexTextSelection(layoutMode: viewModel.accountLayoutMode)) { view in
             view.textSelection(.enabled)
         }
     }
