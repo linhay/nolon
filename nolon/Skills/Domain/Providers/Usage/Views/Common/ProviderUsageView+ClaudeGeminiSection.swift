@@ -47,7 +47,7 @@ extension ProviderUsageView {
     private var nonCodexAccountsSection: some View {
         let cards = viewModel.unifiedAccountCards(
             providerName: provider.name,
-            liveOutcome: viewModel.outcomes.first,
+            liveOutcome: viewModel.preferredUnifiedCardLiveOutcome,
             isLoading: viewModel.isLoading
         )
         let outcomes = viewModel.displayedOutcomesForUnifiedAccounts()
@@ -114,19 +114,8 @@ extension ProviderUsageView {
 
     private var nonCodexLoadingContent: some View {
         Group {
-            if viewModel.capabilities.usesUnifiedCardSkeleton {
-                ForEach(0..<ProviderUsageSkeletonPolicy.genericCardCount(for: provider), id: \.self) { _ in
-                    UnifiedAccountCardSkeleton(providerName: provider.name)
-                }
-            } else {
-                ForEach(0..<ProviderUsageSkeletonPolicy.genericCardCount(for: provider), id: \.self) { _ in
-                    ProviderQuotaSection(
-                        provider: viewModel.usageProvider ?? .codex,
-                        usage: nil,
-                        isLoading: true,
-                        showsEmptyState: true
-                    )
-                }
+            ForEach(0..<ProviderUsageSkeletonPolicy.genericCardCount(for: provider), id: \.self) { _ in
+                UnifiedAccountCardSkeleton(providerName: provider.name)
             }
         }
     }

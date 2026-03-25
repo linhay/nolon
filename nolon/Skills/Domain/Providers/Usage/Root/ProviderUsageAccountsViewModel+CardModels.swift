@@ -58,6 +58,16 @@ extension ProviderUsageAccountsViewModel.ClaudeState {
                     isEnabled: true
                 )
             ],
+            menuActions: [
+                .init(
+                    id: "refresh",
+                    actionID: .refresh,
+                    title: NSLocalizedString("usage.monitor.refresh", value: "Refresh", comment: "Refresh"),
+                    systemImage: "arrow.clockwise",
+                    role: nil,
+                    isEnabled: true
+                )
+            ],
             tapBehavior: isActive ? .none : .activate
         )
         return (data: data, isActive: isActive)
@@ -66,12 +76,21 @@ extension ProviderUsageAccountsViewModel.ClaudeState {
 
 @MainActor
 extension ProviderUsageAccountsViewModel {
+    var preferredUnifiedCardLiveOutcome: ProviderAccountUsageOutcome? {
+        outcomes.first { outcome in
+            if case .success = outcome.outcome.result {
+                return true
+            }
+            return false
+        } ?? outcomes.first
+    }
+
     var capabilities: ProviderUsageCapabilities {
         guard let usageProvider else {
             return .init(
                 isCodexFamily: false,
                 showsTokenTrend: false,
-                usesUnifiedCardSkeleton: false,
+                usesUnifiedCardSkeleton: true,
                 showsUnifiedImportCallout: false
             )
         }
@@ -87,7 +106,7 @@ extension ProviderUsageAccountsViewModel {
             return .init(
                 isCodexFamily: false,
                 showsTokenTrend: false,
-                usesUnifiedCardSkeleton: false,
+                usesUnifiedCardSkeleton: true,
                 showsUnifiedImportCallout: false
             )
         case .gemini, .antigravity:
@@ -101,7 +120,7 @@ extension ProviderUsageAccountsViewModel {
             return .init(
                 isCodexFamily: false,
                 showsTokenTrend: false,
-                usesUnifiedCardSkeleton: false,
+                usesUnifiedCardSkeleton: true,
                 showsUnifiedImportCallout: false
             )
         }
@@ -152,8 +171,14 @@ extension ProviderUsageAccountsViewModel {
                         await claude.activateAccount(id: account.id)
                     },
                     onAction: { [claude] action in
-                        guard action == .activate else { return }
-                        await claude.activateAccount(id: account.id)
+                        switch action {
+                        case .activate:
+                            await claude.activateAccount(id: account.id)
+                        case .refresh:
+                            await self.load()
+                        default:
+                            break
+                        }
                     }
                 )
             }
@@ -230,10 +255,23 @@ extension ProviderUsageAccountsViewModel.GeminiState {
 
             switch liveOutcome.outcome.result {
             case let .success(result):
+                let modelUsages: [AccountModelUsage]? = {
+                    let windows = result.usage.allWindows
+                    guard !windows.isEmpty else { return nil }
+                    return windows.map { item in
+                        .init(
+                            id: item.id,
+                            title: item.title,
+                            remainingPercent: item.window.remainingPercent,
+                            resetsAt: item.window.resetsAt
+                        )
+                    }
+                }()
                 return .init(
                     provider: liveOutcome.provider,
                     accountTitle: account.email ?? account.name,
                     usage: result.usage,
+                    modelUsages: modelUsages,
                     credits: result.credits,
                     creditsRefreshedAt: nil,
                     loginAt: account.lastLoginAt,
@@ -247,6 +285,7 @@ extension ProviderUsageAccountsViewModel.GeminiState {
                     provider: liveOutcome.provider,
                     accountTitle: account.email ?? account.name,
                     usage: nil,
+                    modelUsages: nil,
                     credits: nil,
                     creditsRefreshedAt: nil,
                     loginAt: account.lastLoginAt,
@@ -266,17 +305,7 @@ extension ProviderUsageAccountsViewModel.GeminiState {
         )
         let data = AccountCardViewDataMapper.map(
             record: record,
-            primaryActions: isActive ? [
-                .init(
-                    id: "refresh",
-                    actionID: .refresh,
-                    title: NSLocalizedString("usage.monitor.refresh", value: "Refresh", comment: "Refresh"),
-                    systemImage: nil,
-                    role: nil,
-                    prominence: .secondary,
-                    isEnabled: !isLoading
-                )
-            ] : [
+            primaryActions: isActive ? [] : [
                 .init(
                     id: "activate",
                     actionID: .activate,
@@ -289,6 +318,14 @@ extension ProviderUsageAccountsViewModel.GeminiState {
             ],
             menuActions: [
                 .init(
+                    id: "refresh",
+                    actionID: .refresh,
+                    title: NSLocalizedString("usage.monitor.refresh", value: "Refresh", comment: "Refresh"),
+                    systemImage: "arrow.clockwise",
+                    role: nil,
+                    isEnabled: !isLoading
+                ),
+                .init(
                     id: "delete",
                     actionID: .delete,
                     title: NSLocalizedString("codex.accounts.delete.title", value: "Delete Account", comment: "Delete account title"),
@@ -297,7 +334,7 @@ extension ProviderUsageAccountsViewModel.GeminiState {
                     isEnabled: true
                 )
             ],
-            quotaRefreshActionID: isActive ? .refresh : nil,
+            quotaRefreshActionID: nil,
             tapBehavior: isActive ? .none : .activate
         )
         return (data: data, isActive: isActive)
@@ -461,7 +498,7 @@ extension ProviderUsageAccountsViewModel.CodexState {
                 leadingTag: nil,
                 trailingText: NSLocalizedString("codex.accounts.add.cli.running", value: "Logging in…", comment: "CLI login running status")
             ) : nil,
-            quotaRefreshActionID: accountID == nil ? nil : .refresh,
+            quotaRefreshActionID: nil,
             tapBehavior: .none
         )
 

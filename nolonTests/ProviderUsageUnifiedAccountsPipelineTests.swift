@@ -39,6 +39,7 @@ struct ProviderUsageUnifiedAccountsPipelineTests {
         #expect(cards.count == 1)
         #expect(cards.first?.provider == .claude)
         #expect(cards.first?.isActive == true)
+        #expect(cards.first?.data.menuActions.contains(where: { $0.actionID == .refresh }) == true)
         #expect(root.accountsViewModel.unifiedAccountEmptyState != nil)
     }
 
@@ -79,6 +80,131 @@ struct ProviderUsageUnifiedAccountsPipelineTests {
         #expect(cards.count == 1)
         #expect(cards.first?.provider == .gemini)
         #expect(cards.first?.isActive == true)
+        #expect(cards.first?.data.menuActions.contains(where: { $0.actionID == .refresh }) == true)
         #expect(root.accountsViewModel.unifiedAccountEmptyState == nil)
+    }
+
+    @Test("BDD: Given Gemini usage windows when building active card then exposes per-model usage")
+    func testBDD_GivenGeminiUsageWindows_WhenBuildingCard_ThenExposesModelUsages() {
+        let provider = Provider(
+            id: "gemini",
+            kind: .vendor,
+            name: "Gemini",
+            defaultSkillsPath: "/tmp/gemini/skills",
+            workflowPath: "/tmp/gemini/prompts",
+            vendorCategory: .original,
+            templateId: ProviderTemplate.gemini.rawValue
+        )
+        let root = ProviderUsageRootViewModel(provider: provider)
+        let account = GeminiAuthAccount(
+            id: UUID(uuidString: "33333333-3333-3333-3333-333333333333")!,
+            providerID: .gemini,
+            name: "Gemini Active",
+            method: .oauthPersonal,
+            createdAt: Date(),
+            lastUsedAt: nil,
+            lastLoginAt: Date(),
+            email: "active@gemini.dev",
+            project: nil,
+            location: nil,
+            runtimeHomeRelativePath: ".gemini"
+        )
+        root.state.engine.geminiAccounts = [account]
+        root.state.engine.activeGeminiAccountId = account.id
+
+        let usage = UsageSnapshot(
+            identity: nil,
+            windows: [
+                .init(id: "gemini-2.5-flash", title: "gemini-2.5-flash", window: .init(usedPercent: 20)),
+                .init(id: "gemini-3.1-pro-preview", title: "gemini-3.1-pro-preview", window: .init(usedPercent: 35)),
+            ],
+            primary: nil,
+            secondary: nil,
+            tertiary: nil,
+            updatedAt: Date()
+        )
+        let fetchResult = ProviderFetchResult(
+            usage: usage,
+            credits: nil,
+            cost: nil,
+            sourceLabel: "OAuth",
+            fetchKind: .oauth,
+            strategyKind: .direct
+        )
+        let liveOutcome = ProviderAccountUsageOutcome(
+            provider: .gemini,
+            account: .default,
+            outcome: .init(fetchKind: .oauth, result: .success(fetchResult))
+        )
+
+        let cards = root.accountsViewModel.unifiedAccountCards(
+            providerName: provider.name,
+            liveOutcome: liveOutcome,
+            isLoading: false
+        )
+
+        #expect(cards.count == 1)
+        guard case let .quota(quota)? = cards.first?.data.body else {
+            Issue.record("Expected quota body for Gemini active account card")
+            return
+        }
+        #expect(quota.modelUsages?.count == 2)
+        #expect(quota.modelUsages?.map(\.title) == ["gemini-2.5-flash", "gemini-3.1-pro-preview"])
+        #expect(quota.modelUsages?.map(\.remainingPercent) == [80.0, 65.0])
+    }
+
+    @Test("BDD: Given mixed outcomes when selecting unified card live outcome then prefers success result")
+    func testBDD_GivenMixedOutcomes_WhenSelectingUnifiedCardLiveOutcome_ThenPrefersSuccess() {
+        let provider = Provider(
+            id: "gemini",
+            kind: .vendor,
+            name: "Gemini",
+            defaultSkillsPath: "/tmp/gemini/skills",
+            workflowPath: "/tmp/gemini/prompts",
+            vendorCategory: .original,
+            templateId: ProviderTemplate.gemini.rawValue
+        )
+        let root = ProviderUsageRootViewModel(provider: provider)
+        let failureOutcome = ProviderAccountUsageOutcome(
+            provider: .gemini,
+            account: .default,
+            outcome: .init(fetchKind: .web, result: .failure(ProviderUsageError.missingAccount(.gemini)))
+        )
+        let successUsage = UsageSnapshot(
+            identity: nil,
+            windows: [.init(id: "model-a", title: "model-a", window: .init(usedPercent: 10))],
+            primary: nil,
+            secondary: nil,
+            tertiary: nil,
+            updatedAt: Date()
+        )
+        let successOutcome = ProviderAccountUsageOutcome(
+            provider: .gemini,
+            account: .default,
+            outcome: .init(
+                fetchKind: .oauth,
+                result: .success(
+                    .init(
+                        usage: successUsage,
+                        credits: nil,
+                        cost: nil,
+                        sourceLabel: "OAuth",
+                        fetchKind: .oauth,
+                        strategyKind: .direct
+                    )
+                )
+            )
+        )
+        root.state.engine.outcomes = [failureOutcome, successOutcome]
+
+        guard let selected = root.accountsViewModel.preferredUnifiedCardLiveOutcome else {
+            Issue.record("Expected preferred unified card live outcome")
+            return
+        }
+        if case .success = selected.outcome.result {
+            #expect(true)
+        } else {
+            Issue.record("Expected success outcome to be preferred")
+        }
     }
 }

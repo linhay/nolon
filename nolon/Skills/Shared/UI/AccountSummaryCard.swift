@@ -184,7 +184,7 @@ struct UnifiedAccountCard: View, DebugCardLocatable {
             )
         } else if let usage = quota.usage {
             NolonUI.AccountQuotaModule(
-                rows: quotaRows(usage: usage, provider: quota.provider),
+                rows: quotaRows(quota: quota, usage: usage, provider: quota.provider),
                 creditsText: quotaCreditsText(quota.credits)
             )
         } else if quota.showsEmptyState {
@@ -198,8 +198,23 @@ struct UnifiedAccountCard: View, DebugCardLocatable {
         }
     }
 
-    private func quotaRows(usage: UsageSnapshot, provider: UsageProvider) -> [NolonUI.AccountQuotaRow] {
-        ProviderQuotaSection
+    private func quotaRows(
+        quota: AccountCardQuotaViewData,
+        usage: UsageSnapshot,
+        provider: UsageProvider
+    ) -> [NolonUI.AccountQuotaRow] {
+        if let modelUsages = quota.modelUsages, !modelUsages.isEmpty {
+            return modelUsages.map { model in
+                let normalized = CGFloat(max(0, min(100, model.remainingPercent)) / 100)
+                return NolonUI.AccountQuotaRow(
+                    title: model.title,
+                    remainingText: quotaPercentText(model.remainingPercent),
+                    progress: normalized,
+                    meta: quotaWindowMetaText(resetsAt: model.resetsAt)
+                )
+            }
+        }
+        return ProviderQuotaSection
             .displayWindows(for: usage, provider: provider)
             .map { item in
                 let percent = item.window.remainingPercent
@@ -226,9 +241,11 @@ struct UnifiedAccountCard: View, DebugCardLocatable {
     }
 
     private func quotaWindowMetaText(_ window: RateWindow) -> String {
-        guard let resetsAt = window.resetsAt else {
-            return "-"
-        }
+        quotaWindowMetaText(resetsAt: window.resetsAt)
+    }
+
+    private func quotaWindowMetaText(resetsAt: Date?) -> String {
+        guard let resetsAt else { return "-" }
         let remaining = resetsAt.timeIntervalSinceNow
         if remaining <= 0 {
             return NSLocalizedString("usage.reset.now", value: "now", comment: "reset now")

@@ -24,20 +24,14 @@ extension ProviderUsageView {
                 Group {
                     if viewModel.codex.accountLayoutMode == .list {
                         LazyVStack(alignment: .leading, spacing: 12) {
-                            ForEach(0..<ProviderUsageSkeletonPolicy.codexCardCount, id: \.self) { _ in
-                                switch ProviderUsageSkeletonPolicy.codexLoadingSkeletonStyle {
-                                case .unifiedAccountCard:
-                                    UnifiedAccountCardSkeleton(providerName: provider.name)
-                                }
+                            ForEach(0..<ProviderUsageSkeletonPolicy.genericCardCount(for: provider), id: \.self) { _ in
+                                UnifiedAccountCardSkeleton(providerName: provider.name)
                             }
                         }
                     } else {
                         LazyVGrid(columns: codexAccountColumns, alignment: .leading, spacing: 12) {
-                            ForEach(0..<ProviderUsageSkeletonPolicy.codexCardCount, id: \.self) { _ in
-                                switch ProviderUsageSkeletonPolicy.codexLoadingSkeletonStyle {
-                                case .unifiedAccountCard:
-                                    UnifiedAccountCardSkeleton(providerName: provider.name)
-                                }
+                            ForEach(0..<ProviderUsageSkeletonPolicy.genericCardCount(for: provider), id: \.self) { _ in
+                                UnifiedAccountCardSkeleton(providerName: provider.name)
                             }
                         }
                     }

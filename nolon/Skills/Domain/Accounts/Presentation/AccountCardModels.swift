@@ -77,10 +77,18 @@ struct AccountRecordField: Identifiable, Equatable, Sendable {
     let tone: AccountSummaryCardBadgeTone?
 }
 
+struct AccountModelUsage: Identifiable, Equatable, Sendable {
+    let id: String
+    let title: String
+    let remainingPercent: Double
+    let resetsAt: Date?
+}
+
 struct AccountRecordQuota: Equatable {
     let provider: UsageProvider
     let accountTitle: String?
     let usage: UsageSnapshot?
+    let modelUsages: [AccountModelUsage]?
     let credits: CreditsSnapshot?
     let creditsRefreshedAt: Date?
     let loginAt: Date?
@@ -88,6 +96,32 @@ struct AccountRecordQuota: Equatable {
     let isLoading: Bool
     let showsEmptyState: Bool
     let errorMessage: String?
+
+    init(
+        provider: UsageProvider,
+        accountTitle: String?,
+        usage: UsageSnapshot?,
+        modelUsages: [AccountModelUsage]? = nil,
+        credits: CreditsSnapshot?,
+        creditsRefreshedAt: Date?,
+        loginAt: Date?,
+        syncedAt: Date?,
+        isLoading: Bool,
+        showsEmptyState: Bool,
+        errorMessage: String?
+    ) {
+        self.provider = provider
+        self.accountTitle = accountTitle
+        self.usage = usage
+        self.modelUsages = modelUsages
+        self.credits = credits
+        self.creditsRefreshedAt = creditsRefreshedAt
+        self.loginAt = loginAt
+        self.syncedAt = syncedAt
+        self.isLoading = isLoading
+        self.showsEmptyState = showsEmptyState
+        self.errorMessage = errorMessage
+    }
 }
 
 struct AccountRecord: Identifiable, Equatable {
@@ -491,6 +525,7 @@ struct AccountCardQuotaViewData: Equatable {
     let provider: UsageProvider
     let accountTitle: String?
     let usage: UsageSnapshot?
+    let modelUsages: [AccountModelUsage]?
     let credits: CreditsSnapshot?
     let creditsRefreshedAt: Date?
     let loginAt: Date?
@@ -499,6 +534,34 @@ struct AccountCardQuotaViewData: Equatable {
     let showsEmptyState: Bool
     let errorMessage: String?
     let onRefreshActionID: AccountCardActionID?
+
+    init(
+        provider: UsageProvider,
+        accountTitle: String?,
+        usage: UsageSnapshot?,
+        modelUsages: [AccountModelUsage]? = nil,
+        credits: CreditsSnapshot?,
+        creditsRefreshedAt: Date?,
+        loginAt: Date?,
+        syncedAt: Date?,
+        isLoading: Bool,
+        showsEmptyState: Bool,
+        errorMessage: String?,
+        onRefreshActionID: AccountCardActionID?
+    ) {
+        self.provider = provider
+        self.accountTitle = accountTitle
+        self.usage = usage
+        self.modelUsages = modelUsages
+        self.credits = credits
+        self.creditsRefreshedAt = creditsRefreshedAt
+        self.loginAt = loginAt
+        self.syncedAt = syncedAt
+        self.isLoading = isLoading
+        self.showsEmptyState = showsEmptyState
+        self.errorMessage = errorMessage
+        self.onRefreshActionID = onRefreshActionID
+    }
 }
 
 enum AccountCardBodyContent: Equatable {
@@ -566,6 +629,7 @@ enum AccountCardViewDataMapper {
                     provider: quota.provider,
                     accountTitle: quota.accountTitle,
                     usage: quota.usage,
+                    modelUsages: quota.modelUsages,
                     credits: quota.credits,
                     creditsRefreshedAt: quota.creditsRefreshedAt,
                     loginAt: quota.loginAt,
