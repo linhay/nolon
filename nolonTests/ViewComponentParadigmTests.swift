@@ -15,9 +15,13 @@ final class ViewComponentParadigmTests: XCTestCase {
         let observableViewModelRegex = try NSRegularExpression(
             pattern: #"@Observable[\s\S]*?\bclass\s+(\w+(?:ViewModel|Model))\b"#
         )
+        let bindableExtensionRegex = try NSRegularExpression(
+            pattern: #"extension\s+(\w+)\s*:\s*ViewComponentBindable\b"#
+        )
 
         var allViewNames: [String] = []
         var observableViewModelNames: Set<String> = []
+        var bindableViewNames: Set<String> = []
 
         for file in swiftFiles {
             let content = try String(contentsOf: file)
@@ -36,10 +40,20 @@ final class ViewComponentParadigmTests: XCTestCase {
             ) {
                 observableViewModelNames.insert(nsContent.substring(with: match.range(at: 1)))
             }
+
+            for match in bindableExtensionRegex.matches(
+                in: content,
+                range: NSRange(location: 0, length: nsContent.length)
+            ) {
+                bindableViewNames.insert(nsContent.substring(with: match.range(at: 1)))
+            }
         }
 
         let missing = allViewNames.filter { viewName in
             !observableViewModelNames.contains(expectedViewModelName(for: viewName))
+        }
+        let missingBindable = allViewNames.filter { viewName in
+            !bindableViewNames.contains(viewName)
         }
 
         XCTAssertTrue(
@@ -47,6 +61,13 @@ final class ViewComponentParadigmTests: XCTestCase {
             """
             Missing @Observable component ViewModel for views:
             \(missing.joined(separator: "\n"))
+            """
+        )
+        XCTAssertTrue(
+            missingBindable.isEmpty,
+            """
+            Missing ViewComponentBindable extension for views:
+            \(missingBindable.joined(separator: "\n"))
             """
         )
     }
