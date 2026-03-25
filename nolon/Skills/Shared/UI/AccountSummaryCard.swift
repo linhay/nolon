@@ -12,6 +12,7 @@ typealias AccountSummaryCardBadgeModel = NolonUIFoundation.AccountSummaryCardBad
 typealias AccountSummaryCardHeaderModel = NolonUIFoundation.AccountSummaryCardHeaderModel
 
 struct AccountSummaryCard<Content: View>: View {
+    @State private var viewModel = NolonUI.AccountSummaryCardViewModel()
     let presentation: AccountCardPresentation
     let contentInsets: EdgeInsets
     @ViewBuilder let content: Content
@@ -49,6 +50,7 @@ struct AccountSummaryCard<Content: View>: View {
 }
 
 struct AccountSummaryContentCard<Body: View, Details: View, Actions: View>: View {
+    @State private var componentViewModel = NolonUI.AccountSummaryContentCardViewModel()
     let presentation: AccountCardPresentation
     let header: AccountSummaryCardHeaderModel
     let showsDetailsSection: Bool
