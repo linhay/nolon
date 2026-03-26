@@ -1,5 +1,6 @@
 import SwiftUI
 import NolonResourceKit
+import NolonUI
 
 /// Directory picker sheet for selecting skills directories (supports multiple selection)
 struct DirectoryPickerSheet: View {
@@ -10,7 +11,7 @@ struct DirectoryPickerSheet: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            UISheetHeaderView(
+            NolonUI.SheetHeaderView(
                 title: NSLocalizedString("Choose Skills Directories", comment: "Choose skills directories"),
                 subtitle: NSLocalizedString("Select one or more directories containing skills:", comment: "Select directories")
             ) {

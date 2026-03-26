@@ -265,11 +265,11 @@ extension TokenInputSheet: ViewComponentBindable {
     typealias ComponentViewModel = TokenInputSheetViewModel
 }
 
-extension UIResourceCenterCloseButton: ViewComponentBindable {
+extension NolonUI.ResourceCenterCloseButton: ViewComponentBindable {
     typealias ComponentViewModel = UIResourceCenterCloseButtonViewModel
 }
 
-extension UISheetHeaderView: ViewComponentBindable {
+extension NolonUI.SheetHeaderView: ViewComponentBindable {
     typealias ComponentViewModel = UISheetHeaderViewModel
 }
 

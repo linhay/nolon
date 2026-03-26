@@ -1,5 +1,6 @@
 import SwiftUI
 import NolonResourceKit
+import NolonUI
 
 struct UpdatesView: View {
     @State private var viewModel = UpdatesViewModel()
@@ -42,7 +43,7 @@ struct UpdatesView: View {
     }
     
     private var headerView: some View {
-        UISheetHeaderView(
+        NolonUI.SheetHeaderView(
             title: NSLocalizedString("updates.title", comment: "Updates view title"),
             subtitle: lastCheckSubtitle
         ) {

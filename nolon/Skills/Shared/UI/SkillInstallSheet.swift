@@ -1,5 +1,6 @@
 import SwiftUI
 import ProviderCatalog
+import NolonUI
 
 struct SkillInstallSheet: View {
     let providers: [Provider]
@@ -11,7 +12,7 @@ struct SkillInstallSheet: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            UISheetHeaderView(
+            NolonUI.SheetHeaderView(
                 title: NSLocalizedString("Install", comment: "Install"),
                 subtitle: skillName
             ) {

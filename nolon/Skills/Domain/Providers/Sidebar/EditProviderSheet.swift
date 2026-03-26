@@ -4,6 +4,7 @@ import Observation
 import UniformTypeIdentifiers
 import OSLog
 import NolonResourceKit
+import NolonUI
 
 @Observable
 final class EditProviderViewModel {
@@ -150,7 +151,7 @@ struct EditProviderSheet: View {
     var body: some View {
         @Bindable var viewModel = viewModel
         VStack(spacing: 0) {
-            UISheetHeaderView(title: NSLocalizedString("Edit Provider", comment: "Edit Provider")) {
+            NolonUI.SheetHeaderView(title: NSLocalizedString("Edit Provider", comment: "Edit Provider")) {
                 dismiss()
             }
 

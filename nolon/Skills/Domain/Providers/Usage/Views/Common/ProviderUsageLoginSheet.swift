@@ -1,5 +1,6 @@
 import SwiftUI
 import WebKit
+import NolonUI
 
 struct UsageLoginSheet: View {
     let title: String
@@ -9,7 +10,7 @@ struct UsageLoginSheet: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            UISheetHeaderView(title: title) {
+            NolonUI.SheetHeaderView(title: title) {
                 dismiss()
             }
 

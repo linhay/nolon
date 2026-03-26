@@ -1,6 +1,7 @@
 import SwiftUI
 import ProviderCatalog
 import NolonResourceKit
+import NolonUI
 
 /// Remote Workflow 详情视图
 struct RemoteWorkflowDetailView: View {
@@ -24,7 +25,7 @@ struct RemoteWorkflowDetailView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            UISheetHeaderView(
+            NolonUI.SheetHeaderView(
                 title: workflow.displayName,
                 subtitle: workflowSubtitle
             ) {

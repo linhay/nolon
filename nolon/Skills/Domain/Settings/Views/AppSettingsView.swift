@@ -2,6 +2,7 @@ import Foundation
 import SwiftUI
 import Sparkle
 import NolonResourceKit
+import NolonUI
 
 private enum SettingsCategory: String, CaseIterable, Identifiable {
     case general = "General"
@@ -28,7 +29,7 @@ struct AppSettingsView: View {
     
     var body: some View {
         VStack(spacing: 0) {
-            UISheetHeaderView(title: NSLocalizedString("settings.title", value: "Settings", comment: "Title")) {
+            NolonUI.SheetHeaderView(title: NSLocalizedString("settings.title", value: "Settings", comment: "Title")) {
                 dismiss()
             }
 

@@ -2,6 +2,7 @@ import SwiftUI
 import ProviderCatalog
 import NolonResourceKit
 import OSLog
+import NolonUI
 
 struct ResourceDeleteTargetSheet: View {
     private static let logger = Logger(subsystem: "com.nolon", category: "ResourceDeleteTargetSheet")
@@ -18,7 +19,7 @@ struct ResourceDeleteTargetSheet: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            UISheetHeaderView(
+            NolonUI.SheetHeaderView(
                 title: NSLocalizedString("action.delete", value: "Delete", comment: "Delete action"),
                 subtitle: "\(resourceTypeName): \(resourceName)"
             ) {

@@ -1,6 +1,7 @@
 import SwiftUI
 import ProviderCatalog
 import NolonResourceKit
+import NolonUI
 
 /// Remote MCP 详情视图
 struct RemoteMCPDetailView: View {
@@ -24,7 +25,7 @@ struct RemoteMCPDetailView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            UISheetHeaderView(
+            NolonUI.SheetHeaderView(
                 title: mcp.displayName,
                 subtitle: mcpSubtitle
             ) {
