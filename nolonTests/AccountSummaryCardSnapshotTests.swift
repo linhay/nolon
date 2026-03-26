@@ -251,18 +251,17 @@ struct AccountSummaryCardSnapshotTests {
         }
     }
 
-    private func makeHost(_ view: some View) -> NSHostingController<AnyView> {
-        let rootView = AnyView(
+    private func makeHost(_ view: some View) -> NSHostingController<some View> {
+        let rootView =
             view
-                .padding(20)
-                .frame(
-                    width: Self.snapshotSize.width,
-                    height: Self.snapshotSize.height,
-                    alignment: .topLeading
-                )
-                .background(DesignSystem.Colors.Background.canvas)
-                .environment(\.colorScheme, .light)
-        )
+            .padding(20)
+            .frame(
+                width: Self.snapshotSize.width,
+                height: Self.snapshotSize.height,
+                alignment: .topLeading
+            )
+            .background(DesignSystem.Colors.Background.canvas)
+            .environment(\.colorScheme, .light)
 
         let host = NSHostingController(rootView: rootView)
         host.view.frame = NSRect(origin: .zero, size: Self.snapshotSize)

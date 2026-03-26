@@ -275,7 +275,7 @@ struct ProviderTokenTrendSection: View, DebugPageLocatable {
         
         return Button {
             withAnimation(.spring(response: 0.3)) {
-                selectedDate = isSelected ? nil : point.date
+                selectedDate = Self.resolveSelectedDate(current: selectedDate, tapped: point.date)
             }
         } label: {
             VStack(spacing: 6) {
@@ -355,12 +355,14 @@ struct ProviderTokenTrendSection: View, DebugPageLocatable {
 
     private func sortableHeader(title: String, key: SortKey, width: CGFloat, alignment: Alignment = .trailing) -> some View {
         Button {
-            if sortKey == key {
-                sortAscending.toggle()
-            } else {
-                sortKey = key
-                sortAscending = key == .date
-            }
+            let next = GenericSelectionStateResolver.resolveSortSelection(
+                currentKey: sortKey,
+                currentAscending: sortAscending,
+                tappedKey: key,
+                defaultAscendingForTappedKey: key == .date
+            )
+            sortKey = next.key
+            sortAscending = next.ascending
         } label: {
             HStack(spacing: 4) {
                 if alignment == .trailing && sortKey == key {
@@ -396,7 +398,7 @@ struct ProviderTokenTrendSection: View, DebugPageLocatable {
         .contentShape(Rectangle())
         .onTapGesture {
             withAnimation(.easeInOut(duration: 0.2)) {
-                selectedDate = isSelected ? nil : point.date
+                selectedDate = Self.resolveSelectedDate(current: selectedDate, tapped: point.date)
             }
         }
         .divider(at: .bottom, color: DesignSystem.Colors.Background.elevated.opacity(0.3))
@@ -493,6 +495,14 @@ extension ProviderTokenTrendSection {
     static let usesHeaderRangePicker = false
     static let usesFullCardTapTarget = true
     static let summaryCardMinHeight: CGFloat = 84
+
+    static func resolveSelectedDate(current: String?, tapped: String) -> String? {
+        GenericSelectionStateResolver.resolveSingleSelection(
+            current: current,
+            tapped: tapped,
+            allowsEmptySelection: true
+        )
+    }
 
     static func debugCardMarkerItems(
         baseItems: [PageMarkerItem],

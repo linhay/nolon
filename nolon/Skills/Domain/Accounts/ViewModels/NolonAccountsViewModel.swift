@@ -333,6 +333,82 @@ extension NolonAccountsViewModel {
         }
     }
 
+    private func makeSummaryUsageCards(
+        provider: Provider,
+        usageProvider: UsageProvider,
+        summaries: [AccountUsageSummary]
+    ) -> [AccountCardViewData] {
+        guard !summaries.isEmpty else {
+            return [emptyCard(provider: provider)]
+        }
+
+        let supportsCodexSwitching = usageProvider == .codex
+        let activeID = supportsCodexSwitching ? activeCodexAccountIDByProviderID[provider.id] : nil
+
+        return summaries.map { summary in
+            let accountID = supportsCodexSwitching
+                ? Self.resolveCodexAccountID(from: summary.id)
+                : nil
+            let isActive = accountID == activeID
+            let canOperateOnSnapshot = supportsCodexSwitching && accountID != nil
+            let record = AccountRecordBuilder.summaryUsageAccount(
+                providerName: provider.name,
+                usageProvider: usageProvider,
+                summary: summary,
+                isActive: isActive
+            )
+            return AccountCardViewDataMapper.map(
+                record: record,
+                primaryActions: !isActive && canOperateOnSnapshot ? [
+                    .init(
+                        id: "activate",
+                        actionID: .activate,
+                        title: NSLocalizedString("codex.accounts.action.activate", value: "Activate", comment: "Activate account"),
+                        systemImage: nil,
+                        role: nil,
+                        prominence: .primary,
+                        isEnabled: true
+                    )
+                ] : [],
+                menuActions: canOperateOnSnapshot ? [
+                    .init(
+                        id: "copy-account-id",
+                        actionID: .copyAccountID,
+                        title: NSLocalizedString("codex.accounts.menu.copy_account_id", value: "Copy Account ID", comment: "Copy account id"),
+                        systemImage: "number",
+                        role: nil,
+                        isEnabled: true
+                    ),
+                    .init(
+                        id: "copy-auth-path",
+                        actionID: .copyAuthPath,
+                        title: NSLocalizedString("codex.accounts.menu.copy_auth_path", value: "Copy Auth Path", comment: "Copy auth path"),
+                        systemImage: "doc.on.doc",
+                        role: nil,
+                        isEnabled: true
+                    ),
+                    .init(
+                        id: "copy-auth-json",
+                        actionID: .copyAuthJSON,
+                        title: NSLocalizedString("codex.accounts.menu.copy_auth_json", value: "Copy auth.json", comment: "Copy auth json"),
+                        systemImage: "doc.on.doc.fill",
+                        role: nil,
+                        isEnabled: true
+                    ),
+                    .init(
+                        id: "edit-auth-json",
+                        actionID: .editAuthJSON,
+                        title: NSLocalizedString("codex.accounts.menu.edit_auth_json", value: "Edit auth.json", comment: "Edit auth json"),
+                        systemImage: "pencil",
+                        role: nil,
+                        isEnabled: true
+                    )
+                ] : [],
+                tapBehavior: !isActive && canOperateOnSnapshot ? .activate : .openProvider
+            )
+        }
+    }
+
     static func filteredAccountCards(
         _ cards: [AccountCardViewData],
         hideZeroQuotaAccounts: Bool,
@@ -651,73 +727,11 @@ extension NolonAccountsViewModel {
             }
         default:
             let summaries = accountSummariesByProviderID[provider.id] ?? []
-            if summaries.isEmpty {
-                return [emptyCard(provider: provider)]
-            }
-            let supportsCodexSwitching = usageProvider == .codex
-            let activeID = supportsCodexSwitching ? activeCodexAccountIDByProviderID[provider.id] : nil
-            return summaries.map { summary in
-                let accountID = supportsCodexSwitching
-                    ? Self.resolveCodexAccountID(from: summary.id)
-                    : nil
-                let isActive = accountID == activeID
-                let canOperateOnSnapshot = supportsCodexSwitching && accountID != nil
-                let record = AccountRecordBuilder.codexAccounts(
-                    providerName: provider.name,
-                    usageProvider: usageProvider,
-                    summary: summary,
-                    isActive: isActive
-                )
-                return AccountCardViewDataMapper.map(
-                    record: record,
-                    primaryActions: !isActive && canOperateOnSnapshot ? [
-                        .init(
-                            id: "activate",
-                            actionID: .activate,
-                            title: NSLocalizedString("codex.accounts.action.activate", value: "Activate", comment: "Activate account"),
-                            systemImage: nil,
-                            role: nil,
-                            prominence: .primary,
-                            isEnabled: true
-                        )
-                    ] : [],
-                    menuActions: canOperateOnSnapshot ? [
-                        .init(
-                            id: "copy-account-id",
-                            actionID: .copyAccountID,
-                            title: NSLocalizedString("codex.accounts.menu.copy_account_id", value: "Copy Account ID", comment: "Copy account id"),
-                            systemImage: "number",
-                            role: nil,
-                            isEnabled: true
-                        ),
-                        .init(
-                            id: "copy-auth-path",
-                            actionID: .copyAuthPath,
-                            title: NSLocalizedString("codex.accounts.menu.copy_auth_path", value: "Copy Auth Path", comment: "Copy auth path"),
-                            systemImage: "doc.on.doc",
-                            role: nil,
-                            isEnabled: true
-                        ),
-                        .init(
-                            id: "copy-auth-json",
-                            actionID: .copyAuthJSON,
-                            title: NSLocalizedString("codex.accounts.menu.copy_auth_json", value: "Copy auth.json", comment: "Copy auth json"),
-                            systemImage: "doc.on.doc.fill",
-                            role: nil,
-                            isEnabled: true
-                        ),
-                        .init(
-                            id: "edit-auth-json",
-                            actionID: .editAuthJSON,
-                            title: NSLocalizedString("codex.accounts.menu.edit_auth_json", value: "Edit auth.json", comment: "Edit auth json"),
-                            systemImage: "pencil",
-                            role: nil,
-                            isEnabled: true
-                        )
-                    ] : [],
-                    tapBehavior: !isActive && canOperateOnSnapshot ? .activate : .openProvider
-                )
-            }
+            return makeSummaryUsageCards(
+                provider: provider,
+                usageProvider: usageProvider,
+                summaries: summaries
+            )
         }
     }
 

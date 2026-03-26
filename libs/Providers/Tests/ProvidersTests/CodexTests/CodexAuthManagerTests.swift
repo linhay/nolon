@@ -688,7 +688,7 @@ struct CodexAuthManagerTests {
     }
 
     @Test("Given auth JSON contains type but not codex, when validating then candidate is rejected with a stable reason")
-    func validateImportAuthFilesRejectsNonCodexType() async throws {
+    func validateImportAuthFilesRejectsUnsupportedProviderType() async throws {
         let root = try makeTempRoot("codex-auth-import-type")
         defer { try? root.delete() }
 

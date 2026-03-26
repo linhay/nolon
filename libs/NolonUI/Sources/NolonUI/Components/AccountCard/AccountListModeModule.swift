@@ -1,91 +1,197 @@
 import SwiftUI
 import NolonUIFoundation
 
-struct AccountListModeUsageWindow: Identifiable {
-    let id = UUID()
-    let title: String
-    let progress: CGFloat
-    let percentText: String
+public struct AccountListModeUsageWindow: Identifiable {
+    public let id: String
+    public let title: String
+    public let progress: CGFloat
+    public let percentText: String
 
-    init(title: String, progress: CGFloat, percentText: String) {
+    public init(id: String, title: String, progress: CGFloat, percentText: String) {
+        self.id = id
+        self.title = title
+        self.progress = progress
+        self.percentText = percentText
+    }
+
+    public init(title: String, progress: CGFloat, percentText: String) {
+        self.id = UUID().uuidString
         self.title = title
         self.progress = progress
         self.percentText = percentText
     }
 }
 
-struct AccountListModeItem: Identifiable {
-    let id = UUID()
-    let presentation: AccountCardPresentation
-    let header: AccountSummaryCardHeaderModel
-    let usageWindows: [AccountListModeUsageWindow]
-    let isLoadingPlaceholder: Bool
+public struct AccountListModeRowAction: Identifiable {
+    public let id: String
+    public let title: String
+    public let systemImage: String?
+    public let role: ButtonRole?
+    public let isEnabled: Bool
 
-    init(
+    public init(
+        id: String,
+        title: String,
+        systemImage: String? = nil,
+        role: ButtonRole? = nil,
+        isEnabled: Bool = true
+    ) {
+        self.id = id
+        self.title = title
+        self.systemImage = systemImage
+        self.role = role
+        self.isEnabled = isEnabled
+    }
+}
+
+public struct AccountListModeItem: Identifiable {
+    public let id: String
+    public let presentation: AccountCardPresentation
+    public let header: AccountSummaryCardHeaderModel
+    public let usageWindows: [AccountListModeUsageWindow]
+    public let menuActions: [AccountListModeRowAction]
+    public let isLoadingPlaceholder: Bool
+
+    public init(
+        id: String,
         presentation: AccountCardPresentation,
         header: AccountSummaryCardHeaderModel,
         usageWindows: [AccountListModeUsageWindow],
+        menuActions: [AccountListModeRowAction] = [],
         isLoadingPlaceholder: Bool = false
     ) {
+        self.id = id
         self.presentation = presentation
         self.header = header
         self.usageWindows = usageWindows
+        self.menuActions = menuActions
         self.isLoadingPlaceholder = isLoadingPlaceholder
     }
 
-    init(
+    public init(
+        presentation: AccountCardPresentation,
+        header: AccountSummaryCardHeaderModel,
+        usageWindows: [AccountListModeUsageWindow],
+        menuActions: [AccountListModeRowAction] = [],
+        isLoadingPlaceholder: Bool = false
+    ) {
+        self.init(
+            id: UUID().uuidString,
+            presentation: presentation,
+            header: header,
+            usageWindows: usageWindows,
+            menuActions: menuActions,
+            isLoadingPlaceholder: isLoadingPlaceholder
+        )
+    }
+
+    public init(
+        id: String,
         presentation: AccountCardPresentation,
         header: AccountSummaryCardHeaderModel,
         progress: CGFloat,
         percentText: String,
+        menuActions: [AccountListModeRowAction] = [],
         isLoadingPlaceholder: Bool = false
     ) {
         self.init(
+            id: id,
             presentation: presentation,
             header: header,
             usageWindows: [.init(title: "Session", progress: progress, percentText: percentText)],
+            menuActions: menuActions,
+            isLoadingPlaceholder: isLoadingPlaceholder
+        )
+    }
+
+    public init(
+        presentation: AccountCardPresentation,
+        header: AccountSummaryCardHeaderModel,
+        progress: CGFloat,
+        percentText: String,
+        menuActions: [AccountListModeRowAction] = [],
+        isLoadingPlaceholder: Bool = false
+    ) {
+        self.init(
+            id: UUID().uuidString,
+            presentation: presentation,
+            header: header,
+            progress: progress,
+            percentText: percentText,
+            menuActions: menuActions,
             isLoadingPlaceholder: isLoadingPlaceholder
         )
     }
 }
 
-struct AccountListModeSection: Identifiable {
-    let id = UUID()
-    let title: String?
-    let items: [AccountListModeItem]
+public struct AccountListModeSection: Identifiable {
+    public let id: String
+    public let title: String?
+    public let items: [AccountListModeItem]
 
-    init(title: String? = nil, items: [AccountListModeItem]) {
+    public init(id: String = UUID().uuidString, title: String? = nil, items: [AccountListModeItem]) {
+        self.id = id
         self.title = title
         self.items = items
     }
 }
 
-struct AccountListModeModule: View {
+public struct AccountListModeModule: View {
     @State private var viewModel = AccountListModeModuleViewModel()
-    let title: String
+    let title: String?
     let sections: [AccountListModeSection]
+    let accountColumnTitle: String
+    let planColumnTitle: String
+    let usageColumnTitle: String
+    let planColumnWidth: CGFloat
+    let usageColumnWidth: CGFloat
+    let onTap: ((String) -> Void)?
+    let onMenuAction: ((String, String) -> Void)?
 
-    init(
-        title: String = "Account List Mode",
+    public init(
+        title: String? = nil,
         items: [AccountListModeItem]
     ) {
         self.title = title
         self.sections = [.init(items: items)]
+        self.accountColumnTitle = "Account"
+        self.planColumnTitle = "Plan"
+        self.usageColumnTitle = "Usage"
+        self.planColumnWidth = 90
+        self.usageColumnWidth = 220
+        self.onTap = nil
+        self.onMenuAction = nil
     }
 
-    init(
-        title: String = "Account List Mode",
-        sections: [AccountListModeSection]
+    public init(
+        title: String? = nil,
+        sections: [AccountListModeSection],
+        accountColumnTitle: String = "Account",
+        planColumnTitle: String = "Plan",
+        usageColumnTitle: String = "Usage",
+        planColumnWidth: CGFloat = 90,
+        usageColumnWidth: CGFloat = 220,
+        onTap: ((String) -> Void)? = nil,
+        onMenuAction: ((String, String) -> Void)? = nil
     ) {
         self.title = title
         self.sections = sections
+        self.accountColumnTitle = accountColumnTitle
+        self.planColumnTitle = planColumnTitle
+        self.usageColumnTitle = usageColumnTitle
+        self.planColumnWidth = planColumnWidth
+        self.usageColumnWidth = usageColumnWidth
+        self.onTap = onTap
+        self.onMenuAction = onMenuAction
     }
 
-    var body: some View {
+    public var body: some View {
         VStack(alignment: .leading, spacing: PreviewLayoutTokens.Spacing.group) {
-            Text(title)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(DesignSystem.Colors.Text.tertiary)
+            if let title, !title.isEmpty {
+                Text(title)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(DesignSystem.Colors.Text.tertiary)
+            }
 
             VStack(alignment: .leading, spacing: 0) {
                 tableHeader
@@ -124,20 +230,21 @@ struct AccountListModeModule: View {
 
     private var tableHeader: some View {
         HStack(spacing: PreviewLayoutTokens.Spacing.group) {
-            Text("Account")
+            Text(accountColumnTitle)
                 .frame(maxWidth: .infinity, alignment: .leading)
-            Text("Plan")
-                .frame(width: 90, alignment: .leading)
-            Text("Usage")
-                .frame(width: 220, alignment: .leading)
+            Text(planColumnTitle)
+                .frame(width: planColumnWidth, alignment: .leading)
+            Text(usageColumnTitle)
+                .frame(width: usageColumnWidth, alignment: .leading)
         }
         .font(.caption2.weight(.semibold))
         .foregroundStyle(DesignSystem.Colors.Text.tertiary)
         .padding(.vertical, PreviewLayoutTokens.Spacing.row)
     }
 
+    @ViewBuilder
     private func tableRow(_ item: AccountListModeItem) -> some View {
-        HStack(spacing: PreviewLayoutTokens.Spacing.group) {
+        let row = HStack(spacing: PreviewLayoutTokens.Spacing.group) {
             HStack(alignment: .top, spacing: 8) {
                 Circle()
                     .fill(statusColor(for: item))
@@ -163,12 +270,59 @@ struct AccountListModeModule: View {
                 .font(.caption)
                 .foregroundStyle(DesignSystem.Colors.Text.secondary)
                 .lineLimit(1)
-                .frame(width: 90, alignment: .leading)
+                .frame(width: planColumnWidth, alignment: .leading)
 
             usageWindowsColumn(item.usageWindows)
-                .frame(width: 220, alignment: .leading)
+                .frame(width: usageColumnWidth, alignment: .leading)
         }
         .padding(.vertical, 10)
+
+        if let onTap {
+            if item.menuActions.isEmpty {
+                row
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        onTap(item.id)
+                    }
+            } else {
+                row
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        onTap(item.id)
+                    }
+                    .contextMenu {
+                        ForEach(item.menuActions) { action in
+                            Button(role: action.role) {
+                                onMenuAction?(item.id, action.id)
+                            } label: {
+                                if let symbol = action.systemImage, !symbol.isEmpty {
+                                    Label(action.title, systemImage: symbol)
+                                } else {
+                                    Text(action.title)
+                                }
+                            }
+                            .disabled(!action.isEnabled)
+                        }
+                    }
+            }
+        } else if item.menuActions.isEmpty {
+            row
+        } else {
+            row.contextMenu {
+                ForEach(item.menuActions) { action in
+                    Button(role: action.role) {
+                        onMenuAction?(item.id, action.id)
+                    } label: {
+                        if let symbol = action.systemImage, !symbol.isEmpty {
+                            Label(action.title, systemImage: symbol)
+                        } else {
+                            Text(action.title)
+                        }
+                    }
+                    .disabled(!action.isEnabled)
+                }
+            }
+        }
     }
 
     private func usageWindowsColumn(_ windows: [AccountListModeUsageWindow]) -> some View {

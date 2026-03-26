@@ -69,16 +69,17 @@ public struct ThreeColumnScaffold<
         .navigationSplitViewStyle(.balanced)
     }
 
-    private func configuredSidebar() -> AnyView {
-        let base = AnyView(sidebar())
-        guard let sidebarWidth else { return base }
-        return AnyView(
-            base.navigationSplitViewColumnWidth(
+    @ViewBuilder
+    private func configuredSidebar() -> some View {
+        if let sidebarWidth {
+            sidebar().navigationSplitViewColumnWidth(
                 min: sidebarWidth.min,
                 ideal: sidebarWidth.ideal,
                 max: sidebarWidth.max
             )
-        )
+        } else {
+            sidebar()
+        }
     }
 }
 

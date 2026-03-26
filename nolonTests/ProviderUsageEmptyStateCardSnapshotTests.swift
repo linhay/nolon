@@ -38,18 +38,17 @@ struct ProviderUsageEmptyStateCardSnapshotTests {
         #expect(failure == nil)
     }
 
-    private func makeHost(_ view: some View) -> NSHostingController<AnyView> {
-        let rootView = AnyView(
+    private func makeHost(_ view: some View) -> NSHostingController<some View> {
+        let rootView =
             view
-                .padding(24)
-                .frame(
-                    width: Self.snapshotSize.width,
-                    height: Self.snapshotSize.height,
-                    alignment: .top
-                )
-                .background(DesignSystem.Colors.Background.canvas)
-                .environment(\.colorScheme, .light)
-        )
+            .padding(24)
+            .frame(
+                width: Self.snapshotSize.width,
+                height: Self.snapshotSize.height,
+                alignment: .top
+            )
+            .background(DesignSystem.Colors.Background.canvas)
+            .environment(\.colorScheme, .light)
 
         let host = NSHostingController(rootView: rootView)
         host.view.frame = NSRect(origin: .zero, size: Self.snapshotSize)

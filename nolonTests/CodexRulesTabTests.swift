@@ -200,7 +200,7 @@ final class CodexRulesTabTests: XCTestCase {
         XCTAssertEqual(viewModel.rules.count, 3)
     }
 
-    func testTDD_GivenNonCodexProvider_WhenCreatingRuleDraft_ThenReturnsNil() async throws {
+    func testTDD_GivenGenericProvider_WhenCreatingRuleDraft_ThenReturnsNil() async throws {
         // Given
         let provider = Provider(
             name: "Claude",

@@ -266,7 +266,7 @@ extension GeminiAuthAccount: ProviderAccountRecordConvertible {
 }
 
 enum AccountRecordBuilder {
-    struct CodexSummaryAccountAdapter: ProviderAccountRecordConvertible {
+    struct SummaryUsageAccountAdapter: ProviderAccountRecordConvertible {
         let usageProvider: UsageProvider
         let summary: NolonAccountsViewModel.AccountUsageSummary
 
@@ -344,13 +344,13 @@ enum AccountRecordBuilder {
         providerAccount(providerName: providerName, account: account, isActive: isActive, quota: quota)
     }
 
-    static func codexAccounts(
+    static func summaryUsageAccount(
         providerName: String,
         usageProvider: UsageProvider,
         summary: NolonAccountsViewModel.AccountUsageSummary,
         isActive: Bool
     ) -> AccountRecord {
-        let adapter = CodexSummaryAccountAdapter(usageProvider: usageProvider, summary: summary)
+        let adapter = SummaryUsageAccountAdapter(usageProvider: usageProvider, summary: summary)
         let snapshot = summary.errorMessage == nil ? UsageSnapshot(
             identity: UsageIdentity(
                 accountEmail: summary.accountEmail,

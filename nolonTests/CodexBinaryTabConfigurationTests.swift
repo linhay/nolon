@@ -73,7 +73,7 @@ final class CodexBinaryTabConfigurationTests: XCTestCase {
         XCTAssertTrue(tabs.contains(.agents), "Expected codexXcode tabs to include agents")
     }
 
-    func testBDD_GivenNonCodexTemplate_WhenReadingVendorTabs_ThenDoesNotContainBinaryTab() throws {
+    func testBDD_GivenGenericTemplate_WhenReadingVendorTabs_ThenDoesNotContainBinaryTab() throws {
         // Given
         let template = try XCTUnwrap(ProviderTemplate(rawValue: "copilot"))
         let tabs = template.config?.vendorTabs ?? []
@@ -81,12 +81,12 @@ final class CodexBinaryTabConfigurationTests: XCTestCase {
         // When / Then
         XCTAssertFalse(
             tabs.contains("binary"),
-            "Expected non-codex template not to include 'binary', got: \(tabs)"
+            "Expected generic template not to include 'binary', got: \(tabs)"
         )
     }
 
     @MainActor
-    func testBDD_GivenNonCodexTemplate_WhenReadingAvailableTabs_ThenDoesNotContainAdvancedTab() throws {
+    func testBDD_GivenGenericTemplate_WhenReadingAvailableTabs_ThenDoesNotContainAdvancedTab() throws {
         // Given
         let provider = try XCTUnwrap(ProviderTemplate(rawValue: "copilot")).createProvider()
 
@@ -94,9 +94,9 @@ final class CodexBinaryTabConfigurationTests: XCTestCase {
         let tabs = ProviderContentTabType.availableTabs(for: provider)
 
         // Then
-        XCTAssertFalse(tabs.contains(.advanced), "Expected non-codex tabs not to include advanced")
-        XCTAssertFalse(tabs.contains(.rules), "Expected non-codex tabs not to include rules")
-        XCTAssertFalse(tabs.contains(.agents), "Expected non-codex tabs not to include agents")
+        XCTAssertFalse(tabs.contains(.advanced), "Expected generic tabs not to include advanced")
+        XCTAssertFalse(tabs.contains(.rules), "Expected generic tabs not to include rules")
+        XCTAssertFalse(tabs.contains(.agents), "Expected generic tabs not to include agents")
     }
 
 }

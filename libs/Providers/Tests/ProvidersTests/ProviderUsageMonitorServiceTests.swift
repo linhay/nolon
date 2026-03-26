@@ -33,8 +33,8 @@ struct ProviderUsageMonitorServiceTests {
         #expect(env["CODEX_CLI_PATH"] == "/managed/codex")
     }
 
-    @Test("Resolve non-codex environment keeps base unchanged")
-    func resolveNonCodexEnvironmentKeepsBase() async {
+    @Test("Resolve generic environment keeps base unchanged")
+    func resolveGenericEnvironmentKeepsBase() async {
         let service = ProviderUsageMonitorService(
             tokenAccountStore: EmptyTokenAccountStore(),
             baseEnvironment: [

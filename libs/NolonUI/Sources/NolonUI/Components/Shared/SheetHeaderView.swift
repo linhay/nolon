@@ -6,44 +6,35 @@ public enum SheetHeaderMetrics {
     public static let bottomPadding: CGFloat = DesignSystem.Metrics.paddingL
 }
 
-public struct SheetHeaderView: View {
+public struct SheetHeaderView<Trailing: View>: View {
     @State private var viewModel = SheetHeaderViewViewModel()
     private let title: String
     private var subtitle: String?
-    private var isCloseDisabled: Bool
-    private let trailing: AnyView
+    private var isCloseDisabled = false
+    private var onClose: (() -> Void)?
+    private var trailing: Trailing?
 
     public init(
         title: String,
         subtitle: String? = nil,
         isCloseDisabled: Bool = false,
         onClose: @escaping () -> Void
-    ) {
+    ) where Trailing == EmptyView {
         self.title = title
         self.subtitle = subtitle
         self.isCloseDisabled = isCloseDisabled
-        self.trailing = AnyView(
-            Button {
-                onClose()
-            } label: {
-                Image(systemName: "xmark.circle.fill")
-                    .dsIconButton(size: 24, foreground: DesignSystem.Colors.Text.tertiary)
-            }
-                .accessibilityLabel(NSLocalizedString("Close", comment: "Close"))
-                .dsLinkButton()
-                .disabled(isCloseDisabled)
-        )
+        self.onClose = onClose
+        self.trailing = nil
     }
 
     public init(
         title: String,
         subtitle: String? = nil,
-        @ViewBuilder trailing: () -> some View
+        @ViewBuilder trailing: () -> Trailing
     ) {
         self.title = title
         self.subtitle = subtitle
-        self.isCloseDisabled = false
-        self.trailing = AnyView(trailing())
+        self.trailing = trailing()
     }
 
     public var body: some View {
@@ -62,7 +53,19 @@ public struct SheetHeaderView: View {
             }
 
             Spacer(minLength: 0)
-            trailing
+            if let trailing {
+                trailing
+            } else if let onClose {
+                Button {
+                    onClose()
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .dsIconButton(size: 24, foreground: DesignSystem.Colors.Text.tertiary)
+                }
+                .accessibilityLabel(NSLocalizedString("Close", comment: "Close"))
+                .dsLinkButton()
+                .disabled(isCloseDisabled)
+            }
         }
         .padding(.horizontal, SheetHeaderMetrics.horizontalPadding)
         .padding(.top, SheetHeaderMetrics.topPadding)

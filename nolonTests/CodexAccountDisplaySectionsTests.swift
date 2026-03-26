@@ -930,6 +930,19 @@ final class CodexAccountDisplaySectionsTests: XCTestCase {
         XCTAssertEqual(viewModel.pendingGatewaySelectionAccountIDs, [first.id, third.id])
     }
 
+    func testBDD_GivenMultiSelectedAccountsOutOfOrder_WhenResolvingDisplayOrderIDs_ThenResultFollowsAccountOrder() {
+        let viewModel = ProviderUsageEngine(provider: Self.makeCodexProvider())
+        let first = CodexAuthAccount(id: UUID(), name: "A", createdAt: .distantPast, relativeAuthPath: "auth/a.json")
+        let second = CodexAuthAccount(id: UUID(), name: "B", createdAt: .distantPast, relativeAuthPath: "auth/b.json")
+        let third = CodexAuthAccount(id: UUID(), name: "C", createdAt: .distantPast, relativeAuthPath: "auth/c.json")
+        viewModel.codexAccounts = [first, second, third]
+        viewModel.selectedCodexAccountIDs = [third.id, first.id]
+
+        let ordered = viewModel.selectedCodexAccountIDsInCurrentDisplayOrder()
+
+        XCTAssertEqual(ordered, [first.id, third.id])
+    }
+
     func testBDD_GivenGatewayCardMembers_WhenRemovingAccount_ThenRemovedAccountDisappears() {
         let viewModel = ProviderUsageEngine(provider: Self.makeCodexProvider())
         let first = CodexAuthAccount(id: UUID(), name: "A", createdAt: .distantPast, relativeAuthPath: "auth/a.json")

@@ -48,7 +48,7 @@ struct ToastViewSnapshotTests {
     private func makeToastHost(
         style: ToastView.Style,
         systemImage: String?
-    ) -> NSHostingController<AnyView> {
+    ) -> NSHostingController<some View> {
         let rootView = ToastView(
             text: "Synced 8 resources",
             systemImage: systemImage,
@@ -63,7 +63,7 @@ struct ToastViewSnapshotTests {
         .background(DesignSystem.Colors.Background.canvas)
         .environment(\.colorScheme, .light)
 
-        let host = NSHostingController(rootView: AnyView(rootView))
+        let host = NSHostingController(rootView: rootView)
         host.view.frame = NSRect(origin: .zero, size: Self.snapshotSize)
         host.view.appearance = NSAppearance(named: .aqua)
         host.view.layoutSubtreeIfNeeded()

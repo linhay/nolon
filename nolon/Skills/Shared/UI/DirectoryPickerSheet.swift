@@ -22,18 +22,15 @@ struct DirectoryPickerSheet: View {
             Form {
                 Section {
                     ForEach(Array(candidates.enumerated()), id: \.offset) { index, candidate in
-                        Button {
-                            if selectedIndices.contains(index) {
-                                selectedIndices.remove(index)
-                            } else {
-                                selectedIndices.insert(index)
-                            }
-                        } label: {
+                        GenericSelectionControl(
+                            value: index,
+                            selections: $selectedIndices
+                        ) { isSelected in
                             HStack {
                                 VStack(alignment: .leading, spacing: 4) {
                                     HStack {
-                                        Image(systemName: selectedIndices.contains(index) ? "checkmark.circle.fill" : "circle")
-                                            .foregroundStyle(selectedIndices.contains(index) ? DesignSystem.Colors.primary : DesignSystem.Colors.Text.secondary)
+                                        Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                                            .foregroundStyle(isSelected ? DesignSystem.Colors.primary : DesignSystem.Colors.Text.secondary)
                                         Text(candidate.path == "."
                                              ? NSLocalizedString("Repository Root", comment: "Repository root")
                                              : candidate.path)

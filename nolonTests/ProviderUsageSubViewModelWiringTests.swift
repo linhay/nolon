@@ -27,8 +27,8 @@ struct ProviderUsageSubViewModelWiringTests {
         #expect(root.loginFlowViewModel.isRunningCLILogin == root.state.engine.isRunningCLILogin)
     }
 
-    @Test("BDD: Given non-codex provider when toggling account layout mode then shared layout state updates")
-    func testBDD_GivenNonCodexProvider_WhenTogglingAccountLayoutMode_ThenSharedStateUpdates() {
+    @Test("BDD: Given generic provider when toggling account layout mode then shared layout state updates")
+    func testBDD_GivenGenericProvider_WhenTogglingAccountLayoutMode_ThenSharedStateUpdates() {
         let provider = Provider(
             id: "gemini",
             kind: .vendor,

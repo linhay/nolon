@@ -1,4 +1,5 @@
 import Observation
+import Foundation
 import ProviderCatalog
 import ProviderUsage
 import CodexBarProviderCatalog
@@ -6,6 +7,15 @@ import CodexBarProviderCatalog
 @MainActor
 @Observable
 final class ProviderUsageRootViewModel {
+    enum GenericHeaderAction: String, Identifiable {
+        case claudeMigrate
+        case signIn
+        case cliLogin
+        case refresh
+
+        var id: String { rawValue }
+    }
+
     let state: ProviderUsageStateStore
     let accountsViewModel: ProviderUsageAccountsViewModel
     let tokenTrendViewModel: ProviderTokenTrendViewModel
@@ -15,6 +25,64 @@ final class ProviderUsageRootViewModel {
 
     var provider: Provider { state.provider }
     var usageProvider: UsageProvider? { state.usageProvider }
+    var usageNavigationTitle: String {
+        if provider.templateId == "codex" || provider.templateId == "codexXcode" {
+            return NSLocalizedString("tab.account_usage", value: "账号与用量", comment: "Account and usage")
+        }
+        return NSLocalizedString("tab.usage", value: "Usage", comment: "Usage")
+    }
+    var debugPageMarkerItems: [PageMarkerItem] {
+        [
+            PageMarkerItem(title: provider.displayName),
+            PageMarkerItem(title: ProviderContentTabType.usage.localizedName(for: provider))
+        ]
+    }
+    var tokenTrendDebugPageMarkerItems: [PageMarkerItem] {
+        debugPageMarkerItems + [
+            PageMarkerItem(
+                title: NSLocalizedString(
+                    "usage.token_trend.title",
+                    value: "历史 Token 消耗",
+                    comment: "Token trend section title"
+                )
+            )
+        ]
+    }
+    var gatewayCardsDebugPageMarkerItems: [PageMarkerItem] {
+        debugPageMarkerItems + [
+            PageMarkerItem(
+                title: NSLocalizedString(
+                    "codex.gateway.cards.title",
+                    value: "网关卡片",
+                    comment: "Gateway cards section title"
+                )
+            )
+        ]
+    }
+    var genericHeaderActions: [GenericHeaderAction] {
+        let showsDashboardSignIn = ProviderUsageLoginPolicy.shouldShowDashboardSignIn(
+            for: provider,
+            dashboardURL: loginFlowViewModel.dashboardURL
+        )
+
+        if usageProvider == .claude {
+            var actions: [GenericHeaderAction] = [.claudeMigrate]
+            if showsDashboardSignIn {
+                actions.append(.signIn)
+            }
+            return actions
+        }
+
+        if ProviderUsageLoginPolicy.shouldUseCLILogin(for: provider) {
+            return [.cliLogin, .refresh]
+        }
+
+        if showsDashboardSignIn {
+            return [.signIn]
+        }
+
+        return [.refresh]
+    }
 
     init(provider: Provider) {
         let engine = ProviderUsageEngine(provider: provider)

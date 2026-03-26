@@ -18,7 +18,6 @@ struct CodexImportExportViewModelParityTests {
         let root = ProviderUsageRootViewModel(provider: provider)
 
         #expect(root.importExportViewModel.isShowingCodexImportSheet == root.state.engine.isShowingCodexImportSheet)
-        #expect(root.importExportViewModel.codexImportCandidateSections == root.state.engine.codexImportCandidateSections)
+        #expect(root.importExportViewModel.sheetViewModel.sections == root.state.engine.codexImportCandidateSections)
     }
 }
-

@@ -1,31 +1,5 @@
 import SwiftUI
 
-enum GenericSelectionStateResolver {
-    static func resolveSingleSelection<Value: Hashable>(
-        current: Value?,
-        tapped: Value,
-        allowsEmptySelection: Bool
-    ) -> Value? {
-        if current == tapped {
-            return allowsEmptySelection ? nil : current
-        }
-        return tapped
-    }
-
-    static func resolveMultiSelection<Value: Hashable>(
-        current: Set<Value>,
-        tapped: Value
-    ) -> Set<Value> {
-        var next = current
-        if next.contains(tapped) {
-            next.remove(tapped)
-        } else {
-            next.insert(tapped)
-        }
-        return next
-    }
-}
-
 struct GenericSelectionControl<Value: Hashable, Content: View>: View {
     @State private var viewModel = GenericSelectionControlViewModel()
 

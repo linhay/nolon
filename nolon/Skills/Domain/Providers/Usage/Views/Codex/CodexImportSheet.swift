@@ -1,4 +1,5 @@
 import SwiftUI
+import Observation
 import Foundation
 import AppKit
 import ProviderUsage
@@ -9,30 +10,11 @@ struct CodexImportSheet: View {
         hasAnyCandidates ? 560 : 320
     }
 
-    let sections: [ProviderUsageEngine.CodexImportCandidateSection]
-    let hasAnyCandidates: Bool
-    let isRunningValidation: Bool
-    let isRunningConnectionTests: Bool
-    @Binding var isTargetingDropZone: Bool
-    @Binding var searchText: String
-    let globalErrorMessage: String?
-    let onPickFiles: () -> Void
-    let onPaste: () -> Void
-    let onDropFiles: ([URL]) -> Void
-    let onToggleSelection: (UUID, Bool) -> Void
-    let onToggleGroupSelection: (String, Bool) -> Void
-    let onSelectAll: () -> Void
-    let onDeselectAll: () -> Void
-    let onRetry: (UUID) -> Void
-    let onRetryAll: () -> Void
-    let onRemove: (UUID) -> Void
-    let onExportZIP: () -> Void
-    let onExportSub2API: () -> Void
-    let onImport: () -> Void
+    @Bindable var viewModel: ProviderUsageCodexImportSheetViewModel
     let onCancel: () -> Void
 
     private var selectedCount: Int {
-        sections.flatMap(\.items).filter { $0.validation.isValid && $0.isSelected }.count
+        viewModel.sections.flatMap(\.items).filter { $0.validation.isValid && $0.isSelected }.count
     }
 
     private var canImport: Bool {
@@ -40,11 +22,11 @@ struct CodexImportSheet: View {
     }
 
     private var isBusy: Bool {
-        isRunningValidation || isRunningConnectionTests
+        viewModel.isRunningValidation || viewModel.isRunningConnectionTests
     }
 
     private var hasSearchText: Bool {
-        !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        !viewModel.searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     private var importButtonTitle: String {
@@ -73,11 +55,11 @@ struct CodexImportSheet: View {
 
             dropZone
 
-            if let globalErrorMessage, !globalErrorMessage.isEmpty {
+            if let globalErrorMessage = viewModel.globalErrorMessage, !globalErrorMessage.isEmpty {
                 errorBanner(globalErrorMessage)
             }
 
-            if hasAnyCandidates {
+            if viewModel.hasAnyCandidates {
                 candidateToolbar
                 candidateList
             }
@@ -94,7 +76,7 @@ struct CodexImportSheet: View {
                         ProgressView()
                             .controlSize(.small)
                         Text(
-                            isRunningValidation
+                            viewModel.isRunningValidation
                                 ? NSLocalizedString("codex.import.sheet.progress.validating", value: "正在校验账号文件...", comment: "Codex import validating progress")
                                 : NSLocalizedString("codex.import.sheet.progress.testing", value: "正在测试连接...", comment: "Codex import testing progress")
                         )
@@ -105,15 +87,15 @@ struct CodexImportSheet: View {
 
                 Spacer()
                 Button(importButtonTitle) {
-                    onImport()
+                    viewModel.applySelectedImports()
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(!canImport || isRunningValidation)
+                .disabled(!canImport || viewModel.isRunningValidation)
                 .keyboardShortcut(.defaultAction)
             }
         }
         .padding(20)
-        .frame(minWidth: 760, minHeight: Self.minimumSheetHeight(hasAnyCandidates: hasAnyCandidates))
+        .frame(minWidth: 760, minHeight: Self.minimumSheetHeight(hasAnyCandidates: viewModel.hasAnyCandidates))
     }
 
     private var dropZone: some View {
@@ -128,11 +110,11 @@ struct CodexImportSheet: View {
                 .foregroundStyle(DesignSystem.Colors.Text.secondary)
             HStack(spacing: 10) {
                 Button(NSLocalizedString("codex.import.sheet.pick_files", value: "选择文件", comment: "Pick import files")) {
-                    onPickFiles()
+                    viewModel.pickFiles()
                 }
                 .buttonStyle(.borderedProminent)
                 Button(NSLocalizedString("codex.import.sheet.paste", value: "粘贴", comment: "Paste import content")) {
-                    onPaste()
+                    viewModel.pasteFromClipboard()
                 }
                 .buttonStyle(.bordered)
             }
@@ -140,16 +122,16 @@ struct CodexImportSheet: View {
         .frame(maxWidth: .infinity, minHeight: 140)
         .background {
             RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusL, style: .continuous)
-                .fill(isTargetingDropZone ? DesignSystem.Colors.primary.opacity(0.12) : DesignSystem.Colors.Background.surface)
+                .fill(viewModel.isTargetingDropZone ? DesignSystem.Colors.primary.opacity(0.12) : DesignSystem.Colors.Background.surface)
         }
         .overlay {
             RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusL, style: .continuous)
                 .strokeBorder(
-                    isTargetingDropZone ? DesignSystem.Colors.primary : DesignSystem.Colors.Component.border.opacity(0.7),
-                    style: StrokeStyle(lineWidth: isTargetingDropZone ? 2 : 1, dash: [6, 4])
+                    viewModel.isTargetingDropZone ? DesignSystem.Colors.primary : DesignSystem.Colors.Component.border.opacity(0.7),
+                    style: StrokeStyle(lineWidth: viewModel.isTargetingDropZone ? 2 : 1, dash: [6, 4])
                 )
         }
-        .onDrop(of: [UTType.fileURL.identifier], isTargeted: $isTargetingDropZone) { providers in
+        .onDrop(of: [UTType.fileURL.identifier], isTargeted: $viewModel.isTargetingDropZone) { providers in
             resolveDroppedURLs(from: providers)
         }
     }
@@ -166,7 +148,7 @@ struct CodexImportSheet: View {
                     .foregroundStyle(DesignSystem.Colors.Text.primary)
                     Text(String(
                         format: NSLocalizedString("codex.import.sheet.source_group_count", value: "%d 个来源组", comment: "Codex import source group count"),
-                        sections.count
+                        viewModel.sections.count
                     ))
                     .font(.caption2)
                     .foregroundStyle(DesignSystem.Colors.Text.secondary)
@@ -180,7 +162,7 @@ struct CodexImportSheet: View {
                         value: "搜索邮箱、名称或文件名",
                         comment: "Search import candidates placeholder"
                     ),
-                    text: $searchText,
+                    text: $viewModel.searchText,
                     width: 260
                 )
             }
@@ -189,40 +171,40 @@ struct CodexImportSheet: View {
                 Spacer()
 
                 Button(NSLocalizedString("codex.import.sheet.select_all", value: "全选", comment: "Select all import candidates")) {
-                    onSelectAll()
+                    viewModel.selectAll()
                 }
-                .disabled(sections.flatMap(\.items).allSatisfy { !$0.validation.isValid })
+                .disabled(viewModel.sections.flatMap(\.items).allSatisfy { !$0.validation.isValid })
 
                 Button(NSLocalizedString("codex.import.sheet.deselect_all", value: "取消全选", comment: "Deselect all import candidates")) {
-                    onDeselectAll()
+                    viewModel.deselectAll()
                 }
-                .disabled(sections.flatMap(\.items).isEmpty)
+                .disabled(viewModel.sections.flatMap(\.items).isEmpty)
 
                 Button(NSLocalizedString("codex.import.sheet.action.export_zip", value: "导出 ZIP", comment: "Export selected import candidates to ZIP")) {
-                    onExportZIP()
+                    viewModel.exportSelectedAsZIP()
                 }
-                .disabled(!canImport || isRunningValidation)
+                .disabled(!canImport || viewModel.isRunningValidation)
 
                 Button(NSLocalizedString("codex.import.sheet.action.export_sub2api", value: "导出 sub2api", comment: "Export selected import candidates to sub2api")) {
-                    onExportSub2API()
+                    viewModel.exportSelectedAsSub2API()
                 }
-                .disabled(!canImport || isRunningValidation)
+                .disabled(!canImport || viewModel.isRunningValidation)
 
                 Button(NSLocalizedString("codex.import.sheet.paste", value: "粘贴", comment: "Paste import content")) {
-                    onPaste()
+                    viewModel.pasteFromClipboard()
                 }
 
                 Button(NSLocalizedString("codex.import.sheet.retry_all", value: "重新测试全部", comment: "Retry all Codex import tests")) {
-                    onRetryAll()
+                    viewModel.retryAllConnectionTests()
                 }
-                .disabled(sections.flatMap(\.items).filter(\.validation.isValid).isEmpty || isRunningConnectionTests || isRunningValidation)
+                .disabled(viewModel.sections.flatMap(\.items).filter(\.validation.isValid).isEmpty || viewModel.isRunningConnectionTests || viewModel.isRunningValidation)
             }
         }
     }
 
     private var candidateList: some View {
         Group {
-            if sections.flatMap(\.items).isEmpty {
+            if viewModel.sections.flatMap(\.items).isEmpty {
                 if hasSearchText {
                     ContentUnavailableView(
                         NSLocalizedString("codex.import.sheet.search.empty.title", value: "没有匹配的候选账号", comment: "Empty search result title"),
@@ -247,7 +229,7 @@ struct CodexImportSheet: View {
             } else {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 12) {
-                        ForEach(sections) { section in
+                        ForEach(viewModel.sections) { section in
                             sectionView(section)
                         }
                     }
@@ -280,7 +262,7 @@ struct CodexImportSheet: View {
                         : NSLocalizedString("codex.import.sheet.group.select", value: "全选", comment: "Select group import candidates")
                 ) {
                     let selectAllInGroup = !(section.selectedItemCount == section.selectableItemCount && section.selectableItemCount > 0)
-                    onToggleGroupSelection(section.id, selectAllInGroup)
+                    viewModel.setGroupSelected(selectAllInGroup, sourceGroupID: section.id)
                 }
                 .disabled(section.selectableItemCount == 0)
                 .font(.caption)
@@ -317,7 +299,7 @@ struct CodexImportSheet: View {
                     "",
                     isOn: Binding(
                         get: { candidate.isSelected },
-                        set: { onToggleSelection(candidate.id, $0) }
+                        set: { viewModel.setCandidateSelected($0, id: candidate.id) }
                     )
                 )
                 .toggleStyle(.checkbox)
@@ -352,14 +334,14 @@ struct CodexImportSheet: View {
                         HStack(spacing: 8) {
                             if isValid {
                                 Button(NSLocalizedString("codex.import.sheet.retry_single", value: "重试", comment: "Retry single import test")) {
-                                    onRetry(candidate.id)
+                                    viewModel.retryConnectionTest(id: candidate.id)
                                 }
-                                .disabled(isRunningValidation)
+                                .disabled(viewModel.isRunningValidation)
                                 .buttonStyle(.link)
                             }
 
                             Button(NSLocalizedString("codex.import.sheet.remove", value: "移除", comment: "Remove import candidate")) {
-                                onRemove(candidate.id)
+                                viewModel.removeCandidate(id: candidate.id)
                             }
                             .buttonStyle(.link)
                         }
@@ -461,7 +443,7 @@ struct CodexImportSheet: View {
 
         group.notify(queue: .main) {
             guard !urls.isEmpty else { return }
-            onDropFiles(urls)
+            viewModel.handleDropFiles(urls)
         }
         return true
     }

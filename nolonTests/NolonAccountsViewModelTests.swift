@@ -684,7 +684,7 @@ final class NolonAccountsViewModelTests: XCTestCase {
             isSnapshotOnly: true
         )
 
-        let record = AccountRecordBuilder.codexAccounts(
+        let record = AccountRecordBuilder.summaryUsageAccount(
             providerName: "Codex",
             usageProvider: .codex,
             summary: summary,

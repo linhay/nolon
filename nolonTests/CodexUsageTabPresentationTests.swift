@@ -35,7 +35,7 @@ final class CodexUsageTabPresentationTests: XCTestCase {
         XCTAssertEqual(title, "账号与用量")
     }
 
-    func testBDD_GivenNonCodexProvider_WhenResolvingUsageTabName_ThenKeepsUsageLabel() {
+    func testBDD_GivenGenericProvider_WhenResolvingUsageTabName_ThenKeepsUsageLabel() {
         let provider = Provider(
             name: "Claude",
             defaultSkillsPath: "~/.claude/skills",
@@ -62,54 +62,54 @@ final class CodexUsageTabPresentationTests: XCTestCase {
     }
 
     func testBDD_GivenCodexHeaderActions_WhenResolvingVisibleActions_ThenShowsRefreshAndLoginInTopBar() {
-        let visibleActions = ProviderUsageView.visibleCodexPrimaryHeaderActions(
+        let visibleActions = ProviderUsageAccountsViewModel.CodexState.visiblePrimaryHeaderActions(
             from: [.refreshAll, .login, .importAuth],
-            isCodexMultiSelectionEnabled: false
+            isMultiSelectionEnabled: false
         )
 
         XCTAssertEqual(visibleActions, [.refreshAll, .login])
     }
 
     func testBDD_GivenCodexAccountActivationState_WhenResolvingContextMenuPolicy_ThenOnlyInactiveShowsActivateAction() {
-        XCTAssertTrue(ProviderUsageView.shouldShowActivateAccountContextAction(isActiveAccount: false))
-        XCTAssertFalse(ProviderUsageView.shouldShowActivateAccountContextAction(isActiveAccount: true))
+        XCTAssertTrue(ProviderUsageAccountsViewModel.CodexState.shouldShowActivateAccountContextAction(isActiveAccount: false))
+        XCTAssertFalse(ProviderUsageAccountsViewModel.CodexState.shouldShowActivateAccountContextAction(isActiveAccount: true))
     }
 
     func testBDD_GivenGatewayActivationState_WhenResolvingContextMenuPolicy_ThenOnlyInactiveShowsActivateAction() {
-        XCTAssertTrue(ProviderUsageView.shouldShowActivateGatewayContextAction(isActiveGateway: false))
-        XCTAssertFalse(ProviderUsageView.shouldShowActivateGatewayContextAction(isActiveGateway: true))
+        XCTAssertTrue(ProviderUsageAccountsViewModel.CodexState.shouldShowActivateGatewayContextAction(isActiveGateway: false))
+        XCTAssertFalse(ProviderUsageAccountsViewModel.CodexState.shouldShowActivateGatewayContextAction(isActiveGateway: true))
     }
 
     func testBDD_GivenCodexLayoutMode_WhenResolvingListPresentationStyle_ThenListUsesCompactRowsAndCardsUseCardStyle() {
         XCTAssertTrue(
-            ProviderUsageView.shouldUseCompactCodexListRows(layoutMode: .list)
+            ProviderUsageAccountsViewModel.CodexState.usesCompactListRows(layoutMode: .list)
         )
         XCTAssertFalse(
-            ProviderUsageView.shouldUseCompactCodexListRows(layoutMode: .cards)
+            ProviderUsageAccountsViewModel.CodexState.usesCompactListRows(layoutMode: .cards)
         )
     }
 
     func testBDD_GivenCodexLayoutMode_WhenResolvingTextSelectionPolicy_ThenListDisablesSelectionToKeepTapSwitching() {
         XCTAssertFalse(
-            ProviderUsageView.shouldEnableCodexTextSelection(layoutMode: .list)
+            ProviderUsageAccountsViewModel.CodexState.enablesTextSelection(layoutMode: .list)
         )
         XCTAssertTrue(
-            ProviderUsageView.shouldEnableCodexTextSelection(layoutMode: .cards)
+            ProviderUsageAccountsViewModel.CodexState.enablesTextSelection(layoutMode: .cards)
         )
     }
 
     func testBDD_GivenGatewayMemberRows_WhenResolvingCompactMetrics_ThenListModeUsesTighterLimitsThanCards() {
         XCTAssertEqual(
-            ProviderUsageView.gatewayMemberDisplayLimit(layoutMode: .list),
+            ProviderUsageAccountsViewModel.CodexState.gatewayMemberDisplayLimit(layoutMode: .list),
             8
         )
         XCTAssertEqual(
-            ProviderUsageView.gatewayMemberDisplayLimit(layoutMode: .cards),
+            ProviderUsageAccountsViewModel.CodexState.gatewayMemberDisplayLimit(layoutMode: .cards),
             12
         )
         XCTAssertLessThan(
-            ProviderUsageView.gatewayMemberRowMaxHeight(layoutMode: .list),
-            ProviderUsageView.gatewayMemberRowMaxHeight(layoutMode: .cards)
+            ProviderUsageAccountsViewModel.CodexState.gatewayMemberRowMaxHeight(layoutMode: .list),
+            ProviderUsageAccountsViewModel.CodexState.gatewayMemberRowMaxHeight(layoutMode: .cards)
         )
     }
 
@@ -144,6 +144,22 @@ final class CodexUsageTabPresentationTests: XCTestCase {
         XCTAssertFalse(ProviderTokenTrendSection.usesHeaderRangePicker)
         XCTAssertTrue(ProviderTokenTrendSection.usesFullCardTapTarget)
         XCTAssertEqual(ProviderTokenTrendSection.summaryCardMinHeight, 84)
+    }
+
+    func testBDD_GivenSelectedDate_WhenTappingSameDate_ThenTokenTrendSelectionClears() {
+        let selected = ProviderTokenTrendSection.resolveSelectedDate(
+            current: "2026-03-26",
+            tapped: "2026-03-26"
+        )
+        XCTAssertNil(selected)
+    }
+
+    func testBDD_GivenSelectedDate_WhenTappingDifferentDate_ThenTokenTrendSelectionSwitches() {
+        let selected = ProviderTokenTrendSection.resolveSelectedDate(
+            current: "2026-03-25",
+            tapped: "2026-03-26"
+        )
+        XCTAssertEqual(selected, "2026-03-26")
     }
 
     func testBDD_GivenEditMode_WhenResolvingConfigPresentation_ThenPrimaryActionUsesSave() {
@@ -1005,9 +1021,9 @@ final class CodexUsageTabPresentationTests: XCTestCase {
     }
 
     func testBDD_GivenGeminiAccountCount_WhenResolvingCardLayout_ThenSingleCardUsesFullWidth() {
-        XCTAssertTrue(ProviderUsageView.shouldUseFullWidthGeminiCardLayout(accountCount: 1))
-        XCTAssertFalse(ProviderUsageView.shouldUseFullWidthGeminiCardLayout(accountCount: 2))
-        XCTAssertFalse(ProviderUsageView.shouldUseFullWidthGeminiCardLayout(accountCount: 0))
+        XCTAssertTrue(ProviderUsageAccountsViewModel.GeminiState.shouldUseFullWidthCardLayout(accountCount: 1))
+        XCTAssertFalse(ProviderUsageAccountsViewModel.GeminiState.shouldUseFullWidthCardLayout(accountCount: 2))
+        XCTAssertFalse(ProviderUsageAccountsViewModel.GeminiState.shouldUseFullWidthCardLayout(accountCount: 0))
     }
 
     func testBDD_GivenGeminiCandidate_WhenEvaluatingInlineImportPolicy_ThenShowsImportAction() {

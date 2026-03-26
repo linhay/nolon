@@ -1524,11 +1524,10 @@ final class ProviderUsageEngine {
 
     func toggleCodexAccountSelection(id: UUID) {
         guard isCodexMultiSelectionEnabled else { return }
-        if selectedCodexAccountIDs.contains(id) {
-            selectedCodexAccountIDs.remove(id)
-        } else {
-            selectedCodexAccountIDs.insert(id)
-        }
+        selectedCodexAccountIDs = GenericSelectionStateResolver.resolveMultiSelection(
+            current: selectedCodexAccountIDs,
+            tapped: id
+        )
     }
 
     func isCodexAccountSelected(id: UUID?) -> Bool {
@@ -1546,12 +1545,10 @@ final class ProviderUsageEngine {
     func toggleCodexSectionSelection(_ section: CodexAccountDisplaySection) {
         guard isCodexMultiSelectionEnabled else { return }
         let sectionIDs = codexSectionAccountIDs(from: section.items)
-        guard !sectionIDs.isEmpty else { return }
-        if sectionIDs.isSubset(of: selectedCodexAccountIDs) {
-            selectedCodexAccountIDs.subtract(sectionIDs)
-        } else {
-            selectedCodexAccountIDs.formUnion(sectionIDs)
-        }
+        selectedCodexAccountIDs = GenericSelectionStateResolver.resolveBatchMultiSelection(
+            current: selectedCodexAccountIDs,
+            toggledValues: sectionIDs
+        )
     }
 
     private func codexSectionAccountIDs(from items: [ProviderAccountUsageOutcome]) -> Set<UUID> {
@@ -2803,6 +2800,10 @@ final class ProviderUsageEngine {
             .filter { selectedCodexAccountIDs.contains($0) }
     }
 
+    func selectedCodexAccountIDsInCurrentDisplayOrder() -> [UUID] {
+        selectedCodexAccountIDsInDisplayOrder()
+    }
+
     private func updateGatewayCardsState(_ state: CodexGatewayCardsState) {
         let validAccountIDs = Set(codexAccounts.map(\.id))
         let normalized = codexGatewayCardsStore.normalized(state, validAccountIDs: validAccountIDs)
@@ -2827,25 +2828,27 @@ final class ProviderUsageEngine {
     }
 
     func toggleCodexSection(_ sectionID: String) {
-        if collapsedCodexSectionIDs.contains(sectionID) {
-            collapsedCodexSectionIDs.remove(sectionID)
-        } else {
-            collapsedCodexSectionIDs.insert(sectionID)
-        }
+        collapsedCodexSectionIDs = GenericSelectionStateResolver.resolveMultiSelection(
+            current: collapsedCodexSectionIDs,
+            tapped: sectionID
+        )
     }
 
     func toggleGatewayCardsSectionCollapsed() {
-        isGatewayCardsSectionCollapsed.toggle()
+        isGatewayCardsSectionCollapsed = GenericSelectionStateResolver.resolveBooleanToggle(
+            current: isGatewayCardsSectionCollapsed
+        )
     }
 
     func selectCodexSortOption(_ option: CodexAccountSortOption) {
-        if codexAccountSortOption == option {
-            codexCurrentSortDirection = codexCurrentSortDirection == .ascending ? .descending : .ascending
-            return
-        }
-
-        codexAccountSortOption = option
-        codexCurrentSortDirection = Self.defaultCodexSortDirection(for: option)
+        let next = GenericSelectionStateResolver.resolveSortSelection(
+            currentKey: codexAccountSortOption,
+            currentAscending: codexCurrentSortDirection == .ascending,
+            tappedKey: option,
+            defaultAscendingForTappedKey: Self.defaultCodexSortDirection(for: option) == .ascending
+        )
+        codexAccountSortOption = next.key
+        codexCurrentSortDirection = next.ascending ? .ascending : .descending
     }
 
     func codexDirection(for option: CodexAccountSortOption) -> CodexSortDirection {

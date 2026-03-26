@@ -54,4 +54,73 @@ final class GenericSelectionControlTests: XCTestCase {
         )
         XCTAssertEqual(result, Set([one, two]))
     }
+
+    func testBDD_GivenBatchMultiSelection_WhenAllValuesAlreadySelected_ThenBatchIsRemoved() {
+        let result = GenericSelectionStateResolver.resolveBatchMultiSelection(
+            current: Set(["a", "b", "c"]),
+            toggledValues: Set(["a", "b"])
+        )
+        XCTAssertEqual(result, Set(["c"]))
+    }
+
+    func testBDD_GivenBatchMultiSelection_WhenAnyValueMissing_ThenBatchIsUnioned() {
+        let result = GenericSelectionStateResolver.resolveBatchMultiSelection(
+            current: Set(["c"]),
+            toggledValues: Set(["a", "b"])
+        )
+        XCTAssertEqual(result, Set(["a", "b", "c"]))
+    }
+
+    func testBDD_GivenBatchMultiSelection_WhenBatchIsEmpty_ThenSelectionRemainsUnchanged() {
+        let result = GenericSelectionStateResolver.resolveBatchMultiSelection(
+            current: Set(["a"]),
+            toggledValues: Set<String>()
+        )
+        XCTAssertEqual(result, Set(["a"]))
+    }
+
+    func testBDD_GivenOptionalHoverSelection_WhenHoverBegins_ThenCurrentBecomesHoveredValue() {
+        let result = GenericSelectionStateResolver.resolveHoverSelection(
+            current: "a",
+            hovered: "b",
+            isHovering: true
+        )
+        XCTAssertEqual(result, "b")
+    }
+
+    func testBDD_GivenOptionalHoverSelection_WhenHoverEndsOnCurrentValue_ThenSelectionClears() {
+        let result = GenericSelectionStateResolver.resolveHoverSelection(
+            current: "b",
+            hovered: "b",
+            isHovering: false
+        )
+        XCTAssertNil(result)
+    }
+
+    func testBDD_GivenBooleanState_WhenToggling_ThenReturnsInvertedValue() {
+        XCTAssertTrue(GenericSelectionStateResolver.resolveBooleanToggle(current: false))
+        XCTAssertFalse(GenericSelectionStateResolver.resolveBooleanToggle(current: true))
+    }
+
+    func testBDD_GivenSortState_WhenTappingCurrentKey_ThenDirectionToggles() {
+        let result = GenericSelectionStateResolver.resolveSortSelection(
+            currentKey: "date",
+            currentAscending: false,
+            tappedKey: "date",
+            defaultAscendingForTappedKey: true
+        )
+        XCTAssertEqual(result.key, "date")
+        XCTAssertTrue(result.ascending)
+    }
+
+    func testBDD_GivenSortState_WhenTappingNewKey_ThenKeyChangesAndUsesProvidedDefaultDirection() {
+        let result = GenericSelectionStateResolver.resolveSortSelection(
+            currentKey: "date",
+            currentAscending: false,
+            tappedKey: "total",
+            defaultAscendingForTappedKey: false
+        )
+        XCTAssertEqual(result.key, "total")
+        XCTAssertFalse(result.ascending)
+    }
 }
