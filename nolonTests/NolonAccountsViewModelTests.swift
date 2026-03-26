@@ -622,6 +622,53 @@ final class NolonAccountsViewModelTests: XCTestCase {
         )
     }
 
+    func testBDD_GivenProtocolConvertibleAccounts_WhenUsingGenericBuilder_ThenClaudeAndGeminiProduceStableCards() {
+        let date = Date(timeIntervalSince1970: 1_700_700_000)
+        let claude = ClaudeAccount(
+            id: UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE")!,
+            name: "Claude Team",
+            credentialType: .authToken,
+            credentialValue: "token",
+            baseURL: "https://claude.example.com",
+            source: .manual,
+            createdAt: date,
+            updatedAt: date,
+            lastValidatedAt: date,
+            lastValidationStatus: true
+        )
+        let gemini = GeminiAuthAccount(
+            id: UUID(uuidString: "11111111-2222-3333-4444-555555555555")!,
+            providerID: .gemini,
+            name: "Gemini Team",
+            method: .oauthPersonal,
+            createdAt: date,
+            lastUsedAt: nil,
+            lastLoginAt: date,
+            email: "gemini@example.com",
+            project: "project-alpha",
+            location: "us-central1",
+            runtimeHomeRelativePath: ".gemini/team"
+        )
+
+        let claudeRecord = AccountRecordBuilder.providerAccount(
+            providerName: "Claude",
+            account: claude,
+            isActive: true
+        )
+        let geminiRecord = AccountRecordBuilder.providerAccount(
+            providerName: "Gemini",
+            account: gemini,
+            isActive: false,
+            quota: nil
+        )
+
+        XCTAssertEqual(claudeRecord.id.provider, .claude)
+        XCTAssertEqual(claudeRecord.identity.subtitle, "https://claude.example.com")
+        XCTAssertEqual(geminiRecord.id.provider, .gemini)
+        XCTAssertEqual(geminiRecord.bodyFields.map(\.id), ["method", "project"])
+        XCTAssertEqual(geminiRecord.detailFields.first?.value, ".gemini/team")
+    }
+
     func testBDD_GivenGeminiAccountRecord_WhenMappingCard_ThenInactiveCardShowsMetadataRows() {
         let createdAt = Date(timeIntervalSince1970: 1_700_500_000)
         let account = GeminiAuthAccount(

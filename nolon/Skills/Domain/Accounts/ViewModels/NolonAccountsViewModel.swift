@@ -184,26 +184,28 @@ final class NolonAccountsViewModel {
                         latestAccountUsage[provider.id] = mergedAccountSummaries
                     }
                 } else if usageProvider == .claude {
-                    let sortedAccounts = accountsViewModel.claude.accounts.sorted { lhs, rhs in
-                        let lhsActive = accountsViewModel.claude.isActiveAccount(lhs)
-                        let rhsActive = accountsViewModel.claude.isActiveAccount(rhs)
-                        if lhsActive != rhsActive { return lhsActive }
-                        return lhs.updatedAt > rhs.updatedAt
-                    }
+                    let sortedAccounts = Self.sortedProviderAccounts(
+                        accountsViewModel.claude.accounts,
+                        isActive: { accountsViewModel.claude.isActiveAccount($0) }
+                    )
                     latestClaudeAccounts[provider.id] = sortedAccounts
-                    if let activeAccount = sortedAccounts.first(where: { accountsViewModel.claude.isActiveAccount($0) }) {
-                        latestActiveClaudeAccounts[provider.id] = activeAccount.id
+                    if let activeID = Self.activeProviderAccountID(
+                        from: sortedAccounts,
+                        isActive: { accountsViewModel.claude.isActiveAccount($0) }
+                    ) {
+                        latestActiveClaudeAccounts[provider.id] = activeID
                     }
                 } else if usageProvider == .gemini || usageProvider == .antigravity {
-                    let sortedAccounts = accountsViewModel.gemini.accounts.sorted { lhs, rhs in
-                        let lhsActive = accountsViewModel.gemini.isActiveAccount(lhs)
-                        let rhsActive = accountsViewModel.gemini.isActiveAccount(rhs)
-                        if lhsActive != rhsActive { return lhsActive }
-                        return lhs.createdAt > rhs.createdAt
-                    }
+                    let sortedAccounts = Self.sortedProviderAccounts(
+                        accountsViewModel.gemini.accounts,
+                        isActive: { accountsViewModel.gemini.isActiveAccount($0) }
+                    )
                     latestGeminiAccounts[provider.id] = sortedAccounts
-                    if let activeAccount = sortedAccounts.first(where: { accountsViewModel.gemini.isActiveAccount($0) }) {
-                        latestActiveGeminiAccounts[provider.id] = activeAccount.id
+                    if let activeID = Self.activeProviderAccountID(
+                        from: sortedAccounts,
+                        isActive: { accountsViewModel.gemini.isActiveAccount($0) }
+                    ) {
+                        latestActiveGeminiAccounts[provider.id] = activeID
                     }
                 } else if !accountSummaries.isEmpty {
                     latestAccountUsage[provider.id] = accountSummaries
@@ -291,6 +293,46 @@ final class NolonAccountsViewModel {
 }
 
 extension NolonAccountsViewModel {
+    private static func sortedProviderAccounts<Account: ProviderAccountRecordConvertible>(
+        _ accounts: [Account],
+        isActive: (Account) -> Bool
+    ) -> [Account] {
+        accounts.sorted { lhs, rhs in
+            let lhsActive = isActive(lhs)
+            let rhsActive = isActive(rhs)
+            if lhsActive != rhsActive { return lhsActive }
+            return lhs.accountSortDate > rhs.accountSortDate
+        }
+    }
+
+    private static func activeProviderAccountID<Account: ProviderAccountRecordConvertible>(
+        from accounts: [Account],
+        isActive: (Account) -> Bool
+    ) -> UUID? {
+        accounts.first(where: { isActive($0) })?.id
+    }
+
+    private func makeProviderAccountCards<Account: ProviderAccountRecordConvertible>(
+        provider: Provider,
+        accounts: [Account],
+        activeID: UUID?,
+        quota: (Account, Bool) -> AccountRecordQuota? = { _, _ in nil }
+    ) -> [AccountCardViewData] {
+        guard !accounts.isEmpty else {
+            return [emptyCard(provider: provider)]
+        }
+        return accounts.map { account in
+            let isActive = account.id == activeID
+            let record = AccountRecordBuilder.providerAccount(
+                providerName: provider.name,
+                account: account,
+                isActive: isActive,
+                quota: quota(account, isActive)
+            )
+            return AccountCardViewDataMapper.map(record: record)
+        }
+    }
+
     static func filteredAccountCards(
         _ cards: [AccountCardViewData],
         hideZeroQuotaAccounts: Bool,
@@ -567,63 +609,45 @@ extension NolonAccountsViewModel {
         switch usageProvider {
         case .claude:
             let accounts = claudeAccountsByProviderID[provider.id] ?? []
-            if accounts.isEmpty {
-                return [emptyCard(provider: provider)]
-            }
             let activeID = activeClaudeAccountIDByProviderID[provider.id]
-            return accounts.map { account in
-                let record = AccountRecordBuilder.claude(
-                    providerName: provider.name,
-                    account: account,
-                    isActive: account.id == activeID
-                )
-                return AccountCardViewDataMapper.map(record: record)
-            }
+            return makeProviderAccountCards(
+                provider: provider,
+                accounts: accounts,
+                activeID: activeID
+            )
         case .gemini, .antigravity:
             let accounts = geminiAccountsByProviderID[provider.id] ?? []
-            if accounts.isEmpty {
-                return [emptyCard(provider: provider)]
-            }
             let activeID = activeGeminiAccountIDByProviderID[provider.id]
             let liveSummary = accountSummariesByProviderID[provider.id]?.first
-            return accounts.map { account in
-                let isActive = account.id == activeID
-                let quota: AccountRecordQuota? = {
-                    if isActive, let liveSummary {
-                        return .init(
-                            provider: usageProvider,
-                            accountTitle: account.email ?? account.name,
-                            usage: UsageSnapshot(
-                                identity: UsageIdentity(
-                                    accountEmail: liveSummary.accountEmail ?? account.email,
-                                    accountOrganization: account.project,
-                                    loginMethod: account.method.rawValue,
-                                    plan: liveSummary.plan
-                                ),
-                                primary: liveSummary.primaryUsedPercent.map { RateWindow(usedPercent: $0) },
-                                secondary: nil,
-                                tertiary: nil,
-                                updatedAt: liveSummary.latestUpdatedAt ?? account.lastLoginAt ?? account.createdAt
-                            ),
-                            credits: nil,
-                            creditsRefreshedAt: nil,
-                            loginAt: account.lastLoginAt,
-                            syncedAt: liveSummary.latestUpdatedAt,
-                            isLoading: false,
-                            showsEmptyState: liveSummary.totalCount == 0,
-                            errorMessage: liveSummary.errorMessage
-                        )
-                    }
-                    return nil
-                }()
-
-                let record = AccountRecordBuilder.gemini(
-                    providerName: provider.name,
-                    account: account,
-                    isActive: isActive,
-                    quota: quota
+            return makeProviderAccountCards(
+                provider: provider,
+                accounts: accounts,
+                activeID: activeID
+            ) { account, isActive in
+                guard isActive, let liveSummary else { return nil }
+                return .init(
+                    provider: usageProvider,
+                    accountTitle: account.email ?? account.name,
+                    usage: UsageSnapshot(
+                        identity: UsageIdentity(
+                            accountEmail: liveSummary.accountEmail ?? account.email,
+                            accountOrganization: account.project,
+                            loginMethod: account.method.rawValue,
+                            plan: liveSummary.plan
+                        ),
+                        primary: liveSummary.primaryUsedPercent.map { RateWindow(usedPercent: $0) },
+                        secondary: nil,
+                        tertiary: nil,
+                        updatedAt: liveSummary.latestUpdatedAt ?? account.lastLoginAt ?? account.createdAt
+                    ),
+                    credits: nil,
+                    creditsRefreshedAt: nil,
+                    loginAt: account.lastLoginAt,
+                    syncedAt: liveSummary.latestUpdatedAt,
+                    isLoading: false,
+                    showsEmptyState: liveSummary.totalCount == 0,
+                    errorMessage: liveSummary.errorMessage
                 )
-                return AccountCardViewDataMapper.map(record: record)
             }
         default:
             let summaries = accountSummariesByProviderID[provider.id] ?? []

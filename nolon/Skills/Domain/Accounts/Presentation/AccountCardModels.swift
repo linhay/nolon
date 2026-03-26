@@ -137,37 +137,158 @@ struct AccountRecord: Identifiable, Equatable {
     let accessibilityLabel: String
 }
 
+protocol ProviderAccountRecordConvertible: Identifiable where ID == UUID {
+    var providerUsage: UsageProvider { get }
+    var accountSortDate: Date { get }
+    var accountAccessibilityName: String { get }
+    func accountSource() -> AccountRecordSource
+    func accountIdentity() -> AccountIdentity
+    func accountHealth(quota: AccountRecordQuota?) -> AccountHealthState
+    func accountBodyFields(quota: AccountRecordQuota?) -> [AccountRecordField]
+    func accountDetailFields(quota: AccountRecordQuota?) -> [AccountRecordField]
+}
+
+extension ClaudeAccount: ProviderAccountRecordConvertible {
+    var providerUsage: UsageProvider { .claude }
+    var accountSortDate: Date { updatedAt }
+    var accountAccessibilityName: String { name }
+
+    func accountSource() -> AccountRecordSource {
+        switch source {
+        case .manual:
+            return .local
+        case .migrated:
+            return .migrated
+        case .ccSwitch:
+            return .ccSwitch
+        }
+    }
+
+    func accountIdentity() -> AccountIdentity {
+        .init(
+            displayName: name,
+            subtitle: baseURL,
+            meta: updatedAt.formatted(date: .abbreviated, time: .shortened)
+        )
+    }
+
+    func accountHealth(quota _: AccountRecordQuota?) -> AccountHealthState {
+        switch lastValidationStatus {
+        case .some(true):
+            return .healthy
+        case .some(false):
+            return .failed
+        case .none:
+            return .warning
+        }
+    }
+
+    func accountBodyFields(quota _: AccountRecordQuota?) -> [AccountRecordField] {
+        [
+            .init(
+                id: "source",
+                kind: .kv,
+                label: NSLocalizedString("accounts.provider.source", value: "Source", comment: "Account source"),
+                value: source.rawValue,
+                auxiliary: nil,
+                tone: nil
+            )
+        ]
+    }
+
+    func accountDetailFields(quota _: AccountRecordQuota?) -> [AccountRecordField] {
+        []
+    }
+}
+
+extension GeminiAuthAccount: ProviderAccountRecordConvertible {
+    var providerUsage: UsageProvider { providerID }
+    var accountSortDate: Date { lastLoginAt ?? createdAt }
+    var accountAccessibilityName: String { name }
+
+    func accountSource() -> AccountRecordSource { .local }
+
+    func accountIdentity() -> AccountIdentity {
+        let subtitle = [email, project]
+            .compactMap { value -> String? in
+                guard let value, !value.isEmpty else { return nil }
+                return value
+            }
+            .joined(separator: " • ")
+        return .init(
+            displayName: name,
+            subtitle: subtitle.isEmpty ? nil : subtitle,
+            meta: (lastLoginAt ?? createdAt).formatted(date: .abbreviated, time: .shortened)
+        )
+    }
+
+    func accountHealth(quota: AccountRecordQuota?) -> AccountHealthState {
+        quota?.errorMessage == nil ? .healthy : .failed
+    }
+
+    func accountBodyFields(quota: AccountRecordQuota?) -> [AccountRecordField] {
+        guard quota == nil else { return [] }
+        return [
+            .init(
+                id: "method",
+                kind: .kv,
+                label: NSLocalizedString("accounts.provider.method", value: "Method", comment: "Account method"),
+                value: method.rawValue,
+                auxiliary: nil,
+                tone: nil
+            ),
+            .init(
+                id: "project",
+                kind: .kv,
+                label: NSLocalizedString("accounts.provider.project", value: "Project", comment: "Account project"),
+                value: project ?? NSLocalizedString("generic.unknown", value: "Unknown", comment: "Unknown"),
+                auxiliary: location,
+                tone: nil
+            )
+        ]
+    }
+
+    func accountDetailFields(quota _: AccountRecordQuota?) -> [AccountRecordField] {
+        [
+            .init(
+                id: "runtime",
+                kind: .code,
+                label: NSLocalizedString("accounts.provider.runtime_home", value: "Runtime Home", comment: "Runtime home"),
+                value: runtimeHomeRelativePath,
+                auxiliary: nil,
+                tone: nil
+            )
+        ]
+    }
+}
+
 enum AccountRecordBuilder {
+    static func providerAccount<Account: ProviderAccountRecordConvertible>(
+        providerName: String,
+        account: Account,
+        isActive: Bool,
+        quota: AccountRecordQuota? = nil
+    ) -> AccountRecord {
+        AccountRecord(
+            id: .init(provider: account.providerUsage, rawValue: account.id.uuidString.lowercased()),
+            providerName: providerName,
+            source: account.accountSource(),
+            identity: account.accountIdentity(),
+            activationState: isActive ? .active : .inactive,
+            healthState: account.accountHealth(quota: quota),
+            bodyFields: account.accountBodyFields(quota: quota),
+            detailFields: account.accountDetailFields(quota: quota),
+            quota: quota,
+            accessibilityLabel: "\(providerName) \(account.accountAccessibilityName)"
+        )
+    }
+
     static func claude(
         providerName: String,
         account: ClaudeAccount,
         isActive: Bool
     ) -> AccountRecord {
-        AccountRecord(
-            id: .init(provider: .claude, rawValue: account.id.uuidString.lowercased()),
-            providerName: providerName,
-            source: claudeSource(account.source),
-            identity: .init(
-                displayName: account.name,
-                subtitle: account.baseURL,
-                meta: account.updatedAt.formatted(date: .abbreviated, time: .shortened)
-            ),
-            activationState: isActive ? .active : .inactive,
-            healthState: claudeHealth(account.lastValidationStatus),
-            bodyFields: [
-                .init(
-                    id: "source",
-                    kind: .kv,
-                    label: NSLocalizedString("accounts.provider.source", value: "Source", comment: "Account source"),
-                    value: account.source.rawValue,
-                    auxiliary: nil,
-                    tone: nil
-                )
-            ],
-            detailFields: [],
-            quota: nil,
-            accessibilityLabel: "\(providerName) \(account.name)"
-        )
+        providerAccount(providerName: providerName, account: account, isActive: isActive)
     }
 
     static func gemini(
@@ -176,62 +297,7 @@ enum AccountRecordBuilder {
         isActive: Bool,
         quota: AccountRecordQuota?
     ) -> AccountRecord {
-        let subtitle = [account.email, account.project]
-            .compactMap { value -> String? in
-                guard let value, !value.isEmpty else { return nil }
-                return value
-            }
-            .joined(separator: " • ")
-
-        let bodyFields: [AccountRecordField]
-        if quota == nil {
-            bodyFields = [
-                .init(
-                    id: "method",
-                    kind: .kv,
-                    label: NSLocalizedString("accounts.provider.method", value: "Method", comment: "Account method"),
-                    value: account.method.rawValue,
-                    auxiliary: nil,
-                    tone: nil
-                ),
-                .init(
-                    id: "project",
-                    kind: .kv,
-                    label: NSLocalizedString("accounts.provider.project", value: "Project", comment: "Account project"),
-                    value: account.project ?? NSLocalizedString("generic.unknown", value: "Unknown", comment: "Unknown"),
-                    auxiliary: account.location,
-                    tone: nil
-                )
-            ]
-        } else {
-            bodyFields = []
-        }
-
-        return AccountRecord(
-            id: .init(provider: account.providerID, rawValue: account.id.uuidString.lowercased()),
-            providerName: providerName,
-            source: .local,
-            identity: .init(
-                displayName: account.name,
-                subtitle: subtitle.isEmpty ? nil : subtitle,
-                meta: (account.lastLoginAt ?? account.createdAt).formatted(date: .abbreviated, time: .shortened)
-            ),
-            activationState: isActive ? .active : .inactive,
-            healthState: quota?.errorMessage == nil ? .healthy : .failed,
-            bodyFields: bodyFields,
-            detailFields: [
-                .init(
-                    id: "runtime",
-                    kind: .code,
-                    label: NSLocalizedString("accounts.provider.runtime_home", value: "Runtime Home", comment: "Runtime home"),
-                    value: account.runtimeHomeRelativePath,
-                    auxiliary: nil,
-                    tone: nil
-                )
-            ],
-            quota: quota,
-            accessibilityLabel: "\(providerName) \(account.name)"
-        )
+        providerAccount(providerName: providerName, account: account, isActive: isActive, quota: quota)
     }
 
     static func codexAccounts(
@@ -426,28 +492,6 @@ enum AccountRecordBuilder {
             quota: nil,
             accessibilityLabel: "\(providerName) empty"
         )
-    }
-
-    private static func claudeSource(_ source: ClaudeAccountSource) -> AccountRecordSource {
-        switch source {
-        case .manual:
-            return .local
-        case .migrated:
-            return .migrated
-        case .ccSwitch:
-            return .ccSwitch
-        }
-    }
-
-    private static func claudeHealth(_ validationStatus: Bool?) -> AccountHealthState {
-        switch validationStatus {
-        case .some(true):
-            return .healthy
-        case .some(false):
-            return .failed
-        case .none:
-            return .warning
-        }
     }
 
     private static func codexActivationState(from style: AccountCardSelectionStyle) -> AccountActivationState {
