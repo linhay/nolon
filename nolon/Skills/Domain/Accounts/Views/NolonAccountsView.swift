@@ -8,6 +8,7 @@ import NolonCoreCLIKit
 import STFilePath
 import NolonResourceKit
 import Shimmer
+import NolonUI
 
 struct NolonAccountsView: View, DebugPageLocatable {
     let settings: ProviderSettings
@@ -413,7 +414,7 @@ private struct AccountSectionHeader: View {
     private func providerHeader(_ provider: Provider) -> some View {
         HStack(spacing: 10) {
             if let template = providerTemplate(for: provider) {
-                ProviderLogoView(
+                NolonUI.ProviderLogoView(
                     name: provider.name,
                     logoName: template.logoFile,
                     iconSize: 16

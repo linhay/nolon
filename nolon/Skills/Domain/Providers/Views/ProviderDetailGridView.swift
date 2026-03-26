@@ -3,6 +3,7 @@ import ProviderCatalog
 import Observation
 import STFilePath
 import NolonResourceKit
+import NolonUI
 
 /// Detail 区域 - Grid 布局显示 Skills 或 Workflows
 struct ProviderDetailGridView: View, DebugPageLocatable {
@@ -602,28 +603,11 @@ struct ProviderDetailGridView: View, DebugPageLocatable {
 
     private var codexLinkedHint: some View {
         Group {
-            guard isCodexXcodeProvider else { return AnyView(EmptyView()) }
-            guard let selectedTab else { return AnyView(EmptyView()) }
-            let folder: CodexLinkFolder?
-            switch selectedTab {
-            case .skills:
-                folder = .skills
-            case .workflows:
-                folder = .prompts
-            case .rules:
-                folder = .rules
-            case .agents:
-                folder = nil
-            default:
-                folder = nil
-            }
-            guard let folder,
-                  let targetURL = linkedTargetURL(for: folder),
-                  isTargetLinked(to: codexSourceURL(for: folder), targetURL: targetURL) else {
-                return AnyView(EmptyView())
-            }
-
-            return AnyView(
+            if isCodexXcodeProvider,
+               let selectedTab,
+               let folder = codexLinkFolder(for: selectedTab),
+               let targetURL = linkedTargetURL(for: folder),
+               isTargetLinked(to: codexSourceURL(for: folder), targetURL: targetURL) {
                 HStack(alignment: .center, spacing: 12) {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(NSLocalizedString(
@@ -690,7 +674,20 @@ struct ProviderDetailGridView: View, DebugPageLocatable {
                     cornerRadius: DesignSystem.Metrics.cornerRadiusM,
                     borderColor: DesignSystem.Colors.Component.border.opacity(0.35)
                 )
-            )
+            }
+        }
+    }
+
+    private func codexLinkFolder(for tab: ProviderContentTabType) -> CodexLinkFolder? {
+        switch tab {
+        case .skills:
+            return .skills
+        case .workflows:
+            return .prompts
+        case .rules:
+            return .rules
+        default:
+            return nil
         }
     }
 

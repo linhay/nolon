@@ -1,5 +1,6 @@
 import SwiftUI
 import ProviderCatalog
+import NolonUI
 
 /// 引导页 - 完成页面
 struct OnboardingCompletionView: View {
@@ -51,7 +52,7 @@ struct OnboardingCompletionView: View {
                 
                 HStack(spacing: -8) {
                     ForEach(selectedProviders.prefix(8)) { template in
-                        ProviderLogoView(
+                        NolonUI.ProviderLogoView(
                             name: template.displayName,
                             logoName: template.logoFile,
                             iconSize: 24

@@ -1,10 +1,10 @@
 import SwiftUI
 import NolonUI
 
-struct UISheetHeaderView: View {
+struct UISheetHeaderView<Trailing: View>: View {
     private enum TrailingContent {
         case close(isDisabled: Bool, onClose: () -> Void)
-        case custom(() -> AnyView)
+        case custom(Trailing)
     }
 
     private let title: String
@@ -16,7 +16,7 @@ struct UISheetHeaderView: View {
         subtitle: String? = nil,
         isCloseDisabled: Bool = false,
         onClose: @escaping () -> Void
-    ) {
+    ) where Trailing == EmptyView {
         self.title = title
         self.subtitle = subtitle
         self.trailingContent = .close(isDisabled: isCloseDisabled, onClose: onClose)
@@ -25,11 +25,11 @@ struct UISheetHeaderView: View {
     init(
         title: String,
         subtitle: String? = nil,
-        @ViewBuilder trailing: @escaping () -> some View
+        @ViewBuilder trailing: @escaping () -> Trailing
     ) {
         self.title = title
         self.subtitle = subtitle
-        self.trailingContent = .custom { AnyView(trailing()) }
+        self.trailingContent = .custom(trailing())
     }
 
     var body: some View {
@@ -43,7 +43,7 @@ struct UISheetHeaderView: View {
             )
         case let .custom(trailing):
             NolonUI.SheetHeaderView(title: title, subtitle: subtitle) {
-                trailing()
+                trailing
             }
         }
     }

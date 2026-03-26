@@ -32,7 +32,7 @@ struct McpServerCard: View {
             onEdit: onEdit,
             onDelete: onDelete
         ) {
-            ProviderLogoView(
+            NolonUI.ProviderLogoView(
                 name: mcp.name,
                 logoName: mcpLogoName,
                 highlightQuery: searchText,

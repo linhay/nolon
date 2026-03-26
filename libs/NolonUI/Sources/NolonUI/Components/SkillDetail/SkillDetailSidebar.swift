@@ -1,7 +1,6 @@
 import SwiftUI
 import ProviderCatalog
 import NolonResourceKit
-import NolonUI
 
 struct SkillDetailSidebar: View {
     @Bindable var viewModel: SkillDetailViewModel
@@ -9,7 +8,7 @@ struct SkillDetailSidebar: View {
     let currentProvider: Provider?
     
     var body: some View {
-        NolonUI.SkillDetailSidebarContainer {
+        SkillDetailSidebarContainer {
             ScrollView {
                 VStack(spacing: 32) {
                     SkillIdentityModule(

@@ -14,7 +14,7 @@ struct SkillIdentityModule: View {
                         LinearGradient(
                             colors: [
                                 DesignSystem.Colors.primary,
-                                Color(hex: 0x0056b3)
+                                DesignSystem.Colors.Status.info
                             ],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing

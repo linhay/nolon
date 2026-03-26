@@ -1,16 +1,15 @@
 import SwiftUI
 import ProviderCatalog
 import NolonResourceKit
-import NolonUI
 
-struct SkillDetailView: View, DebugPageLocatable {
+public struct SkillDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var viewModel: SkillDetailViewModel
     private let providers: [Provider]
     private let currentProvider: Provider?
     private let onCloseAction: (() -> Void)?
 
-    init(
+    public init(
         skill: Skill,
         provider: Provider?,
         settings: ProviderSettings,
@@ -22,7 +21,7 @@ struct SkillDetailView: View, DebugPageLocatable {
         self._viewModel = State(initialValue: SkillDetailViewModel(skill: skill, settings: settings))
     }
 
-    init(
+    public init(
         remoteSkill: RemoteSkill,
         providers: [Provider],
         targetProvider: Provider? = nil,
@@ -42,15 +41,8 @@ struct SkillDetailView: View, DebugPageLocatable {
         )
     }
 
-    var debugPageMarkerItems: [PageMarkerItem] {
-        [
-            PageMarkerItem(title: "Skill Detail"),
-            PageMarkerItem(title: viewModel.title)
-        ]
-    }
-    
-    var body: some View {
-        NolonUI.SkillDetailScaffold(onClose: {
+    public var body: some View {
+        SkillDetailScaffold(onClose: {
             Self.handleClose(onClose: onCloseAction, dismiss: dismiss.callAsFunction)
         }) {
                 SkillDetailSidebar(
@@ -64,13 +56,9 @@ struct SkillDetailView: View, DebugPageLocatable {
         .task {
             await viewModel.loadData(checkProviders: providers, currentProvider: currentProvider)
         }
-        .debugPageMarkerContextMenu(debugPageMarkerItems, withDivider: false) {
-            EmptyView()
-        }
-        .debugPageLocator(debugPageMarkerItems)
     }
 
-    static func handleClose(onClose: (() -> Void)?, dismiss: () -> Void) {
+    public static func handleClose(onClose: (() -> Void)?, dismiss: () -> Void) {
         if let onClose {
             onClose()
             return

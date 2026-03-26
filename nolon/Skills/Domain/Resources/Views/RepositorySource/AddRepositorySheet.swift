@@ -1,6 +1,7 @@
 import SwiftUI
 import UniformTypeIdentifiers
 import NolonResourceKit
+import NolonUI
 
 struct AddRepositorySheet: View {
     @Binding var isPresented: Bool
@@ -133,7 +134,7 @@ struct AddRepositorySheet: View {
         ) { isSelected in
             HStack(spacing: 8) {
                 if let logoName = template.logoName {
-                    ProviderLogoView(name: template.displayName, logoName: logoName, iconSize: 16)
+                    NolonUI.ProviderLogoView(name: template.displayName, logoName: logoName, iconSize: 16)
                 } else {
                     Image(systemName: template.iconName)
                         .font(.system(size: 14))
@@ -277,7 +278,7 @@ struct AddRepositorySheet: View {
                         if !viewModel.newGitURL.isEmpty {
                             let provider = RemoteRepository.detectProvider(from: viewModel.newGitURL) ?? .github
                             if let logoName = provider.logoName {
-                                ProviderLogoView(name: provider.displayName, logoName: logoName, iconSize: 18)
+                                NolonUI.ProviderLogoView(name: provider.displayName, logoName: logoName, iconSize: 18)
                             }
                         }
                     }

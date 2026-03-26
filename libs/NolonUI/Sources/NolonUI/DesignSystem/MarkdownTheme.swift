@@ -1,8 +1,10 @@
 import SwiftUI
 import MarkdownUI
 
-extension Theme {
-    static let nolon = Theme()
+@MainActor
+public extension Theme {
+    static var nolon: Theme {
+        Theme()
         .text {
             ForegroundColor(DesignSystem.Colors.Text.primary)
             FontSize(14)
@@ -72,4 +74,5 @@ extension Theme {
             ForegroundColor(DesignSystem.Colors.primary)
             UnderlineStyle(.single)
         }
+    }
 }

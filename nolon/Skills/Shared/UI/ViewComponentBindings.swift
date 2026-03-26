@@ -1,4 +1,5 @@
 import SwiftUI
+import NolonUI
 
 protocol ViewComponentBindable: View {
     associatedtype ComponentViewModel
@@ -108,7 +109,7 @@ extension ProviderCodexBinaryView: ViewComponentBindable {
     typealias ComponentViewModel = ProviderCodexBinaryViewModel
 }
 
-extension ProviderLogoView: ViewComponentBindable {
+extension NolonUI.ProviderLogoView: ViewComponentBindable {
     typealias ComponentViewModel = ProviderLogoViewModel
 }
 
@@ -220,52 +221,20 @@ extension SheetDivider: ViewComponentBindable {
     typealias ComponentViewModel = SheetDividerViewModel
 }
 
-extension SkillAboutSection: ViewComponentBindable {
-    typealias ComponentViewModel = SkillAboutSectionViewModel
-}
-
 extension SkillCardView: ViewComponentBindable {
     typealias ComponentViewModel = SkillCardViewModel
-}
-
-extension SkillContentToolbar: ViewComponentBindable {
-    typealias ComponentViewModel = SkillContentToolbarViewModel
 }
 
 extension SkillDetailContentView: ViewComponentBindable {
     typealias ComponentViewModel = SkillDetailContentViewModel
 }
 
-extension SkillDetailSidebar: ViewComponentBindable {
-    typealias ComponentViewModel = SkillDetailSidebarViewModel
-}
-
 extension SkillDetailWindowRootView: ViewComponentBindable {
     typealias ComponentViewModel = SkillDetailWindowRootViewModel
 }
 
-extension SkillEmptyStateView: ViewComponentBindable {
-    typealias ComponentViewModel = SkillEmptyStateViewModel
-}
-
-extension SkillFileContentView: ViewComponentBindable {
-    typealias ComponentViewModel = SkillFileContentViewModel
-}
-
-extension SkillFileNavigator: ViewComponentBindable {
-    typealias ComponentViewModel = SkillFileNavigatorViewModel
-}
-
-extension SkillIdentityModule: ViewComponentBindable {
-    typealias ComponentViewModel = SkillIdentityModuleViewModel
-}
-
 extension SkillInstallSheet: ViewComponentBindable {
     typealias ComponentViewModel = SkillInstallSheetViewModel
-}
-
-extension SkillInstallationSection: ViewComponentBindable {
-    typealias ComponentViewModel = SkillInstallationSectionViewModel
 }
 
 extension SkillInstalledBadge: ViewComponentBindable {
@@ -276,24 +245,12 @@ extension SkillListView: ViewComponentBindable {
     typealias ComponentViewModel = SkillListViewModel
 }
 
-extension SkillMetadataBoard: ViewComponentBindable {
-    typealias ComponentViewModel = SkillMetadataBoardViewModel
-}
-
 extension SkillOrphanedBadge: ViewComponentBindable {
     typealias ComponentViewModel = SkillOrphanedBadgeViewModel
 }
 
 extension SkillRow: ViewComponentBindable {
     typealias ComponentViewModel = SkillRowViewModel
-}
-
-extension SkillSyncSection: ViewComponentBindable {
-    typealias ComponentViewModel = SkillSyncSectionViewModel
-}
-
-extension SkillUsageSection: ViewComponentBindable {
-    typealias ComponentViewModel = SkillUsageSectionViewModel
 }
 
 extension SkillVersionBadge: ViewComponentBindable {
@@ -402,10 +359,6 @@ extension RemoteRepositorySidebarView: ViewComponentBindable {
 
 extension NolonAccountsView: ViewComponentBindable {
     typealias ComponentViewModel = NolonAccountsViewModel
-}
-
-extension SkillDetailContent: ViewComponentBindable {
-    typealias ComponentViewModel = SkillDetailContentViewModel
 }
 
 extension SkillDetailView: ViewComponentBindable {

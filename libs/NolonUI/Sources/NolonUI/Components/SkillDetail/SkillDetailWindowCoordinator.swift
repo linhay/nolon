@@ -5,33 +5,51 @@ import Observation
 
 @MainActor
 @Observable
-final class SkillDetailWindowCoordinator {
-    static let shared = SkillDetailWindowCoordinator()
-    static let windowID = "skill-detail"
+public final class SkillDetailWindowCoordinator {
+    public static let shared = SkillDetailWindowCoordinator()
+    public static let windowID = "skill-detail"
 
-    enum Payload {
+    public enum Payload {
         case local(LocalPayload)
         case remote(RemotePayload)
     }
 
-    struct LocalPayload {
-        let skill: Skill
-        let provider: Provider?
-        let settings: ProviderSettings
+    public struct LocalPayload {
+        public let skill: Skill
+        public let provider: Provider?
+        public let settings: ProviderSettings
+
+        public init(skill: Skill, provider: Provider?, settings: ProviderSettings) {
+            self.skill = skill
+            self.provider = provider
+            self.settings = settings
+        }
     }
 
-    struct RemotePayload {
-        let skill: RemoteSkill
-        let providers: [Provider]
-        let targetProvider: Provider?
-        let onInstall: (Provider) -> Void
+    public struct RemotePayload {
+        public let skill: RemoteSkill
+        public let providers: [Provider]
+        public let targetProvider: Provider?
+        public let onInstall: (Provider) -> Void
+
+        public init(
+            skill: RemoteSkill,
+            providers: [Provider],
+            targetProvider: Provider?,
+            onInstall: @escaping (Provider) -> Void
+        ) {
+            self.skill = skill
+            self.providers = providers
+            self.targetProvider = targetProvider
+            self.onInstall = onInstall
+        }
     }
 
-    var payload: Payload?
+    public var payload: Payload?
 
     private init() {}
 
-    func presentLocal(skill: Skill, provider: Provider?, settings: ProviderSettings) {
+    public func presentLocal(skill: Skill, provider: Provider?, settings: ProviderSettings) {
         payload = .local(
             .init(
                 skill: skill,
@@ -41,7 +59,7 @@ final class SkillDetailWindowCoordinator {
         )
     }
 
-    func presentRemote(
+    public func presentRemote(
         skill: RemoteSkill,
         providers: [Provider],
         targetProvider: Provider?,
@@ -58,12 +76,14 @@ final class SkillDetailWindowCoordinator {
     }
 }
 
-struct SkillDetailWindowRootView: View {
+public struct SkillDetailWindowRootView: View {
     @State private var coordinator = SkillDetailWindowCoordinator.shared
     @Environment(\.dismiss) private var dismiss
     @Environment(\.dismissWindow) private var dismissWindow
 
-    var body: some View {
+    public init() {}
+
+    public var body: some View {
         Group {
             switch coordinator.payload {
             case .local(let payload):

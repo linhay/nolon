@@ -4,6 +4,7 @@ import Observation
 import UniformTypeIdentifiers
 import OSLog
 import NolonResourceKit
+import NolonUI
 
 @Observable
 final class AddProviderViewModel {
@@ -182,7 +183,7 @@ struct AddProviderSheet: View {
                                     Label {
                                         Text(template.displayName)
                                     } icon: {
-                                        ProviderLogoView(name: template.displayName, logoName: template.logoFile, iconSize: 16)
+                                        NolonUI.ProviderLogoView(name: template.displayName, logoName: template.logoFile, iconSize: 16)
                                     }
                                     .tag(template)
                                 }

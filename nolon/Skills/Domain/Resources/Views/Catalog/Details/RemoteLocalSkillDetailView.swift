@@ -1,6 +1,7 @@
 import SwiftUI
 import NolonResourceKit
 import ProviderCatalog
+import NolonUI
 
 struct RemoteLocalSkillDetailView: View {
     let skill: RemoteSkill

@@ -1,6 +1,7 @@
 import SwiftUI
 import STFilePath
 import NolonResourceKit
+import NolonUI
 
 /// Left column 1: Repository sidebar with list and add button
 struct RemoteRepositorySidebarView: View, DebugPageLocatable {
@@ -182,18 +183,17 @@ struct RemoteRepositorySidebarView: View, DebugPageLocatable {
     }
 
     private func toggleSection(_ section: RepositorySection) {
-        if collapsedSectionIDs.contains(section.id) {
-            collapsedSectionIDs.remove(section.id)
-        } else {
-            collapsedSectionIDs.insert(section.id)
-        }
+        collapsedSectionIDs = GenericSelectionStateResolver.resolveMultiSelection(
+            current: collapsedSectionIDs,
+            tapped: section.id
+        )
     }
 
     private func repositoryRow(_ repo: RemoteRepository) -> some View {
         HStack(alignment: .top, spacing: 12) {
             HStack(alignment: .top, spacing: 8) {
                 if let logoName = repo.logoName ?? repo.provider.logoName {
-                    ProviderLogoView(name: repo.name, logoName: logoName, iconSize: 16)
+                    NolonUI.ProviderLogoView(name: repo.name, logoName: logoName, iconSize: 16)
                 } else {
                     Image(systemName: repo.iconName)
                         .dsSecondaryText(font: .caption)

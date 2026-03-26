@@ -1,8 +1,8 @@
 import SwiftUI
 import ProviderCatalog
 
-struct ProviderLogoView: View {
-    enum Style {
+public struct ProviderLogoView: View {
+    public enum Style {
         case iconOnly
         case vertical
         case horizontal
@@ -14,7 +14,7 @@ struct ProviderLogoView: View {
     var iconSize: CGFloat? = nil
     var highlightQuery: String = ""
     
-    init(provider: Provider, style: Style = .iconOnly, iconSize: CGFloat? = nil) {
+    public init(provider: Provider, style: Style = .iconOnly, iconSize: CGFloat? = nil) {
         self.name = provider.displayName
         if let id = provider.templateId,
            let template = ProviderTemplate(rawValue: id) {
@@ -27,7 +27,7 @@ struct ProviderLogoView: View {
         self.highlightQuery = ""
     }
     
-    init(name: String, logoName: String?, highlightQuery: String = "", style: Style = .iconOnly, iconSize: CGFloat? = nil) {
+    public init(name: String, logoName: String?, highlightQuery: String = "", style: Style = .iconOnly, iconSize: CGFloat? = nil) {
         self.name = name
         self.logoName = logoName
         self.highlightQuery = highlightQuery
@@ -35,7 +35,7 @@ struct ProviderLogoView: View {
         self.iconSize = iconSize
     }
     
-    var body: some View {
+    public var body: some View {
         switch style {
         case .iconOnly:
             iconView

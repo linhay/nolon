@@ -13,6 +13,7 @@ import OSLog
 import ProviderCatalog
 import ProviderUsage
 import NolonResourceKit
+import NolonUI
 
 // This view model class publishes when new updates can be checked by the user
 @Observable

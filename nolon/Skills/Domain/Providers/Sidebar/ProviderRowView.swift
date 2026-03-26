@@ -1,6 +1,7 @@
 import SwiftUI
 import AppKit
 import ProviderCatalog
+import NolonUI
 
 /// Row view for a provider in the sidebar
 struct ProviderRowView: View {
@@ -24,7 +25,7 @@ struct ProviderRowView: View {
                     .truncationMode(.middle)
             }
         } icon: {
-            ProviderLogoView(provider: provider, style: .iconOnly, iconSize: 18)
+            NolonUI.ProviderLogoView(provider: provider, style: .iconOnly, iconSize: 18)
         }
         .padding(.vertical, 2)
         .contentShape(Rectangle())

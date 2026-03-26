@@ -1,6 +1,7 @@
 import SwiftUI
 import ProviderCatalog
 import NolonResourceKit
+import NolonUI
 
 /// 引导页 - Provider 选择页面
 struct OnboardingProviderSelectionView: View {
@@ -78,7 +79,7 @@ private struct ProviderSelectionCard: View {
     var body: some View {
         VStack(spacing: 12) {
             // Logo Container
-            ProviderLogoView(
+            NolonUI.ProviderLogoView(
                 name: template.displayName,
                 logoName: template.logoFile,
                 iconSize: 32
