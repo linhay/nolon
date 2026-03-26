@@ -49,12 +49,12 @@ extension ProviderUsageView {
         let cardView = codexCompactSnapshotView(model: model)
 
         if let accountId = model.accountID, accountsViewModel.codex.isMultiSelectionEnabled {
-            let selectionBinding = Binding<Set<UUID>>(
-                get: { accountsViewModel.codex.selectedAccountIDs },
-                set: { accountsViewModel.codex.selectedAccountIDs = $0 }
+            let selectionBinding = Binding<Set<IDBox<UUID>>>(
+                get: { Set(accountsViewModel.codex.selectedAccountIDs.map { IDBox($0) }) },
+                set: { accountsViewModel.codex.selectedAccountIDs = Set($0.map(\.rawValue)) }
             )
             GenericSelectionControl(
-                value: accountId,
+                value: IDBox(accountId),
                 selections: selectionBinding,
                 onToggle: {
                     if hasActiveGatewayCardSelection {

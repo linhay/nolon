@@ -403,12 +403,12 @@ extension ProviderUsageView {
                             ForEach(section.items, id: \.id) { account in
                                 let title = gatewayCandidateTitle(for: account)
                                 let subtitle = gatewayCandidateSubtitle(for: account, title: title)
-                                let selectionBinding = Binding<Set<UUID>>(
-                                    get: { gatewayAccountPickerSelection },
-                                    set: { gatewayAccountPickerSelection = $0 }
+                                let selectionBinding = Binding<Set<IDBox<UUID>>>(
+                                    get: { Set(gatewayAccountPickerSelection.map { IDBox($0) }) },
+                                    set: { gatewayAccountPickerSelection = Set($0.map(\.rawValue)) }
                                 )
                                 GenericSelectionControl(
-                                    value: account.id,
+                                    value: IDBox(account.id),
                                     selections: selectionBinding
                                 ) { isSelected in
                                     HStack(spacing: 10) {
