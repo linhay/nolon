@@ -1,23 +1,23 @@
 import SwiftUI
-import NolonResourceKit
 import MarkdownUI
+import NolonUIFoundation
 
 struct SkillDetailContent: View {
-    @Bindable var viewModel: SkillDetailViewModel
-    
+    let viewModel: SkillDetailViewViewModel
+
     var body: some View {
         Group {
-            switch viewModel.contentMode {
+            switch viewModel.viewData.contentMode {
             case .fileBrowser:
-                if let file = viewModel.selectedFile {
+                if let file = viewModel.viewData.files.first(where: { $0.id == viewModel.viewData.selectedFileID }) {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 0) {
                             SkillFileContentView(
                                 file: file,
-                                handleMarkdownLink: viewModel.handleMarkdownLink(_:)
+                                handleMarkdownLink: viewModel.openMarkdownLink
                             )
-                                .padding(.horizontal, 64)
-                                .padding(.vertical, 48)
+                            .padding(.horizontal, 64)
+                            .padding(.vertical, 48)
                         }
                     }
                 } else {
@@ -26,7 +26,7 @@ struct SkillDetailContent: View {
             case .remoteOverview:
                 ScrollView {
                     VStack(alignment: .leading, spacing: 0) {
-                        SkillRemoteOverviewView(viewModel: viewModel)
+                        SkillRemoteOverviewView(viewData: viewModel.viewData)
                             .padding(.horizontal, 64)
                             .padding(.vertical, 48)
                     }
@@ -34,26 +34,22 @@ struct SkillDetailContent: View {
             }
         }
         .safeAreaInset(edge: .top, spacing: 0) {
-            SkillContentToolbar(fileName: viewModel.contentTitle)
+            SkillContentToolbar(fileName: viewModel.viewData.contentTitle)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(DesignSystem.Colors.Background.surface)
     }
 }
 
-/// Simplified file content renderer
 struct SkillFileContentView: View {
-    let file: SkillFile
+    let file: SkillDetailFile
     let handleMarkdownLink: (URL) -> OpenURLAction.Result
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             switch file.type {
             case .markdown:
-                Markdown(
-                    FrontmatterParser.stripFrontmatter(from: file.content),
-                    baseURL: file.url.deletingLastPathComponent()
-                )
+                Markdown(file.content, baseURL: file.baseURL)
                     .markdownTheme(.nolon)
                     .markdownSoftBreakMode(.lineBreak)
                     .textSelection(.enabled)
@@ -68,7 +64,7 @@ struct SkillFileContentView: View {
                     .background(Color.black.opacity(0.3))
                     .cornerRadius(12)
                     .textSelection(.enabled)
-            default:
+            case .image, .other:
                 Text("Unsupported file format.")
                     .foregroundStyle(DesignSystem.Colors.Text.tertiary)
             }
@@ -82,7 +78,7 @@ struct SkillEmptyStateView: View {
             Image(systemName: "doc.text.magnifyingglass")
                 .font(.system(size: 48, weight: .light))
                 .foregroundStyle(DesignSystem.Colors.Text.tertiary)
-            
+
             Text("Select a resource to view")
                 .font(.system(size: 16, weight: .medium))
                 .foregroundStyle(DesignSystem.Colors.Text.secondary)
@@ -92,22 +88,22 @@ struct SkillEmptyStateView: View {
 }
 
 private struct SkillRemoteOverviewView: View {
-    @Bindable var viewModel: SkillDetailViewModel
+    let viewData: SkillDetailViewData
 
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
             VStack(alignment: .leading, spacing: 12) {
-                Text(viewModel.title)
+                Text(viewData.title)
                     .font(.system(size: 28, weight: .bold))
                     .foregroundStyle(DesignSystem.Colors.Text.primary)
 
-                Text(viewModel.detailDescription)
+                Text(viewData.detailDescription)
                     .font(.system(size: 15))
                     .foregroundStyle(DesignSystem.Colors.Text.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            if let stats = viewModel.remoteStats,
+            if let stats = viewData.remoteStats,
                stats.stars != nil || stats.downloads != nil {
                 HStack(spacing: 16) {
                     if let stars = stats.stars {
@@ -137,13 +133,13 @@ private struct SkillRemoteOverviewView: View {
                     .font(.system(size: 18, weight: .bold))
                     .foregroundStyle(DesignSystem.Colors.Text.primary)
 
-                if let changelog = viewModel.remoteChangelog,
+                if let changelog = viewData.remoteChangelog,
                    !changelog.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     Markdown(changelog)
                         .markdownTheme(.nolon)
                         .markdownSoftBreakMode(.lineBreak)
                         .textSelection(.enabled)
-                } else if let summary = viewModel.remoteSummary,
+                } else if let summary = viewData.remoteSummary,
                           !summary.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     Text(summary)
                         .font(.system(size: 14))

@@ -1,5 +1,4 @@
 import SwiftUI
-import NolonResourceKit
 
 struct SkillUsageSection: View {
     let scenarios: [String]

@@ -1,10 +1,10 @@
 import SwiftUI
-import ProviderCatalog
-import NolonResourceKit
+import NolonUIFoundation
 
 struct SkillSyncSection: View {
-    @Bindable var viewModel: SkillDetailViewModel
-    let currentProvider: Provider?
+    let isWorkflowLinked: Bool
+    let currentProvider: SkillDetailProviderItem?
+    let onToggleWorkflow: (String) -> Void
     
     var body: some View {
         Group {
@@ -23,8 +23,8 @@ struct SkillSyncSection: View {
                         Spacer()
                         
                         Toggle("", isOn: Binding(
-                            get: { viewModel.isWorkflowLinked },
-                            set: { _ in viewModel.toggleWorkflow(for: provider) }
+                            get: { isWorkflowLinked },
+                            set: { _ in onToggleWorkflow(provider.id) }
                         ))
                         .labelsHidden()
                         .toggleStyle(.switch)

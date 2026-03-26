@@ -1,47 +1,56 @@
 import SwiftUI
-import ProviderCatalog
-import NolonResourceKit
 
 struct SkillDetailSidebar: View {
-    @Bindable var viewModel: SkillDetailViewModel
-    let providers: [Provider]
-    let currentProvider: Provider?
+    let viewModel: SkillDetailViewViewModel
     
     var body: some View {
         SkillDetailSidebarContainer {
             ScrollView {
                 VStack(spacing: 32) {
                     SkillIdentityModule(
-                        title: viewModel.title,
-                        version: viewModel.version,
-                        showsLocalBadge: viewModel.showsLocalBadge
+                        title: viewModel.viewData.title,
+                        version: viewModel.viewData.version,
+                        showsLocalBadge: viewModel.viewData.showsLocalBadge
                     )
                     .padding(.top, 32)
 
-                    SkillInstallationSection(viewModel: viewModel, providers: providers)
+                    SkillInstallationSection(
+                        mode: viewModel.viewData.mode,
+                        providers: viewModel.viewData.providers,
+                        providerInstallationStates: viewModel.viewData.providerInstallationStates,
+                        onInstallProvider: viewModel.installProvider
+                    )
 
-                    if viewModel.showsFileNavigator {
-                        SkillFileNavigator(viewModel: viewModel)
+                    if viewModel.viewData.showsFileNavigator {
+                        SkillFileNavigator(
+                            files: viewModel.viewData.files,
+                            selectedFileID: viewModel.viewData.selectedFileID,
+                            onSelectFile: viewModel.selectFile
+                        )
                     }
 
                     SkillAboutSection(
-                        description: viewModel.detailDescription,
-                        metadataRows: viewModel.aboutMetadataRows
+                        description: viewModel.viewData.detailDescription,
+                        metadataRows: viewModel.viewData.aboutMetadataRows
                     )
 
-                    if viewModel.showsSyncSection {
-                        SkillSyncSection(viewModel: viewModel, currentProvider: currentProvider)
+                    if viewModel.viewData.showsSyncSection {
+                        SkillSyncSection(
+                            isWorkflowLinked: viewModel.viewData.isWorkflowLinked,
+                            currentProvider: viewModel.viewData.providers.first(where: { $0.id == viewModel.viewData.currentProviderID }),
+                            onToggleWorkflow: viewModel.toggleWorkflow
+                        )
                     }
                 }
                 .padding(.bottom, 24)
             }
         } footer: {
-            if viewModel.showsRevealInFinder {
+            if viewModel.viewData.showsRevealInFinder {
                 VStack(spacing: 0) {
                     Divider()
                         .background(DesignSystem.Colors.Component.border.opacity(0.3))
 
-                    Button(action: { viewModel.revealInFinder() }) {
+                    Button(action: viewModel.revealInFinder) {
                         HStack(spacing: 10) {
                             Image(systemName: "folder")
                             Text(NSLocalizedString("action.show_in_finder", comment: "Show in Finder"))

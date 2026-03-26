@@ -1,5 +1,6 @@
 import Observation
 import SwiftUI
+import NolonUIFoundation
 
 // Auto-generated baseline view models for NolonUI components.
 @Observable
@@ -84,6 +85,59 @@ public final class SkillDetailScaffoldViewModel {
 @Observable
 public final class SkillDetailSidebarContainerViewModel {
     public init() {}
+}
+
+@Observable
+public final class SkillDetailViewViewModel {
+    public var viewData: SkillDetailViewData
+    private let onClose: () -> Void
+    private let onSelectFile: (String) -> Void
+    private let onInstallProvider: (String) -> Void
+    private let onToggleWorkflow: (String) -> Void
+    private let onRevealInFinder: () -> Void
+    private let onOpenMarkdownLink: (URL) -> OpenURLAction.Result
+
+    public init(
+        viewData: SkillDetailViewData,
+        onClose: @escaping () -> Void,
+        onSelectFile: @escaping (String) -> Void,
+        onInstallProvider: @escaping (String) -> Void,
+        onToggleWorkflow: @escaping (String) -> Void,
+        onRevealInFinder: @escaping () -> Void,
+        onOpenMarkdownLink: @escaping (URL) -> OpenURLAction.Result
+    ) {
+        self.viewData = viewData
+        self.onClose = onClose
+        self.onSelectFile = onSelectFile
+        self.onInstallProvider = onInstallProvider
+        self.onToggleWorkflow = onToggleWorkflow
+        self.onRevealInFinder = onRevealInFinder
+        self.onOpenMarkdownLink = onOpenMarkdownLink
+    }
+
+    public func close() {
+        onClose()
+    }
+
+    public func selectFile(id: String) {
+        onSelectFile(id)
+    }
+
+    public func installProvider(id: String) {
+        onInstallProvider(id)
+    }
+
+    public func toggleWorkflow(providerID: String) {
+        onToggleWorkflow(providerID)
+    }
+
+    public func revealInFinder() {
+        onRevealInFinder()
+    }
+
+    public func openMarkdownLink(_ url: URL) -> OpenURLAction.Result {
+        onOpenMarkdownLink(url)
+    }
 }
 
 @Observable

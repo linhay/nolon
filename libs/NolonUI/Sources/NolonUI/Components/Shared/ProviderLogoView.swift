@@ -1,5 +1,4 @@
 import SwiftUI
-import ProviderCatalog
 
 public struct ProviderLogoView: View {
     public enum Style {
@@ -13,19 +12,6 @@ public struct ProviderLogoView: View {
     var style: Style = .iconOnly
     var iconSize: CGFloat? = nil
     var highlightQuery: String = ""
-    
-    public init(provider: Provider, style: Style = .iconOnly, iconSize: CGFloat? = nil) {
-        self.name = provider.displayName
-        if let id = provider.templateId,
-           let template = ProviderTemplate(rawValue: id) {
-            self.logoName = template.logoFile
-        } else {
-            self.logoName = nil
-        }
-        self.style = style
-        self.iconSize = iconSize
-        self.highlightQuery = ""
-    }
     
     public init(name: String, logoName: String?, highlightQuery: String = "", style: Style = .iconOnly, iconSize: CGFloat? = nil) {
         self.name = name

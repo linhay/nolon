@@ -1,50 +1,11 @@
 import SwiftUI
 import ProviderCatalog
-import MarkdownUI
 import Observation
 import STFilePath
 import OSLog
 import NolonResourceKit
-
-struct SkillFile: Identifiable, Hashable {
-    var id: String { url.path }
-    let name: String
-    let url: URL
-    let type: SkillFileType
-
-    var content: String {
-        (try? String(contentsOf: url, encoding: .utf8)) ?? ""
-    }
-
-    enum SkillFileType {
-        case markdown
-        case code
-        case image
-        case other
-    }
-}
-
-enum SkillDetailMode: Equatable {
-    case local
-    case remoteInstalled
-    case remoteCatalog
-}
-
-enum SkillDetailContentMode: Equatable {
-    case fileBrowser
-    case remoteOverview
-}
-
-struct SkillDetailRemoteStats: Equatable {
-    let stars: Int?
-    let downloads: Int?
-}
-
-struct SkillDetailMetadataRow: Identifiable, Equatable {
-    let id: String
-    let label: String
-    let value: String
-}
+import NolonUIFoundation
+import NolonUI
 
 @MainActor
 @Observable
@@ -59,8 +20,8 @@ final class SkillDetailViewModel {
     var version: String
     var lastUpdated: Date?
 
-    var files: [SkillFile] = []
-    var selectedFile: SkillFile?
+    var files: [SkillDetailFile] = []
+    var selectedFileID: String?
     var providerInstallationStates: [String: Bool] = [:]
     var isWorkflowLinked: Bool = false
 
@@ -124,7 +85,7 @@ final class SkillDetailViewModel {
     var contentTitle: String {
         switch contentMode {
         case .fileBrowser:
-            return selectedFile?.name ?? "SKILL.md"
+            return files.first(where: { $0.id == selectedFileID })?.name ?? "SKILL.md"
         case .remoteOverview:
             return NSLocalizedString("Overview", comment: "Remote skill overview title")
         }
@@ -163,80 +124,30 @@ final class SkillDetailViewModel {
         remoteSkill?.summary
     }
 
-    var installSectionTitle: String {
-        NSLocalizedString("Installations", comment: "Installations")
-    }
-
-    var summary: String {
-        let baseDescription = localSkill?.description ?? detailDescription
-        let parts = baseDescription.components(separatedBy: ". Use when")
-        return parts.first?.trimmingCharacters(in: .whitespacesAndNewlines) ?? baseDescription
-    }
-
-    var useWhen: [String] {
-        let sourceDescription = localSkill?.description ?? detailDescription
-        guard let range = sourceDescription.range(of: "Use when\\s+", options: [.caseInsensitive, .regularExpression]) else { return [] }
-        let remaining = sourceDescription[range.upperBound...]
-        let useWhenPart = remaining.components(separatedBy: " Covers").first ?? String(remaining)
-        return useWhenPart
-            .replacingOccurrences(of: ".", with: "")
-            .components(separatedBy: ",")
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-    }
-
-    var covers: [String] {
-        let sourceDescription = localSkill?.description ?? detailDescription
-        guard let range = sourceDescription.range(of: "Covers\\s+", options: [.caseInsensitive, .regularExpression]) else {
-            if let tags = metadata["Tags"] {
-                return tags.components(separatedBy: ",").map { $0.trimmingCharacters(in: .whitespaces) }
-            }
-            return []
-        }
-        return sourceDescription[range.upperBound...]
-            .replacingOccurrences(of: ".", with: "")
-            .components(separatedBy: ",")
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-    }
-
-    var metadata: [String: String] {
-        if let skill = localSkill {
-            var dict = [
-                "ID": skill.id,
-                "Version": skill.version,
-                "References": "\(skill.referenceCount)",
-                "Scripts": "\(skill.scriptCount)",
-                "Path": skill.globalPath
-            ]
-
-            if let coversRange = skill.description.range(of: "Covers:?\\s*", options: [.caseInsensitive, .regularExpression]) {
-                let tagsPart = skill.description[coversRange.upperBound...]
-                dict["Tags"] = tagsPart.replacingOccurrences(of: ".", with: "")
-            } else if skill.description.contains("Use when") {
-                let keywords = ["UICollectionView", "Combine", "SwiftUI", "Performance", "Layout"]
-                let found = keywords.filter { skill.description.contains($0) }
-                if !found.isEmpty {
-                    dict["Tags"] = found.joined(separator: ", ")
-                }
-            }
-
-            if skill.content.contains("Swift 6") || skill.description.contains("Swift 6") {
-                dict["Runtime"] = "Swift 6.0"
-            }
-
-            return dict
-        }
-
-        guard let remoteSkill else { return [:] }
-        var dict: [String: String] = [
-            "ID": remoteSkill.slug,
-            "Version": version
-        ]
-        if let rootURL = resolvedRootURL {
-            dict["Path"] = rootURL.path
-        }
-        return dict
+    func makeViewData(providers: [Provider], currentProvider: Provider?) -> SkillDetailViewData {
+        let providerItems = providers.map(Self.providerItem(from:))
+        return SkillDetailViewData(
+            mode: detailMode,
+            contentMode: contentMode,
+            title: title,
+            detailDescription: detailDescription,
+            version: version,
+            contentTitle: contentTitle,
+            showsLocalBadge: showsLocalBadge,
+            showsFileNavigator: showsFileNavigator,
+            showsRevealInFinder: showsRevealInFinder,
+            showsSyncSection: showsSyncSection,
+            isWorkflowLinked: isWorkflowLinked,
+            files: files,
+            selectedFileID: selectedFileID,
+            aboutMetadataRows: aboutMetadataRows,
+            remoteStats: remoteStats,
+            remoteChangelog: remoteChangelog,
+            remoteSummary: remoteSummary,
+            providers: providerItems,
+            currentProviderID: currentProvider?.id,
+            providerInstallationStates: providerInstallationStates
+        )
     }
 
     func loadData(checkProviders: [Provider], currentProvider: Provider?) async {
@@ -250,6 +161,11 @@ final class SkillDetailViewModel {
         if let provider = currentProvider, detailMode == .local {
             checkWorkflowStatus(for: provider)
         }
+    }
+
+    func selectFile(id: String) {
+        guard files.contains(where: { $0.id == id }) else { return }
+        selectedFileID = id
     }
 
     func performInstallationAction(for provider: Provider) async {
@@ -314,14 +230,14 @@ final class SkillDetailViewModel {
     private func loadFiles() {
         guard let rootURL = resolvedRootURL else {
             files = []
-            selectedFile = nil
+            selectedFileID = nil
             return
         }
 
-        var loadedFiles: [SkillFile] = []
+        var loadedFiles: [SkillDetailFile] = []
         let skillMdURL = rootURL.appendingPathComponent("SKILL.md")
         if STFile(skillMdURL).isExists {
-            loadedFiles.append(SkillFile(name: "SKILL.md", url: skillMdURL, type: .markdown))
+            loadedFiles.append(buildFile(name: "SKILL.md", url: skillMdURL, type: .markdown))
         }
 
         func scanSubdir(_ name: String) {
@@ -332,7 +248,13 @@ final class SkillDetailViewModel {
             for file in contents {
                 let url = file.url
                 if url.lastPathComponent.hasPrefix(".") { continue }
-                loadedFiles.append(SkillFile(name: "\(name)/\(url.lastPathComponent)", url: url, type: determineType(url)))
+                loadedFiles.append(
+                    buildFile(
+                        name: "\(name)/\(url.lastPathComponent)",
+                        url: url,
+                        type: determineType(url)
+                    )
+                )
             }
         }
 
@@ -340,8 +262,8 @@ final class SkillDetailViewModel {
         scanSubdir("scripts")
 
         files = loadedFiles
-        if selectedFile == nil || !loadedFiles.contains(selectedFile!) {
-            selectedFile = loadedFiles.first
+        if selectedFileID == nil || !loadedFiles.contains(where: { $0.id == selectedFileID }) {
+            selectedFileID = loadedFiles.first?.id
         }
     }
 
@@ -372,7 +294,17 @@ final class SkillDetailViewModel {
         lastUpdated = STFile(skillMdURL).attributes.modificationDate
     }
 
-    private func determineType(_ url: URL) -> SkillFile.SkillFileType {
+    private func buildFile(name: String, url: URL, type: SkillDetailFileType) -> SkillDetailFile {
+        .init(
+            id: url.path,
+            name: name,
+            type: type,
+            content: (try? String(contentsOf: url, encoding: .utf8)) ?? "",
+            baseURL: url.deletingLastPathComponent()
+        )
+    }
+
+    private func determineType(_ url: URL) -> SkillDetailFileType {
         let ext = url.pathExtension.lowercased()
         switch ext {
         case "md", "markdown": return .markdown
@@ -443,8 +375,8 @@ final class SkillDetailViewModel {
         let standardizedTarget = resolvedURL.standardizedFileURL.path
         guard standardizedTarget.hasPrefix(standardizedRoot) else { return false }
 
-        if let matched = files.first(where: { $0.url.standardizedFileURL == resolvedURL.standardizedFileURL }) {
-            selectedFile = matched
+        if let matched = files.first(where: { URL(fileURLWithPath: $0.id).standardizedFileURL == resolvedURL.standardizedFileURL }) {
+            selectedFileID = matched.id
             return true
         }
 
@@ -461,6 +393,45 @@ final class SkillDetailViewModel {
         }
 
         return rootURL.appendingPathComponent(url.relativeString).removingFragment()
+    }
+
+    private static func providerItem(from provider: Provider) -> SkillDetailProviderItem {
+        let logoName = provider.templateId.flatMap { ProviderTemplate(rawValue: $0)?.logoFile }
+        return .init(
+            id: provider.id,
+            name: provider.displayName,
+            logoName: logoName
+        )
+    }
+
+    func makeNolonUIViewModel(
+        providers: [Provider],
+        currentProvider: Provider?,
+        onClose: @escaping () -> Void
+    ) -> NolonUI.SkillDetailViewViewModel {
+        NolonUI.SkillDetailViewViewModel(
+            viewData: makeViewData(providers: providers, currentProvider: currentProvider),
+            onClose: onClose,
+            onSelectFile: { [weak self] fileID in
+                self?.selectFile(id: fileID)
+            },
+            onInstallProvider: { [weak self] providerID in
+                guard let self, let provider = providers.first(where: { $0.id == providerID }) else { return }
+                Task {
+                    await self.performInstallationAction(for: provider)
+                }
+            },
+            onToggleWorkflow: { [weak self] providerID in
+                guard let self, let provider = providers.first(where: { $0.id == providerID }) else { return }
+                self.toggleWorkflow(for: provider)
+            },
+            onRevealInFinder: { [weak self] in
+                self?.revealInFinder()
+            },
+            onOpenMarkdownLink: { [weak self] url in
+                self?.handleMarkdownLink(url) ?? .systemAction(url)
+            }
+        )
     }
 }
 

@@ -1,5 +1,4 @@
 import SwiftUI
-import NolonResourceKit
 
 struct SkillContentToolbar: View {
     let fileName: String

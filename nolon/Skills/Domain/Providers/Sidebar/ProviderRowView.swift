@@ -25,7 +25,12 @@ struct ProviderRowView: View {
                     .truncationMode(.middle)
             }
         } icon: {
-            NolonUI.ProviderLogoView(provider: provider, style: .iconOnly, iconSize: 18)
+            NolonUI.ProviderLogoView(
+                name: provider.displayName,
+                logoName: ProviderTemplate(rawValue: provider.templateId ?? "")?.logoFile,
+                style: .iconOnly,
+                iconSize: 18
+            )
         }
         .padding(.vertical, 2)
         .contentShape(Rectangle())

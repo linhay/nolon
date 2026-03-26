@@ -130,7 +130,7 @@ private struct MCPInstallSheet: View {
     
     var body: some View {
         VStack(spacing: 0) {
-            UISheetHeaderView(
+            NolonUI.SheetHeaderView(
                 title: NSLocalizedString("Install", comment: "Install"),
                 subtitle: mcpName
             ) {

@@ -1,5 +1,5 @@
 import SwiftUI
-import NolonResourceKit
+import NolonUIFoundation
 
 struct SkillAboutSection: View {
     let description: String

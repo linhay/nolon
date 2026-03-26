@@ -1,5 +1,6 @@
 import SwiftUI
 import NolonResourceKit
+import NolonUI
 
 /// Left column 3: Skill detail content view
 /// Displays the SkillParser structure content for selected skill
@@ -16,7 +17,7 @@ public struct SkillDetailContentView: View {
     public var body: some View {
         Group {
             if let skill = skill {
-                SkillDetailView(skill: skill, provider: nil, settings: settings)
+                LocalSkillDetailContentScene(skill: skill, settings: settings)
             } else {
                 ContentUnavailableView(
                     NSLocalizedString("detail.no_selection", comment: "No Skill Selected"),
@@ -28,6 +29,30 @@ public struct SkillDetailContentView: View {
                         .dsSecondaryText(font: .body)
                 )
             }
+        }
+    }
+}
+
+@MainActor
+private struct LocalSkillDetailContentScene: View {
+    @State private var viewModel: SkillDetailViewModel
+    private let providers: [Provider]
+
+    init(skill: Skill, settings: ProviderSettings) {
+        self.providers = settings.providers
+        self._viewModel = State(initialValue: SkillDetailViewModel(skill: skill, settings: settings))
+    }
+
+    var body: some View {
+        NolonUI.SkillDetailView(
+            viewModel: viewModel.makeNolonUIViewModel(
+                providers: providers,
+                currentProvider: nil,
+                onClose: {}
+            )
+        )
+        .task {
+            await viewModel.loadData(checkProviders: providers, currentProvider: nil)
         }
     }
 }

@@ -1,10 +1,11 @@
 import SwiftUI
-import ProviderCatalog
-import NolonResourceKit
+import NolonUIFoundation
 
 struct SkillInstallationSection: View {
-    @Bindable var viewModel: SkillDetailViewModel
-    let providers: [Provider]
+    let mode: SkillDetailMode
+    let providers: [SkillDetailProviderItem]
+    let providerInstallationStates: [String: Bool]
+    let onInstallProvider: (String) -> Void
     
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -16,14 +17,14 @@ struct SkillInstallationSection: View {
             
             VStack(spacing: 4) {
                 ForEach(providers) { provider in
-                    let isInstalled = viewModel.providerInstallationStates[provider.id] ?? false
+                    let isInstalled = providerInstallationStates[provider.id] ?? false
 
                     ProviderRow(
                         provider: provider,
                         isInstalled: isInstalled,
-                        allowsAction: viewModel.detailMode == .local || !isInstalled
+                        allowsAction: mode == .local || !isInstalled
                     ) {
-                        Task { await viewModel.performInstallationAction(for: provider) }
+                        onInstallProvider(provider.id)
                     }
                 }
             }
@@ -33,7 +34,7 @@ struct SkillInstallationSection: View {
 }
 
 private struct ProviderRow: View {
-    let provider: Provider
+    let provider: SkillDetailProviderItem
     let isInstalled: Bool
     let allowsAction: Bool
     let action: () -> Void
@@ -43,7 +44,7 @@ private struct ProviderRow: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 12) {
-                ProviderLogoView(provider: provider, style: .iconOnly, iconSize: 24)
+                ProviderLogoView(name: provider.name, logoName: provider.logoName, style: .iconOnly, iconSize: 24)
                     .grayscale(isInstalled ? 0 : 1.0)
                     .opacity(isInstalled ? 1.0 : 0.5)
                     .cornerRadius(5)

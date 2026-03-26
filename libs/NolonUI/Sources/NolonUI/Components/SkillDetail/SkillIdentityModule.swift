@@ -1,5 +1,4 @@
 import SwiftUI
-import NolonResourceKit
 
 struct SkillIdentityModule: View {
     let title: String

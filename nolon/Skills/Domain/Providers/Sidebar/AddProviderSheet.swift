@@ -155,7 +155,7 @@ struct AddProviderSheet: View {
     
     var body: some View {
         VStack(spacing: 0) {
-            UISheetHeaderView(title: NSLocalizedString("Add Provider", comment: "Add Provider")) {
+            NolonUI.SheetHeaderView(title: NSLocalizedString("Add Provider", comment: "Add Provider")) {
                 dismiss()
             }
 

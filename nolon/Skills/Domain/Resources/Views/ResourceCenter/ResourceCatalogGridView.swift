@@ -454,7 +454,7 @@ struct ResourceCatalogGridView: View {
                 )
             }
             if let onClose {
-                UIResourceCenterCloseButton(action: onClose)
+                NolonUI.ResourceCenterCloseButton(action: onClose)
             }
         }
         .padding(.horizontal)

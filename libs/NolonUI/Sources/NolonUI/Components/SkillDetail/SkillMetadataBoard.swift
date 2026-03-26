@@ -1,5 +1,4 @@
 import SwiftUI
-import NolonResourceKit
 
 struct SkillMetadataBoard: View {
     let metadata: [String: String]

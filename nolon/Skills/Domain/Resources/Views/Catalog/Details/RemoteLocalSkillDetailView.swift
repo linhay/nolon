@@ -4,17 +4,30 @@ import ProviderCatalog
 import NolonUI
 
 struct RemoteLocalSkillDetailView: View {
+    @State private var viewModel: SkillDetailViewModel
     let skill: RemoteSkill
     let localPath: String
 
-    var body: some View {
-        SkillDetailView(
-            remoteSkill: resolvedSkill,
-            providers: ProviderSettings.shared.providers
-        ) { _ in }
+    init(skill: RemoteSkill, localPath: String) {
+        self.skill = skill
+        self.localPath = localPath
+        self._viewModel = State(initialValue: SkillDetailViewModel(remoteSkill: resolvedSkill(skill: skill, localPath: localPath)))
     }
 
-    private var resolvedSkill: RemoteSkill {
+    var body: some View {
+        NolonUI.SkillDetailView(
+            viewModel: viewModel.makeNolonUIViewModel(
+                providers: ProviderSettings.shared.providers,
+                currentProvider: nil,
+                onClose: {}
+            )
+        )
+        .task {
+            await viewModel.loadData(checkProviders: ProviderSettings.shared.providers, currentProvider: nil)
+        }
+    }
+
+    private static func resolvedSkill(skill: RemoteSkill, localPath: String) -> RemoteSkill {
         RemoteSkill(
             slug: skill.slug,
             displayName: skill.displayName,

@@ -1,5 +1,6 @@
 import SwiftUI
 import ProviderUsage
+import NolonUI
 
 struct CodexConfigEditorSheet: View {
     @Binding var draft: ProviderUsageEngine.CodexConfigEditorDraft?
@@ -101,7 +102,7 @@ struct CodexConfigEditorSheet: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            UISheetHeaderView(title: title, subtitle: subtitle) {
+            NolonUI.SheetHeaderView(title: title, subtitle: subtitle) {
                 onCancel()
             }
 

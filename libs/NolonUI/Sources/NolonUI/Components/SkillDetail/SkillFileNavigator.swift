@@ -1,8 +1,10 @@
 import SwiftUI
-import NolonResourceKit
+import NolonUIFoundation
 
 struct SkillFileNavigator: View {
-    @Bindable var viewModel: SkillDetailViewModel
+    let files: [SkillDetailFile]
+    let selectedFileID: String?
+    let onSelectFile: (String) -> Void
     
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -13,9 +15,9 @@ struct SkillFileNavigator: View {
                 .padding(.horizontal, 24)
             
             VStack(spacing: 2) {
-                ForEach(viewModel.files) { file in
-                    FileNavItem(file: file, isSelected: viewModel.selectedFile == file) {
-                        viewModel.selectedFile = file
+                ForEach(files) { file in
+                    FileNavItem(file: file, isSelected: selectedFileID == file.id) {
+                        onSelectFile(file.id)
                     }
                 }
             }
@@ -25,7 +27,7 @@ struct SkillFileNavigator: View {
 }
 
 private struct FileNavItem: View {
-    let file: SkillFile
+    let file: SkillDetailFile
     let isSelected: Bool
     let action: () -> Void
     
@@ -59,7 +61,7 @@ private struct FileNavItem: View {
         }
     }
     
-    private func icon(for type: SkillFile.SkillFileType) -> Image {
+    private func icon(for type: SkillDetailFileType) -> Image {
         switch type {
         case .markdown: return Image(systemName: "doc.text")
         case .code: return Image(systemName: "chevron.left.forwardslash.chevron.right")

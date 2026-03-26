@@ -2,6 +2,7 @@ import SwiftUI
 import ProviderCatalog
 import NolonResourceKit
 import Observation
+import NolonUI
 
 @MainActor
 @Observable
@@ -87,24 +88,9 @@ public struct SkillDetailWindowRootView: View {
         Group {
             switch coordinator.payload {
             case .local(let payload):
-                SkillDetailView(
-                    skill: payload.skill,
-                    provider: payload.provider,
-                    settings: payload.settings,
-                    onClose: {
-                        closeWindow()
-                    }
-                )
+                LocalSkillDetailWindowScene(payload: payload, onClose: closeWindow)
             case .remote(let payload):
-                SkillDetailView(
-                    remoteSkill: payload.skill,
-                    providers: payload.providers,
-                    targetProvider: payload.targetProvider,
-                    onClose: {
-                        closeWindow()
-                    },
-                    onInstall: payload.onInstall
-                )
+                RemoteSkillDetailWindowScene(payload: payload, onClose: closeWindow)
             case .none:
                 ContentUnavailableView(
                     NSLocalizedString("detail.skill.empty.title", value: "No Skill Selected", comment: "Skill detail empty title"),
@@ -121,5 +107,66 @@ public struct SkillDetailWindowRootView: View {
     private func closeWindow() {
         dismissWindow(id: SkillDetailWindowCoordinator.windowID)
         dismiss()
+    }
+}
+
+@MainActor
+private struct LocalSkillDetailWindowScene: View {
+    @State private var viewModel: SkillDetailViewModel
+    private let providers: [Provider]
+    private let currentProvider: Provider?
+    private let onClose: () -> Void
+
+    init(payload: SkillDetailWindowCoordinator.LocalPayload, onClose: @escaping () -> Void) {
+        self.providers = payload.settings.providers
+        self.currentProvider = payload.provider
+        self.onClose = onClose
+        self._viewModel = State(initialValue: SkillDetailViewModel(skill: payload.skill, settings: payload.settings))
+    }
+
+    var body: some View {
+        NolonUI.SkillDetailView(
+            viewModel: viewModel.makeNolonUIViewModel(
+                providers: providers,
+                currentProvider: currentProvider,
+                onClose: onClose
+            )
+        )
+        .task {
+            await viewModel.loadData(checkProviders: providers, currentProvider: currentProvider)
+        }
+    }
+}
+
+@MainActor
+private struct RemoteSkillDetailWindowScene: View {
+    @State private var viewModel: SkillDetailViewModel
+    private let providers: [Provider]
+    private let onClose: () -> Void
+
+    init(payload: SkillDetailWindowCoordinator.RemotePayload, onClose: @escaping () -> Void) {
+        self.providers = payload.targetProvider.map { [$0] } ?? payload.providers
+        self.onClose = onClose
+        self._viewModel = State(
+            initialValue: SkillDetailViewModel(
+                remoteSkill: payload.skill,
+                onInstall: { _, provider in
+                    payload.onInstall(provider)
+                }
+            )
+        )
+    }
+
+    var body: some View {
+        NolonUI.SkillDetailView(
+            viewModel: viewModel.makeNolonUIViewModel(
+                providers: providers,
+                currentProvider: nil,
+                onClose: onClose
+            )
+        )
+        .task {
+            await viewModel.loadData(checkProviders: providers, currentProvider: nil)
+        }
     }
 }
