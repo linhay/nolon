@@ -293,10 +293,10 @@ final class NolonAccountsViewModel {
 }
 
 extension NolonAccountsViewModel {
-    private static func sortedProviderAccounts<Account: ProviderAccountRecordConvertible>(
+    private static func sortedProviderAccounts<Account: ProviderAccountRecordConvertible & Identifiable>(
         _ accounts: [Account],
         isActive: (Account) -> Bool
-    ) -> [Account] {
+    ) -> [Account] where Account.ID == UUID {
         accounts.sorted { lhs, rhs in
             let lhsActive = isActive(lhs)
             let rhsActive = isActive(rhs)
@@ -305,19 +305,19 @@ extension NolonAccountsViewModel {
         }
     }
 
-    private static func activeProviderAccountID<Account: ProviderAccountRecordConvertible>(
+    private static func activeProviderAccountID<Account: ProviderAccountRecordConvertible & Identifiable>(
         from accounts: [Account],
         isActive: (Account) -> Bool
-    ) -> UUID? {
+    ) -> UUID? where Account.ID == UUID {
         accounts.first(where: { isActive($0) })?.id
     }
 
-    private func makeProviderAccountCards<Account: ProviderAccountRecordConvertible>(
+    private func makeProviderAccountCards<Account: ProviderAccountRecordConvertible & Identifiable>(
         provider: Provider,
         accounts: [Account],
         activeID: UUID?,
         quota: (Account, Bool) -> AccountRecordQuota? = { _, _ in nil }
-    ) -> [AccountCardViewData] {
+    ) -> [AccountCardViewData] where Account.ID == UUID {
         guard !accounts.isEmpty else {
             return [emptyCard(provider: provider)]
         }

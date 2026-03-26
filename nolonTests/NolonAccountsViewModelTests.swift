@@ -669,6 +669,35 @@ final class NolonAccountsViewModelTests: XCTestCase {
         XCTAssertEqual(geminiRecord.detailFields.first?.value, ".gemini/team")
     }
 
+    func testBDD_GivenCodexSummary_WhenBuildingProtocolBackedRecord_ThenPreservesReadonlyDetailAndQuota() {
+        let summary = NolonAccountsViewModel.AccountUsageSummary(
+            id: "codex.default",
+            accountLabel: "Default",
+            accountEmail: "codex@example.com",
+            plan: "plus",
+            totalCount: 0,
+            successCount: 0,
+            failureCount: 0,
+            latestUpdatedAt: nil,
+            primaryUsedPercent: nil,
+            errorMessage: nil,
+            isSnapshotOnly: true
+        )
+
+        let record = AccountRecordBuilder.codexAccounts(
+            providerName: "Codex",
+            usageProvider: .codex,
+            summary: summary,
+            isActive: false
+        )
+
+        XCTAssertEqual(record.id.provider, .codex)
+        XCTAssertEqual(record.id.rawValue, "codex.default")
+        XCTAssertEqual(record.detailFields.map(\.id), ["snapshotOnly"])
+        XCTAssertEqual(record.quota?.showsEmptyState, false)
+        XCTAssertEqual(record.quota?.accountTitle, "codex@example.com")
+    }
+
     func testBDD_GivenGeminiAccountRecord_WhenMappingCard_ThenInactiveCardShowsMetadataRows() {
         let createdAt = Date(timeIntervalSince1970: 1_700_500_000)
         let account = GeminiAuthAccount(

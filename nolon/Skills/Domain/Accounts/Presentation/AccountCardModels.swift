@@ -137,8 +137,9 @@ struct AccountRecord: Identifiable, Equatable {
     let accessibilityLabel: String
 }
 
-protocol ProviderAccountRecordConvertible: Identifiable where ID == UUID {
+protocol ProviderAccountRecordConvertible {
     var providerUsage: UsageProvider { get }
+    var accountRecordRawID: String { get }
     var accountSortDate: Date { get }
     var accountAccessibilityName: String { get }
     func accountSource() -> AccountRecordSource
@@ -150,6 +151,7 @@ protocol ProviderAccountRecordConvertible: Identifiable where ID == UUID {
 
 extension ClaudeAccount: ProviderAccountRecordConvertible {
     var providerUsage: UsageProvider { .claude }
+    var accountRecordRawID: String { id.uuidString.lowercased() }
     var accountSortDate: Date { updatedAt }
     var accountAccessibilityName: String { name }
 
@@ -203,6 +205,7 @@ extension ClaudeAccount: ProviderAccountRecordConvertible {
 
 extension GeminiAuthAccount: ProviderAccountRecordConvertible {
     var providerUsage: UsageProvider { providerID }
+    var accountRecordRawID: String { id.uuidString.lowercased() }
     var accountSortDate: Date { lastLoginAt ?? createdAt }
     var accountAccessibilityName: String { name }
 
@@ -263,6 +266,47 @@ extension GeminiAuthAccount: ProviderAccountRecordConvertible {
 }
 
 enum AccountRecordBuilder {
+    struct CodexSummaryAccountAdapter: ProviderAccountRecordConvertible {
+        let usageProvider: UsageProvider
+        let summary: NolonAccountsViewModel.AccountUsageSummary
+
+        var providerUsage: UsageProvider { usageProvider }
+        var accountRecordRawID: String { summary.id }
+        var accountSortDate: Date { summary.latestUpdatedAt ?? .distantPast }
+        var accountAccessibilityName: String { summary.accountLabel }
+
+        func accountSource() -> AccountRecordSource { .local }
+
+        func accountIdentity() -> AccountIdentity {
+            .init(
+                displayName: summary.accountEmail ?? summary.accountLabel,
+                subtitle: summary.plan,
+                meta: summary.latestUpdatedAt?.formatted(date: .abbreviated, time: .shortened)
+            )
+        }
+
+        func accountHealth(quota _: AccountRecordQuota?) -> AccountHealthState {
+            summary.errorMessage == nil ? .healthy : .failed
+        }
+
+        func accountBodyFields(quota _: AccountRecordQuota?) -> [AccountRecordField] {
+            []
+        }
+
+        func accountDetailFields(quota _: AccountRecordQuota?) -> [AccountRecordField] {
+            summary.isSnapshotOnly ? [
+                .init(
+                    id: "snapshotOnly",
+                    kind: .message,
+                    label: nil,
+                    value: NSLocalizedString("accounts.provider.readonly", value: "Read-only summary", comment: "Read-only summary"),
+                    auxiliary: nil,
+                    tone: nil
+                )
+            ] : []
+        }
+    }
+
     static func providerAccount<Account: ProviderAccountRecordConvertible>(
         providerName: String,
         account: Account,
@@ -270,7 +314,7 @@ enum AccountRecordBuilder {
         quota: AccountRecordQuota? = nil
     ) -> AccountRecord {
         AccountRecord(
-            id: .init(provider: account.providerUsage, rawValue: account.id.uuidString.lowercased()),
+            id: .init(provider: account.providerUsage, rawValue: account.accountRecordRawID),
             providerName: providerName,
             source: account.accountSource(),
             identity: account.accountIdentity(),
@@ -306,6 +350,7 @@ enum AccountRecordBuilder {
         summary: NolonAccountsViewModel.AccountUsageSummary,
         isActive: Bool
     ) -> AccountRecord {
+        let adapter = CodexSummaryAccountAdapter(usageProvider: usageProvider, summary: summary)
         let snapshot = summary.errorMessage == nil ? UsageSnapshot(
             identity: UsageIdentity(
                 accountEmail: summary.accountEmail,
@@ -319,28 +364,10 @@ enum AccountRecordBuilder {
             updatedAt: summary.latestUpdatedAt ?? Date()
         ) : nil
 
-        return AccountRecord(
-            id: .init(provider: usageProvider, rawValue: summary.id),
+        return providerAccount(
             providerName: providerName,
-            source: .local,
-            identity: .init(
-                displayName: summary.accountEmail ?? summary.accountLabel,
-                subtitle: summary.plan,
-                meta: summary.latestUpdatedAt?.formatted(date: .abbreviated, time: .shortened)
-            ),
-            activationState: isActive ? .active : .inactive,
-            healthState: summary.errorMessage == nil ? .healthy : .failed,
-            bodyFields: [],
-            detailFields: summary.isSnapshotOnly ? [
-                .init(
-                    id: "snapshotOnly",
-                    kind: .message,
-                    label: nil,
-                    value: NSLocalizedString("accounts.provider.readonly", value: "Read-only summary", comment: "Read-only summary"),
-                    auxiliary: nil,
-                    tone: nil
-                )
-            ] : [],
+            account: adapter,
+            isActive: isActive,
             quota: .init(
                 provider: usageProvider,
                 accountTitle: summary.accountEmail ?? summary.accountLabel,
@@ -352,8 +379,7 @@ enum AccountRecordBuilder {
                 isLoading: false,
                 showsEmptyState: snapshot == nil,
                 errorMessage: summary.errorMessage
-            ),
-            accessibilityLabel: "\(providerName) \(summary.accountLabel)"
+            )
         )
     }
 
