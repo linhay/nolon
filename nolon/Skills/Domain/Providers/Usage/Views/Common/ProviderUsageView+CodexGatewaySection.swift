@@ -403,9 +403,14 @@ extension ProviderUsageView {
                             ForEach(section.items, id: \.id) { account in
                                 let title = gatewayCandidateTitle(for: account)
                                 let subtitle = gatewayCandidateSubtitle(for: account, title: title)
-                                Button {
-                                    toggleGatewayAccountPickerSelection(account.id)
-                                } label: {
+                                let selectionBinding = Binding<Set<UUID>>(
+                                    get: { gatewayAccountPickerSelection },
+                                    set: { gatewayAccountPickerSelection = $0 }
+                                )
+                                GenericSelectionControl(
+                                    value: account.id,
+                                    selections: selectionBinding
+                                ) { isSelected in
                                     HStack(spacing: 10) {
                                         VStack(alignment: .leading, spacing: 2) {
                                             Text(title)
@@ -418,16 +423,15 @@ extension ProviderUsageView {
                                             }
                                         }
                                         Spacer(minLength: 0)
-                                        Image(systemName: gatewayAccountPickerSelection.contains(account.id) ? "checkmark.circle.fill" : "circle")
+                                        Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                                             .foregroundStyle(
-                                                gatewayAccountPickerSelection.contains(account.id)
+                                                isSelected
                                                 ? DesignSystem.Colors.primary
                                                 : DesignSystem.Colors.Text.tertiary
                                             )
                                     }
                                     .contentShape(Rectangle())
                                 }
-                                .buttonStyle(.plain)
                             }
                         } header: {
                             HStack(spacing: 6) {
@@ -550,14 +554,6 @@ extension ProviderUsageView {
     func dismissGatewayAccountPicker() {
         gatewayAccountPickerCardID = nil
         gatewayAccountPickerSelection = []
-    }
-
-    private func toggleGatewayAccountPickerSelection(_ accountID: UUID) {
-        if gatewayAccountPickerSelection.contains(accountID) {
-            gatewayAccountPickerSelection.remove(accountID)
-        } else {
-            gatewayAccountPickerSelection.insert(accountID)
-        }
     }
 
     private func confirmGatewayAccountPickerSelection() {

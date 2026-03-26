@@ -47,27 +47,43 @@ extension ProviderUsageView {
             isRunningCLILogin: loginFlowViewModel.isRunningCLILogin
         )
         let cardView = codexCompactSnapshotView(model: model)
-        .onTapGesture {
-            guard let accountId = model.accountID else { return }
-            if hasActiveGatewayCardSelection {
-                gatewayCardsViewModel.clearActiveGatewayCardSelection()
-            }
-            if accountsViewModel.codex.isMultiSelectionEnabled {
-                accountsViewModel.codex.toggleAccountSelection(id: accountId)
-                return
-            }
-            let shouldActivate = accountsViewModel.codex.shouldActivateAccountOnTap(
-                id: accountId,
-                hasActiveGatewayCardSelection: hasActiveGatewayCardSelection
-            )
-            guard shouldActivate else { return }
-            accountsViewModel.codex.requestActivateAccount(id: accountId)
-        }
 
-        if let accountId = model.accountID {
-            cardView.draggable(CodexGatewayAccountDropItem(accountID: accountId))
+        if let accountId = model.accountID, accountsViewModel.codex.isMultiSelectionEnabled {
+            let selectionBinding = Binding<Set<UUID>>(
+                get: { accountsViewModel.codex.selectedAccountIDs },
+                set: { accountsViewModel.codex.selectedAccountIDs = $0 }
+            )
+            GenericSelectionControl(
+                value: accountId,
+                selections: selectionBinding,
+                onToggle: {
+                    if hasActiveGatewayCardSelection {
+                        gatewayCardsViewModel.clearActiveGatewayCardSelection()
+                    }
+                }
+            ) { _ in
+                cardView
+            }
+            .draggable(CodexGatewayAccountDropItem(accountID: accountId))
         } else {
-            cardView
+            let tappableCardView = cardView.onTapGesture {
+                guard let accountId = model.accountID else { return }
+                if hasActiveGatewayCardSelection {
+                    gatewayCardsViewModel.clearActiveGatewayCardSelection()
+                }
+                let shouldActivate = accountsViewModel.codex.shouldActivateAccountOnTap(
+                    id: accountId,
+                    hasActiveGatewayCardSelection: hasActiveGatewayCardSelection
+                )
+                guard shouldActivate else { return }
+                accountsViewModel.codex.requestActivateAccount(id: accountId)
+            }
+
+            if let accountId = model.accountID {
+                tappableCardView.draggable(CodexGatewayAccountDropItem(accountID: accountId))
+            } else {
+                tappableCardView
+            }
         }
     }
 
