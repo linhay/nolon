@@ -3187,7 +3187,7 @@ final class ProviderUsageEngine {
         lastUsageRefreshAt = Date()
 
         if case let .success(result) = outcome.outcome.result {
-            updateCodexOutcome(outcome, for: account)
+            replaceCodexOutcome(outcome, for: account.id)
             let now = Date()
             codexRefreshedAccountIdsInSession.insert(accountId)
             try? await codexAuthManager.updateSyncSuccess(for: account, date: now)
@@ -3244,7 +3244,7 @@ final class ProviderUsageEngine {
             codexRefreshedAccountIdsInSession.remove(accountId)
             let message = error.localizedDescription
             if !shouldRetainExistingCodexSuccessResult(for: accountId, error: error) {
-                updateCodexOutcome(outcome, for: account)
+                replaceCodexOutcome(outcome, for: account.id)
             }
             try? await codexAuthManager.updateSyncFailure(for: account, message: message, date: now)
             var summary = codexAccountSummaries[accountId] ?? CodexAuthSummary()
@@ -3382,10 +3382,6 @@ final class ProviderUsageEngine {
         }
         guard let virtual else { return }
         try? await codexAuthManager.activateAccountAndMarkActive(virtual, for: provider)
-    }
-
-    private func updateCodexOutcome(_ outcome: ProviderAccountUsageOutcome, for account: CodexAuthAccount) {
-        replaceCodexOutcome(outcome, for: account.id)
     }
 
     private func fetchCodexOutcomeWithTimeout(
