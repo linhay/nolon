@@ -5,6 +5,7 @@ import Observation
 import ProviderCatalog
 import NolonResourceKit
 import NolonUI
+import NolonUIFoundation
 
 struct PageMarkerItem: Identifiable, Equatable {
     let title: String

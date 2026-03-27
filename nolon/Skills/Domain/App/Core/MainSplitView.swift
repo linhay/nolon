@@ -6,6 +6,7 @@ import OSLog
 import STFilePath
 import NolonResourceKit
 import NolonUI
+import NolonUIFoundation
 
 /// Main three-column split view for the app
 /// Left 1: Provider sidebar (collapsible)

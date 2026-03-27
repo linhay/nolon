@@ -1,5 +1,6 @@
 import Foundation
 import NolonResourceKit
+import NolonUIFoundation
 
 enum UITestSupport {
     static var environmentOverride: [String: String]?

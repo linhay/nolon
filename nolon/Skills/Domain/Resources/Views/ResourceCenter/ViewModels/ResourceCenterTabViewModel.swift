@@ -2,6 +2,7 @@ import SwiftUI
 import ProviderCatalog
 import NolonResourceKit
 import Observation
+import NolonUIFoundation
 
 /// 资源中心内容 Tab 视图 ViewModel
 @MainActor
@@ -27,4 +28,3 @@ final class ResourceCenterTabViewModel {
         mcpsCount = counts.mcps
     }
 }
-

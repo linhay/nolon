@@ -210,7 +210,8 @@ struct AddProviderSheet: View {
                 if let error = viewModel.validationError {
                     Section {
                         Text(error)
-                            .dsErrorText(font: .caption)
+                            .font(.caption)
+                            .foregroundStyle(Color.red)
                     }
                 }
             }

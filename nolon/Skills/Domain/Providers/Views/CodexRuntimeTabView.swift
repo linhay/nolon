@@ -72,7 +72,7 @@ struct CodexRuntimeTabView: View {
                 comment: "Force stop confirmation message"
             ),
             confirmTitle: String(
-                CodexRuntimeBuilders.forceStopActionTitle(pid: viewModel.pendingForceStopPID ?? 0)
+                CodexRuntimeBuilders.forceStopActionTitle(pid: Int(viewModel.pendingForceStopPID ?? 0))
             )
         )
     }
@@ -112,8 +112,8 @@ struct CodexRuntimeTabView: View {
 
     private func processRowData(process: CodexRuntimeProcessItem, isSelected: Bool) -> CodexRuntimeProcessRowData {
         CodexRuntimeProcessRowData(
-            id: process.id,
-            pidText: CodexRuntimeBuilders.pidText(process.pid),
+            id: String(process.id),
+            pidText: CodexRuntimeBuilders.pidText(Int(process.pid)),
             elapsedText: process.elapsed,
             providerHint: process.providerHint,
             commandText: process.command,
@@ -155,7 +155,7 @@ struct CodexRuntimeTabView: View {
 
     private var logsSectionData: CodexRuntimeLogsSectionData {
         CodexRuntimeLogsSectionData(
-            pidText: viewModel.selectedPID.map(CodexRuntimeBuilders.pidText),
+            pidText: viewModel.selectedPID.map { CodexRuntimeBuilders.pidText(Int($0)) },
             isLoading: viewModel.isLoadingLogs,
             logsText: viewModel.logsText,
             errorMessage: viewModel.logsErrorMessage

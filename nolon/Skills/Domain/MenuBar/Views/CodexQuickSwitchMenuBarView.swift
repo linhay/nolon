@@ -7,6 +7,7 @@ import NolonResourceKit
 import STFilePath
 import Combine
 import NolonUI
+import NolonUIFoundation
 
 enum CodexQuickSwitchProviderResolver {
     static func providers(from providers: [Provider]) -> [Provider] {

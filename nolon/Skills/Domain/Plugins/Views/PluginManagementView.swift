@@ -6,6 +6,7 @@ import Foundation
 import OSLog
 import SKProcessRunner
 import NolonUI
+import NolonUIFoundation
 
 @MainActor
 @Observable

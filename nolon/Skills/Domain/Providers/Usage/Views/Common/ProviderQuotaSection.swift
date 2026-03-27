@@ -8,7 +8,7 @@ struct ProviderQuotaSection: View {
     let provider: UsageProvider
     let accountTitle: String?
     let usage: UsageSnapshot?
-    let credits: CreditsSnapshot?
+    let credits: ProviderUsage.CreditsSnapshot?
     let creditsRefreshedAt: Date?
     let loginAt: Date?
     let syncedAt: Date?
@@ -23,7 +23,7 @@ struct ProviderQuotaSection: View {
         provider: UsageProvider,
         accountTitle: String? = nil,
         usage: UsageSnapshot?,
-        credits: CreditsSnapshot? = nil,
+        credits: ProviderUsage.CreditsSnapshot? = nil,
         creditsRefreshedAt: Date? = nil,
         loginAt: Date? = nil,
         syncedAt: Date? = nil,
@@ -63,7 +63,7 @@ struct ProviderQuotaSection: View {
             rows: makeRows(),
             creditsText: makeCreditsText(),
             planText: usage?.identity?.plan,
-            syncText: formattedSyncText,
+            syncText: ProviderQuotaSectionBuilders.syncText(loginAt: loginAt, syncedAt: syncedAt),
             isLoading: isLoading,
             errorMessage: errorMessage,
             showsEmptyState: showsEmptyState,
@@ -88,7 +88,8 @@ struct ProviderQuotaSection: View {
 
     private func makeCreditsText() -> String? {
         guard let credits, !credits.remaining.isNaN else { return nil }
-        return creditsValue(credits.remaining)
+        if credits.remaining.isInfinite { return "∞" }
+        return String(format: "%.0f", credits.remaining)
     }
 
     private var resolvedAccountTitle: String {
@@ -103,18 +104,9 @@ struct ProviderQuotaSection: View {
         return NSLocalizedString("usage.account.unknown", value: "Unknown Account", comment: "Unknown account")
     }
 
-    private var formattedSyncText: String? {
-        ProviderQuotaSectionBuilders.syncText(loginAt: loginAt, syncedAt: syncedAt)
-    }
-
     private func percentText(_ percent: Double) -> String {
         if percent.isInfinite { return "∞" }
         return String(format: "%.0f%%", percent)
-    }
-
-    private func creditsValue(_ value: Double) -> String {
-        if value.isInfinite { return "∞" }
-        return String(format: "%.0f", value)
     }
 
     private func localizedTitle(_ item: UsageWindow) -> String {
@@ -129,7 +121,7 @@ struct ProviderQuotaSection: View {
         }
     }
 
-    static func displayWindows(for usage: UsageSnapshot, provider: UsageProvider) -> [UsageWindow] {
+    static func displayWindows(for usage: UsageSnapshot, provider _: UsageProvider) -> [UsageWindow] {
         if !usage.windows.isEmpty { return usage.windows }
         var items: [UsageWindow] = []
         if let primary = usage.primary {

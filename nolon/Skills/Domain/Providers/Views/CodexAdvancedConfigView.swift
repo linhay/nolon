@@ -937,7 +937,7 @@ final class CodexAdvancedConfigViewModel {
         modelPreferenceService.resolvedConfigFile(for: provider)
     }
 
-    private func loadConfigDraft() {
+    func loadConfigDraft() {
         guard let configFile = resolvedConfigFile() else { return }
         isHydratingStructuredDraft = true
         defer {
@@ -1477,7 +1477,6 @@ struct CodexAdvancedConfigView: View {
                 )
             } onSave: {
                     Task { await viewModel.saveStructuredConfig() }
-            }
             }
         }
         .debugCardLocator(sectionMarkerItems("Multi-Agent Roles"))

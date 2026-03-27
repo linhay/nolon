@@ -130,7 +130,7 @@ final class ProviderDetailGridViewModel {
             case .unknown:
                 source = .unknown
             }
-            NolonUIFoundation.WorkflowInfo(
+            return NolonUIFoundation.WorkflowInfo(
                 id: $0.id,
                 name: $0.name,
                 description: $0.description,

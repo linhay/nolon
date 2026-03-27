@@ -3,6 +3,7 @@ import ProviderCatalog
 import NolonResourceKit
 import Observation
 import OSLog
+import NolonUIFoundation
 
 @MainActor
 @Observable

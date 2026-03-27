@@ -583,7 +583,7 @@ extension ProviderUsageView {
                             cards: cards.map(\.data),
                             isLoading: false,
                             columns: claudeAccountColumns,
-                            layoutMode: ProviderUsageSubViewModels.shouldUseCompactUnifiedListRows(
+                            layoutMode: ProviderUsageAccountsViewModel.shouldUseCompactUnifiedListRows(
                                 layoutMode: viewModel.accountLayoutMode,
                                 accountCount: cards.count
                             ) ? .list : .cards,
@@ -610,16 +610,98 @@ extension ProviderUsageView {
     private func genericOutcomeSnapshotView(outcome: ProviderAccountUsageOutcome) -> some View {
         NolonUI.UsageSnapshotCardView(data: genericOutcomeSnapshotCardData(outcome)) {
             if case let .success(result) = outcome.outcome.result {
-                ProviderQuotaSection(
-                    provider: outcome.provider,
-                    usage: result.usage,
-                    credits: result.credits,
-                    creditsRefreshedAt: nil,
-                    isLoading: viewModel.isLoading,
-                    showsEmptyState: true
+                NolonUI.ProviderQuotaSectionView(
+                    data: genericOutcomeQuotaSectionData(
+                        provider: outcome.provider,
+                        usage: result.usage,
+                        credits: result.credits
+                    ),
+                    onRefresh: nil
                 )
             }
         }
+    }
+
+    private func genericOutcomeQuotaSectionData(
+        provider: UsageProvider,
+        usage: UsageSnapshot,
+        credits: ProviderUsage.CreditsSnapshot?
+    ) -> ProviderQuotaSectionData {
+        ProviderQuotaSectionData(
+            accountTitle: genericOutcomeResolvedAccountTitle(usage: usage),
+            statusPercent: usage.primary?.remainingPercent ?? 100,
+            rows: genericOutcomeQuotaRows(provider: provider, usage: usage),
+            creditsText: genericOutcomeCreditsText(credits),
+            planText: usage.identity?.plan,
+            syncText: nil,
+            isLoading: viewModel.isLoading,
+            errorMessage: nil,
+            showsEmptyState: true,
+            usesCardChrome: true,
+            showsHeader: true
+        )
+    }
+
+    private func genericOutcomeQuotaRows(
+        provider: UsageProvider,
+        usage: UsageSnapshot
+    ) -> [ProviderQuotaSectionData.WindowRow] {
+        genericOutcomeDisplayWindows(usage: usage, provider: provider).map { item in
+            let percent = item.window.remainingPercent
+            return .init(
+                id: item.id,
+                title: genericOutcomeLocalizedQuotaTitle(item, provider: provider),
+                remainingPercent: percent,
+                percentText: genericOutcomePercentText(percent),
+                resetText: item.window.resetsAt.map { ProviderQuotaSectionBuilders.resetText(resetsAt: $0) }
+            )
+        }
+    }
+
+    private func genericOutcomeDisplayWindows(
+        usage: UsageSnapshot,
+        provider _: UsageProvider
+    ) -> [UsageWindow] {
+        if !usage.windows.isEmpty { return usage.windows }
+        var items: [UsageWindow] = []
+        if let primary = usage.primary {
+            items.append(UsageWindow(id: "primary", title: "Session", window: primary))
+        }
+        if let secondary = usage.secondary {
+            items.append(UsageWindow(id: "secondary", title: "Weekly", window: secondary))
+        }
+        return items
+    }
+
+    private func genericOutcomeLocalizedQuotaTitle(_ item: UsageWindow, provider: UsageProvider) -> String {
+        let metadata = ProviderUsageRegistry.metadata(for: provider)
+        return switch item.id {
+        case "primary":
+            metadata?.sessionLabel ?? "Session"
+        case "secondary":
+            metadata?.weeklyLabel ?? "Weekly"
+        default:
+            item.title
+        }
+    }
+
+    private func genericOutcomePercentText(_ percent: Double) -> String {
+        if percent.isInfinite { return "∞" }
+        return String(format: "%.0f%%", percent)
+    }
+
+    private func genericOutcomeCreditsText(_ credits: ProviderUsage.CreditsSnapshot?) -> String? {
+        guard let credits, !credits.remaining.isNaN else { return nil }
+        if credits.remaining.isInfinite { return "∞" }
+        return String(format: "%.0f", credits.remaining)
+    }
+
+    private func genericOutcomeResolvedAccountTitle(usage: UsageSnapshot) -> String {
+        let email = usage.identity?.accountEmail?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let email, !email.isEmpty {
+            return email
+        }
+        return NSLocalizedString("usage.account.unknown", value: "Unknown Account", comment: "Unknown account")
     }
 
     private func genericOutcomeSnapshotCardData(_ outcome: ProviderAccountUsageOutcome) -> UsageSnapshotCardData {
@@ -809,7 +891,7 @@ extension ProviderUsageView {
         ) {
             usageContent
         }
-        .debugCardLocator(debugPageMarkerItems + [PageMarkerItem(title: NolonUI.ProviderEmptyStateScaffold.Preset.usageUnsupported.emptyTitle)])
+        .debugCardLocator(debugPageMarkerItems + [PageMarkerItem(title: NSLocalizedString("usage.unsupported.title", value: "Usage monitoring unavailable", comment: "Unsupported usage title"))])
     }
 
     var header: some View {
@@ -934,7 +1016,7 @@ extension ProviderUsageView {
                 }
 
                 ForEach(
-                    ProviderUsageSubViewModels.CodexState.visiblePrimaryHeaderActions(
+                    ProviderUsageAccountsViewModel.CodexState.visiblePrimaryHeaderActions(
                         from: viewModel.codex.primaryHeaderActions,
                         isMultiSelectionEnabled: viewModel.codex.isMultiSelectionEnabled
                     ),
@@ -1913,7 +1995,7 @@ extension ProviderUsageView {
 
             Divider()
 
-            if ProviderUsageSubViewModels.CodexState.shouldShowActivateGatewayContextAction(
+            if ProviderUsageAccountsViewModel.CodexState.shouldShowActivateGatewayContextAction(
                 isActiveGateway: isActiveGateway
             ) {
                 Button {

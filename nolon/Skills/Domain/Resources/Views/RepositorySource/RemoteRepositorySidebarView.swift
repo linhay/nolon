@@ -52,8 +52,8 @@ struct RemoteRepositorySidebarView: View, DebugPageLocatable {
             }
         }
         .repositorySidebarSheetPresenters(
-            isAddingRepositoryPresented: $viewModel.showingAddRepository
-        ) {
+            isAddingRepositoryPresented: $viewModel.showingAddRepository,
+            addRepositorySheet: {
             AddRepositorySheet(
                 isPresented: $viewModel.showingAddRepository,
                 settings: settings,
@@ -64,7 +64,9 @@ struct RemoteRepositorySidebarView: View, DebugPageLocatable {
                     selectedRepository = repo
                 }
             )
-        } isDirectoryPickerPresented: $viewModel.showingDirectoryPicker {
+        },
+            isDirectoryPickerPresented: $viewModel.showingDirectoryPicker,
+            directoryPickerSheet: {
             NolonUI.DirectoryPickerSheetView(
                 viewModel: NolonUI.DirectoryPickerSheetViewModel(
                     data: .init(
@@ -90,7 +92,9 @@ struct RemoteRepositorySidebarView: View, DebugPageLocatable {
                     }
                 )
             )
-        } isTokenInputPresented: $viewModel.showingTokenInput {
+        },
+            isTokenInputPresented: $viewModel.showingTokenInput,
+            tokenInputSheet: {
             NolonUI.TokenInputSheetView(
                 isPresented: $viewModel.showingTokenInput,
                 host: viewModel.tokenInputHost,
@@ -99,7 +103,9 @@ struct RemoteRepositorySidebarView: View, DebugPageLocatable {
                     viewModel.confirmTokenInput(settings: settings)
                 }
             )
-        } editingItem: $viewModel.editingRepository { repo in
+        },
+            editingItem: $viewModel.editingRepository,
+            editRepositorySheet: { repo in
             AddRepositorySheet(
                 isPresented: Binding(
                     get: { viewModel.editingRepository != nil },
@@ -114,7 +120,7 @@ struct RemoteRepositorySidebarView: View, DebugPageLocatable {
                     selectedRepository = savedRepo
                 }
             )
-        }
+        })
         .onAppear {
             if selectedRepository == nil {
                 selectedRepository = orderedRepositories.first

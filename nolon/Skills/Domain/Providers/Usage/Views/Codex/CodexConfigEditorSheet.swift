@@ -78,12 +78,7 @@ struct CodexConfigEditorSheet: View {
     private var httpUsageEnabledBinding: Binding<Bool> {
         Binding(
             get: { draft?.httpUsageEnabled ?? false },
-            set: {
-                draft?.httpUsageEnabled = $0
-                if $0 {
-                    isHTTPUsageExpanded = true
-                }
-            }
+            set: { draft?.httpUsageEnabled = $0 }
         )
     }
 

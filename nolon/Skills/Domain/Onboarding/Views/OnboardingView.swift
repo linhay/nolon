@@ -91,7 +91,7 @@ private extension OnboardingView {
                     subtitleKey: detectedProviders.isEmpty ? "onboarding.provider.subtitle" : "onboarding.provider.subtitle_detected",
                     sections: templateSections.map { section in
                         .init(
-                            id: section.id,
+                            id: section.id.rawValue,
                             title: NSLocalizedString(section.titleKey, value: section.fallbackTitle, comment: "Template section title"),
                             providers: section.templates.map { template in
                                 .init(

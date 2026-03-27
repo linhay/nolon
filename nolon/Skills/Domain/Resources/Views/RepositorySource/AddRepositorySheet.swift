@@ -1,6 +1,7 @@
 import SwiftUI
 import NolonResourceKit
 import NolonUI
+import NolonUIFoundation
 
 struct AddRepositorySheet: View {
     @Binding var isPresented: Bool

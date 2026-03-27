@@ -47,85 +47,86 @@ struct ProviderMcpGridView: View {
     }
     
     var body: some View {
-        if let configPath {
-            let isToml = configPath.pathExtension.lowercased() == "toml"
-            let exists = STFile(configPath).isExists
+        Group {
+            if let configPath {
+                let isToml = configPath.pathExtension.lowercased() == "toml"
+                let exists = STFile(configPath).isExists
 
-            NolonUI.ProviderMcpConfigScaffoldView(
-                supportsNativeConfig: supportsNativeMcpConfig,
-                configExists: exists,
-                isSearching: !viewModel.searchText.isEmpty,
-                hasFilteredServers: !viewModel.filteredMcps.isEmpty,
-                unsupportedSystemImage: mcpUnsupportedSystemImage,
-                unsupportedDescription: mcpUnsupportedDescription
-            ) {
-                NolonUI.McpConfigActionStateView(
-                    preset: .noConfiguration
+                NolonUI.ProviderMcpConfigScaffoldView(
+                    supportsNativeConfig: supportsNativeMcpConfig,
+                    configExists: exists,
+                    isSearching: !viewModel.searchText.isEmpty,
+                    hasFilteredServers: !viewModel.filteredMcps.isEmpty,
+                    unsupportedSystemImage: mcpUnsupportedSystemImage,
+                    unsupportedDescription: mcpUnsupportedDescription
                 ) {
-                    _ = STFolder(configPath.deletingLastPathComponent()).createIfNotExists()
-                    if isToml {
-                        let template = """
-                        model = ""
-                        
-                        [mcp_servers]
-                        """
-                        try? STFile(configPath).overlay(with: template)
-                    } else {
-                        if template?.rawValue == "opencode" {
+                    NolonUI.McpConfigActionStateView(
+                        preset: .noConfiguration
+                    ) {
+                        _ = STFolder(configPath.deletingLastPathComponent()).createIfNotExists()
+                        if isToml {
                             let template = """
-                            {
-                              "mcp": {}
-                            }
+                            model = ""
+
+                            [mcp_servers]
                             """
                             try? STFile(configPath).overlay(with: template)
                         } else {
-                            try? STFile(configPath).overlay(with: "{}")
+                            if template?.rawValue == "opencode" {
+                                let template = """
+                                {
+                                  "mcp": {}
+                                }
+                                """
+                                try? STFile(configPath).overlay(with: template)
+                            } else {
+                                try? STFile(configPath).overlay(with: "{}")
+                            }
+                        }
+                        editingConfig = EditingConfig(
+                            configURL: configPath,
+                            format: isToml ? .toml : .json,
+                            highlightKey: nil
+                        )
+                        Task { await viewModel.loadData() }
+                    }
+                } noServersView: {
+                    NolonUI.McpConfigToolbarScaffoldView(
+                        documentationURL: template?.mcpDocumentationURL,
+                        onEdit: {
+                            editingConfig = EditingConfig(
+                                configURL: configPath,
+                                format: isToml ? .toml : .json,
+                                highlightKey: nil
+                            )
+                        }
+                    ) {
+                        NolonUI.McpConfigActionStateView(
+                            preset: .noServers
+                        ) {
+                            editingConfig = EditingConfig(
+                                configURL: configPath,
+                                format: isToml ? .toml : .json,
+                                highlightKey: nil
+                            )
                         }
                     }
-                    editingConfig = EditingConfig(
-                        configURL: configPath,
-                        format: isToml ? .toml : .json,
-                        highlightKey: nil
-                    )
-                    Task { await viewModel.loadData() }
-                }
-            } noServersView: {
-                NolonUI.McpConfigToolbarScaffoldView(
-                    documentationURL: template?.mcpDocumentationURL,
-                    onEdit: {
-                        editingConfig = EditingConfig(
-                            configURL: configPath,
-                            format: isToml ? .toml : .json,
-                            highlightKey: nil
-                        )
-                    }
-                ) {
-                    NolonUI.McpConfigActionStateView(
-                        preset: .noServers
+                } noResultsView: {
+                    NolonUI.McpConfigNoResultsStateView()
+                } contentView: {
+                    NolonUI.McpConfigToolbarScaffoldView(
+                        documentationURL: template?.mcpDocumentationURL,
+                        onEdit: {
+                            editingConfig = EditingConfig(
+                                configURL: configPath,
+                                format: isToml ? .toml : .json,
+                                highlightKey: nil
+                            )
+                        }
                     ) {
-                        editingConfig = EditingConfig(
-                            configURL: configPath,
-                            format: isToml ? .toml : .json,
-                            highlightKey: nil
-                        )
-                    }
-                }
-            } noResultsView: {
-                NolonUI.McpConfigNoResultsStateView()
-            } contentView: {
-                NolonUI.McpConfigToolbarScaffoldView(
-                    documentationURL: template?.mcpDocumentationURL,
-                    onEdit: {
-                        editingConfig = EditingConfig(
-                            configURL: configPath,
-                            format: isToml ? .toml : .json,
-                            highlightKey: nil
-                        )
-                    }
-                ) {
-                    NolonUI.AdaptiveCardGrid(columns: columns, spacing: 16) {
-                        ForEach(viewModel.filteredMcps) { mcp in
-                            let cacheState = viewModel.mcpCacheStates[mcp.name] ?? .notMigrated
+                        NolonUI.AdaptiveCardGrid(columns: columns, spacing: 16) {
+                            ForEach(viewModel.filteredMcps) { mcp in
+                            let cacheState = (viewModel.mcpCacheStates[mcp.name] ?? .notMigrated).uiCacheState
                             NolonUI.McpServerCardView(
                                 commandText: mcpCommandText(mcp),
                                 searchText: viewModel.searchText,
@@ -135,6 +136,7 @@ struct ProviderMcpGridView: View {
                                 onLinkWorkflow: { viewModel.linkMcpToWorkflow(mcp) },
                                 onUnlinkWorkflow: { viewModel.unlinkMcpFromWorkflow(mcp) },
                                 onSetEnabled: { enabled in
+                                    guard let provider else { return }
                                     Task { await viewModel.setMCPEnabled(mcp, enabled: enabled, for: provider) }
                                 },
                                 onMigrateToNolon: {
@@ -177,6 +179,7 @@ struct ProviderMcpGridView: View {
                                     )
                                 },
                                 onDelete: {
+                                    guard let provider else { return }
                                     Task { await viewModel.deleteMCP(named: mcp.name, for: provider) }
                                 }
                             ) {
@@ -191,7 +194,7 @@ struct ProviderMcpGridView: View {
                                 debugPageMarkerMenuItem(
                                     markerBaseItems + [PageMarkerItem(title: mcp.name)]
                                 )
-                            )
+                            }
                             .debugCardLocator(markerBaseItems + [PageMarkerItem(title: mcp.name)])
                             .onTapGesture {
                                 editingConfig = EditingConfig(
@@ -201,11 +204,12 @@ struct ProviderMcpGridView: View {
                                 )
                             }
                         }
+                        }
                     }
                 }
+            } else {
+                NolonUI.McpConfigUnsupportedStateView()
             }
-        } else {
-            NolonUI.McpConfigUnsupportedStateView()
         }
         .sheet(item: $editingConfig) { config in
             McpConfigEditorView(
@@ -232,6 +236,19 @@ private struct EditingConfig: Identifiable {
 private func mcpCommandText(_ mcp: MCP) -> String? {
     guard let dict = mcp.json.value as? [String: Any] else { return nil }
     return dict["command"] as? String
+}
+
+private extension ProviderDetailGridViewModel.McpCacheState {
+    var uiCacheState: McpServerCardCacheState {
+        switch self {
+        case .notMigrated:
+            return .notMigrated
+        case .migratedUpToDate:
+            return .migratedUpToDate
+        case .migratedNeedsUpdate:
+            return .migratedNeedsUpdate
+        }
+    }
 }
 
 private func mcpLogoName(_ mcp: MCP) -> String? {

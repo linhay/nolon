@@ -8,20 +8,20 @@ extension ProviderUsageEngine {
     func makeCodexUsageQuery(from draft: CodexConfigEditorDraft) throws -> CodexHTTPUsageQuery? {
         let hasAnyHTTPField =
             draft.httpUsageEnabled
-            || isNotBlank(draft.httpUsageURL)
-            || isNotBlank(draft.httpUsageHeadersText)
-            || isNotBlank(draft.httpUsageBody)
-            || isNotBlank(draft.httpUsagePlanPath)
-            || isNotBlank(draft.httpUsageCreditsRemainingPath)
-            || isNotBlank(draft.httpUsageUsedPath)
-            || isNotBlank(draft.httpUsageTotalPath)
-            || isNotBlank(draft.httpUsageCostTodayPath)
-            || isNotBlank(draft.httpUsageCostLast30DaysPath)
-            || isNotBlank(draft.httpUsageErrorMessagePath)
-            || isNotBlank(draft.httpUsageOverrideBaseURL)
-            || isNotBlank(draft.httpUsageOverrideAPIKey)
-            || isNotBlank(draft.httpUsageOverrideAccessToken)
-            || isNotBlank(draft.httpUsageOverrideUserID)
+            || Self.isNotBlank(draft.httpUsageURL)
+            || Self.isNotBlank(draft.httpUsageHeadersText)
+            || Self.isNotBlank(draft.httpUsageBody)
+            || Self.isNotBlank(draft.httpUsagePlanPath)
+            || Self.isNotBlank(draft.httpUsageCreditsRemainingPath)
+            || Self.isNotBlank(draft.httpUsageUsedPath)
+            || Self.isNotBlank(draft.httpUsageTotalPath)
+            || Self.isNotBlank(draft.httpUsageCostTodayPath)
+            || Self.isNotBlank(draft.httpUsageCostLast30DaysPath)
+            || Self.isNotBlank(draft.httpUsageErrorMessagePath)
+            || Self.isNotBlank(draft.httpUsageOverrideBaseURL)
+            || Self.isNotBlank(draft.httpUsageOverrideAPIKey)
+            || Self.isNotBlank(draft.httpUsageOverrideAccessToken)
+            || Self.isNotBlank(draft.httpUsageOverrideUserID)
 
         guard hasAnyHTTPField else { return nil }
 
@@ -33,10 +33,10 @@ extension ProviderUsageEngine {
             )
         }
 
-        let url = trimmed(draft.httpUsageURL)
+        let url = Self.trimmed(draft.httpUsageURL)
         let usesBaseURLTemplate = url.contains("{{baseURL}}")
         guard
-            isNotBlank(url),
+            Self.isNotBlank(url),
             usesBaseURLTemplate || (URL(string: url)?.scheme != nil)
         else {
             throw NSError(
@@ -51,9 +51,9 @@ extension ProviderUsageEngine {
         }
 
         let headers = try Self.parseKeyValueLines(draft.httpUsageHeadersText)
-        let method: CodexHTTPMethod = isNotBlank(draft.httpUsageBody) ? .post : .get
+        let method: CodexHTTPMethod = Self.isNotBlank(draft.httpUsageBody) ? .post : .get
         let timeoutSeconds: Double? = {
-            let raw = trimmed(draft.httpUsageTimeoutSeconds)
+            let raw = Self.trimmed(draft.httpUsageTimeoutSeconds)
             guard let value = Double(raw), value > 0 else { return nil }
             return value
         }()
@@ -163,8 +163,8 @@ extension ProviderUsageEngine {
     }
 
     func emptyToNil(_ raw: String) -> String? {
-        let trimmed = trimmed(raw)
-        return isNotBlank(trimmed) ? trimmed : nil
+        let trimmed = Self.trimmed(raw)
+        return Self.isNotBlank(trimmed) ? trimmed : nil
     }
 
     func mergeCodexImportCandidates(results: [CodexAuthManager.CodexImportValidationResult]) {
@@ -223,13 +223,13 @@ extension ProviderUsageEngine {
             candidate.testSummary
         ].compactMap { value in
             guard let value else { return nil }
-            let trimmedValue = trimmed(value)
+            let trimmedValue = Self.trimmed(value)
             return trimmedValue.isEmpty ? nil : trimmedValue
         }
     }
 
     private func normalizedCodexImportSearchValue(_ raw: String) -> String {
-        trimmed(raw)
+        Self.trimmed(raw)
             .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
             .lowercased()
     }
@@ -243,7 +243,7 @@ extension ProviderUsageEngine {
     func makeCodexImportCandidate(
         result: CodexAuthManager.CodexImportValidationResult
     ) -> CodexImportCandidate {
-        let failureSummary = result.reason.map { trimmed($0) }
+        let failureSummary = result.reason.map { Self.trimmed($0) }
         return CodexImportCandidate(
             sourceFileURL: result.fileURL,
             validation: result,
@@ -307,7 +307,7 @@ extension ProviderUsageEngine {
         if !source.isEmpty {
             parts.append(source)
         }
-        if let plan = result.usage.identity?.plan?.trimmingCharacters(in: .whitespacesAndNewlines), isNotBlank(plan) {
+        if let plan = result.usage.identity?.plan?.trimmingCharacters(in: .whitespacesAndNewlines), Self.isNotBlank(plan) {
             parts.append(plan)
         }
         if let remaining = result.credits?.remaining, !remaining.isNaN {
