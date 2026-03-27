@@ -921,7 +921,7 @@ final class ProviderUsageEngine {
                 return
             }
 
-            let targets = codexHeaderRefreshTargets()
+            let targets = orderedAccounts(activeId: activeCodexAccountId)
             guard !targets.isEmpty else { return }
 
             if let codexRefreshAllAction {
@@ -965,10 +965,6 @@ final class ProviderUsageEngine {
                 self.codexHeaderRefreshSessionID = nil
             }
         }
-    }
-
-    func codexHeaderRefreshTargets() -> [CodexAuthAccount] {
-        orderedAccounts(activeId: activeCodexAccountId)
     }
 
     func setTokenTrendRange(_ range: TokenTrendRange) {
@@ -1044,10 +1040,6 @@ final class ProviderUsageEngine {
 
     func watchedPathsForTesting() -> [String] {
         usageWatcher?.watchedPathsForTesting ?? []
-    }
-
-    func emitCodexAuthReloadSignalForTesting() {
-        codexAuthReloadSignal.send()
     }
 
     private func handleUsageFileChange(_ change: STPathChanged) async {
@@ -2315,10 +2307,6 @@ final class ProviderUsageEngine {
         let trimmed = Self.trimmed(raw)
         guard Self.isNotBlank(raw) else { return }
         copyText(trimmed)
-    }
-
-    func copyCodexAccountID(id: UUID) {
-        copyText(id.uuidString.lowercased())
     }
 
     func copyCodexAccountPath(id: UUID) {

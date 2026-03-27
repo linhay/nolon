@@ -933,10 +933,6 @@ final class CodexAdvancedConfigViewModel {
         Task { await saveStructuredConfig() }
     }
 
-    func reloadConfigDraft() {
-        loadConfigDraft()
-    }
-
     private func resolvedConfigFile() -> STFile? {
         modelPreferenceService.resolvedConfigFile(for: provider)
     }
@@ -1094,7 +1090,7 @@ struct CodexAdvancedConfigView: View {
         .sheet(isPresented: $isEditingRawConfig) {
             if let configURL = viewModel.configFileURL {
                 CodexConfigEditorView(configURL: configURL) {
-                    viewModel.reloadConfigDraft()
+                    viewModel.loadConfigDraft()
                 }
             } else {
                 EmptyView()
