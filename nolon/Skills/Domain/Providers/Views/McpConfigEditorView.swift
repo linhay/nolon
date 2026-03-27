@@ -1,6 +1,5 @@
 import SwiftUI
 import NolonUI
-import STFilePath
 import STJSON
 import TOML
 import NolonResourceKit
@@ -17,18 +16,15 @@ struct McpConfigEditorView: View {
     }
 
     var body: some View {
-        NolonUI.CodeEditorSheetView(
+        NolonUI.FileBackedCodeEditorSheetView(
             title: NSLocalizedString("mcp.editor.title", value: "Edit MCP", comment: "MCP editor title"),
-            initialTextLoader: {
-                (try? STFile(configURL).read()) ?? ""
-            },
+            fileURL: configURL,
             highlight: highlight,
             invalidAlertTitle: NSLocalizedString("mcp.editor.invalid_config.title", value: "Invalid Configuration", comment: "Invalid config title"),
             onValidate: { text in
                 try validate(text)
             },
-            onSave: { text in
-                try STFile(configURL).overlay(with: text)
+            onAfterSave: { text in
                 await onSave(text)
             }
         )
