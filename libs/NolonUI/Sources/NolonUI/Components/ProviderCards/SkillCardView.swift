@@ -125,12 +125,12 @@ public struct SkillCardView<ExtraContextMenu: View>: View {
                     }
                 }
 
-                HighlightedText(text: description, query: searchText)
-                    .font(.caption)
-                    .dsSecondaryText(font: .caption)
-                    .lineLimit(3)
-                    .truncationMode(.tail)
-                    .frame(maxWidth: .infinity, minHeight: descriptionHeight, maxHeight: descriptionHeight, alignment: .topLeading)
+                ProviderCardDescriptionBlock(
+                    text: description,
+                    searchText: searchText,
+                    minHeight: descriptionHeight,
+                    maxHeight: descriptionHeight
+                )
             }
         } footerContent: {
             EmptyView()

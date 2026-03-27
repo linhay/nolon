@@ -44,7 +44,10 @@ public struct AgentDocCardView<ExtraContextMenu: View>: View {
     }
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: DesignSystem.Metrics.spacingM) {
+        ProviderCardTemplate(
+            minHeight: 140,
+            onTap: onTap
+        ) {
             ProviderCardTitleMenuRow {
                 HighlightedText(text: doc.fileName, query: searchText)
                     .font(.headline)
@@ -52,7 +55,7 @@ public struct AgentDocCardView<ExtraContextMenu: View>: View {
             } menuContent: {
                 contextMenuItems
             }
-
+        } bodyContent: {
             ProviderCardIconCaptionRow(
                 iconName: doc.kind == .override ? "arrow.up.circle" : "doc.text",
                 title: doc.kind == .override
@@ -67,13 +70,13 @@ public struct AgentDocCardView<ExtraContextMenu: View>: View {
                 maxHeight: .infinity,
                 placeholderHeight: 16
             )
+        } footerContent: {
+            EmptyView()
+        } actionContent: {
+            EmptyView()
+        } contextMenuContent: {
+            contextMenuItems
         }
-        .padding(DesignSystem.Metrics.spacingL)
-        .frame(minHeight: 140)
-        .providerTabCardStyle()
-        .contentShape(Rectangle())
-        .onTapGesture { onTap() }
-        .contextMenu { contextMenuItems }
         .destructiveConfirmationDialog(
             data: DestructiveConfirmationDialogData(
                 title: NSLocalizedString("action.delete_confirm_title", value: "Confirm Delete", comment: "Delete confirmation title"),

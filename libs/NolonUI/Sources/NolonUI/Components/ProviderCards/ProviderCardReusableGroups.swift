@@ -59,18 +59,52 @@ struct ProviderCardOptionalPreviewBlock: View {
     }
 
     var body: some View {
-        let hasPreview = !preview.isEmpty
+        ProviderCardDescriptionBlock(
+            text: preview,
+            searchText: searchText,
+            minHeight: minHeight,
+            maxHeight: maxHeight,
+            allowsEmpty: true,
+            placeholderHeight: placeholderHeight
+        )
+    }
+}
 
-        if hasPreview {
-            HighlightedText(text: preview, query: searchText)
+struct ProviderCardDescriptionBlock: View {
+    let text: String
+    let searchText: String
+    let minHeight: CGFloat
+    let maxHeight: CGFloat
+    let allowsEmpty: Bool
+    let placeholderHeight: CGFloat?
+
+    init(
+        text: String,
+        searchText: String,
+        minHeight: CGFloat,
+        maxHeight: CGFloat,
+        allowsEmpty: Bool = false,
+        placeholderHeight: CGFloat? = nil
+    ) {
+        self.text = text
+        self.searchText = searchText
+        self.minHeight = minHeight
+        self.maxHeight = maxHeight
+        self.allowsEmpty = allowsEmpty
+        self.placeholderHeight = placeholderHeight
+    }
+
+    var body: some View {
+        if allowsEmpty, text.isEmpty {
+            Color.clear
+                .frame(height: placeholderHeight)
+                .frame(maxWidth: .infinity, minHeight: minHeight, maxHeight: maxHeight, alignment: .topLeading)
+        } else {
+            HighlightedText(text: text, query: searchText)
                 .font(.caption)
                 .dsSecondaryText(font: .caption)
                 .lineLimit(3)
                 .truncationMode(.tail)
-                .frame(maxWidth: .infinity, minHeight: minHeight, maxHeight: maxHeight, alignment: .topLeading)
-        } else {
-            Color.clear
-                .frame(height: placeholderHeight)
                 .frame(maxWidth: .infinity, minHeight: minHeight, maxHeight: maxHeight, alignment: .topLeading)
         }
     }

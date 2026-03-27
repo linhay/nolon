@@ -46,7 +46,10 @@ public struct RuleCardView<ExtraContextMenu: View>: View {
     }
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: DesignSystem.Metrics.spacingM) {
+        ProviderCardTemplate(
+            minHeight: 140,
+            onTap: onTap
+        ) {
             ProviderCardTitleMenuRow {
                 HighlightedText(text: rule.name, query: searchText)
                     .font(.headline)
@@ -54,14 +57,14 @@ public struct RuleCardView<ExtraContextMenu: View>: View {
             } menuContent: {
                 contextMenuItems
             }
-
+        } bodyContent: {
             ProviderCardOptionalPreviewBlock(
                 preview: rule.preview,
                 searchText: searchText,
                 minHeight: descriptionHeight,
                 maxHeight: descriptionHeight
             )
-
+        } footerContent: {
             HStack(spacing: DesignSystem.Metrics.spacingS) {
                 Image(systemName: "doc.text")
                     .foregroundStyle(DesignSystem.Colors.Text.secondary)
@@ -72,15 +75,9 @@ public struct RuleCardView<ExtraContextMenu: View>: View {
                     .truncationMode(.middle)
                 Spacer()
             }
-        }
-        .padding(DesignSystem.Metrics.spacingL)
-        .frame(minHeight: 140)
-        .providerTabCardStyle()
-        .contentShape(Rectangle())
-        .onTapGesture {
-            onTap()
-        }
-        .contextMenu {
+        } actionContent: {
+            EmptyView()
+        } contextMenuContent: {
             contextMenuItems
         }
         .destructiveConfirmationDialog(

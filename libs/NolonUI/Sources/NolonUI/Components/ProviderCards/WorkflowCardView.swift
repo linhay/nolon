@@ -62,12 +62,12 @@ public struct WorkflowCardView<ExtraContextMenu: View>: View {
                 contextMenuItems
             }
         } bodyContent: {
-            HighlightedText(text: workflow.description, query: searchText)
-                .font(.caption)
-                .dsSecondaryText(font: .caption)
-                .lineLimit(3)
-                .truncationMode(.tail)
-                .frame(maxWidth: .infinity, minHeight: descriptionHeight, maxHeight: descriptionHeight, alignment: .topLeading)
+            ProviderCardDescriptionBlock(
+                text: workflow.description,
+                searchText: searchText,
+                minHeight: descriptionHeight,
+                maxHeight: descriptionHeight
+            )
         } footerContent: {
             HStack {
                 Label("Workflow", systemImage: "arrow.triangle.branch")
