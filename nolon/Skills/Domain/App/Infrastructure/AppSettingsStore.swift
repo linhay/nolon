@@ -96,7 +96,7 @@ final class AppSettingsStore {
     func applyLanguage() {
         guard ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] != "1" else { return }
 
-        AppLocalizationService.setLanguageOverride(language == .system ? nil : language.rawValue)
+        Bundle.nolon_setLanguageOverride(language == .system ? nil : language.rawValue)
 
         if language == .system {
             userDefaults.removeObject(forKey: Keys.appleLanguages)

@@ -26,10 +26,6 @@ final class ResourceCenterWindowCoordinator {
     var payload: Payload?
 
     private init() {}
-
-    func present(payload: Payload) {
-        self.payload = payload
-    }
 }
 
 struct ResourceCenterWindowRootView: View {

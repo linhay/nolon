@@ -274,7 +274,14 @@ private func repositorySections(_ repos: [RemoteRepository]) -> [RepositorySecti
             for host in orderedHosts {
                 guard var repositories = grouped[host] else { continue }
                 repositories.sort { lhs, rhs in
-                    repositorySortKey(lhs).localizedStandardCompare(repositorySortKey(rhs)) == .orderedAscending
+                    repositoryDisplayName(lhs)
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                        .lowercased()
+                        .localizedStandardCompare(
+                            repositoryDisplayName(rhs)
+                                .trimmingCharacters(in: .whitespacesAndNewlines)
+                                .lowercased()
+                        ) == .orderedAscending
                 }
                 sections.append(
                     RepositorySection(
@@ -325,10 +332,6 @@ private func repositorySecondaryLine(_ repo: RemoteRepository) -> String? {
         return host
     }
     return nil
-}
-
-private func repositorySortKey(_ repo: RemoteRepository) -> String {
-    repositoryDisplayName(repo).trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
 }
 
 private func gitRepositoryDisplayName(_ repo: RemoteRepository) -> String? {

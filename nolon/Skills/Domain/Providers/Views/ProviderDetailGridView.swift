@@ -93,31 +93,29 @@ struct ProviderDetailGridView: View, DebugPageLocatable {
             case .mcp:
                 tabType = .mcps
             }
-            ResourceCenterWindowCoordinator.shared.present(
-                payload: .init(
-                    settings: settings,
-                    repository: viewModel.repository,
-                    targetProvider: provider,
-                    selectedTab: tabType,
-                    onInstall: { skill, provider in
-                        Task {
-                            await viewModel.installRemoteSkill(skill, to: provider)
-                        }
-                    },
-                    onInstallWorkflow: { workflow, provider in
-                        Task {
-                            await viewModel.installRemoteWorkflow(workflow, to: provider)
-                        }
-                    },
-                    onInstallMCP: { mcp, provider in
-                        Task {
-                            await viewModel.installRemoteMCP(mcp, to: provider)
-                        }
-                    },
-                    onRegisterDeleteRequest: nil,
-                    onMakeDeleteRequestExecutor: nil,
-                    onClose: nil
-                )
+            ResourceCenterWindowCoordinator.shared.payload = .init(
+                settings: settings,
+                repository: viewModel.repository,
+                targetProvider: provider,
+                selectedTab: tabType,
+                onInstall: { skill, provider in
+                    Task {
+                        await viewModel.installRemoteSkill(skill, to: provider)
+                    }
+                },
+                onInstallWorkflow: { workflow, provider in
+                    Task {
+                        await viewModel.installRemoteWorkflow(workflow, to: provider)
+                    }
+                },
+                onInstallMCP: { mcp, provider in
+                    Task {
+                        await viewModel.installRemoteMCP(mcp, to: provider)
+                    }
+                },
+                onRegisterDeleteRequest: nil,
+                onMakeDeleteRequestExecutor: nil,
+                onClose: nil
             )
             openWindow(id: ResourceCenterWindowCoordinator.windowID)
             viewModel.showingRemoteBrowser = nil

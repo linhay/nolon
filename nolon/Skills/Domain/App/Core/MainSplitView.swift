@@ -818,45 +818,43 @@ public struct MainSplitView: View, DebugPageLocatable {
     }
 
     private func presentResourceCenterWindow(selectedTab: ResourceCenterTabID) {
-        ResourceCenterWindowCoordinator.shared.present(
-            payload: .init(
-                settings: viewModel.settings,
-                repository: viewModel.repository,
-                targetProvider: viewModel.selectedProvider,
-                selectedTab: selectedTab,
-                onInstall: { skill, provider in
-                    Task {
-                        await viewModel.installRemoteSkill(skill, to: provider)
-                    }
-                },
-                onInstallWorkflow: { workflow, provider in
-                    Task {
-                        await viewModel.installRemoteWorkflow(workflow, to: provider)
-                    }
-                },
-                onInstallMCP: { mcp, provider in
-                    Task {
-                        await viewModel.installRemoteMCP(mcp, to: provider)
-                    }
-                },
-                onRegisterDeleteRequest: { slug, resourceType, providerIndex, removeGlobalCache, globalCachePathHint in
-                    viewModel.registerDeleteRequest(
-                        slug: slug,
-                        resourceType: resourceType,
-                        providerIndex: providerIndex,
-                        removeGlobalCache: removeGlobalCache,
-                        globalCachePathHint: globalCachePathHint
-                    )
-                },
-                onMakeDeleteRequestExecutor: { requestID in
-                    {
-                        await viewModel.executeRegisteredDeleteRequest(id: requestID)
-                    }
-                },
-                onClose: {
-                    viewModel.onResourceCenterDismissed()
+        ResourceCenterWindowCoordinator.shared.payload = .init(
+            settings: viewModel.settings,
+            repository: viewModel.repository,
+            targetProvider: viewModel.selectedProvider,
+            selectedTab: selectedTab,
+            onInstall: { skill, provider in
+                Task {
+                    await viewModel.installRemoteSkill(skill, to: provider)
                 }
-            )
+            },
+            onInstallWorkflow: { workflow, provider in
+                Task {
+                    await viewModel.installRemoteWorkflow(workflow, to: provider)
+                }
+            },
+            onInstallMCP: { mcp, provider in
+                Task {
+                    await viewModel.installRemoteMCP(mcp, to: provider)
+                }
+            },
+            onRegisterDeleteRequest: { slug, resourceType, providerIndex, removeGlobalCache, globalCachePathHint in
+                viewModel.registerDeleteRequest(
+                    slug: slug,
+                    resourceType: resourceType,
+                    providerIndex: providerIndex,
+                    removeGlobalCache: removeGlobalCache,
+                    globalCachePathHint: globalCachePathHint
+                )
+            },
+            onMakeDeleteRequestExecutor: { requestID in
+                {
+                    await viewModel.executeRegisteredDeleteRequest(id: requestID)
+                }
+            },
+            onClose: {
+                viewModel.onResourceCenterDismissed()
+            }
         )
         openWindow(id: ResourceCenterWindowCoordinator.windowID)
     }

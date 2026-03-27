@@ -1,12 +1,6 @@
 import Foundation
 import ObjectiveC.runtime
 
-enum AppLocalizationService {
-    static func setLanguageOverride(_ languageCode: String?) {
-        Bundle.nolon_setLanguageOverride(languageCode)
-    }
-}
-
 // MARK: - Bundle override (runtime)
 
 private enum NolonBundleLanguageOverride {
@@ -14,7 +8,7 @@ private enum NolonBundleLanguageOverride {
     static var bundleKey: UInt8 = 0
 }
 
-private extension Bundle {
+extension Bundle {
     static func nolon_setLanguageOverride(_ languageCode: String?) {
         nolon_swizzleLocalizationIfNeeded()
 
@@ -53,4 +47,3 @@ private extension Bundle {
         return nolon_localizedString(forKey: key, value: value, table: tableName)
     }
 }
-
