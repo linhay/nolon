@@ -165,7 +165,7 @@ public final class ProviderResourceService: @unchecked Sendable {
             items.append(item)
         }
 
-        let override = provider.codexAgentsOverrideFileURL
+        let override = provider.codexAgentsOverrideFile.url
         if STFile(override).isExists, let item = parseAgentDoc(url: override, kind: .override) {
             items.append(item)
         }

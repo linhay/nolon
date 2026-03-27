@@ -319,10 +319,6 @@ public struct RemoteRepository: Identifiable, Codable, Hashable, Sendable {
         }
     }
 
-    nonisolated public var localCloneFolder: STFolder {
-        STFolder(localClonePath)
-    }
-
     /// Extract repository name from Git URL
     public static func extractRepoName(from url: String) -> String {
         if let identity = SkillsRepositoryFacade.parseRepositoryIdentity(from: url) {

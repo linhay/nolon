@@ -55,11 +55,8 @@ struct NolonResourceKitTests {
         #expect(provider.codexAgentsFile.url.standardizedFileURL.path == "/tmp/codex-home/AGENTS.md")
         #expect(provider.codexAgentsOverrideFile.url.standardizedFileURL.path == "/tmp/codex-home/AGENTS.override.md")
 
-        #expect(provider.codexHomeURL.standardizedFileURL.path == provider.codexHomeFolder.url.standardizedFileURL.path)
         #expect(provider.codexRulesURL.standardizedFileURL.path == provider.codexRulesFolder.url.standardizedFileURL.path)
-        #expect(provider.codexDefaultRulesFileURL.standardizedFileURL.path == provider.codexDefaultRulesFile.url.standardizedFileURL.path)
         #expect(provider.codexAgentsFileURL.standardizedFileURL.path == provider.codexAgentsFile.url.standardizedFileURL.path)
-        #expect(provider.codexAgentsOverrideFileURL.standardizedFileURL.path == provider.codexAgentsOverrideFile.url.standardizedFileURL.path)
     }
 
     @Test("CodexModelPreferenceService merges visible model slugs and reads config")
@@ -169,7 +166,6 @@ struct NolonResourceKitTests {
         )
 
         #expect(repo.localClonePath.standardizedFileURL.path == "/tmp/nolon-local-repo")
-        #expect(repo.localCloneFolder.url.standardizedFileURL.path == repo.localClonePath.standardizedFileURL.path)
     }
 
     @Test("MCPConfigManager codex upsert/list/set-enabled/remove")

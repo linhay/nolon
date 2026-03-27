@@ -12,10 +12,7 @@ public enum PiAuthStatusParser {
             return .invalid
         }
 
-        return .available(email: extractEmail(from: object))
-    }
-
-    public static func extractEmail(from object: [String: Any]) -> String? {
+        let email: String? = {
         if let email = object["email"] as? String, !email.isEmpty {
             return email
         }
@@ -26,5 +23,7 @@ public enum PiAuthStatusParser {
             return email
         }
         return nil
+        }()
+        return .available(email: email)
     }
 }
