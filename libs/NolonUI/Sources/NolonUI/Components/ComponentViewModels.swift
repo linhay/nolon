@@ -74,6 +74,24 @@ public final class GatewayCardModuleViewModel {
 }
 
 @Observable
+public final class GenericSelectionControlViewModel {
+    public init() {}
+}
+
+@Observable
+public final class ProviderUsageEmptyStateCardViewModel {
+    public var title: LocalizedStringKey
+    public var systemImage: String
+    public var descriptionText: Text
+
+    public init(title: LocalizedStringKey, systemImage: String, descriptionText: Text) {
+        self.title = title
+        self.systemImage = systemImage
+        self.descriptionText = descriptionText
+    }
+}
+
+@Observable
 public final class SkillDetailScaffoldViewModel {
     public var columnVisibility: NavigationSplitViewVisibility
 
@@ -85,6 +103,201 @@ public final class SkillDetailScaffoldViewModel {
 @Observable
 public final class SkillDetailSidebarContainerViewModel {
     public init() {}
+}
+
+@Observable
+public final class LiquidBackgroundViewModel {
+    public var appear: Bool
+
+    public init(appear: Bool = false) {
+        self.appear = appear
+    }
+
+    public func startAnimation() {
+        withAnimation(.easeInOut(duration: 15).repeatForever(autoreverses: true)) {
+            appear.toggle()
+        }
+    }
+}
+
+@Observable
+public final class OnboardingWelcomeViewViewModel {
+    public struct FeatureItem: Identifiable {
+        public let id: String
+        public let icon: String
+        public let titleKey: LocalizedStringKey
+        public let descriptionKey: LocalizedStringKey
+        public let color: Color
+
+        public init(
+            id: String,
+            icon: String,
+            titleKey: LocalizedStringKey,
+            descriptionKey: LocalizedStringKey,
+            color: Color
+        ) {
+            self.id = id
+            self.icon = icon
+            self.titleKey = titleKey
+            self.descriptionKey = descriptionKey
+            self.color = color
+        }
+    }
+
+    public let appIcon: Image
+    public var titleKey: LocalizedStringKey
+    public var subtitleKey: LocalizedStringKey
+    public var featureItems: [FeatureItem]
+
+    public init(
+        appIcon: Image,
+        titleKey: LocalizedStringKey = "onboarding.welcome.title",
+        subtitleKey: LocalizedStringKey = "onboarding.welcome.subtitle",
+        featureItems: [FeatureItem] = [
+            .init(
+                id: "unified",
+                icon: "brain.head.profile",
+                titleKey: "onboarding.feature.unified.title",
+                descriptionKey: "onboarding.feature.unified.description",
+                color: DesignSystem.Colors.primary
+            ),
+            .init(
+                id: "github",
+                icon: "link.circle.fill",
+                titleKey: "onboarding.feature.github.title",
+                descriptionKey: "onboarding.feature.github.description",
+                color: DesignSystem.Colors.primary
+            ),
+            .init(
+                id: "clawdhub",
+                icon: "cloud.fill",
+                titleKey: "onboarding.feature.clawdhub.title",
+                descriptionKey: "onboarding.feature.clawdhub.description",
+                color: DesignSystem.Colors.primary
+            )
+        ]
+    ) {
+        self.appIcon = appIcon
+        self.titleKey = titleKey
+        self.subtitleKey = subtitleKey
+        self.featureItems = featureItems
+    }
+}
+
+@Observable
+public final class OnboardingCompletionViewViewModel {
+    public struct ProviderItem: Identifiable {
+        public let id: String
+        public let name: String
+        public let logoName: String?
+
+        public init(id: String, name: String, logoName: String? = nil) {
+            self.id = id
+            self.name = name
+            self.logoName = logoName
+        }
+    }
+
+    public struct TipItem: Identifiable {
+        public let id: String
+        public let icon: String
+        public let textKey: LocalizedStringKey
+
+        public init(id: String, icon: String, textKey: LocalizedStringKey) {
+            self.id = id
+            self.icon = icon
+            self.textKey = textKey
+        }
+    }
+
+    public var titleKey: LocalizedStringKey
+    public var subtitleKey: LocalizedStringKey
+    public var tipsTitleKey: LocalizedStringKey
+    public var providers: [ProviderItem]
+    public var avatarLimit: Int
+    public var tips: [TipItem]
+
+    public init(
+        titleKey: LocalizedStringKey = "onboarding.completion.title",
+        subtitleKey: LocalizedStringKey = "onboarding.completion.subtitle",
+        tipsTitleKey: LocalizedStringKey = "onboarding.completion.tips_title",
+        providers: [ProviderItem],
+        avatarLimit: Int = 8,
+        tips: [TipItem] = [
+            .init(id: "add-provider", icon: "plus", textKey: "onboarding.completion.tip_add_provider"),
+            .init(id: "clawdhub", icon: "cloud", textKey: "onboarding.completion.tip_clawdhub")
+        ]
+    ) {
+        self.titleKey = titleKey
+        self.subtitleKey = subtitleKey
+        self.tipsTitleKey = tipsTitleKey
+        self.providers = providers
+        self.avatarLimit = avatarLimit
+        self.tips = tips
+    }
+}
+
+@Observable
+public final class OnboardingProviderSelectionViewViewModel {
+    public struct ProviderItem: Identifiable {
+        public let id: String
+        public let name: String
+        public let logoName: String?
+
+        public init(id: String, name: String, logoName: String?) {
+            self.id = id
+            self.name = name
+            self.logoName = logoName
+        }
+    }
+
+    public struct Section: Identifiable {
+        public let id: String
+        public let title: String
+        public let providers: [ProviderItem]
+
+        public init(id: String, title: String, providers: [ProviderItem]) {
+            self.id = id
+            self.title = title
+            self.providers = providers
+        }
+    }
+
+    public var titleKey: LocalizedStringKey
+    public var subtitleKey: LocalizedStringKey
+    public var sections: [Section]
+    public var selectedProviderIDs: Set<String>
+    public var detectedProviderIDs: Set<String>
+
+    private let onToggleProvider: (String) -> Void
+
+    public init(
+        titleKey: LocalizedStringKey = "onboarding.provider.title",
+        subtitleKey: LocalizedStringKey = "onboarding.provider.subtitle",
+        sections: [Section],
+        selectedProviderIDs: Set<String>,
+        detectedProviderIDs: Set<String>,
+        onToggleProvider: @escaping (String) -> Void
+    ) {
+        self.titleKey = titleKey
+        self.subtitleKey = subtitleKey
+        self.sections = sections
+        self.selectedProviderIDs = selectedProviderIDs
+        self.detectedProviderIDs = detectedProviderIDs
+        self.onToggleProvider = onToggleProvider
+    }
+
+    public func isSelected(id: String) -> Bool {
+        selectedProviderIDs.contains(id)
+    }
+
+    public func isDetected(id: String) -> Bool {
+        detectedProviderIDs.contains(id)
+    }
+
+    public func toggleSelection(id: String) {
+        onToggleProvider(id)
+    }
 }
 
 @Observable
@@ -141,6 +354,73 @@ public final class SkillDetailViewViewModel {
 }
 
 @Observable
+public final class SkillInstallSheetViewModel {
+    public var data: SkillInstallSheetData
+    public var selectedProviderID: String?
+
+    private let onConfirm: (String) -> Void
+    private let onCancel: () -> Void
+
+    public init(
+        data: SkillInstallSheetData,
+        selectedProviderID: String? = nil,
+        onConfirm: @escaping (String) -> Void,
+        onCancel: @escaping () -> Void
+    ) {
+        self.data = data
+        self.selectedProviderID = selectedProviderID ?? data.providers.first?.id
+        self.onConfirm = onConfirm
+        self.onCancel = onCancel
+    }
+
+    public func cancel() {
+        onCancel()
+    }
+
+    public func confirmInstall() {
+        guard let selectedProviderID else { return }
+        onConfirm(selectedProviderID)
+    }
+}
+
+@Observable
+public final class DirectoryPickerSheetViewModel {
+    public var data: DirectoryPickerSheetData
+    public var selectedIDs: Set<Int>
+
+    private let onConfirm: (Set<Int>) -> Void
+    private let onCancel: () -> Void
+
+    public init(
+        data: DirectoryPickerSheetData,
+        selectedIDs: Set<Int> = [],
+        onConfirm: @escaping (Set<Int>) -> Void,
+        onCancel: @escaping () -> Void
+    ) {
+        self.data = data
+        self.selectedIDs = selectedIDs
+        self.onConfirm = onConfirm
+        self.onCancel = onCancel
+    }
+
+    public func toggleSelection(_ id: Int) {
+        if selectedIDs.contains(id) {
+            selectedIDs.remove(id)
+        } else {
+            selectedIDs.insert(id)
+        }
+    }
+
+    public func cancel() {
+        onCancel()
+    }
+
+    public func confirm() {
+        onConfirm(selectedIDs)
+    }
+}
+
+@Observable
 public final class MainSplitScaffoldViewModel {
     public init() {}
 }
@@ -191,6 +471,35 @@ public final class WorkflowCardViewViewModel {
 }
 
 @Observable
+public final class ProviderSkillCardViewViewModel {
+    public init() {}
+}
+
+@Observable
+public final class SkillVersionBadgeViewModel {
+    public init() {}
+}
+
+@Observable
+public final class SkillInstalledBadgeViewModel {
+    public init() {}
+}
+
+@Observable
+public final class SkillOrphanedBadgeViewModel {
+    public init() {}
+}
+
+@Observable
+public final class SkillRowViewViewModel {
+    public var isExpanded: Bool
+
+    public init(isExpanded: Bool = false) {
+        self.isExpanded = isExpanded
+    }
+}
+
+@Observable
 public final class ProviderCardTemplateViewModel {
     public init() {}
 }
@@ -235,17 +544,17 @@ public final class ResourceCenterCloseButtonViewModel {
 }
 
 @Observable
-public final class ResourceCenterSidebarComponentViewModel {
-    public init() {}
-}
-
-@Observable
 public final class FloatingCloseButtonViewModel {
     public init() {}
 }
 
 @Observable
 public final class HighlightedTextViewModel {
+    public init() {}
+}
+
+@Observable
+public final class ToastViewModel {
     public init() {}
 }
 
@@ -266,16 +575,6 @@ public final class SidebarColumnScaffoldViewModel {
 
 @Observable
 public final class ThreeColumnScaffoldViewModel {
-    public init() {}
-}
-
-@Observable
-public final class ProviderContentTabSidebarComponentViewModel {
-    public init() {}
-}
-
-@Observable
-public final class ProviderSidebarComponentViewModel {
     public init() {}
 }
 

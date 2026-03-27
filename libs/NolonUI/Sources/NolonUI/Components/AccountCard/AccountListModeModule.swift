@@ -154,9 +154,9 @@ public struct AccountListModeModule: View {
     ) {
         self.title = title
         self.sections = [.init(items: items)]
-        self.accountColumnTitle = "Account"
-        self.planColumnTitle = "Plan"
-        self.usageColumnTitle = "Usage"
+        self.accountColumnTitle = NSLocalizedString("codex.accounts.list.header.account", value: "Account", comment: "Account list table account column")
+        self.planColumnTitle = NSLocalizedString("codex.accounts.list.header.plan", value: "Plan", comment: "Account list table plan column")
+        self.usageColumnTitle = NSLocalizedString("codex.accounts.list.header.usage", value: "Usage", comment: "Account list table usage column")
         self.planColumnWidth = 90
         self.usageColumnWidth = 220
         self.onTap = nil
@@ -166,9 +166,9 @@ public struct AccountListModeModule: View {
     public init(
         title: String? = nil,
         sections: [AccountListModeSection],
-        accountColumnTitle: String = "Account",
-        planColumnTitle: String = "Plan",
-        usageColumnTitle: String = "Usage",
+        accountColumnTitle: String = NSLocalizedString("codex.accounts.list.header.account", value: "Account", comment: "Account list table account column"),
+        planColumnTitle: String = NSLocalizedString("codex.accounts.list.header.plan", value: "Plan", comment: "Account list table plan column"),
+        usageColumnTitle: String = NSLocalizedString("codex.accounts.list.header.usage", value: "Usage", comment: "Account list table usage column"),
         planColumnWidth: CGFloat = 90,
         usageColumnWidth: CGFloat = 220,
         onTap: ((String) -> Void)? = nil,

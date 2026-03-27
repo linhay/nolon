@@ -16,6 +16,14 @@ public struct ToastView: View {
         self.style = style
     }
 
+    public static func copied() -> ToastView {
+        ToastView(
+            text: NSLocalizedString("remote.error.copied", value: "Copied", comment: "Copied tooltip"),
+            systemImage: "doc.on.doc",
+            style: .success
+        )
+    }
+
     private var backgroundColor: Color {
         switch style {
         case .neutral:

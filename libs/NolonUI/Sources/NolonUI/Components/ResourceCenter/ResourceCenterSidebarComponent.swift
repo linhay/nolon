@@ -10,7 +10,6 @@ public enum ResourceCenterSidebarMetrics {
 }
 
 public struct ResourceCenterSidebarComponent: View {
-    @State private var viewModel = ResourceCenterSidebarComponentViewModel()
     @Binding private var selectedTab: ResourceCenterTabID?
 
     private let title: String
@@ -21,15 +20,25 @@ public struct ResourceCenterSidebarComponent: View {
     private let emptySystemImage: String
 
     public init(
-        title: String,
+        title: String? = nil,
         selectedTab: Binding<ResourceCenterTabID?>,
         items: [ResourceCenterTabItem],
         showsEmptyState: Bool,
-        emptyTitle: String,
-        emptyDescription: String,
+        emptyTitle: String = NSLocalizedString(
+            "content.no_repository",
+            comment: "Select a Repository"
+        ),
+        emptyDescription: String = NSLocalizedString(
+            "content.no_repository_desc",
+            comment: "Choose a repository from the sidebar"
+        ),
         emptySystemImage: String = "tray"
     ) {
-        self.title = title
+        self.title = title ?? NSLocalizedString(
+            "resource.center.title",
+            value: "Resource Center",
+            comment: "Resource center title"
+        )
         self._selectedTab = selectedTab
         self.items = items
         self.showsEmptyState = showsEmptyState

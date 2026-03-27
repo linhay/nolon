@@ -6,7 +6,7 @@ public struct AccountErrorStateModule: View {
     public let message: String
 
     public init(
-        title: String = "Sync Failed",
+        title: String = NSLocalizedString("usage.error.title", value: "Sync Failed", comment: "Error title"),
         message: String
     ) {
         self.title = title
@@ -56,7 +56,9 @@ public struct AccountEmptyStateModule: View {
     @State private var viewModel = AccountEmptyStateModuleViewModel()
     public let text: String
 
-    public init(text: String) {
+    public init(
+        text: String = NSLocalizedString("usage.monitor.empty.desc", value: "No data available.", comment: "Empty data")
+    ) {
         self.text = text
     }
 

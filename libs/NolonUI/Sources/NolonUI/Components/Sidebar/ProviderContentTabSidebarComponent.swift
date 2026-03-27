@@ -34,7 +34,6 @@ public struct ProviderContentTabSidebarItem<Tab: Hashable>: Identifiable, Hashab
 }
 
 public struct ProviderContentTabSidebarComponent<Tab: Hashable>: View {
-    @State private var viewModel = ProviderContentTabSidebarComponentViewModel()
     @Binding private var selectedTab: Tab?
 
     private let hasProviderSelection: Bool
@@ -48,8 +47,14 @@ public struct ProviderContentTabSidebarComponent<Tab: Hashable>: View {
         selectedTab: Binding<Tab?>,
         hasProviderSelection: Bool,
         items: [ProviderContentTabSidebarItem<Tab>],
-        emptyTitle: String = "Select a Provider",
-        emptyDescription: String = "Choose a provider from the sidebar",
+        emptyTitle: String = NSLocalizedString(
+            "content.no_provider",
+            comment: "Select a Provider"
+        ),
+        emptyDescription: String = NSLocalizedString(
+            "content.no_provider_desc",
+            comment: "Choose a provider from the sidebar"
+        ),
         emptySystemImage: String = "sidebar.left",
         onTapTrailingAccessory: ((Tab) -> Void)? = nil
     ) {
