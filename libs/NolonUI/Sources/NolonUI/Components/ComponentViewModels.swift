@@ -483,18 +483,70 @@ public final class RuleCardViewViewModel {
 
 @Observable
 public final class SkillCardViewViewModel {
+    public let name: String
+    public let descriptionText: String
+    public let version: String
+    public let isOrphaned: Bool
+    public let hasWorkflow: Bool
+    public let referenceCount: Int
+    public let scriptCount: Int
+    public let searchText: String
     public var showingUninstallConfirmation: Bool
 
-    public init(showingUninstallConfirmation: Bool = false) {
+    public init(
+        name: String,
+        descriptionText: String,
+        version: String,
+        isOrphaned: Bool,
+        hasWorkflow: Bool,
+        referenceCount: Int,
+        scriptCount: Int,
+        searchText: String,
+        showingUninstallConfirmation: Bool = false
+    ) {
+        self.name = name
+        self.descriptionText = descriptionText
+        self.version = version
+        self.isOrphaned = isOrphaned
+        self.hasWorkflow = hasWorkflow
+        self.referenceCount = referenceCount
+        self.scriptCount = scriptCount
+        self.searchText = searchText
         self.showingUninstallConfirmation = showingUninstallConfirmation
     }
 }
 
 @Observable
 public final class WorkflowCardViewViewModel {
+    public let workflow: WorkflowInfo
+    public let searchText: String
     public var showingDeleteConfirmation: Bool
 
-    public init(showingDeleteConfirmation: Bool = false) {
+    public var title: String { workflow.name }
+    public var descriptionText: String { workflow.description }
+    public var sourceTitle: String {
+        NSLocalizedString(workflow.source.localizedKey, value: workflow.source.fallbackTitle, comment: "Workflow source")
+    }
+    public var sourceColor: Color {
+        switch workflow.source {
+        case .skill:
+            return DesignSystem.Colors.primary
+        case .user:
+            return DesignSystem.Colors.Status.warning
+        case .mcp:
+            return DesignSystem.Colors.secondary
+        case .unknown:
+            return DesignSystem.Colors.Text.secondary
+        }
+    }
+
+    public init(
+        workflow: WorkflowInfo,
+        searchText: String,
+        showingDeleteConfirmation: Bool = false
+    ) {
+        self.workflow = workflow
+        self.searchText = searchText
         self.showingDeleteConfirmation = showingDeleteConfirmation
     }
 }

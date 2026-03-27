@@ -2,9 +2,7 @@ import SwiftUI
 import NolonUIFoundation
 
 public struct WorkflowCardView<ExtraContextMenu: View>: View {
-    @State private var viewModel = WorkflowCardViewViewModel()
-    private let workflow: WorkflowInfo
-    private let searchText: String
+    @State private var viewModel: WorkflowCardViewViewModel
     private let onReveal: () -> Void
     private let onDelete: () async -> Void
     private let onTap: () -> Void
@@ -20,8 +18,12 @@ public struct WorkflowCardView<ExtraContextMenu: View>: View {
         onTap: @escaping () -> Void,
         @ViewBuilder extraContextMenu: @escaping (WorkflowInfo) -> ExtraContextMenu
     ) {
-        self.workflow = workflow
-        self.searchText = searchText
+        self._viewModel = State(
+            initialValue: WorkflowCardViewViewModel(
+                workflow: workflow,
+                searchText: searchText
+            )
+        )
         self.onReveal = onReveal
         self.onDelete = onDelete
         self.onTap = onTap
@@ -52,7 +54,7 @@ public struct WorkflowCardView<ExtraContextMenu: View>: View {
         ) {
             ProviderCardTitleMenuRow {
                 HStack(spacing: DesignSystem.Metrics.spacingS) {
-                    HighlightedText(text: workflow.name, query: searchText)
+                    HighlightedText(text: viewModel.title, query: viewModel.searchText)
                         .font(.headline)
                         .lineLimit(1)
 
@@ -63,8 +65,8 @@ public struct WorkflowCardView<ExtraContextMenu: View>: View {
             }
         } bodyContent: {
             ProviderCardDescriptionBlock(
-                text: workflow.description,
-                searchText: searchText,
+                text: viewModel.descriptionText,
+                searchText: viewModel.searchText,
                 minHeight: descriptionHeight,
                 maxHeight: descriptionHeight
             )
@@ -101,12 +103,12 @@ public struct WorkflowCardView<ExtraContextMenu: View>: View {
 
     @ViewBuilder
     private var sourceBadge: some View {
-        Text(NSLocalizedString(workflow.source.localizedKey, value: workflow.source.fallbackTitle, comment: "Workflow source"))
+        Text(viewModel.sourceTitle)
             .font(DesignSystem.Typography.caption2)
             .fontWeight(.bold)
             .dsBadge(
-                foreground: sourceColor,
-                background: sourceColor.opacity(0.15),
+                foreground: viewModel.sourceColor,
+                background: viewModel.sourceColor.opacity(0.15),
                 horizontalPadding: 6,
                 verticalPadding: 2
             )
@@ -117,21 +119,8 @@ public struct WorkflowCardView<ExtraContextMenu: View>: View {
         ProviderCardRevealDeleteContextMenu(
             onReveal: onReveal,
             onDeleteRequest: { viewModel.showingDeleteConfirmation = true },
-            extraContent: { extraContextMenu(workflow) }
+            extraContent: { extraContextMenu(viewModel.workflow) }
         )
-    }
-
-    private var sourceColor: Color {
-        switch workflow.source {
-        case .skill:
-            return DesignSystem.Colors.primary
-        case .user:
-            return DesignSystem.Colors.Status.warning
-        case .mcp:
-            return DesignSystem.Colors.secondary
-        case .unknown:
-            return DesignSystem.Colors.Text.secondary
-        }
     }
 }
 

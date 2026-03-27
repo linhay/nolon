@@ -2,15 +2,7 @@ import SwiftUI
 import NolonUIFoundation
 
 public struct SkillCardView<ExtraContextMenu: View>: View {
-    @State private var viewModel = SkillCardViewViewModel()
-    private let name: String
-    private let description: String
-    private let version: String
-    private let isOrphaned: Bool
-    private let hasWorkflow: Bool
-    private let referenceCount: Int
-    private let scriptCount: Int
-    private let searchText: String
+    @State private var viewModel: SkillCardViewViewModel
     private let onReveal: () -> Void
     private let onUninstall: () async -> Void
     private let onLinkWorkflow: () -> Void
@@ -38,14 +30,18 @@ public struct SkillCardView<ExtraContextMenu: View>: View {
         onTap: @escaping () -> Void,
         @ViewBuilder extraContextMenu: @escaping () -> ExtraContextMenu
     ) {
-        self.name = name
-        self.description = description
-        self.version = version
-        self.isOrphaned = isOrphaned
-        self.hasWorkflow = hasWorkflow
-        self.referenceCount = referenceCount
-        self.scriptCount = scriptCount
-        self.searchText = searchText
+        self._viewModel = State(
+            initialValue: SkillCardViewViewModel(
+                name: name,
+                descriptionText: description,
+                version: version,
+                isOrphaned: isOrphaned,
+                hasWorkflow: hasWorkflow,
+                referenceCount: referenceCount,
+                scriptCount: scriptCount,
+                searchText: searchText
+            )
+        )
         self.onReveal = onReveal
         self.onUninstall = onUninstall
         self.onLinkWorkflow = onLinkWorkflow
@@ -96,7 +92,7 @@ public struct SkillCardView<ExtraContextMenu: View>: View {
             onTap: onTap
         ) {
             ProviderCardTitleMenuRow {
-                HighlightedText(text: name, query: searchText)
+                HighlightedText(text: viewModel.name, query: viewModel.searchText)
                     .font(.headline)
                     .lineLimit(1)
             } menuContent: {
@@ -105,7 +101,7 @@ public struct SkillCardView<ExtraContextMenu: View>: View {
         } bodyContent: {
             VStack(alignment: .leading, spacing: DesignSystem.Metrics.spacingM) {
                 HStack(spacing: 4) {
-                    Text("v\(version)")
+                    Text("v\(viewModel.version)")
                         .dsBadge(
                             foreground: DesignSystem.Colors.Text.primary,
                             background: DesignSystem.Colors.Component.controlFillSubtle,
@@ -113,7 +109,7 @@ public struct SkillCardView<ExtraContextMenu: View>: View {
                             verticalPadding: 2,
                             cornerRadius: DesignSystem.Metrics.cornerRadiusXS
                         )
-                    if isOrphaned {
+                    if viewModel.isOrphaned {
                         Text(NSLocalizedString("skill.orphaned", value: "Needs Migration", comment: "Orphaned skill badge"))
                             .dsBadge(
                                 foreground: DesignSystem.Colors.Text.onAccent,
@@ -126,8 +122,8 @@ public struct SkillCardView<ExtraContextMenu: View>: View {
                 }
 
                 ProviderCardDescriptionBlock(
-                    text: description,
-                    searchText: searchText,
+                    text: viewModel.descriptionText,
+                    searchText: viewModel.searchText,
                     minHeight: descriptionHeight,
                     maxHeight: descriptionHeight
                 )
@@ -160,7 +156,7 @@ public struct SkillCardView<ExtraContextMenu: View>: View {
 
     @ViewBuilder
     private var actionRow: some View {
-        if hasWorkflow {
+        if viewModel.hasWorkflow {
             HStack {
                 Button {
                     onUnlinkWorkflow()
@@ -203,11 +199,11 @@ public struct SkillCardView<ExtraContextMenu: View>: View {
 
                 Spacer()
 
-                if referenceCount > 0 {
-                    ProviderCardMetaCountLabel(count: referenceCount, systemImage: "doc.text")
+                if viewModel.referenceCount > 0 {
+                    ProviderCardMetaCountLabel(count: viewModel.referenceCount, systemImage: "doc.text")
                 }
-                if scriptCount > 0 {
-                    ProviderCardMetaCountLabel(count: scriptCount, systemImage: "terminal")
+                if viewModel.scriptCount > 0 {
+                    ProviderCardMetaCountLabel(count: viewModel.scriptCount, systemImage: "terminal")
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -220,7 +216,7 @@ public struct SkillCardView<ExtraContextMenu: View>: View {
     private var contextMenuItems: some View {
         ContextMenuShowInFinderButton(action: onReveal)
 
-        if isOrphaned {
+        if viewModel.isOrphaned {
             Button {
                 Task { await onMigrate() }
             } label: {
@@ -237,7 +233,7 @@ public struct SkillCardView<ExtraContextMenu: View>: View {
                 Task { await onUninstall() }
             }
         } else {
-            if hasWorkflow {
+            if viewModel.hasWorkflow {
                 Button {
                     onUnlinkWorkflow()
                 } label: {
