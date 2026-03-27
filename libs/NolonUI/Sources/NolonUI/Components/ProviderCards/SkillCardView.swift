@@ -265,14 +265,11 @@ public struct SkillCardView<ExtraContextMenu: View>: View {
 
             Divider()
 
-            Button(role: .destructive) {
+            ContextMenuDestructiveButton(
+                title: NSLocalizedString("action.uninstall", comment: "Uninstall"),
+                systemImage: "trash"
+            ) {
                 viewModel.showingUninstallConfirmation = true
-            } label: {
-                Label(
-                    NSLocalizedString("action.uninstall", comment: "Uninstall"),
-                    systemImage: "trash"
-                )
-                .dsIconLabelButton()
             }
         }
 

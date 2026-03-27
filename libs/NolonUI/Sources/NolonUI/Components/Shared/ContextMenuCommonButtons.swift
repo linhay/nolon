@@ -53,3 +53,30 @@ struct ContextMenuDeleteButton: View {
         .disabled(!isEnabled)
     }
 }
+
+struct ContextMenuDestructiveButton: View {
+    let title: String
+    let systemImage: String
+    let isEnabled: Bool
+    let action: () -> Void
+
+    init(
+        title: String,
+        systemImage: String,
+        isEnabled: Bool = true,
+        action: @escaping () -> Void
+    ) {
+        self.title = title
+        self.systemImage = systemImage
+        self.isEnabled = isEnabled
+        self.action = action
+    }
+
+    var body: some View {
+        Button(role: .destructive, action: action) {
+            Label(title, systemImage: systemImage)
+                .dsIconLabelButton()
+        }
+        .disabled(!isEnabled)
+    }
+}
