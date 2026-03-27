@@ -69,14 +69,23 @@ public struct ProviderSkillCardView: View {
         .onHover { hovering in
             isHovered = hovering
         }
-        .confirmationDialog(
-            NSLocalizedString("confirm.delete_broken_title", comment: "Delete broken symlink?"),
-            isPresented: $showingDeleteConfirmation
-        ) {
-            Button(NSLocalizedString("action.delete", comment: "Delete"), role: .destructive) {
+        .destructiveConfirmationDialog(
+            data: DestructiveConfirmationDialogData(
+                title: NSLocalizedString("confirm.delete_broken_title", comment: "Delete broken symlink?"),
+                message: NSLocalizedString(
+                    "confirm.delete_broken_message",
+                    value: "Are you sure you want to delete this broken skill link?",
+                    comment: "Delete broken skill confirmation message"
+                ),
+                confirmTitle: NSLocalizedString("action.delete", comment: "Delete"),
+                cancelTitle: NSLocalizedString("action.cancel", value: "Cancel", comment: "Cancel action")
+            ),
+            isPresented: $showingDeleteConfirmation,
+            onConfirm: {
                 Task { await onDelete() }
-            }
-        }
+            },
+            onCancel: {}
+        )
     }
 
     private var statusBadge: some View {
