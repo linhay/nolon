@@ -55,17 +55,12 @@ public struct RuleCardView<ExtraContextMenu: View>: View {
                 contextMenuItems
             }
 
-            if !rule.preview.isEmpty {
-                HighlightedText(text: rule.preview, query: searchText)
-                    .font(.caption)
-                    .dsSecondaryText(font: .caption)
-                    .lineLimit(3)
-                    .truncationMode(.tail)
-                    .frame(maxWidth: .infinity, minHeight: descriptionHeight, maxHeight: descriptionHeight, alignment: .topLeading)
-            } else {
-                Color.clear
-                    .frame(maxWidth: .infinity, minHeight: descriptionHeight, maxHeight: descriptionHeight, alignment: .topLeading)
-            }
+            ProviderCardOptionalPreviewBlock(
+                preview: rule.preview,
+                searchText: searchText,
+                minHeight: descriptionHeight,
+                maxHeight: descriptionHeight
+            )
 
             HStack(spacing: DesignSystem.Metrics.spacingS) {
                 Image(systemName: "doc.text")

@@ -36,3 +36,42 @@ struct ProviderCardRevealDeleteContextMenu<ExtraContent: View>: View {
         extraContent()
     }
 }
+
+struct ProviderCardOptionalPreviewBlock: View {
+    let preview: String
+    let searchText: String
+    let minHeight: CGFloat
+    let maxHeight: CGFloat
+    let placeholderHeight: CGFloat?
+
+    init(
+        preview: String,
+        searchText: String,
+        minHeight: CGFloat,
+        maxHeight: CGFloat,
+        placeholderHeight: CGFloat? = nil
+    ) {
+        self.preview = preview
+        self.searchText = searchText
+        self.minHeight = minHeight
+        self.maxHeight = maxHeight
+        self.placeholderHeight = placeholderHeight
+    }
+
+    var body: some View {
+        let hasPreview = !preview.isEmpty
+
+        if hasPreview {
+            HighlightedText(text: preview, query: searchText)
+                .font(.caption)
+                .dsSecondaryText(font: .caption)
+                .lineLimit(3)
+                .truncationMode(.tail)
+                .frame(maxWidth: .infinity, minHeight: minHeight, maxHeight: maxHeight, alignment: .topLeading)
+        } else {
+            Color.clear
+                .frame(height: placeholderHeight)
+                .frame(maxWidth: .infinity, minHeight: minHeight, maxHeight: maxHeight, alignment: .topLeading)
+        }
+    }
+}

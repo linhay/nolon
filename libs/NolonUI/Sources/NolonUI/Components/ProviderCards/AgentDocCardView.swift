@@ -64,17 +64,13 @@ public struct AgentDocCardView<ExtraContextMenu: View>: View {
                     .lineLimit(1)
             }
 
-            if !doc.preview.isEmpty {
-                HighlightedText(text: doc.preview, query: searchText)
-                    .font(.caption)
-                    .dsSecondaryText(font: .caption)
-                    .lineLimit(3)
-                    .frame(maxHeight: .infinity, alignment: .topLeading)
-            } else {
-                Color.clear
-                    .frame(height: 16)
-                    .frame(maxHeight: .infinity, alignment: .topLeading)
-            }
+            ProviderCardOptionalPreviewBlock(
+                preview: doc.preview,
+                searchText: searchText,
+                minHeight: 16,
+                maxHeight: .infinity,
+                placeholderHeight: 16
+            )
         }
         .padding(DesignSystem.Metrics.spacingL)
         .frame(minHeight: 140)
