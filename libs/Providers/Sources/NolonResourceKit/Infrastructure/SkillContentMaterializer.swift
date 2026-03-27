@@ -6,11 +6,10 @@ public enum SkillContentMaterializer {
     /// This makes the copied skill self-contained after moving out of its repository root.
     public static func copyMaterializingSymlinks(from source: STPath, to destination: STPath) throws {
         try source.copy(to: destination, isOverlay: true)
-        try materializeSymlinkEntries(sourceRoot: source.url.standardizedFileURL, destinationRoot: destination.url.standardizedFileURL)
-    }
-
-    private static func materializeSymlinkEntries(sourceRoot: URL, destinationRoot: URL) throws {
-        try materializeSymlinkEntries(at: sourceRoot, destination: destinationRoot)
+        try materializeSymlinkEntries(
+            at: source.url.standardizedFileURL,
+            destination: destination.url.standardizedFileURL
+        )
     }
 
     private static func materializeSymlinkEntries(at sourceDirectory: URL, destination destinationDirectory: URL) throws {
