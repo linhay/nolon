@@ -427,9 +427,26 @@ public final class MainSplitScaffoldViewModel {
 
 @Observable
 public final class AgentDocCardViewViewModel {
+    public let doc: AgentDocInfo
+    public let searchText: String
     public var showingDeleteConfirmation: Bool
 
-    public init(showingDeleteConfirmation: Bool = false) {
+    public var title: String { doc.fileName }
+    public var priorityIconName: String { doc.kind == .override ? "arrow.up.circle" : "doc.text" }
+    public var priorityText: String {
+        doc.kind == .override
+            ? NSLocalizedString("agents.priority.override", value: "Higher priority (override)", comment: "Override priority hint")
+            : NSLocalizedString("agents.priority.base", value: "Base priority", comment: "Base priority hint")
+    }
+    public var preview: String { doc.preview }
+
+    public init(
+        doc: AgentDocInfo,
+        searchText: String,
+        showingDeleteConfirmation: Bool = false
+    ) {
+        self.doc = doc
+        self.searchText = searchText
         self.showingDeleteConfirmation = showingDeleteConfirmation
     }
 }
@@ -445,9 +462,21 @@ public final class McpServerCardViewViewModel {
 
 @Observable
 public final class RuleCardViewViewModel {
+    public let rule: RuleInfo
+    public let searchText: String
     public var showingDeleteConfirmation: Bool
 
-    public init(showingDeleteConfirmation: Bool = false) {
+    public var title: String { rule.name }
+    public var preview: String { rule.preview }
+    public var relativePath: String { rule.relativePath }
+
+    public init(
+        rule: RuleInfo,
+        searchText: String,
+        showingDeleteConfirmation: Bool = false
+    ) {
+        self.rule = rule
+        self.searchText = searchText
         self.showingDeleteConfirmation = showingDeleteConfirmation
     }
 }

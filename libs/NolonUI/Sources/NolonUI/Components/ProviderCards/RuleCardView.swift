@@ -2,9 +2,7 @@ import SwiftUI
 import NolonUIFoundation
 
 public struct RuleCardView<ExtraContextMenu: View>: View {
-    @State private var viewModel = RuleCardViewViewModel()
-    private let rule: RuleInfo
-    private let searchText: String
+    @State private var viewModel: RuleCardViewViewModel
     private let onReveal: () -> Void
     private let onDelete: () async -> Void
     private let onTap: () -> Void
@@ -20,8 +18,12 @@ public struct RuleCardView<ExtraContextMenu: View>: View {
         onTap: @escaping () -> Void,
         @ViewBuilder extraContextMenu: @escaping (RuleInfo) -> ExtraContextMenu
     ) {
-        self.rule = rule
-        self.searchText = searchText
+        self._viewModel = State(
+            initialValue: RuleCardViewViewModel(
+                rule: rule,
+                searchText: searchText
+            )
+        )
         self.onReveal = onReveal
         self.onDelete = onDelete
         self.onTap = onTap
@@ -51,7 +53,7 @@ public struct RuleCardView<ExtraContextMenu: View>: View {
             onTap: onTap
         ) {
             ProviderCardTitleMenuRow {
-                HighlightedText(text: rule.name, query: searchText)
+                HighlightedText(text: viewModel.title, query: viewModel.searchText)
                     .font(.headline)
                     .lineLimit(1)
             } menuContent: {
@@ -59,8 +61,8 @@ public struct RuleCardView<ExtraContextMenu: View>: View {
             }
         } bodyContent: {
             ProviderCardOptionalPreviewBlock(
-                preview: rule.preview,
-                searchText: searchText,
+                preview: viewModel.preview,
+                searchText: viewModel.searchText,
                 minHeight: descriptionHeight,
                 maxHeight: descriptionHeight
             )
@@ -68,7 +70,7 @@ public struct RuleCardView<ExtraContextMenu: View>: View {
             HStack(spacing: DesignSystem.Metrics.spacingS) {
                 Image(systemName: "doc.text")
                     .foregroundStyle(DesignSystem.Colors.Text.secondary)
-                HighlightedText(text: rule.relativePath, query: searchText)
+                HighlightedText(text: viewModel.relativePath, query: viewModel.searchText)
                     .font(.caption2.monospaced())
                     .dsSecondaryText(font: .caption2)
                     .lineLimit(1)
@@ -104,7 +106,7 @@ public struct RuleCardView<ExtraContextMenu: View>: View {
         ProviderCardRevealDeleteContextMenu(
             onReveal: onReveal,
             onDeleteRequest: { viewModel.showingDeleteConfirmation = true },
-            extraContent: { extraContextMenu(rule) }
+            extraContent: { extraContextMenu(viewModel.rule) }
         )
     }
 }

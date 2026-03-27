@@ -2,9 +2,7 @@ import SwiftUI
 import NolonUIFoundation
 
 public struct AgentDocCardView<ExtraContextMenu: View>: View {
-    @State private var viewModel = AgentDocCardViewViewModel()
-    private let doc: AgentDocInfo
-    private let searchText: String
+    @State private var viewModel: AgentDocCardViewViewModel
     private let onReveal: () -> Void
     private let onDelete: () async -> Void
     private let onTap: () -> Void
@@ -18,8 +16,12 @@ public struct AgentDocCardView<ExtraContextMenu: View>: View {
         onTap: @escaping () -> Void,
         @ViewBuilder extraContextMenu: @escaping (AgentDocInfo) -> ExtraContextMenu
     ) {
-        self.doc = doc
-        self.searchText = searchText
+        self._viewModel = State(
+            initialValue: AgentDocCardViewViewModel(
+                doc: doc,
+                searchText: searchText
+            )
+        )
         self.onReveal = onReveal
         self.onDelete = onDelete
         self.onTap = onTap
@@ -49,7 +51,7 @@ public struct AgentDocCardView<ExtraContextMenu: View>: View {
             onTap: onTap
         ) {
             ProviderCardTitleMenuRow {
-                HighlightedText(text: doc.fileName, query: searchText)
+                HighlightedText(text: viewModel.title, query: viewModel.searchText)
                     .font(.headline)
                     .lineLimit(1)
             } menuContent: {
@@ -57,15 +59,13 @@ public struct AgentDocCardView<ExtraContextMenu: View>: View {
             }
         } bodyContent: {
             ProviderCardIconCaptionRow(
-                iconName: doc.kind == .override ? "arrow.up.circle" : "doc.text",
-                title: doc.kind == .override
-                    ? NSLocalizedString("agents.priority.override", value: "Higher priority (override)", comment: "Override priority hint")
-                    : NSLocalizedString("agents.priority.base", value: "Base priority", comment: "Base priority hint")
+                iconName: viewModel.priorityIconName,
+                title: viewModel.priorityText
             )
 
             ProviderCardOptionalPreviewBlock(
-                preview: doc.preview,
-                searchText: searchText,
+                preview: viewModel.preview,
+                searchText: viewModel.searchText,
                 minHeight: 16,
                 maxHeight: .infinity,
                 placeholderHeight: 16
@@ -101,7 +101,7 @@ public struct AgentDocCardView<ExtraContextMenu: View>: View {
         ProviderCardRevealDeleteContextMenu(
             onReveal: onReveal,
             onDeleteRequest: { viewModel.showingDeleteConfirmation = true },
-            extraContent: { extraContextMenu(doc) }
+            extraContent: { extraContextMenu(viewModel.doc) }
         )
     }
 }
