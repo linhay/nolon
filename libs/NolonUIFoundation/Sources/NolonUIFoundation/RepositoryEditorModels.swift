@@ -22,19 +22,19 @@ public struct RepositoryTemplateDetailData: Equatable, Sendable {
 
     public init(
         templateKind: RepositoryEditorTemplateKind,
-        detailsSectionTitle: String,
-        skillsFolderSectionTitle: String,
-        gitRepositorySectionTitle: String,
+        detailsSectionTitle: String = "Details",
+        skillsFolderSectionTitle: String = "Skills Folder",
+        gitRepositorySectionTitle: String = "Git Repository",
         clawdhubBaseURL: String,
-        clawdhubHint: String,
+        clawdhubHint: String = "Clawdhub is the official skill marketplace.",
         localFolderDisplayText: String,
-        localFolderPlaceholderText: String,
-        localFolderHintText: String,
-        localFolderSecondaryHint: String,
+        localFolderPlaceholderText: String = "拖拽本地 skills 文件夹到这里",
+        localFolderHintText: String = "或点击选择文件夹",
+        localFolderSecondaryHint: String = "Select a folder containing skill directories (each with a SKILL.md file).",
         gitProviderDisplayName: String?,
         gitProviderLogoName: String?,
-        gitSupportHint: String,
-        gitSyncHint: String
+        gitSupportHint: String = "Supports GitHub, GitLab, Bitbucket and other Git hosting services.",
+        gitSyncHint: String = "Sync 后将自动扫描仓库中的技能目录，下一步可多选确认。"
     ) {
         self.templateKind = templateKind
         self.detailsSectionTitle = detailsSectionTitle
