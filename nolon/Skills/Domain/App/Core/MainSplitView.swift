@@ -125,7 +125,12 @@ final class MainSplitViewModel {
             }
         }
         if !UITestSupport.isRunningUnitTests,
-           let initialLaunchSelection = resolvedInitialLaunchSelection() {
+           let initialLaunchSelection = Self.resolveInitialLaunchSelection(
+            providers: settings.providers,
+            selectedProviderIndex: UITestSupport.initialSelectedProviderIndex,
+            initialTab: UITestSupport.initialSelectedProviderTab,
+            isRunningUnitTests: UITestSupport.isRunningUnitTests
+           ) {
             selectedSidebarItem = .provider(initialLaunchSelection.provider.id)
             if let initialTab = initialLaunchSelection.tab {
                 selectedTab = initialTab
@@ -140,15 +145,6 @@ final class MainSplitViewModel {
                 _ = await CodexBinaryManager.shared.checkForRustReleaseUpdateIfNeeded(force: false)
             }
         }
-    }
-
-    func resolvedInitialLaunchSelection() -> (provider: Provider, tab: ProviderContentTabType?)? {
-        Self.resolveInitialLaunchSelection(
-            providers: settings.providers,
-            selectedProviderIndex: UITestSupport.initialSelectedProviderIndex,
-            initialTab: UITestSupport.initialSelectedProviderTab,
-            isRunningUnitTests: UITestSupport.isRunningUnitTests
-        )
     }
 
     static func resolveInitialLaunchSelection(
