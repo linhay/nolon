@@ -154,11 +154,6 @@ struct EditProviderSheet: View {
                         )
                     },
                     projectFolderData: projectFolderSectionData,
-                    resolvedPathsTitle: NSLocalizedString(
-                        "add_provider.resolved_paths_label",
-                        value: "Resolved Paths",
-                        comment: "Resolved paths section header"
-                    ),
                     resolvedPathItems: resolvedPathItems,
                     onChooseProjectFolder: {
                         viewModel.showingProjectFolderPicker = true
@@ -202,10 +197,7 @@ struct EditProviderSheet: View {
             sectionTitle: viewModel.provider.kind == .project
                 ? NSLocalizedString("add_provider.project_folder_label", value: "Project Folder", comment: "Project Folder")
                 : NSLocalizedString("add_provider.kind.vendor_info_label", value: "Paths", comment: "Paths section label"),
-            displayPath: viewModel.projectRootPath,
-            emptyPlaceholder: NSLocalizedString("add_provider.no_project_folder", value: "No project folder selected", comment: "No project folder selected"),
-            chooseButtonTitle: NSLocalizedString("add_provider.choose", comment: "Choose..."),
-            vendorLockedDescription: NSLocalizedString("add_provider.kind.vendor_paths_locked", value: "Vendor paths are predefined and cannot be changed.", comment: "Vendor paths are locked")
+            displayPath: viewModel.projectRootPath
         )
     }
 
@@ -214,8 +206,7 @@ struct EditProviderSheet: View {
             ProviderResolvedPathItemData(
                 id: "skills",
                 label: NSLocalizedString("add_provider.folder_label", comment: "Skills Folder"),
-                path: viewModel.providerPath,
-                emptyPlaceholder: NSLocalizedString("add_provider.no_folder", comment: "No folder selected")
+                path: viewModel.providerPath
             )
         ]
         if viewModel.usesCommandFiles {
@@ -232,8 +223,7 @@ struct EditProviderSheet: View {
                 ProviderResolvedPathItemData(
                     id: "secondary",
                     label: viewModel.secondaryResourceLabel,
-                    path: viewModel.workflowPath,
-                    emptyPlaceholder: NSLocalizedString("add_provider.no_folder", comment: "No folder selected")
+                    path: viewModel.workflowPath
                 )
             )
         }
