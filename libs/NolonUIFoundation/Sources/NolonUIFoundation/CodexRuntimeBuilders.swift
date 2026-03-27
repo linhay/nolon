@@ -45,4 +45,31 @@ public enum CodexRuntimeBuilders {
             return key
         }
     }
+
+    public static func booleanText(_ value: Bool) -> String {
+        value
+            ? NSLocalizedString(
+                "codex.runtime.bool.true",
+                value: "true",
+                comment: "Runtime boolean true"
+            )
+            : NSLocalizedString(
+                "codex.runtime.bool.false",
+                value: "false",
+                comment: "Runtime boolean false"
+            )
+    }
+
+    public static func stopSummary(pid: Int32, signal: String, exited: Bool) -> String {
+        String(
+            format: NSLocalizedString(
+                "codex.runtime.stop.summary",
+                value: "PID %d (%@) -> exited=%@",
+                comment: "Runtime stop summary"
+            ),
+            pid,
+            signal.uppercased(),
+            booleanText(exited)
+        )
+    }
 }
