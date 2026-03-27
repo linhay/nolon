@@ -54,7 +54,7 @@ struct RemoteMCPDetailView: View {
         if let values = mcp.stats {
             stats.append(contentsOf: RemoteResourceDetailBuilders.commonStats(stars: values.stars, downloads: values.downloads))
             if let installs = values.installs {
-                stats.append(.init(id: "installs", title: "\(installs) Installs", systemImage: "server.rack"))
+                stats.append(RemoteResourceDetailBuilders.installsStat(installs))
             }
         }
 

@@ -38,7 +38,7 @@ struct RemoteWorkflowDetailView: View {
         if let values = workflow.stats {
             stats.append(contentsOf: RemoteResourceDetailBuilders.commonStats(stars: values.stars, downloads: values.downloads))
             if let usages = values.usages {
-                stats.append(.init(id: "usages", title: "\(usages) Usages", systemImage: "arrow.triangle.branch"))
+                stats.append(RemoteResourceDetailBuilders.usagesStat(usages))
             }
         }
 
