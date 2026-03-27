@@ -154,20 +154,14 @@ public struct ProviderSkillCardView: View {
 
             switch state.state {
             case .installed:
-                Menu {
+                EllipsisMenuButton(iconSize: 28) {
                     Button(role: .destructive) {
                         Task { await onUninstall() }
                     } label: {
                         Label(NSLocalizedString("action.uninstall", comment: "Uninstall"), systemImage: "trash")
                             .dsIconLabelButton()
                     }
-                } label: {
-                    Image(systemName: "ellipsis")
-                        .dsIconButton(size: 28)
                 }
-                .dsBorderlessMenu()
-                .menuIndicator(.hidden)
-                .fixedSize()
 
             case .orphaned:
                 Button {

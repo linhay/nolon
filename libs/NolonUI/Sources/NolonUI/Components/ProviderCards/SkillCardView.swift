@@ -1,4 +1,5 @@
 import SwiftUI
+import NolonUIFoundation
 
 public struct SkillCardView<ExtraContextMenu: View>: View {
     @State private var viewModel = SkillCardViewViewModel()
@@ -94,12 +95,12 @@ public struct SkillCardView<ExtraContextMenu: View>: View {
             minHeight: 140,
             onTap: onTap
         ) {
-            HStack(alignment: .center) {
+            ProviderCardTitleMenuRow {
                 HighlightedText(text: name, query: searchText)
                     .font(.headline)
                     .lineLimit(1)
-                Spacer()
-                moreMenu
+            } menuContent: {
+                contextMenuItems
             }
         } bodyContent: {
             VStack(alignment: .leading, spacing: DesignSystem.Metrics.spacingM) {
@@ -138,24 +139,23 @@ public struct SkillCardView<ExtraContextMenu: View>: View {
         } contextMenuContent: {
             contextMenuItems
         }
-        .confirmationDialog(
-            NSLocalizedString("action.uninstall_confirm_title", value: "Confirm Uninstall", comment: "Uninstall confirmation title"),
-            isPresented: $viewModel.showingUninstallConfirmation,
-            titleVisibility: .visible
-        ) {
-            Button(NSLocalizedString("action.uninstall", comment: "Uninstall"), role: .destructive) {
-                Task { await onUninstall() }
-            }
-            Button(NSLocalizedString("action.cancel", value: "Cancel", comment: "Cancel action"), role: .cancel) {}
-        } message: {
-            Text(
-                NSLocalizedString(
+        .destructiveConfirmationDialog(
+            data: DestructiveConfirmationDialogData(
+                title: NSLocalizedString("action.uninstall_confirm_title", value: "Confirm Uninstall", comment: "Uninstall confirmation title"),
+                message: NSLocalizedString(
                     "action.uninstall_confirm_message",
                     value: "Are you sure you want to uninstall this skill? This action cannot be undone.",
                     comment: "Uninstall confirmation message"
-                )
-            )
-        }
+                ),
+                confirmTitle: NSLocalizedString("action.uninstall", comment: "Uninstall"),
+                cancelTitle: NSLocalizedString("action.cancel", value: "Cancel", comment: "Cancel action")
+            ),
+            isPresented: $viewModel.showingUninstallConfirmation,
+            onConfirm: {
+                Task { await onUninstall() }
+            },
+            onCancel: {}
+        )
     }
 
     @ViewBuilder
@@ -222,15 +222,7 @@ public struct SkillCardView<ExtraContextMenu: View>: View {
 
     @ViewBuilder
     private var contextMenuItems: some View {
-        Button {
-            onReveal()
-        } label: {
-            Label(
-                NSLocalizedString("action.show_in_finder", comment: "Show in Finder"),
-                systemImage: "folder"
-            )
-            .dsIconLabelButton()
-        }
+        ContextMenuShowInFinderButton(action: onReveal)
 
         if isOrphaned {
             Button {
@@ -245,14 +237,8 @@ public struct SkillCardView<ExtraContextMenu: View>: View {
 
             Divider()
 
-            Button(role: .destructive) {
+            ContextMenuDeleteButton {
                 Task { await onUninstall() }
-            } label: {
-                Label(
-                    NSLocalizedString("action.delete", value: "Delete", comment: "Delete skill"),
-                    systemImage: "trash"
-                )
-                .dsIconLabelButton()
             }
         } else {
             if hasWorkflow {
@@ -291,18 +277,6 @@ public struct SkillCardView<ExtraContextMenu: View>: View {
         }
 
         extraContextMenu()
-    }
-
-    private var moreMenu: some View {
-        Menu {
-            contextMenuItems
-        } label: {
-            Image(systemName: "ellipsis")
-                .dsIconButton()
-        }
-        .dsBorderlessMenu()
-        .menuIndicator(.hidden)
-        .fixedSize()
     }
 }
 

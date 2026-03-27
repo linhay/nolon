@@ -50,7 +50,7 @@ public struct WorkflowCardView<ExtraContextMenu: View>: View {
             minHeight: 140,
             onTap: onTap
         ) {
-            HStack(alignment: .center) {
+            ProviderCardTitleMenuRow {
                 HStack(spacing: DesignSystem.Metrics.spacingS) {
                     HighlightedText(text: workflow.name, query: searchText)
                         .font(.headline)
@@ -58,10 +58,8 @@ public struct WorkflowCardView<ExtraContextMenu: View>: View {
 
                     sourceBadge
                 }
-
-                Spacer()
-
-                moreMenu
+            } menuContent: {
+                contextMenuItems
             }
         } bodyContent: {
             HighlightedText(text: workflow.description, query: searchText)
@@ -82,24 +80,23 @@ public struct WorkflowCardView<ExtraContextMenu: View>: View {
         } contextMenuContent: {
             contextMenuItems
         }
-        .confirmationDialog(
-            NSLocalizedString("action.delete_confirm_title", value: "Confirm Delete", comment: "Delete confirmation title"),
-            isPresented: $viewModel.showingDeleteConfirmation,
-            titleVisibility: .visible
-        ) {
-            Button(NSLocalizedString("action.delete", comment: "Delete"), role: .destructive) {
-                Task { await onDelete() }
-            }
-            Button(NSLocalizedString("action.cancel", value: "Cancel", comment: "Cancel action"), role: .cancel) {}
-        } message: {
-            Text(
-                NSLocalizedString(
+        .destructiveConfirmationDialog(
+            data: DestructiveConfirmationDialogData(
+                title: NSLocalizedString("action.delete_confirm_title", value: "Confirm Delete", comment: "Delete confirmation title"),
+                message: NSLocalizedString(
                     "action.delete_confirm_message",
                     value: "Are you sure you want to delete this workflow? This action cannot be undone.",
                     comment: "Delete confirmation message"
-                )
-            )
-        }
+                ),
+                confirmTitle: NSLocalizedString("action.delete", comment: "Delete"),
+                cancelTitle: NSLocalizedString("action.cancel", value: "Cancel", comment: "Cancel action")
+            ),
+            isPresented: $viewModel.showingDeleteConfirmation,
+            onConfirm: {
+                Task { await onDelete() }
+            },
+            onCancel: {}
+        )
     }
 
     @ViewBuilder
@@ -117,41 +114,11 @@ public struct WorkflowCardView<ExtraContextMenu: View>: View {
 
     @ViewBuilder
     private var contextMenuItems: some View {
-        Button {
-            onReveal()
-        } label: {
-            Label(
-                NSLocalizedString("action.show_in_finder", comment: "Show in Finder"),
-                systemImage: "folder"
-            )
-            .dsIconLabelButton()
-        }
-
-        Divider()
-
-        Button(role: .destructive) {
-            viewModel.showingDeleteConfirmation = true
-        } label: {
-            Label(
-                NSLocalizedString("action.delete", comment: "Delete"),
-                systemImage: "trash"
-            )
-            .dsIconLabelButton()
-        }
-
-        extraContextMenu(workflow)
-    }
-
-    private var moreMenu: some View {
-        Menu {
-            contextMenuItems
-        } label: {
-            Image(systemName: "ellipsis")
-                .dsIconButton()
-        }
-        .dsBorderlessMenu()
-        .menuIndicator(.hidden)
-        .fixedSize()
+        ProviderCardRevealDeleteContextMenu(
+            onReveal: onReveal,
+            onDeleteRequest: { viewModel.showingDeleteConfirmation = true },
+            extraContent: { extraContextMenu(workflow) }
+        )
     }
 
     private var sourceColor: Color {

@@ -1,4 +1,5 @@
 import SwiftUI
+import NolonUIFoundation
 
 public enum McpServerCardCacheState: Sendable, Hashable {
     case notMigrated
@@ -82,24 +83,23 @@ public struct McpServerCardView<TitleContent: View, ExtraContextMenu: View>: Vie
         } contextMenuContent: {
             contextMenuItems
         }
-        .confirmationDialog(
-            NSLocalizedString("action.delete_confirm_title_mcp", value: "Confirm Delete MCP", comment: "MCP Delete confirmation title"),
-            isPresented: $viewModel.showingDeleteConfirmation,
-            titleVisibility: .visible
-        ) {
-            Button(NSLocalizedString("action.delete", comment: "Delete"), role: .destructive) {
-                onDelete()
-            }
-            Button(NSLocalizedString("action.cancel", value: "Cancel", comment: "Cancel action"), role: .cancel) {}
-        } message: {
-            Text(
-                NSLocalizedString(
+        .destructiveConfirmationDialog(
+            data: DestructiveConfirmationDialogData(
+                title: NSLocalizedString("action.delete_confirm_title_mcp", value: "Confirm Delete MCP", comment: "MCP Delete confirmation title"),
+                message: NSLocalizedString(
                     "action.delete_confirm_message_mcp",
                     value: "Are you sure you want to delete this MCP server? This will remove its configuration.",
                     comment: "MCP Delete confirmation message"
-                )
-            )
-        }
+                ),
+                confirmTitle: NSLocalizedString("action.delete", comment: "Delete"),
+                cancelTitle: NSLocalizedString("action.cancel", value: "Cancel", comment: "Cancel action")
+            ),
+            isPresented: $viewModel.showingDeleteConfirmation,
+            onConfirm: {
+                onDelete()
+            },
+            onCancel: {}
+        )
     }
 
     nonisolated static func resolveMaintenanceAction(for cacheState: McpServerCardCacheState) -> McpServerMaintenanceAction {
@@ -134,10 +134,10 @@ public struct McpServerCardView<TitleContent: View, ExtraContextMenu: View>: Vie
     }
 
     private var headerRow: some View {
-        HStack(alignment: .center, spacing: DesignSystem.Metrics.spacingS) {
+        ProviderCardTitleMenuRow {
             titleContent()
-            Spacer(minLength: DesignSystem.Metrics.spacingS)
-            moreMenu
+        } menuContent: {
+            contextMenuItems
         }
     }
 
@@ -371,27 +371,13 @@ public struct McpServerCardView<TitleContent: View, ExtraContextMenu: View>: Vie
                 .dsIconLabelButton()
         }
 
-        Button(role: .destructive) {
+        ContextMenuDeleteButton {
             viewModel.showingDeleteConfirmation = true
-        } label: {
-            Label(NSLocalizedString("action.delete", comment: "Delete"), systemImage: "trash")
-                .dsIconLabelButton()
         }
 
         extraContextMenu()
     }
 
-    private var moreMenu: some View {
-        Menu {
-            contextMenuItems
-        } label: {
-            Image(systemName: "ellipsis")
-                .dsIconButton()
-        }
-        .dsBorderlessMenu()
-        .menuIndicator(.hidden)
-        .fixedSize()
-    }
 }
 
 private struct McpServerCardViewPreviewContainer: View {
