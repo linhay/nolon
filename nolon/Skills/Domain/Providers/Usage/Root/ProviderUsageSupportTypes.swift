@@ -1,7 +1,5 @@
 import SwiftUI
 import ProviderUsage
-import CodexBarProviderCatalog
-import Foundation
 import NolonUIFoundation
 
 extension View {
@@ -11,20 +9,6 @@ extension View {
             transform(self)
         } else {
             self
-        }
-    }
-}
-
-extension ProviderSourceMode {
-    var displayName: String {
-        switch self {
-        case .auto: return ProviderUsageTextBuilders.sourceModeDisplayName(id: "auto")
-        case .cli: return ProviderUsageTextBuilders.sourceModeDisplayName(id: "cli")
-        case .web: return ProviderUsageTextBuilders.sourceModeDisplayName(id: "web")
-        case .oauth: return ProviderUsageTextBuilders.sourceModeDisplayName(id: "oauth")
-        case .apiToken: return ProviderUsageTextBuilders.sourceModeDisplayName(id: "apiToken")
-        case .localProbe: return ProviderUsageTextBuilders.sourceModeDisplayName(id: "localProbe")
-        case .webDashboard: return ProviderUsageTextBuilders.sourceModeDisplayName(id: "webDashboard")
         }
     }
 }
