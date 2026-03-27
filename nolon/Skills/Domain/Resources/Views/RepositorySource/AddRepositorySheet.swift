@@ -90,19 +90,10 @@ struct AddRepositorySheet: View {
         let provider = RemoteRepository.detectProvider(from: viewModel.newGitURL) ?? .github
         return RepositoryTemplateDetailData(
             templateKind: templateKind(from: viewModel.selectedTemplate),
-            detailsSectionTitle: "Details",
-            skillsFolderSectionTitle: "Skills Folder",
-            gitRepositorySectionTitle: "Git Repository",
             clawdhubBaseURL: viewModel.selectedTemplate.defaultBaseURL,
-            clawdhubHint: "Clawdhub is the official skill marketplace.",
             localFolderDisplayText: viewModel.newLocalPath,
-            localFolderPlaceholderText: "拖拽本地 skills 文件夹到这里",
-            localFolderHintText: "或点击选择文件夹",
-            localFolderSecondaryHint: "Select a folder containing skill directories (each with a SKILL.md file).",
             gitProviderDisplayName: provider.displayName,
-            gitProviderLogoName: provider.logoName,
-            gitSupportHint: "Supports GitHub, GitLab, Bitbucket and other Git hosting services.",
-            gitSyncHint: "Sync 后将自动扫描仓库中的技能目录，下一步可多选确认。"
+            gitProviderLogoName: provider.logoName
         )
     }
 
