@@ -84,9 +84,9 @@ public struct RepositoryDraftService: Sendable {
     }
 
     public func importedDraft(from rawURL: String) -> ImportedRepositoryDraft {
-        let normalized = RemoteRepository.normalizeGitURL(rawURL)
+        let normalized = SkillsRepositoryFacade.normalizeGitURL(rawURL)
         let name = RemoteRepository.extractRepoName(from: normalized)
-        let subpath = RemoteRepository.extractSubpath(from: rawURL)
+        let subpath = SkillsRepositoryFacade.extractSubpath(from: rawURL)
             .flatMap { SkillsRepositoryFacade.normalizeSkillsPath($0) }
 
         return ImportedRepositoryDraft(
@@ -110,7 +110,7 @@ public struct RepositoryDraftService: Sendable {
         guard let candidateURL = parseURLAllowingSchemeLessHost(trimmed),
               let host = candidateURL.host?.lowercased()
         else {
-            let normalizedGitURL = RemoteRepository.normalizeGitURL(trimmed)
+            let normalizedGitURL = SkillsRepositoryFacade.normalizeGitURL(trimmed)
             if RemoteRepository.extractURLComponents(from: normalizedGitURL) != nil {
                 return ImportedResourceIntent(kind: .gitRepository, normalizedGitURL: normalizedGitURL)
             }
@@ -149,7 +149,7 @@ public struct RepositoryDraftService: Sendable {
             )
         }
 
-        let normalizedGitURL = RemoteRepository.normalizeGitURL(trimmed)
+        let normalizedGitURL = SkillsRepositoryFacade.normalizeGitURL(trimmed)
         if RemoteRepository.extractURLComponents(from: normalizedGitURL) != nil {
             return ImportedResourceIntent(kind: .gitRepository, host: host, normalizedGitURL: normalizedGitURL)
         }
