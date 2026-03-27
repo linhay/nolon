@@ -1454,7 +1454,7 @@ final class ProviderUsageEngine {
 
     func handleCodexImportText(_ raw: String, preferredSourceURL: URL? = nil) async {
         guard usageProvider == .codex else { return }
-        let trimmed = trimmed(raw)
+        let trimmed = Self.trimmed(raw)
         guard !trimmed.isEmpty else { return }
 
         do {
@@ -1948,7 +1948,7 @@ final class ProviderUsageEngine {
     func saveCodexConfigEditor() async {
         guard let draft = codexConfigEditorDraft else { return }
 
-        let name = trimmed(draft.name)
+        let name = Self.trimmed(draft.name)
         guard !name.isEmpty else {
             codexConfigEditorErrorMessage = NSLocalizedString(
                 "codex.accounts.config.error.name_required",
@@ -1958,7 +1958,7 @@ final class ProviderUsageEngine {
             return
         }
 
-        let apiKey = trimmed(draft.apiKey)
+        let apiKey = Self.trimmed(draft.apiKey)
         guard !apiKey.isEmpty else {
             codexConfigEditorErrorMessage = NSLocalizedString(
                 "codex.accounts.config.error.api_key_required",
@@ -1973,8 +1973,8 @@ final class ProviderUsageEngine {
             if case .newRelay = draft.mode { return true }
             return false
         }() {
-            let baseURL = trimmed(draft.baseURL)
-            let modelProvider = trimmed(draft.modelProvider)
+            let baseURL = Self.trimmed(draft.baseURL)
+            let modelProvider = Self.trimmed(draft.modelProvider)
             guard !baseURL.isEmpty, !modelProvider.isEmpty else {
                 codexConfigEditorErrorMessage = NSLocalizedString(
                     "codex.accounts.config.error.relay_required",
@@ -2320,8 +2320,8 @@ final class ProviderUsageEngine {
     }
 
     func copyErrorText(_ raw: String) {
-        let trimmed = trimmed(raw)
-        guard isNotBlank(raw) else { return }
+        let trimmed = Self.trimmed(raw)
+        guard Self.isNotBlank(raw) else { return }
         copyText(trimmed)
     }
 
@@ -2338,7 +2338,7 @@ final class ProviderUsageEngine {
     func copyCodexAccountAuthJSON(id: UUID) {
         guard let account = codexAccounts.first(where: { $0.id == id }) else { return }
         let file = codexAuthManager.accountAuthFile(relativeAuthPath: account.relativeAuthPath)
-        guard let raw = try? file.read(), isNotBlank(raw) else { return }
+        guard let raw = try? file.read(), Self.isNotBlank(raw) else { return }
         copyText(raw)
     }
 
@@ -2440,8 +2440,8 @@ final class ProviderUsageEngine {
         } catch {
             alertTitle = NSLocalizedString("codex.accounts.add.title", value: "Add Account", comment: "Add account title")
             let fallback = NSLocalizedString("codex.accounts.error.add", value: "Failed to add this account.", comment: "Error message")
-            let message = trimmed(error.localizedDescription)
-            alertMessage = isNotBlank(message) ? message : fallback
+            let message = Self.trimmed(error.localizedDescription)
+            alertMessage = Self.isNotBlank(message) ? message : fallback
         }
     }
 
@@ -2731,7 +2731,7 @@ final class ProviderUsageEngine {
 
         if case let .success(result) = outcome.outcome.result,
            let email = result.usage.identity?.accountEmail?.trimmingCharacters(in: .whitespacesAndNewlines),
-           isNotBlank(email)
+           Self.isNotBlank(email)
         {
             _ = try? await codexAuthManager.backfillEmailIfMissing(for: account, email: email)
         }
@@ -2974,7 +2974,7 @@ final class ProviderUsageEngine {
             let fallback = NSLocalizedString("codex.accounts.error.delete", value: "Failed to delete this account.", comment: "Error message")
             let message = error.localizedDescription.trimmingCharacters(in: .whitespacesAndNewlines)
             alertTitle = NSLocalizedString("codex.accounts.title", value: "Accounts", comment: "Codex accounts title")
-            alertMessage = isNotBlank(message) ? message : fallback
+            alertMessage = Self.isNotBlank(message) ? message : fallback
         }
     }
 
@@ -3221,7 +3221,7 @@ final class ProviderUsageEngine {
             if let identity = result.usage.identity {
                 var summary = codexAccountSummaries[accountId] ?? CodexAuthSummary()
                 if let email = identity.accountEmail?.trimmingCharacters(in: .whitespacesAndNewlines),
-                   isNotBlank(email)
+                   Self.isNotBlank(email)
                 {
                     if summary.email == nil {
                         _ = try? await codexAuthManager.backfillEmailIfMissing(for: account, email: email)
@@ -3229,7 +3229,7 @@ final class ProviderUsageEngine {
                     summary.email = email
                 }
                 if let plan = identity.plan?.trimmingCharacters(in: .whitespacesAndNewlines),
-                   isNotBlank(plan),
+                   Self.isNotBlank(plan),
                    summary.plan == nil
                 {
                     summary.plan = plan
@@ -3505,12 +3505,12 @@ final class ProviderUsageEngine {
         }) {
             if case let .success(result) = outcome.outcome.result {
                 if let identityEmail = result.usage.identity?.accountEmail?.trimmingCharacters(in: .whitespacesAndNewlines),
-                   isNotBlank(identityEmail)
+                   Self.isNotBlank(identityEmail)
                 {
                     return false
                 }
                 if let identityPlan = result.usage.identity?.plan?.trimmingCharacters(in: .whitespacesAndNewlines),
-                   isNotBlank(identityPlan)
+                   Self.isNotBlank(identityPlan)
                 {
                     return false
                 }
@@ -3744,11 +3744,4 @@ final class ProviderUsageEngine {
         string.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    func isNotBlank(_ string: String) -> Bool {
-        Self.isNotBlank(string)
-    }
-
-    func trimmed(_ string: String) -> String {
-        Self.trimmed(string)
-    }
 }
