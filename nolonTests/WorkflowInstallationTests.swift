@@ -2,6 +2,7 @@ import XCTest
 import STJSON
 import ProviderCatalog
 import NolonResourceKit
+import NolonUIFoundation
 @testable import nolon
 
 @MainActor

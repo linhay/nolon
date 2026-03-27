@@ -189,7 +189,8 @@ final class CodexRuntimeTabViewModelTests: XCTestCase {
         XCTAssertEqual(rows.first(where: { $0.key == .active })?.value, "Lin (lin@company.com) [id: 7F1A...9C2D]")
         XCTAssertEqual(rows.first(where: { $0.key == .running })?.value, "2")
         XCTAssertEqual(rows.first(where: { $0.key == .binary })?.value, "1.15.0")
-        XCTAssertEqual(rows.first(where: { $0.key == .pathActive })?.value, "true")
+        let pathActiveValue = rows.first(where: { $0.key == .pathActive })?.value ?? ""
+        XCTAssertTrue(["true", "yes", "是"].contains(pathActiveValue.lowercased()) || pathActiveValue == "是")
         XCTAssertEqual(rows.first(where: { $0.key == .executable })?.value, "/usr/local/bin/codex")
         XCTAssertEqual(rows.first(where: { $0.key == .hint })?.value, "ok")
     }

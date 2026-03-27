@@ -1,44 +1,41 @@
 import XCTest
-@testable import nolon
 import ProviderCatalog
 import NolonUIFoundation
+@testable import nolon
 
 final class ProviderSidebarAdapterTests: XCTestCase {
     func testSections_GroupsOriginalIntegratedAndProjects() {
-        let providers: [Provider] = [
-            Provider(
+        let providers: [SidebarProviderInput] = [
+            .init(
                 id: "codex",
                 kind: .vendor,
+                vendorCategory: .original,
                 name: "Codex",
-                defaultSkillsPath: "/tmp/codex",
-                workflowPath: "/tmp/codex/workflows",
+                subtitle: "/tmp/codex",
                 iconName: "terminal",
-                installMethod: .symlink,
-                vendorCategory: .original
+                hasDocumentation: true
             ),
-            Provider(
+            .init(
                 id: "claude",
                 kind: .vendor,
+                vendorCategory: .integrated,
                 name: "Claude",
-                defaultSkillsPath: "/tmp/claude",
-                workflowPath: "/tmp/claude/workflows",
+                subtitle: "/tmp/claude",
                 iconName: "message",
-                installMethod: .symlink,
-                vendorCategory: .integrated
+                hasDocumentation: true
             ),
-            Provider(
+            .init(
                 id: "project",
                 kind: .project,
+                vendorCategory: nil,
                 name: "My Project",
-                projectRootPath: "/tmp/project",
-                defaultSkillsPath: "/tmp/project/.codex/skills",
-                workflowPath: "/tmp/project/.codex/workflows",
+                subtitle: "/tmp/project",
                 iconName: "folder",
-                installMethod: .symlink
+                hasDocumentation: false
             )
         ]
 
-        let sections = ProviderSidebarAdapter.sections(from: providers)
+        let sections = SidebarSectionBuilder.buildSections(providers: providers)
 
         XCTAssertEqual(sections.map(\.id), [.originalVendors, .integratedVendors, .projects])
         XCTAssertEqual(sections[0].items.map(\.id), ["codex"])
@@ -47,8 +44,8 @@ final class ProviderSidebarAdapterTests: XCTestCase {
     }
 
     func testSelectionKeys_MatchLegacyStorageKeys() {
-        XCTAssertEqual(ProviderSidebarAdapter.providerSelectionKey("abc"), MainSidebarSelection.provider("abc").storageKey)
-        XCTAssertEqual(ProviderSidebarAdapter.accountsSelectionKey, MainSidebarSelection.accounts.storageKey)
-        XCTAssertEqual(ProviderSidebarAdapter.pluginManagementSelectionKey, MainSidebarSelection.pluginManagement.storageKey)
+        XCTAssertEqual(SidebarSelectionKey.provider("abc").rawValue, MainSidebarSelection.provider("abc").storageKey)
+        XCTAssertEqual(SidebarSelectionKey.accounts.rawValue, MainSidebarSelection.accounts.storageKey)
+        XCTAssertEqual(SidebarSelectionKey.pluginManagement.rawValue, MainSidebarSelection.pluginManagement.storageKey)
     }
 }

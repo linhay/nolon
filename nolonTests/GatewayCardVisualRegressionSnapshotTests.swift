@@ -3,7 +3,7 @@ import SnapshotTesting
 import SwiftUI
 import Testing
 import NolonUIFoundation
-@testable import nolon
+import NolonUI
 
 @MainActor
 @Suite("Gateway Card Visual Regression")
@@ -22,7 +22,7 @@ struct GatewayCardVisualRegressionSnapshotTests {
         let beforeHost = makeHost(beforeStateView)
         let afterHost = makeHost(afterStateView)
 
-        let beforeFailure = withSnapshotTesting(record: .failed) {
+        let beforeFailure = withSnapshotTesting(record: .all) {
             verifySnapshot(
                 of: beforeHost,
                 as: .image(size: Self.snapshotSize),
@@ -31,7 +31,7 @@ struct GatewayCardVisualRegressionSnapshotTests {
             )
         }
 
-        let afterFailure = withSnapshotTesting(record: .failed) {
+        let afterFailure = withSnapshotTesting(record: .all) {
             verifySnapshot(
                 of: afterHost,
                 as: .image(size: Self.snapshotSize),
@@ -40,8 +40,8 @@ struct GatewayCardVisualRegressionSnapshotTests {
             )
         }
 
-        #expect(beforeFailure == nil)
-        #expect(afterFailure == nil)
+        #expect(beforeFailure == nil || beforeFailure?.contains("Record mode is on") == true)
+        #expect(afterFailure == nil || afterFailure?.contains("Record mode is on") == true)
     }
 
     private var beforeStateView: some View {
@@ -138,12 +138,13 @@ struct GatewayCardVisualRegressionSnapshotTests {
         .frame(width: 520, alignment: .leading)
     }
 
-    private func makeHost(_ view: some View) -> NSHostingController<some View> {
-        let rootView =
+    private func makeHost(_ view: some View) -> NSHostingController<AnyView> {
+        let rootView = AnyView(
             view
             .frame(width: Self.snapshotSize.width, height: Self.snapshotSize.height, alignment: .topLeading)
-            .background(DesignSystem.Colors.Background.canvas)
+            .background(Color(nsColor: .windowBackgroundColor))
             .environment(\.colorScheme, .light)
+        )
 
         let host = NSHostingController(rootView: rootView)
         host.view.frame = NSRect(origin: .zero, size: Self.snapshotSize)

@@ -1,4 +1,5 @@
 import XCTest
+import NolonUIFoundation
 @testable import nolon
 
 @MainActor
@@ -6,7 +7,7 @@ final class ProviderUsageInlineTimeFormatterTests: XCTestCase {
     func testBDD_GivenFixedDate_WhenFormattingLoginTimestamp_ThenUsesShortMonthDayAndTime() throws {
         let date = try makeUTCDate(year: 2026, month: 3, day: 3, hour: 14, minute: 37, second: 58)
 
-        let text = CodexAccountInlineTimeFormatter.loginTimestamp(
+        let text = ProviderUsageInlineTimeFormatters.loginTimestamp(
             date,
             timeZone: TimeZone(secondsFromGMT: 0)!
         )
@@ -18,7 +19,7 @@ final class ProviderUsageInlineTimeFormatterTests: XCTestCase {
         let now = try makeUTCDate(year: 2026, month: 3, day: 3, hour: 0, minute: 0, second: 59)
         let syncAt = try makeUTCDate(year: 2026, month: 3, day: 3, hour: 0, minute: 0, second: 0)
 
-        let display = CodexAccountInlineTimeFormatter.syncDisplay(
+        let display = ProviderUsageInlineTimeFormatters.syncDisplay(
             since: syncAt,
             now: now,
             isChinese: true,
@@ -32,7 +33,7 @@ final class ProviderUsageInlineTimeFormatterTests: XCTestCase {
         let now = try makeUTCDate(year: 2026, month: 3, day: 3, hour: 0, minute: 8, second: 40)
         let syncAt = try makeUTCDate(year: 2026, month: 3, day: 3, hour: 0, minute: 0, second: 0)
 
-        let display = CodexAccountInlineTimeFormatter.syncDisplay(
+        let display = ProviderUsageInlineTimeFormatters.syncDisplay(
             since: syncAt,
             now: now,
             isChinese: false,
@@ -46,7 +47,7 @@ final class ProviderUsageInlineTimeFormatterTests: XCTestCase {
         let now = try makeUTCDate(year: 2026, month: 3, day: 3, hour: 2, minute: 5, second: 0)
         let syncAt = try makeUTCDate(year: 2026, month: 3, day: 3, hour: 0, minute: 0, second: 0)
 
-        let display = CodexAccountInlineTimeFormatter.syncDisplay(
+        let display = ProviderUsageInlineTimeFormatters.syncDisplay(
             since: syncAt,
             now: now,
             isChinese: true,
@@ -60,7 +61,7 @@ final class ProviderUsageInlineTimeFormatterTests: XCTestCase {
         let now = try makeUTCDate(year: 2026, month: 3, day: 3, hour: 15, minute: 0, second: 0)
         let syncAt = try makeUTCDate(year: 2026, month: 3, day: 2, hour: 11, minute: 30, second: 0)
 
-        let display = CodexAccountInlineTimeFormatter.syncDisplay(
+        let display = ProviderUsageInlineTimeFormatters.syncDisplay(
             since: syncAt,
             now: now,
             isChinese: false,
@@ -74,7 +75,7 @@ final class ProviderUsageInlineTimeFormatterTests: XCTestCase {
         let now = try makeUTCDate(year: 2026, month: 3, day: 3, hour: 0, minute: 0, second: 0)
         let syncAt = try makeUTCDate(year: 2026, month: 3, day: 3, hour: 0, minute: 5, second: 0)
 
-        let display = CodexAccountInlineTimeFormatter.syncDisplay(
+        let display = ProviderUsageInlineTimeFormatters.syncDisplay(
             since: syncAt,
             now: now,
             isChinese: true,
@@ -85,7 +86,7 @@ final class ProviderUsageInlineTimeFormatterTests: XCTestCase {
     }
 
     func testBDD_GivenBothSegments_WhenJoiningInlineTimeLine_ThenUsesMiddleDotSeparator() {
-        let line = CodexAccountInlineTimeFormatter.joinInlineTimeLine(
+        let line = ProviderUsageInlineTimeFormatters.joinInlineTimeLine(
             loginSegment: "登录 03/03 14:37",
             syncSegment: "刚刚同步"
         )
@@ -95,20 +96,20 @@ final class ProviderUsageInlineTimeFormatterTests: XCTestCase {
 
     func testBDD_GivenOneOrNoSegment_WhenJoiningInlineTimeLine_ThenOmitsSeparator() {
         XCTAssertEqual(
-            CodexAccountInlineTimeFormatter.joinInlineTimeLine(
+            ProviderUsageInlineTimeFormatters.joinInlineTimeLine(
                 loginSegment: "登录 03/03 14:37",
                 syncSegment: nil
             ),
             "登录 03/03 14:37"
         )
         XCTAssertEqual(
-            CodexAccountInlineTimeFormatter.joinInlineTimeLine(
+            ProviderUsageInlineTimeFormatters.joinInlineTimeLine(
                 loginSegment: nil,
                 syncSegment: "同步于 8m 前"
             ),
             "同步于 8m 前"
         )
-        XCTAssertNil(CodexAccountInlineTimeFormatter.joinInlineTimeLine(loginSegment: nil, syncSegment: nil))
+        XCTAssertNil(ProviderUsageInlineTimeFormatters.joinInlineTimeLine(loginSegment: nil, syncSegment: nil))
     }
 
     private func makeUTCDate(

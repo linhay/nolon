@@ -1,5 +1,6 @@
 import XCTest
 import NolonResourceKit
+import ProviderCatalog
 @testable import nolon
 
 final class RemoteRepositoryTests: XCTestCase {

@@ -1,92 +1,35 @@
 import XCTest
-import SwiftUI
-import ProviderUsage
-import CodexBarProviderCatalog
+import NolonUIFoundation
 @testable import nolon
 
 final class ProviderQuotaSectionViewDataTests: XCTestCase {
-    func testBDD_GivenExplicitAccountTitle_WhenResolvingHeaderTitle_ThenUsesExplicitTitleInsteadOfUsageEmail() {
-        let section = ProviderQuotaSection(
-            provider: .codex,
-            accountTitle: "key-abcd",
-            usage: UsageSnapshot(
-                identity: UsageIdentity(
-                    accountEmail: "user@example.com",
-                    accountOrganization: nil,
-                    loginMethod: "api_key",
-                    plan: nil
-                ),
-                primary: nil,
-                secondary: nil,
-                tertiary: nil,
-                updatedAt: Date()
-            )
-        )
+    func testBDD_GivenLoginAndSyncDates_WhenBuildingSyncText_ThenIncludesBothSegments() {
+        let now = Date(timeIntervalSince1970: 1_710_000_000)
+        let loginAt = now.addingTimeInterval(-3600)
+        let syncedAt = now.addingTimeInterval(-120)
 
-        XCTAssertEqual(section.resolvedAccountTitle, "key-abcd")
+        let text = ProviderQuotaSectionBuilders.syncText(loginAt: loginAt, syncedAt: syncedAt, now: now)
+
+        XCTAssertNotNil(text)
+        XCTAssertTrue(text?.contains("LoggedIn") == true)
+        XCTAssertTrue(text?.contains("Synced") == true)
     }
 
-    func testBDD_GivenCreditsRefreshTime_WhenResolvingDisplayedTimestamp_ThenPrefersRefreshTime() {
-        let refreshedAt = Date(timeIntervalSince1970: 1_710_000_000)
-        let credits = CreditsSnapshot(
-            remaining: 42,
-            updatedAt: Date(timeIntervalSince1970: 1_700_000_000)
-        )
-        let section = ProviderQuotaSection(
-            provider: .codex,
-            usage: nil,
-            credits: credits,
-            creditsRefreshedAt: refreshedAt
-        )
+    func testBDD_GivenPastResetTime_WhenBuildingResetText_ThenReturnsNow() {
+        let now = Date(timeIntervalSince1970: 1_710_000_000)
+        let resetsAt = now.addingTimeInterval(-1)
 
-        XCTAssertEqual(section.displayedCreditsTimestamp(for: credits), refreshedAt)
+        let text = ProviderQuotaSectionBuilders.resetText(resetsAt: resetsAt, now: now)
+
+        XCTAssertEqual(text, "now")
     }
 
-    func testBDD_GivenSeparateCreditsRefreshTime_WhenBuildingMetadataLines_ThenIncludesRefreshAndSnapshotTimes() {
-        let refreshedAt = Date(timeIntervalSince1970: 1_710_000_000)
-        let updatedAt = Date(timeIntervalSince1970: 1_700_000_000)
-        let credits = CreditsSnapshot(remaining: 42, updatedAt: updatedAt)
-        let section = ProviderQuotaSection(
-            provider: .codex,
-            usage: nil,
-            credits: credits,
-            creditsRefreshedAt: refreshedAt
-        )
+    func testBDD_GivenFutureResetTime_WhenBuildingResetText_ThenIncludesLeftSuffix() {
+        let now = Date(timeIntervalSince1970: 1_710_000_000)
+        let resetsAt = now.addingTimeInterval(7200)
 
-        let lines = section.creditsMetadataLines(for: credits)
+        let text = ProviderQuotaSectionBuilders.resetText(resetsAt: resetsAt, now: now)
 
-        XCTAssertEqual(lines.count, 2)
-        XCTAssertEqual(lines[0].prefixKey, "usage.metric.refreshed_at")
-        XCTAssertEqual(lines[0].date, refreshedAt)
-        XCTAssertEqual(lines[1].prefixKey, "usage.metric.updated_at")
-        XCTAssertEqual(lines[1].date, updatedAt)
-    }
-    
-    func test_GivenQuotaPercentage_WhenGettingStatusColor_ThenReturnsCorrectSemanticColor() {
-        let section = ProviderQuotaSection(provider: .codex, usage: nil)
-        
-        XCTAssertEqual(section.statusColor(for: 100), DesignSystem.Colors.primary)
-        XCTAssertEqual(section.statusColor(for: 24), DesignSystem.Colors.Status.warning)
-        XCTAssertEqual(section.statusColor(for: 9), DesignSystem.Colors.Status.error)
-        XCTAssertEqual(section.statusColor(for: .infinity), DesignSystem.Colors.Status.success)
-    }
-    
-    func test_GivenPlanName_WhenGettingPlanColor_ThenReturnsCorrectThemeColor() {
-        let section = ProviderQuotaSection(provider: .gemini, usage: nil)
-        
-        XCTAssertEqual(section.planColor("Pro Plan"), DesignSystem.Colors.primary)
-        XCTAssertEqual(section.planColor("Enterprise"), DesignSystem.Colors.primary)
-        XCTAssertEqual(section.planColor("Free Tier"), DesignSystem.Colors.Status.error)
-        XCTAssertEqual(section.planColor("Limited"), DesignSystem.Colors.Status.error)
-        XCTAssertEqual(section.planColor("Unknown"), DesignSystem.Colors.Text.secondary)
-    }
-    
-    func test_GivenQuotaTitle_WhenGettingIconName_ThenReturnsCorrectSFSymbol() {
-        let section = ProviderQuotaSection(provider: .copilot, usage: nil)
-        
-        XCTAssertEqual(section.iconName(for: "Session Window"), "timer")
-        XCTAssertEqual(section.iconName(for: "Weekly Limit"), "calendar")
-        XCTAssertEqual(section.iconName(for: "Daily Usage"), "calendar")
-        XCTAssertEqual(section.iconName(for: "Other Metrics"), "chart.bar")
+        XCTAssertTrue(text.contains("left"))
     }
 }

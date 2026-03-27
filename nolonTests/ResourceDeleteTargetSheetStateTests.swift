@@ -3,47 +3,55 @@ import ProviderCatalog
 @testable import nolon
 
 final class ResourceDeleteTargetSheetStateTests: XCTestCase {
-    func testBDD_GivenPreferredProvider_WhenBuildInitialState_ThenDefaultToProviderDeletion() {
+    func testBDD_GivenPreferredProviderIndex_WhenBuildExecutionPlan_ThenTargetsOnlyThatProvider() {
         let providers = [
             Self.makeProvider(id: "provider-a", name: "Provider A"),
             Self.makeProvider(id: "provider-b", name: "Provider B")
         ]
 
-        let state = ResourceDeleteTargetSheetState.initial(
-            preferredProvider: providers[1],
+        let plan = ResourceDeletionExecutionPlan.make(
+            providerIndex: 1,
+            removeGlobalCache: false,
             providers: providers
         )
 
-        XCTAssertEqual(state.selectedProviderID, "provider-b")
-        XCTAssertFalse(state.deleteAll)
+        XCTAssertEqual(plan.providerIDs, ["provider-b"])
+        XCTAssertFalse(plan.removeGlobalCache)
+        XCTAssertNil(plan.globalCachePathHint)
     }
 
-    func testBDD_GivenGlobalEntry_WhenBuildInitialState_ThenDefaultToDeleteAllIncludingGlobalCache() {
+    func testBDD_GivenDeleteAll_WhenBuildExecutionPlan_ThenTargetsAllProvidersAndGlobalCache() {
         let providers = [
             Self.makeProvider(id: "provider-a", name: "Provider A")
         ]
 
-        let state = ResourceDeleteTargetSheetState.initial(
-            preferredProvider: nil,
-            providers: providers
+        let plan = ResourceDeletionExecutionPlan.make(
+            providerIndex: nil,
+            removeGlobalCache: true,
+            providers: providers,
+            globalCachePathHint: "/tmp/global/cache"
         )
 
-        XCTAssertNil(state.selectedProviderID)
-        XCTAssertTrue(state.deleteAll)
+        XCTAssertEqual(plan.providerIDs, ["provider-a"])
+        XCTAssertTrue(plan.removeGlobalCache)
+        XCTAssertEqual(plan.globalCachePathHint, "/tmp/global/cache")
     }
 
-    func testBDD_GivenNoPreferredProvider_WhenResolveProviderSelection_ThenFallbackToFirstProvider() {
+    func testBDD_GivenDeleteAllDisabled_WhenBuildExecutionPlan_ThenNoProviderAndNoGlobalCache() {
         let providers = [
             Self.makeProvider(id: "provider-a", name: "Provider A"),
             Self.makeProvider(id: "provider-b", name: "Provider B")
         ]
 
-        let selection = ResourceDeleteTargetSheetState.providerSelection(
-            preferredProvider: nil,
+        let plan = ResourceDeletionExecutionPlan.make(
+            providerIndex: nil,
+            removeGlobalCache: false,
             providers: providers
         )
 
-        XCTAssertEqual(selection, "provider-a")
+        XCTAssertTrue(plan.providerIDs.isEmpty)
+        XCTAssertFalse(plan.removeGlobalCache)
+        XCTAssertNil(plan.globalCachePathHint)
     }
 
     private static func makeProvider(id: String, name: String) -> Provider {

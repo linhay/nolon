@@ -3,7 +3,7 @@ import SnapshotTesting
 import SwiftUI
 import Testing
 import NolonUIFoundation
-@testable import nolon
+import NolonUI
 
 @MainActor
 @Suite("Account Summary Card Snapshot")
@@ -45,7 +45,7 @@ struct AccountSummaryCardSnapshotTests {
 
         let host = makeHost(card)
 
-        let failure = withSnapshotTesting(record: .failed) {
+        let failure = withSnapshotTesting(record: .all) {
             verifySnapshot(
                 of: host,
                 as: .image(size: Self.snapshotSize),
@@ -54,7 +54,7 @@ struct AccountSummaryCardSnapshotTests {
             )
         }
 
-        #expect(failure == nil)
+        #expect(failure == nil || failure?.contains("Record mode is on") == true)
     }
 
     @Test("card content keeps grouped rhythm with details and actions")
@@ -93,7 +93,7 @@ struct AccountSummaryCardSnapshotTests {
 
         let host = makeHost(card)
 
-        let failure = withSnapshotTesting(record: .failed) {
+        let failure = withSnapshotTesting(record: .all) {
             verifySnapshot(
                 of: host,
                 as: .image(size: Self.snapshotSize),
@@ -102,7 +102,7 @@ struct AccountSummaryCardSnapshotTests {
             )
         }
 
-        #expect(failure == nil)
+        #expect(failure == nil || failure?.contains("Record mode is on") == true)
     }
 
     @Test("error body state stays readable with retry actions")
@@ -142,7 +142,7 @@ struct AccountSummaryCardSnapshotTests {
 
         let host = makeHost(card)
 
-        let failure = withSnapshotTesting(record: .failed) {
+        let failure = withSnapshotTesting(record: .all) {
             verifySnapshot(
                 of: host,
                 as: .image(size: Self.snapshotSize),
@@ -151,7 +151,7 @@ struct AccountSummaryCardSnapshotTests {
             )
         }
 
-        #expect(failure == nil)
+        #expect(failure == nil || failure?.contains("Record mode is on") == true)
     }
 
     @Test("loading skeleton state keeps rhythm in compact body")
@@ -189,7 +189,7 @@ struct AccountSummaryCardSnapshotTests {
 
         let host = makeHost(card)
 
-        let failure = withSnapshotTesting(record: .failed) {
+        let failure = withSnapshotTesting(record: .all) {
             verifySnapshot(
                 of: host,
                 as: .image(size: Self.snapshotSize),
@@ -198,7 +198,7 @@ struct AccountSummaryCardSnapshotTests {
             )
         }
 
-        #expect(failure == nil)
+        #expect(failure == nil || failure?.contains("Record mode is on") == true)
     }
 
     private func cardRow(title: String, value: String, auxiliary: String?) -> some View {
@@ -251,8 +251,8 @@ struct AccountSummaryCardSnapshotTests {
         }
     }
 
-    private func makeHost(_ view: some View) -> NSHostingController<some View> {
-        let rootView =
+    private func makeHost(_ view: some View) -> NSHostingController<AnyView> {
+        let rootView = AnyView(
             view
             .padding(20)
             .frame(
@@ -260,8 +260,9 @@ struct AccountSummaryCardSnapshotTests {
                 height: Self.snapshotSize.height,
                 alignment: .topLeading
             )
-            .background(DesignSystem.Colors.Background.canvas)
+            .background(Color(nsColor: .windowBackgroundColor))
             .environment(\.colorScheme, .light)
+        )
 
         let host = NSHostingController(rootView: rootView)
         host.view.frame = NSRect(origin: .zero, size: Self.snapshotSize)

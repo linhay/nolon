@@ -1,6 +1,7 @@
 import XCTest
 import ProviderCatalog
 import NolonResourceKit
+import NolonUIFoundation
 @testable import nolon
 import STJSON
 

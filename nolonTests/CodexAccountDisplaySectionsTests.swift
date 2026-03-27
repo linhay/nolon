@@ -660,8 +660,8 @@ final class CodexAccountDisplaySectionsTests: XCTestCase {
         XCTAssertNotNil(card)
         let cardID = try! XCTUnwrap(card?.id)
 
-        viewModel.addAccountToGatewayCard(accountID: account.id, cardID: cardID)
-        viewModel.addAccountToGatewayCard(accountID: account.id, cardID: cardID)
+        viewModel.addAccountsToGatewayCard(accountIDs: [account.id], cardID: cardID)
+        viewModel.addAccountsToGatewayCard(accountIDs: [account.id], cardID: cardID)
 
         let updated = viewModel.gatewayCards.first(where: { $0.id == cardID })
         XCTAssertEqual(updated?.memberAccountIDs, [account.id])
@@ -672,7 +672,7 @@ final class CodexAccountDisplaySectionsTests: XCTestCase {
         let account = CodexAuthAccount(id: UUID(), name: "A", createdAt: .distantPast, relativeAuthPath: "auth/a.json")
         viewModel.codexAccounts = [account]
         let card = try! XCTUnwrap(viewModel.createGatewayCard(name: "网关激活"))
-        viewModel.addAccountToGatewayCard(accountID: account.id, cardID: card.id)
+        viewModel.addAccountsToGatewayCard(accountIDs: [account.id], cardID: card.id)
         viewModel.gatewayCardsState.lastUsedCardID = nil
 
         let shouldPromptAdd = viewModel.activateGatewayCard(cardID: card.id)
@@ -714,7 +714,7 @@ final class CodexAccountDisplaySectionsTests: XCTestCase {
         let account = CodexAuthAccount(id: UUID(), name: "A", createdAt: .distantPast, relativeAuthPath: "auth/a.json")
         viewModel.codexAccounts = [account]
         let card = try! XCTUnwrap(viewModel.createGatewayCard(name: "网关启动"))
-        viewModel.addAccountToGatewayCard(accountID: account.id, cardID: card.id)
+        viewModel.addAccountsToGatewayCard(accountIDs: [account.id], cardID: card.id)
 
         await viewModel.startGatewayForCardSelection(cardID: card.id)
 
@@ -736,7 +736,7 @@ final class CodexAccountDisplaySectionsTests: XCTestCase {
         let account = CodexAuthAccount(id: UUID(), name: "Xcode", createdAt: .distantPast, relativeAuthPath: "auth/xcode.json")
         viewModel.codexAccounts = [account]
         let card = try! XCTUnwrap(viewModel.createGatewayCard(name: "Xcode 网关启动"))
-        viewModel.addAccountToGatewayCard(accountID: account.id, cardID: card.id)
+        viewModel.addAccountsToGatewayCard(accountIDs: [account.id], cardID: card.id)
 
         await viewModel.startGatewayForCardSelection(cardID: card.id)
 
@@ -769,7 +769,7 @@ final class CodexAccountDisplaySectionsTests: XCTestCase {
         let account = CodexAuthAccount(id: UUID(), name: "A", createdAt: .distantPast, relativeAuthPath: "auth/a.json")
         viewModel.codexAccounts = [account]
         let card = try! XCTUnwrap(viewModel.createGatewayCard(name: "未选中网关"))
-        viewModel.addAccountToGatewayCard(accountID: account.id, cardID: card.id)
+        viewModel.addAccountsToGatewayCard(accountIDs: [account.id], cardID: card.id)
         viewModel.gatewayCardsState.lastUsedCardID = nil
 
         await viewModel.startGatewayForCardSelection(cardID: card.id)
@@ -799,7 +799,7 @@ final class CodexAccountDisplaySectionsTests: XCTestCase {
         let account = CodexAuthAccount(id: UUID(), name: "A", createdAt: .distantPast, relativeAuthPath: "auth/a.json")
         viewModel.codexAccounts = [account]
         let card = try! XCTUnwrap(viewModel.createGatewayCard(name: "重启网关"))
-        viewModel.addAccountToGatewayCard(accountID: account.id, cardID: card.id)
+        viewModel.addAccountsToGatewayCard(accountIDs: [account.id], cardID: card.id)
 
         await viewModel.startGatewayForCardSelection(cardID: card.id)
 
@@ -938,7 +938,7 @@ final class CodexAccountDisplaySectionsTests: XCTestCase {
         viewModel.codexAccounts = [first, second, third]
         viewModel.selectedCodexAccountIDs = [third.id, first.id]
 
-        let ordered = viewModel.selectedCodexAccountIDsInCurrentDisplayOrder()
+        let ordered = viewModel.selectedCodexAccountIDsInDisplayOrder()
 
         XCTAssertEqual(ordered, [first.id, third.id])
     }
@@ -983,8 +983,8 @@ final class CodexAccountDisplaySectionsTests: XCTestCase {
         let second = viewModel.createGatewayCard(name: "网关 2")
         let firstID = try! XCTUnwrap(first?.id)
         let secondID = try! XCTUnwrap(second?.id)
-        viewModel.addAccountToGatewayCard(accountID: account.id, cardID: firstID)
-        viewModel.addAccountToGatewayCard(accountID: account.id, cardID: secondID)
+        viewModel.addAccountsToGatewayCard(accountIDs: [account.id], cardID: firstID)
+        viewModel.addAccountsToGatewayCard(accountIDs: [account.id], cardID: secondID)
 
         viewModel.deleteGatewayCard(cardID: firstID)
 
@@ -1053,7 +1053,7 @@ final class CodexAccountDisplaySectionsTests: XCTestCase {
             second.id: CodexAuthSummary(plan: "Plus", cardKind: .chatgptAccount)
         ]
         let card = try! XCTUnwrap(viewModel.createGatewayCard(name: "网关过滤"))
-        viewModel.addAccountToGatewayCard(accountID: first.id, cardID: card.id)
+        viewModel.addAccountsToGatewayCard(accountIDs: [first.id], cardID: card.id)
 
         let sections = viewModel.gatewayCandidateSections(for: card.id)
 

@@ -1,5 +1,6 @@
 import XCTest
 import NolonResourceKit
+import NolonUI
 @testable import nolon
 
 final class ResourceCardMetaBuilderTests: XCTestCase {
@@ -64,4 +65,3 @@ final class ResourceCardMetaBuilderTests: XCTestCase {
         XCTAssertTrue(items.isEmpty)
     }
 }
-

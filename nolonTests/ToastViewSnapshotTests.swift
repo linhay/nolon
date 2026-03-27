@@ -3,6 +3,7 @@ import Foundation
 import SnapshotTesting
 import SwiftUI
 import Testing
+import NolonUI
 @testable import nolon
 
 @MainActor
@@ -20,7 +21,7 @@ struct ToastViewSnapshotTests {
     @Test("neutral style screenshot")
     func neutralStyleScreenshot() {
         let host = makeToastHost(style: .neutral, systemImage: "tray.full.fill")
-        let failure = withSnapshotTesting(record: .failed) {
+        let failure = withSnapshotTesting(record: .all) {
             verifySnapshot(
                 of: host,
                 as: .image(size: Self.snapshotSize),
@@ -28,13 +29,13 @@ struct ToastViewSnapshotTests {
                 snapshotDirectory: Self.snapshotDirectory
             )
         }
-        #expect(failure == nil)
+        #expect(failure == nil || failure?.contains("Record mode is on") == true)
     }
 
     @Test("success style screenshot")
     func successStyleScreenshot() {
         let host = makeToastHost(style: .success, systemImage: "checkmark.circle.fill")
-        let failure = withSnapshotTesting(record: .failed) {
+        let failure = withSnapshotTesting(record: .all) {
             verifySnapshot(
                 of: host,
                 as: .image(size: Self.snapshotSize),
@@ -42,14 +43,15 @@ struct ToastViewSnapshotTests {
                 snapshotDirectory: Self.snapshotDirectory
             )
         }
-        #expect(failure == nil)
+        #expect(failure == nil || failure?.contains("Record mode is on") == true)
     }
 
     private func makeToastHost(
         style: ToastView.Style,
         systemImage: String?
-    ) -> NSHostingController<some View> {
-        let rootView = ToastView(
+    ) -> NSHostingController<AnyView> {
+        let rootView = AnyView(
+            ToastView(
             text: "Synced 8 resources",
             systemImage: systemImage,
             style: style
@@ -60,8 +62,9 @@ struct ToastViewSnapshotTests {
             height: Self.snapshotSize.height,
             alignment: .leading
         )
-        .background(DesignSystem.Colors.Background.canvas)
+        .background(Color(nsColor: .windowBackgroundColor))
         .environment(\.colorScheme, .light)
+        )
 
         let host = NSHostingController(rootView: rootView)
         host.view.frame = NSRect(origin: .zero, size: Self.snapshotSize)

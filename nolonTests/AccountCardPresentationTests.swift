@@ -1,6 +1,7 @@
 import XCTest
 import SwiftUI
 import NolonUIFoundation
+import NolonUI
 @testable import nolon
 
 @MainActor

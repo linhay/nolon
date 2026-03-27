@@ -1,4 +1,5 @@
 import XCTest
+import NolonUIFoundation
 @testable import nolon
 
 final class GenericSelectionControlTests: XCTestCase {
@@ -48,11 +49,13 @@ final class GenericSelectionControlTests: XCTestCase {
     func testBDD_GivenIDBoxSelections_WhenToggling_ThenKeepsTypeErasedSetStable() {
         let one = IDBox(UUID(uuidString: "00000000-0000-0000-0000-000000000001")!)
         let two = IDBox(UUID(uuidString: "00000000-0000-0000-0000-000000000002")!)
+        let current: Set<IDBox<UUID>> = [one]
+        let expected: Set<IDBox<UUID>> = [one, two]
         let result = GenericSelectionStateResolver.resolveMultiSelection(
-            current: Set([one]),
+            current: current,
             tapped: two
         )
-        XCTAssertEqual(result, Set([one, two]))
+        XCTAssertEqual(result, expected)
     }
 
     func testBDD_GivenBatchMultiSelection_WhenAllValuesAlreadySelected_ThenBatchIsRemoved() {

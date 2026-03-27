@@ -1,6 +1,7 @@
 import XCTest
 import NolonResourceKit
 import ProviderCatalog
+import NolonUIFoundation
 @testable import nolon
 
 @MainActor

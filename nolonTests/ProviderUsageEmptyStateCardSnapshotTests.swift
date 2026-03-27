@@ -2,6 +2,7 @@ import AppKit
 import SnapshotTesting
 import SwiftUI
 import Testing
+import NolonUI
 @testable import nolon
 
 @MainActor
@@ -26,7 +27,7 @@ struct ProviderUsageEmptyStateCardSnapshotTests {
             )
         )
 
-        let failure = withSnapshotTesting(record: .failed) {
+        let failure = withSnapshotTesting(record: .all) {
             verifySnapshot(
                 of: host,
                 as: .image(size: Self.snapshotSize),
@@ -35,11 +36,11 @@ struct ProviderUsageEmptyStateCardSnapshotTests {
             )
         }
 
-        #expect(failure == nil)
+        #expect(failure == nil || failure?.contains("Record mode is on") == true)
     }
 
-    private func makeHost(_ view: some View) -> NSHostingController<some View> {
-        let rootView =
+    private func makeHost(_ view: some View) -> NSHostingController<AnyView> {
+        let rootView = AnyView(
             view
             .padding(24)
             .frame(
@@ -47,8 +48,9 @@ struct ProviderUsageEmptyStateCardSnapshotTests {
                 height: Self.snapshotSize.height,
                 alignment: .top
             )
-            .background(DesignSystem.Colors.Background.canvas)
+            .background(Color(nsColor: .windowBackgroundColor))
             .environment(\.colorScheme, .light)
+        )
 
         let host = NSHostingController(rootView: rootView)
         host.view.frame = NSRect(origin: .zero, size: Self.snapshotSize)

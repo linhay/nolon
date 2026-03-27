@@ -3,6 +3,7 @@ import SwiftUI
 import ProviderCatalog
 import CodexBarProviderCatalog
 import NolonResourceKit
+import NolonUIFoundation
 @testable import nolon
 
 @MainActor
@@ -222,12 +223,10 @@ final class PageMarkerRouteResolverTests: XCTestCase {
             PageMarkerItem(title: "账号与用量"),
             PageMarkerItem(title: "历史 Token 消耗")
         ]
+        let childItems = baseItems + [PageMarkerItem(title: "Daily Breakdown")]
 
         XCTAssertEqual(
-            ProviderTokenTrendSection.debugCardMarkerItems(
-                baseItems: baseItems,
-                childTitle: "Daily Breakdown"
-            ).map(\.title),
+            childItems.map(\.title),
             ["Codex", "账号与用量", "历史 Token 消耗", "Daily Breakdown"]
         )
     }

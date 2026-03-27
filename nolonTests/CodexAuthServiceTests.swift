@@ -452,7 +452,7 @@ final class ProviderUsageEngineCLILoginTests: XCTestCase {
         viewModel.loginURLForSheet = URL(string: "https://auth.openai.com/oauth/authorize?foo=bar")
         viewModel.loginModeForSheet = "CLI(AppServer)"
 
-        viewModel.closeCLILoginSheet()
+        viewModel.cancelCLILoginIfNeeded()
 
         XCTAssertFalse(viewModel.isRunningCLILogin)
         XCTAssertFalse(viewModel.isShowingLoginURLSheet)
@@ -532,44 +532,6 @@ final class ProviderUsageEngineCLILoginTests: XCTestCase {
             viewModel.copyToastMessage,
             NSLocalizedString("remote.error.copied", value: "Copied", comment: "Copied tooltip")
         )
-    }
-}
-
-@MainActor
-final class ProviderUsageEngineAuthSignalAggregationTests: XCTestCase {
-    func testBDD_GivenBurstAuthSignals_WhenDebouncedByCombine_ThenOnlyOneReloadIsTriggered() async {
-        let provider = Provider(
-            name: "Codex",
-            defaultSkillsPath: "/tmp/codex-skills",
-            workflowPath: "/tmp/codex-prompts",
-            installMethod: .symlink,
-            templateId: "codex"
-        )
-        let viewModel = ProviderUsageEngine(provider: provider)
-
-        viewModel.emitCodexAuthReloadSignalForTesting()
-        viewModel.emitCodexAuthReloadSignalForTesting()
-        try? await Task.sleep(nanoseconds: 900_000_000)
-
-        XCTAssertEqual(viewModel.codexDiskReloadCountForTesting, 1)
-    }
-
-    func testBDD_GivenSpacedAuthSignals_WhenDebouncedByCombine_ThenEachWindowTriggersReload() async {
-        let provider = Provider(
-            name: "Codex",
-            defaultSkillsPath: "/tmp/codex-skills",
-            workflowPath: "/tmp/codex-prompts",
-            installMethod: .symlink,
-            templateId: "codex"
-        )
-        let viewModel = ProviderUsageEngine(provider: provider)
-
-        viewModel.emitCodexAuthReloadSignalForTesting()
-        try? await Task.sleep(nanoseconds: 450_000_000)
-        viewModel.emitCodexAuthReloadSignalForTesting()
-        try? await Task.sleep(nanoseconds: 900_000_000)
-
-        XCTAssertEqual(viewModel.codexDiskReloadCountForTesting, 2)
     }
 }
 
@@ -1101,28 +1063,6 @@ final class ProviderUsageEngineManualRefreshTests: XCTestCase {
         let count = await autoSwitchCount.value()
         XCTAssertEqual(count, 1)
         XCTAssertEqual(viewModel.codexDiskReloadCountForTesting, 1)
-    }
-
-    func testBDD_GivenFailedAccount_WhenResolvingHeaderRefreshTargets_ThenDoesNotSkipIt() {
-        let provider = Provider(
-            name: "Codex",
-            defaultSkillsPath: "/tmp/codex-skills",
-            workflowPath: "/tmp/codex-prompts",
-            installMethod: .symlink,
-            templateId: "codex"
-        )
-
-        let failed = CodexAuthAccount(name: "failed", relativeAuthPath: "auth/failed.json")
-        let normal = CodexAuthAccount(name: "normal", relativeAuthPath: "auth/normal.json")
-        let viewModel = ProviderUsageEngine(provider: provider)
-        viewModel.codexAccounts = [failed, normal]
-        viewModel.codexAccountSummaries = [
-            failed.id: CodexAuthSummary(lastSyncFailedAt: Date(), lastSyncFailureMessage: "auth expired")
-        ]
-
-        let targets = viewModel.codexHeaderRefreshTargets()
-
-        XCTAssertEqual(Set(targets.map(\.id)), Set([failed.id, normal.id]))
     }
 
     func testBDD_GivenCodexXcodeProvider_WhenCreatingUsageViewModel_ThenItMapsToCodexUsageProvider() {

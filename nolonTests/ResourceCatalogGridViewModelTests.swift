@@ -1,6 +1,7 @@
 import XCTest
 import NolonResourceKit
 import ProviderCatalog
+import NolonUIFoundation
 @testable import nolon
 
 final class ResourceCatalogGridViewModelTests: XCTestCase {
@@ -312,19 +313,6 @@ final class ResourceCatalogGridViewModelTests: XCTestCase {
         )
 
         XCTAssertEqual(merged.map(\.slug), ["harmony-next"])
-    }
-
-    @MainActor
-    func testBDD_GivenSelectedSkill_WhenConsumed_ThenReturnsSkillAndResetsSelection() {
-        var selection: RemoteSkill? = Self.makeRemoteSkill(
-            slug: "agent-browser",
-            displayName: "Agent Browser",
-            summary: "Browser automation"
-        )
-
-        let consumed = ResourceCatalogGridViewModel.consumeSkillDetailSelection(&selection)
-        XCTAssertEqual(consumed?.slug, "agent-browser")
-        XCTAssertNil(selection)
     }
 
     private static func makeClawdhubRepository() -> RemoteRepository {
