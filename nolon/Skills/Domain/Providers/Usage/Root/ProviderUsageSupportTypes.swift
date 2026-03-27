@@ -44,62 +44,6 @@ enum UsageAutoRefreshInterval: Int, CaseIterable, Identifiable {
     }
 }
 
-enum CodexAccountInlineTimeFormatter {
-    typealias SyncDisplay = ProviderUsageInlineTimeFormatters.SyncDisplay
-
-    static func loginTimestamp(_ date: Date, timeZone: TimeZone = .current) -> String {
-        ProviderUsageInlineTimeFormatters.loginTimestamp(date, timeZone: timeZone)
-    }
-
-    static func syncDisplay(
-        since syncAt: Date,
-        now: Date = Date(),
-        isChinese: Bool,
-        timeZone: TimeZone = .current
-    ) -> SyncDisplay {
-        ProviderUsageInlineTimeFormatters.syncDisplay(
-            since: syncAt,
-            now: now,
-            isChinese: isChinese,
-            timeZone: timeZone
-        )
-    }
-
-    static func joinInlineTimeLine(loginSegment: String?, syncSegment: String?) -> String? {
-        ProviderUsageInlineTimeFormatters.joinInlineTimeLine(
-            loginSegment: loginSegment,
-            syncSegment: syncSegment
-        )
-    }
-}
-
-enum CodexAccountDisplayNameResolver {
-    static func resolve(
-        summary: CodexAuthSummary?,
-        relativeAuthPath: String?,
-        defaultName: String,
-        accountID: UUID?
-    ) -> String {
-        ProviderUsageAccountDisplayNameResolver.resolve(
-            email: summary?.email,
-            summaryAccountID: summary?.accountID,
-            cardKind: summary.map { "\($0.cardKind)" },
-            apiKeySuffix: summary?.apiKeySuffix,
-            relayModelProvider: summary?.relayModelProvider,
-            relayBaseURL: summary?.relayBaseURL,
-            relativeAuthPath: relativeAuthPath,
-            defaultName: defaultName,
-            accountID: accountID
-        )
-    }
-}
-
-enum TokenCountCompactFormatter {
-    static func format(_ value: Int) -> String {
-        TokenCountFormatters.compact(value)
-    }
-}
-
 typealias UsageIssueCode = ProviderUsageIssueCode
 
 enum UsageIssueClassifier {

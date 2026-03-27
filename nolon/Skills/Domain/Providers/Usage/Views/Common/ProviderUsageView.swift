@@ -1947,8 +1947,14 @@ extension ProviderUsageView {
     }
 
     private func gatewayCandidateTitle(for account: CodexAuthAccount) -> String {
-        CodexAccountDisplayNameResolver.resolve(
-            summary: accountsViewModel.codex.accountSummaries[account.id],
+        let summary = accountsViewModel.codex.accountSummaries[account.id]
+        return ProviderUsageAccountDisplayNameResolver.resolve(
+            email: summary?.email,
+            summaryAccountID: summary?.accountID,
+            cardKind: summary.map { "\($0.cardKind)" },
+            apiKeySuffix: summary?.apiKeySuffix,
+            relayModelProvider: summary?.relayModelProvider,
+            relayBaseURL: summary?.relayBaseURL,
             relativeAuthPath: account.relativeAuthPath,
             defaultName: account.name,
             accountID: account.id

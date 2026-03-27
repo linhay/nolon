@@ -11,6 +11,7 @@ import OSLog
 import Combine
 import NolonResourceKit
 import NolonCoreCLIKit
+import NolonUIFoundation
 @preconcurrency import STFilePath
 import STJSON
 
@@ -1729,8 +1730,13 @@ final class ProviderUsageEngine {
         return card.memberAccountIDs.compactMap { id in
             guard let account = accountByID[id] else { return nil }
             let summary = summaryByID[id]
-            let title = CodexAccountDisplayNameResolver.resolve(
-                summary: summary,
+            let title = ProviderUsageAccountDisplayNameResolver.resolve(
+                email: summary?.email,
+                summaryAccountID: summary?.accountID,
+                cardKind: summary.map { "\($0.cardKind)" },
+                apiKeySuffix: summary?.apiKeySuffix,
+                relayModelProvider: summary?.relayModelProvider,
+                relayBaseURL: summary?.relayBaseURL,
                 relativeAuthPath: account.relativeAuthPath,
                 defaultName: account.name,
                 accountID: id

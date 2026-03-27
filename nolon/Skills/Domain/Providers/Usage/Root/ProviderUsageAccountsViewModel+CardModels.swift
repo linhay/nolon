@@ -395,8 +395,13 @@ extension ProviderUsageAccountsViewModel.CodexState {
             return nil
         }()
 
-        let title = CodexAccountDisplayNameResolver.resolve(
-            summary: summary,
+        let title = ProviderUsageAccountDisplayNameResolver.resolve(
+            email: summary?.email,
+            summaryAccountID: summary?.accountID,
+            cardKind: summary.map { "\($0.cardKind)" },
+            apiKeySuffix: summary?.apiKeySuffix,
+            relayModelProvider: summary?.relayModelProvider,
+            relayBaseURL: summary?.relayBaseURL,
             relativeAuthPath: accountID.flatMap { id in accounts.first(where: { $0.id == id })?.relativeAuthPath },
             defaultName: outcome.displayName,
             accountID: accountID
