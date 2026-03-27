@@ -581,20 +581,6 @@ public final class SkillRowViewViewModel {
 }
 
 @Observable
-public final class ProviderCardTemplateViewModel {
-    public init() {}
-}
-
-@Observable
-public final class ResourceCardScaffoldViewModel {
-    public var isHovered: Bool
-
-    public init(isHovered: Bool = false) {
-        self.isHovered = isHovered
-    }
-}
-
-@Observable
 public final class ResourceCardMetaItemsViewViewModel {
     public init() {}
 }

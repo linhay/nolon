@@ -69,18 +69,20 @@ public struct McpServerCardView<TitleContent: View, ExtraContextMenu: View>: Vie
     }
 
     public var body: some View {
-        ProviderCardTemplate(
+        UnifiedCardContainerView(
             minHeight: 156,
-            showsActionDivider: true
+            contentPadding: DesignSystem.Metrics.spacingL,
+            style: .provider(isSelected: false),
+            onTap: nil
         ) {
-            headerRow
-        } bodyContent: {
-            commandRow
-        } footerContent: {
-            statusRow
-        } actionContent: {
-            actionRow
-        } contextMenuContent: {
+            VStack(alignment: .leading, spacing: DesignSystem.Metrics.spacingM) {
+                headerRow
+                commandRow
+                statusRow
+                Divider()
+                actionRow
+            }
+        } menuContent: {
             contextMenuItems
         }
         .destructiveConfirmationDialog(

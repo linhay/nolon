@@ -48,38 +48,42 @@ public struct RuleCardView<ExtraContextMenu: View>: View {
     }
 
     public var body: some View {
-        ProviderCardTemplate(
+        UnifiedCardContainerView(
             minHeight: 140,
+            contentPadding: DesignSystem.Metrics.spacingL,
+            style: .provider(isSelected: false),
             onTap: onTap
         ) {
-            ProviderCardTitleMenuRow {
-                HighlightedText(text: viewModel.title, query: viewModel.searchText)
-                    .font(.headline)
-                    .lineLimit(1)
-            } menuContent: {
-                contextMenuItems
+            VStack(alignment: .leading, spacing: DesignSystem.Metrics.spacingM) {
+                ProviderCardTitleMenuRow {
+                    HighlightedText(text: viewModel.title, query: viewModel.searchText)
+                        .font(.headline)
+                        .lineLimit(1)
+                } menuContent: {
+                    contextMenuItems
+                }
+
+                ProviderCardOptionalPreviewBlock(
+                    preview: viewModel.preview,
+                    searchText: viewModel.searchText,
+                    minHeight: descriptionHeight,
+                    maxHeight: descriptionHeight
+                )
+
+                HStack(spacing: DesignSystem.Metrics.spacingS) {
+                    Image(systemName: "doc.text")
+                        .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                    HighlightedText(text: viewModel.relativePath, query: viewModel.searchText)
+                        .font(.caption2.monospaced())
+                        .dsSecondaryText(font: .caption2)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    Spacer()
+                }
+
+                EmptyView()
             }
-        } bodyContent: {
-            ProviderCardOptionalPreviewBlock(
-                preview: viewModel.preview,
-                searchText: viewModel.searchText,
-                minHeight: descriptionHeight,
-                maxHeight: descriptionHeight
-            )
-        } footerContent: {
-            HStack(spacing: DesignSystem.Metrics.spacingS) {
-                Image(systemName: "doc.text")
-                    .foregroundStyle(DesignSystem.Colors.Text.secondary)
-                HighlightedText(text: viewModel.relativePath, query: viewModel.searchText)
-                    .font(.caption2.monospaced())
-                    .dsSecondaryText(font: .caption2)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                Spacer()
-            }
-        } actionContent: {
-            EmptyView()
-        } contextMenuContent: {
+        } menuContent: {
             contextMenuItems
         }
         .destructiveConfirmationDialog(

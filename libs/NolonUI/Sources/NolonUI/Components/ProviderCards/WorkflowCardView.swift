@@ -48,38 +48,42 @@ public struct WorkflowCardView<ExtraContextMenu: View>: View {
     }
 
     public var body: some View {
-        ProviderCardTemplate(
+        UnifiedCardContainerView(
             minHeight: 140,
+            contentPadding: DesignSystem.Metrics.spacingL,
+            style: .provider(isSelected: false),
             onTap: onTap
         ) {
-            ProviderCardTitleMenuRow {
-                HStack(spacing: DesignSystem.Metrics.spacingS) {
-                    HighlightedText(text: viewModel.title, query: viewModel.searchText)
-                        .font(.headline)
-                        .lineLimit(1)
+            VStack(alignment: .leading, spacing: DesignSystem.Metrics.spacingM) {
+                ProviderCardTitleMenuRow {
+                    HStack(spacing: DesignSystem.Metrics.spacingS) {
+                        HighlightedText(text: viewModel.title, query: viewModel.searchText)
+                            .font(.headline)
+                            .lineLimit(1)
 
-                    sourceBadge
+                        sourceBadge
+                    }
+                } menuContent: {
+                    contextMenuItems
                 }
-            } menuContent: {
-                contextMenuItems
-            }
-        } bodyContent: {
-            ProviderCardDescriptionBlock(
-                text: viewModel.descriptionText,
-                searchText: viewModel.searchText,
-                minHeight: descriptionHeight,
-                maxHeight: descriptionHeight
-            )
-        } footerContent: {
-            HStack {
-                Label("Workflow", systemImage: "arrow.triangle.branch")
-                    .dsIconLabelText(foreground: DesignSystem.Colors.Text.secondary, font: .caption2)
 
-                Spacer()
+                ProviderCardDescriptionBlock(
+                    text: viewModel.descriptionText,
+                    searchText: viewModel.searchText,
+                    minHeight: descriptionHeight,
+                    maxHeight: descriptionHeight
+                )
+
+                HStack {
+                    Label("Workflow", systemImage: "arrow.triangle.branch")
+                        .dsIconLabelText(foreground: DesignSystem.Colors.Text.secondary, font: .caption2)
+
+                    Spacer()
+                }
+
+                EmptyView()
             }
-        } actionContent: {
-            EmptyView()
-        } contextMenuContent: {
+        } menuContent: {
             contextMenuItems
         }
         .destructiveConfirmationDialog(

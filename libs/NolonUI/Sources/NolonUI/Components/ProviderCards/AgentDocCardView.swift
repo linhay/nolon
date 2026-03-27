@@ -46,35 +46,37 @@ public struct AgentDocCardView<ExtraContextMenu: View>: View {
     }
 
     public var body: some View {
-        ProviderCardTemplate(
+        UnifiedCardContainerView(
             minHeight: 140,
+            contentPadding: DesignSystem.Metrics.spacingL,
+            style: .provider(isSelected: false),
             onTap: onTap
         ) {
-            ProviderCardTitleMenuRow {
-                HighlightedText(text: viewModel.title, query: viewModel.searchText)
-                    .font(.headline)
-                    .lineLimit(1)
-            } menuContent: {
-                contextMenuItems
-            }
-        } bodyContent: {
-            ProviderCardIconCaptionRow(
-                iconName: viewModel.priorityIconName,
-                title: viewModel.priorityText
-            )
+            VStack(alignment: .leading, spacing: DesignSystem.Metrics.spacingM) {
+                ProviderCardTitleMenuRow {
+                    HighlightedText(text: viewModel.title, query: viewModel.searchText)
+                        .font(.headline)
+                        .lineLimit(1)
+                } menuContent: {
+                    contextMenuItems
+                }
 
-            ProviderCardOptionalPreviewBlock(
-                preview: viewModel.preview,
-                searchText: viewModel.searchText,
-                minHeight: 16,
-                maxHeight: .infinity,
-                placeholderHeight: 16
-            )
-        } footerContent: {
-            EmptyView()
-        } actionContent: {
-            EmptyView()
-        } contextMenuContent: {
+                ProviderCardIconCaptionRow(
+                    iconName: viewModel.priorityIconName,
+                    title: viewModel.priorityText
+                )
+
+                ProviderCardOptionalPreviewBlock(
+                    preview: viewModel.preview,
+                    searchText: viewModel.searchText,
+                    minHeight: 16,
+                    maxHeight: .infinity,
+                    placeholderHeight: 16
+                )
+
+                EmptyView()
+            }
+        } menuContent: {
             contextMenuItems
         }
         .destructiveConfirmationDialog(

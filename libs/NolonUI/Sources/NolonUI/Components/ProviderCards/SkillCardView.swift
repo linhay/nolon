@@ -87,52 +87,55 @@ public struct SkillCardView<ExtraContextMenu: View>: View {
     }
 
     public var body: some View {
-        ProviderCardTemplate(
+        UnifiedCardContainerView(
             minHeight: 140,
+            contentPadding: DesignSystem.Metrics.spacingL,
+            style: .provider(isSelected: false),
             onTap: onTap
         ) {
-            ProviderCardTitleMenuRow {
-                HighlightedText(text: viewModel.name, query: viewModel.searchText)
-                    .font(.headline)
-                    .lineLimit(1)
-            } menuContent: {
-                contextMenuItems
-            }
-        } bodyContent: {
             VStack(alignment: .leading, spacing: DesignSystem.Metrics.spacingM) {
-                HStack(spacing: 4) {
-                    Text("v\(viewModel.version)")
-                        .dsBadge(
-                            foreground: DesignSystem.Colors.Text.primary,
-                            background: DesignSystem.Colors.Component.controlFillSubtle,
-                            horizontalPadding: 6,
-                            verticalPadding: 2,
-                            cornerRadius: DesignSystem.Metrics.cornerRadiusXS
-                        )
-                    if viewModel.isOrphaned {
-                        Text(NSLocalizedString("skill.orphaned", value: "Needs Migration", comment: "Orphaned skill badge"))
+                ProviderCardTitleMenuRow {
+                    HighlightedText(text: viewModel.name, query: viewModel.searchText)
+                        .font(.headline)
+                        .lineLimit(1)
+                } menuContent: {
+                    contextMenuItems
+                }
+
+                VStack(alignment: .leading, spacing: DesignSystem.Metrics.spacingM) {
+                    HStack(spacing: 4) {
+                        Text("v\(viewModel.version)")
                             .dsBadge(
-                                foreground: DesignSystem.Colors.Text.onAccent,
-                                background: DesignSystem.Colors.Status.warning,
+                                foreground: DesignSystem.Colors.Text.primary,
+                                background: DesignSystem.Colors.Component.controlFillSubtle,
                                 horizontalPadding: 6,
                                 verticalPadding: 2,
                                 cornerRadius: DesignSystem.Metrics.cornerRadiusXS
                             )
+                        if viewModel.isOrphaned {
+                            Text(NSLocalizedString("skill.orphaned", value: "Needs Migration", comment: "Orphaned skill badge"))
+                                .dsBadge(
+                                    foreground: DesignSystem.Colors.Text.onAccent,
+                                    background: DesignSystem.Colors.Status.warning,
+                                    horizontalPadding: 6,
+                                    verticalPadding: 2,
+                                    cornerRadius: DesignSystem.Metrics.cornerRadiusXS
+                                )
+                        }
                     }
+
+                    ProviderCardDescriptionBlock(
+                        text: viewModel.descriptionText,
+                        searchText: viewModel.searchText,
+                        minHeight: descriptionHeight,
+                        maxHeight: descriptionHeight
+                    )
                 }
 
-                ProviderCardDescriptionBlock(
-                    text: viewModel.descriptionText,
-                    searchText: viewModel.searchText,
-                    minHeight: descriptionHeight,
-                    maxHeight: descriptionHeight
-                )
+                EmptyView()
+                actionRow
             }
-        } footerContent: {
-            EmptyView()
-        } actionContent: {
-            actionRow
-        } contextMenuContent: {
+        } menuContent: {
             contextMenuItems
         }
         .destructiveConfirmationDialog(

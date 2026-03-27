@@ -91,17 +91,26 @@ public struct ResourceSkillCardView<ExtraAction: View, ExtraContextMenu: View>: 
     }
 
     public var body: some View {
-        ProviderCardTemplate(
+        UnifiedCardContainerView(
             minHeight: 140,
-            isSelected: isSelected,
-            showsActionDivider: true,
-            onTap: onTap,
-            headerContent: { headerView },
-            bodyContent: { summaryView },
-            footerContent: { ResourceCardMetaItemsView(items: metaItems) },
-            actionContent: { actionView },
-            contextMenuContent: { contextMenuItems }
-        )
+            contentPadding: 16,
+            style: .resource(isSelected: isSelected),
+            onTap: onTap
+        ) {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(alignment: .center) {
+                    headerView
+                    Spacer()
+                    EllipsisMenuButton(content: { contextMenuItems })
+                }
+                summaryView
+                ResourceCardMetaItemsView(items: metaItems)
+                Divider()
+                actionView
+            }
+        } menuContent: {
+            contextMenuItems
+        }
     }
 
     @ViewBuilder
