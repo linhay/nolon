@@ -32,7 +32,11 @@ public struct AccountTrendPanelData: Sendable {
     public let samples: [AccountTrendSampleData]
 
     public init(
-        title: String,
+        title: String = NSLocalizedString(
+            "accounts.dashboard.trend",
+            value: "Aggregated Usage Trend",
+            comment: "Aggregated trend panel"
+        ),
         windowOptions: [WindowOption],
         samples: [AccountTrendSampleData]
     ) {
@@ -75,7 +79,14 @@ public struct AccountRankingPanelData: Sendable {
     public let title: String
     public let items: [AccountProviderRankingItemData]
 
-    public init(title: String, items: [AccountProviderRankingItemData]) {
+    public init(
+        title: String = NSLocalizedString(
+            "accounts.dashboard.ranking",
+            value: "Provider Ranking",
+            comment: "Provider ranking panel"
+        ),
+        items: [AccountProviderRankingItemData]
+    ) {
         self.title = title
         self.items = items
     }
