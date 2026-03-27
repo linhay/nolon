@@ -63,11 +63,11 @@ public struct RepositoryRowContextMenuView<TrailingContent: View>: View {
 
         if let onRemove {
             Divider()
-            Button(role: .destructive) {
+            ContextMenuDestructiveButton(
+                title: removeTitle,
+                systemImage: "trash"
+            ) {
                 onRemove()
-            } label: {
-                Label(removeTitle, systemImage: "trash")
-                    .dsIconLabelButton()
             }
         }
 
