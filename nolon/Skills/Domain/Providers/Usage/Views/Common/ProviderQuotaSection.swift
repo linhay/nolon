@@ -104,32 +104,11 @@ struct ProviderQuotaSection: View {
     }
 
     private var formattedSyncText: String? {
-        let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .abbreviated
-
-        var parts: [String] = []
-        if let loginAt {
-            let timeString = DateFormatter.localizedString(from: loginAt, dateStyle: .none, timeStyle: .short)
-            parts.append(String(format: NSLocalizedString("usage.sync.login", value: "LoggedIn %@", comment: "Login time"), timeString))
-        }
-        if let syncedAt {
-            let relative = formatter.localizedString(for: syncedAt, relativeTo: Date())
-            parts.append(String(format: NSLocalizedString("usage.sync.synced", value: "Synced %@", comment: "Sync time"), relative))
-        }
-        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+        ProviderQuotaSectionBuilders.syncText(loginAt: loginAt, syncedAt: syncedAt)
     }
 
     private func shortResetText(resetsAt: Date) -> String {
-        let remaining = resetsAt.timeIntervalSinceNow
-        if remaining <= 0 {
-            return NSLocalizedString("usage.reset.now", value: "now", comment: "reset now")
-        }
-        let formatter = DateComponentsFormatter()
-        formatter.allowedUnits = [.day, .hour, .minute, .second]
-        formatter.unitsStyle = .abbreviated
-        formatter.maximumUnitCount = 1
-        let duration = formatter.string(from: remaining) ?? ""
-        return String(format: NSLocalizedString("usage.reset.suffix", value: "%@ left", comment: "reset suffix"), duration)
+        ProviderQuotaSectionBuilders.resetText(resetsAt: resetsAt)
     }
 
     private func percentText(_ percent: Double) -> String {
