@@ -96,9 +96,7 @@ struct UpdatesView: View {
             sourceSystemImage: sourceIcon(for: update.updateSource),
             currentVersionText: update.currentVersion.map { "Current: \($0)" },
             latestVersionText: update.latestVersion.map { "Latest: \($0)" },
-            hasUpdate: update.hasUpdate,
-            updateButtonTitle: NSLocalizedString("action.save", comment: "Save"),
-            upToDateText: NSLocalizedString("updates.empty_title", comment: "All skills up to date")
+            hasUpdate: update.hasUpdate
         )
     }
 
