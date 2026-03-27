@@ -122,14 +122,6 @@ public struct CodexCommandExecutor: Sendable {
         return CodexVersion(raw: line.trimmingCharacters(in: .whitespacesAndNewlines))
     }
 
-    public func execute(_ command: CodexCommand, timeout: TimeInterval = 60) async throws -> CodexExecutionResult {
-        try await execute(args: command.render(), timeout: timeout)
-    }
-
-    public func executeRaw(_ command: CodexRawCommand, timeout: TimeInterval = 60) async throws -> CodexExecutionResult {
-        try await execute(args: command.args, timeout: timeout)
-    }
-
     public func execute(args: [String], timeout: TimeInterval = 60) async throws -> CodexExecutionResult {
         let resolved = try requireResolvedExecutable()
         let startedAt = Date()
