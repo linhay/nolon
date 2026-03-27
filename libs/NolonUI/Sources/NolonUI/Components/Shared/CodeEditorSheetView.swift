@@ -3,6 +3,7 @@ import SwiftUI
 public struct CodeEditorSheetView: View {
     let title: String
     let initialText: String
+    let initialTextLoader: (() async -> String)?
     let highlight: WebCodeEditorHighlight?
     let invalidAlertTitle: String
     let minWidth: CGFloat
@@ -19,10 +20,13 @@ public struct CodeEditorSheetView: View {
     @State private var isDirty = false
     @State private var isSaving = false
     @State private var errorMessage: String?
+    @State private var loadedInitialText: String
+    @State private var hasRequestedInitialLoad = false
 
     public init(
         title: String,
-        initialText: String,
+        initialText: String = "",
+        initialTextLoader: (() async -> String)? = nil,
         highlight: WebCodeEditorHighlight?,
         invalidAlertTitle: String = NSLocalizedString(
             "generic.error",
@@ -51,6 +55,7 @@ public struct CodeEditorSheetView: View {
     ) {
         self.title = title
         self.initialText = initialText
+        self.initialTextLoader = initialTextLoader
         self.highlight = highlight
         self.invalidAlertTitle = invalidAlertTitle
         self.minWidth = minWidth
@@ -60,13 +65,14 @@ public struct CodeEditorSheetView: View {
         self.okTitle = okTitle
         self.onValidate = onValidate
         self.onSave = onSave
+        self._loadedInitialText = State(initialValue: initialText)
     }
 
     public var body: some View {
         NavigationStack {
             WebCodeEditorView(
                 bridge: bridge,
-                initialText: initialText,
+                initialText: loadedInitialText,
                 highlight: highlight,
                 onDirtyChanged: { isDirty = $0 }
             )
@@ -100,9 +106,19 @@ public struct CodeEditorSheetView: View {
             )
         }
         .frame(minWidth: minWidth, minHeight: minHeight)
-        .task(id: initialText) {
-            bridge.setText(initialText)
+        .task(id: loadedInitialText) {
+            bridge.setText(loadedInitialText)
             bridge.setHighlight(highlight)
+        }
+        .task {
+            guard !hasRequestedInitialLoad, let initialTextLoader else {
+                return
+            }
+            hasRequestedInitialLoad = true
+            let loadedText = await initialTextLoader()
+            if loadedText != loadedInitialText {
+                loadedInitialText = loadedText
+            }
         }
     }
 
