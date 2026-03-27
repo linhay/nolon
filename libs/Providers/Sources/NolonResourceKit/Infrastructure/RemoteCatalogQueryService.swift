@@ -81,11 +81,17 @@ private extension RemoteCatalogQueryService {
     ) async throws -> [SkillsRepositoryFacade.RemoteCatalogItem] {
         switch kind {
         case .skill:
-            return try await cache.fetchSkills(query: query, limit: limit).map(toCatalogItem)
+            return try await cache.fetchSkills(query: query, limit: limit).map {
+                mapper.toCatalogItem($0, installs: $0.stats?.installsAllTime)
+            }
         case .workflow:
-            return try await cache.fetchWorkflows(query: query, limit: limit).map(toCatalogItem)
+            return try await cache.fetchWorkflows(query: query, limit: limit).map {
+                mapper.toCatalogItem($0, installs: $0.stats?.usages)
+            }
         case .mcp:
-            return try await cache.fetchMCPs(query: query, limit: limit).map(toCatalogItem)
+            return try await cache.fetchMCPs(query: query, limit: limit).map {
+                mapper.toCatalogItem($0)
+            }
         }
     }
 
@@ -97,11 +103,17 @@ private extension RemoteCatalogQueryService {
     ) async throws -> [SkillsRepositoryFacade.RemoteCatalogItem] {
         switch kind {
         case .skill:
-            return try await local.fetchSkills(query: query, limit: limit).map(toCatalogItem)
+            return try await local.fetchSkills(query: query, limit: limit).map {
+                mapper.toCatalogItem($0, installs: $0.stats?.installsAllTime)
+            }
         case .workflow:
-            return try await local.fetchWorkflows(query: query, limit: limit).map(toCatalogItem)
+            return try await local.fetchWorkflows(query: query, limit: limit).map {
+                mapper.toCatalogItem($0, installs: $0.stats?.usages)
+            }
         case .mcp:
-            return try await local.fetchMCPs(query: query, limit: limit).map(toCatalogItem)
+            return try await local.fetchMCPs(query: query, limit: limit).map {
+                mapper.toCatalogItem($0)
+            }
         }
     }
 
@@ -113,24 +125,18 @@ private extension RemoteCatalogQueryService {
     ) async throws -> [SkillsRepositoryFacade.RemoteCatalogItem] {
         switch kind {
         case .skill:
-            return try await git.fetchSkills(query: query, limit: limit).map(toCatalogItem)
+            return try await git.fetchSkills(query: query, limit: limit).map {
+                mapper.toCatalogItem($0, installs: $0.stats?.installsAllTime)
+            }
         case .workflow:
-            return try await git.fetchWorkflows(query: query, limit: limit).map(toCatalogItem)
+            return try await git.fetchWorkflows(query: query, limit: limit).map {
+                mapper.toCatalogItem($0, installs: $0.stats?.usages)
+            }
         case .mcp:
-            return try await git.fetchMCPs(query: query, limit: limit).map(toCatalogItem)
+            return try await git.fetchMCPs(query: query, limit: limit).map {
+                mapper.toCatalogItem($0)
+            }
         }
-    }
-
-    func toCatalogItem(_ skill: RemoteSkill) -> SkillsRepositoryFacade.RemoteCatalogItem {
-        mapper.toCatalogItem(skill, installs: skill.stats?.installsAllTime)
-    }
-
-    func toCatalogItem(_ workflow: RemoteWorkflow) -> SkillsRepositoryFacade.RemoteCatalogItem {
-        mapper.toCatalogItem(workflow, installs: workflow.stats?.usages)
-    }
-
-    func toCatalogItem(_ mcp: RemoteMCP) -> SkillsRepositoryFacade.RemoteCatalogItem {
-        mapper.toCatalogItem(mcp)
     }
 
     func appendUITestFixtureIfNeeded(
