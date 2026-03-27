@@ -165,20 +165,18 @@ public struct SkillCardView<ExtraContextMenu: View>: View {
                 Button {
                     onUnlinkWorkflow()
                 } label: {
-                    ProviderCardIconCaptionRow(
-                        iconName: "arrow.triangle.branch",
-                        title: "Workflow",
-                        iconColor: DesignSystem.Colors.primary,
-                        textColor: DesignSystem.Colors.primary
-                    )
-                    .fontWeight(.semibold)
-                    .dsBadge(
+                    ProviderCardActionBadge(
                         foreground: DesignSystem.Colors.primary,
                         background: DesignSystem.Colors.primary.opacity(DesignSystem.Colors.Opacity.subtle),
-                        horizontalPadding: 6,
-                        verticalPadding: 6,
                         cornerRadius: DesignSystem.Metrics.cornerRadiusS
-                    )
+                    ) {
+                        ProviderCardIconCaptionRow(
+                            iconName: "arrow.triangle.branch",
+                            title: "Workflow",
+                            iconColor: DesignSystem.Colors.primary,
+                            textColor: DesignSystem.Colors.primary
+                        )
+                    }
                 }
                 .buttonStyle(.plain)
 
@@ -190,18 +188,16 @@ public struct SkillCardView<ExtraContextMenu: View>: View {
                 Button {
                     onLinkWorkflow()
                 } label: {
-                    ProviderCardIconCaptionRow(
-                        iconName: "plus.circle",
-                        title: NSLocalizedString("action.link_workflow", comment: "Link to Workflow")
-                    )
-                    .fontWeight(.semibold)
-                    .dsBadge(
+                    ProviderCardActionBadge(
                         foreground: DesignSystem.Colors.Text.secondary,
                         background: DesignSystem.Colors.Component.controlFill,
-                        horizontalPadding: 6,
-                        verticalPadding: 6,
                         cornerRadius: DesignSystem.Metrics.cornerRadiusS
-                    )
+                    ) {
+                        ProviderCardIconCaptionRow(
+                            iconName: "plus.circle",
+                            title: NSLocalizedString("action.link_workflow", comment: "Link to Workflow")
+                        )
+                    }
                 }
                 .buttonStyle(.plain)
 

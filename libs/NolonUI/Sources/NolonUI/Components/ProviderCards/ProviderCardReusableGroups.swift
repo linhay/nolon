@@ -124,3 +124,34 @@ struct ProviderCardMetaCountLabel: View {
             )
     }
 }
+
+struct ProviderCardActionBadge<Content: View>: View {
+    let foreground: Color
+    let background: Color
+    let cornerRadius: CGFloat
+    @ViewBuilder let content: Content
+
+    init(
+        foreground: Color,
+        background: Color,
+        cornerRadius: CGFloat = DesignSystem.Metrics.cornerRadiusS,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.foreground = foreground
+        self.background = background
+        self.cornerRadius = cornerRadius
+        self.content = content()
+    }
+
+    var body: some View {
+        content
+            .fontWeight(.semibold)
+            .dsBadge(
+                foreground: foreground,
+                background: background,
+                horizontalPadding: 6,
+                verticalPadding: 6,
+                cornerRadius: cornerRadius
+            )
+    }
+}
