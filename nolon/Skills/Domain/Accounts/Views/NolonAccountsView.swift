@@ -90,14 +90,6 @@ struct NolonAccountsView: View, DebugPageLocatable {
     private var accountsHeader: some View {
         NolonUI.AccountPageHeaderView(
             data: .init(
-                title: NSLocalizedString("accounts.title", value: "Account Panorama", comment: "Accounts title"),
-                subtitle: NSLocalizedString(
-                    "accounts.empty.description",
-                    value: "Unified management for all account-enabled providers.",
-                    comment: "Accounts subtitle"
-                ),
-                refreshTitle: NSLocalizedString("accounts.action.refresh", value: "Refresh All", comment: "Refresh accounts"),
-                addAccountTitle: NSLocalizedString("accounts.action.add_account", value: "+ Add Account", comment: "Add account action"),
                 isRefreshing: viewModel.isRefreshing
             ),
             onRefresh: { viewModel.refresh() },
@@ -118,7 +110,6 @@ struct NolonAccountsView: View, DebugPageLocatable {
 
     private var trendPanelData: AccountTrendPanelData {
         AccountTrendPanelData(
-            title: NSLocalizedString("accounts.dashboard.trend", value: "Aggregated Usage Trend", comment: "Aggregated trend panel"),
             windowOptions: AccountTimeWindow.allCases.map { window in
                 .init(
                     id: window.rawValue,
@@ -132,7 +123,6 @@ struct NolonAccountsView: View, DebugPageLocatable {
 
     private var rankingPanelData: AccountRankingPanelData {
         AccountRankingPanelData(
-            title: NSLocalizedString("accounts.dashboard.ranking", value: "Provider Ranking", comment: "Provider ranking panel"),
             items: rankingItems().map {
                 .init(
                     id: $0.id,
