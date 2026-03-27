@@ -68,4 +68,34 @@ public enum RemoteResourceDetailBuilders {
         }
         return stats
     }
+
+    public static func installsStat(_ installs: Int) -> RemoteResourceDetailData.StatItem {
+        .init(
+            id: "installs",
+            title: String(
+                format: NSLocalizedString(
+                    "remote.detail.stats.installs",
+                    value: "%d Installs",
+                    comment: "Remote resource installs count"
+                ),
+                installs
+            ),
+            systemImage: "server.rack"
+        )
+    }
+
+    public static func usagesStat(_ usages: Int) -> RemoteResourceDetailData.StatItem {
+        .init(
+            id: "usages",
+            title: String(
+                format: NSLocalizedString(
+                    "remote.detail.stats.usages",
+                    value: "%d Usages",
+                    comment: "Remote resource usages count"
+                ),
+                usages
+            ),
+            systemImage: "arrow.triangle.branch"
+        )
+    }
 }
