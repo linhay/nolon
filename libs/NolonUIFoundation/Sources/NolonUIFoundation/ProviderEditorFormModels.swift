@@ -4,7 +4,10 @@ public struct ProviderNameSectionData: Sendable {
     public let title: String
     public let placeholder: String
 
-    public init(title: String, placeholder: String) {
+    public init(
+        title: String = NSLocalizedString("add_provider.name_label", value: "Name", comment: "Provider name label"),
+        placeholder: String = NSLocalizedString("add_provider.name_placeholder", value: "Provider Name", comment: "Provider name placeholder")
+    ) {
         self.title = title
         self.placeholder = placeholder
     }

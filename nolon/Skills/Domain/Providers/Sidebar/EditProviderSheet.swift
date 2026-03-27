@@ -146,10 +146,7 @@ struct EditProviderSheet: View {
             NolonUI.GroupedSheetForm {
                 NolonUI.ProviderIdentityAndPathsFormSections(
                     name: $viewModel.providerName,
-                    nameSection: .init(
-                        title: NSLocalizedString("add_provider.name_label", comment: "Name"),
-                        placeholder: NSLocalizedString("add_provider.name_placeholder", comment: "Provider Name")
-                    ),
+                    nameSection: .init(),
                     vendorInfo: viewModel.vendorCategoryLabel.map {
                         ProviderLabeledValueData(
                             label: NSLocalizedString("edit_provider.vendor_category", value: "Vendor Category", comment: "Vendor category"),

@@ -199,10 +199,7 @@ struct AddProviderSheet: View {
                 
                 NolonUI.ProviderIdentityAndPathsFormSections(
                     name: $viewModel.name,
-                    nameSection: .init(
-                        title: NSLocalizedString("add_provider.name_label", comment: "Name"),
-                        placeholder: NSLocalizedString("add_provider.name_placeholder", comment: "Provider Name")
-                    ),
+                    nameSection: .init(),
                     projectFolderData: projectFolderSectionData,
                     resolvedPathsTitle: NSLocalizedString(
                         "add_provider.resolved_paths_label",
