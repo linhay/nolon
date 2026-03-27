@@ -123,10 +123,6 @@ public actor ClawdhubRepository: RemoteResourceRepository {
     public func downloadSkill(slug: String) async throws -> URL {
         return try await downloadSkillZip(slug: slug, version: nil)
     }
-
-    public func downloadSkill(slug: String, version: String?) async throws -> URL {
-        return try await downloadSkillZip(slug: slug, version: version)
-    }
     
     /// Downloads a skill zip file
     /// Endpoint: GET /api/v1/download?slug=SLUG&version=VERSION (or tag=latest)
@@ -244,10 +240,6 @@ public actor ClawdhubRepository: RemoteResourceRepository {
     
     public func downloadWorkflow(slug: String) async throws -> URL {
         return try await downloadWorkflowFile(slug: slug, version: nil)
-    }
-
-    public func downloadWorkflow(slug: String, version: String?) async throws -> URL {
-        return try await downloadWorkflowFile(slug: slug, version: version)
     }
     
     /// Downloads a workflow markdown file
