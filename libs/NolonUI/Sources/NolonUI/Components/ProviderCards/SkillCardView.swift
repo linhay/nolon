@@ -165,10 +165,12 @@ public struct SkillCardView<ExtraContextMenu: View>: View {
                 Button {
                     onUnlinkWorkflow()
                 } label: {
-                    HStack(spacing: DesignSystem.Metrics.spacingS - 2) {
-                        Image(systemName: "arrow.triangle.branch")
-                        Text("Workflow")
-                    }
+                    ProviderCardIconCaptionRow(
+                        iconName: "arrow.triangle.branch",
+                        title: "Workflow",
+                        iconColor: DesignSystem.Colors.primary,
+                        textColor: DesignSystem.Colors.primary
+                    )
                     .fontWeight(.semibold)
                     .dsBadge(
                         foreground: DesignSystem.Colors.primary,
@@ -188,10 +190,10 @@ public struct SkillCardView<ExtraContextMenu: View>: View {
                 Button {
                     onLinkWorkflow()
                 } label: {
-                    HStack(spacing: DesignSystem.Metrics.spacingS - 2) {
-                        Image(systemName: "plus.circle")
-                        Text(NSLocalizedString("action.link_workflow", comment: "Link to Workflow"))
-                    }
+                    ProviderCardIconCaptionRow(
+                        iconName: "plus.circle",
+                        title: NSLocalizedString("action.link_workflow", comment: "Link to Workflow")
+                    )
                     .fontWeight(.semibold)
                     .dsBadge(
                         foreground: DesignSystem.Colors.Text.secondary,

@@ -53,16 +53,12 @@ public struct AgentDocCardView<ExtraContextMenu: View>: View {
                 contextMenuItems
             }
 
-            HStack(spacing: DesignSystem.Metrics.spacingS - 2) {
-                Image(systemName: doc.kind == .override ? "arrow.up.circle" : "doc.text")
-                    .foregroundStyle(DesignSystem.Colors.Text.secondary)
-                Text(doc.kind == .override
-                     ? NSLocalizedString("agents.priority.override", value: "Higher priority (override)", comment: "Override priority hint")
-                     : NSLocalizedString("agents.priority.base", value: "Base priority", comment: "Base priority hint"))
-                    .font(.caption)
-                    .dsSecondaryText(font: .caption)
-                    .lineLimit(1)
-            }
+            ProviderCardIconCaptionRow(
+                iconName: doc.kind == .override ? "arrow.up.circle" : "doc.text",
+                title: doc.kind == .override
+                    ? NSLocalizedString("agents.priority.override", value: "Higher priority (override)", comment: "Override priority hint")
+                    : NSLocalizedString("agents.priority.base", value: "Base priority", comment: "Base priority hint")
+            )
 
             ProviderCardOptionalPreviewBlock(
                 preview: doc.preview,

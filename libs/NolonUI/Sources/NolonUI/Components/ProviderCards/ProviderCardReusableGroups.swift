@@ -75,3 +75,39 @@ struct ProviderCardOptionalPreviewBlock: View {
         }
     }
 }
+
+struct ProviderCardIconCaptionRow: View {
+    let iconName: String
+    let title: String
+    let iconColor: Color
+    let textFont: Font
+    let textColor: Color
+    let spacing: CGFloat
+
+    init(
+        iconName: String,
+        title: String,
+        iconColor: Color = DesignSystem.Colors.Text.secondary,
+        textFont: Font = .caption,
+        textColor: Color = DesignSystem.Colors.Text.secondary,
+        spacing: CGFloat = DesignSystem.Metrics.spacingS - 2
+    ) {
+        self.iconName = iconName
+        self.title = title
+        self.iconColor = iconColor
+        self.textFont = textFont
+        self.textColor = textColor
+        self.spacing = spacing
+    }
+
+    var body: some View {
+        HStack(spacing: spacing) {
+            Image(systemName: iconName)
+                .foregroundStyle(iconColor)
+            Text(title)
+                .font(textFont)
+                .foregroundStyle(textColor)
+                .lineLimit(1)
+        }
+    }
+}
