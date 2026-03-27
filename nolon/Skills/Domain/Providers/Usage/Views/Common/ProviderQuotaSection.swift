@@ -81,7 +81,7 @@ struct ProviderQuotaSection: View {
                 title: localizedTitle(item),
                 remainingPercent: percent,
                 percentText: percentText(percent),
-                resetText: item.window.resetsAt.map(shortResetText(resetsAt:))
+                resetText: item.window.resetsAt.map { ProviderQuotaSectionBuilders.resetText(resetsAt: $0) }
             )
         }
     }
@@ -105,10 +105,6 @@ struct ProviderQuotaSection: View {
 
     private var formattedSyncText: String? {
         ProviderQuotaSectionBuilders.syncText(loginAt: loginAt, syncedAt: syncedAt)
-    }
-
-    private func shortResetText(resetsAt: Date) -> String {
-        ProviderQuotaSectionBuilders.resetText(resetsAt: resetsAt)
     }
 
     private func percentText(_ percent: Double) -> String {
