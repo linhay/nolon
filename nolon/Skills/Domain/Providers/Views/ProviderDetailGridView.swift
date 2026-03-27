@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 import ProviderCatalog
 import Observation
 import STFilePath
@@ -325,36 +326,148 @@ struct ProviderDetailGridView: View, DebugPageLocatable {
         case .skills:
             if let provider = provider {
                 NolonUI.ProviderTabSectionView(warningMessage: viewModel.skillsErrorMessage) {
-                    ProviderSkillsGridView(
-                        viewModel: viewModel,
-                        columns: columns,
-                        provider: provider,
-                        markerBaseItems: debugPageMarkerItems
-                    )
+                    NolonUI.ProviderResourceGridSectionView(
+                        isEmpty: viewModel.filteredSkills.isEmpty,
+                        searchText: viewModel.searchText,
+                        kind: .skills,
+                        noResultsDescription: "No matching skills found",
+                        columns: columns
+                    ) {
+                        ForEach(viewModel.groupedFilteredSkills, id: \.path) { group in
+                            Section {
+                                ForEach(group.skills, id: \.uniqueId) { skill in
+                                    NolonUI.SkillCardView(
+                                        name: skill.name,
+                                        description: skill.description,
+                                        version: skill.version,
+                                        isOrphaned: skill.installationState == .orphaned,
+                                        hasWorkflow: viewModel.workflowIds.contains(skill.id),
+                                        referenceCount: skill.referenceCount,
+                                        scriptCount: skill.scriptCount,
+                                        searchText: viewModel.searchText,
+                                        onReveal: { viewModel.revealSkillInFinder(skill) },
+                                        onUninstall: { await viewModel.uninstallSkill(skill) },
+                                        onLinkWorkflow: { viewModel.linkSkillToWorkflow(skill) },
+                                        onUnlinkWorkflow: { viewModel.unlinkSkillFromWorkflow(skill) },
+                                        onMigrate: { await viewModel.migrateSkill(skill) },
+                                        onTap: { viewModel.selectedSkillForDetail = skill }
+                                    ) {
+                                        debugPageMarkerMenuItem(
+                                            [
+                                                PageMarkerItem(title: provider.displayName),
+                                                PageMarkerItem(title: NSLocalizedString("tab.skills", comment: "Skills")),
+                                                PageMarkerItem(title: skill.name)
+                                            ]
+                                        )
+                                    }
+                                    .id(skill.uniqueId)
+                                    .debugCardLocator(debugPageMarkerItems + [PageMarkerItem(title: skill.name)])
+                                }
+                            } header: {
+                                NolonUI.ProviderGroupedPathHeaderView(
+                                    title: viewModel.displayPath(for: group.path),
+                                    columnCount: columns.count
+                                )
+                            }
+                        }
+                    }
                 }
             }
         case .workflows:
             NolonUI.ProviderTabSectionView(warningMessage: viewModel.workflowsErrorMessage) {
-                ProviderWorkflowsGridView(
-                    viewModel: viewModel,
-                    columns: columns,
-                    markerBaseItems: debugPageMarkerItems
-                )
+                NolonUI.ProviderResourceGridSectionView(
+                    isEmpty: viewModel.filteredWorkflows.isEmpty,
+                    searchText: viewModel.searchText,
+                    kind: .workflows,
+                    noResultsDescription: "No matching workflows found",
+                    columns: columns
+                ) {
+                    ForEach(viewModel.filteredWorkflows) { workflow in
+                        NolonUI.WorkflowCardView(
+                            workflow: workflow,
+                            searchText: viewModel.searchText,
+                            onReveal: { viewModel.revealWorkflowInFinder(workflow) },
+                            onDelete: { await viewModel.deleteWorkflow(workflow) },
+                            onTap: {
+                                NSWorkspace.shared.open(URL(fileURLWithPath: workflow.path))
+                            }
+                        ) { workflow in
+                            debugPageMarkerMenuItem(
+                                [
+                                    PageMarkerItem(title: NSLocalizedString("tab.workflows", comment: "Workflows")),
+                                    PageMarkerItem(title: workflow.name)
+                                ]
+                            )
+                        }
+                        .debugCardLocator(debugPageMarkerItems + [PageMarkerItem(title: workflow.name)])
+                    }
+                }
             }
         case .rules:
             NolonUI.ProviderTabSectionView(warningMessage: viewModel.rulesErrorMessage) {
-                ProviderRulesGridView(
-                    viewModel: viewModel,
-                    columns: columns,
-                    markerBaseItems: debugPageMarkerItems
-                ) { rule in
-                    editingMarkdownDocument = EditingMarkdownDocument(url: URL(fileURLWithPath: rule.path))
+                NolonUI.ProviderResourceGridSectionView(
+                    isEmpty: viewModel.filteredRules.isEmpty,
+                    searchText: viewModel.searchText,
+                    kind: .rules,
+                    noResultsDescription: NSLocalizedString(
+                        "remote.search.no_results_desc",
+                        value: "No matching workflows found",
+                        comment: "No search results description"
+                    ),
+                    columns: columns
+                ) {
+                    ForEach(viewModel.filteredRules) { rule in
+                        NolonUI.RuleCardView(
+                            rule: rule,
+                            searchText: viewModel.searchText,
+                            onReveal: { viewModel.revealRuleInFinder(rule) },
+                            onDelete: { await viewModel.deleteRule(rule) },
+                            onTap: {
+                                editingMarkdownDocument = EditingMarkdownDocument(url: URL(fileURLWithPath: rule.path))
+                            }
+                        ) { rule in
+                            debugPageMarkerMenuItem(
+                                [
+                                    PageMarkerItem(title: NSLocalizedString("tab.rules", value: "Rules", comment: "Rules tab")),
+                                    PageMarkerItem(title: rule.name)
+                                ]
+                            )
+                        }
+                        .debugCardLocator(debugPageMarkerItems + [PageMarkerItem(title: rule.name)])
+                    }
                 }
             }
         case .agents:
             NolonUI.ProviderTabSectionView(warningMessage: viewModel.agentsErrorMessage) {
-                ProviderAgentsGridView(viewModel: viewModel, columns: columns) { doc in
-                    editingMarkdownDocument = EditingMarkdownDocument(url: URL(fileURLWithPath: doc.path))
+                NolonUI.ProviderResourceGridSectionView(
+                    isEmpty: viewModel.filteredAgentsFiles.isEmpty,
+                    searchText: viewModel.searchText,
+                    kind: .agents,
+                    noResultsDescription: NSLocalizedString(
+                        "remote.search.no_results_desc",
+                        value: "No matching workflows found",
+                        comment: "No search results description"
+                    ),
+                    columns: columns
+                ) {
+                    ForEach(viewModel.filteredAgentsFiles) { doc in
+                        NolonUI.AgentDocCardView(
+                            doc: doc,
+                            searchText: viewModel.searchText,
+                            onReveal: { viewModel.revealAgentDocInFinder(doc) },
+                            onDelete: { await viewModel.deleteAgentDoc(doc) },
+                            onTap: {
+                                editingMarkdownDocument = EditingMarkdownDocument(url: URL(fileURLWithPath: doc.path))
+                            }
+                        ) { doc in
+                            debugPageMarkerMenuItem(
+                                [
+                                    PageMarkerItem(title: NSLocalizedString("tab.agents", value: "Agents", comment: "Agents tab")),
+                                    PageMarkerItem(title: doc.fileName)
+                                ]
+                            )
+                        }
+                    }
                 }
             }
         case .mcp:
