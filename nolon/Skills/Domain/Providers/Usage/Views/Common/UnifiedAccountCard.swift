@@ -130,7 +130,7 @@ struct UnifiedAccountCard: View, DebugCardLocatable {
                     title: quotaWindowTitle(item, provider: provider),
                     remainingText: quotaPercentText(percent),
                     progress: normalized,
-                    meta: quotaWindowMetaText(item.window)
+                    meta: quotaWindowMetaText(resetsAt: item.window.resetsAt)
                 )
             }
     }
@@ -145,10 +145,6 @@ struct UnifiedAccountCard: View, DebugCardLocatable {
         default:
             return item.title
         }
-    }
-
-    private func quotaWindowMetaText(_ window: RateWindow) -> String {
-        quotaWindowMetaText(resetsAt: window.resetsAt)
     }
 
     private func quotaWindowMetaText(resetsAt: Date?) -> String {
@@ -222,9 +218,9 @@ struct UnifiedAccountCard: View, DebugCardLocatable {
                     .padding(.vertical, 1)
                     .background(
                         RoundedRectangle(cornerRadius: 4, style: .continuous)
-                            .fill(DesignSystem.Colors.primary.opacity(0.15))
+                            .fill(NolonUI.DesignSystem.Colors.primary.opacity(0.15))
                     )
-                    .foregroundStyle(DesignSystem.Colors.primary)
+                    .foregroundStyle(NolonUI.DesignSystem.Colors.primary)
                     .textCase(.uppercase)
             }
 
@@ -233,7 +229,7 @@ struct UnifiedAccountCard: View, DebugCardLocatable {
             if let trailingText = footer.trailingText, !trailingText.isEmpty {
                 Text(trailingText)
                     .font(.caption2)
-                    .foregroundStyle(DesignSystem.Colors.Text.tertiary)
+                    .foregroundStyle(NolonUI.DesignSystem.Colors.Text.tertiary)
             }
         }
         .debugCardLocator(footerMarkerItems(footer))
@@ -282,7 +278,7 @@ struct UnifiedAccountCard: View, DebugCardLocatable {
                     if let title = row.title {
                         Text(title)
                             .font(.caption)
-                            .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                            .foregroundStyle(NolonUI.DesignSystem.Colors.Text.secondary)
                     }
                     Spacer(minLength: 0)
                     Text(row.value)
@@ -291,7 +287,7 @@ struct UnifiedAccountCard: View, DebugCardLocatable {
                     if let auxiliary = row.auxiliary {
                         Text(auxiliary)
                             .font(.caption2)
-                            .foregroundStyle(DesignSystem.Colors.Text.tertiary)
+                            .foregroundStyle(NolonUI.DesignSystem.Colors.Text.tertiary)
                     }
                 }
             case .kv:
@@ -299,17 +295,17 @@ struct UnifiedAccountCard: View, DebugCardLocatable {
                     if let title = row.title {
                         Text(title)
                             .font(.caption2.weight(.semibold))
-                            .foregroundStyle(DesignSystem.Colors.Text.tertiary)
+                            .foregroundStyle(NolonUI.DesignSystem.Colors.Text.tertiary)
                             .textCase(.uppercase)
                     }
                     Text(row.value)
                         .font(.caption)
-                        .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                        .foregroundStyle(NolonUI.DesignSystem.Colors.Text.secondary)
                         .textSelection(.enabled)
                     if let auxiliary = row.auxiliary {
                         Text(auxiliary)
                             .font(.caption2)
-                            .foregroundStyle(DesignSystem.Colors.Text.tertiary)
+                            .foregroundStyle(NolonUI.DesignSystem.Colors.Text.tertiary)
                     }
                 }
             case .message:
@@ -323,11 +319,11 @@ struct UnifiedAccountCard: View, DebugCardLocatable {
                     if let title = row.title {
                         Text(title)
                             .font(.caption2.weight(.semibold))
-                            .foregroundStyle(DesignSystem.Colors.Text.tertiary)
+                            .foregroundStyle(NolonUI.DesignSystem.Colors.Text.tertiary)
                     }
                     Text(row.value)
                         .font(.system(.caption, design: .monospaced))
-                        .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                        .foregroundStyle(NolonUI.DesignSystem.Colors.Text.secondary)
                         .textSelection(.enabled)
                         .lineLimit(2)
                 }
@@ -369,11 +365,11 @@ struct UnifiedAccountCard: View, DebugCardLocatable {
     private func tintColor(_ tone: NolonUIFoundation.AccountSummaryCardBadgeTone?) -> Color {
         switch tone {
         case .active:
-            return DesignSystem.Colors.primary
+            return NolonUI.DesignSystem.Colors.primary
         case .warning:
-            return DesignSystem.Colors.Status.warning
+            return NolonUI.DesignSystem.Colors.Status.warning
         case .neutral, .none:
-            return DesignSystem.Colors.Text.primary
+            return NolonUI.DesignSystem.Colors.Text.primary
         }
     }
 }

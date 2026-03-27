@@ -4,6 +4,7 @@ import Foundation
 import Observation
 import ProviderCatalog
 import NolonResourceKit
+import NolonUI
 
 struct PageMarkerItem: Identifiable, Equatable {
     let title: String
@@ -35,16 +36,16 @@ enum PageMarkerRouteResolver {
     }
 
     static func accountsItems() -> [PageMarkerItem] {
-        [item(NSLocalizedString("sidebar.tools.accounts", value: "Accounts", comment: "Accounts sidebar item"))]
+        [PageMarkerItem(title: NSLocalizedString("sidebar.tools.accounts", value: "Accounts", comment: "Accounts sidebar item"))]
     }
 
     static func pluginManagementItems() -> [PageMarkerItem] {
-        [item(NSLocalizedString("sidebar.plugins.management", value: "Plugin Management", comment: "Plugin management sidebar item"))]
+        [PageMarkerItem(title: NSLocalizedString("sidebar.plugins.management", value: "Plugin Management", comment: "Plugin management sidebar item"))]
     }
 
     static func providerNavigationItems(provider: Provider?) -> [PageMarkerItem] {
         guard let provider else { return [] }
-        return [item(provider.displayName)]
+        return [PageMarkerItem(title: provider.displayName)]
     }
 
     static func providerDetailItems(
@@ -53,15 +54,15 @@ enum PageMarkerRouteResolver {
     ) -> [PageMarkerItem] {
         var items = providerNavigationItems(provider: provider)
         if let provider, let selectedTab {
-            items.append(item(selectedTab.localizedName(for: provider)))
+            items.append(PageMarkerItem(title: selectedTab.localizedName(for: provider)))
         }
         return items
     }
 
     static func resourceCenterItems(selectedTab: ResourceCenterTabID?) -> [PageMarkerItem] {
-        var items = [item(NSLocalizedString("resource.center.title", value: "Resource Center", comment: "Resource center title"))]
+        var items = [PageMarkerItem(title: NSLocalizedString("resource.center.title", value: "Resource Center", comment: "Resource center title"))]
         if let selectedTab {
-            items.append(item(selectedTab.localizedName))
+            items.append(PageMarkerItem(title: selectedTab.localizedName))
         }
         return items
     }
@@ -88,10 +89,6 @@ enum PageMarkerRouteResolver {
     ) -> String {
         let parts = items.map(\.title) + [metadataText(source: source)]
         return parts.joined(separator: " / ")
-    }
-
-    private static func item(_ title: String) -> PageMarkerItem {
-        PageMarkerItem(title: title)
     }
 }
 
@@ -145,7 +142,7 @@ private struct DebugLocatorButton: View {
             } label: {
                 Image(systemName: "scope")
                     .font(.system(size: compact ? 10 : 12, weight: .black))
-                .foregroundStyle(DesignSystem.Colors.Text.onAccent)
+                .foregroundStyle(NolonUI.DesignSystem.Colors.Text.onAccent)
                 .frame(width: compact ? 20 : 24, height: compact ? 20 : 24)
                 .background(
                     Circle()
@@ -156,7 +153,7 @@ private struct DebugLocatorButton: View {
                         .stroke(Color.white.opacity(0.22), lineWidth: 1)
                 }
                 .shadow(
-                    color: DesignSystem.Colors.Shadow.floating.opacity(0.32),
+                    color: NolonUI.DesignSystem.Colors.Shadow.floating.opacity(0.32),
                     radius: compact ? 4 : 8,
                     y: compact ? 2 : 4
                 )

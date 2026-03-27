@@ -352,10 +352,6 @@ final class ProviderUsageAccountsViewModel {
             engine.setCodexAccountLayoutMode(mode)
         }
 
-        func isSectionCollapsed(sectionID: String) -> Bool {
-            engine.isCodexSectionCollapsed(sectionID)
-        }
-
         func isSectionCollapsed(_ sectionID: String) -> Bool {
             engine.isCodexSectionCollapsed(sectionID)
         }

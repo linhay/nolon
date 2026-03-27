@@ -650,7 +650,7 @@ extension ProviderUsageView {
                 comment: "Inline Gemini import body"
             ))
             .font(.subheadline)
-            .foregroundStyle(DesignSystem.Colors.Text.secondary)
+            .foregroundStyle(NolonUI.DesignSystem.Colors.Text.secondary)
 
             HStack(spacing: 8) {
                 Button(NSLocalizedString(
@@ -674,8 +674,8 @@ extension ProviderUsageView {
         }
         .padding()
         .frame(maxWidth: .infinity, alignment: .topLeading)
-        .background(DesignSystem.Colors.Component.controlFillSubtle)
-        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusL, style: .continuous))
+        .background(NolonUI.DesignSystem.Colors.Component.controlFillSubtle)
+        .clipShape(RoundedRectangle(cornerRadius: NolonUI.DesignSystem.Metrics.cornerRadiusL, style: .continuous))
     }
 }
 
@@ -765,7 +765,7 @@ extension ProviderUsageView {
                     ))
                     .font(.caption)
                     .monospacedDigit()
-                    .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                    .foregroundStyle(NolonUI.DesignSystem.Colors.Text.secondary)
 
                     Menu {
                         Button {
@@ -826,7 +826,7 @@ extension ProviderUsageView {
                 }
 
                 ForEach(viewModel.codex.visiblePrimaryHeaderActions(), id: \.id) { action in
-                    codexPrimaryActionButton(action)
+                    headerActionButton(action)
                         .buttonStyle(.bordered)
                         .controlSize(.small)
                 }
@@ -834,7 +834,7 @@ extension ProviderUsageView {
             } else {
                 accountLayoutPicker
                 ForEach(currentRootViewModel.genericHeaderActions) { action in
-                    genericHeaderActionButton(action)
+                    headerActionButton(action)
                 }
                 actionsMenu
             }
@@ -842,16 +842,6 @@ extension ProviderUsageView {
         .onChange(of: viewModel.settings) { _, newValue in
             viewModel.updateSettings(newValue)
         }
-    }
-
-    @ViewBuilder
-    private func genericHeaderActionButton(_ action: ProviderUsageRootViewModel.GenericHeaderAction) -> some View {
-        headerActionButton(action)
-    }
-
-    @ViewBuilder
-    private func codexPrimaryActionButton(_ action: ProviderUsageEngine.CodexPrimaryHeaderAction) -> some View {
-        headerActionButton(action)
     }
 
     @ViewBuilder
@@ -910,8 +900,8 @@ extension ProviderUsageView {
         } label: {
             Image(systemName: "ellipsis")
                 .font(.body)
-                .foregroundStyle(DesignSystem.Colors.Text.secondary)
-                .frame(width: DesignSystem.Metrics.iconButtonSize, height: DesignSystem.Metrics.iconButtonSize)
+                .foregroundStyle(NolonUI.DesignSystem.Colors.Text.secondary)
+                .frame(width: NolonUI.DesignSystem.Metrics.iconButtonSize, height: NolonUI.DesignSystem.Metrics.iconButtonSize)
         }
         .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)
@@ -1210,17 +1200,17 @@ extension ProviderUsageView {
                             codexOutcomeCard(outcome: outcome)
                             if index < outcomes.count - 1 {
                                 Divider()
-                                    .overlay(DesignSystem.Colors.Component.border.opacity(0.25))
+                                    .overlay(NolonUI.DesignSystem.Colors.Component.border.opacity(0.25))
                             }
                         }
                     }
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
-                    .background(DesignSystem.Colors.Background.surface)
+                    .background(NolonUI.DesignSystem.Colors.Background.surface)
                     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                     .overlay(
                         RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .stroke(DesignSystem.Colors.Component.border.opacity(0.3), lineWidth: 1)
+                            .stroke(NolonUI.DesignSystem.Colors.Component.border.opacity(0.3), lineWidth: 1)
                     )
                 } else {
                     codexListModeModule(outcomes: outcomes)
@@ -1541,22 +1531,22 @@ extension ProviderUsageView {
                 HStack(spacing: 8) {
                     Image(systemName: gatewayCardsViewModel.isGatewayCardsSectionCollapsed ? "chevron.right" : "chevron.down")
                         .font(.caption)
-                        .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                        .foregroundStyle(NolonUI.DesignSystem.Colors.Text.secondary)
 
                     Label(
                         NSLocalizedString("codex.gateway.cards.title", value: "网关卡片", comment: "Gateway cards section title"),
                         systemImage: "square.stack.3d.up.fill"
                     )
                     .font(.system(size: 14, weight: .bold))
-                    .foregroundStyle(DesignSystem.Colors.Text.primary)
+                    .foregroundStyle(NolonUI.DesignSystem.Colors.Text.primary)
 
                     Text("\(gatewayCardsViewModel.gatewayCards.count)")
                         .font(.system(size: 10, weight: .bold, design: .monospaced))
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
-                        .background(DesignSystem.Colors.Component.controlFillSubtle)
+                        .background(NolonUI.DesignSystem.Colors.Component.controlFillSubtle)
                         .clipShape(Capsule())
-                        .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                        .foregroundStyle(NolonUI.DesignSystem.Colors.Text.secondary)
                 }
                 .contentShape(Rectangle())
             }
@@ -1636,15 +1626,15 @@ extension ProviderUsageView {
                     HStack(spacing: 8) {
                         Image(systemName: viewModel.codex.isSectionCollapsed(section.id) ? "chevron.right" : "chevron.down")
                             .font(.caption)
-                            .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                            .foregroundStyle(NolonUI.DesignSystem.Colors.Text.secondary)
                         Text(title)
                             .font(.headline)
-                            .foregroundStyle(DesignSystem.Colors.Text.primary)
+                            .foregroundStyle(NolonUI.DesignSystem.Colors.Text.primary)
                         Text(
                             "(\(section.items.count) / \(viewModel.codex.accountSectionTotalCountByID[section.id, default: section.items.count]))"
                         )
                             .font(.caption)
-                            .foregroundStyle(DesignSystem.Colors.Text.tertiary)
+                            .foregroundStyle(NolonUI.DesignSystem.Colors.Text.tertiary)
                     }
                     .contentShape(Rectangle())
                 }
@@ -1704,7 +1694,7 @@ extension ProviderUsageView {
                         .font(.headline)
                     Text(NSLocalizedString("codex.management.desc", value: "首次使用建议先启用管理并执行数据迁移。", comment: "Codex management description"))
                         .font(.caption)
-                        .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                        .foregroundStyle(NolonUI.DesignSystem.Colors.Text.secondary)
                 }
                 Spacer()
                 Button(NSLocalizedString("codex.management.enable", value: "启用管理", comment: "Enable codex management")) {
@@ -1715,8 +1705,8 @@ extension ProviderUsageView {
                 }
             }
             .padding(12)
-            .background(DesignSystem.Colors.Component.controlFillSubtle)
-            .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusL, style: .continuous))
+            .background(NolonUI.DesignSystem.Colors.Component.controlFillSubtle)
+            .clipShape(RoundedRectangle(cornerRadius: NolonUI.DesignSystem.Metrics.cornerRadiusL, style: .continuous))
         }
     }
 
@@ -1776,13 +1766,13 @@ extension ProviderUsageView {
             memberDisplayLimit: memberDisplayLimit,
             memberRowMaxHeight: memberRowMaxHeight
         )
-        .animation(DesignSystem.Animations.springQuick, value: isTargeted || isActiveGateway)
+        .animation(NolonUI.DesignSystem.Animations.springQuick, value: isTargeted || isActiveGateway)
         .contentShape(Rectangle())
         .onTapGesture {
             handleGatewayCardSelection(cardID: card.id)
         }
         .dropDestination(for: CodexGatewayAccountDropItem.self) { items, _ in
-            handleGatewayCardDrop(items: items, cardID: card.id)
+            handleGatewayCardDrop(accountIDs: items.map(\.accountID), cardID: card.id)
         } isTargeted: { targeted in
             targetingGatewayCardID = GenericSelectionStateResolver.resolveHoverSelection(
                 current: targetingGatewayCardID,
@@ -2039,10 +2029,6 @@ extension ProviderUsageView {
         gatewayCardsViewModel.addAccountsToGatewayCard(accountIDs: orderedIDs, cardID: cardID)
         dismissGatewayAccountPicker()
         Task { await gatewayCardsViewModel.startGatewayForCardSelection(cardID: cardID) }
-    }
-
-    private func handleGatewayCardDrop(items: [CodexGatewayAccountDropItem], cardID: UUID) -> Bool {
-        handleGatewayCardDrop(accountIDs: items.map(\.accountID), cardID: cardID)
     }
 
     private func handleLegacyGatewayCardDrop(items: [String], cardID: UUID) -> Bool {
