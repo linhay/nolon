@@ -31,4 +31,41 @@ public enum RemoteResourceDetailBuilders {
             content: changelog
         )
     }
+
+    public static func commonStats(stars: Int?, downloads: Int?) -> [RemoteResourceDetailData.StatItem] {
+        var stats: [RemoteResourceDetailData.StatItem] = []
+        if let stars {
+            stats.append(
+                .init(
+                    id: "stars",
+                    title: String(
+                        format: NSLocalizedString(
+                            "remote.detail.stats.stars",
+                            value: "%d Stars",
+                            comment: "Remote resource stars count"
+                        ),
+                        stars
+                    ),
+                    systemImage: "star.fill"
+                )
+            )
+        }
+        if let downloads {
+            stats.append(
+                .init(
+                    id: "downloads",
+                    title: String(
+                        format: NSLocalizedString(
+                            "remote.detail.stats.downloads",
+                            value: "%d Downloads",
+                            comment: "Remote resource downloads count"
+                        ),
+                        downloads
+                    ),
+                    systemImage: "arrow.down.circle"
+                )
+            )
+        }
+        return stats
+    }
 }
