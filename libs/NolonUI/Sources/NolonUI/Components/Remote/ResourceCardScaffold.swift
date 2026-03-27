@@ -92,15 +92,7 @@ struct ResourceCardScaffold<HeaderContent: View, SummaryContent: View, MetaConte
     }
 
     private var moreMenu: some View {
-        Menu {
-            menuContent
-        } label: {
-            Image(systemName: "ellipsis")
-                .dsIconButton()
-        }
-        .dsBorderlessMenu()
-        .menuIndicator(.hidden)
-        .fixedSize()
+        EllipsisMenuButton(content: { menuContent })
     }
 }
 
