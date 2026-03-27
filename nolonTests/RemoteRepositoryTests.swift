@@ -8,11 +8,11 @@ final class RemoteRepositoryTests: XCTestCase {
     
     func testNormalizeGitURL_OwnerRepoShorthand() {
         XCTAssertEqual(
-            RemoteRepository.normalizeGitURL("vercel/agent-skills"),
+            SkillsRepositoryFacade.normalizeGitURL("vercel/agent-skills"),
             "https://github.com/vercel/agent-skills.git"
         )
         XCTAssertEqual(
-            RemoteRepository.normalizeGitURL("owner/repo"),
+            SkillsRepositoryFacade.normalizeGitURL("owner/repo"),
             "https://github.com/owner/repo.git"
         )
     }
@@ -20,46 +20,46 @@ final class RemoteRepositoryTests: XCTestCase {
     func testNormalizeGitURL_OwnerRepoSubpath() {
         // subpath 格式也应转换为 GitHub URL (subpath 通过 extractSubpath 单独获取)
         XCTAssertEqual(
-            RemoteRepository.normalizeGitURL("owner/repo/skills/my-skill"),
+            SkillsRepositoryFacade.normalizeGitURL("owner/repo/skills/my-skill"),
             "https://github.com/owner/repo.git"
         )
     }
     
     func testNormalizeGitURL_FullHTTPSURL() {
         let url = "https://github.com/owner/repo"
-        XCTAssertEqual(RemoteRepository.normalizeGitURL(url), "https://github.com/owner/repo.git")
+        XCTAssertEqual(SkillsRepositoryFacade.normalizeGitURL(url), "https://github.com/owner/repo.git")
         
         let urlWithGit = "https://github.com/owner/repo.git"
-        XCTAssertEqual(RemoteRepository.normalizeGitURL(urlWithGit), urlWithGit)
+        XCTAssertEqual(SkillsRepositoryFacade.normalizeGitURL(urlWithGit), urlWithGit)
     }
     
     func testNormalizeGitURL_SSHFormat() {
         let ssh = "git@github.com:owner/repo.git"
-        XCTAssertEqual(RemoteRepository.normalizeGitURL(ssh), ssh)
+        XCTAssertEqual(SkillsRepositoryFacade.normalizeGitURL(ssh), ssh)
     }
     
     func testNormalizeGitURL_GitLabURL() {
         let gitlab = "https://gitlab.com/owner/repo"
-        XCTAssertEqual(RemoteRepository.normalizeGitURL(gitlab), "https://gitlab.com/owner/repo.git")
+        XCTAssertEqual(SkillsRepositoryFacade.normalizeGitURL(gitlab), "https://gitlab.com/owner/repo.git")
     }
 
     func testNormalizeGitURL_GitLabNestedGroupURL() {
         let gitlabNested = "https://gitlab.dxy.net/f2e/axure-helper/axure-skill-group"
         XCTAssertEqual(
-            RemoteRepository.normalizeGitURL(gitlabNested),
+            SkillsRepositoryFacade.normalizeGitURL(gitlabNested),
             "https://gitlab.dxy.net/f2e/axure-helper/axure-skill-group.git"
         )
     }
     
     func testNormalizeGitURL_LocalPath() {
-        XCTAssertEqual(RemoteRepository.normalizeGitURL("./skills"), "./skills")
-        XCTAssertEqual(RemoteRepository.normalizeGitURL("/absolute/path"), "/absolute/path")
-        XCTAssertEqual(RemoteRepository.normalizeGitURL("~/Documents/skills"), "~/Documents/skills")
+        XCTAssertEqual(SkillsRepositoryFacade.normalizeGitURL("./skills"), "./skills")
+        XCTAssertEqual(SkillsRepositoryFacade.normalizeGitURL("/absolute/path"), "/absolute/path")
+        XCTAssertEqual(SkillsRepositoryFacade.normalizeGitURL("~/Documents/skills"), "~/Documents/skills")
     }
     
     func testNormalizeGitURL_TrimsWhitespace() {
         XCTAssertEqual(
-            RemoteRepository.normalizeGitURL("  owner/repo  "),
+            SkillsRepositoryFacade.normalizeGitURL("  owner/repo  "),
             "https://github.com/owner/repo.git"
         )
     }
@@ -68,32 +68,32 @@ final class RemoteRepositoryTests: XCTestCase {
     
     func testExtractSubpath_WithSubpath() {
         XCTAssertEqual(
-            RemoteRepository.extractSubpath(from: "owner/repo/skills/my-skill"),
+            SkillsRepositoryFacade.extractSubpath(from: "owner/repo/skills/my-skill"),
             "skills/my-skill"
         )
         XCTAssertEqual(
-            RemoteRepository.extractSubpath(from: "owner/repo/deep/nested/path"),
+            SkillsRepositoryFacade.extractSubpath(from: "owner/repo/deep/nested/path"),
             "deep/nested/path"
         )
     }
     
     func testExtractSubpath_NoSubpath() {
-        XCTAssertNil(RemoteRepository.extractSubpath(from: "owner/repo"))
+        XCTAssertNil(SkillsRepositoryFacade.extractSubpath(from: "owner/repo"))
     }
     
     func testExtractSubpath_FullURL() {
         // 完整 URL 不应提取 subpath (需要使用 URL 解析)
-        XCTAssertNil(RemoteRepository.extractSubpath(from: "https://github.com/owner/repo"))
+        XCTAssertNil(SkillsRepositoryFacade.extractSubpath(from: "https://github.com/owner/repo"))
     }
 
     func testExtractSubpath_GitLabNestedGroupURL() {
         XCTAssertNil(
-            RemoteRepository.extractSubpath(
+            SkillsRepositoryFacade.extractSubpath(
                 from: "https://gitlab.dxy.net/f2e/axure-helper/axure-skill-group"
             )
         )
         XCTAssertEqual(
-            RemoteRepository.extractSubpath(
+            SkillsRepositoryFacade.extractSubpath(
                 from: "https://gitlab.dxy.net/f2e/axure-helper/axure-skill-group/-/tree/main/skills/web"
             ),
             "skills/web"
@@ -101,8 +101,8 @@ final class RemoteRepositoryTests: XCTestCase {
     }
     
     func testExtractSubpath_LocalPath() {
-        XCTAssertNil(RemoteRepository.extractSubpath(from: "./local/path"))
-        XCTAssertNil(RemoteRepository.extractSubpath(from: "/absolute/path"))
+        XCTAssertNil(SkillsRepositoryFacade.extractSubpath(from: "./local/path"))
+        XCTAssertNil(SkillsRepositoryFacade.extractSubpath(from: "/absolute/path"))
     }
 
     // MARK: - Repository Identity Tests

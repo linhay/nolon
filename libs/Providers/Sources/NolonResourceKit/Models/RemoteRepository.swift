@@ -370,23 +370,6 @@ public struct RemoteRepository: Identifiable, Codable, Hashable, Sendable {
         return (components.host, components.owner, components.repo)
     }
 
-    /// 规范化 Git URL，支持 owner/repo 简写
-    /// - "owner/repo" → "https://github.com/owner/repo.git"
-    /// - "owner/repo/subpath" → "https://github.com/owner/repo.git" (subpath 需单独处理)
-    /// - 完整 URL → 原样返回
-    /// 规范化 Git URL，支持 owner/repo 简写以及完整 URL 中的 subpath 分离
-    /// - "owner/repo" -> "https://github.com/owner/repo.git"
-    /// - "owner/repo/subpath" -> "https://github.com/owner/repo.git"
-    /// - "https://github.com/owner/repo/subpath" -> "https://github.com/owner/repo.git"
-    public static func normalizeGitURL(_ input: String) -> String {
-        SkillsRepositoryFacade.normalizeGitURL(input)
-    }
-    
-    /// 从各种格式的输入中提取 subpath
-    public static func extractSubpath(from input: String) -> String? {
-        SkillsRepositoryFacade.extractSubpath(from: input)
-    }
-
     /// Built-in Clawdhub repository
     public static let clawdhub = RepositoryTemplate.clawdhub.createRepository()
     
