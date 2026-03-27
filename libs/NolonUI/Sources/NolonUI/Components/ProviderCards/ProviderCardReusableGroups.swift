@@ -111,3 +111,16 @@ struct ProviderCardIconCaptionRow: View {
         }
     }
 }
+
+struct ProviderCardMetaCountLabel: View {
+    let count: Int
+    let systemImage: String
+
+    var body: some View {
+        Label("\(count)", systemImage: systemImage)
+            .dsIconLabelButton(
+                foreground: DesignSystem.Colors.Text.secondary,
+                font: .caption2
+            )
+    }
+}

@@ -208,12 +208,10 @@ public struct SkillCardView<ExtraContextMenu: View>: View {
                 Spacer()
 
                 if referenceCount > 0 {
-                    Label("\(referenceCount)", systemImage: "doc.text")
-                        .dsIconLabelButton(foreground: DesignSystem.Colors.Text.secondary, font: .caption2)
+                    ProviderCardMetaCountLabel(count: referenceCount, systemImage: "doc.text")
                 }
                 if scriptCount > 0 {
-                    Label("\(scriptCount)", systemImage: "terminal")
-                        .dsIconLabelButton(foreground: DesignSystem.Colors.Text.secondary, font: .caption2)
+                    ProviderCardMetaCountLabel(count: scriptCount, systemImage: "terminal")
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
