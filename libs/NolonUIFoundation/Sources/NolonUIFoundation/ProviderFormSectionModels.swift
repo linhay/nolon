@@ -17,9 +17,21 @@ public struct ProviderProjectFolderSectionData: Sendable {
         mode: ProviderProjectFolderSectionMode,
         sectionTitle: String,
         displayPath: String,
-        emptyPlaceholder: String,
-        chooseButtonTitle: String,
-        vendorLockedDescription: String
+        emptyPlaceholder: String = NSLocalizedString(
+            "add_provider.no_project_folder",
+            value: "No project folder selected",
+            comment: "No project folder selected"
+        ),
+        chooseButtonTitle: String = NSLocalizedString(
+            "add_provider.choose",
+            value: "Choose...",
+            comment: "Choose button title"
+        ),
+        vendorLockedDescription: String = NSLocalizedString(
+            "add_provider.kind.vendor_paths_locked",
+            value: "Vendor paths are predefined and cannot be changed.",
+            comment: "Vendor paths locked description"
+        )
     ) {
         self.mode = mode
         self.sectionTitle = sectionTitle
@@ -40,7 +52,11 @@ public struct ProviderResolvedPathItemData: Sendable, Identifiable {
         id: String,
         label: String,
         path: String,
-        emptyPlaceholder: String
+        emptyPlaceholder: String = NSLocalizedString(
+            "add_provider.no_folder",
+            value: "No folder selected",
+            comment: "No folder selected"
+        )
     ) {
         self.id = id
         self.label = label
@@ -48,4 +64,3 @@ public struct ProviderResolvedPathItemData: Sendable, Identifiable {
         self.emptyPlaceholder = emptyPlaceholder
     }
 }
-

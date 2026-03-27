@@ -15,7 +15,11 @@ public struct ProviderIdentityAndPathsFormSections: View {
         nameSection: ProviderNameSectionData,
         vendorInfo: ProviderLabeledValueData? = nil,
         projectFolderData: ProviderProjectFolderSectionData,
-        resolvedPathsTitle: String,
+        resolvedPathsTitle: String = NSLocalizedString(
+            "add_provider.resolved_paths_label",
+            value: "Resolved Paths",
+            comment: "Resolved paths section header"
+        ),
         resolvedPathItems: [ProviderResolvedPathItemData],
         onChooseProjectFolder: @escaping () -> Void
     ) {
