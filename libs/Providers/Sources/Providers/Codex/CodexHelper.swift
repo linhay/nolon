@@ -71,10 +71,6 @@ public struct CodexHelper: Sendable {
         CodexCommandExecutor(executable: codexBinary ?? "codex", environment: environment).resolveExecutable() != nil
     }
 
-    public func fetchCredits(keepCLISessionsAlive: Bool = false) async throws -> CreditsSnapshot {
-        try await fetcher.fetchCredits(keepCLISessionsAlive: keepCLISessionsAlive)
-    }
-
     public func fetchRateLimits() async throws -> RateLimitsSnapshot {
         let limits = try await CodexRuntimeSupport.withRuntimeService(
             preferredBinary: self.codexBinary,
