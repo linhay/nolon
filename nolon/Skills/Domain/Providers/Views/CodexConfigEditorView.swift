@@ -7,12 +7,12 @@ struct CodexConfigEditorView: View {
     let configURL: URL
     let onSave: () -> Void
 
-    @State private var initialText: String = ""
-
     var body: some View {
         NolonUI.CodeEditorSheetView(
             title: NSLocalizedString("codex.config.editor.title", value: "Edit config.toml", comment: "Codex config editor title"),
-            initialText: initialText,
+            initialTextLoader: {
+                (try? STFile(configURL).read()) ?? ""
+            },
             highlight: nil,
             invalidAlertTitle: NSLocalizedString("codex.config.editor.error.title", value: "Invalid config.toml", comment: "Invalid config title"),
             minWidth: 860,
@@ -25,11 +25,6 @@ struct CodexConfigEditorView: View {
                 onSave()
             }
         )
-        .task {
-            if initialText.isEmpty {
-                initialText = (try? STFile(configURL).read()) ?? ""
-            }
-        }
     }
 
     private func validate(_ text: String) throws {

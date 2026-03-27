@@ -11,8 +11,6 @@ struct McpConfigEditorView: View {
     let highlightKey: String?
     let onSave: (String) async -> Void
 
-    @State private var initialText: String = ""
-
     private var highlight: NolonUI.WebCodeEditorHighlight? {
         guard let highlightKey else { return nil }
         return NolonUI.WebCodeEditorHighlight(format: format, key: highlightKey)
@@ -21,7 +19,9 @@ struct McpConfigEditorView: View {
     var body: some View {
         NolonUI.CodeEditorSheetView(
             title: NSLocalizedString("mcp.editor.title", value: "Edit MCP", comment: "MCP editor title"),
-            initialText: initialText,
+            initialTextLoader: {
+                (try? STFile(configURL).read()) ?? ""
+            },
             highlight: highlight,
             invalidAlertTitle: NSLocalizedString("mcp.editor.invalid_config.title", value: "Invalid Configuration", comment: "Invalid config title"),
             onValidate: { text in
@@ -32,11 +32,6 @@ struct McpConfigEditorView: View {
                 await onSave(text)
             }
         )
-        .task {
-            if initialText.isEmpty {
-                initialText = (try? STFile(configURL).read()) ?? ""
-            }
-        }
     }
 
     private func validate(_ text: String) throws {

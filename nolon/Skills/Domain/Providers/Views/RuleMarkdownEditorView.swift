@@ -6,12 +6,12 @@ struct RuleMarkdownEditorView: View {
     let ruleURL: URL
     let onSave: (String) async -> Void
 
-    @State private var initialText: String = ""
-
     var body: some View {
         NolonUI.CodeEditorSheetView(
             title: NSLocalizedString("tab.rules", value: "Rules", comment: "Rules"),
-            initialText: initialText,
+            initialTextLoader: {
+                (try? STFile(ruleURL).read()) ?? ""
+            },
             highlight: nil,
             onValidate: { _ in },
             onSave: { text in
@@ -19,10 +19,5 @@ struct RuleMarkdownEditorView: View {
                 await onSave(text)
             }
         )
-        .task {
-            if initialText.isEmpty {
-                initialText = (try? STFile(ruleURL).read()) ?? ""
-            }
-        }
     }
 }
