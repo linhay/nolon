@@ -221,7 +221,7 @@ extension ProviderUsageAccountsViewModel {
     func displayedOutcomesForUnifiedAccounts() -> [ProviderAccountUsageOutcome] {
         guard let usageProvider else { return [] }
         if usageProvider == .claude {
-            return ProviderUsageOutcomeFilter.displayedClaudeOutcomes(
+            return ProviderUsageEngine.displayedClaudeUsageOutcomes(
                 hasClaudeAccounts: !claude.accounts.isEmpty,
                 outcomes: outcomes
             ).filter { outcome in
@@ -233,7 +233,7 @@ extension ProviderUsageAccountsViewModel {
                 return true
             }
         }
-        return ProviderUsageOutcomeFilter.displayedGenericOutcomes(
+        return ProviderUsageEngine.displayedGenericUsageOutcomes(
             usageProvider: usageProvider,
             hasGeminiAccounts: !gemini.accounts.isEmpty,
             outcomes: outcomes
