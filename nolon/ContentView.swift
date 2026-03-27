@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import NolonUI
 
 struct ContentView: View {
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
@@ -26,7 +27,7 @@ struct ContentView: View {
         .textSelection(.enabled)
         .overlay(alignment: .bottom) {
             if debugMarkerToastCenter.isVisible {
-                ToastView(
+                NolonUI.ToastView(
                     text: debugMarkerToastCenter.message,
                     systemImage: "checkmark",
                     style: .success

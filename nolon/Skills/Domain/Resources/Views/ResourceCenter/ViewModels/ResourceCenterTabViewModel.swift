@@ -12,7 +12,7 @@ final class ResourceCenterTabViewModel {
     var mcpsCount: Int = 0
     private let countService = RemoteRepositoryCountService()
     
-    func count(for tab: ResourceContentTabType) -> Int {
+    func count(for tab: ResourceCenterTabID) -> Int {
         switch tab {
         case .skills: return skillsCount
         case .workflows: return workflowsCount

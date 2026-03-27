@@ -5,6 +5,7 @@ import AppKit
 import Foundation
 import OSLog
 import SKProcessRunner
+import NolonUI
 
 @MainActor
 @Observable
@@ -335,34 +336,14 @@ struct PluginManagementView: View, DebugPageLocatable {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 12) {
-                if viewModel.isChecking {
-                    ProgressView()
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-
-                if let plugin = viewModel.plugin {
-                    pluginCard(plugin)
-                } else if !viewModel.isChecking {
-                    ContentUnavailableView(
-                        NSLocalizedString("plugin.empty.title", value: "No Plugin", comment: "No plugin title"),
-                        systemImage: "puzzlepiece",
-                        description: Text(
-                            NSLocalizedString("plugin.empty.desc", value: "No available plugins.", comment: "No plugin description")
-                        )
-                        .dsSecondaryText(font: .body)
-                    )
-                }
-
-                if let errorMessage = viewModel.errorMessage, !errorMessage.isEmpty {
-                    Text(errorMessage)
-                        .font(.callout)
-                        .dsSecondaryText(font: .callout)
-                }
+        NolonUI.PluginManagementPageScaffold(
+            isChecking: viewModel.isChecking,
+            hasPlugin: viewModel.plugin != nil,
+            errorMessage: viewModel.errorMessage
+        ) {
+            if let plugin = viewModel.plugin {
+                pluginCard(plugin)
             }
-            .padding()
-            .frame(maxWidth: .infinity, alignment: .topLeading)
         }
         .debugPageLocator(debugPageMarkerItems)
         .task {
@@ -372,168 +353,81 @@ struct PluginManagementView: View, DebugPageLocatable {
 
     @ViewBuilder
     private func pluginCard(_ plugin: PluginManagementViewModel.PluginItem) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Label(plugin.name, systemImage: "puzzlepiece.extension")
-                    .font(.headline)
-                Spacer(minLength: 0)
-                Button(viewModel.runtimeActionTitle) {
-                    Task {
-                        guard viewModel.plugin?.isInstalled == true else {
-                            await viewModel.installPlugin()
-                            return
-                        }
-                        switch viewModel.runtimeState {
-                        case .running:
-                            await viewModel.stopPlugin()
-                        default:
-                            await viewModel.startPlugin()
-                        }
+        NolonUI.PluginManagementCardView(
+            data: pluginCardData(plugin),
+            onRuntimeAction: {
+                Task {
+                    guard viewModel.plugin?.isInstalled == true else {
+                        await viewModel.installPlugin()
+                        return
+                    }
+                    switch viewModel.runtimeState {
+                    case .running:
+                        await viewModel.stopPlugin()
+                    default:
+                        await viewModel.startPlugin()
                     }
                 }
-                .buttonStyle(.borderedProminent)
-                .disabled(!viewModel.runtimeActionEnabled)
-
-                Button(
-                    NSLocalizedString("plugin.action.logs", value: "Logs", comment: "Open plugin runtime logs")
-                ) {
-                    showingLogs = true
-                }
-                .buttonStyle(.bordered)
-
-                if plugin.hasUpgrade {
-                    Button(viewModel.upgradeActionTitle) {
-                        Task {
-                            await viewModel.upgradePlugin()
-                        }
-                    }
-                    .dsPrimaryButton()
-                    .disabled(!viewModel.upgradeActionEnabled)
-                } else {
-                    Button(
-                        NSLocalizedString("plugin.action.open_release", value: "Open Releases", comment: "Open plugin releases")
-                    ) {
-                        NSWorkspace.shared.open(plugin.releaseURL)
-                    }
-                    .dsLinkButton()
-                }
-
-                if plugin.isInstalled {
-                    Button(viewModel.uninstallActionTitle) {
-                        Task {
-                            await viewModel.uninstallPlugin()
-                        }
-                    }
-                    .buttonStyle(.bordered)
-                    .disabled(!viewModel.uninstallActionEnabled)
-                }
+            },
+            onLogs: {
+                showingLogs = true
+            },
+            onUpgrade: {
+                Task { await viewModel.upgradePlugin() }
+            },
+            onOpenRelease: {
+                NSWorkspace.shared.open(plugin.releaseURL)
+            },
+            onUninstall: {
+                Task { await viewModel.uninstallPlugin() }
             }
-
-            HStack(spacing: 14) {
-                let installStatus = plugin.isInstalled
-                    ? NSLocalizedString("plugin.install_status.installed", value: "Installed", comment: "Plugin installed status")
-                    : NSLocalizedString("plugin.install_status.not_installed", value: "Not Installed", comment: "Plugin not installed status")
-                let installedText: String = {
-                    if plugin.isInstalled {
-                        return plugin.installedVersion ?? NSLocalizedString("plugin.version.unknown", value: "Unknown", comment: "Installed version unknown")
-                    }
-                    return NSLocalizedString("plugin.version.not_installed", value: "Not Installed", comment: "Not installed version text")
-                }()
-                let latestText = plugin.latestVersion ?? NSLocalizedString("plugin.version.unavailable", value: "Unavailable", comment: "Latest version unavailable")
-                Text("Status: \(installStatus)")
-                    .font(.caption)
-                    .dsSecondaryText(font: .caption)
-                Text("Installed: \(installedText)")
-                    .font(.caption)
-                    .dsSecondaryText(font: .caption)
-                Text("Latest: \(latestText)")
-                    .font(.caption)
-                    .dsSecondaryText(font: .caption)
-            }
-
-            Text(viewModel.runtimeStatusText)
-                .font(.caption)
-                .dsSecondaryText(font: .caption)
-                .textSelection(.enabled)
-        }
-        .padding(12)
-        .dsCard(
-            background: DesignSystem.Colors.Background.elevated,
-            cornerRadius: DesignSystem.Metrics.cornerRadiusM,
-            borderColor: DesignSystem.Colors.Component.border.opacity(0.4)
         )
         .sheet(isPresented: $showingLogs) {
-            VStack(alignment: .leading, spacing: 10) {
-                HStack {
-                    Text(
-                        NSLocalizedString("plugin.logs.title", value: "Runtime Logs", comment: "Plugin runtime logs title")
-                    )
-                    .font(.headline)
-                    Spacer()
-                    Button(logsAutoScroll
-                        ? NSLocalizedString("plugin.logs.auto_on", value: "Auto On", comment: "Auto scroll enabled")
-                        : NSLocalizedString("plugin.logs.auto_off", value: "Auto Off", comment: "Auto scroll disabled")
-                    ) {
-                        logsAutoScroll.toggle()
-                    }
-                    .buttonStyle(.bordered)
-                    Button(
-                        NSLocalizedString("plugin.logs.clear", value: "Clear", comment: "Clear logs")
-                    ) {
-                        viewModel.clearRuntimeLogs()
-                    }
-                    .buttonStyle(.bordered)
-                    Button(
-                        NSLocalizedString("plugin.logs.copy", value: "Copy", comment: "Copy logs")
-                    ) {
-                        NSPasteboard.general.clearContents()
-                        NSPasteboard.general.setString(viewModel.runtimeLogs, forType: .string)
-                    }
-                    .buttonStyle(.bordered)
-                    Button(
-                        NSLocalizedString("plugin.logs.close", value: "Close", comment: "Close logs sheet")
-                    ) {
-                        showingLogs = false
-                    }
-                    .keyboardShortcut(.cancelAction)
-                    .buttonStyle(.borderedProminent)
+            NolonUI.PluginRuntimeLogsSheetView(
+                logs: viewModel.runtimeLogs,
+                autoScroll: $logsAutoScroll,
+                onClear: {
+                    viewModel.clearRuntimeLogs()
+                },
+                onCopy: {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(viewModel.runtimeLogs, forType: .string)
+                },
+                onClose: {
+                    showingLogs = false
                 }
-
-                ScrollViewReader { proxy in
-                    ScrollView {
-                        Text(viewModel.runtimeLogs.isEmpty
-                            ? NSLocalizedString("plugin.logs.empty", value: "No runtime output yet.", comment: "Empty runtime logs")
-                            : viewModel.runtimeLogs
-                        )
-                        .font(.system(size: 12, weight: .regular, design: .monospaced))
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .textSelection(.enabled)
-
-                        Color.clear
-                            .frame(height: 1)
-                            .id("runtime-log-bottom")
-                    }
-                    .onAppear {
-                        guard logsAutoScroll else { return }
-                        Task { @MainActor in
-                            proxy.scrollTo("runtime-log-bottom", anchor: .bottom)
-                        }
-                    }
-                    .onChange(of: viewModel.runtimeLogs) { _, _ in
-                        guard logsAutoScroll else { return }
-                        withAnimation(.easeOut(duration: 0.15)) {
-                            proxy.scrollTo("runtime-log-bottom", anchor: .bottom)
-                        }
-                    }
-                    .dsCard(
-                        background: DesignSystem.Colors.Background.surface,
-                        cornerRadius: DesignSystem.Metrics.cornerRadiusS,
-                        borderColor: DesignSystem.Colors.Component.border.opacity(0.3)
-                    )
-                }
-            }
-            .padding()
-            .frame(minWidth: 760, minHeight: 420)
+            )
         }
+    }
+
+    private func pluginCardData(_ plugin: PluginManagementViewModel.PluginItem) -> PluginManagementCardData {
+        let installStatus = plugin.isInstalled
+            ? NSLocalizedString("plugin.install_status.installed", value: "Installed", comment: "Plugin installed status")
+            : NSLocalizedString("plugin.install_status.not_installed", value: "Not Installed", comment: "Plugin not installed status")
+        let installedText: String = {
+            if plugin.isInstalled {
+                return plugin.installedVersion ?? NSLocalizedString("plugin.version.unknown", value: "Unknown", comment: "Installed version unknown")
+            }
+            return NSLocalizedString("plugin.version.not_installed", value: "Not Installed", comment: "Not installed version text")
+        }()
+        let latestText = plugin.latestVersion ?? NSLocalizedString("plugin.version.unavailable", value: "Unavailable", comment: "Latest version unavailable")
+
+        return PluginManagementCardData(
+            name: plugin.name,
+            runtimeActionTitle: viewModel.runtimeActionTitle,
+            runtimeActionEnabled: viewModel.runtimeActionEnabled,
+            logsTitle: NSLocalizedString("plugin.action.logs", value: "Logs", comment: "Open plugin runtime logs"),
+            showsUpgradeButton: plugin.hasUpgrade,
+            upgradeActionTitle: viewModel.upgradeActionTitle,
+            upgradeActionEnabled: viewModel.upgradeActionEnabled,
+            openReleaseTitle: NSLocalizedString("plugin.action.open_release", value: "Open Releases", comment: "Open plugin releases"),
+            showsUninstallButton: plugin.isInstalled,
+            uninstallActionTitle: viewModel.uninstallActionTitle,
+            uninstallActionEnabled: viewModel.uninstallActionEnabled,
+            statusText: "Status: \(installStatus)",
+            installedText: "Installed: \(installedText)",
+            latestText: "Latest: \(latestText)",
+            runtimeStatusText: viewModel.runtimeStatusText
+        )
     }
 }

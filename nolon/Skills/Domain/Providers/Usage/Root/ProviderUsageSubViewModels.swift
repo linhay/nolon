@@ -3,6 +3,7 @@ import ProviderUsage
 import Foundation
 import CodexBarProviderCatalog
 import SwiftUI
+import NolonUIFoundation
 
 @MainActor
 @Observable

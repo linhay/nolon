@@ -58,7 +58,7 @@ enum PageMarkerRouteResolver {
         return items
     }
 
-    static func resourceCenterItems(selectedTab: ResourceContentTabType?) -> [PageMarkerItem] {
+    static func resourceCenterItems(selectedTab: ResourceCenterTabID?) -> [PageMarkerItem] {
         var items = [item(NSLocalizedString("resource.center.title", value: "Resource Center", comment: "Resource center title"))]
         if let selectedTab {
             items.append(item(selectedTab.localizedName))

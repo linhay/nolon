@@ -1,6 +1,8 @@
 import SwiftUI
 import ProviderCatalog
 import NolonResourceKit
+import NolonUI
+import NolonUIFoundation
 
 /// Main three-column split view for browsing resource catalogs
 /// 与 MainSplitView 设计模式一致：
@@ -25,7 +27,7 @@ struct ResourceCenterView: View, DebugPageLocatable {
         settings: ProviderSettings,
         repository: SkillRepository,
         targetProvider: Provider? = nil,
-        selectedTab: ResourceContentTabType? = .skills,
+        selectedTab: ResourceCenterTabID? = .skills,
         onClose: @escaping () -> Void = {},
         onInstall: @escaping (RemoteSkill, Provider) -> Void,
         onInstallWorkflow: ((RemoteWorkflow, Provider) -> Void)? = nil,
@@ -169,6 +171,77 @@ struct ResourceCenterView: View, DebugPageLocatable {
             }
         }
     }
+
+    private var shouldShowUITestActions: Bool {
+        UITestSupport.isEnabled
+            && onRegisterDeleteRequest != nil
+            && onMakeDeleteRequestExecutor != nil
+    }
+
+    private var uiTestActionItems: [ResourceCenterUITestActionData] {
+        var items: [ResourceCenterUITestActionData] = []
+        if let slug = UITestSupport.fixtureGlobalSkillSlug {
+            items.append(
+                .init(
+                    id: "delete-global-skill-\(slug)",
+                    kind: .deleteGlobalSkill,
+                    slug: slug,
+                    title: "Delete \(slug)",
+                    accessibilityIdentifier: "uitest.delete-global-skill.\(slug)"
+                )
+            )
+        }
+        if let slug = UITestSupport.fixtureGlobalWorkflowSlug {
+            items.append(
+                .init(
+                    id: "delete-global-workflow-\(slug)",
+                    kind: .deleteGlobalWorkflow,
+                    slug: slug,
+                    title: "Delete workflow \(slug)",
+                    accessibilityIdentifier: "uitest.delete-global-workflow.\(slug)"
+                )
+            )
+        }
+        if let slug = UITestSupport.fixtureGlobalMCPSlug {
+            items.append(
+                .init(
+                    id: "delete-global-mcp-\(slug)",
+                    kind: .deleteGlobalMCP,
+                    slug: slug,
+                    title: "Delete MCP \(slug)",
+                    accessibilityIdentifier: "uitest.delete-global-mcp.\(slug)"
+                )
+            )
+        }
+        if let slug = UITestSupport.fixtureProviderSkillSlug,
+           let providerIndex = UITestSupport.initialSelectedProviderIndex {
+            items.append(
+                .init(
+                    id: "delete-provider-skill-\(slug)-\(providerIndex)",
+                    kind: .deleteProviderSkill,
+                    slug: slug,
+                    providerIndex: providerIndex,
+                    title: "Delete provider skill \(slug)",
+                    accessibilityIdentifier: "uitest.delete-provider-skill.\(slug)"
+                )
+            )
+        }
+        return items
+    }
+
+    private func handleUITestActionTap(_ action: ResourceCenterUITestActionData) {
+        switch action.kind {
+        case .deleteGlobalSkill:
+            executeUITestGlobalSkillDelete(slug: action.slug)
+        case .deleteGlobalWorkflow:
+            executeUITestGlobalWorkflowDelete(slug: action.slug)
+        case .deleteGlobalMCP:
+            executeUITestGlobalMCPDelete(slug: action.slug)
+        case .deleteProviderSkill:
+            guard let providerIndex = action.providerIndex else { return }
+            executeUITestProviderSkillDelete(slug: action.slug, providerIndex: providerIndex)
+        }
+    }
     
     var body: some View {
         let isClawdhub = viewModel.selectedRepository?.templateType == .clawdhub
@@ -176,9 +249,9 @@ struct ResourceCenterView: View, DebugPageLocatable {
             for: viewModel.selectedRepository,
             fallback: targetProvider
         )
-        let layoutMode: UIThreeColumnScaffoldMode = isClawdhub ? .twoColumn : .threeColumn
-        let selectedResourceTab: ResourceContentTabType? = isClawdhub ? .skills : viewModel.selectedTab
-        UIThreeColumnScaffold(
+        let layoutMode: NolonUI.ThreeColumnScaffoldMode = isClawdhub ? .twoColumn : .threeColumn
+        let selectedResourceTab: ResourceCenterTabID? = isClawdhub ? .skills : viewModel.selectedTab
+        NolonUI.ThreeColumnScaffold(
             mode: layoutMode,
             columnVisibility: $viewModel.columnVisibility,
             sidebarWidth: .init(min: 200, ideal: 220, max: 240)
@@ -186,8 +259,7 @@ struct ResourceCenterView: View, DebugPageLocatable {
             RemoteRepositorySidebarView(
                 selectedRepository: $viewModel.selectedRepository,
                 settings: settings,
-                showsHeader: false,
-                title: NSLocalizedString("resource.center.title", value: "Resource Center", comment: "Resource center title")
+                showsHeader: false
             )
         } content: {
             if isClawdhub {
@@ -250,78 +322,14 @@ struct ResourceCenterView: View, DebugPageLocatable {
             )
         }
         .debugPageLocator(debugPageMarkerItems)
-        .overlay(alignment: .top) {
-            if let importErrorMessage = viewModel.importErrorMessage, !importErrorMessage.isEmpty {
-                HStack(alignment: .top, spacing: 8) {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundStyle(DesignSystem.Colors.Status.warning)
-                    Text(importErrorMessage)
-                        .font(.callout)
-                        .foregroundStyle(DesignSystem.Colors.Text.secondary)
-                        .textSelection(.enabled)
-                    Spacer()
-                    Button {
-                        viewModel.importErrorMessage = nil
-                    } label: {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(DesignSystem.Colors.Text.secondary)
-                    }
-                    .buttonStyle(.plain)
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 10)
-                .background(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .fill(DesignSystem.Colors.Status.warning.opacity(0.10))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .stroke(DesignSystem.Colors.Status.warning.opacity(0.28), lineWidth: 1)
-                )
-                .padding(.horizontal, 16)
-                .padding(.top, 10)
-            }
-        }
-        .overlay(alignment: .topTrailing) {
-            if UITestSupport.isEnabled,
-               onRegisterDeleteRequest != nil,
-               onMakeDeleteRequestExecutor != nil {
-                VStack(alignment: .trailing, spacing: 8) {
-                    if let slug = UITestSupport.fixtureGlobalSkillSlug {
-                        Button("Delete \(slug)") {
-                            executeUITestGlobalSkillDelete(slug: slug)
-                        }
-                        .accessibilityIdentifier("uitest.delete-global-skill.\(slug)")
-                    }
-
-                    if let slug = UITestSupport.fixtureGlobalWorkflowSlug {
-                        Button("Delete workflow \(slug)") {
-                            executeUITestGlobalWorkflowDelete(slug: slug)
-                        }
-                        .accessibilityIdentifier("uitest.delete-global-workflow.\(slug)")
-                    }
-
-                    if let slug = UITestSupport.fixtureGlobalMCPSlug {
-                        Button("Delete MCP \(slug)") {
-                            executeUITestGlobalMCPDelete(slug: slug)
-                        }
-                        .accessibilityIdentifier("uitest.delete-global-mcp.\(slug)")
-                    }
-
-                    if let slug = UITestSupport.fixtureProviderSkillSlug,
-                       let providerIndex = UITestSupport.initialSelectedProviderIndex {
-                        Button("Delete provider skill \(slug)") {
-                            executeUITestProviderSkillDelete(slug: slug, providerIndex: providerIndex)
-                        }
-                        .accessibilityIdentifier("uitest.delete-provider-skill.\(slug)")
-                    }
-                }
-                .buttonStyle(.borderedProminent)
-                .padding(.top, 12)
-                .padding(.trailing, 16)
-            }
-        }
+        .resourceCenterOverlays(
+            importErrorMessage: viewModel.importErrorMessage,
+            onDismissImportError: {
+                viewModel.importErrorMessage = nil
+            },
+            uiTestActions: shouldShowUITestActions ? uiTestActionItems : [],
+            onTapUITestAction: handleUITestActionTap
+        )
         .textSelection(.enabled)
         .onAppear {
             applyUITestInitialStateIfNeeded()

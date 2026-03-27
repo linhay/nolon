@@ -38,7 +38,7 @@ struct ProviderUsageUnifiedAccountCardGrid: View {
     }
 
     private var loadingContent: some View {
-        LazyVGrid(columns: columns, alignment: .leading, spacing: 12) {
+        NolonUI.AdaptiveCardGrid(columns: columns) {
             ForEach(0..<ProviderUsageSkeletonPolicy.genericCardCount(for: provider), id: \.self) { _ in
                 UnifiedAccountCardSkeleton(providerName: provider.name)
             }
@@ -46,7 +46,7 @@ struct ProviderUsageUnifiedAccountCardGrid: View {
     }
 
     private var cardGrid: some View {
-        LazyVGrid(columns: columns, alignment: .leading, spacing: 12) {
+        NolonUI.AdaptiveCardGrid(columns: columns) {
             ForEach(cards) { card in
                 UnifiedAccountCard(
                     data: card,
@@ -60,9 +60,6 @@ struct ProviderUsageUnifiedAccountCardGrid: View {
     private var listContent: some View {
         AccountListModeModule(
             sections: [.init(id: "provider-usage-unified", items: listModeItems)],
-            accountColumnTitle: NSLocalizedString("codex.accounts.list.header.account", value: "Account", comment: "Account list table account column"),
-            planColumnTitle: NSLocalizedString("codex.accounts.list.header.plan", value: "Plan", comment: "Account list table plan column"),
-            usageColumnTitle: NSLocalizedString("codex.accounts.list.header.usage", value: "Usage", comment: "Account list table usage column"),
             planColumnWidth: ListLayout.planColumnWidth,
             usageColumnWidth: ListLayout.usageColumnWidth,
             onTap: { itemID in

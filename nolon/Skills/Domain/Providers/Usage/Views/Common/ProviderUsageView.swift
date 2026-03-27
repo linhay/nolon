@@ -1,11 +1,8 @@
 import SwiftUI
-import AppKit
 import ProviderCatalog
-import WebKit
 import ProviderUsage
 import CodexBarProviderCatalog
 import CodexProvider
-import UniformTypeIdentifiers
 import NolonUIFoundation
 import NolonUI
 
@@ -79,12 +76,12 @@ struct ProviderUsageView: View, DebugPageLocatable {
             Task { await viewModel.load() }
         }
         .sheet(isPresented: loginFlowViewModel.isShowingLoginBinding) {
-            UsageLoginSheet(title: provider.name, url: loginFlowViewModel.dashboardURL)
+            NolonUI.UsageLoginSheetView(title: provider.name, url: loginFlowViewModel.dashboardURL)
         }
         .sheet(isPresented: loginFlowViewModel.isShowingLoginURLSheetBinding, onDismiss: {
             loginFlowViewModel.handleLoginURLSheetDismissed()
         }) {
-            CodexLoginURLSheet(
+            NolonUI.CodexLoginURLSheetView(
                 mode: loginFlowViewModel.loginModeForSheet ?? "Login",
                 url: loginFlowViewModel.loginURLForSheet,
                 onCopy: { loginFlowViewModel.copyLoginURL() },
@@ -134,100 +131,46 @@ struct ProviderUsageView: View, DebugPageLocatable {
                 gatewayAccountSelectionSheet(cardID: cardID)
             }
         }
-        .alert(
-            NSLocalizedString("gemini.import.confirm.title", value: "Import Existing Gemini Login?", comment: "Gemini import confirmation title"),
+        .confirmationAlert(
+            data: geminiImportAlertData,
             isPresented: Binding(
                 get: { viewModel.gemini.isShowingImportConfirm },
                 set: { viewModel.gemini.isShowingImportConfirm = $0 }
-            )
-        ) {
-            Button(
-                NSLocalizedString("gemini.import.confirm.skip", value: "Continue OAuth Login", comment: "Continue OAuth login"),
-                role: .cancel
-            ) {
+            ),
+            onConfirm: {
+                Task { await viewModel.gemini.importGlobalSessionAfterConfirmation() }
+            },
+            onCancel: {
                 viewModel.gemini.continueOAuthLoginWithoutImport()
             }
-            Button(NSLocalizedString("gemini.import.confirm.import", value: "Import", comment: "Import existing Gemini login")) {
-                Task { await viewModel.gemini.importGlobalSessionAfterConfirmation() }
-            }
-        } message: {
-            let email = viewModel.gemini.pendingImportCandidate?.email ?? NSLocalizedString("generic.unknown", value: "Unknown", comment: "Unknown")
-            let path = viewModel.gemini.pendingImportCandidate?.geminiDirectoryPath ?? "~/.gemini"
-            let format = NSLocalizedString(
-                "gemini.import.confirm.message",
-                value: "Detected an existing Gemini CLI login (%@) at:\n%@\n\nImport it into Nolon now?",
-                comment: "Gemini import confirmation message"
-            )
-            Text(String(format: format, email, path))
-        }
-        .alert(viewModel.alertTitle ?? "", isPresented: Binding(get: {
-            viewModel.alertTitle != nil || viewModel.alertMessage != nil
-        }, set: { newValue in
-            if !newValue {
-                viewModel.alertTitle = nil
-                viewModel.alertMessage = nil
-            }
-        })) {
-            Button(NSLocalizedString("generic.ok", value: "OK", comment: "OK")) {
-                viewModel.alertTitle = nil
-                viewModel.alertMessage = nil
-            }
-        } message: {
-            Text(viewModel.alertMessage ?? "")
-        }
-        .alert(
-            NSLocalizedString("codex.accounts.activate.title", value: "Activate Account", comment: "Activate account title"),
+        )
+        .messageAlert(alert: globalAlertBinding)
+        .confirmationAlert(
+            data: codexActivateAlertData,
             isPresented: Binding(
                 get: { viewModel.codex.isShowingActivateConfirm },
                 set: { viewModel.codex.isShowingActivateConfirm = $0 }
-            )
-        ) {
-            Button(NSLocalizedString("generic.cancel", value: "Cancel", comment: "Cancel"), role: .cancel) {
+            ),
+            onConfirm: {
+                Task { await viewModel.codex.confirmActivate() }
+            },
+            onCancel: {
                 viewModel.codex.pendingActivateAccount = nil
             }
-            Button(NSLocalizedString("codex.accounts.action.activate", value: "Activate", comment: "Activate account")) {
-                Task { await viewModel.codex.confirmActivate() }
-            }
-        } message: {
-            let name = viewModel.codex.pendingActivateAccount?.name ?? ""
-            let path = viewModel.codex.authFilePath ?? "~/.codex/auth.json"
-            let format = NSLocalizedString(
-                "codex.accounts.activate.message",
-                value: "Switch to \"%@\"? This will overwrite:\n%@",
-                comment: "Activate account message"
-            )
-            Text(String(format: format, name, path))
-        }
-        .alert(
-            NSLocalizedString("codex.accounts.delete.title", value: "Delete Account", comment: "Delete account title"),
+        )
+        .confirmationAlert(
+            data: codexDeleteAlertData,
             isPresented: Binding(
                 get: { viewModel.codex.isShowingDeleteConfirm },
                 set: { viewModel.codex.isShowingDeleteConfirm = $0 }
-            )
-        ) {
-            Button(NSLocalizedString("generic.cancel", value: "Cancel", comment: "Cancel"), role: .cancel) {
+            ),
+            onConfirm: {
+                Task { await accountsViewModel.codex.confirmDeleteAccount() }
+            },
+            onCancel: {
                 viewModel.codex.pendingDeleteAccount = nil
             }
-            Button(NSLocalizedString("generic.delete", value: "Delete", comment: "Delete"), role: .destructive) {
-                Task { await accountsViewModel.codex.confirmDeleteAccount() }
-            }
-        } message: {
-            let account = viewModel.codex.pendingDeleteAccount
-            let baseName = account?.name ?? ""
-            let email = account.flatMap { candidate in
-                viewModel.codex.accountSummaries[candidate.id]?.email?.trimmingCharacters(in: .whitespacesAndNewlines)
-            }
-            let displayName: String = {
-                guard let email, !email.isEmpty else { return baseName }
-                return "\(baseName) (\(email))"
-            }()
-            let format = NSLocalizedString(
-                "codex.accounts.delete.message",
-                value: "Delete \"%@\"? This will not log you out of Codex, it only removes the saved snapshot in Nolon.",
-                comment: "Delete account message"
-            )
-            Text(String(format: format, displayName))
-        }
+        )
             .task(id: viewModel.settings.autoRefreshIntervalMinutes) {
                 let minutes = viewModel.settings.autoRefreshIntervalMinutes
                 guard minutes > 0 else { return }
@@ -238,22 +181,90 @@ struct ProviderUsageView: View, DebugPageLocatable {
                     await viewModel.performAutoRefresh()
                 }
             }
-            .overlay(alignment: Alignment.bottomTrailing) {
-                if viewModel.isShowingCopyToast {
-                    ToastView(
-                        text: viewModel.copyToastMessage ?? "",
-                        systemImage: "doc.on.doc",
-                        style: .success
-                    )
-                    .padding(.trailing, 16)
-                    .padding(.bottom, 16)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                }
+            .bottomTrailingOverlay(isPresented: viewModel.isShowingCopyToast) {
+                NolonUI.ToastView(
+                    text: viewModel.copyToastMessage ?? "",
+                    systemImage: "doc.on.doc",
+                    style: .success
+                )
             }
             .animation(Animation.easeOut(duration: 0.2), value: viewModel.isShowingCopyToast)
             .debugPageLocator(debugPageMarkerItems)
     }
 
+    private var geminiImportAlertData: ConfirmationAlertData {
+        let email = viewModel.gemini.pendingImportCandidate?.email ?? NSLocalizedString("generic.unknown", value: "Unknown", comment: "Unknown")
+        let path = viewModel.gemini.pendingImportCandidate?.geminiDirectoryPath ?? "~/.gemini"
+        let format = NSLocalizedString(
+            "gemini.import.confirm.message",
+            value: "Detected an existing Gemini CLI login (%@) at:\n%@\n\nImport it into Nolon now?",
+            comment: "Gemini import confirmation message"
+        )
+        return ConfirmationAlertData(
+            title: NSLocalizedString("gemini.import.confirm.title", value: "Import Existing Gemini Login?", comment: "Gemini import confirmation title"),
+            message: String(format: format, email, path),
+            confirmTitle: NSLocalizedString("gemini.import.confirm.import", value: "Import", comment: "Import existing Gemini login"),
+            cancelTitle: NSLocalizedString("gemini.import.confirm.skip", value: "Continue OAuth Login", comment: "Continue OAuth login")
+        )
+    }
+
+    private var globalAlertBinding: Binding<MessageAlertData?> {
+        Binding<MessageAlertData?>(
+            get: {
+                guard let message = viewModel.alertMessage else { return nil }
+                return MessageAlertData(
+                    title: viewModel.alertTitle ?? "",
+                    message: message
+                )
+            },
+            set: { value in
+                if value == nil {
+                    viewModel.alertTitle = nil
+                    viewModel.alertMessage = nil
+                }
+            }
+        )
+    }
+
+    private var codexActivateAlertData: ConfirmationAlertData {
+        let name = viewModel.codex.pendingActivateAccount?.name ?? ""
+        let path = viewModel.codex.authFilePath ?? "~/.codex/auth.json"
+        let format = NSLocalizedString(
+            "codex.accounts.activate.message",
+            value: "Switch to \"%@\"? This will overwrite:\n%@",
+            comment: "Activate account message"
+        )
+        return ConfirmationAlertData(
+            title: NSLocalizedString("codex.accounts.activate.title", value: "Activate Account", comment: "Activate account title"),
+            message: String(format: format, name, path),
+            confirmTitle: NSLocalizedString("codex.accounts.action.activate", value: "Activate", comment: "Activate account"),
+            cancelTitle: NSLocalizedString("generic.cancel", value: "Cancel", comment: "Cancel")
+        )
+    }
+
+    private var codexDeleteAlertData: ConfirmationAlertData {
+        let account = viewModel.codex.pendingDeleteAccount
+        let baseName = account?.name ?? ""
+        let email = account.flatMap { candidate in
+            viewModel.codex.accountSummaries[candidate.id]?.email?.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        let displayName: String = {
+            guard let email, !email.isEmpty else { return baseName }
+            return "\(baseName) (\(email))"
+        }()
+        let format = NSLocalizedString(
+            "codex.accounts.delete.message",
+            value: "Delete \"%@\"? This will not log you out of Codex, it only removes the saved snapshot in Nolon.",
+            comment: "Delete account message"
+        )
+        return ConfirmationAlertData(
+            title: NSLocalizedString("codex.accounts.delete.title", value: "Delete Account", comment: "Delete account title"),
+            message: String(format: format, displayName),
+            confirmTitle: NSLocalizedString("generic.delete", value: "Delete", comment: "Delete"),
+            cancelTitle: NSLocalizedString("generic.cancel", value: "Cancel", comment: "Cancel"),
+            isDestructiveConfirm: true
+        )
+    }
 }
 
 
@@ -513,7 +524,9 @@ extension ProviderUsageView {
     var usageContent: some View {
         let capabilities = viewModel.capabilities
 
-        return ScrollView {
+        return NolonUI.PaddedScrollContainer(
+            padding: EdgeInsets(top: 2, leading: 0, bottom: 2, trailing: 12)
+        ) {
             LazyVStack(alignment: .leading, spacing: 16) {
                 if capabilities.isCodexFamily {
                     codexManagementCard
@@ -529,8 +542,6 @@ extension ProviderUsageView {
                     tokenTrendSection
                 }
             }
-            .padding(.trailing, 12)
-            .padding(.vertical, 2)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
@@ -683,23 +694,14 @@ extension ProviderUsageView {
         )
     }
 
-    @ViewBuilder
     var content: some View {
-        if viewModel.usageProvider == nil {
-            ContentUnavailableView(
-                NSLocalizedString("usage.monitor.unsupported.title", value: "Usage not supported", comment: "Unsupported title"),
-                systemImage: "chart.bar.xaxis",
-                description: Text(NSLocalizedString(
-                    "usage.monitor.unsupported.desc",
-                    value: "Usage is not configured for this provider yet.",
-                    comment: "Unsupported description"
-                ))
-                .dsSecondaryText(font: .body)
-            )
-            .debugCardLocator(debugPageMarkerItems + [PageMarkerItem(title: NSLocalizedString("usage.monitor.unsupported.title", value: "Usage not supported", comment: "Unsupported title"))])
-        } else {
+        NolonUI.ProviderEmptyStateScaffold(
+            isEmpty: viewModel.usageProvider == nil,
+            preset: .usageUnsupported
+        ) {
             usageContent
         }
+        .debugCardLocator(debugPageMarkerItems + [PageMarkerItem(title: NolonUI.ProviderEmptyStateScaffold.Preset.usageUnsupported.emptyTitle)])
     }
 
     var header: some View {
@@ -1224,7 +1226,7 @@ extension ProviderUsageView {
                     codexListModeModule(outcomes: outcomes)
                 }
             } else {
-                LazyVGrid(columns: codexAccountColumns, alignment: .leading, spacing: 12) {
+                NolonUI.AdaptiveCardGrid(columns: codexAccountColumns) {
                     ForEach(outcomes) { outcome in
                         codexOutcomeCard(outcome: outcome)
                     }
@@ -1307,7 +1309,7 @@ extension ProviderUsageView {
         let cardView = codexCompactSnapshotView(model: model)
 
         if let accountId = model.accountID, accountsViewModel.codex.isMultiSelectionEnabled {
-            GenericSelectionControl(
+            NolonUI.GenericSelectionControl(
                 value: IDBox(accountId),
                 selections: selectedCodexAccountIDBoxesBinding,
                 onToggle: {
@@ -1375,92 +1377,41 @@ extension ProviderUsageView {
         model: ProviderUsageCodexCardModel
     ) -> some View {
         let usageWindows = compactUsageWindows(from: model.data)
-        return HStack(alignment: .center, spacing: 12) {
-            HStack(alignment: .top, spacing: 8) {
-                Circle()
-                    .fill(compactStatusColor(presentation: model.presentation, badge: model.data.header.badge))
-                    .frame(width: 6, height: 6)
-                    .padding(.top, 3)
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(model.data.header.title)
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(DesignSystem.Colors.Text.primary)
-                        .lineLimit(1)
-
-                    if let secondary = compactSecondaryText(from: model.data.header), !secondary.isEmpty {
-                        Text(secondary)
-                            .font(.caption2)
-                            .foregroundStyle(DesignSystem.Colors.Text.tertiary)
-                            .lineLimit(1)
-                    }
-                }
+        return NolonUI.CodexCompactAccountRowView(
+            statusTone: compactStatusTone(
+                presentation: model.presentation,
+                badge: model.data.header.badge
+            ),
+            title: model.data.header.title,
+            secondaryText: compactSecondaryText(from: model.data.header),
+            planText: compactPlanText(from: model.data.header),
+            usageWindows: usageWindows.map {
+                .init(id: $0.id, title: $0.title, remainingPercent: $0.remainingPercent)
+            },
+            planColumnWidth: viewModel.codex.listPlanColumnWidth,
+            usageColumnWidth: viewModel.codex.listUsageColumnWidth,
+            isSelected: model.presentation == .selected,
+            menuActions: model.data.menuActions.map {
+                .init(
+                    id: $0.id,
+                    title: $0.title,
+                    systemImage: $0.systemImage,
+                    role: $0.role,
+                    isEnabled: $0.isEnabled
+                )
+            },
+            onMenuAction: { actionID in
+                guard let action = model.data.menuActions.first(where: { $0.id == actionID }) else { return }
+                accountsViewModel.codex.handleUsageCardAction(action.actionID, model: model)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-
-            Text(compactPlanText(from: model.data.header))
-                .font(.caption)
-                .foregroundStyle(DesignSystem.Colors.Text.secondary)
-                .lineLimit(1)
-                .frame(width: viewModel.codex.listPlanColumnWidth, alignment: .leading)
-
-            VStack(alignment: .leading, spacing: 6) {
-                ForEach(usageWindows) { window in
-                    HStack(spacing: 6) {
-                        Text(window.title)
-                            .font(.caption2)
-                            .foregroundStyle(DesignSystem.Colors.Text.tertiary)
-                            .frame(width: 46, alignment: .leading)
-                        compactUsageProgressBar(remainingPercent: window.remainingPercent)
-                    }
-                }
-            }
-            .frame(width: viewModel.codex.listUsageColumnWidth, alignment: .leading)
-
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 8)
-        .padding(.vertical, 10)
-        .background(compactRowBackgroundColor(presentation: model.presentation))
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .contentShape(Rectangle())
-        .contextMenu {
-            ForEach(model.data.menuActions) { action in
-                Button(role: action.role) {
-                    accountsViewModel.codex.handleUsageCardAction(action.actionID, model: model)
-                } label: {
-                    if let symbol = action.systemImage, !symbol.isEmpty {
-                        Label(action.title, systemImage: symbol)
-                    } else {
-                        Text(action.title)
-                    }
-                }
-                .disabled(!action.isEnabled)
-            }
-        }
-    }
-
-    private func compactRowBackgroundColor(presentation: AccountCardPresentation) -> Color {
-        switch presentation {
-        case .selected:
-            return DesignSystem.Colors.primary.opacity(0.12)
-        default:
-            return .clear
-        }
+        )
     }
 
     private var codexListTableHeader: some View {
-        HStack(spacing: 12) {
-            Text(NSLocalizedString("codex.accounts.list.header.account", value: "Account", comment: "Codex account list table account column"))
-                .frame(maxWidth: .infinity, alignment: .leading)
-            Text(NSLocalizedString("codex.accounts.list.header.plan", value: "Plan", comment: "Codex account list table plan column"))
-                .frame(width: viewModel.codex.listPlanColumnWidth, alignment: .leading)
-            Text(NSLocalizedString("codex.accounts.list.header.usage", value: "Usage", comment: "Codex account list table usage column"))
-                .frame(width: viewModel.codex.listUsageColumnWidth, alignment: .leading)
-        }
-        .font(.caption2.weight(.semibold))
-        .foregroundStyle(DesignSystem.Colors.Text.tertiary)
-        .padding(.vertical, 8)
+        NolonUI.CodexCompactAccountsTableHeaderView(
+            planColumnWidth: viewModel.codex.listPlanColumnWidth,
+            usageColumnWidth: viewModel.codex.listUsageColumnWidth
+        )
     }
 
     private func compactUsageWindows(from data: AccountCardViewData) -> [CodexListUsageWindow] {
@@ -1489,35 +1440,6 @@ extension ProviderUsageView {
             }
     }
 
-    private func compactUsageProgressBar(remainingPercent: Double) -> some View {
-        let normalized = max(0, min(100, remainingPercent.isInfinite ? 100 : remainingPercent))
-        let progress = normalized / 100
-        let color = compactQuotaColor(for: remainingPercent)
-        return HStack(spacing: 8) {
-            GeometryReader { proxy in
-                RoundedRectangle(cornerRadius: 4, style: .continuous)
-                    .fill(DesignSystem.Colors.Component.controlFill)
-                    .overlay(alignment: .leading) {
-                        RoundedRectangle(cornerRadius: 4, style: .continuous)
-                            .fill(color.opacity(0.22))
-                            .frame(width: proxy.size.width * progress)
-                    }
-            }
-            .frame(height: 8)
-
-            Text(remainingPercent.isInfinite ? "∞" : String(format: "%.0f%%", normalized))
-                .font(.caption2.weight(.bold))
-                .foregroundStyle(color)
-        }
-    }
-
-    private func compactQuotaColor(for remainingPercent: Double) -> Color {
-        if remainingPercent.isInfinite { return DesignSystem.Colors.Status.success }
-        if remainingPercent < 10 { return DesignSystem.Colors.Status.error }
-        if remainingPercent < 25 { return DesignSystem.Colors.Status.warning }
-        return DesignSystem.Colors.primary
-    }
-
     private func compactSecondaryText(from header: AccountSummaryCardHeaderModel) -> String? {
         let eyebrow = header.eyebrow?.trimmingCharacters(in: .whitespacesAndNewlines)
         let meta = header.meta?.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1544,27 +1466,27 @@ extension ProviderUsageView {
         return plan
     }
 
-    private func compactStatusColor(
+    private func compactStatusTone(
         presentation: AccountCardPresentation,
         badge: AccountSummaryCardBadgeModel?
-    ) -> Color {
+    ) -> NolonUI.CodexCompactStatusTone {
         if let badge {
             switch badge.tone {
             case .active:
-                return DesignSystem.Colors.primary
+                return .primary
             case .warning:
-                return DesignSystem.Colors.Status.warning
+                return .warning
             case .neutral:
-                return DesignSystem.Colors.Text.secondary
+                return .neutral
             }
         }
         switch presentation.selectionStyle {
         case .active, .selected:
-            return DesignSystem.Colors.primary
+            return .primary
         case .pending:
-            return DesignSystem.Colors.Status.warning
+            return .warning
         case .neutral:
-            return DesignSystem.Colors.Text.secondary
+            return .neutral
         }
     }
 
@@ -1601,7 +1523,7 @@ extension ProviderUsageView {
                     }
                 }
             } else {
-                LazyVGrid(columns: codexAccountColumns, alignment: .leading, spacing: 12) {
+                NolonUI.AdaptiveCardGrid(columns: codexAccountColumns) {
                     ForEach(0..<ProviderUsageSkeletonPolicy.genericCardCount(for: provider), id: \.self) { _ in
                         UnifiedAccountCardSkeleton(providerName: provider.name)
                     }
@@ -1914,47 +1836,33 @@ extension ProviderUsageView {
     }
 
     var gatewayCardPickerSheet: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(NSLocalizedString("codex.gateway.cards.picker.title", value: "选择目标网关卡片", comment: "Gateway card picker title"))
-                .font(.headline)
-            Text(
-                String(
+        NolonUI.GatewayCardPickerSheetView(
+            data: GatewayCardPickerSheetData(
+                title: NSLocalizedString("codex.gateway.cards.picker.title", value: "选择目标网关卡片", comment: "Gateway card picker title"),
+                subtitle: String(
                     format: NSLocalizedString(
                         "codex.gateway.cards.picker.selected_count",
                         value: "将加入 %d 个已选账号",
                         comment: "Gateway picker selected count"
                     ),
                     gatewayCardsViewModel.pendingGatewaySelectionAccountIDs.count
-                )
-            )
-            .font(.caption)
-            .foregroundStyle(DesignSystem.Colors.Text.secondary)
-
-            List(gatewayCardsViewModel.gatewayCards) { card in
-                Button {
-                    gatewayCardsViewModel.confirmAddPendingAccounts(to: card.id)
-                } label: {
-                    HStack {
-                        Text(card.name)
-                        Spacer(minLength: 0)
-                        Text("\(card.memberAccountIDs.count)")
-                            .font(.caption)
-                            .foregroundStyle(DesignSystem.Colors.Text.tertiary)
-                    }
-                }
-                .buttonStyle(.plain)
+                ),
+                items: gatewayCardsViewModel.gatewayCards.map { card in
+                    GatewayCardPickerItemData(
+                        id: card.id,
+                        title: card.name,
+                        countText: "\(card.memberAccountIDs.count)"
+                    )
+                },
+                cancelTitle: NSLocalizedString("cancel", value: "Cancel", comment: "Cancel")
+            ),
+            onSelect: { cardID in
+                gatewayCardsViewModel.confirmAddPendingAccounts(to: cardID)
+            },
+            onCancel: {
+                gatewayCardsViewModel.dismissGatewayCardPicker()
             }
-            .frame(minHeight: 200)
-
-            HStack {
-                Spacer(minLength: 0)
-                Button(NSLocalizedString("cancel", value: "Cancel", comment: "Cancel")) {
-                    gatewayCardsViewModel.dismissGatewayCardPicker()
-                }
-            }
-        }
-        .padding(16)
-        .frame(width: 360, height: 320)
+        )
     }
 
     func gatewayAccountSelectionSheet(cardID: UUID) -> some View {
@@ -1976,75 +1884,30 @@ extension ProviderUsageView {
             )
             .font(.headline)
 
-            if candidates.isEmpty {
-                ContentUnavailableView(
-                    NSLocalizedString(
-                        "codex.gateway.accounts.picker.empty.title",
-                        value: "没有可添加的账号",
-                        comment: "Gateway account picker empty title"
-                    ),
-                    systemImage: "person.crop.circle.badge.checkmark",
-                    description: Text(
-                        NSLocalizedString(
-                            "codex.gateway.accounts.picker.empty.desc",
-                            value: "当前所有账号都已在此网关卡片中。",
-                            comment: "Gateway account picker empty description"
-                        )
-                    )
-                )
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                List {
-                    ForEach(candidateSections) { section in
-                        Section {
-                            ForEach(section.items, id: \.id) { account in
+            NolonUI.ProviderEmptyStateScaffold(
+                isEmpty: candidates.isEmpty,
+                preset: .gatewayPickerEmpty
+            ) {
+                NolonUI.GatewayAccountCandidateListView(
+                    sections: candidateSections.map { section in
+                        GatewayAccountCandidateSectionData(
+                            id: section.id,
+                            title: section.title,
+                            iconName: gatewayCandidateSectionIcon(for: section.title),
+                            tone: gatewayCandidateSectionTone(for: section.title),
+                            items: section.items.map { account in
                                 let title = gatewayCandidateTitle(for: account)
                                 let subtitle = gatewayCandidateSubtitle(for: account, title: title)
-                                GenericSelectionControl(
-                                    value: IDBox(account.id),
-                                    selections: $gatewayAccountPickerSelection
-                                ) { isSelected in
-                                    HStack(spacing: 10) {
-                                        VStack(alignment: .leading, spacing: 2) {
-                                            Text(title)
-                                                .font(.body)
-                                                .foregroundStyle(DesignSystem.Colors.Text.primary)
-                                            if let subtitle, !subtitle.isEmpty {
-                                                Text(subtitle)
-                                                    .font(.caption)
-                                                    .foregroundStyle(DesignSystem.Colors.Text.tertiary)
-                                            }
-                                        }
-                                        Spacer(minLength: 0)
-                                        Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                                            .foregroundStyle(
-                                                isSelected
-                                                ? DesignSystem.Colors.primary
-                                                : DesignSystem.Colors.Text.tertiary
-                                            )
-                                    }
-                                    .contentShape(Rectangle())
-                                }
+                                return GatewayAccountCandidateItemData(
+                                    id: account.id,
+                                    title: title,
+                                    subtitle: subtitle
+                                )
                             }
-                        } header: {
-                            HStack(spacing: 6) {
-                                Label(section.title, systemImage: gatewayCandidateSectionIcon(for: section.title))
-                                    .font(.caption.weight(.semibold))
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 3)
-                                    .foregroundStyle(gatewayCandidateSectionForegroundColor(for: section.title))
-                                    .background(
-                                        gatewayCandidateSectionBackgroundColor(for: section.title),
-                                        in: Capsule(style: .continuous)
-                                    )
-                                Text("\(section.items.count)")
-                                    .font(.caption2)
-                                    .foregroundStyle(DesignSystem.Colors.Text.tertiary)
-                            }
-                        }
-                    }
-                }
-                .frame(minHeight: 220)
+                        )
+                    },
+                    selections: $gatewayAccountPickerSelection
+                )
             }
 
             HStack {
@@ -2119,21 +1982,17 @@ extension ProviderUsageView {
         }
     }
 
-    private func gatewayCandidateSectionForegroundColor(for title: String) -> Color {
+    private func gatewayCandidateSectionTone(for title: String) -> GatewayCandidateSectionTone {
         switch gatewayCandidateSectionKind(for: title) {
         case .relay:
-            return DesignSystem.Colors.Status.info
+            return .relay
         case .openAI:
-            return DesignSystem.Colors.primary
+            return .openAI
         case .premium:
-            return DesignSystem.Colors.Status.success
+            return .premium
         case .generic:
-            return DesignSystem.Colors.Text.secondary
+            return .generic
         }
-    }
-
-    private func gatewayCandidateSectionBackgroundColor(for title: String) -> Color {
-        gatewayCandidateSectionForegroundColor(for: title).opacity(0.14)
     }
 
     private func gatewayCandidateSubtitle(for account: CodexAuthAccount, title: String) -> String? {

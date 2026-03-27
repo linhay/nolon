@@ -6,6 +6,8 @@ import AppKit
 import UniformTypeIdentifiers
 import STFilePath
 import NolonResourceKit
+import NolonUI
+import NolonUIFoundation
 
 @MainActor
 @Observable
@@ -491,19 +493,17 @@ struct CodexBinaryConfigView: View {
     }
 
     var body: some View {
-        Group {
-            if !viewModel.isCodexProvider() {
-                ContentUnavailableView(
-                    NSLocalizedString("codex.binary.not_supported.title", value: "Not Supported", comment: "Not supported"),
-                    systemImage: "shippingbox",
-                    description: Text(NSLocalizedString("codex.binary.not_supported.desc", value: "Binary management is only available for Codex providers.", comment: "Not supported"))
-                )
-            } else if viewModel.isLoading {
-                ProgressView()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                content
-            }
+        NolonUI.CodexBinaryPageScaffold(
+            isSupported: viewModel.isCodexProvider(),
+            isLoading: viewModel.isLoading,
+            unsupportedTitle: NSLocalizedString("codex.binary.not_supported.title", value: "Not Supported", comment: "Not supported"),
+            unsupportedSystemImage: "shippingbox",
+            unsupportedDescription: NSLocalizedString("codex.binary.not_supported.desc", value: "Binary management is only available for Codex providers.", comment: "Not supported"),
+            checkingUpdatesText: viewModel.isCheckingUpdates
+                ? NSLocalizedString("codex.binary.update.checking", value: "Checking updates...", comment: "Update status")
+                : nil
+        ) {
+            content
         }
         .task {
             await viewModel.load()
@@ -512,185 +512,78 @@ struct CodexBinaryConfigView: View {
             guard case .success(let urls) = result, let url = urls.first else { return }
             Task { await viewModel.importLocalBinary(from: url) }
         }
-        .alert(
-            NSLocalizedString("codex.binary.error.title", value: "Binary Error", comment: "Binary error"),
-            isPresented: Binding(
-                get: { viewModel.errorMessage != nil },
-                set: { if !$0 { viewModel.errorMessage = nil } }
-            )
-        ) {
-            Button(NSLocalizedString("generic.ok", value: "OK", comment: "OK")) {
-                viewModel.errorMessage = nil
-            }
-        } message: {
-            Text(viewModel.errorMessage ?? "")
-        }
-        .overlay(alignment: .top) {
-            if viewModel.isCheckingUpdates {
-                HStack(spacing: 10) {
-                    ProgressView()
-                        .controlSize(.small)
-                    Text(NSLocalizedString("codex.binary.update.checking", value: "Checking updates...", comment: "Update status"))
-                        .font(.callout)
-                        .foregroundStyle(DesignSystem.Colors.Text.primary)
-                }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
-                .dsCard(
-                    background: DesignSystem.Colors.Background.elevated.opacity(0.94),
-                    cornerRadius: DesignSystem.Metrics.cornerRadiusM,
-                    borderColor: DesignSystem.Colors.Component.border.opacity(0.35)
-                )
-                .padding(.top, 12)
-                .transition(.opacity)
-                .allowsHitTesting(false)
-            }
-        }
+        .messageAlert(
+            title: NSLocalizedString("codex.binary.error.title", value: "Binary Error", comment: "Binary error"),
+            message: $viewModel.errorMessage
+        )
     }
 
     private var content: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                sectionHeader(
-                    NSLocalizedString("codex.binary.section.update_versions", value: "Versions", comment: "Merged versions section")
+        NolonUI.ProviderTabScrollScaffold {
+                NolonUI.CodexAdvancedSectionHeaderView(
+                    title: NSLocalizedString(
+                        "codex.binary.section.update_versions",
+                        value: "Versions",
+                        comment: "Merged versions section"
+                    )
                 )
                 mergedVersionSection
-            }
-            .padding()
         }
     }
 
     private var mergedVersionSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 8) {
-                Circle()
-                    .fill(viewModel.hasUpdateAvailable ? DesignSystem.Colors.Status.warning : DesignSystem.Colors.Status.success)
-                    .frame(width: 8, height: 8)
-                Text(viewModel.statusText())
-                    .font(.subheadline)
-                    .foregroundStyle(DesignSystem.Colors.Text.secondary)
-                Spacer(minLength: 0)
-                Text(NSLocalizedString("codex.binary.cli_version", value: "Current CLI", comment: "Current CLI version"))
-                    .font(.callout)
-                    .foregroundStyle(DesignSystem.Colors.Text.secondary)
-                Text(viewModel.currentCLIVersion)
-                    .font(.callout.monospaced())
-                    .foregroundStyle(DesignSystem.Colors.Text.primary)
+        NolonUI.CodexBinaryVersionsSectionView(
+            statusHeaderData: binaryStatusHeaderData,
+            actionBarData: actionBarData,
+            versionTableData: versionTableData,
+            onPrimaryAction: {
+                Task { await viewModel.runPrimaryAction() }
+            },
+            onCheckUpdates: {
+                Task { await viewModel.checkUpdates(force: true) }
+            },
+            onImportLocal: {
+                showingImporter = true
+            },
+            onOpenGitHub: {
+                viewModel.openGitHubReleases()
+            },
+            onToggleBeta: { enabled in
+                Task { await viewModel.setShowBetaVersions(enabled) }
+            },
+            onTapRow: { rowID in
+                handleVersionTableSelect(rowID: rowID)
+            },
+            onTapAction: { rowID in
+                handleVersionTableAction(rowID: rowID)
             }
-
-            if viewModel.isSyncingRemoteVersions || viewModel.remoteVersionSyncFailed {
-                HStack(spacing: 8) {
-                    if viewModel.isSyncingRemoteVersions {
-                        ProgressView()
-                            .controlSize(.small)
-                        Text(NSLocalizedString("codex.binary.update.checking", value: "Checking updates...", comment: "Update status"))
-                            .font(.footnote)
-                            .foregroundStyle(DesignSystem.Colors.Text.secondary)
-                    } else if viewModel.remoteVersionSyncFailed {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .foregroundStyle(DesignSystem.Colors.Status.warning)
-                        Text(NSLocalizedString("codex.binary.update.failed", value: "Update check failed", comment: "Update status"))
-                            .font(.footnote)
-                            .foregroundStyle(DesignSystem.Colors.Text.secondary)
-                    }
-                    Spacer(minLength: 0)
-                }
-            }
-
-            ViewThatFits(in: .horizontal) {
-                expandedActionRow
-                compactActionRow
-            }
-
-            versionTable
-        }
-        .padding(14)
-        .frame(maxWidth: .infinity, alignment: .topLeading)
-        .dsCard(
-            background: DesignSystem.Colors.Background.elevated,
-            cornerRadius: DesignSystem.Metrics.cornerRadiusM,
-            borderColor: DesignSystem.Colors.Component.border.opacity(0.35)
         )
     }
 
-    private func sectionHeader(_ title: String) -> some View {
-        Text(title)
-            .font(.headline)
-            .foregroundStyle(DesignSystem.Colors.Text.primary)
+    private var binaryStatusHeaderData: CodexBinaryStatusHeaderData {
+        CodexBinaryStatusHeaderData(
+            hasUpdateAvailable: viewModel.hasUpdateAvailable,
+            statusText: viewModel.statusText(),
+            currentCLITitle: NSLocalizedString("codex.binary.cli_version", value: "Current CLI", comment: "Current CLI version"),
+            currentCLIVersion: viewModel.currentCLIVersion,
+            isSyncingRemoteVersions: viewModel.isSyncingRemoteVersions,
+            remoteVersionSyncFailed: viewModel.remoteVersionSyncFailed,
+            syncingText: NSLocalizedString("codex.binary.update.checking", value: "Checking updates...", comment: "Update status"),
+            failedText: NSLocalizedString("codex.binary.update.failed", value: "Update check failed", comment: "Update status")
+        )
     }
 
-    private var expandedActionRow: some View {
-        HStack(spacing: 10) {
-            Button(viewModel.primaryActionTitle) {
-                Task { await viewModel.runPrimaryAction() }
-            }
-            .dsPrimaryButton()
-            .disabled(viewModel.isCheckingUpdates || viewModel.isDownloadingRemoteVersion)
-
-            Button(NSLocalizedString("codex.binary.import_local", value: "Import Local Binary", comment: "Import local")) {
-                showingImporter = true
-            }
-            .dsSecondaryButton()
-            .disabled(viewModel.isCheckingUpdates || viewModel.isDownloadingRemoteVersion)
-
-            Button(NSLocalizedString("codex.binary.github", value: "Open GitHub Releases", comment: "Open GitHub releases")) {
-                viewModel.openGitHubReleases()
-            }
-            .dsSecondaryButton()
-            .disabled(viewModel.isCheckingUpdates || viewModel.isDownloadingRemoteVersion)
-
-            Spacer(minLength: 0)
-            Toggle(
-                NSLocalizedString("codex.binary.beta.toggle", value: "Show beta versions", comment: "Show beta versions toggle"),
-                isOn: Binding(
-                    get: { viewModel.showBetaVersions },
-                    set: { enabled in
-                        Task { await viewModel.setShowBetaVersions(enabled) }
-                    }
-                )
-            )
-            .toggleStyle(.switch)
-        }
-    }
-
-    private var compactActionRow: some View {
-        HStack(spacing: 10) {
-            Button(viewModel.primaryActionTitle) {
-                Task { await viewModel.runPrimaryAction() }
-            }
-            .dsPrimaryButton()
-            .disabled(viewModel.isCheckingUpdates || viewModel.isDownloadingRemoteVersion)
-
-            Menu {
-                Button(NSLocalizedString("codex.binary.check_updates", value: "Check Updates", comment: "Check updates")) {
-                    Task { await viewModel.checkUpdates(force: true) }
-                }
-                Button(NSLocalizedString("codex.binary.import_local", value: "Import Local Binary", comment: "Import local")) {
-                    showingImporter = true
-                }
-                Button(NSLocalizedString("codex.binary.github", value: "Open GitHub Releases", comment: "Open GitHub releases")) {
-                    viewModel.openGitHubReleases()
-                }
-            } label: {
-                Label(
-                    NSLocalizedString("codex.binary.more_actions", value: "More", comment: "More actions"),
-                    systemImage: "ellipsis.circle"
-                )
-            }
-            .dsSecondaryButton()
-            .disabled(viewModel.isCheckingUpdates || viewModel.isDownloadingRemoteVersion)
-            Spacer(minLength: 0)
-            Toggle(
-                NSLocalizedString("codex.binary.beta.toggle", value: "Show beta versions", comment: "Show beta versions toggle"),
-                isOn: Binding(
-                    get: { viewModel.showBetaVersions },
-                    set: { enabled in
-                        Task { await viewModel.setShowBetaVersions(enabled) }
-                    }
-                )
-            )
-            .toggleStyle(.switch)
-        }
+    private var actionBarData: CodexBinaryActionBarData {
+        CodexBinaryActionBarData(
+            primaryActionTitle: viewModel.primaryActionTitle,
+            checkUpdatesTitle: NSLocalizedString("codex.binary.check_updates", value: "Check Updates", comment: "Check updates"),
+            importLocalTitle: NSLocalizedString("codex.binary.import_local", value: "Import Local Binary", comment: "Import local"),
+            openGitHubTitle: NSLocalizedString("codex.binary.github", value: "Open GitHub Releases", comment: "Open GitHub releases"),
+            moreActionsTitle: NSLocalizedString("codex.binary.more_actions", value: "More", comment: "More actions"),
+            showBetaTitle: NSLocalizedString("codex.binary.beta.toggle", value: "Show beta versions", comment: "Show beta versions toggle"),
+            isBusy: viewModel.isCheckingUpdates || viewModel.isDownloadingRemoteVersion,
+            showBetaEnabled: viewModel.showBetaVersions
+        )
     }
 
     private func formatByteProgress(completed: Int64, total: Int64) -> String {
@@ -717,137 +610,89 @@ struct CodexBinaryConfigView: View {
         )
     }
 
-    private var versionTable: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 10) {
-                Text(NSLocalizedString("codex.binary.table.name", value: "Name", comment: "Version table name"))
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                Text(NSLocalizedString("codex.binary.table.version", value: "Version", comment: "Version table version"))
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                Text(NSLocalizedString("codex.binary.table.source", value: "Source", comment: "Version table source"))
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                Text(NSLocalizedString("codex.binary.table.state", value: "State", comment: "Version table state"))
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                Text(NSLocalizedString("codex.binary.table.actions", value: "Actions", comment: "Version table actions"))
-                    .frame(width: 120, alignment: .trailing)
-            }
-            .font(.caption.weight(.semibold))
-            .foregroundStyle(DesignSystem.Colors.Text.secondary)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 8)
-
-            Divider()
-                .overlay(DesignSystem.Colors.Component.border.opacity(0.35))
-
-            ForEach(Array(viewModel.combinedVersionRows.enumerated()), id: \.element.id) { index, row in
-                let isLast = index == viewModel.combinedVersionRows.count - 1
-                switch row {
-                case .remote(let release):
-                    let isActiveDownload = viewModel.isDownloadingRemoteVersion && viewModel.activeRemoteDownloadTag == release.tag
-                    HStack(spacing: 10) {
-                        Text(String(
-                            format: NSLocalizedString("codex.binary.version.github", value: "Codex %@", comment: "GitHub version name"),
-                            release.version
-                        ))
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .foregroundStyle(DesignSystem.Colors.Text.primary)
-                        Text("v\(release.version)")
-                            .font(.callout.monospaced())
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .foregroundStyle(DesignSystem.Colors.Text.primary)
-                        Text(NSLocalizedString("codex.binary.source.github", value: "GitHub", comment: "GitHub source"))
-                            .font(.callout)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .foregroundStyle(DesignSystem.Colors.Text.secondary)
-                        Text(
-                            isActiveDownload
-                            ? NSLocalizedString("codex.binary.state.downloading", value: "Downloading", comment: "Downloading state")
-                            : NSLocalizedString("codex.binary.state.available", value: "Available", comment: "Available state")
-                        )
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .foregroundStyle(DesignSystem.Colors.Status.warning)
-                        if isActiveDownload {
-                            VStack(alignment: .trailing, spacing: 4) {
-                                if let progress = viewModel.remoteDownloadProgress,
-                                   let completed = progress.completedBytes,
-                                   let total = progress.totalBytes {
-                                    ProgressView(value: progress.fractionCompleted ?? 0)
-                                        .frame(width: 70, alignment: .trailing)
-                                    Text(formatByteProgress(completed: completed, total: total))
-                                        .font(.caption2.monospacedDigit())
-                                        .foregroundStyle(DesignSystem.Colors.Text.secondary)
-                                } else {
-                                    ProgressView()
-                                        .frame(width: 70, alignment: .trailing)
-                                    Text(NSLocalizedString("codex.binary.downloading", value: "Downloading…", comment: "Downloading label"))
-                                        .font(.caption2)
-                                        .foregroundStyle(DesignSystem.Colors.Text.secondary)
-                                }
-                            }
-                            .frame(width: 120, alignment: .trailing)
-                        } else {
-                            Button(NSLocalizedString("codex.binary.download", value: "Download", comment: "Download")) {
-                                Task { await viewModel.downloadRemoteRelease(release) }
-                            }
-                            .buttonStyle(.plain)
-                            .foregroundStyle(DesignSystem.Colors.primary)
-                            .disabled(viewModel.isDownloadingRemoteVersion)
-                            .frame(width: 120, alignment: .trailing)
-                        }
-                    }
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 8)
-                case .local(let version):
-                    HStack(spacing: 10) {
-                        Text(version.displayName)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .foregroundStyle(DesignSystem.Colors.Text.primary)
-                        Text("v\(version.detectedVersion)")
-                            .font(.callout.monospaced())
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .foregroundStyle(DesignSystem.Colors.Text.primary)
-                        Text(version.source)
-                            .font(.callout)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .foregroundStyle(DesignSystem.Colors.Text.secondary)
-                        Text(
-                            viewModel.manifest.selectedVersionId == version.id
-                            ? NSLocalizedString("codex.binary.active", value: "Active", comment: "Active")
-                            : NSLocalizedString("codex.binary.inactive", value: "Inactive", comment: "Inactive")
-                        )
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .foregroundStyle(
-                            viewModel.manifest.selectedVersionId == version.id
-                            ? DesignSystem.Colors.Status.success
-                            : DesignSystem.Colors.Text.secondary
-                        )
-                        Button(NSLocalizedString("generic.delete", value: "Delete", comment: "Delete")) {
-                            Task { await viewModel.remove(versionId: version.id) }
-                        }
-                        .buttonStyle(.plain)
-                        .foregroundStyle(DesignSystem.Colors.Status.error)
-                        .disabled(viewModel.manifest.selectedVersionId == version.id)
-                        .frame(width: 120, alignment: .trailing)
-                    }
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 8)
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        guard viewModel.manifest.selectedVersionId != version.id else { return }
-                        Task { await viewModel.activate(versionId: version.id) }
-                    }
+    private var versionTableData: CodexBinaryVersionTableData {
+        let rows = viewModel.combinedVersionRows.map { row in
+            switch row {
+            case .remote(let release):
+                let isActiveDownload = viewModel.isDownloadingRemoteVersion && viewModel.activeRemoteDownloadTag == release.tag
+                let progressFraction = isActiveDownload ? viewModel.remoteDownloadProgress?.fractionCompleted : nil
+                let progressText: String?
+                if isActiveDownload,
+                   let progress = viewModel.remoteDownloadProgress,
+                   let completed = progress.completedBytes,
+                   let total = progress.totalBytes {
+                    progressText = formatByteProgress(completed: completed, total: total)
+                } else {
+                    progressText = nil
                 }
-
-                if !isLast {
-                    Divider()
-                        .overlay(DesignSystem.Colors.Component.border.opacity(0.28))
-                }
+                return CodexBinaryVersionRowData(
+                    id: row.id,
+                    kind: .remote,
+                    nameText: String(
+                        format: NSLocalizedString("codex.binary.version.github", value: "Codex %@", comment: "GitHub version name"),
+                        release.version
+                    ),
+                    versionText: "v\(release.version)",
+                    sourceText: NSLocalizedString("codex.binary.source.github", value: "GitHub", comment: "GitHub source"),
+                    stateText: isActiveDownload
+                        ? NSLocalizedString("codex.binary.state.downloading", value: "Downloading", comment: "Downloading state")
+                        : NSLocalizedString("codex.binary.state.available", value: "Available", comment: "Available state"),
+                    stateTone: .warning,
+                    actionTitle: isActiveDownload ? nil : NSLocalizedString("codex.binary.download", value: "Download", comment: "Download"),
+                    actionEnabled: !viewModel.isDownloadingRemoteVersion,
+                    isActionInProgress: isActiveDownload,
+                    progressFraction: progressFraction,
+                    progressText: progressText,
+                    inProgressFallbackText: NSLocalizedString("codex.binary.downloading", value: "Downloading…", comment: "Downloading label"),
+                    isSelectable: false
+                )
+            case .local(let version):
+                let isActive = viewModel.manifest.selectedVersionId == version.id
+                return CodexBinaryVersionRowData(
+                    id: row.id,
+                    kind: .local,
+                    nameText: version.displayName,
+                    versionText: "v\(version.detectedVersion)",
+                    sourceText: version.source,
+                    stateText: isActive
+                        ? NSLocalizedString("codex.binary.active", value: "Active", comment: "Active")
+                        : NSLocalizedString("codex.binary.inactive", value: "Inactive", comment: "Inactive"),
+                    stateTone: isActive ? .success : .secondary,
+                    actionTitle: NSLocalizedString("generic.delete", value: "Delete", comment: "Delete"),
+                    actionEnabled: !isActive,
+                    isActionInProgress: false,
+                    progressFraction: nil,
+                    progressText: nil,
+                    inProgressFallbackText: nil,
+                    isSelectable: !isActive
+                )
             }
         }
-        .dsCard(
-            background: DesignSystem.Colors.Background.surface.opacity(0.38),
-            cornerRadius: DesignSystem.Metrics.cornerRadiusS,
-            borderColor: DesignSystem.Colors.Component.border.opacity(0.22)
+
+        return CodexBinaryVersionTableData(
+            nameTitle: NSLocalizedString("codex.binary.table.name", value: "Name", comment: "Version table name"),
+            versionTitle: NSLocalizedString("codex.binary.table.version", value: "Version", comment: "Version table version"),
+            sourceTitle: NSLocalizedString("codex.binary.table.source", value: "Source", comment: "Version table source"),
+            stateTitle: NSLocalizedString("codex.binary.table.state", value: "State", comment: "Version table state"),
+            actionsTitle: NSLocalizedString("codex.binary.table.actions", value: "Actions", comment: "Version table actions"),
+            rows: rows
         )
+    }
+
+    private func handleVersionTableSelect(rowID: String) {
+        guard let row = viewModel.combinedVersionRows.first(where: { $0.id == rowID }) else { return }
+        guard case .local(let version) = row else { return }
+        guard viewModel.manifest.selectedVersionId != version.id else { return }
+        Task { await viewModel.activate(versionId: version.id) }
+    }
+
+    private func handleVersionTableAction(rowID: String) {
+        guard let row = viewModel.combinedVersionRows.first(where: { $0.id == rowID }) else { return }
+        switch row {
+        case .remote(let release):
+            Task { await viewModel.downloadRemoteRelease(release) }
+        case .local(let version):
+            Task { await viewModel.remove(versionId: version.id) }
+        }
     }
 }

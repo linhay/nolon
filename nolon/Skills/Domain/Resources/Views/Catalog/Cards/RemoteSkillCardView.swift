@@ -3,6 +3,7 @@ import ProviderCatalog
 import AppKit
 import NolonResourceKit
 import NolonUI
+import NolonUIFoundation
 
 /// 资源中心技能卡片视图 - Grid 布局中的卡片
 struct RemoteSkillCardView: View, DebugPageLocatable {
@@ -59,22 +60,22 @@ struct RemoteSkillCardView: View, DebugPageLocatable {
             }
         } extraContextMenu: {
             Divider()
-            Button {
-                ResourceCardCopySupport.copyTitle(skill.displayName)
-            } label: {
-                Label(
-                    NSLocalizedString("resource.card.copy_title", value: "Copy Title", comment: "Copy resource title"),
-                    systemImage: "doc.on.doc"
-                )
+            ResourceCopyTitleMenuItem(titleToCopy: skill.displayName) { title in
+                ResourceCardCopySupport.copyTitle(title)
             }
             debugPageMarkerMenuItem(debugPageMarkerItems)
         }
         .textSelection(.disabled)
         .debugCardLocator(debugPageMarkerItems)
-        .sheet(isPresented: $showingInstallSheet) {
-            SkillInstallSheet(providers: providers, skillName: skill.displayName) { provider in
-                onInstall(provider)
+        .installProviderSelectionSheet(
+            isPresented: $showingInstallSheet,
+            itemName: skill.displayName,
+            providers: providerOptions
+        ) { providerID in
+            guard let provider = providers.first(where: { $0.id == providerID }) else {
+                return
             }
+            onInstall(provider)
         }
     }
     
@@ -91,7 +92,7 @@ struct RemoteSkillCardView: View, DebugPageLocatable {
     }
 
     private var mappedMetaItems: [NolonUI.ResourceCardMetaItem] {
-        NolonUIAdapter.resourceMetaItems(ResourceCardMetaBuilder.skillItems(skill))
+        ResourceCardMetaBuilder.skillItems(skill)
     }
 
     private var revealInFinderAction: (() -> Void)? {
@@ -122,5 +123,15 @@ struct RemoteSkillCardView: View, DebugPageLocatable {
         }
 
         return candidates.first(where: { FileManager.default.fileExists(atPath: $0.path) })
+    }
+
+    private var providerOptions: [SkillInstallProviderOption] {
+        providers.map { provider in
+            SkillInstallProviderOption(
+                id: provider.id,
+                name: provider.name,
+                iconName: provider.iconName
+            )
+        }
     }
 }

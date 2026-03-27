@@ -85,23 +85,20 @@ public struct SkillDetailWindowRootView: View {
     public init() {}
 
     public var body: some View {
-        Group {
+        NolonUI.WindowEmptyStateScaffold.skillDetailEmptyState(
+            hasContent: coordinator.payload != nil,
+            minWidth: 900,
+            minHeight: 600
+        ) {
             switch coordinator.payload {
             case .local(let payload):
                 LocalSkillDetailWindowScene(payload: payload, onClose: closeWindow)
             case .remote(let payload):
                 RemoteSkillDetailWindowScene(payload: payload, onClose: closeWindow)
             case .none:
-                ContentUnavailableView(
-                    NSLocalizedString("detail.skill.empty.title", value: "No Skill Selected", comment: "Skill detail empty title"),
-                    systemImage: "doc.text.magnifyingglass",
-                    description: Text(
-                        NSLocalizedString("detail.skill.empty.desc", value: "Select a skill to view details.", comment: "Skill detail empty description")
-                    )
-                )
+                EmptyView()
             }
         }
-        .frame(minWidth: 900, minHeight: 600)
     }
 
     private func closeWindow() {

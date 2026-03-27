@@ -724,7 +724,13 @@ public struct MainSplitView: View, DebugPageLocatable {
                 )
             } content: {
                 if viewModel.isPluginManagementSelected {
-                    PluginManagementNavigationView()
+                    NolonUI.PluginManagementNavigationView(
+                        data: .init(
+                            itemTitle: NSLocalizedString("plugins.navigation.title", value: "Plugin Management", comment: "Plugin management navigation title"),
+                            itemSystemImage: "puzzlepiece.extension",
+                            groupTitle: NSLocalizedString("plugins.navigation.group", value: "Plugins", comment: "Plugins navigation group title")
+                        )
+                    )
                 } else {
                     ProviderContentTabView(
                         provider: viewModel.selectedProvider,
@@ -815,7 +821,7 @@ public struct MainSplitView: View, DebugPageLocatable {
         }
     }
 
-    private func presentResourceCenterWindow(selectedTab: ResourceContentTabType) {
+    private func presentResourceCenterWindow(selectedTab: ResourceCenterTabID) {
         ResourceCenterWindowCoordinator.shared.present(
             payload: .init(
                 settings: viewModel.settings,
@@ -859,21 +865,6 @@ public struct MainSplitView: View, DebugPageLocatable {
         openWindow(id: ResourceCenterWindowCoordinator.windowID)
     }
 
-}
-
-private struct PluginManagementNavigationView: View {
-    var body: some View {
-        List {
-            Label(
-                NSLocalizedString("plugins.navigation.title", value: "Plugin Management", comment: "Plugin management navigation title"),
-                systemImage: "puzzlepiece.extension"
-            )
-        }
-        .listStyle(.sidebar)
-        .navigationTitle(
-            NSLocalizedString("plugins.navigation.group", value: "Plugins", comment: "Plugins navigation group title")
-        )
-    }
 }
 
 #Preview {

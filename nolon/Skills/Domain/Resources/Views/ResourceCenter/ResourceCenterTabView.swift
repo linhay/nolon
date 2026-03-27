@@ -1,36 +1,13 @@
 import SwiftUI
 import ProviderCatalog
 import NolonResourceKit
-
-/// 资源中心内容 Tab 类型 - 可扩展设计
-enum ResourceContentTabType: String, CaseIterable, Identifiable {
-    case skills = "Skills"
-    case workflows = "Workflows"
-    case mcps = "MCPs"
-    
-    var id: String { rawValue }
-    
-    var icon: String {
-        switch self {
-        case .skills: return "square.grid.2x2"
-        case .workflows: return "arrow.triangle.branch"
-        case .mcps: return "server.rack"
-        }
-    }
-    
-    var localizedName: String {
-        switch self {
-        case .skills: return NSLocalizedString("tab.skills", comment: "Skills")
-        case .workflows: return NSLocalizedString("tab.workflows", comment: "Workflows")
-        case .mcps: return NSLocalizedString("tab.mcps", comment: "MCPs")
-        }
-    }
-}
+import NolonUI
+import NolonUIFoundation
 
 /// 中间栏 - 资源中心内容导航列表 (类似 ProviderContentTabView)
 struct ResourceCenterTabView: View, DebugPageLocatable {
     let repository: RemoteRepository?
-    @Binding var selectedTab: ResourceContentTabType?
+    @Binding var selectedTab: ResourceCenterTabID?
     var refreshTrigger: Int
     
     @State private var viewModel = ResourceCenterTabViewModel()
@@ -38,7 +15,7 @@ struct ResourceCenterTabView: View, DebugPageLocatable {
 
     init(
         repository: RemoteRepository?,
-        selectedTab: Binding<ResourceContentTabType?>,
+        selectedTab: Binding<ResourceCenterTabID?>,
         refreshTrigger: Int
     ) {
         self.repository = repository
@@ -57,15 +34,11 @@ struct ResourceCenterTabView: View, DebugPageLocatable {
     var body: some View {
         let repoSyncToken = watchCenter.token(for: repository)
         let cacheBuster = "\(refreshTrigger)-\(repoSyncToken)"
-        ResourceCenterSidebar(
-            title: repository?.name ?? NSLocalizedString("resource.center.title", value: "Resource Center", comment: "Resource center title"),
+        NolonUI.ResourceCenterSidebarComponent(
+            title: repository?.name,
             selectedTab: $selectedTab,
-            tabCounts: [
-                .skills: viewModel.skillsCount,
-                .workflows: viewModel.workflowsCount,
-                .mcps: viewModel.mcpsCount
-            ],
-            hasRepository: repository != nil
+            items: sidebarItems,
+            showsEmptyState: repository == nil
         )
         .onAppear {
             if selectedTab == nil {
@@ -82,5 +55,15 @@ struct ResourceCenterTabView: View, DebugPageLocatable {
             EmptyView()
         }
         .debugPageLocator(debugPageMarkerItems)
+    }
+
+    private var sidebarItems: [ResourceCenterTabItem] {
+        ResourceCenterTabItem.defaults(
+            counts: [
+                .skills: viewModel.skillsCount,
+                .workflows: viewModel.workflowsCount,
+                .mcps: viewModel.mcpsCount
+            ]
+        )
     }
 }

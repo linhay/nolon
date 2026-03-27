@@ -97,7 +97,7 @@ final class PageMarkerRouteResolverTests: XCTestCase {
 
         XCTAssertEqual(items.map(\.title), [
             NSLocalizedString("resource.center.title", value: "Resource Center", comment: "Resource center title"),
-            ResourceContentTabType.mcps.localizedName
+            ResourceCenterTabID.mcps.localizedName
         ])
     }
 

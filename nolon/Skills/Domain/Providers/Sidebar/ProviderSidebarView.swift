@@ -14,6 +14,31 @@ final class ProviderSidebarViewModel {
 
     var settings: ProviderSettings
 
+    var sidebarSections: [SidebarSection] {
+        SidebarSectionBuilder.buildSections(
+            providers: settings.providers.map { provider in
+                SidebarProviderInput(
+                    id: provider.id,
+                    kind: provider.kind == .vendor ? .vendor : .project,
+                    vendorCategory: {
+                        switch provider.vendorCategory {
+                        case .original:
+                            return .original
+                        case .integrated:
+                            return .integrated
+                        case nil:
+                            return nil
+                        }
+                    }(),
+                    name: provider.displayName,
+                    subtitle: provider.defaultSkillsPath,
+                    iconName: provider.iconName,
+                    hasDocumentation: provider.documentationURL != nil
+                )
+            }
+        )
+    }
+
     init(settings: ProviderSettings) {
         self.settings = settings
     }
@@ -21,11 +46,11 @@ final class ProviderSidebarViewModel {
     @MainActor
     func deleteProvider(_ provider: Provider, currentSelectionKey: Binding<String?>) {
         settings.removeProvider(provider)
-        if currentSelectionKey.wrappedValue == ProviderSidebarAdapter.providerSelectionKey(provider.id) {
+        if currentSelectionKey.wrappedValue == SidebarSelectionKey.provider(provider.id).rawValue {
             if let firstProvider = settings.providers.first {
-                currentSelectionKey.wrappedValue = ProviderSidebarAdapter.providerSelectionKey(firstProvider.id)
+                currentSelectionKey.wrappedValue = SidebarSelectionKey.provider(firstProvider.id).rawValue
             } else {
-                currentSelectionKey.wrappedValue = ProviderSidebarAdapter.accountsSelectionKey
+                currentSelectionKey.wrappedValue = SidebarSelectionKey.accounts.rawValue
             }
         }
     }
@@ -67,9 +92,9 @@ final class ProviderSidebarViewModel {
     func selectFirstProviderIfNone(selectionKey: Binding<String?>) {
         if selectionKey.wrappedValue == nil {
             if let firstProvider = settings.providers.first {
-                selectionKey.wrappedValue = ProviderSidebarAdapter.providerSelectionKey(firstProvider.id)
+                selectionKey.wrappedValue = SidebarSelectionKey.provider(firstProvider.id).rawValue
             } else {
-                selectionKey.wrappedValue = ProviderSidebarAdapter.accountsSelectionKey
+                selectionKey.wrappedValue = SidebarSelectionKey.accounts.rawValue
             }
         }
     }
@@ -98,10 +123,6 @@ public struct ProviderSidebarView: View, DebugPageLocatable {
     @State private var viewModel: ProviderSidebarViewModel
     @State private var showingAddSheet = false
     @State private var commandState = AppCommandState.shared
-
-    private var sidebarSections: [SidebarSection] {
-        ProviderSidebarAdapter.sections(from: settings.providers)
-    }
 
     public init(
         selectedItemKey: Binding<String?>,
@@ -138,7 +159,7 @@ public struct ProviderSidebarView: View, DebugPageLocatable {
     public var body: some View {
         ProviderSidebarComponent(
             selectedItemKey: $selectedItemKey,
-            sections: sidebarSections,
+            sections: viewModel.sidebarSections,
             providerDebugLocatorText: { item in
                 providerDebugLocatorText(for: item)
             },

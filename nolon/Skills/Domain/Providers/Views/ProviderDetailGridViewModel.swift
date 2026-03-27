@@ -4,6 +4,7 @@ import Observation
 import STJSON
 import STFilePath
 import NolonResourceKit
+import NolonUIFoundation
 
 /// Detail 区域 Grid 视图的 ViewModel
 @MainActor
@@ -17,15 +18,15 @@ final class ProviderDetailGridViewModel {
     var selectedSkillForDetail: Skill?
     
     // Workflows
-    var workflows: [WorkflowInfo] = []
-    var selectedWorkflowForDetail: WorkflowInfo?
+    var workflows: [NolonUIFoundation.WorkflowInfo] = []
+    var selectedWorkflowForDetail: NolonUIFoundation.WorkflowInfo?
     var workflowIds: Set<String> = []
     
     // Rules
-    var rules: [RuleInfo] = []
+    var rules: [NolonUIFoundation.RuleInfo] = []
     
     // AGENTS.md docs
-    var agentsFiles: [AgentDocInfo] = []
+    var agentsFiles: [NolonUIFoundation.AgentDocInfo] = []
 
     // MCPs
     var mcps: [MCP] = []
@@ -118,19 +119,30 @@ final class ProviderDetailGridViewModel {
         let snapshot = snapshotService.load(provider: provider)
         let mapped = resourceViewMapper.map(snapshot: snapshot)
         workflows = mapped.workflows.map {
-            WorkflowInfo(
+            let source: NolonUIFoundation.WorkflowSource
+            switch $0.source {
+            case .skill:
+                source = .skill
+            case .user:
+                source = .user
+            case .mcp:
+                source = .mcp
+            case .unknown:
+                source = .unknown
+            }
+            NolonUIFoundation.WorkflowInfo(
                 id: $0.id,
                 name: $0.name,
                 description: $0.description,
                 path: $0.path,
-                source: WorkflowSource(kind: $0.source)
+                source: source
             )
         }
         workflowIds = Set(workflows.filter { $0.source == .skill }.map(\.id))
         mcpWorkflowIds = Set(workflows.filter { $0.source == .mcp }.map(\.id))
 
         rules = mapped.rules.map {
-            RuleInfo(
+            NolonUIFoundation.RuleInfo(
                 id: $0.id,
                 name: $0.name,
                 preview: $0.preview,
@@ -140,12 +152,14 @@ final class ProviderDetailGridViewModel {
         }
 
         agentsFiles = mapped.agents.map { item in
-            let kind: AgentDocKind
+            let kind: NolonUIFoundation.AgentDocKind
             switch item.kind {
-            case .override: kind = .override
-            case .base: kind = .base
+            case .override:
+                kind = .override
+            case .base:
+                kind = .base
             }
-            return AgentDocInfo(
+            return NolonUIFoundation.AgentDocInfo(
                 id: item.path,
                 fileName: item.fileName,
                 path: item.path,
@@ -238,15 +252,15 @@ final class ProviderDetailGridViewModel {
         filtered(installedSkills, searchIn: \.name, \.description)
     }
     
-    var filteredWorkflows: [WorkflowInfo] {
+    var filteredWorkflows: [NolonUIFoundation.WorkflowInfo] {
         filtered(workflows, searchIn: \.name, \.description)
     }
     
-    var filteredRules: [RuleInfo] {
+    var filteredRules: [NolonUIFoundation.RuleInfo] {
         filtered(rules, searchIn: \.name, \.preview, \.relativePath)
     }
     
-    var filteredAgentsFiles: [AgentDocInfo] {
+    var filteredAgentsFiles: [NolonUIFoundation.AgentDocInfo] {
         filtered(agentsFiles, searchIn: \.fileName, \.preview)
     }
     
@@ -585,15 +599,15 @@ final class ProviderDetailGridViewModel {
         }
     }
     
-    func revealWorkflowInFinder(_ workflow: WorkflowInfo) {
+    func revealWorkflowInFinder(_ workflow: NolonUIFoundation.WorkflowInfo) {
         NSWorkspace.shared.selectFile(workflow.path, inFileViewerRootedAtPath: "")
     }
     
-    func revealRuleInFinder(_ rule: RuleInfo) {
+    func revealRuleInFinder(_ rule: NolonUIFoundation.RuleInfo) {
         NSWorkspace.shared.selectFile(rule.path, inFileViewerRootedAtPath: "")
     }
     
-    func deleteWorkflow(_ workflow: WorkflowInfo) async {
+    func deleteWorkflow(_ workflow: NolonUIFoundation.WorkflowInfo) async {
         guard let provider = provider else { return }
         do {
             try resourceService.deleteWorkflow(workflowID: workflow.id, provider: provider)
@@ -604,7 +618,7 @@ final class ProviderDetailGridViewModel {
         applyResourceSnapshot(for: provider)
     }
     
-    func deleteRule(_ rule: RuleInfo) async {
+    func deleteRule(_ rule: NolonUIFoundation.RuleInfo) async {
         guard let provider else { return }
         do {
             try resourceService.deleteResource(atPath: rule.path)
@@ -615,11 +629,11 @@ final class ProviderDetailGridViewModel {
         applyResourceSnapshot(for: provider)
     }
 
-    func revealAgentDocInFinder(_ doc: AgentDocInfo) {
+    func revealAgentDocInFinder(_ doc: NolonUIFoundation.AgentDocInfo) {
         NSWorkspace.shared.selectFile(doc.path, inFileViewerRootedAtPath: "")
     }
 
-    func deleteAgentDoc(_ doc: AgentDocInfo) async {
+    func deleteAgentDoc(_ doc: NolonUIFoundation.AgentDocInfo) async {
         guard let provider else { return }
         do {
             try resourceService.deleteResource(atPath: doc.path)

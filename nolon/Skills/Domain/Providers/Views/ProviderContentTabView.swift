@@ -7,6 +7,7 @@ import OSLog
 import NolonResourceKit
 import SKProcessRunner
 import NolonUI
+import NolonUIFoundation
 
 private let terminalLogger = Logger(subsystem: "com.nolon", category: "TerminalDetection")
 private let codexConfigDocsURL = "https://developers.openai.com/codex/config-basic"
@@ -407,6 +408,12 @@ struct ProviderContentTabView: View, DebugPageLocatable {
         }
     }
 
+    private var terminalMenuOptions: [CLITerminalMenuOption] {
+        viewModel.terminalApps.map { app in
+            CLITerminalMenuOption(id: app.id, title: app.displayName)
+        }
+    }
+
     nonisolated static func shouldShowSidebarComponent(provider: Provider?) -> Bool {
         provider != nil
     }
@@ -426,12 +433,6 @@ struct ProviderContentTabView: View, DebugPageLocatable {
                     selectedTab: $selectedTab,
                     hasProviderSelection: true,
                     items: sidebarItems,
-                    emptyTitle: NSLocalizedString("content.no_provider", comment: "Select a Provider"),
-                    emptyDescription: NSLocalizedString(
-                        "content.no_provider_desc",
-                        comment: "Choose a provider from the sidebar"
-                    ),
-                    emptySystemImage: "sidebar.left",
                     onTapTrailingAccessory: { tab in
                         if showsDocumentationButton(for: tab) {
                             openAdvancedDocs()
@@ -473,35 +474,19 @@ struct ProviderContentTabView: View, DebugPageLocatable {
         .toolbar {
             if let provider, viewModel.isCodexProvider(provider) {
                 ToolbarItem(placement: .primaryAction) {
-                    Menu {
-                        ForEach(viewModel.terminalApps) { app in
-                            Button(app.displayName) {
-                                Task { await viewModel.openCLIInTerminal(for: provider, app: app) }
-                            }
-                        }
-                    } label: {
-                        Label(
-                            NSLocalizedString("provider.cli.open", value: "Open CLI", comment: "Open CLI"),
-                            systemImage: "terminal"
-                        )
+                    NolonUI.CLITerminalMenuButton(
+                        options: terminalMenuOptions
+                    ) { option in
+                        guard let app = viewModel.terminalApps.first(where: { $0.id == option.id }) else { return }
+                        Task { await viewModel.openCLIInTerminal(for: provider, app: app) }
                     }
-                    .disabled(viewModel.terminalApps.isEmpty)
                 }
             }
         }
-        .alert(
-            NSLocalizedString("provider.cli.error.title", value: "CLI Error", comment: "CLI error"),
-            isPresented: Binding(
-                get: { viewModel.terminalErrorMessage != nil },
-                set: { if !$0 { viewModel.terminalErrorMessage = nil } }
-            )
-        ) {
-            Button(NSLocalizedString("generic.ok", value: "OK", comment: "OK")) {
-                viewModel.terminalErrorMessage = nil
-            }
-        } message: {
-            Text(viewModel.terminalErrorMessage ?? "")
-        }
+        .messageAlert(
+            title: NSLocalizedString("provider.cli.error.title", value: "CLI Error", comment: "CLI error"),
+            message: $viewModel.terminalErrorMessage
+        )
         .debugPageMarkerContextMenu(debugPageMarkerItems, withDivider: false) {
             EmptyView()
         }

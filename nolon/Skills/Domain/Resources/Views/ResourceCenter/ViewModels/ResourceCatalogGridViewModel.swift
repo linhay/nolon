@@ -56,7 +56,7 @@ final class ResourceCatalogGridViewModel {
         self.itemMapper = itemMapper
     }
 
-    private func mapKind(_ tab: ResourceContentTabType) -> SkillsRepositoryFacade.RemoteCatalogKind {
+    private func mapKind(_ tab: ResourceCenterTabID) -> SkillsRepositoryFacade.RemoteCatalogKind {
         switch tab {
         case .skills:
             return .skill
@@ -115,7 +115,7 @@ final class ResourceCatalogGridViewModel {
         return skill
     }
     
-    func loadContent(for repository: RemoteRepository?, tab: ResourceContentTabType?, searchQuery: String, cacheBuster: String) async {
+    func loadContent(for repository: RemoteRepository?, tab: ResourceCenterTabID?, searchQuery: String, cacheBuster: String) async {
         guard let repository = repository, let tab = tab else {
             skills = []
             workflows = []
@@ -245,7 +245,7 @@ final class ResourceCatalogGridViewModel {
         }
     }
 
-    func loadMore(repository: RemoteRepository?, tab: ResourceContentTabType?, searchQuery: String) async {
+    func loadMore(repository: RemoteRepository?, tab: ResourceCenterTabID?, searchQuery: String) async {
         guard let repository = repository, let tab = tab else { return }
         guard repository.templateType == .clawdhub else { return }
 
@@ -336,7 +336,7 @@ final class ResourceCatalogGridViewModel {
         }
     }
 
-    private func applyCached(_ cached: RemoteCatalogPageEntry, for tab: ResourceContentTabType) {
+    private func applyCached(_ cached: RemoteCatalogPageEntry, for tab: ResourceCenterTabID) {
         switch tab {
         case .skills:
             skills = cached.items.map { itemMapper.toRemoteSkill($0) }

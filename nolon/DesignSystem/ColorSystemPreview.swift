@@ -1,4 +1,5 @@
 import SwiftUI
+import NolonUI
 
 struct ColorSystemPreview: View {
     let colors: [(String, Color)] = [
@@ -18,8 +19,11 @@ struct ColorSystemPreview: View {
     ]
 
     var body: some View {
-        ScrollView {
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 120))], spacing: 20) {
+        NolonUI.PaddedScrollContainer {
+            NolonUI.AdaptiveCardGrid(
+                columns: [GridItem(.adaptive(minimum: 120))],
+                spacing: 20
+            ) {
                 ForEach(colors, id: \.0) { name, color in
                     VStack {
                         RoundedRectangle(cornerRadius: 12)
@@ -37,7 +41,6 @@ struct ColorSystemPreview: View {
                     }
                 }
             }
-            .padding()
         }
         .background(DesignSystem.Colors.Background.canvas)
         .navigationTitle("Design System Colors")

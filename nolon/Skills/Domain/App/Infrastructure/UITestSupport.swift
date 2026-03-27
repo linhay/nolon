@@ -35,7 +35,7 @@ enum UITestSupport {
         return raw
     }
 
-    static var initialResourceTab: ResourceContentTabType? {
+    static var initialResourceTab: ResourceCenterTabID? {
         guard let raw = environment["NOLON_UI_TEST_RESOURCE_TAB"]?
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased() else {

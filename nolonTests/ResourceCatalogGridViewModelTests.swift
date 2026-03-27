@@ -23,7 +23,7 @@ final class ResourceCatalogGridViewModelTests: XCTestCase {
 
         await viewModel.loadContent(
             for: repository,
-            tab: ResourceContentTabType.mcps,
+            tab: ResourceCenterTabID.mcps,
             searchQuery: "",
             cacheBuster: "v1"
         )
@@ -48,11 +48,11 @@ final class ResourceCatalogGridViewModelTests: XCTestCase {
         let viewModel = ResourceCatalogGridViewModel(queryService: service)
         let repository = Self.makeClawdhubRepository()
 
-        await viewModel.loadContent(for: repository, tab: ResourceContentTabType.skills, searchQuery: "", cacheBuster: "v1")
+        await viewModel.loadContent(for: repository, tab: ResourceCenterTabID.skills, searchQuery: "", cacheBuster: "v1")
         XCTAssertEqual(viewModel.skills.count, 1)
         XCTAssertTrue(viewModel.canLoadMore)
 
-        await viewModel.loadContent(for: repository, tab: ResourceContentTabType.skills, searchQuery: "", cacheBuster: "v2")
+        await viewModel.loadContent(for: repository, tab: ResourceCenterTabID.skills, searchQuery: "", cacheBuster: "v2")
 
         XCTAssertEqual(viewModel.skills.count, 1)
         XCTAssertEqual(viewModel.skills.first?.slug, "skill-a")
@@ -76,11 +76,11 @@ final class ResourceCatalogGridViewModelTests: XCTestCase {
         let viewModel = ResourceCatalogGridViewModel(queryService: service)
         let repository = Self.makeClawdhubRepository()
 
-        await viewModel.loadContent(for: repository, tab: ResourceContentTabType.skills, searchQuery: "", cacheBuster: "v1")
+        await viewModel.loadContent(for: repository, tab: ResourceCenterTabID.skills, searchQuery: "", cacheBuster: "v1")
         XCTAssertNil(viewModel.errorMessage)
         XCTAssertTrue(viewModel.canLoadMore)
 
-        await viewModel.loadMore(repository: repository, tab: ResourceContentTabType.skills, searchQuery: "")
+        await viewModel.loadMore(repository: repository, tab: ResourceCenterTabID.skills, searchQuery: "")
 
         XCTAssertEqual(viewModel.skills.count, 1)
         XCTAssertNil(viewModel.errorMessage)

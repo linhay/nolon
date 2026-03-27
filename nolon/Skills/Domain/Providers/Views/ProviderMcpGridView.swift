@@ -1,4 +1,7 @@
 import SwiftUI
+internal import AnyCodable
+import NolonUI
+import NolonUIFoundation
 import ProviderCatalog
 import STFilePath
 import NolonResourceKit
@@ -10,234 +13,199 @@ struct ProviderMcpGridView: View {
     let markerBaseItems: [PageMarkerItem]
 
     @State private var editingConfig: EditingConfig?
-    @State private var migrationAlert: MigrationAlert?
+    @State private var migrationAlert: MessageAlertData?
+
+    private var template: ProviderTemplate? {
+        guard
+            let provider,
+            let templateId = provider.templateId
+        else { return nil }
+        return ProviderTemplate(rawValue: templateId)
+    }
+
+    private var supportsNativeMcpConfig: Bool {
+        template?.supportsNativeMcpConfig == true
+    }
+
+    private var configPath: URL? {
+        template?.defaultMcpConfigPath
+    }
+
+    private var mcpUnsupportedSystemImage: String {
+        provider == nil ? "exclamationmark.triangle" : "server.rack"
+    }
+
+    private var mcpUnsupportedDescription: String {
+        if provider == nil || template == nil {
+            return NSLocalizedString("mcp.not_supported_desc", comment: "This provider does not support MCP configuration")
+        }
+        return NSLocalizedString(
+            "provider.mcp.not_supported_native",
+            value: "This provider does not expose a native MCP configuration file.",
+            comment: "Provider does not expose native MCP config"
+        )
+    }
     
     var body: some View {
-        Group {
-            if let provider = provider,
-               let templateId = provider.templateId,
-               let template = ProviderTemplate(rawValue: templateId) {
-            if !template.supportsNativeMcpConfig {
-                ContentUnavailableView(
-                    NSLocalizedString("mcp.not_supported", comment: "MCP Not Supported"),
-                    systemImage: "server.rack",
-                    description: Text(
-                        NSLocalizedString(
-                            "provider.mcp.not_supported_native",
-                            value: "This provider does not expose a native MCP configuration file.",
-                            comment: "Provider does not expose native MCP config"
-                        )
-                    )
-                )
-            } else {
-            
-            let configPath = template.defaultMcpConfigPath
+        if let configPath {
             let isToml = configPath.pathExtension.lowercased() == "toml"
             let exists = STFile(configPath).isExists
-            
-            if !exists {
-                ContentUnavailableView {
-                    Label {
-                        Text("No Configuration")
-                            .dsEmptyStateTitle()
-                    } icon: {
-                        Image(systemName: "server.rack")
-                            .dsEmptyStateIcon()
-                    }
-                } description: {
-                    Text("MCP configuration file not found.")
-                        .dsSecondaryText(font: .body)
-                } actions: {
-                    Button("Create Configuration") {
-                        // Create directory if needed
-                        _ = STFolder(configPath.deletingLastPathComponent()).createIfNotExists()
-                        // Create minimal config based on extension
-                        if configPath.pathExtension.lowercased() == "toml" {
+
+            NolonUI.ProviderMcpConfigScaffoldView(
+                supportsNativeConfig: supportsNativeMcpConfig,
+                configExists: exists,
+                isSearching: !viewModel.searchText.isEmpty,
+                hasFilteredServers: !viewModel.filteredMcps.isEmpty,
+                unsupportedSystemImage: mcpUnsupportedSystemImage,
+                unsupportedDescription: mcpUnsupportedDescription
+            ) {
+                NolonUI.McpConfigActionStateView(
+                    preset: .noConfiguration
+                ) {
+                    _ = STFolder(configPath.deletingLastPathComponent()).createIfNotExists()
+                    if isToml {
+                        let template = """
+                        model = ""
+                        
+                        [mcp_servers]
+                        """
+                        try? STFile(configPath).overlay(with: template)
+                    } else {
+                        if template?.rawValue == "opencode" {
                             let template = """
-                            model = ""
-                            
-                            [mcp_servers]
+                            {
+                              "mcp": {}
+                            }
                             """
                             try? STFile(configPath).overlay(with: template)
                         } else {
-                            if template.rawValue == "opencode" {
-                                let template = """
-                                {
-                                  "mcp": {}
-                                }
-                                """
-                                try? STFile(configPath).overlay(with: template)
-                            } else {
-                                try? STFile(configPath).overlay(with: "{}")
-                            }
+                            try? STFile(configPath).overlay(with: "{}")
                         }
-                        editingConfig = EditingConfig(
-                            configURL: configPath,
-                            format: isToml ? .toml : .json,
-                            highlightKey: nil
-                        )
-                        // Reload data
-                        Task { await viewModel.loadData() }
                     }
-                    .dsIconLabelButton()
+                    editingConfig = EditingConfig(
+                        configURL: configPath,
+                        format: isToml ? .toml : .json,
+                        highlightKey: nil
+                    )
+                    Task { await viewModel.loadData() }
                 }
-            } else if viewModel.filteredMcps.isEmpty && viewModel.searchText.isEmpty {
-                ContentUnavailableView {
-                    Label {
-                        Text("No Servers")
-                            .dsEmptyStateTitle()
-                    } icon: {
-                        Image(systemName: "server.rack")
-                            .dsEmptyStateIcon()
-                    }
-                } description: {
-                    Text("No MCP servers configured.")
-                        .dsSecondaryText(font: .body)
-                } actions: {
-                    Button("Edit Configuration") {
+            } noServersView: {
+                NolonUI.McpConfigToolbarScaffoldView(
+                    documentationURL: template?.mcpDocumentationURL,
+                    onEdit: {
                         editingConfig = EditingConfig(
                             configURL: configPath,
                             format: isToml ? .toml : .json,
                             highlightKey: nil
                         )
                     }
-                    .dsIconLabelButton()
+                ) {
+                    NolonUI.McpConfigActionStateView(
+                        preset: .noServers
+                    ) {
+                        editingConfig = EditingConfig(
+                            configURL: configPath,
+                            format: isToml ? .toml : .json,
+                            highlightKey: nil
+                        )
+                    }
                 }
-                .toolbar {
-                     if let url = template.mcpDocumentationURL {
-                         ToolbarItem {
-                             Link(destination: url) {
-                                 Label("Documentation", systemImage: "doc.text")
-                                    .dsIconLabelButton()
-                             }
-                         }
-                     }
-                     ToolbarItem {
-                         Button(action: {
-                             editingConfig = EditingConfig(
-                                 configURL: configPath,
-                                 format: isToml ? .toml : .json,
-                                 highlightKey: nil
-                             )
-                         }) {
-                             Label("Edit Config", systemImage: "pencil")
-                                .dsIconLabelButton()
-                         }
-                     }
-                }
-            } else if viewModel.filteredMcps.isEmpty {
-                ContentUnavailableView(
-                    "No Results",
-                    systemImage: "magnifyingglass",
-                    description: Text("No matching MCP servers found")
-                        .dsSecondaryText(font: .body)
-                )
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                LazyVGrid(columns: columns, spacing: 16) {
-                    ForEach(viewModel.filteredMcps) { mcp in
-                        let cacheState = viewModel.mcpCacheStates[mcp.name] ?? .notMigrated
-                        McpServerCard(
-                            mcp: mcp,
-                            hasWorkflow: viewModel.mcpWorkflowIds.contains(mcp.name),
-                            searchText: viewModel.searchText,
-                            cacheState: cacheState,
-                            onLinkWorkflow: { viewModel.linkMcpToWorkflow(mcp) },
-                            onUnlinkWorkflow: { viewModel.unlinkMcpFromWorkflow(mcp) },
-                            onSetEnabled: { enabled in
-                                Task { await viewModel.setMCPEnabled(mcp, enabled: enabled, for: provider) }
-                            },
-                            onMigrateToNolon: {
-                                Task {
-                                    do {
-                                        try await viewModel.migrateMcpToGlobalCache(mcp)
-                                        migrationAlert = MigrationAlert(
-                                            title: NSLocalizedString("action.migrate", value: "Migrate", comment: "Migrate"),
-                                            message: NSLocalizedString(
-                                                "mcp.migration.single.success",
-                                                value: "Migrated.",
-                                                comment: "MCP single migration success"
+            } noResultsView: {
+                NolonUI.McpConfigNoResultsStateView()
+            } contentView: {
+                NolonUI.McpConfigToolbarScaffoldView(
+                    documentationURL: template?.mcpDocumentationURL,
+                    onEdit: {
+                        editingConfig = EditingConfig(
+                            configURL: configPath,
+                            format: isToml ? .toml : .json,
+                            highlightKey: nil
+                        )
+                    }
+                ) {
+                    NolonUI.AdaptiveCardGrid(columns: columns, spacing: 16) {
+                        ForEach(viewModel.filteredMcps) { mcp in
+                            let cacheState = viewModel.mcpCacheStates[mcp.name] ?? .notMigrated
+                            NolonUI.McpServerCardView(
+                                commandText: mcpCommandText(mcp),
+                                searchText: viewModel.searchText,
+                                hasWorkflow: viewModel.mcpWorkflowIds.contains(mcp.name),
+                                isEnabled: mcp.isEnabled,
+                                cacheState: cacheState,
+                                onLinkWorkflow: { viewModel.linkMcpToWorkflow(mcp) },
+                                onUnlinkWorkflow: { viewModel.unlinkMcpFromWorkflow(mcp) },
+                                onSetEnabled: { enabled in
+                                    Task { await viewModel.setMCPEnabled(mcp, enabled: enabled, for: provider) }
+                                },
+                                onMigrateToNolon: {
+                                    Task {
+                                        do {
+                                            try await viewModel.migrateMcpToGlobalCache(mcp)
+                                            migrationAlert = .migrate(
+                                                message: NSLocalizedString(
+                                                    "mcp.migration.single.success",
+                                                    value: "Migrated.",
+                                                    comment: "MCP single migration success"
+                                                )
                                             )
-                                        )
-                                    } catch {
-                                        migrationAlert = MigrationAlert(
-                                            title: NSLocalizedString("action.migrate", value: "Migrate", comment: "Migrate"),
-                                            message: error.localizedDescription
-                                        )
+                                        } catch {
+                                            migrationAlert = .migrate(message: error.localizedDescription)
+                                        }
                                     }
-                                }
-                            },
-                            onUpdateNolonCache: {
-                                Task {
-                                    do {
-                                        try await viewModel.updateCachedMcpIfNeeded(mcp)
-                                        migrationAlert = MigrationAlert(
-                                            title: NSLocalizedString("action.update", value: "Update", comment: "Update"),
-                                            message: NSLocalizedString(
-                                                "mcp.migration.single.updated",
-                                                value: "Updated.",
-                                                comment: "MCP single cache update success"
+                                },
+                                onUpdateNolonCache: {
+                                    Task {
+                                        do {
+                                            try await viewModel.updateCachedMcpIfNeeded(mcp)
+                                            migrationAlert = .update(
+                                                message: NSLocalizedString(
+                                                    "mcp.migration.single.updated",
+                                                    value: "Updated.",
+                                                    comment: "MCP single cache update success"
+                                                )
                                             )
-                                        )
-                                    } catch {
-                                        migrationAlert = MigrationAlert(
-                                            title: NSLocalizedString("action.update", value: "Update", comment: "Update"),
-                                            message: error.localizedDescription
-                                        )
+                                        } catch {
+                                            migrationAlert = .update(message: error.localizedDescription)
+                                        }
                                     }
+                                },
+                                onEdit: {
+                                    editingConfig = EditingConfig(
+                                        configURL: configPath,
+                                        format: isToml ? .toml : .json,
+                                        highlightKey: mcp.name
+                                    )
+                                },
+                                onDelete: {
+                                    Task { await viewModel.deleteMCP(named: mcp.name, for: provider) }
                                 }
-                            },
-                            onEdit: {
+                            ) {
+                                NolonUI.ProviderLogoView(
+                                    name: mcp.name,
+                                    logoName: mcpLogoName(mcp),
+                                    highlightQuery: viewModel.searchText,
+                                    style: .horizontal,
+                                    iconSize: 24
+                                )
+                            } extraContextMenu: {
+                                debugPageMarkerMenuItem(
+                                    markerBaseItems + [PageMarkerItem(title: mcp.name)]
+                                )
+                            )
+                            .debugCardLocator(markerBaseItems + [PageMarkerItem(title: mcp.name)])
+                            .onTapGesture {
                                 editingConfig = EditingConfig(
                                     configURL: configPath,
                                     format: isToml ? .toml : .json,
                                     highlightKey: mcp.name
                                 )
-                            },
-                            onDelete: {
-                                Task { await viewModel.deleteMCP(named: mcp.name, for: provider) }
                             }
-                        )
-                        .debugCardLocator(markerBaseItems + [PageMarkerItem(title: mcp.name)])
-                        .onTapGesture {
-                            editingConfig = EditingConfig(
-                                configURL: configPath,
-                                format: isToml ? .toml : .json,
-                                highlightKey: mcp.name
-                            )
                         }
                     }
                 }
-                .toolbar {
-                     if let url = template.mcpDocumentationURL {
-                         ToolbarItem {
-                             Link(destination: url) {
-                                 Label("Documentation", systemImage: "doc.text")
-                             }
-                         }
-                     }
-                     ToolbarItem {
-                         Button(action: {
-                             editingConfig = EditingConfig(
-                                 configURL: configPath,
-                                 format: isToml ? .toml : .json,
-                                 highlightKey: nil
-                             )
-                         }) {
-                             Label("Edit Config", systemImage: "pencil")
-                         }
-                     }
-                }
             }
-            }
-            } else {
-             ContentUnavailableView(
-                NSLocalizedString("mcp.not_supported", comment: "MCP Not Supported"),
-                systemImage: "exclamationmark.triangle",
-                description: Text(NSLocalizedString("mcp.not_supported_desc", comment: "This provider does not support MCP configuration"))
-                    .dsSecondaryText(font: .body)
-            )
-            }
+        } else {
+            NolonUI.McpConfigUnsupportedStateView()
         }
         .sheet(item: $editingConfig) { config in
             McpConfigEditorView(
@@ -248,25 +216,37 @@ struct ProviderMcpGridView: View {
                 await viewModel.loadData()
             }
         }
-        .alert(migrationAlert?.title ?? "", isPresented: Binding(get: { migrationAlert != nil }, set: { if !$0 { migrationAlert = nil } })) {
-            Button(NSLocalizedString("action.ok", value: "OK", comment: "OK action")) {}
-        } message: {
-            Text(migrationAlert?.message ?? "")
-        }
+        .messageAlert(
+            alert: $migrationAlert
+        )
     }
 }
 
 private struct EditingConfig: Identifiable {
     let id = UUID()
     let configURL: URL
-    let format: WebCodeEditorFormat
+    let format: NolonUI.WebCodeEditorFormat
     let highlightKey: String?
 }
 
-private struct MigrationAlert: Identifiable {
-    let id = UUID()
-    let title: String
-    let message: String
+private func mcpCommandText(_ mcp: MCP) -> String? {
+    guard let dict = mcp.json.value as? [String: Any] else { return nil }
+    return dict["command"] as? String
+}
+
+private func mcpLogoName(_ mcp: MCP) -> String? {
+    let name = mcp.name.lowercased()
+    if name.contains("playwright") { return "playwright" }
+    if name.contains("github") { return "github" }
+    if name.contains("gitlab") { return "gitlab" }
+    if name.contains("google") { return "google" }
+    if name.contains("brave") { return "brave" }
+    if name.contains("exa") { return "exa" }
+    if name.contains("sqlite") { return "sqlite" }
+    if name.contains("postgres") { return "postgresql" }
+    if name.contains("docker") { return "docker" }
+    if name.contains("slack") { return "slack" }
+    return nil
 }
 
 #Preview {

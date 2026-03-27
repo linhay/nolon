@@ -5,6 +5,7 @@ import UniformTypeIdentifiers
 import OSLog
 import NolonResourceKit
 import NolonUI
+import NolonUIFoundation
 
 @Observable
 final class EditProviderViewModel {
@@ -16,9 +17,6 @@ final class EditProviderViewModel {
     var workflowPath: String
     var commandPath: String
     var installMethod: SkillInstallationMethod
-    var showingFolderPicker = false
-    var showingWorkflowFolderPicker = false
-    var showingCommandFolderPicker = false
     var showingProjectFolderPicker = false
     
     var settings: ProviderSettings
@@ -73,17 +71,6 @@ final class EditProviderViewModel {
     var canSave: Bool {
         !providerName.trimmingCharacters(in: .whitespaces).isEmpty &&
         !providerPath.isEmpty
-    }
-    
-    func handleFolderSelection(_ result: Result<[URL], Error>) {
-        switch result {
-        case .success(let urls):
-            if let url = urls.first {
-                providerPath = url.path
-            }
-        case .failure(let error):
-            Self.logger.error("Folder selection failed: \(error.localizedDescription)")
-        }
     }
     
     func handleProjectFolderSelection(_ result: Result<[URL], Error>) {
@@ -150,94 +137,36 @@ struct EditProviderSheet: View {
     
     var body: some View {
         @Bindable var viewModel = viewModel
-        VStack(spacing: 0) {
-            NolonUI.SheetHeaderView(title: NSLocalizedString("Edit Provider", comment: "Edit Provider")) {
+        NolonUI.SheetHeaderFooterScaffold(
+            title: NSLocalizedString("Edit Provider", comment: "Edit Provider"),
+            onClose: {
                 dismiss()
             }
-
-            SheetDivider()
-
-            Form {
-                Section {
-                    TextField(
-                        NSLocalizedString("add_provider.name_placeholder", comment: "Provider Name"),
-                        text: $viewModel.providerName
-                    )
-                } header: {
-                    Text(NSLocalizedString("add_provider.name_label", comment: "Name"))
-                }
-
-                if let vendorCategoryLabel = viewModel.vendorCategoryLabel {
-                    Section {
-                        LabeledContent(
-                            NSLocalizedString("edit_provider.vendor_category", value: "Vendor Category", comment: "Vendor category")
-                        ) {
-                            Text(vendorCategoryLabel)
-                        }
+        ) {
+            NolonUI.GroupedSheetForm {
+                NolonUI.ProviderIdentityAndPathsFormSections(
+                    name: $viewModel.providerName,
+                    nameSection: .init(
+                        title: NSLocalizedString("add_provider.name_label", comment: "Name"),
+                        placeholder: NSLocalizedString("add_provider.name_placeholder", comment: "Provider Name")
+                    ),
+                    vendorInfo: viewModel.vendorCategoryLabel.map {
+                        ProviderLabeledValueData(
+                            label: NSLocalizedString("edit_provider.vendor_category", value: "Vendor Category", comment: "Vendor category"),
+                            value: $0
+                        )
+                    },
+                    projectFolderData: projectFolderSectionData,
+                    resolvedPathsTitle: NSLocalizedString(
+                        "add_provider.resolved_paths_label",
+                        value: "Resolved Paths",
+                        comment: "Resolved paths section header"
+                    ),
+                    resolvedPathItems: resolvedPathItems,
+                    onChooseProjectFolder: {
+                        viewModel.showingProjectFolderPicker = true
                     }
-                }
-                
-                Section {
-                    if viewModel.provider.kind == .project {
-                        HStack {
-                            Text(viewModel.projectRootPath.isEmpty
-                                 ? NSLocalizedString("add_provider.no_project_folder", value: "No project folder selected", comment: "No project folder selected")
-                                 : viewModel.projectRootPath)
-                                .foregroundStyle(viewModel.projectRootPath.isEmpty ? DesignSystem.Colors.Text.secondary : DesignSystem.Colors.Text.primary)
-                                .lineLimit(1)
-                                .truncationMode(.middle)
-
-                            Spacer()
-
-                            Button(NSLocalizedString("add_provider.choose", comment: "Choose...")) {
-                                viewModel.showingProjectFolderPicker = true
-                            }
-                            .dsSecondaryButton()
-                        }
-                    } else {
-                        Text(NSLocalizedString("add_provider.kind.vendor_paths_locked", value: "Vendor paths are predefined and cannot be changed.", comment: "Vendor paths are locked"))
-                            .dsSecondaryText(font: .callout)
-                    }
-                } header: {
-                    Text(viewModel.provider.kind == .project
-                         ? NSLocalizedString("add_provider.project_folder_label", value: "Project Folder", comment: "Project Folder")
-                         : NSLocalizedString("add_provider.kind.vendor_info_label", value: "Paths", comment: "Paths section label"))
-                }
-
-                Section {
-                    VStack(alignment: .leading, spacing: 8) {
-                        LabeledContent(NSLocalizedString("add_provider.folder_label", comment: "Skills Folder")) {
-                            Text(viewModel.providerPath.isEmpty
-                                 ? NSLocalizedString("add_provider.no_folder", comment: "No folder selected")
-                                 : viewModel.providerPath)
-                                .foregroundStyle(viewModel.providerPath.isEmpty ? DesignSystem.Colors.Text.secondary : DesignSystem.Colors.Text.primary)
-                                .lineLimit(1)
-                                .truncationMode(.middle)
-                        }
-
-                        if viewModel.usesCommandFiles {
-                            LabeledContent(NSLocalizedString("edit_provider.command_folder_label", value: "Command Folder", comment: "Command Folder")) {
-                                Text(viewModel.commandPath.isEmpty
-                                     ? NSLocalizedString("edit_provider.no_command_folder", value: "No command folder selected", comment: "No command folder selected")
-                                     : viewModel.commandPath)
-                                    .foregroundStyle(viewModel.commandPath.isEmpty ? DesignSystem.Colors.Text.secondary : DesignSystem.Colors.Text.primary)
-                                    .lineLimit(1)
-                                    .truncationMode(.middle)
-                            }
-                        } else {
-                            LabeledContent(viewModel.secondaryResourceLabel) {
-                                Text(viewModel.workflowPath.isEmpty
-                                     ? NSLocalizedString("add_provider.no_folder", comment: "No folder selected")
-                                     : viewModel.workflowPath)
-                                    .foregroundStyle(viewModel.workflowPath.isEmpty ? DesignSystem.Colors.Text.secondary : DesignSystem.Colors.Text.primary)
-                                    .lineLimit(1)
-                                    .truncationMode(.middle)
-                            }
-                        }
-                    }
-                } header: {
-                    Text(NSLocalizedString("add_provider.resolved_paths_label", value: "Resolved Paths", comment: "Resolved paths section header"))
-                }
+                )
                 
                 Section {
                     Picker(NSLocalizedString("add_provider.install_method", comment: "Installation Method"), selection: $viewModel.installMethod) {
@@ -249,70 +178,68 @@ struct EditProviderSheet: View {
                     Text(NSLocalizedString("add_provider.settings", comment: "Settings"))
                 }
             }
-            .formStyle(.grouped)
-            .sheetScrollContentPadding()
-
-            SheetDivider()
-
-            HStack(spacing: 12) {
-                Button(NSLocalizedString("generic.cancel", comment: "Cancel")) {
+        } footer: {
+            NolonUI.SheetActionFooterView(
+                primaryTitle: NSLocalizedString("generic.save", value: "Save", comment: "Save"),
+                onCancel: {
                     dismiss()
-                }
-                .dsLinkButton()
-
-                Spacer(minLength: 0)
-
-                Button(NSLocalizedString("generic.save", value: "Save", comment: "Save")) {
+                },
+                onPrimary: {
                     viewModel.saveProvider()
                     dismiss()
                 }
-                .dsPrimaryButton()
-            }
-            .padding(.horizontal, SheetLayout.footerHorizontalPadding)
-            .padding(.vertical, SheetLayout.footerVerticalPadding)
+            )
         }
-        .fileImporter(
-            isPresented: $viewModel.showingFolderPicker,
-            allowedContentTypes: [.folder],
-            allowsMultipleSelection: false,
-            onCompletion: viewModel.handleFolderSelection
-        )
         .fileImporter(
             isPresented: $viewModel.showingProjectFolderPicker,
             allowedContentTypes: [.folder],
             allowsMultipleSelection: false,
             onCompletion: viewModel.handleProjectFolderSelection
         )
-        .fileImporter(
-            isPresented: $viewModel.showingWorkflowFolderPicker,
-            allowedContentTypes: [.folder],
-            allowsMultipleSelection: false,
-            onCompletion: { result in
-                switch result {
-                case .success(let urls):
-                    if let url = urls.first {
-                        viewModel.workflowPath = url.path
-                    }
-                case .failure(let error):
-                    EditProviderViewModel.logger.error("Workflow folder selection failed: \(error.localizedDescription)")
-                }
-            }
-        )
-        .fileImporter(
-            isPresented: $viewModel.showingCommandFolderPicker,
-            allowedContentTypes: [.folder],
-            allowsMultipleSelection: false,
-            onCompletion: { result in
-                switch result {
-                case .success(let urls):
-                    if let url = urls.first {
-                        viewModel.commandPath = url.path
-                    }
-                case .failure(let error):
-                    EditProviderViewModel.logger.error("Command folder selection failed: \(error.localizedDescription)")
-                }
-            }
-        )
         .frame(minWidth: 400, minHeight: 300)
+    }
+
+    private var projectFolderSectionData: ProviderProjectFolderSectionData {
+        ProviderProjectFolderSectionData(
+            mode: viewModel.provider.kind == .project ? .project : .vendorLocked,
+            sectionTitle: viewModel.provider.kind == .project
+                ? NSLocalizedString("add_provider.project_folder_label", value: "Project Folder", comment: "Project Folder")
+                : NSLocalizedString("add_provider.kind.vendor_info_label", value: "Paths", comment: "Paths section label"),
+            displayPath: viewModel.projectRootPath,
+            emptyPlaceholder: NSLocalizedString("add_provider.no_project_folder", value: "No project folder selected", comment: "No project folder selected"),
+            chooseButtonTitle: NSLocalizedString("add_provider.choose", comment: "Choose..."),
+            vendorLockedDescription: NSLocalizedString("add_provider.kind.vendor_paths_locked", value: "Vendor paths are predefined and cannot be changed.", comment: "Vendor paths are locked")
+        )
+    }
+
+    private var resolvedPathItems: [ProviderResolvedPathItemData] {
+        var items: [ProviderResolvedPathItemData] = [
+            ProviderResolvedPathItemData(
+                id: "skills",
+                label: NSLocalizedString("add_provider.folder_label", comment: "Skills Folder"),
+                path: viewModel.providerPath,
+                emptyPlaceholder: NSLocalizedString("add_provider.no_folder", comment: "No folder selected")
+            )
+        ]
+        if viewModel.usesCommandFiles {
+            items.append(
+                ProviderResolvedPathItemData(
+                    id: "command",
+                    label: NSLocalizedString("edit_provider.command_folder_label", value: "Command Folder", comment: "Command Folder"),
+                    path: viewModel.commandPath,
+                    emptyPlaceholder: NSLocalizedString("edit_provider.no_command_folder", value: "No command folder selected", comment: "No command folder selected")
+                )
+            )
+        } else {
+            items.append(
+                ProviderResolvedPathItemData(
+                    id: "secondary",
+                    label: viewModel.secondaryResourceLabel,
+                    path: viewModel.workflowPath,
+                    emptyPlaceholder: NSLocalizedString("add_provider.no_folder", comment: "No folder selected")
+                )
+            )
+        }
+        return items
     }
 }

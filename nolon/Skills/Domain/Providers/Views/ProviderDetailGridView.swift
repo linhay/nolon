@@ -4,6 +4,7 @@ import Observation
 import STFilePath
 import NolonResourceKit
 import NolonUI
+import NolonUIFoundation
 
 /// Detail 区域 - Grid 布局显示 Skills 或 Workflows
 struct ProviderDetailGridView: View, DebugPageLocatable {
@@ -46,41 +47,22 @@ struct ProviderDetailGridView: View, DebugPageLocatable {
     }
     
     var body: some View {
-        Group {
-            if provider == nil {
-                ContentUnavailableView {
-                    Label {
-                        Text(NSLocalizedString("detail.no_provider", comment: "Select a Provider"))
-                            .dsEmptyStateTitle()
-                    } icon: {
-                        Image(systemName: "sidebar.left")
-                            .dsEmptyStateIcon()
-                    }
-                }
-                .debugCardLocator([
-                    PageMarkerItem(title: NSLocalizedString("detail.no_provider", comment: "Select a Provider"))
-                ])
-            } else if selectedTab == nil {
-                ContentUnavailableView {
-                    Label {
-                        Text(NSLocalizedString("detail.select_tab", comment: "Select a Tab"))
-                            .dsEmptyStateTitle()
-                    } icon: {
-                        Image(systemName: "list.bullet")
-                            .dsEmptyStateIcon()
-                    }
-                }
-                .debugCardLocator([
-                    PageMarkerItem(title: NSLocalizedString("detail.select_tab", comment: "Select a Tab"))
-                ])
-            } else {
-                if viewModel.isLoading {
-                    ProgressView()
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else {
-                    gridContent
-                }
-            }
+        NolonUI.ProviderDetailStateContainerView(
+            hasProvider: provider != nil,
+            hasSelectedTab: selectedTab != nil,
+            isLoading: viewModel.isLoading
+        ) {
+            NolonUI.ProviderDetailPlaceholderView(preset: .noProvider)
+            .debugCardLocator([
+                PageMarkerItem(title: NSLocalizedString("detail.no_provider", comment: "Select a Provider"))
+            ])
+        } noTabView: {
+            NolonUI.ProviderDetailPlaceholderView(preset: .noTab)
+            .debugCardLocator([
+                PageMarkerItem(title: NSLocalizedString("detail.select_tab", comment: "Select a Tab"))
+            ])
+        } content: {
+            gridContent
         }
         .task(id: "\(provider?.id ?? "")-\(refreshTrigger)") {
             await viewModel.loadData()
@@ -101,7 +83,7 @@ struct ProviderDetailGridView: View, DebugPageLocatable {
         }
         .onChange(of: viewModel.showingRemoteBrowser) { _, browserType in
             guard let provider, let browserType else { return }
-            let tabType: ResourceContentTabType
+            let tabType: ResourceCenterTabID
             switch browserType {
             case .skill:
                 tabType = .skills
@@ -152,37 +134,26 @@ struct ProviderDetailGridView: View, DebugPageLocatable {
     
     @ViewBuilder
     private var gridContent: some View {
-        NavigationStack {
-            ZStack(alignment: .bottomTrailing) {
-                ScrollViewReader { scrollProxy in
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 16) {
-                            if shouldShowSearch {
-                                HStack {
-                                    SearchField(
-                                        placeholder: NSLocalizedString("search.placeholder", value: "Search", comment: "Search placeholder"),
-                                        text: $viewModel.searchText
-                                    )
-                                    Spacer()
-                                }
-                            }
-                            if isCodexXcodeProvider && !codexXcodeNoticeDismissed {
-                                codexXcodeNotice
-                            }
-                            codexLinkedHint
-                            resourceHealthSummary(scrollProxy: scrollProxy)
-                            tabContent
-                        }
-                        .frame(maxWidth: .infinity, alignment: .topLeading)
-                    }
-                    .padding()
+        NolonUI.ProviderDetailGridScaffoldView(
+            showSearch: shouldShowSearch,
+            searchText: $viewModel.searchText,
+            showFloatingButton: shouldShowQuickInstallButton
+        ) { scrollProxy in
+            NolonUI.ProviderCodexTopHintsView(
+                noticeData: codexXcodeNoticeData,
+                linkedHintData: codexLinkedHintData,
+                onDismissNotice: {
+                    codexXcodeNoticeDismissed = true
+                },
+                onTapLinkedHint: {
+                    guard let selectedTab else { return }
+                    handleCodexLinkedHintAction(for: selectedTab)
                 }
-                
-                // Floating Action Button - 根据当前 tab 显示
-                if shouldShowQuickInstallButton {
-                    quickInstallButton
-                }
-            }
+            )
+            resourceHealthSummary(scrollProxy: scrollProxy)
+            tabContent
+        } floatingButton: {
+            quickInstallButton
         }
     }
 
@@ -273,109 +244,62 @@ struct ProviderDetailGridView: View, DebugPageLocatable {
     private func resourceHealthSummary(scrollProxy: ScrollViewProxy) -> some View {
         let summary = currentTabIssueSummary
         if summary.total > 0 {
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 8) {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundStyle(DesignSystem.Colors.Status.warning)
-                    Text(
-                        NSLocalizedString(
-                            "provider.resources.health.warn",
-                            value: "Some resources need attention.",
-                            comment: "Provider resources warning summary"
+            NolonUI.ProviderResourceHealthSummaryCardView(
+                data: .init(
+                    warningTitle: NSLocalizedString(
+                        "provider.resources.health.warn",
+                        value: "Some resources need attention.",
+                        comment: "Provider resources warning summary"
+                    ),
+                    orphanedSkillsText: summary.orphanedSkillCount > 0
+                        ? String(
+                            format: NSLocalizedString(
+                                "provider.resources.health.orphaned_skills_count",
+                                value: "orphaned skills %d",
+                                comment: "Provider orphaned skills count"
+                            ),
+                            summary.orphanedSkillCount
                         )
-                    )
-                    .font(.callout.weight(.semibold))
+                        : nil,
+                    orphanedSkillsHelp: NSLocalizedString(
+                        "provider.resources.health.orphaned_skills_scroll",
+                        value: "Scroll to first orphaned skill",
+                        comment: "Scroll to first orphaned skill help"
+                    ),
+                    brokenSkillsText: summary.brokenSkillCount > 0
+                        ? String(
+                            format: NSLocalizedString(
+                                "provider.resources.health.broken_skills_count",
+                                value: "broken skills %d",
+                                comment: "Provider broken skills count"
+                            ),
+                            summary.brokenSkillCount
+                        )
+                        : nil,
+                    unknownWorkflowsText: summary.unknownWorkflowCount > 0
+                        ? String(
+                            format: NSLocalizedString(
+                                "provider.resources.health.unknown_workflows_count",
+                                value: "unknown workflows %d",
+                                comment: "Provider unknown workflows count"
+                            ),
+                            summary.unknownWorkflowCount
+                        )
+                        : nil,
+                    mcpUpdateText: summary.mcpNeedUpdateCount > 0
+                        ? String(
+                            format: NSLocalizedString(
+                                "provider.resources.health.mcp_update_count",
+                                value: "MCP cache update %d",
+                                comment: "Provider MCP cache update count"
+                            ),
+                            summary.mcpNeedUpdateCount
+                        )
+                        : nil
+                ),
+                onTapOrphanedSkills: {
+                    scrollToFirstOrphanedSkill(using: scrollProxy)
                 }
-                HStack(spacing: 12) {
-                    if summary.orphanedSkillCount > 0 {
-                        Button {
-                            scrollToFirstOrphanedSkill(using: scrollProxy)
-                        } label: {
-                            Text(
-                                String(
-                                    format: NSLocalizedString(
-                                        "provider.resources.health.orphaned_skills_count",
-                                        value: "orphaned skills %d",
-                                        comment: "Provider orphaned skills count"
-                                    ),
-                                    summary.orphanedSkillCount
-                                ),
-                            )
-                            .font(.caption)
-                            .dsBadge(
-                                foreground: DesignSystem.Colors.Status.warning,
-                                background: DesignSystem.Colors.Status.warning.opacity(0.14)
-                            )
-                        }
-                        .buttonStyle(.plain)
-                        .help(
-                            NSLocalizedString(
-                                "provider.resources.health.orphaned_skills_scroll",
-                                value: "Scroll to first orphaned skill",
-                                comment: "Scroll to first orphaned skill help"
-                            )
-                        )
-                    }
-                    if summary.brokenSkillCount > 0 {
-                        Text(
-                            String(
-                                format: NSLocalizedString(
-                                    "provider.resources.health.broken_skills_count",
-                                    value: "broken skills %d",
-                                    comment: "Provider broken skills count"
-                                ),
-                                summary.brokenSkillCount
-                            )
-                        )
-                        .font(.caption)
-                        .dsBadge(
-                            foreground: DesignSystem.Colors.Status.error,
-                            background: DesignSystem.Colors.Status.error.opacity(0.14)
-                        )
-                    }
-                    if summary.unknownWorkflowCount > 0 {
-                        Text(
-                            String(
-                                format: NSLocalizedString(
-                                    "provider.resources.health.unknown_workflows_count",
-                                    value: "unknown workflows %d",
-                                    comment: "Provider unknown workflows count"
-                                ),
-                                summary.unknownWorkflowCount
-                            )
-                        )
-                        .font(.caption)
-                        .dsBadge(
-                            foreground: DesignSystem.Colors.Text.secondary,
-                            background: DesignSystem.Colors.Component.controlFillSubtle
-                        )
-                    }
-                    if summary.mcpNeedUpdateCount > 0 {
-                        Text(
-                            String(
-                                format: NSLocalizedString(
-                                    "provider.resources.health.mcp_update_count",
-                                    value: "MCP cache update %d",
-                                    comment: "Provider MCP cache update count"
-                                ),
-                                summary.mcpNeedUpdateCount
-                            )
-                        )
-                        .font(.caption)
-                        .dsBadge(
-                            foreground: DesignSystem.Colors.secondary,
-                            background: DesignSystem.Colors.secondary.opacity(0.14)
-                        )
-                    }
-                }
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .dsCard(
-                background: DesignSystem.Colors.Status.warning.opacity(0.08),
-                cornerRadius: DesignSystem.Metrics.cornerRadiusM,
-                borderColor: DesignSystem.Colors.Status.warning.opacity(0.25),
-                borderWidth: 1
             )
         }
     }
@@ -400,8 +324,7 @@ struct ProviderDetailGridView: View, DebugPageLocatable {
         switch selectedTab {
         case .skills:
             if let provider = provider {
-                VStack(alignment: .leading, spacing: 12) {
-                    warningCard(viewModel.skillsErrorMessage)
+                NolonUI.ProviderTabSectionView(warningMessage: viewModel.skillsErrorMessage) {
                     ProviderSkillsGridView(
                         viewModel: viewModel,
                         columns: columns,
@@ -411,8 +334,7 @@ struct ProviderDetailGridView: View, DebugPageLocatable {
                 }
             }
         case .workflows:
-            VStack(alignment: .leading, spacing: 12) {
-                warningCard(viewModel.workflowsErrorMessage)
+            NolonUI.ProviderTabSectionView(warningMessage: viewModel.workflowsErrorMessage) {
                 ProviderWorkflowsGridView(
                     viewModel: viewModel,
                     columns: columns,
@@ -420,8 +342,7 @@ struct ProviderDetailGridView: View, DebugPageLocatable {
                 )
             }
         case .rules:
-            VStack(alignment: .leading, spacing: 12) {
-                warningCard(viewModel.rulesErrorMessage)
+            NolonUI.ProviderTabSectionView(warningMessage: viewModel.rulesErrorMessage) {
                 ProviderRulesGridView(
                     viewModel: viewModel,
                     columns: columns,
@@ -431,15 +352,13 @@ struct ProviderDetailGridView: View, DebugPageLocatable {
                 }
             }
         case .agents:
-            VStack(alignment: .leading, spacing: 12) {
-                warningCard(viewModel.agentsErrorMessage)
+            NolonUI.ProviderTabSectionView(warningMessage: viewModel.agentsErrorMessage) {
                 ProviderAgentsGridView(viewModel: viewModel, columns: columns) { doc in
                     editingMarkdownDocument = EditingMarkdownDocument(url: URL(fileURLWithPath: doc.path))
                 }
             }
         case .mcp:
-            VStack(alignment: .leading, spacing: 12) {
-                warningCard(viewModel.mcpErrorMessage)
+            NolonUI.ProviderTabSectionView(warningMessage: viewModel.mcpErrorMessage) {
                 mcpGrid
             }
         case .binary:
@@ -481,73 +400,24 @@ struct ProviderDetailGridView: View, DebugPageLocatable {
         }
     }
 
-    @ViewBuilder
-    private func warningCard(_ message: String?) -> some View {
-        if let message, !message.isEmpty {
-            HStack(alignment: .center, spacing: 8) {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundStyle(DesignSystem.Colors.Status.warning)
-                Text(message)
-                    .font(.callout)
-                    .dsSecondaryText(font: .callout)
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .dsCard(
-                background: DesignSystem.Colors.Status.warning.opacity(0.08),
-                cornerRadius: DesignSystem.Metrics.cornerRadiusM,
-                borderColor: DesignSystem.Colors.Status.warning.opacity(0.25),
-                borderWidth: 1
+    private var codexXcodeNoticeData: ProviderCodexXcodeNoticeData? {
+        guard isCodexXcodeProvider && !codexXcodeNoticeDismissed else { return nil }
+        return ProviderCodexXcodeNoticeData(
+            title: NSLocalizedString(
+                "provider.codex_xcode.notice.title",
+                value: "Xcode Built-in Codex",
+                comment: "Xcode Codex banner title"
+            ),
+            description: NSLocalizedString(
+                "provider.codex_xcode.notice.desc",
+                value: "Uses Xcode's Codex folder at ~/Library/Developer/Xcode/CodingAssistant/codex for skills, workflows, and MCP. Account and usage are managed by Xcode.",
+                comment: "Xcode Codex banner description"
             )
-        }
-    }
-
-    private var codexXcodeNotice: some View {
-        HStack(alignment: .top, spacing: 12) {
-            Image(systemName: "hammer.fill")
-                .font(.title3)
-                .foregroundStyle(DesignSystem.Colors.Status.info)
-
-            VStack(alignment: .leading, spacing: 6) {
-                Text(NSLocalizedString(
-                    "provider.codex_xcode.notice.title",
-                    value: "Xcode Built-in Codex",
-                    comment: "Xcode Codex banner title"
-                ))
-                .font(.headline)
-                .foregroundStyle(DesignSystem.Colors.Text.primary)
-
-                Text(NSLocalizedString(
-                    "provider.codex_xcode.notice.desc",
-                    value: "Uses Xcode's Codex folder at ~/Library/Developer/Xcode/CodingAssistant/codex for skills, workflows, and MCP. Account and usage are managed by Xcode.",
-                    comment: "Xcode Codex banner description"
-                ))
-                .font(.callout)
-                .dsSecondaryText(font: .callout)
-            }
-
-            Spacer(minLength: 0)
-            Button {
-                codexXcodeNoticeDismissed = true
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(DesignSystem.Colors.Text.secondary)
-                    .padding(6)
-                    .background(DesignSystem.Colors.Component.controlFillSubtle, in: .circle)
-            }
-            .buttonStyle(.plain)
-        }
-        .padding()
-        .dsCard(
-            background: DesignSystem.Colors.Background.elevated,
-            cornerRadius: DesignSystem.Metrics.cornerRadiusM,
-            borderColor: DesignSystem.Colors.Component.border.opacity(0.4)
         )
     }
 
     private var quickInstallButton: some View {
-        Button {
+        NolonUI.FloatingAccentActionButton {
             switch selectedTab {
             case .skills:
                 viewModel.showingRemoteBrowser = .skill
@@ -576,19 +446,7 @@ struct ProviderDetailGridView: View, DebugPageLocatable {
             case .none:
                 break
             }
-        } label: {
-            ZStack {
-                Circle()
-                    .fill(DesignSystem.Colors.primary)
-                    .frame(width: 56, height: 56)
-                    .shadow(color: DesignSystem.Colors.primary.opacity(0.4), radius: 10, x: 0, y: 5)
-                
-                Image(systemName: "plus")
-                    .font(.system(size: 24, weight: .bold))
-                    .foregroundStyle(DesignSystem.Colors.Text.onAccent)
-            }
         }
-        .dsLinkButton()
         .padding(32)
     }
 
@@ -601,80 +459,67 @@ struct ProviderDetailGridView: View, DebugPageLocatable {
         settings.providers.first { $0.templateId == "codex" }
     }
 
-    private var codexLinkedHint: some View {
-        Group {
-            if isCodexXcodeProvider,
-               let selectedTab,
-               let folder = codexLinkFolder(for: selectedTab),
-               let targetURL = linkedTargetURL(for: folder),
-               isTargetLinked(to: codexSourceURL(for: folder), targetURL: targetURL) {
-                HStack(alignment: .center, spacing: 12) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(NSLocalizedString(
-                            "provider.codex_xcode.linked_hint.title",
-                            value: "Linked to Codex",
-                            comment: "Codex linked hint title"
-                        ))
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(DesignSystem.Colors.Text.primary)
+    private var codexLinkedHintData: ProviderCodexLinkedHintData? {
+        guard isCodexXcodeProvider,
+              let selectedTab,
+              let folder = codexLinkFolder(for: selectedTab),
+              let targetURL = linkedTargetURL(for: folder),
+              isTargetLinked(to: codexSourceURL(for: folder), targetURL: targetURL)
+        else {
+            return nil
+        }
 
-                        Text("~/.codex/\(folder.rawValue)")
-                            .font(.caption.monospaced())
-                            .foregroundStyle(DesignSystem.Colors.Text.secondary)
-                    }
-
-                    Spacer(minLength: 0)
-                    if let codexProvider {
-                        Button(NSLocalizedString(
-                            "provider.codex_xcode.linked_hint.jump",
-                            value: "Jump to Codex",
-                            comment: "Jump to codex provider"
-                        )) {
-                            onSelectProvider?(codexProvider.id)
-                            if selectedTab == .skills {
-                                onSelectTab?(.skills)
-                            } else if selectedTab == .workflows {
-                                onSelectTab?(.workflows)
-                            } else if selectedTab == .rules {
-                                onSelectTab?(.rules)
-                            } else if selectedTab == .agents {
-                                onSelectTab?(.agents)
-                            }
-                        }
-                        .dsPrimaryButton()
-                    } else {
-                        Button(NSLocalizedString(
-                            "provider.codex_xcode.linked_hint.add",
-                            value: "Add Codex Provider",
-                            comment: "Add codex provider quickly"
-                        )) {
-                            if let template = ProviderTemplate(rawValue: "codex") {
-                                let newProvider = template.createProvider()
-                                settings.addProvider(newProvider)
-                                onSelectProvider?(newProvider.id)
-                                if selectedTab == .skills {
-                                    onSelectTab?(.skills)
-                                } else if selectedTab == .workflows {
-                                    onSelectTab?(.workflows)
-                                } else if selectedTab == .rules {
-                                    onSelectTab?(.rules)
-                                } else if selectedTab == .agents {
-                                    onSelectTab?(.agents)
-                                }
-                            } else {
-                                isAddingCodexProvider = true
-                            }
-                        }
-                        .dsPrimaryButton()
-                    }
-                }
-                .padding(12)
-                .dsCard(
-                    background: DesignSystem.Colors.Background.elevated,
-                    cornerRadius: DesignSystem.Metrics.cornerRadiusM,
-                    borderColor: DesignSystem.Colors.Component.border.opacity(0.35)
+        return .init(
+            title: NSLocalizedString(
+                "provider.codex_xcode.linked_hint.title",
+                value: "Linked to Codex",
+                comment: "Codex linked hint title"
+            ),
+            pathText: "~/.codex/\(folder.rawValue)",
+            actionTitle: codexProvider == nil
+                ? NSLocalizedString(
+                    "provider.codex_xcode.linked_hint.add",
+                    value: "Add Codex Provider",
+                    comment: "Add codex provider quickly"
                 )
+                : NSLocalizedString(
+                    "provider.codex_xcode.linked_hint.jump",
+                    value: "Jump to Codex",
+                    comment: "Jump to codex provider"
+                )
+        )
+    }
+
+    private func handleCodexLinkedHintAction(for selectedTab: ProviderContentTabType) {
+        if let codexProvider {
+            onSelectProvider?(codexProvider.id)
+            if selectedTab == .skills {
+                onSelectTab?(.skills)
+            } else if selectedTab == .workflows {
+                onSelectTab?(.workflows)
+            } else if selectedTab == .rules {
+                onSelectTab?(.rules)
+            } else if selectedTab == .agents {
+                onSelectTab?(.agents)
             }
+            return
+        }
+
+        if let template = ProviderTemplate(rawValue: "codex") {
+            let newProvider = template.createProvider()
+            settings.addProvider(newProvider)
+            onSelectProvider?(newProvider.id)
+            if selectedTab == .skills {
+                onSelectTab?(.skills)
+            } else if selectedTab == .workflows {
+                onSelectTab?(.workflows)
+            } else if selectedTab == .rules {
+                onSelectTab?(.rules)
+            } else if selectedTab == .agents {
+                onSelectTab?(.agents)
+            }
+        } else {
+            isAddingCodexProvider = true
         }
     }
 

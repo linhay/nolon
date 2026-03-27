@@ -3,15 +3,15 @@ import NolonUIFoundation
 @testable import nolon
 
 final class ResourceCenterTabTypeMappingTests: XCTestCase {
-    func testBDD_GivenResourceContentTabType_WhenMappingToFoundationID_ThenKeepsOneToOneMapping() {
-        XCTAssertEqual(ResourceContentTabType.skills.foundationID, .skills)
-        XCTAssertEqual(ResourceContentTabType.workflows.foundationID, .workflows)
-        XCTAssertEqual(ResourceContentTabType.mcps.foundationID, .mcps)
+    func testBDD_GivenSkillsTab_WhenResolvingLocalizedName_ThenReturnsSkillsTitle() {
+        XCTAssertEqual(ResourceCenterTabID.skills.localizedName, "Skills")
     }
 
-    func testBDD_GivenFoundationTabID_WhenMappingBackToResourceContentTabType_ThenKeepsOneToOneMapping() {
-        XCTAssertEqual(ResourceContentTabType.fromFoundationID(.skills), .skills)
-        XCTAssertEqual(ResourceContentTabType.fromFoundationID(.workflows), .workflows)
-        XCTAssertEqual(ResourceContentTabType.fromFoundationID(.mcps), .mcps)
+    func testBDD_GivenWorkflowsTab_WhenResolvingLocalizedName_ThenReturnsWorkflowsTitle() {
+        XCTAssertEqual(ResourceCenterTabID.workflows.localizedName, "Workflows")
+    }
+
+    func testBDD_GivenMCPsTab_WhenResolvingLocalizedName_ThenReturnsMCPsTitle() {
+        XCTAssertEqual(ResourceCenterTabID.mcps.localizedName, "MCPs")
     }
 }

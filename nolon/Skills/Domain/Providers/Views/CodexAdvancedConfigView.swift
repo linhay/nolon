@@ -5,6 +5,8 @@ import SwiftUI
 import STFilePath
 import CodexProvider
 import NolonResourceKit
+import NolonUI
+import NolonUIFoundation
 
 enum CodexLinkFolder: String, CaseIterable, Identifiable, Hashable {
     case prompts
@@ -463,12 +465,6 @@ struct CodexFeatureDefinition: Identifiable, Sendable {
     let source: String
 
     var id: String { key }
-}
-
-private struct CodexFeatureChipStyle {
-    let foreground: Color
-    let background: Color
-    let border: Color
 }
 
 private enum CodexFeatureSourceTag: String, CaseIterable {
@@ -1067,23 +1063,28 @@ struct CodexAdvancedConfigView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                sectionHeader(NSLocalizedString("codex.advanced.config.options.title", value: "Common Options", comment: "Common options"))
+        NolonUI.ProviderTabScrollScaffold {
+                NolonUI.CodexAdvancedSectionHeaderView(
+                    title: NSLocalizedString("codex.advanced.config.options.title", value: "Common Options", comment: "Common options")
+                )
                 commonOptionsSection
 
-                sectionHeader(NSLocalizedString("codex.advanced.config.features.title", value: "Feature Flags", comment: "Feature flags"))
+                NolonUI.CodexAdvancedSectionHeaderView(
+                    title: NSLocalizedString("codex.advanced.config.features.title", value: "Feature Flags", comment: "Feature flags")
+                )
                 featureFlagsSection
 
-                sectionHeader(NSLocalizedString("codex.advanced.config.multi_agent.title", value: "Multi-Agent Roles", comment: "Multi-agent roles"))
+                NolonUI.CodexAdvancedSectionHeaderView(
+                    title: NSLocalizedString("codex.advanced.config.multi_agent.title", value: "Multi-Agent Roles", comment: "Multi-agent roles")
+                )
                 multiAgentSection
 
                 if viewModel.isCodexXcodeProvider {
-                    sectionHeader(NSLocalizedString("codex.advanced.xcode_links.title", value: "Xcode Folder Links", comment: "Xcode folder links section title"))
+                    NolonUI.CodexAdvancedSectionHeaderView(
+                        title: NSLocalizedString("codex.advanced.xcode_links.title", value: "Xcode Folder Links", comment: "Xcode folder links section title")
+                    )
                     xcodeFolderLinksSection
                 }
-            }
-            .padding()
         }
         .textSelection(.enabled)
         .task(id: provider.id) {
@@ -1102,91 +1103,45 @@ struct CodexAdvancedConfigView: View {
         .sheet(item: $roleEditorTarget) { target in
             roleEditorSheet(for: target)
         }
-        .alert(
-            NSLocalizedString("codex.binary.error.title", value: "Binary Error", comment: "Binary error"),
-            isPresented: Binding(
-                get: { viewModel.errorMessage != nil },
-                set: { if !$0 { viewModel.errorMessage = nil } }
-            )
-        ) {
-            Button(NSLocalizedString("generic.ok", value: "OK", comment: "OK")) {
-                viewModel.errorMessage = nil
-            }
-        } message: {
-            Text(viewModel.errorMessage ?? "")
-        }
-        .alert(
-            NSLocalizedString("codex.advanced.config.error.title", value: "Config Error", comment: "Config error"),
-            isPresented: Binding(
-                get: { viewModel.configErrorMessage != nil },
-                set: { if !$0 { viewModel.configErrorMessage = nil } }
-            )
-        ) {
-            Button(NSLocalizedString("generic.ok", value: "OK", comment: "OK")) {
-                viewModel.configErrorMessage = nil
-            }
-        } message: {
-            Text(viewModel.configErrorMessage ?? "")
-        }
-        .alert(
-            NSLocalizedString("codex.advanced.link.conflict.title", value: "Directory Contains Files", comment: "Conflict title"),
+        .messageAlert(
+            title: NSLocalizedString("codex.binary.error.title", value: "Binary Error", comment: "Binary error"),
+            message: $viewModel.errorMessage
+        )
+        .messageAlert(
+            title: NSLocalizedString("codex.advanced.config.error.title", value: "Config Error", comment: "Config error"),
+            message: $viewModel.configErrorMessage
+        )
+        .triActionAlert(
+            data: linkConflictAlertData,
             isPresented: Binding(
                 get: { viewModel.pendingConflict != nil },
                 set: { if !$0 { viewModel.pendingConflict = nil } }
-            )
-        ) {
-            Button(NSLocalizedString("codex.advanced.link.confirm", value: "Confirm", comment: "Confirm action"), role: .destructive) {
+            ),
+            onDestructive: {
                 Task { await viewModel.confirmPendingConflict() }
-            }
-            Button(NSLocalizedString("action.show_in_finder", comment: "Show in Finder")) {
+            },
+            onSecondary: {
                 viewModel.openFinderForPendingConflict()
-            }
-            Button(NSLocalizedString("action.cancel", comment: "Cancel"), role: .cancel) {}
-        } message: {
-            Text(
-                NSLocalizedString(
-                    "codex.advanced.link.conflict.message",
-                    value: "The target folder already contains files. Confirm to delete its visible contents and replace it with a symlink.",
-                    comment: "Conflict message"
-                )
-            )
-        }
+            },
+            onCancel: {}
+        )
     }
 
     private var commonOptionsSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        NolonUI.CodexAdvancedSectionCardView {
             runtimeOverviewSection
 
             if !viewModel.isCodexXcodeProvider, viewModel.pathStatus?.configured != true {
                 Divider().padding(.vertical, 6)
-                HStack(alignment: .top, spacing: 12) {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(NSLocalizedString("codex.binary.path.section", value: "Terminal PATH", comment: "PATH section title"))
-                            .font(.callout)
-                            .foregroundStyle(DesignSystem.Colors.Text.secondary)
-                        HStack(spacing: 8) {
-                            if viewModel.isCheckingPath {
-                                ProgressView().controlSize(.small)
-                            }
-                            if let status = viewModel.pathStatus {
-                                Text(pathStatusText(status))
-                                    .font(.footnote)
-                                    .foregroundStyle(DesignSystem.Colors.Text.secondary)
-                            }
-                        }
-                    }
-                    Spacer(minLength: 0)
-                    Button(NSLocalizedString("codex.binary.path.configure", value: "Add to PATH", comment: "Add codex path to shell profile")) {
+                NolonUI.CodexPathStatusBarView(
+                    data: pathStatusBarData,
+                    onConfigure: {
                         Task { await viewModel.installPath() }
-                    }
-                    .dsPrimaryButton()
-                    .disabled(viewModel.isConfiguringPath || viewModel.isCheckingPath)
-                    Button(NSLocalizedString("codex.binary.path.check", value: "Check", comment: "Check PATH status")) {
+                    },
+                    onCheck: {
                         Task { await viewModel.refreshPathStatus() }
                     }
-                    .dsSecondaryButton()
-                    .disabled(viewModel.isConfiguringPath || viewModel.isCheckingPath)
-                }
+                )
             }
 
             Divider().padding(.vertical, 4)
@@ -1258,22 +1213,28 @@ struct CodexAdvancedConfigView: View {
 
             Divider()
 
-            HStack {
-                Spacer(minLength: 0)
-                Button(NSLocalizedString("codex.advanced.config.edit_raw", value: "Edit Raw TOML", comment: "Edit raw TOML")) {
+            NolonUI.CodexAdvancedTrailingActionRowView(
+                title: NSLocalizedString("codex.advanced.config.edit_raw", value: "Edit Raw TOML", comment: "Edit raw TOML"),
+                onTap: {
                     isEditingRawConfig = true
                 }
-                .dsSecondaryButton()
-            }
+            )
         }
-        .padding(14)
-        .frame(maxWidth: .infinity, alignment: .topLeading)
-        .dsCard(
-            background: DesignSystem.Colors.Background.elevated,
-            cornerRadius: DesignSystem.Metrics.cornerRadiusM,
-            borderColor: DesignSystem.Colors.Component.border.opacity(0.35)
-        )
         .debugCardLocator(sectionMarkerItems("Common Options"))
+    }
+
+    private var linkConflictAlertData: TriActionAlertData {
+        TriActionAlertData(
+            title: NSLocalizedString("codex.advanced.link.conflict.title", value: "Directory Contains Files", comment: "Conflict title"),
+            message: NSLocalizedString(
+                "codex.advanced.link.conflict.message",
+                value: "The target folder already contains files. Confirm to delete its visible contents and replace it with a symlink.",
+                comment: "Conflict message"
+            ),
+            destructiveTitle: NSLocalizedString("codex.advanced.link.confirm", value: "Confirm", comment: "Confirm action"),
+            secondaryTitle: NSLocalizedString("action.show_in_finder", comment: "Show in Finder"),
+            cancelTitle: NSLocalizedString("action.cancel", comment: "Cancel")
+        )
     }
 
     private var featureFlagsSection: some View {
@@ -1316,91 +1277,17 @@ struct CodexAdvancedConfigView: View {
                 ]
                 return values.contains { $0.localizedCaseInsensitiveContains(query) }
             }
-
-        return VStack(alignment: .leading, spacing: 8) {
-            TextField(
-                NSLocalizedString(
-                    "codex.features.search.placeholder",
-                    value: "Search features...",
-                    comment: "Feature search placeholder"
-                ),
-                text: $featureSearchText
-            )
-            .textFieldStyle(.roundedBorder)
-
-            ForEach(renderedFeatures) { feature in
-                let source = sourceTag(for: feature.source)
-                let maturityStyle = maturityChipStyle(feature.maturity)
-                let sourceStyle = sourceChipStyle(source)
-                HStack(alignment: .top, spacing: 12) {
-                    VStack(alignment: .leading, spacing: 6) {
-                        highlightedText(feature.key, query: query)
-                            .font(.callout.monospaced())
-                            .foregroundStyle(DesignSystem.Colors.Text.primary)
-                        highlightedText(localizedFeatureDescription(feature), query: query)
-                            .font(.caption)
-                            .foregroundStyle(DesignSystem.Colors.Text.secondary)
-                        HStack(spacing: 6) {
-                            highlightedText(localizedMaturityLabel(feature.maturity), query: query)
-                                .font(.caption2.weight(.medium))
-                                .foregroundStyle(maturityStyle.foreground)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                                .background(
-                                    maturityStyle.background,
-                                    in: Capsule()
-                                )
-                                .overlay(
-                                    Capsule()
-                                        .stroke(maturityStyle.border, lineWidth: 1)
-                                )
-                            highlightedText(source.localizedTitle, query: query)
-                                .font(.caption2.weight(.medium))
-                                .foregroundStyle(sourceStyle.foreground)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                                .background(
-                                    sourceStyle.background,
-                                    in: Capsule()
-                                )
-                                .overlay(
-                                    Capsule()
-                                        .stroke(sourceStyle.border, lineWidth: 1)
-                                )
-                        }
-                    }
-                    Spacer(minLength: 0)
-                    Toggle(
-                        "",
-                        isOn: Binding(
-                            get: { viewModel.featureEnabled(feature.key) },
-                            set: { newValue in
-                                viewModel.setFeature(feature.key, enabled: newValue)
-                                viewModel.scheduleStructuredSaveIfReady()
-                            }
-                        )
-                    )
-                    .labelsHidden()
-                    .toggleStyle(.switch)
-                    .padding(.top, 2)
-                }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 10)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .dsCard(
-                    background: DesignSystem.Colors.Background.surface.opacity(0.25),
-                    cornerRadius: DesignSystem.Metrics.cornerRadiusS,
-                    borderColor: DesignSystem.Colors.Component.border.opacity(0.18)
-                )
-                .debugCardLocator(itemMarkerItems("Feature: \(feature.key)"))
-            }
+        let renderedRows = renderedFeatures.map { feature in
+            featureRowData(feature: feature, query: query)
         }
-        .padding(14)
-        .frame(maxWidth: .infinity, alignment: .topLeading)
-        .dsCard(
-            background: DesignSystem.Colors.Background.elevated,
-            cornerRadius: DesignSystem.Metrics.cornerRadiusM,
-            borderColor: DesignSystem.Colors.Component.border.opacity(0.35)
+
+        return NolonUI.CodexAdvancedFeatureFlagsSectionView(
+            searchText: $featureSearchText,
+            rows: renderedRows,
+            onToggle: { featureID, newValue in
+                viewModel.setFeature(featureID, enabled: newValue)
+                viewModel.scheduleStructuredSaveIfReady()
+            }
         )
         .debugCardLocator(sectionMarkerItems("Feature Flags"))
     }
@@ -1451,26 +1338,6 @@ struct CodexAdvancedConfigView: View {
             .replacingOccurrences(of: " ", with: "_")
     }
 
-    private func highlightedText(_ raw: String, query: String) -> Text {
-        var text = AttributedString(raw)
-        let keyword = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !keyword.isEmpty else { return Text(text) }
-
-        let lowerRaw = raw.lowercased()
-        let lowerKeyword = keyword.lowercased()
-        var searchStart = lowerRaw.startIndex
-        while let range = lowerRaw.range(of: lowerKeyword, range: searchStart..<lowerRaw.endIndex) {
-            let lowerBound = lowerRaw.distance(from: lowerRaw.startIndex, to: range.lowerBound)
-            let upperBound = lowerRaw.distance(from: lowerRaw.startIndex, to: range.upperBound)
-            let start = text.index(text.startIndex, offsetByCharacters: lowerBound)
-            let end = text.index(text.startIndex, offsetByCharacters: upperBound)
-            text[start..<end].backgroundColor = NSColor.systemYellow.withAlphaComponent(0.35)
-            searchStart = range.upperBound
-        }
-
-        return Text(text)
-    }
-
     private func sourceTag(for source: String) -> CodexFeatureSourceTag {
         let normalized = source.lowercased()
 
@@ -1496,106 +1363,61 @@ struct CodexAdvancedConfigView: View {
         return .nolonCompatibility
     }
 
-    private func maturityChipStyle(_ maturity: String) -> CodexFeatureChipStyle {
+    private func maturityChipTone(_ maturity: String) -> CodexFeatureChipTone {
         let normalized = normalizedMaturityToken(maturity)
         if normalized.contains("stable") {
-            return .init(
-                foreground: DesignSystem.Colors.Status.success,
-                background: DesignSystem.Colors.Status.success.opacity(0.14),
-                border: DesignSystem.Colors.Status.success.opacity(0.45)
-            )
+            return .success
         }
         if normalized.contains("experimental") || normalized.contains("beta") || normalized.contains("under_development") || normalized.contains("underdevelopment") {
-            return .init(
-                foreground: DesignSystem.Colors.Status.warning,
-                background: DesignSystem.Colors.Status.warning.opacity(0.14),
-                border: DesignSystem.Colors.Status.warning.opacity(0.45)
-            )
+            return .warning
         }
         if normalized.contains("deprecated") || normalized.contains("removed") {
-            return .init(
-                foreground: DesignSystem.Colors.Status.error,
-                background: DesignSystem.Colors.Status.error.opacity(0.14),
-                border: DesignSystem.Colors.Status.error.opacity(0.45)
-            )
+            return .error
         }
-        return .init(
-            foreground: DesignSystem.Colors.Text.secondary,
-            background: DesignSystem.Colors.Component.controlFillSubtle.opacity(0.25),
-            border: DesignSystem.Colors.Component.border.opacity(0.35)
+        return .secondary
+    }
+
+    private func sourceChipTone(_ source: CodexFeatureSourceTag) -> CodexFeatureChipTone {
+        switch source {
+        case .appServer, .cliFeaturesList:
+            return .success
+        case .codexDocs:
+            return .info
+        case .coreFeatures:
+            return .warning
+        case .nolonCompatibility, .configUnknown:
+            return .secondary
+        }
+    }
+
+    private func featureRowData(feature: CodexFeatureDefinition, query: String) -> CodexAdvancedFeatureRowData {
+        let source = sourceTag(for: feature.source)
+        return CodexAdvancedFeatureRowData(
+            id: feature.id,
+            keyText: feature.key,
+            descriptionText: localizedFeatureDescription(feature),
+            maturityText: localizedMaturityLabel(feature.maturity),
+            sourceText: source.localizedTitle,
+            queryText: query,
+            maturityTone: maturityChipTone(feature.maturity),
+            sourceTone: sourceChipTone(source),
+            isEnabled: viewModel.featureEnabled(feature.key)
         )
     }
 
-    private func sourceChipStyle(_ source: CodexFeatureSourceTag) -> CodexFeatureChipStyle {
-        switch source {
-        case .appServer, .cliFeaturesList:
-            return .init(
-                foreground: DesignSystem.Colors.Status.success,
-                background: DesignSystem.Colors.Status.success.opacity(0.14),
-                border: DesignSystem.Colors.Status.success.opacity(0.45)
-            )
-        case .codexDocs:
-            return .init(
-                foreground: DesignSystem.Colors.Status.info,
-                background: DesignSystem.Colors.Status.info.opacity(0.14),
-                border: DesignSystem.Colors.Status.info.opacity(0.45)
-            )
-        case .coreFeatures:
-            return .init(
-                foreground: DesignSystem.Colors.Status.warning,
-                background: DesignSystem.Colors.Status.warning.opacity(0.14),
-                border: DesignSystem.Colors.Status.warning.opacity(0.45)
-            )
-        case .nolonCompatibility, .configUnknown:
-            return .init(
-                foreground: DesignSystem.Colors.Text.secondary,
-                background: DesignSystem.Colors.Component.controlFillSubtle.opacity(0.25),
-                border: DesignSystem.Colors.Component.border.opacity(0.35)
-            )
-        }
-    }
-
     private var multiAgentSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 10) {
-                Text(NSLocalizedString(
-                    "codex.advanced.config.multi_agent.toggle_label",
-                    value: "[features].multi_agent",
-                    comment: "multi-agent toggle label"
-                ))
-                .font(.caption.monospaced())
-                .foregroundStyle(DesignSystem.Colors.Text.secondary)
-                Spacer(minLength: 0)
-                Toggle(
-                    "",
-                    isOn: Binding(
-                        get: { viewModel.featureEnabled("multi_agent") },
-                        set: { newValue in
-                            viewModel.setFeature("multi_agent", enabled: newValue)
-                            viewModel.scheduleStructuredSaveIfReady()
-                        }
-                    )
-                )
-                .labelsHidden()
-                .toggleStyle(.switch)
-            }
+        NolonUI.CodexAdvancedSectionCardView {
+            NolonUI.CodexAdvancedMultiAgentToggleRowView(
+                data: multiAgentToggleRowData,
+                onToggle: { newValue in
+                    viewModel.setFeature("multi_agent", enabled: newValue)
+                    viewModel.scheduleStructuredSaveIfReady()
+                }
+            )
 
-            HStack(spacing: 8) {
-                let enabled = viewModel.featureEnabled("multi_agent")
-                Image(systemName: enabled ? "checkmark.circle.fill" : "xmark.circle")
-                    .foregroundStyle(enabled ? DesignSystem.Colors.Status.success : DesignSystem.Colors.Text.secondary)
-                Text(NSLocalizedString(
-                    enabled
-                        ? "codex.advanced.config.multi_agent.status_enabled"
-                        : "codex.advanced.config.multi_agent.status_disabled",
-                    value: enabled
-                        ? "Multi-agent is enabled. You can edit roles and agents settings below."
-                        : "Multi-agent is disabled. Enable the switch above to edit roles.",
-                    comment: "multi-agent status"
-                ))
-                .font(.callout)
-                .foregroundStyle(DesignSystem.Colors.Text.secondary)
-            }
+            NolonUI.CodexAdvancedMultiAgentStatusRowView(
+                data: multiAgentStatusRowData
+            )
 
             numericInputRow(
                 label: "agents.max_threads",
@@ -1606,138 +1428,76 @@ struct CodexAdvancedConfigView: View {
                 text: $viewModel.agentsMaxDepthDraft
             )
 
-            if viewModel.roleDrafts.isEmpty {
-                Text(NSLocalizedString(
+            NolonUI.CodexAdvancedRoleListView(
+                emptyText: NSLocalizedString(
                     "codex.advanced.config.multi_agent.empty",
                     value: "No roles configured yet. Click Add Role to create the first role.",
                     comment: "No multi-agent roles"
-                ))
-                .font(.callout)
-                .foregroundStyle(DesignSystem.Colors.Text.secondary)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 10)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .dsCard(
-                    background: DesignSystem.Colors.Background.surface.opacity(0.26),
-                    cornerRadius: DesignSystem.Metrics.cornerRadiusS,
-                    borderColor: DesignSystem.Colors.Component.border.opacity(0.18)
-                )
-                .debugCardLocator(itemMarkerItems("Multi-Agent Empty State"))
-            } else {
-                ForEach(viewModel.roleDrafts) { role in
-                    let roleID = role.id
-                    HStack(spacing: 8) {
-                        Text(role.name.nonEmpty ?? NSLocalizedString(
-                            "codex.advanced.config.multi_agent.unnamed_role",
-                            value: "Unnamed Role",
-                            comment: "Unnamed role"
-                        ))
-                        .font(.headline)
-                        .foregroundStyle(DesignSystem.Colors.Text.primary)
-
-                        Text(role.model.nonEmpty ?? "-")
-                            .font(.caption.monospaced())
-                            .foregroundStyle(DesignSystem.Colors.Text.secondary)
-
-                        Spacer(minLength: 0)
-
-                        Button(NSLocalizedString("action.edit", value: "Edit", comment: "Edit action")) {
-                            roleEditorTarget = RoleEditorTarget(mode: .existing(roleID))
-                        }
-                        .buttonStyle(.borderless)
-
-                        Button(role: .destructive) {
-                            viewModel.removeRoleDraft(roleID)
-                            if case .existing(let editingID) = roleEditorTarget?.mode, editingID == roleID {
-                                roleEditorTarget = nil
-                            }
-                        } label: {
-                            Image(systemName: "trash")
-                        }
-                        .buttonStyle(.plain)
+                ),
+                roles: roleListRows,
+                onEdit: { roleID in
+                    guard let roleUUID = UUID(uuidString: roleID) else { return }
+                    roleEditorTarget = RoleEditorTarget(mode: .existing(roleUUID))
+                },
+                onDelete: { roleID in
+                    guard let roleUUID = UUID(uuidString: roleID) else { return }
+                    viewModel.removeRoleDraft(roleUUID)
+                    if case .existing(let editingID) = roleEditorTarget?.mode, editingID == roleUUID {
+                        roleEditorTarget = nil
                     }
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 8)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .dsCard(
-                        background: DesignSystem.Colors.Background.surface.opacity(0.26),
-                        cornerRadius: DesignSystem.Metrics.cornerRadiusS,
-                        borderColor: DesignSystem.Colors.Component.border.opacity(0.18)
-                    )
-                    .debugCardLocator(itemMarkerItems("Role: \(role.name.nonEmpty ?? "Unnamed Role")"))
                 }
-            }
+            )
 
-            HStack {
-                Menu {
-                    Button(NSLocalizedString(
+            NolonUI.CodexAdvancedRoleSectionFooterView(
+                addTitle: NSLocalizedString(
+                    "codex.advanced.config.multi_agent.add_role",
+                    value: "Add Role",
+                    comment: "Add role"
+                ),
+                saveTitle: NSLocalizedString("action.save", value: "Save", comment: "Save"),
+                isSaveDisabled: viewModel.isSavingConfig
+            ) {
+                NolonUI.CodexAdvancedRoleAddMenuContentView(
+                    addEmptyTitle: NSLocalizedString(
                         "codex.advanced.config.multi_agent.add_role.empty",
                         value: "Add Empty Role",
                         comment: "Add empty role"
-                    )) {
+                    ),
+                    builtinItems: roleAddBuiltinItems,
+                    onAddEmpty: {
                         pendingNewRoleDraft = CodexAdvancedConfigViewModel.makeEmptyRoleDraft()
                         roleEditorTarget = RoleEditorTarget(mode: .creating)
-                    }
-                    Divider()
-                    ForEach(CodexBuiltinAgentRole.allCases) { builtinRole in
-                        Button(
-                            String(
-                                format: NSLocalizedString(
-                                    "codex.advanced.config.multi_agent.add_builtin.format",
-                                    value: "Add or Override: %@",
-                                    comment: "Add/override builtin role format"
-                                ),
-                                builtinRole.rawValue
-                            )
-                        ) {
-                            if viewModel.roleDrafts.contains(where: { $0.name == builtinRole.rawValue }) {
-                                let roleID = viewModel.upsertBuiltinRole(builtinRole)
-                                roleEditorTarget = RoleEditorTarget(mode: .existing(roleID))
-                            } else {
-                                pendingNewRoleDraft = CodexAdvancedConfigViewModel.makeBuiltinRoleDraft(builtinRole)
-                                roleEditorTarget = RoleEditorTarget(mode: .creating)
-                            }
+                    },
+                    onSelectBuiltin: { builtinRoleRawValue in
+                        guard let builtinRole = CodexBuiltinAgentRole(rawValue: builtinRoleRawValue) else { return }
+                        if viewModel.roleDrafts.contains(where: { $0.name == builtinRole.rawValue }) {
+                            let roleID = viewModel.upsertBuiltinRole(builtinRole)
+                            roleEditorTarget = RoleEditorTarget(mode: .existing(roleID))
+                        } else {
+                            pendingNewRoleDraft = CodexAdvancedConfigViewModel.makeBuiltinRoleDraft(builtinRole)
+                            roleEditorTarget = RoleEditorTarget(mode: .creating)
                         }
                     }
-                } label: {
-                    Label(
-                        NSLocalizedString("codex.advanced.config.multi_agent.add_role", value: "Add Role", comment: "Add role"),
-                        systemImage: "plus"
-                    )
-                }
-                .dsSecondaryButton()
-                Spacer(minLength: 0)
-                Button(NSLocalizedString("action.save", value: "Save", comment: "Save")) {
+                )
+            } onSave: {
                     Task { await viewModel.saveStructuredConfig() }
-                }
-                .dsPrimaryButton()
-                .disabled(viewModel.isSavingConfig)
+            }
             }
         }
-        .padding(14)
-        .frame(maxWidth: .infinity, alignment: .topLeading)
-        .dsCard(
-            background: DesignSystem.Colors.Background.elevated,
-            cornerRadius: DesignSystem.Metrics.cornerRadiusM,
-            borderColor: DesignSystem.Colors.Component.border.opacity(0.35)
-        )
         .debugCardLocator(sectionMarkerItems("Multi-Agent Roles"))
     }
 
     @ViewBuilder
     private func roleEditorSheet(for target: RoleEditorTarget) -> some View {
         if let role = roleBinding(for: target) {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text(role.wrappedValue.name.nonEmpty ?? NSLocalizedString(
-                        "codex.advanced.config.multi_agent.unnamed_role",
-                        value: "Unnamed Role",
-                        comment: "Unnamed role"
-                    ))
-                    .font(.title3.weight(.semibold))
-                    .foregroundStyle(DesignSystem.Colors.Text.primary)
-
-                    roleTextFieldRow(
+            NolonUI.CodexAdvancedEditorScaffold(
+                title: role.wrappedValue.name.nonEmpty ?? NSLocalizedString(
+                    "codex.advanced.config.multi_agent.unnamed_role",
+                    value: "Unnamed Role",
+                    comment: "Unnamed role"
+                )
+            ) {
+                    NolonUI.CodexAdvancedRoleTextFieldRowView(
                         label: "name",
                         placeholder: NSLocalizedString(
                             "codex.advanced.config.multi_agent.role_name",
@@ -1746,7 +1506,7 @@ struct CodexAdvancedConfigView: View {
                         ),
                         text: role.name
                     )
-                    roleTextFieldRow(
+                    NolonUI.CodexAdvancedRoleTextFieldRowView(
                         label: "description",
                         placeholder: NSLocalizedString(
                             "codex.advanced.config.multi_agent.description",
@@ -1755,7 +1515,7 @@ struct CodexAdvancedConfigView: View {
                         ),
                         text: role.description
                     )
-                    roleTextFieldRow(
+                    NolonUI.CodexAdvancedRoleTextFieldRowView(
                         label: "config_file",
                         placeholder: NSLocalizedString(
                             "codex.advanced.config.multi_agent.config_file",
@@ -1764,7 +1524,7 @@ struct CodexAdvancedConfigView: View {
                         ),
                         text: role.configFile
                     )
-                    roleTextFieldRow(
+                    NolonUI.CodexAdvancedRoleTextFieldRowView(
                         label: "model",
                         placeholder: NSLocalizedString(
                             "codex.advanced.config.multi_agent.model",
@@ -1773,46 +1533,71 @@ struct CodexAdvancedConfigView: View {
                         ),
                         text: role.model
                     )
-                    roleEnumPickerField(
+                    NolonUI.CodexAdvancedRolePickerRowView(
                         label: "model_reasoning_effort",
+                        options: [CodexAdvancedPickerOption(
+                            id: "",
+                            title: localizedOptionLabel(key: "model_reasoning_effort", value: "")
+                        )] + ["minimal", "low", "medium", "high"].map {
+                            CodexAdvancedPickerOption(
+                                id: $0,
+                                title: localizedOptionLabel(key: "model_reasoning_effort", value: $0)
+                            )
+                        },
                         selection: role.modelReasoningEffort,
-                        key: "model_reasoning_effort",
-                        options: ["minimal", "low", "medium", "high"]
+                        onSelectionChanged: {
+                            viewModel.scheduleStructuredSaveIfReady()
+                        }
                     )
-                    roleEnumPickerField(
+                    NolonUI.CodexAdvancedRolePickerRowView(
                         label: "sandbox_mode",
+                        options: [CodexAdvancedPickerOption(
+                            id: "",
+                            title: localizedOptionLabel(key: "sandbox_mode", value: "")
+                        )] + ["read-only", "workspace-write", "danger-full-access"].map {
+                            CodexAdvancedPickerOption(
+                                id: $0,
+                                title: localizedOptionLabel(key: "sandbox_mode", value: $0)
+                            )
+                        },
                         selection: role.sandboxMode,
-                        key: "sandbox_mode",
-                        options: ["read-only", "workspace-write", "danger-full-access"]
+                        onSelectionChanged: {
+                            viewModel.scheduleStructuredSaveIfReady()
+                        }
                     )
-                    roleEnumPickerField(
+                    NolonUI.CodexAdvancedRolePickerRowView(
                         label: "approval_policy",
+                        options: [CodexAdvancedPickerOption(
+                            id: "",
+                            title: localizedOptionLabel(key: "approval_policy", value: "")
+                        )] + ["untrusted", "on-failure", "on-request", "never"].map {
+                            CodexAdvancedPickerOption(
+                                id: $0,
+                                title: localizedOptionLabel(key: "approval_policy", value: $0)
+                            )
+                        },
                         selection: role.approvalPolicy,
-                        key: "approval_policy",
-                        options: ["untrusted", "on-failure", "on-request", "never"]
+                        onSelectionChanged: {
+                            viewModel.scheduleStructuredSaveIfReady()
+                        }
                     )
 
                     Divider().padding(.top, 4)
 
-                    HStack(spacing: 10) {
-                        Spacer(minLength: 0)
-                        Button(NSLocalizedString("generic.close", value: "Close", comment: "Close")) {
+                    NolonUI.CodexAdvancedEditorFooterView(
+                        closeTitle: NSLocalizedString("generic.close", value: "Close", comment: "Close"),
+                        saveTitle: NSLocalizedString("action.save", value: "Save", comment: "Save"),
+                        isSaveDisabled: viewModel.isSavingConfig,
+                        onClose: {
                             closeRoleEditor(target)
-                        }
-                        .dsSecondaryButton()
-                        Button(NSLocalizedString("action.save", value: "Save", comment: "Save")) {
+                        },
+                        onSave: {
                             commitRoleEditorIfNeeded(target)
                             Task { await viewModel.saveStructuredConfig() }
                             closeRoleEditor(target)
                         }
-                        .dsPrimaryButton()
-                        .disabled(viewModel.isSavingConfig)
-                    }
-                }
-                .padding(18)
-                .frame(maxWidth: .infinity, alignment: .leading)
+                    )
             }
-            .frame(minWidth: 680, minHeight: 420)
         } else {
             EmptyView()
         }
@@ -1848,70 +1633,27 @@ struct CodexAdvancedConfigView: View {
     }
 
     private func commonOptionRow(title: String, text: Binding<String>, description: String? = nil) -> some View {
-        alignedConfigRow(label: title, description: description) {
-            TextField(title, text: text)
-                .onChange(of: text.wrappedValue) { _, _ in
-                    viewModel.scheduleStructuredSaveIfReady()
-                }
-                .textFieldStyle(.roundedBorder)
-                .multilineTextAlignment(.trailing)
-        }
-    }
-
-    private func roleTextFieldRow(label: String, placeholder: String, text: Binding<String>) -> some View {
-        HStack(spacing: 10) {
-            Text(label)
-                .font(.caption.monospaced())
-                .foregroundStyle(DesignSystem.Colors.Text.secondary)
-                .frame(width: 180, alignment: .leading)
-            Spacer(minLength: 12)
-            TextField(placeholder, text: text)
-                .textFieldStyle(.roundedBorder)
-                .frame(width: 360, alignment: .trailing)
-        }
-    }
-
-    private func roleEnumPickerField(
-        label: String,
-        selection: Binding<String>,
-        key: String,
-        options: [String]
-    ) -> some View {
-        HStack(spacing: 10) {
-            Text(label)
-                .font(.caption.monospaced())
-                .foregroundStyle(DesignSystem.Colors.Text.secondary)
-                .frame(width: 180, alignment: .leading)
-            Spacer(minLength: 12)
-            Picker("", selection: selection) {
-                Text(localizedOptionLabel(key: key, value: "")).tag("")
-                ForEach(options, id: \.self) { value in
-                    Text(localizedOptionLabel(key: key, value: value)).tag(value)
-                }
-            }
-            .onChange(of: selection.wrappedValue) { _, _ in
+        NolonUI.CodexAdvancedTextFieldRowView(
+            label: title,
+            description: description,
+            placeholder: title,
+            text: text,
+            onTextChanged: {
                 viewModel.scheduleStructuredSaveIfReady()
             }
-            .pickerStyle(.menu)
-            .labelsHidden()
-            .frame(width: 260, alignment: .trailing)
-        }
+        )
+        .debugCardLocator(itemMarkerItems(title))
     }
 
     private func numericInputRow(label: String, text: Binding<String>) -> some View {
-        return alignedConfigRow(label: label) {
-            TextField("", text: text)
-                .onChange(of: text.wrappedValue) { _, newValue in
-                    let filtered = newValue.filter(\.isNumber)
-                    if filtered != newValue {
-                        text.wrappedValue = filtered
-                        return
-                    }
-                    viewModel.scheduleStructuredSaveIfReady()
-                }
-                .textFieldStyle(.roundedBorder)
-                .multilineTextAlignment(.trailing)
-        }
+        NolonUI.CodexAdvancedNumericFieldRowView(
+            label: label,
+            text: text,
+            onTextChanged: {
+                viewModel.scheduleStructuredSaveIfReady()
+            }
+        )
+        .debugCardLocator(itemMarkerItems(label))
     }
 
     private func commonOptionPickerRow(
@@ -1920,44 +1662,24 @@ struct CodexAdvancedConfigView: View {
         description: String? = nil,
         options: [String]
     ) -> some View {
-        alignedConfigRow(label: title, description: description) {
-            Picker("", selection: selection) {
-                Text(localizedOptionLabel(key: title, value: "")).tag("")
-                ForEach(options, id: \.self) { value in
-                    Text(localizedOptionLabel(key: title, value: value)).tag(value)
-                }
-            }
-            .onChange(of: selection.wrappedValue) { _, _ in
+        NolonUI.CodexAdvancedPickerRowView(
+            label: title,
+            description: description,
+            options: [CodexAdvancedPickerOption(
+                id: "",
+                title: localizedOptionLabel(key: title, value: "")
+            )] + options.map {
+                CodexAdvancedPickerOption(
+                    id: $0,
+                    title: localizedOptionLabel(key: title, value: $0)
+                )
+            },
+            selection: selection,
+            onSelectionChanged: {
                 viewModel.scheduleStructuredSaveIfReady()
             }
-            .pickerStyle(.menu)
-            .labelsHidden()
-        }
-    }
-
-    private func alignedConfigRow<Control: View>(
-        label: String,
-        description: String? = nil,
-        @ViewBuilder control: () -> Control
-    ) -> some View {
-        HStack(spacing: 10) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(label)
-                    .font(.caption.monospaced())
-                    .foregroundStyle(DesignSystem.Colors.Text.secondary)
-                if let description, !description.isEmpty {
-                    Text(description)
-                        .font(.caption2)
-                        .foregroundStyle(DesignSystem.Colors.Text.tertiary)
-                        .textSelection(.enabled)
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            Spacer(minLength: 12)
-            control()
-                .frame(minWidth: 200, maxWidth: 420, alignment: .trailing)
-        }
-        .debugCardLocator(itemMarkerItems(label))
+        )
+        .debugCardLocator(itemMarkerItems(title))
     }
 
     private func mergedOptions(current: String, defaults: [String]) -> [String] {
@@ -1979,323 +1701,143 @@ struct CodexAdvancedConfigView: View {
     }
 
     private var runtimeOverviewSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            LazyVGrid(
-                columns: [
-                    GridItem(.flexible(minimum: 160), spacing: 10),
-                    GridItem(.flexible(minimum: 160), spacing: 10)
-                ],
-                alignment: .leading,
-                spacing: 10
-            ) {
-                statTile(
-                    title: NSLocalizedString("codex.advanced.models_cache.active", value: "Active", comment: "Active model"),
-                    value: viewModel.activeModel?.displayName ?? "-"
-                )
-                statTile(
-                    title: NSLocalizedString("codex.advanced.models_cache.total", value: "Total", comment: "Total models"),
-                    value: "\(viewModel.visibleModels.count)"
-                )
-                statTile(
-                    title: NSLocalizedString("codex.advanced.models_cache.reasoning_effort", value: "Reasoning Effort", comment: "Reasoning effort title"),
-                    value: viewModel.selectedReasoningEffort ?? NSLocalizedString(
-                        "codex.advanced.models_cache.reasoning_effort.default",
-                        value: "Use Model Default",
-                        comment: "Default reasoning effort"
-                    )
-                )
-                statTile(
-                    title: NSLocalizedString("codex.advanced.models_cache.meta.fetched_at", value: "Last Fetch", comment: "Last fetch"),
-                    value: viewModel.modelsCacheFetchedAt?.formatted(date: .abbreviated, time: .shortened) ?? "-"
-                )
-            }
-
-            if let sourcePath = viewModel.modelsCacheSourcePath {
-                Text(sourcePath)
-                    .font(.caption.monospaced())
-                    .dsSecondaryText(font: .caption)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-            }
-            if let clientVersion = viewModel.modelsCacheClientVersion, !clientVersion.isEmpty {
-                Text("client: \(clientVersion)")
-                    .font(.caption)
-                    .dsSecondaryText(font: .caption)
-            }
-        }
+        NolonUI.CodexAdvancedRuntimeOverviewView(
+            stats: runtimeOverviewStats,
+            metaRows: runtimeOverviewMetaRows
+        )
     }
 
     private var availableModelsSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text(NSLocalizedString("codex.advanced.models_cache.title", value: "Models Cache", comment: "Models cache section title"))
-                    .font(.headline)
-                    .foregroundStyle(DesignSystem.Colors.Text.primary)
-                Spacer(minLength: 0)
-                if viewModel.isApplyingModel {
-                    ProgressView().controlSize(.small)
+        let visibleModels = viewModel.visibleModels
+        return NolonUI.CodexAdvancedModelsCacheSectionView(
+            title: NSLocalizedString(
+                "codex.advanced.models_cache.title",
+                value: "Models Cache",
+                comment: "Models cache section title"
+            ),
+            isApplyingModel: viewModel.isApplyingModel,
+            reasoningLabel: NSLocalizedString(
+                "codex.advanced.models_cache.reasoning_effort",
+                value: "Reasoning Effort",
+                comment: "Reasoning effort title"
+            ),
+            reasoningOptions: reasoningEffortOptions,
+            reasoningSelection: Binding(
+                get: { viewModel.selectedReasoningEffort ?? "__default__" },
+                set: { value in
+                    let effort = value == "__default__" ? nil : value
+                    Task { await viewModel.applyReasoningEffort(effort) }
                 }
-            }
-
-            reasoningEffortSection
-
-            if viewModel.models.isEmpty {
-                Text(NSLocalizedString(
-                    "provider.binary.codex.model.empty",
-                    value: "No model list found in models_cache.json. Run Codex CLI once to refresh cache.",
-                    comment: "No cached model list"
-                ))
-                .font(.caption)
-                .dsSecondaryText(font: .caption)
-            } else {
-                let visibleModels = viewModel.visibleModels
-
-                if viewModel.hasHiddenActiveModel {
-                    Text(NSLocalizedString(
-                        "codex.advanced.models_cache.hidden_active_hint",
-                        value: "Current model is hidden from list. Activate a visible model to replace it.",
-                        comment: "Hidden active model hint"
-                    ))
-                    .font(.caption)
-                    .foregroundStyle(DesignSystem.Colors.Status.warning)
+            ),
+            isReasoningDisabled: viewModel.availableReasoningEfforts.isEmpty
+                || viewModel.isApplyingReasoning
+                || viewModel.activeModel == nil,
+            isApplyingReasoning: viewModel.isApplyingReasoning,
+            showsReasoningUnsupportedHint: viewModel.availableReasoningEfforts.isEmpty,
+            reasoningUnsupportedHintText: NSLocalizedString(
+                "codex.advanced.models_cache.reasoning_effort.unsupported",
+                value: "The active model does not support configurable reasoning effort.",
+                comment: "Reasoning unsupported text"
+            ),
+            isModelsEmpty: viewModel.models.isEmpty,
+            modelsEmptyHintText: NSLocalizedString(
+                "provider.binary.codex.model.empty",
+                value: "No model list found in models_cache.json. Run Codex CLI once to refresh cache.",
+                comment: "No cached model list"
+            ),
+            hasHiddenActiveModel: viewModel.hasHiddenActiveModel,
+            hiddenActiveModelHintText: NSLocalizedString(
+                "codex.advanced.models_cache.hidden_active_hint",
+                value: "Current model is hidden from list. Activate a visible model to replace it.",
+                comment: "Hidden active model hint"
+            ),
+            modelLabel: NSLocalizedString(
+                "codex.advanced.models_cache.column.model",
+                value: "Model",
+                comment: "Model column title"
+            ),
+            modelOptions: visibleModels.map {
+                CodexAdvancedPickerOption(id: $0.slug, title: $0.displayName)
+            },
+            modelSelection: Binding(
+                get: { viewModel.activeModelSlug ?? "" },
+                set: { slug in
+                    guard
+                        !slug.isEmpty,
+                        slug != viewModel.activeModelSlug,
+                        let model = visibleModels.first(where: { $0.slug == slug })
+                    else { return }
+                    Task { await viewModel.activateModel(model) }
                 }
-
-                alignedConfigRow(label: NSLocalizedString(
-                    "codex.advanced.models_cache.column.model",
-                    value: "Model",
-                    comment: "Model column title"
-                )) {
-                    Picker(
-                        "",
-                        selection: Binding(
-                            get: { viewModel.activeModelSlug ?? "" },
-                            set: { slug in
-                                guard
-                                    !slug.isEmpty,
-                                    slug != viewModel.activeModelSlug,
-                                    let model = visibleModels.first(where: { $0.slug == slug })
-                                else { return }
-                                Task { await viewModel.activateModel(model) }
-                            }
-                        )
-                    ) {
-                        ForEach(visibleModels, id: \.slug) { model in
-                            Text(model.displayName).tag(model.slug)
-                        }
-                    }
-                    .pickerStyle(.menu)
-                    .labelsHidden()
-                    .disabled(viewModel.isApplyingModel || visibleModels.isEmpty)
-                }
-            }
-        }
+            ),
+            isModelDisabled: viewModel.isApplyingModel || visibleModels.isEmpty
+        )
     }
 
-    private var reasoningEffortSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            alignedConfigRow(
-                label: NSLocalizedString(
-                    "codex.advanced.models_cache.reasoning_effort",
-                    value: "Reasoning Effort",
-                    comment: "Reasoning effort title"
-                )
-            ) {
-                HStack(spacing: 8) {
-                    Picker(
-                        "",
-                        selection: Binding(
-                            get: { viewModel.selectedReasoningEffort ?? "__default__" },
-                            set: { value in
-                                let effort = value == "__default__" ? nil : value
-                                Task { await viewModel.applyReasoningEffort(effort) }
-                            }
-                        )
-                    ) {
-                        Text(NSLocalizedString(
-                            "codex.advanced.models_cache.reasoning_effort.default",
-                            value: "Use Model Default",
-                            comment: "Default reasoning effort"
-                        ))
-                        .tag("__default__")
-                        ForEach(viewModel.availableReasoningEfforts, id: \.self) { effort in
-                            Text(effort).tag(effort)
-                        }
-                    }
-                    .pickerStyle(.menu)
-                    .disabled(
-                        viewModel.availableReasoningEfforts.isEmpty
-                        || viewModel.isApplyingReasoning
-                        || viewModel.activeModel == nil
-                    )
-                    .frame(maxWidth: .infinity, alignment: .trailing)
-
-                    if viewModel.isApplyingReasoning {
-                        ProgressView().controlSize(.small)
-                    }
-                }
-            }
-
-            if viewModel.availableReasoningEfforts.isEmpty {
-                Text(NSLocalizedString(
-                    "codex.advanced.models_cache.reasoning_effort.unsupported",
-                    value: "The active model does not support configurable reasoning effort.",
-                    comment: "Reasoning unsupported text"
-                ))
-                .font(.caption)
-                .dsSecondaryText(font: .caption)
-            }
+    private var reasoningEffortOptions: [CodexAdvancedPickerOption] {
+        let defaultOption = CodexAdvancedPickerOption(
+            id: "__default__",
+            title: NSLocalizedString(
+                "codex.advanced.models_cache.reasoning_effort.default",
+                value: "Use Model Default",
+                comment: "Default reasoning effort"
+            )
+        )
+        let effortOptions = viewModel.availableReasoningEfforts.map {
+            CodexAdvancedPickerOption(id: $0, title: $0)
         }
+        return [defaultOption] + effortOptions
+    }
+
+    private var runtimeOverviewMetaRows: [CodexAdvancedMetaRowData] {
+        var rows: [CodexAdvancedMetaRowData] = []
+        if let sourcePath = viewModel.modelsCacheSourcePath, !sourcePath.isEmpty {
+            rows.append(
+                CodexAdvancedMetaRowData(
+                    id: "sourcePath",
+                    text: sourcePath,
+                    isMonospaced: true
+                )
+            )
+        }
+        if let clientVersion = viewModel.modelsCacheClientVersion, !clientVersion.isEmpty {
+            rows.append(
+                CodexAdvancedMetaRowData(
+                    id: "clientVersion",
+                    text: "client: \(clientVersion)",
+                    isMonospaced: false
+                )
+            )
+        }
+        return rows
     }
 
     private var xcodeFolderLinksSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(NSLocalizedString(
+        NolonUI.CodexXcodeFolderLinksSectionView(
+            descriptionText: NSLocalizedString(
                 "codex.advanced.xcode_links.desc",
                 value: "Link Xcode Codex folders to ~/.codex equivalents.",
                 comment: "Xcode links description"
-            ))
-            .font(.callout)
-            .dsSecondaryText(font: .callout)
-            .padding(.horizontal, 2)
-
-            ForEach(CodexLinkFolder.allCases) { folder in
+            ),
+            cards: xcodeFolderLinkCards,
+            onToggleLink: { folderID, enabled in
+                guard let folder = CodexLinkFolder(rawValue: folderID) else { return }
+                Task { await viewModel.requestSetLink(enabled, folder: folder) }
+            },
+            onShowInFinder: { folderID in
+                guard let folder = CodexLinkFolder(rawValue: folderID) else { return }
                 let state = viewModel.linkState(for: folder)
-                VStack(alignment: .leading, spacing: 10) {
-                    HStack(alignment: .center, spacing: 10) {
-                        VStack(alignment: .leading, spacing: 6) {
-                            HStack(spacing: 8) {
-                                Text(folder.rawValue.capitalized)
-                                    .font(.callout.weight(.semibold))
-                                    .foregroundStyle(DesignSystem.Colors.Text.primary)
-                                Text(linkStatusText(isLinked: state.isLinked))
-                                    .font(.caption.weight(.medium))
-                                    .foregroundStyle(
-                                        state.isLinked
-                                        ? DesignSystem.Colors.Status.success
-                                        : DesignSystem.Colors.Text.secondary
-                                    )
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 3)
-                                    .background(
-                                        (state.isLinked
-                                            ? DesignSystem.Colors.Status.success
-                                            : DesignSystem.Colors.Component.controlFillSubtle).opacity(0.12),
-                                        in: Capsule()
-                                )
-                            }
-                        }
-
-                        Spacer(minLength: 0)
-                        Toggle(
-                            "",
-                            isOn: Binding(
-                                get: { state.isLinked },
-                                set: { enabled in
-                                    Task { await viewModel.requestSetLink(enabled, folder: folder) }
-                                }
-                            )
-                        )
-                        .labelsHidden()
-                        .toggleStyle(.switch)
-                        .disabled(viewModel.applyingLinkFolders.contains(folder))
-                    }
-
-                    VStack(alignment: .leading, spacing: 6) {
-                        HStack(spacing: 8) {
-                            Image(systemName: "link")
-                                .font(.caption)
-                                .foregroundStyle(DesignSystem.Colors.Text.tertiary)
-                            Text("~/.codex/\(folder.rawValue)")
-                                .font(.caption.monospaced())
-                                .lineLimit(1)
-                                .truncationMode(.middle)
-                                .foregroundStyle(DesignSystem.Colors.Text.secondary)
-                        }
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 7)
-                        .dsCard(
-                            background: DesignSystem.Colors.Background.surface.opacity(0.22),
-                            cornerRadius: DesignSystem.Metrics.cornerRadiusS,
-                            borderColor: DesignSystem.Colors.Component.border.opacity(0.14)
-                        )
-
-                        HStack(spacing: 8) {
-                            Image(systemName: "folder")
-                                .font(.caption)
-                                .foregroundStyle(DesignSystem.Colors.Text.tertiary)
-                            Text(displayPath(state.targetURL.path))
-                                .font(.caption.monospaced())
-                                .lineLimit(1)
-                                .truncationMode(.middle)
-                                .foregroundStyle(DesignSystem.Colors.Text.secondary)
-                        }
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 7)
-                        .dsCard(
-                            background: DesignSystem.Colors.Background.surface.opacity(0.22),
-                            cornerRadius: DesignSystem.Metrics.cornerRadiusS,
-                            borderColor: DesignSystem.Colors.Component.border.opacity(0.14)
-                        )
-                    }
-
-                    if state.hasVisibleEntries {
-                        HStack(spacing: 6) {
-                            Image(systemName: "exclamationmark.triangle.fill")
-                                .font(.caption)
-                            Text(NSLocalizedString(
-                                "codex.advanced.link.conflict.short",
-                                value: "Contains visible files",
-                                comment: "Short conflict hint"
-                            ))
-                            .font(.caption)
-                        }
-                        .foregroundStyle(DesignSystem.Colors.Status.warning)
-                    }
-
-                    HStack {
-                        Spacer(minLength: 0)
-                        Menu {
-                            Button(NSLocalizedString("action.show_in_finder", comment: "Show in Finder")) {
-                                NSWorkspace.shared.activateFileViewerSelecting([state.targetURL])
-                            }
-                        } label: {
-                            Image(systemName: "ellipsis")
-                                .font(.callout.weight(.semibold))
-                                .foregroundStyle(DesignSystem.Colors.Text.secondary)
-                                .frame(width: 28, height: 24)
-                                .background(
-                                    DesignSystem.Colors.Component.controlFillSubtle.opacity(0.3),
-                                    in: RoundedRectangle(cornerRadius: 7)
-                                )
-                        }
-                        .menuStyle(.borderlessButton)
-                        .menuIndicator(.hidden)
-                    }
-                }
-                .padding(14)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .dsCard(
-                    background: DesignSystem.Colors.Background.elevated.opacity(0.55),
-                    cornerRadius: DesignSystem.Metrics.cornerRadiusS,
-                    borderColor: DesignSystem.Colors.Component.border.opacity(0.18)
-                )
-                .debugCardLocator(itemMarkerItems("Xcode Link: \(folder.rawValue)"))
-                .contextMenu {
-                    Button(NSLocalizedString("action.show_in_finder", comment: "Show in Finder")) {
-                        NSWorkspace.shared.activateFileViewerSelecting([state.targetURL])
-                    }
-                    debugPageMarkerMenuItem(itemMarkerItems("Xcode Link: \(folder.rawValue)"))
-                }
+                NSWorkspace.shared.activateFileViewerSelecting([state.targetURL])
             }
-        }
-        .padding(14)
-        .frame(maxWidth: .infinity, alignment: .topLeading)
-        .dsCard(
-            background: DesignSystem.Colors.Background.elevated,
-            cornerRadius: DesignSystem.Metrics.cornerRadiusM,
-            borderColor: DesignSystem.Colors.Component.border.opacity(0.35)
         )
         .debugCardLocator(sectionMarkerItems("Xcode Folder Links"))
+    }
+
+    private var xcodeFolderLinkCards: [CodexXcodeFolderLinkCardData] {
+        CodexLinkFolder.allCases.map { folder in
+            let state = viewModel.linkState(for: folder)
+            return xcodeFolderLinkCardData(folder: folder, state: state)
+        }
     }
 
     private func sectionMarkerItems(_ title: String) -> [PageMarkerItem] {
@@ -2333,33 +1875,111 @@ struct CodexAdvancedConfigView: View {
         return NSLocalizedString("status.not_linked", value: "Not Linked", comment: "Not linked status")
     }
 
-    private func sectionHeader(_ title: String) -> some View {
-        Text(title)
-            .font(.headline)
-            .foregroundStyle(DesignSystem.Colors.Text.primary)
+    private func xcodeFolderLinkCardData(
+        folder: CodexLinkFolder,
+        state: CodexLinkState
+    ) -> CodexXcodeFolderLinkCardData {
+        CodexXcodeFolderLinkCardData(
+            id: folder.id,
+            folderTitle: folder.rawValue.capitalized,
+            statusText: linkStatusText(isLinked: state.isLinked),
+            isLinked: state.isLinked,
+            sourcePathText: "~/.codex/\(folder.rawValue)",
+            targetPathText: displayPath(state.targetURL.path),
+            hasVisibleEntries: state.hasVisibleEntries,
+            conflictHintText: NSLocalizedString(
+                "codex.advanced.link.conflict.short",
+                value: "Contains visible files",
+                comment: "Short conflict hint"
+            ),
+            showInFinderTitle: NSLocalizedString("action.show_in_finder", comment: "Show in Finder"),
+            isApplying: viewModel.applyingLinkFolders.contains(folder)
+        )
     }
 
-    private func statTile(title: String, value: String) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(title)
-                .font(.caption)
-                .foregroundStyle(DesignSystem.Colors.Text.secondary)
-            Text(value)
-                .font(.callout.weight(.semibold))
-                .foregroundStyle(DesignSystem.Colors.Text.primary)
-                .lineLimit(1)
+    private func roleRowData(_ role: CodexAgentRoleDraft) -> CodexAdvancedRoleRowData {
+        CodexAdvancedRoleRowData(
+            id: role.id.uuidString,
+            title: role.name.nonEmpty ?? NSLocalizedString(
+                "codex.advanced.config.multi_agent.unnamed_role",
+                value: "Unnamed Role",
+                comment: "Unnamed role"
+            ),
+            modelText: role.model.nonEmpty ?? "-",
+            editTitle: NSLocalizedString("action.edit", value: "Edit", comment: "Edit action")
+        )
+    }
+
+    private var roleListRows: [CodexAdvancedRoleRowData] {
+        viewModel.roleDrafts.map(roleRowData)
+    }
+
+    private var multiAgentToggleRowData: CodexAdvancedMultiAgentToggleRowData {
+        CodexAdvancedMultiAgentToggleRowData(
+            labelText: NSLocalizedString(
+                "codex.advanced.config.multi_agent.toggle_label",
+                value: "[features].multi_agent",
+                comment: "multi-agent toggle label"
+            ),
+            isEnabled: viewModel.featureEnabled("multi_agent")
+        )
+    }
+
+    private var roleAddBuiltinItems: [CodexAdvancedRoleAddBuiltinItem] {
+        CodexBuiltinAgentRole.allCases.map { builtinRole in
+            CodexAdvancedRoleAddBuiltinItem(
+                id: builtinRole.rawValue,
+                title: String(
+                    format: NSLocalizedString(
+                        "codex.advanced.config.multi_agent.add_builtin.format",
+                        value: "Add or Override: %@",
+                        comment: "Add/override builtin role format"
+                    ),
+                    builtinRole.rawValue
+                )
+            )
         }
-        .padding(10)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            .ultraThinMaterial,
-            in: RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusS, style: .continuous)
+    }
+
+    private var multiAgentStatusRowData: CodexAdvancedMultiAgentStatusRowData {
+        let enabled = viewModel.featureEnabled("multi_agent")
+        return CodexAdvancedMultiAgentStatusRowData(
+            isEnabled: enabled,
+            messageText: NSLocalizedString(
+                enabled
+                    ? "codex.advanced.config.multi_agent.status_enabled"
+                    : "codex.advanced.config.multi_agent.status_disabled",
+                value: enabled
+                    ? "Multi-agent is enabled. You can edit roles and agents settings below."
+                    : "Multi-agent is disabled. Enable the switch above to edit roles.",
+                comment: "multi-agent status"
+            )
         )
-        .overlay(
-            RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusS, style: .continuous)
-                .stroke(DesignSystem.Colors.Component.border.opacity(0.22), lineWidth: 1)
-        )
-        .debugCardLocator(itemMarkerItems(title))
+    }
+
+    private var runtimeOverviewStats: [CodexAdvancedStatTileData] {
+        [
+            CodexAdvancedStatTileData(
+                title: NSLocalizedString("codex.advanced.models_cache.active", value: "Active", comment: "Active model"),
+                value: viewModel.activeModel?.displayName ?? "-"
+            ),
+            CodexAdvancedStatTileData(
+                title: NSLocalizedString("codex.advanced.models_cache.total", value: "Total", comment: "Total models"),
+                value: "\(viewModel.visibleModels.count)"
+            ),
+            CodexAdvancedStatTileData(
+                title: NSLocalizedString("codex.advanced.models_cache.reasoning_effort", value: "Reasoning Effort", comment: "Reasoning effort title"),
+                value: viewModel.selectedReasoningEffort ?? NSLocalizedString(
+                    "codex.advanced.models_cache.reasoning_effort.default",
+                    value: "Use Model Default",
+                    comment: "Default reasoning effort"
+                )
+            ),
+            CodexAdvancedStatTileData(
+                title: NSLocalizedString("codex.advanced.models_cache.meta.fetched_at", value: "Last Fetch", comment: "Last fetch"),
+                value: viewModel.modelsCacheFetchedAt?.formatted(date: .abbreviated, time: .shortened) ?? "-"
+            )
+        ]
     }
 
     private func pathStatusText(_ status: CodexBinaryManager.CodexPathStatus) -> String {
@@ -2379,6 +1999,17 @@ struct CodexAdvancedConfigView: View {
             status.profilePath,
             configured,
             active
+        )
+    }
+
+    private var pathStatusBarData: CodexPathStatusBarData {
+        CodexPathStatusBarData(
+            title: NSLocalizedString("codex.binary.path.section", value: "Terminal PATH", comment: "PATH section title"),
+            statusText: viewModel.pathStatus.map(pathStatusText),
+            configureTitle: NSLocalizedString("codex.binary.path.configure", value: "Add to PATH", comment: "Add codex path to shell profile"),
+            checkTitle: NSLocalizedString("codex.binary.path.check", value: "Check", comment: "Check PATH status"),
+            isCheckingPath: viewModel.isCheckingPath,
+            isConfiguringPath: viewModel.isConfiguringPath
         )
     }
 

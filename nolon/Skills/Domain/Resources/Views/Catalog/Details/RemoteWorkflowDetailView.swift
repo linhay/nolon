@@ -2,128 +2,64 @@ import SwiftUI
 import ProviderCatalog
 import NolonResourceKit
 import NolonUI
+import NolonUIFoundation
 
-/// Remote Workflow 详情视图
 struct RemoteWorkflowDetailView: View {
     let workflow: RemoteWorkflow
     let providers: [Provider]
     let targetProvider: Provider?
     let onInstall: (Provider) -> Void
-    
-    @State private var selectedProvider: Provider?
+
     @Environment(\.dismiss) private var dismiss
 
-    private var workflowSubtitle: String? {
-        guard let version = workflow.latestVersion else { return nil }
-        let date = Date(timeIntervalSince1970: version.createdAt)
-            .formatted(date: .abbreviated, time: .omitted)
-        if date.isEmpty {
-            return version.version
-        }
-        return "\(version.version) • \(date)"
+    var body: some View {
+        NolonUI.RemoteResourceDetailSheetView(
+            data: detailData,
+            onInstall: { providerID in
+                guard let provider = providers.first(where: { $0.id == providerID }) else { return }
+                onInstall(provider)
+            },
+            onClose: { dismiss() }
+        )
     }
 
-    var body: some View {
-        VStack(spacing: 0) {
-            NolonUI.SheetHeaderView(
-                title: workflow.displayName,
-                subtitle: workflowSubtitle
-            ) {
-                dismiss()
-            }
+    private var detailData: RemoteResourceDetailData {
+        var sections: [RemoteResourceDetailData.Section] = []
 
-            SheetDivider()
-            
-            // Content
-            ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    // Summary
-                    if let summary = workflow.summary {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Description")
-                                .font(.headline)
-                            Text(summary)
-                                .font(.body)
-                                .dsSecondaryText(font: .body)
-                        }
-                    }
-                    
-                    // Stats
-                    if let stats = workflow.stats {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Statistics")
-                                .font(.headline)
-                            
-                            HStack(spacing: 20) {
-                                if let stars = stats.stars {
-                                    Label("\(stars) Stars", systemImage: "star.fill")
-                                        .dsIconLabelText(foreground: DesignSystem.Colors.Status.warning, font: .callout)
-                                }
-                                if let downloads = stats.downloads {
-                                    Label("\(downloads) Downloads", systemImage: "arrow.down.circle")
-                                        .dsIconLabelText(foreground: DesignSystem.Colors.Text.secondary, font: .callout)
-                                }
-                                if let usages = stats.usages {
-                                    Label("\(usages) Usages", systemImage: "arrow.triangle.branch")
-                                        .dsIconLabelText(foreground: DesignSystem.Colors.Text.secondary, font: .callout)
-                                }
-                            }
-                        }
-                    }
-                    
-                    // Changelog
-                    if let changelog = workflow.latestVersion?.changelog {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Changelog")
-                                .font(.headline)
-                            Text(changelog)
-                                .font(.body)
-                                .dsSecondaryText(font: .body)
-                        }
-                    }
-                }
-                .padding(.horizontal, SheetLayout.horizontalPadding)
-                .padding(.vertical, SheetLayout.contentVerticalPadding)
-            }
-            
-            SheetDivider()
-            
-            // Footer - Install Button
-            HStack {
-                if let targetProvider = targetProvider {
-                    Text("Install to: \(targetProvider.name)")
-                        .font(.caption)
-                        .dsSecondaryText(font: .caption)
-                } else {
-                    Picker("Install to:", selection: $selectedProvider) {
-                        Text("Select Provider").tag(nil as Provider?)
-                        ForEach(providers) { provider in
-                            Text(provider.name).tag(provider as Provider?)
-                        }
-                    }
-                    .labelsHidden()
-                }
-                
-                Spacer()
-                
-                Button("Cancel") {
-                    dismiss()
-                }
-                .dsLinkButton()
-                .keyboardShortcut(.cancelAction)
-                
-                Button("Install") {
-                    if let provider = targetProvider ?? selectedProvider {
-                        onInstall(provider)
-                        dismiss()
-                    }
-                }
-                .dsPrimaryButton()
-                .keyboardShortcut(.defaultAction)
-                .disabled(targetProvider == nil && selectedProvider == nil)
-            }
-            .padding(.horizontal, SheetLayout.footerHorizontalPadding)
-            .padding(.vertical, SheetLayout.footerVerticalPadding)
+        if let summary = workflow.summary, !summary.isEmpty {
+            sections.append(.markdown(id: "summary", title: "Description", content: summary))
         }
+
+        if let changelog = workflow.latestVersion?.changelog, !changelog.isEmpty {
+            sections.append(.markdown(id: "changelog", title: "Changelog", content: changelog))
+        }
+
+        var stats: [RemoteResourceDetailData.StatItem] = []
+        if let values = workflow.stats {
+            if let stars = values.stars {
+                stats.append(.init(id: "stars", title: "\(stars) Stars", systemImage: "star.fill"))
+            }
+            if let downloads = values.downloads {
+                stats.append(.init(id: "downloads", title: "\(downloads) Downloads", systemImage: "arrow.down.circle"))
+            }
+            if let usages = values.usages {
+                stats.append(.init(id: "usages", title: "\(usages) Usages", systemImage: "arrow.triangle.branch"))
+            }
+        }
+
+        return .init(
+            title: workflow.displayName,
+            subtitle: versionSubtitle,
+            stats: stats,
+            sections: sections,
+            providers: providers.map { .init(id: $0.id, name: $0.name, iconName: $0.iconName) },
+            preferredProviderID: targetProvider?.id
+        )
+    }
+
+    private var versionSubtitle: String? {
+        guard let version = workflow.latestVersion else { return nil }
+        let date = Date(timeIntervalSince1970: version.createdAt).formatted(date: .abbreviated, time: .omitted)
+        return date.isEmpty ? version.version : "\(version.version) • \(date)"
     }
 }

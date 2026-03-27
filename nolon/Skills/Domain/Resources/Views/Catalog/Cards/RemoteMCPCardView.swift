@@ -3,6 +3,7 @@ import ProviderCatalog
 import AppKit
 import NolonResourceKit
 import NolonUI
+import NolonUIFoundation
 
 /// 资源中心 MCP 卡片视图 - Grid 布局中的卡片
 struct RemoteMCPCardView: View, DebugPageLocatable {
@@ -47,22 +48,22 @@ struct RemoteMCPCardView: View, DebugPageLocatable {
             onCopyCommand: copyCommandAction
         ) {
             Divider()
-            Button {
-                ResourceCardCopySupport.copyTitle(mcp.displayName)
-            } label: {
-                Label(
-                    NSLocalizedString("resource.card.copy_title", value: "Copy Title", comment: "Copy resource title"),
-                    systemImage: "doc.on.doc"
-                )
+            ResourceCopyTitleMenuItem(titleToCopy: mcp.displayName) { title in
+                ResourceCardCopySupport.copyTitle(title)
             }
             debugPageMarkerMenuItem(debugPageMarkerItems)
         }
         .textSelection(.disabled)
         .debugCardLocator(debugPageMarkerItems)
-        .sheet(isPresented: $showingInstallSheet) {
-            MCPInstallSheet(providers: providers, mcpName: mcp.displayName) { provider in
-                onInstall(provider)
+        .installProviderSelectionSheet(
+            isPresented: $showingInstallSheet,
+            itemName: mcp.displayName,
+            providers: providerOptions
+        ) { providerID in
+            guard let provider = providers.first(where: { $0.id == providerID }) else {
+                return
             }
+            onInstall(provider)
         }
     }
     
@@ -75,7 +76,7 @@ struct RemoteMCPCardView: View, DebugPageLocatable {
     }
 
     private var mappedMetaItems: [NolonUI.ResourceCardMetaItem] {
-        NolonUIAdapter.resourceMetaItems(ResourceCardMetaBuilder.mcpItems(mcp))
+        ResourceCardMetaBuilder.mcpItems(mcp)
     }
 
     private var revealInFinderAction: (() -> Void)? {
@@ -118,66 +119,14 @@ struct RemoteMCPCardView: View, DebugPageLocatable {
 
         return candidates.first(where: { FileManager.default.fileExists(atPath: $0.path) })
     }
-}
 
-/// MCP 安装选择 Sheet
-private struct MCPInstallSheet: View {
-    let providers: [Provider]
-    let mcpName: String
-    let onInstall: (Provider) -> Void
-    
-    @Environment(\.dismiss) private var dismiss
-    
-    var body: some View {
-        VStack(spacing: 0) {
-            NolonUI.SheetHeaderView(
-                title: NSLocalizedString("Install", comment: "Install"),
-                subtitle: mcpName
-            ) {
-                dismiss()
-            }
-
-            SheetDivider()
-
-            List {
-                ForEach(providers) { provider in
-                    Button {
-                        onInstall(provider)
-                        dismiss()
-                    } label: {
-                        HStack {
-                            if !provider.iconName.isEmpty {
-                                Image(provider.iconName)
-                                    .resizable()
-                                    .frame(width: 24, height: 24)
-                            } else {
-                                Image(systemName: "folder")
-                                    .frame(width: 24, height: 24)
-                            }
-                            
-                            Text(provider.name)
-                            Spacer()
-                        }
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .sheetScrollContentPadding()
-
-            SheetDivider()
-
-            HStack(spacing: 12) {
-                Button(NSLocalizedString("Cancel", comment: "Cancel")) {
-                    dismiss()
-                }
-                .buttonStyle(.plain)
-                .keyboardShortcut(.cancelAction)
-
-                Spacer(minLength: 0)
-            }
-            .padding(.horizontal, SheetLayout.footerHorizontalPadding)
-            .padding(.vertical, SheetLayout.footerVerticalPadding)
+    private var providerOptions: [SkillInstallProviderOption] {
+        providers.map { provider in
+            SkillInstallProviderOption(
+                id: provider.id,
+                name: provider.name,
+                iconName: provider.iconName
+            )
         }
-        .frame(width: 420, height: 520)
     }
 }

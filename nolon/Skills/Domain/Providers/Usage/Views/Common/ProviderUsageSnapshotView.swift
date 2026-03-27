@@ -1,6 +1,8 @@
 import SwiftUI
 import ProviderUsage
 import CodexBarProviderCatalog
+import NolonUI
+import NolonUIFoundation
 
 struct ProviderUsageSnapshotView: View {
     let outcome: ProviderAccountUsageOutcome
@@ -14,43 +16,16 @@ struct ProviderUsageSnapshotView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            header
-
-            switch outcome.outcome.result {
-            case let .success(result):
-                usageContent(result: result)
-            case let .failure(error):
-                errorContent(error)
-            }
-        }
-        .padding()
-        .frame(maxWidth: .infinity, alignment: .topLeading)
-        .dsCard()
-    }
-
-    private var header: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(alignment: .firstTextBaseline) {
-                Text(outcome.displayName)
-                    .font(.headline)
-
-                Spacer()
-
-                Text(outcome.provider.rawValue.uppercased())
-                    .font(.caption)
-                    .dsTertiaryText(font: .caption)
-            }
-
-            if let identity = identityLine {
-                Text(identity)
-                    .font(.subheadline)
-                    .dsSecondaryText(font: .subheadline)
-                    .textSelection(.enabled)
-            }
-
+        NolonUI.UsageSnapshotCardView(data: cardData) {
             if case let .success(result) = outcome.outcome.result {
-                identityDetails(result: result)
+                ProviderQuotaSection(
+                    provider: outcome.provider,
+                    usage: result.usage,
+                    credits: result.credits,
+                    creditsRefreshedAt: creditsRefreshedAt,
+                    isLoading: isLoading,
+                    showsEmptyState: true
+                )
             }
         }
     }
@@ -68,92 +43,56 @@ struct ProviderUsageSnapshotView: View {
         return parts.isEmpty ? nil : parts.joined(separator: " • ")
     }
 
-    private func identityDetails(result: ProviderFetchResult) -> some View {
+    private func identityDetails(result: ProviderFetchResult) -> (account: String?, plan: String?) {
         let identity = result.usage.identity?.scoped(to: outcome.provider)
-
-        return VStack(alignment: .leading, spacing: 4) {
-            if let email = identity?.accountEmail?.trimmingCharacters(in: .whitespacesAndNewlines), !email.isEmpty {
-                keyValueRow(
-                    title: NSLocalizedString("usage.metric.account", value: "Account", comment: "Account label"),
-                    value: email
-                )
-            }
-            if let plan = identity?.plan?.trimmingCharacters(in: .whitespacesAndNewlines), !plan.isEmpty {
-                keyValueRow(
-                    title: NSLocalizedString("usage.metric.plan", value: "Plan", comment: "Plan label"),
-                    value: plan
-                )
-            }
-        }
-        .dsTertiaryText(font: .caption)
-        .textSelection(.enabled)
+        let account = identity?.accountEmail?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let plan = identity?.plan?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return (
+            account: (account?.isEmpty == false) ? account : nil,
+            plan: (plan?.isEmpty == false) ? plan : nil
+        )
     }
 
-    private func keyValueRow(title: String, value: String) -> some View {
-        HStack(spacing: 6) {
-            Text(title)
-            Text("•")
-            Text(value)
-        }
-    }
-
-    private func usageContent(result: ProviderFetchResult) -> some View {
-        return VStack(alignment: .leading, spacing: 12) {
-            ProviderQuotaSection(
-                provider: outcome.provider,
-                usage: result.usage,
-                credits: result.credits,
-                creditsRefreshedAt: creditsRefreshedAt,
-                isLoading: isLoading,
-                showsEmptyState: true
+    private var cardData: UsageSnapshotCardData {
+        let providerLabel = outcome.provider.rawValue.uppercased()
+        switch outcome.outcome.result {
+        case let .success(result):
+            let detail = identityDetails(result: result)
+            return .init(
+                header: .init(
+                    displayName: outcome.displayName,
+                    providerLabel: providerLabel,
+                    identityLine: identityLine,
+                    accountLine: detail.account,
+                    planLine: detail.plan
+                ),
+                body: .success(
+                    footerItems: [
+                        result.fetchKind.label,
+                        result.strategyKind.label,
+                        result.usage.updatedAt.formatted(date: .abbreviated, time: .shortened)
+                    ]
+                )
             )
-
-            footer(result: result)
+        case let .failure(error):
+            let code = UsageIssueClassifier.classify(provider: outcome.provider, error: error)
+            let hints = UsageIssueClassifier.hints(provider: outcome.provider, code: code)
+            return .init(
+                header: .init(
+                    displayName: outcome.displayName,
+                    providerLabel: providerLabel,
+                    identityLine: nil,
+                    accountLine: nil,
+                    planLine: nil
+                ),
+                body: .error(
+                    message: error.localizedDescription,
+                    diagnostic: code != .unknown ? code.rawValue : nil,
+                    hints: hints
+                )
+            )
         }
     }
-
-    private func footer(result: ProviderFetchResult) -> some View {
-        HStack(spacing: 8) {
-            Text(result.fetchKind.label)
-            Text("•")
-            Text(result.strategyKind.label)
-            Text("•")
-            Text(result.usage.updatedAt.formatted(date: .abbreviated, time: .shortened))
-        }
-        .font(.caption)
-        .dsTertiaryText(font: .caption)
-    }
-
-    private func errorContent(_ error: Error) -> some View {
-        let code = UsageIssueClassifier.classify(provider: outcome.provider, error: error)
-        let hints = UsageIssueClassifier.hints(provider: outcome.provider, code: code)
-
-        return VStack(alignment: .leading, spacing: 8) {
-            Text(NSLocalizedString("usage.monitor.error.title", value: "Failed to load usage", comment: "Error title"))
-                .dsErrorText(font: .subheadline)
-            Text(error.localizedDescription)
-                .font(.body)
-                .foregroundStyle(DesignSystem.Colors.Text.primary)
-                .textSelection(.enabled)
-            if code != .unknown {
-                Text("diagnostic: \(code.rawValue)")
-                    .font(.caption)
-                    .foregroundStyle(DesignSystem.Colors.Text.tertiary)
-                    .textSelection(.enabled)
-            }
-            if !hints.isEmpty {
-                VStack(alignment: .leading, spacing: 4) {
-                    ForEach(hints, id: \.self) { hint in
-                        Text("• \(hint)")
-                            .font(.caption)
-                            .foregroundStyle(DesignSystem.Colors.Text.secondary)
-                            .textSelection(.enabled)
-                    }
-                }
-            }
-        }
-    }
-
 }
 
 private extension ProviderFetchKind {

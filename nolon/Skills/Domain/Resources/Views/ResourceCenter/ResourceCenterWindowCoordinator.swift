@@ -2,6 +2,7 @@ import SwiftUI
 import ProviderCatalog
 import NolonResourceKit
 import Observation
+import NolonUI
 
 @MainActor
 @Observable
@@ -13,7 +14,7 @@ final class ResourceCenterWindowCoordinator {
         let settings: ProviderSettings
         let repository: SkillRepository
         let targetProvider: Provider?
-        let selectedTab: ResourceContentTabType?
+        let selectedTab: ResourceCenterTabID?
         let onInstall: (RemoteSkill, Provider) -> Void
         let onInstallWorkflow: ((RemoteWorkflow, Provider) -> Void)?
         let onInstallMCP: ((RemoteMCP, Provider) -> Void)?
@@ -36,7 +37,11 @@ struct ResourceCenterWindowRootView: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        Group {
+        NolonUI.WindowEmptyStateScaffold.resourceCenterEmptyState(
+            hasContent: coordinator.payload != nil,
+            minWidth: 980,
+            minHeight: 700
+        ) {
             if let payload = coordinator.payload {
                 ResourceCenterView(
                     settings: payload.settings,
@@ -53,16 +58,16 @@ struct ResourceCenterWindowRootView: View {
                     onRegisterDeleteRequest: payload.onRegisterDeleteRequest,
                     onMakeDeleteRequestExecutor: payload.onMakeDeleteRequestExecutor
                 )
-                .frame(minWidth: 980, idealWidth: 1100, maxWidth: .infinity,
-                       minHeight: 700, idealHeight: 760, maxHeight: .infinity)
-            } else {
-                ContentUnavailableView(
-                    NSLocalizedString("resource.center.empty.title", value: "No Resource Center Context", comment: "Resource center empty title"),
-                    systemImage: "tray",
-                    description: Text(
-                        NSLocalizedString("resource.center.empty.desc", value: "Open Resource Center from toolbar or provider view.", comment: "Resource center empty description")
-                    )
+                .frame(
+                    minWidth: 980,
+                    idealWidth: 1100,
+                    maxWidth: .infinity,
+                    minHeight: 700,
+                    idealHeight: 760,
+                    maxHeight: .infinity
                 )
+            } else {
+                EmptyView()
             }
         }
     }

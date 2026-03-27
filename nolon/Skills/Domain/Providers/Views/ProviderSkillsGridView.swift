@@ -1,6 +1,7 @@
 import SwiftUI
 import ProviderCatalog
 import NolonResourceKit
+import NolonUI
 
 struct ProviderSkillsGridView: View {
     let viewModel: ProviderDetailGridViewModel
@@ -9,44 +10,48 @@ struct ProviderSkillsGridView: View {
     let markerBaseItems: [PageMarkerItem]
     
     var body: some View {
-        if viewModel.filteredSkills.isEmpty {
-            ContentUnavailableView(
-                viewModel.searchText.isEmpty ? NSLocalizedString("skills.empty", comment: "No Skills") : "No Results",
-                systemImage: viewModel.searchText.isEmpty ? "square.grid.2x2" : "magnifyingglass",
-                description: Text(viewModel.searchText.isEmpty ? NSLocalizedString("skills.empty_desc", comment: "No skills installed in this provider") : "No matching skills found")
-                    .dsSecondaryText(font: .body)
-            )
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-        } else {
-            LazyVGrid(columns: columns, spacing: 16) {
-                ForEach(viewModel.groupedFilteredSkills, id: \.path) { group in
-                    Section {
-                        ForEach(group.skills, id: \.uniqueId) { skill in
-                            SkillCardView(
-                                skill: skill,
-                                provider: provider,
-                                hasWorkflow: viewModel.workflowIds.contains(skill.id),
-                                searchText: viewModel.searchText,
-                                onReveal: { viewModel.revealSkillInFinder(skill) },
-                                onUninstall: { await viewModel.uninstallSkill(skill) },
-                                onLinkWorkflow: { viewModel.linkSkillToWorkflow(skill) },
-                                onUnlinkWorkflow: { viewModel.unlinkSkillFromWorkflow(skill) },
-                                onMigrate: { await viewModel.migrateSkill(skill) },
-                                onTap: { viewModel.selectedSkillForDetail = skill }
+        NolonUI.ProviderResourceGridSectionView(
+            isEmpty: viewModel.filteredSkills.isEmpty,
+            searchText: viewModel.searchText,
+            kind: .skills,
+            noResultsDescription: "No matching skills found",
+            columns: columns
+        ) {
+            ForEach(viewModel.groupedFilteredSkills, id: \.path) { group in
+                Section {
+                    ForEach(group.skills, id: \.uniqueId) { skill in
+                        NolonUI.SkillCardView(
+                            name: skill.name,
+                            description: skill.description,
+                            version: skill.version,
+                            isOrphaned: skill.installationState == .orphaned,
+                            hasWorkflow: viewModel.workflowIds.contains(skill.id),
+                            referenceCount: skill.referenceCount,
+                            scriptCount: skill.scriptCount,
+                            searchText: viewModel.searchText,
+                            onReveal: { viewModel.revealSkillInFinder(skill) },
+                            onUninstall: { await viewModel.uninstallSkill(skill) },
+                            onLinkWorkflow: { viewModel.linkSkillToWorkflow(skill) },
+                            onUnlinkWorkflow: { viewModel.unlinkSkillFromWorkflow(skill) },
+                            onMigrate: { await viewModel.migrateSkill(skill) },
+                            onTap: { viewModel.selectedSkillForDetail = skill }
+                        ) {
+                            debugPageMarkerMenuItem(
+                                [
+                                    PageMarkerItem(title: provider.displayName),
+                                    PageMarkerItem(title: NSLocalizedString("tab.skills", comment: "Skills")),
+                                    PageMarkerItem(title: skill.name)
+                                ]
                             )
-                            .id(skill.uniqueId)
-                            .debugCardLocator(markerBaseItems + [PageMarkerItem(title: skill.name)])
                         }
-                    } header: {
-                        HStack {
-                            Text(viewModel.displayPath(for: group.path))
-                                .font(.headline)
-                                .dsSecondaryText(font: .headline)
-                            Spacer()
-                        }
-                        .padding(.top, 8)
-                        .gridCellColumns(columns.count)
+                        .id(skill.uniqueId)
+                        .debugCardLocator(markerBaseItems + [PageMarkerItem(title: skill.name)])
                     }
+                } header: {
+                    NolonUI.ProviderGroupedPathHeaderView(
+                        title: viewModel.displayPath(for: group.path),
+                        columnCount: columns.count
+                    )
                 }
             }
         }

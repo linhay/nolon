@@ -3,6 +3,7 @@ import ProviderCatalog
 import NolonResourceKit
 import OSLog
 import NolonUI
+import NolonUIFoundation
 #if os(macOS)
 import AppKit
 #endif
@@ -25,7 +26,7 @@ struct ResourceCatalogGridView: View {
     private static let installTimeoutNanoseconds: UInt64 = 45_000_000_000
 
     let repository: RemoteRepository?
-    let selectedTab: ResourceContentTabType?
+    let selectedTab: ResourceCenterTabID?
     @Binding var searchText: String
     let installedSlugs: Set<String>
     let installedSkills: [RemoteSkill]
@@ -57,7 +58,7 @@ struct ResourceCatalogGridView: View {
     
     init(
         repository: RemoteRepository?,
-        selectedTab: ResourceContentTabType?,
+        selectedTab: ResourceCenterTabID?,
         searchText: Binding<String>,
         installedSlugs: Set<String>,
         installedSkills: [RemoteSkill],
@@ -145,43 +146,10 @@ struct ResourceCatalogGridView: View {
             .textSelection(.enabled)
     }
 
-    @ViewBuilder
-    private var mainContentView: some View {
-        Group {
-            if repository == nil {
-                ContentUnavailableView {
-                    Label {
-                        Text(NSLocalizedString("detail.no_repository", comment: "Select a Repository"))
-                            .dsEmptyStateTitle()
-                    } icon: {
-                        Image(systemName: "tray")
-                            .dsEmptyStateIcon()
-                    }
-                }
-            } else if selectedTab == nil {
-                ContentUnavailableView {
-                    Label {
-                        Text(NSLocalizedString("detail.select_tab", comment: "Select a Tab"))
-                            .dsEmptyStateTitle()
-                    } icon: {
-                        Image(systemName: "list.bullet")
-                            .dsEmptyStateIcon()
-                    }
-                }
-            } else {
-                VStack(spacing: 12) {
-                    searchBar
-                    contentBody
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            }
-        }
-    }
-
     private var contentWithTask: some View {
         // 使用 .task(id:) 处理仓库切换，它会自动取消旧任务并启动新任务
         // 不需要 .onChange，避免重复触发导致请求被取消
-        mainContentView
+        mainScaffoldContent
             .task(id: loadTaskID) {
                 await loadContent()
             }
@@ -222,7 +190,64 @@ struct ResourceCatalogGridView: View {
     }
 
     private var contentWithDetailSheets: some View {
-        contentWithPendingSync
+        NolonUI.ResourceCatalogSheetsPresenter(
+            selectedWorkflow: $viewModel.selectedWorkflowForDetail,
+            selectedMCP: $viewModel.selectedMCPForDetail,
+            deleteRequest: $viewModel.deleteRequest
+        ) {
+            contentWithPendingSync
+        } workflowSheet: { workflow in
+            RemoteWorkflowDetailView(
+                workflow: workflow,
+                providers: providers,
+                targetProvider: targetProvider,
+                onInstall: { provider in
+                    onInstallWorkflow?(workflow, provider)
+                }
+            )
+            .remoteDetailSheetFrame()
+        } mcpSheet: { mcp in
+            RemoteMCPDetailView(
+                mcp: mcp,
+                providers: providers,
+                targetProvider: targetProvider,
+                onInstall: { provider in
+                    onInstallMCP?(mcp, provider)
+                }
+            )
+            .remoteDetailSheetFrame()
+        } deleteSheet: { request in
+            let resourceSlug = request.resourceSlug
+            let resourceType = request.resourceType
+            NolonUI.ResourceDeleteTargetSheetView(
+                data: .init(
+                    resourceName: request.displayName,
+                    resourceTypeName: localizedResourceTypeName(request.resourceType),
+                    providers: providers.map { .init(id: $0.id, name: $0.name, iconName: $0.iconName) },
+                    preferredProviderID: preferredDeleteProviderID
+                ),
+                onConfirm: { deleteAll, providerID in
+                    let target: ResourceDeleteTarget
+                    if deleteAll {
+                        target = .allProvidersAndGlobalCache
+                    } else {
+                        guard let providerID else { return }
+                        target = .provider(providerID)
+                    }
+                    Task {
+                        await handleDeleteRequest(
+                            resourceSlug: resourceSlug,
+                            resourceType: resourceType,
+                            target: target,
+                            globalCachePathHint: request.localPath
+                        )
+                    }
+                },
+                onClose: {
+                    viewModel.deleteRequest = nil
+                }
+            )
+        }
             .onChange(of: viewModel.selectedSkillForDetail?.slug) { _, _ in
                 guard let skill = viewModel.consumeSelectedSkillForDetail() else { return }
                 SkillDetailWindowCoordinator.shared.presentRemote(
@@ -235,60 +260,11 @@ struct ResourceCatalogGridView: View {
                 )
                 openWindow(id: SkillDetailWindowCoordinator.windowID)
             }
-            .sheet(item: $viewModel.selectedWorkflowForDetail) { workflow in
-                RemoteWorkflowDetailView(
-                    workflow: workflow,
-                    providers: providers,
-                    targetProvider: targetProvider,
-                    onInstall: { provider in
-                        onInstallWorkflow?(workflow, provider)
-                    }
-                )
-                .frame(minWidth: 920, idealWidth: 1100, maxWidth: .infinity,
-                       minHeight: 620, idealHeight: 720, maxHeight: .infinity)
-            }
-            .sheet(item: $viewModel.selectedMCPForDetail) { mcp in
-                RemoteMCPDetailView(
-                    mcp: mcp,
-                    providers: providers,
-                    targetProvider: targetProvider,
-                    onInstall: { provider in
-                        onInstallMCP?(mcp, provider)
-                    }
-                )
-                .frame(minWidth: 920, idealWidth: 1100, maxWidth: .infinity,
-                       minHeight: 620, idealHeight: 720, maxHeight: .infinity)
-            }
-            .sheet(item: $viewModel.deleteRequest) { request in
-                let resourceSlug = request.resourceSlug
-                let resourceType = request.resourceType
-                ResourceDeleteTargetSheet(
-                    resourceName: request.displayName,
-                    resourceType: request.resourceType,
-                    providers: providers,
-                    preferredProvider: targetProvider
-                ) { target in
-                    Task {
-                        await handleDeleteRequest(
-                            resourceSlug: resourceSlug,
-                            resourceType: resourceType,
-                            target: target,
-                            globalCachePathHint: request.localPath
-                        )
-                    }
-                }
-            }
-            .confirmationDialog(
-                NSLocalizedString(
-                    "resource.delete.confirm.title",
-                    value: "Delete from all providers?",
-                    comment: "Delete all confirmation title"
-                ),
+            .destructiveConfirmationDialog(
+                data: directDeleteConfirmationDialogData,
                 isPresented: isShowingDirectDeleteConfirmation,
-                titleVisibility: .visible,
-                presenting: viewModel.directDeleteConfirmationRequest
-            ) { request in
-                Button(NSLocalizedString("action.delete", value: "Delete", comment: "Delete action"), role: .destructive) {
+                onConfirm: {
+                    guard let request = viewModel.directDeleteConfirmationRequest else { return }
                     viewModel.directDeleteConfirmationRequest = nil
                     Task {
                         await handleDeleteRequest(
@@ -298,27 +274,15 @@ struct ResourceCatalogGridView: View {
                             globalCachePathHint: request.localPath
                         )
                     }
-                }
-                Button(NSLocalizedString("Cancel", comment: "Cancel"), role: .cancel) {
+                },
+                onCancel: {
                     viewModel.directDeleteConfirmationRequest = nil
                 }
-            } message: { _ in
-                Text(
-                    NSLocalizedString(
-                        "resource.delete.confirm.message",
-                        value: "This will remove the resource from all providers and delete global cache files.",
-                        comment: "Delete all confirmation message"
-                    )
-                )
-            }
-            .alert(
-                NSLocalizedString("action.delete", value: "Delete", comment: "Delete action"),
-                isPresented: $viewModel.isShowingDeleteResultAlert
-            ) {
-                Button(NSLocalizedString("ok", value: "OK", comment: "OK")) {}
-            } message: {
-                Text(viewModel.deleteResultMessage)
-            }
+            )
+            .messageAlert(
+                title: NSLocalizedString("action.delete", value: "Delete", comment: "Delete action"),
+                message: deleteResultAlertMessageBinding
+            )
             .onChange(of: viewModel.directDeleteConfirmationRequest) { _, request in
                 guard UITestSupport.shouldAutoConfirmDelete,
                       let request,
@@ -358,181 +322,94 @@ struct ResourceCatalogGridView: View {
         )
     }
 
+    private var directDeleteConfirmationDialogData: DestructiveConfirmationDialogData {
+        DestructiveConfirmationDialogData(
+            title: NSLocalizedString(
+                "resource.delete.confirm.title",
+                value: "Delete from all providers?",
+                comment: "Delete all confirmation title"
+            ),
+            message: NSLocalizedString(
+                "resource.delete.confirm.message",
+                value: "This will remove the resource from all providers and delete global cache files.",
+                comment: "Delete all confirmation message"
+            ),
+            confirmTitle: NSLocalizedString("action.delete", value: "Delete", comment: "Delete action")
+        )
+    }
+
+    private var deleteResultAlertMessageBinding: Binding<String?> {
+        Binding<String?>(
+            get: {
+                viewModel.isShowingDeleteResultAlert ? viewModel.deleteResultMessage : nil
+            },
+            set: { value in
+                if value == nil {
+                    viewModel.isShowingDeleteResultAlert = false
+                }
+            }
+        )
+    }
+
     @ViewBuilder
     private var contentBody: some View {
         let hasAnyContent = !(viewModel.skills.isEmpty && viewModel.workflows.isEmpty && viewModel.mcps.isEmpty)
-        if viewModel.isLoading && !hasAnyContent {
-            Image(systemName: "arrow.triangle.2.circlepath")
-                .font(.system(size: 16, weight: .medium))
-                .foregroundStyle(DesignSystem.Colors.Status.info)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-        } else if let error = viewModel.errorMessage, !hasAnyContent {
-            ContentUnavailableView {
-                Label {
-                    Text(NSLocalizedString("remote.error.title", value: "Error Loading Data", comment: "Remote load error title"))
-                        .dsEmptyStateErrorTitle()
-                } icon: {
-                    Image(systemName: "exclamationmark.triangle")
-                        .dsEmptyStateIcon(color: DesignSystem.Colors.Status.error)
-                }
-            } description: {
-                Button {
-                    #if os(macOS)
-                    let pasteboard = NSPasteboard.general
-                    pasteboard.clearContents()
-                    pasteboard.setString(error, forType: .string)
-                    #endif
-                    showCopiedToast = true
-                    Task { @MainActor in
-                        try? await Task.sleep(nanoseconds: 1_200_000_000)
-                        showCopiedToast = false
-                    }
-                } label: {
-                    Text(error)
-                        .dsSecondaryText(font: .body)
-                }
-                .buttonStyle(.plain)
-            } actions: {
-                Button {
-                    retryTrigger += 1
-                } label: {
-                    Text(NSLocalizedString("remote.retry", value: "Retry", comment: "Retry"))
-                }
-                .buttonStyle(.bordered)
+        NolonUI.ResourceCatalogBodyStateContainerView(
+            isLoading: viewModel.isLoading,
+            hasAnyContent: hasAnyContent,
+            errorMessage: viewModel.errorMessage,
+            onCopyError: { message in
+                copyErrorToClipboard(message)
+            },
+            onRetry: {
+                retryTrigger += 1
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-        } else {
-            VStack(spacing: 10) {
-                if let error = viewModel.errorMessage, !error.isEmpty {
-                    inlineErrorBanner(error)
-                }
-                gridContent
-            }
+        ) {
+            gridContent
         }
     }
 
-    private func inlineErrorBanner(_ message: String) -> some View {
-        HStack(alignment: .top, spacing: 8) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundStyle(DesignSystem.Colors.Status.warning)
-            Text(message)
-                .font(.callout)
-                .dsSecondaryText(font: .callout)
-                .lineLimit(2)
-            Spacer()
-            Button(NSLocalizedString("remote.retry", value: "Retry", comment: "Retry")) {
-                retryTrigger += 1
-            }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
+    private func copyErrorToClipboard(_ message: String) {
+        #if os(macOS)
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(message, forType: .string)
+        #endif
+        showCopiedToast = true
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 1_200_000_000)
+            showCopiedToast = false
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .dsCard(
-            background: DesignSystem.Colors.Status.warning.opacity(0.10),
-            cornerRadius: DesignSystem.Metrics.cornerRadiusM,
-            borderColor: DesignSystem.Colors.Status.warning.opacity(0.28),
-            borderWidth: 1
-        )
-        .padding(.horizontal)
     }
 
     private var searchBar: some View {
-        HStack(spacing: 12) {
-            SearchField(
-                placeholder: NSLocalizedString("remote.search.placeholder", value: "Search", comment: "Search placeholder"),
-                text: $searchText,
-                showSearching: isSearching
-            )
-            .frame(maxWidth: .infinity)
+        NolonUI.ResourceCatalogToolbarView(
+            searchText: $searchText,
+            isSearching: isSearching,
+            onRefresh: onRefresh,
+            onClose: onClose
+        )
+    }
 
-            if let onRefresh {
-                topActionButton(
-                    systemImage: "arrow.clockwise",
-                    help: NSLocalizedString("Refresh", comment: "Refresh"),
-                    action: onRefresh
-                )
+    private var mainScaffoldContent: some View {
+        NolonUI.ResourceCatalogMainScaffoldView(
+            hasRepository: repository != nil,
+            hasSelectedTab: selectedTab != nil,
+        ) {
+            VStack(spacing: 12) {
+                searchBar
+                contentBody
             }
-            if let onClose {
-                NolonUI.ResourceCenterCloseButton(action: onClose)
-            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
-        .padding(.horizontal)
-        .padding(.top, 8)
     }
 
-    @ViewBuilder
-    private func topActionButton(
-        systemImage: String,
-        help: String,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            Image(systemName: systemImage)
-                .font(.system(size: 13, weight: .bold))
-                .foregroundStyle(DesignSystem.Colors.Text.secondary)
-                .frame(width: 32, height: 32)
-                .background(
-                    Circle()
-                        .fill(.white.opacity(0.1))
-                        .background(
-                            Circle()
-                                .stroke(.white.opacity(0.1), lineWidth: 1)
-                        )
-                )
-                .background(.ultraThinMaterial, in: Circle())
-        }
-        .buttonStyle(.plain)
-        .help(help)
-        .accessibilityLabel(help)
-    }
-
-    private func sectionHeader(_ title: String, count: Int) -> some View {
-        HStack(spacing: 8) {
-            Text(title)
-                .font(.headline.weight(.semibold))
-            Text("\(count)")
-                .font(.caption.weight(.semibold))
-                .dsBadge(
-                    foreground: DesignSystem.Colors.Text.secondary,
-                    background: DesignSystem.Colors.Component.controlFillSubtle
-                )
-            Spacer()
-        }
-        .padding(.top, 2)
-    }
-
-    private func sectionBlock<Content: View>(
-        _ title: String,
-        count: Int,
-        @ViewBuilder content: () -> Content
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            sectionHeader(title, count: count)
-            content()
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-    
     @ViewBuilder
     private var gridContent: some View {
-        ZStack(alignment: .bottomTrailing) {
-            ScrollView {
-                skillsGrid
-            }
-            .padding(.horizontal)
-            .padding(.bottom)
-            // 彻底移除这里的 .searchable
-            if showCopiedToast {
-                ToastView(
-                    text: NSLocalizedString("remote.error.copied", value: "Copied", comment: "Copied tooltip"),
-                    systemImage: "doc.on.doc",
-                    style: .success
-                )
-                .padding(.trailing, 16)
-                .padding(.bottom, 16)
-                .transition(.move(edge: .bottom).combined(with: .opacity))
-            }
+        NolonUI.ResourceCatalogGridOverlayScaffold(showOverlay: showCopiedToast) {
+            skillsGrid
+        } overlay: {
+            NolonUI.ToastView.copied()
         }
         .animation(.easeOut(duration: 0.2), value: showCopiedToast)
     }
@@ -551,308 +428,227 @@ struct ResourceCatalogGridView: View {
                 mergedSkills,
                 searchText: shouldClientFilter ? searchText : normalizedSearchQuery
             )
-            if filtered.isEmpty {
-                ContentUnavailableView(
-                    searchText.isEmpty
-                    ? NSLocalizedString("skills.empty", comment: "No Skills")
-                    : NSLocalizedString("remote.search.no_results", value: "No Results", comment: "No search results"),
-                    systemImage: searchText.isEmpty ? "square.grid.2x2" : "magnifyingglass",
-                    description: Text(
-                        searchText.isEmpty
-                        ? NSLocalizedString("skills.empty_desc", comment: "No skills in this repository")
-                        : NSLocalizedString("remote.search.no_results_desc", value: "No matching skills found", comment: "No search results description")
-                    )
-                        .dsSecondaryText(font: .body)
+            let buckets = ResourceInstallBuckets(
+                items: filtered,
+                isInstalled: { installedSlugs.contains($0.slug) },
+                isInstalling: { pendingSkillInstalls.contains($0.slug) }
+            )
+            NolonUI.ResourceCatalogKindTabScaffold(
+                kind: .skills,
+                isEmpty: filtered.isEmpty,
+                searchText: searchText,
+                installedItems: buckets.installed,
+                installingItems: buckets.installing,
+                availableItems: buckets.available,
+                columns: columns
+            ) { skill in
+                RemoteSkillCardView(
+                    skill: skill,
+                    isInstalled: true,
+                    isInstalling: false,
+                    installErrorMessage: nil,
+                    targetProvider: targetProvider,
+                    providers: providers,
+                    onInstall: { provider in
+                        onInstall(skill, provider)
+                    },
+                    onDeleteRequest: {
+                        viewModel.requestDelete(
+                            skill: skill,
+                            repositoryTemplateType: repository?.templateType
+                        )
+                    },
+                    isDeleting: viewModel.pendingSkillDeletes.contains(skill.slug),
+                    onTap: {
+                        viewModel.requestSkillDetail(skill)
+                    }
                 )
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                let installed = filtered.filter { installedSlugs.contains($0.slug) }
-                let pending = filtered.filter { pendingSkillInstalls.contains($0.slug) && !installedSlugs.contains($0.slug) }
-                let available = filtered.filter { !installedSlugs.contains($0.slug) && !pendingSkillInstalls.contains($0.slug) }
-                VStack(alignment: .leading, spacing: 20) {
-                    if !installed.isEmpty {
-                        sectionBlock(NSLocalizedString("remote.section.installed", value: "Installed", comment: "Installed section"), count: installed.count) {
-                            LazyVGrid(columns: columns, spacing: 16) {
-                                ForEach(installed) { skill in
-                                    RemoteSkillCardView(
-                                        skill: skill,
-                                        isInstalled: true,
-                                        isInstalling: false,
-                                        installErrorMessage: nil,
-                                        targetProvider: targetProvider,
-                                        providers: providers,
-                                        onInstall: { provider in
-                                            onInstall(skill, provider)
-                                        },
-                                        onDeleteRequest: {
-                                            viewModel.requestDelete(
-                                                skill: skill,
-                                                repositoryTemplateType: repository?.templateType
-                                            )
-                                        },
-                                        isDeleting: viewModel.pendingSkillDeletes.contains(skill.slug),
-                                        onTap: {
-                                            viewModel.requestSkillDetail(skill)
-                                        }
-                                    )
-                                }
-                            }
-                        }
+            } installingContent: { skill in
+                RemoteSkillCardView(
+                    skill: skill,
+                    isInstalled: false,
+                    isInstalling: true,
+                    installErrorMessage: nil,
+                    targetProvider: targetProvider,
+                    providers: providers,
+                    onInstall: { _ in },
+                    onDeleteRequest: nil,
+                    isDeleting: false,
+                    onTap: {
+                        viewModel.requestSkillDetail(skill)
                     }
-                    if !pending.isEmpty {
-                        sectionBlock(NSLocalizedString("remote.section.installing", value: "Installing", comment: "Installing section"), count: pending.count) {
-                            LazyVGrid(columns: columns, spacing: 16) {
-                                ForEach(pending) { skill in
-                                    RemoteSkillCardView(
-                                        skill: skill,
-                                        isInstalled: false,
-                                        isInstalling: true,
-                                        installErrorMessage: nil,
-                                        targetProvider: targetProvider,
-                                        providers: providers,
-                                        onInstall: { _ in },
-                                        onDeleteRequest: nil,
-                                        isDeleting: false,
-                                        onTap: {
-                                            viewModel.requestSkillDetail(skill)
-                                        }
-                                    )
-                                }
-                            }
-                        }
+                )
+            } availableContent: { skill in
+                RemoteSkillCardView(
+                    skill: skill,
+                    isInstalled: false,
+                    isInstalling: false,
+                    installErrorMessage: skillInstallErrors[skill.slug],
+                    targetProvider: targetProvider,
+                    providers: providers,
+                    onInstall: { provider in
+                        beginSkillInstall(skill, provider: provider)
+                    },
+                    onDeleteRequest: nil,
+                    isDeleting: false,
+                    onTap: {
+                        viewModel.requestSkillDetail(skill)
                     }
-                    if !available.isEmpty {
-                        sectionBlock(NSLocalizedString("remote.section.available", value: "Available", comment: "Available section"), count: available.count) {
-                            LazyVGrid(columns: columns, spacing: 16) {
-                                ForEach(available) { skill in
-                                    RemoteSkillCardView(
-                                        skill: skill,
-                                        isInstalled: false,
-                                        isInstalling: false,
-                                        installErrorMessage: skillInstallErrors[skill.slug],
-                                        targetProvider: targetProvider,
-                                        providers: providers,
-                                        onInstall: { provider in
-                                            beginSkillInstall(skill, provider: provider)
-                                        },
-                                        onDeleteRequest: nil,
-                                        isDeleting: false,
-                                        onTap: {
-                                            viewModel.requestSkillDetail(skill)
-                                        }
-                                    )
-                                }
-                            }
-                        }
-                    }
-                    loadMoreRowIfNeeded
-                }
+                )
+            } footerContent: {
+                loadMoreRowIfNeeded
             }
             
         case .workflows:
             let filtered = shouldClientFilter ? viewModel.filteredWorkflows(searchText: searchText) : viewModel.workflows
-            if filtered.isEmpty {
-                ContentUnavailableView(
-                    searchText.isEmpty
-                    ? NSLocalizedString("remote.workflows.empty", value: "No Workflows", comment: "No workflows")
-                    : NSLocalizedString("remote.search.no_results", value: "No Results", comment: "No search results"),
-                    systemImage: searchText.isEmpty ? "arrow.triangle.branch" : "magnifyingglass",
-                    description: Text(
-                        searchText.isEmpty
-                        ? NSLocalizedString("remote.workflows.empty_desc", value: "No workflows in this repository", comment: "No workflows description")
-                        : NSLocalizedString("remote.search.no_results_desc", value: "No matching workflows found", comment: "No search results description")
-                    )
-                        .dsSecondaryText(font: .body)
+            let buckets = ResourceInstallBuckets(
+                items: filtered,
+                isInstalled: { installedWorkflowSlugs.contains($0.slug) },
+                isInstalling: { pendingWorkflowInstalls.contains($0.slug) }
+            )
+            NolonUI.ResourceCatalogKindTabScaffold(
+                kind: .workflows,
+                isEmpty: filtered.isEmpty,
+                searchText: searchText,
+                installedItems: buckets.installed,
+                installingItems: buckets.installing,
+                availableItems: buckets.available,
+                columns: columns
+            ) { workflow in
+                RemoteWorkflowCardView(
+                    workflow: workflow,
+                    isInstalled: true,
+                    isInstalling: false,
+                    installErrorMessage: nil,
+                    isSelected: viewModel.selectedWorkflowForDetail?.slug == workflow.slug,
+                    targetProvider: targetProvider,
+                    providers: providers,
+                    onInstall: { provider in
+                        onInstallWorkflow?(workflow, provider)
+                    },
+                    onDeleteRequest: {
+                        viewModel.requestDelete(
+                            workflow: workflow,
+                            repositoryTemplateType: repository?.templateType
+                        )
+                    },
+                    isDeleting: viewModel.pendingWorkflowDeletes.contains(workflow.slug),
+                    onTap: {
+                        viewModel.selectedWorkflowForDetail = workflow
+                    }
                 )
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                let installed = filtered.filter { installedWorkflowSlugs.contains($0.slug) }
-                let pending = filtered.filter { pendingWorkflowInstalls.contains($0.slug) && !installedWorkflowSlugs.contains($0.slug) }
-                let available = filtered.filter { !installedWorkflowSlugs.contains($0.slug) && !pendingWorkflowInstalls.contains($0.slug) }
-                VStack(alignment: .leading, spacing: 20) {
-                    if !installed.isEmpty {
-                        sectionBlock(NSLocalizedString("remote.section.installed", value: "Installed", comment: "Installed section"), count: installed.count) {
-                            LazyVGrid(columns: columns, spacing: 16) {
-                                ForEach(installed) { workflow in
-                                    RemoteWorkflowCardView(
-                                        workflow: workflow,
-                                        isInstalled: true,
-                                        isInstalling: false,
-                                        installErrorMessage: nil,
-                                        isSelected: viewModel.selectedWorkflowForDetail?.slug == workflow.slug,
-                                        targetProvider: targetProvider,
-                                        providers: providers,
-                                        onInstall: { provider in
-                                            onInstallWorkflow?(workflow, provider)
-                                        },
-                                        onDeleteRequest: {
-                                            viewModel.requestDelete(
-                                                workflow: workflow,
-                                                repositoryTemplateType: repository?.templateType
-                                            )
-                                        },
-                                        isDeleting: viewModel.pendingWorkflowDeletes.contains(workflow.slug),
-                                        onTap: {
-                                            viewModel.selectedWorkflowForDetail = workflow
-                                        }
-                                    )
-                                }
-                            }
-                        }
+            } installingContent: { workflow in
+                RemoteWorkflowCardView(
+                    workflow: workflow,
+                    isInstalled: false,
+                    isInstalling: true,
+                    installErrorMessage: nil,
+                    isSelected: viewModel.selectedWorkflowForDetail?.slug == workflow.slug,
+                    targetProvider: targetProvider,
+                    providers: providers,
+                    onInstall: { _ in },
+                    onDeleteRequest: nil,
+                    isDeleting: false,
+                    onTap: {
+                        viewModel.selectedWorkflowForDetail = workflow
                     }
-                    if !pending.isEmpty {
-                        sectionBlock(NSLocalizedString("remote.section.installing", value: "Installing", comment: "Installing section"), count: pending.count) {
-                            LazyVGrid(columns: columns, spacing: 16) {
-                                ForEach(pending) { workflow in
-                                    RemoteWorkflowCardView(
-                                        workflow: workflow,
-                                        isInstalled: false,
-                                        isInstalling: true,
-                                        installErrorMessage: nil,
-                                        isSelected: viewModel.selectedWorkflowForDetail?.slug == workflow.slug,
-                                        targetProvider: targetProvider,
-                                        providers: providers,
-                                        onInstall: { _ in },
-                                        onDeleteRequest: nil,
-                                        isDeleting: false,
-                                        onTap: {
-                                            viewModel.selectedWorkflowForDetail = workflow
-                                        }
-                                    )
-                                }
-                            }
-                        }
+                )
+            } availableContent: { workflow in
+                RemoteWorkflowCardView(
+                    workflow: workflow,
+                    isInstalled: false,
+                    isInstalling: false,
+                    installErrorMessage: workflowInstallErrors[workflow.slug],
+                    isSelected: viewModel.selectedWorkflowForDetail?.slug == workflow.slug,
+                    targetProvider: targetProvider,
+                    providers: providers,
+                    onInstall: { provider in
+                        beginWorkflowInstall(workflow, provider: provider)
+                    },
+                    onDeleteRequest: nil,
+                    isDeleting: false,
+                    onTap: {
+                        viewModel.selectedWorkflowForDetail = workflow
                     }
-                    if !available.isEmpty {
-                        sectionBlock(NSLocalizedString("remote.section.available", value: "Available", comment: "Available section"), count: available.count) {
-                            LazyVGrid(columns: columns, spacing: 16) {
-                                ForEach(available) { workflow in
-                                    RemoteWorkflowCardView(
-                                        workflow: workflow,
-                                        isInstalled: false,
-                                        isInstalling: false,
-                                        installErrorMessage: workflowInstallErrors[workflow.slug],
-                                        isSelected: viewModel.selectedWorkflowForDetail?.slug == workflow.slug,
-                                        targetProvider: targetProvider,
-                                        providers: providers,
-                                        onInstall: { provider in
-                                            beginWorkflowInstall(workflow, provider: provider)
-                                        },
-                                        onDeleteRequest: nil,
-                                        isDeleting: false,
-                                        onTap: {
-                                            viewModel.selectedWorkflowForDetail = workflow
-                                        }
-                                    )
-                                }
-                            }
-                        }
-                    }
-                    loadMoreRowIfNeeded
-                }
+                )
+            } footerContent: {
+                loadMoreRowIfNeeded
             }
             
         case .mcps:
             let filtered = shouldClientFilter ? viewModel.filteredMCPs(searchText: searchText) : viewModel.mcps
-            if filtered.isEmpty {
-                ContentUnavailableView(
-                    searchText.isEmpty
-                    ? NSLocalizedString("remote.mcps.empty", value: "No MCPs", comment: "No MCPs")
-                    : NSLocalizedString("remote.search.no_results", value: "No Results", comment: "No search results"),
-                    systemImage: searchText.isEmpty ? "server.rack" : "magnifyingglass",
-                    description: Text(
-                        searchText.isEmpty
-                        ? NSLocalizedString("remote.mcps.empty_desc", value: "No MCPs in this repository", comment: "No MCPs description")
-                        : NSLocalizedString("remote.search.no_results_desc", value: "No matching MCPs found", comment: "No search results description")
-                    )
-                        .dsSecondaryText(font: .body)
+            let buckets = ResourceInstallBuckets(
+                items: filtered,
+                isInstalled: { installedMcpSlugs.contains($0.slug) },
+                isInstalling: { pendingMcpInstalls.contains($0.slug) }
+            )
+            NolonUI.ResourceCatalogKindTabScaffold(
+                kind: .mcps,
+                isEmpty: filtered.isEmpty,
+                searchText: searchText,
+                installedItems: buckets.installed,
+                installingItems: buckets.installing,
+                availableItems: buckets.available,
+                columns: columns
+            ) { mcp in
+                RemoteMCPCardView(
+                    mcp: mcp,
+                    isInstalled: true,
+                    isInstalling: false,
+                    installErrorMessage: nil,
+                    isSelected: viewModel.selectedMCPForDetail?.slug == mcp.slug,
+                    targetProvider: targetProvider,
+                    providers: providers,
+                    onInstall: { provider in
+                        onInstallMCP?(mcp, provider)
+                    },
+                    onDeleteRequest: {
+                        viewModel.requestDelete(
+                            mcp: mcp,
+                            repositoryTemplateType: repository?.templateType
+                        )
+                    },
+                    isDeleting: viewModel.pendingMcpDeletes.contains(mcp.slug),
+                    onTap: {
+                        viewModel.selectedMCPForDetail = mcp
+                    }
                 )
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                let installed = filtered.filter { installedMcpSlugs.contains($0.slug) }
-                let pending = filtered.filter { pendingMcpInstalls.contains($0.slug) && !installedMcpSlugs.contains($0.slug) }
-                let available = filtered.filter { !installedMcpSlugs.contains($0.slug) && !pendingMcpInstalls.contains($0.slug) }
-                VStack(alignment: .leading, spacing: 20) {
-                    if !installed.isEmpty {
-                        sectionBlock(NSLocalizedString("remote.section.installed", value: "Installed", comment: "Installed section"), count: installed.count) {
-                            LazyVGrid(columns: columns, spacing: 16) {
-                                ForEach(installed) { mcp in
-                                    RemoteMCPCardView(
-                                        mcp: mcp,
-                                        isInstalled: true,
-                                        isInstalling: false,
-                                        installErrorMessage: nil,
-                                        isSelected: viewModel.selectedMCPForDetail?.slug == mcp.slug,
-                                        targetProvider: targetProvider,
-                                        providers: providers,
-                                        onInstall: { provider in
-                                            onInstallMCP?(mcp, provider)
-                                        },
-                                        onDeleteRequest: {
-                                            viewModel.requestDelete(
-                                                mcp: mcp,
-                                                repositoryTemplateType: repository?.templateType
-                                            )
-                                        },
-                                        isDeleting: viewModel.pendingMcpDeletes.contains(mcp.slug),
-                                        onTap: {
-                                            viewModel.selectedMCPForDetail = mcp
-                                        }
-                                    )
-                                }
-                            }
-                        }
+            } installingContent: { mcp in
+                RemoteMCPCardView(
+                    mcp: mcp,
+                    isInstalled: false,
+                    isInstalling: true,
+                    installErrorMessage: nil,
+                    isSelected: viewModel.selectedMCPForDetail?.slug == mcp.slug,
+                    targetProvider: targetProvider,
+                    providers: providers,
+                    onInstall: { _ in },
+                    onDeleteRequest: nil,
+                    isDeleting: false,
+                    onTap: {
+                        viewModel.selectedMCPForDetail = mcp
                     }
-                    if !pending.isEmpty {
-                        sectionBlock(NSLocalizedString("remote.section.installing", value: "Installing", comment: "Installing section"), count: pending.count) {
-                            LazyVGrid(columns: columns, spacing: 16) {
-                                ForEach(pending) { mcp in
-                                    RemoteMCPCardView(
-                                        mcp: mcp,
-                                        isInstalled: false,
-                                        isInstalling: true,
-                                        installErrorMessage: nil,
-                                        isSelected: viewModel.selectedMCPForDetail?.slug == mcp.slug,
-                                        targetProvider: targetProvider,
-                                        providers: providers,
-                                        onInstall: { _ in },
-                                        onDeleteRequest: nil,
-                                        isDeleting: false,
-                                        onTap: {
-                                            viewModel.selectedMCPForDetail = mcp
-                                        }
-                                    )
-                                }
-                            }
-                        }
+                )
+            } availableContent: { mcp in
+                RemoteMCPCardView(
+                    mcp: mcp,
+                    isInstalled: false,
+                    isInstalling: false,
+                    installErrorMessage: mcpInstallErrors[mcp.slug],
+                    isSelected: viewModel.selectedMCPForDetail?.slug == mcp.slug,
+                    targetProvider: targetProvider,
+                    providers: providers,
+                    onInstall: { provider in
+                        beginMCPInstall(mcp, provider: provider)
+                    },
+                    onDeleteRequest: nil,
+                    isDeleting: false,
+                    onTap: {
+                        viewModel.selectedMCPForDetail = mcp
                     }
-                    if !available.isEmpty {
-                        sectionBlock(NSLocalizedString("remote.section.available", value: "Available", comment: "Available section"), count: available.count) {
-                            LazyVGrid(columns: columns, spacing: 16) {
-                                ForEach(available) { mcp in
-                                    RemoteMCPCardView(
-                                        mcp: mcp,
-                                        isInstalled: false,
-                                        isInstalling: false,
-                                        installErrorMessage: mcpInstallErrors[mcp.slug],
-                                        isSelected: viewModel.selectedMCPForDetail?.slug == mcp.slug,
-                                        targetProvider: targetProvider,
-                                        providers: providers,
-                                        onInstall: { provider in
-                                            beginMCPInstall(mcp, provider: provider)
-                                        },
-                                        onDeleteRequest: nil,
-                                        isDeleting: false,
-                                        onTap: {
-                                            viewModel.selectedMCPForDetail = mcp
-                                        }
-                                    )
-                                }
-                            }
-                        }
-                    }
-                    loadMoreRowIfNeeded
-                }
+                )
+            } footerContent: {
+                loadMoreRowIfNeeded
             }
             
         case .none:
@@ -862,91 +658,42 @@ struct ResourceCatalogGridView: View {
 
     @ViewBuilder
     private var loadMoreRowIfNeeded: some View {
-        if repository?.templateType != .clawdhub {
-            EmptyView()
-        } else if let message = viewModel.loadMoreErrorMessage, !message.isEmpty {
-            loadMoreFooter {
-                VStack(spacing: 8) {
-                    Text(message)
-                        .font(.caption)
-                        .foregroundStyle(DesignSystem.Colors.Status.error)
-                        .multilineTextAlignment(.center)
-                    Button {
-                        Task {
-                            await viewModel.loadMore(
-                                repository: repository,
-                                tab: selectedTab,
-                                searchQuery: normalizedSearchQuery
-                            )
-                        }
-                    } label: {
-                        Text(NSLocalizedString("remote.retry", value: "Retry", comment: "Retry"))
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.small)
-                    .frame(maxWidth: 220)
-                }
+        NolonUI.ResourceCatalogLoadMoreStateView(
+            isEnabled: repository?.templateType == .clawdhub,
+            loadMoreErrorMessage: viewModel.loadMoreErrorMessage,
+            canLoadMore: viewModel.canLoadMore,
+            isLoadingMore: viewModel.isLoadingMore,
+            isLoading: viewModel.isLoading,
+            hasAnyContent: !(viewModel.skills.isEmpty && viewModel.workflows.isEmpty && viewModel.mcps.isEmpty),
+            onLoadMore: {
+                triggerLoadMore()
             }
-        } else if viewModel.canLoadMore {
-            loadMoreFooter {
-                Button {
-                    Task {
-                        await viewModel.loadMore(
-                            repository: repository,
-                            tab: selectedTab,
-                            searchQuery: normalizedSearchQuery
-                        )
-                    }
-                } label: {
-                    HStack(spacing: 8) {
-                        if viewModel.isLoadingMore {
-                            Image(systemName: "arrow.triangle.2.circlepath")
-                                .font(.system(size: 11, weight: .medium))
-                                .foregroundStyle(DesignSystem.Colors.Status.info)
-                        }
-                        Text(
-                            viewModel.isLoadingMore
-                            ? NSLocalizedString("remote.load_more.loading", value: "Loading...", comment: "Loading more indicator")
-                            : NSLocalizedString("remote.load_more", value: "Load More", comment: "Load more")
-                        )
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 10)
-                }
-                .buttonStyle(.bordered)
-                .disabled(viewModel.isLoadingMore)
-                .frame(maxWidth: 240)
-                .onAppear {
-                    guard !viewModel.isLoadingMore else { return }
-                    Task {
-                        await viewModel.loadMore(
-                            repository: repository,
-                            tab: selectedTab,
-                            searchQuery: normalizedSearchQuery
-                        )
-                    }
-                }
-            }
-        } else if !viewModel.isLoading && !(viewModel.skills.isEmpty && viewModel.workflows.isEmpty && viewModel.mcps.isEmpty) {
-            loadMoreFooter {
-                Text(NSLocalizedString("remote.load_more.end", value: "You have reached the end.", comment: "End of list"))
-                    .dsSecondaryText(font: .callout)
-            }
+        )
+    }
+
+    private func triggerLoadMore() {
+        Task {
+            await viewModel.loadMore(
+                repository: repository,
+                tab: selectedTab,
+                searchQuery: normalizedSearchQuery
+            )
         }
     }
 
-    private func loadMoreFooter<Content: View>(
-        @ViewBuilder content: () -> Content
-    ) -> some View {
-        HStack {
-            Spacer(minLength: 0)
-            content()
-            Spacer(minLength: 0)
+    private var preferredDeleteProviderID: String? {
+        targetProvider?.id ?? providers.first?.id
+    }
+
+    private func localizedResourceTypeName(_ resourceType: RemoteContentType) -> String {
+        switch resourceType {
+        case .skill:
+            return NSLocalizedString("tab.skills", comment: "Skills")
+        case .workflow:
+            return NSLocalizedString("tab.workflows", comment: "Workflows")
+        case .mcp:
+            return NSLocalizedString("tab.mcps", comment: "MCPs")
         }
-        .frame(maxWidth: .infinity)
-        .padding(.top, 4)
-        .padding(.bottom, 8)
     }
 
     private func beginSkillInstall(_ skill: RemoteSkill, provider: Provider) {

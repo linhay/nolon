@@ -1,6 +1,8 @@
 import SwiftUI
 import AppKit
 import ProviderCatalog
+import NolonUI
+import NolonUIFoundation
 
 struct CodexRuntimeTabView: View {
     let provider: Provider
@@ -13,12 +15,19 @@ struct CodexRuntimeTabView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                actionsSection
-                processesSection
+        NolonUI.ProviderTabScrollScaffold {
+            NolonUI.CodexRuntimeTabContentView(
+                actionsBarData: actionsBarData,
+                onRefresh: {
+                    Task { await viewModel.refresh() }
+                },
+                processesSectionData: processesSectionData,
+                isProcessesEmpty: viewModel.processes.isEmpty
+            ) {
+                ForEach(viewModel.processes) { process in
+                    processRow(process)
+                }
             }
-            .padding(16)
         }
         .task(id: provider.id) {
             viewModel.stopProcessPolling()
@@ -31,300 +40,147 @@ struct CodexRuntimeTabView: View {
         .onChange(of: viewModel.selectedPID) { _, _ in
             Task { await viewModel.refreshSelectedProcessLogs() }
         }
-        .confirmationDialog(
-            NSLocalizedString("codex.runtime.force_stop.title", value: "Force Stop", comment: "Force stop confirmation title"),
+        .destructiveConfirmationDialog(
+            data: forceStopDialogData,
             isPresented: Binding(
                 get: { viewModel.pendingForceStopPID != nil },
                 set: { if !$0 { viewModel.pendingForceStopPID = nil } }
             ),
-            titleVisibility: .visible
-        ) {
-            if let pid = viewModel.pendingForceStopPID {
-                Button(
-                    String(
-                        format: NSLocalizedString(
-                            "codex.runtime.force_stop.action",
-                            value: "Force Stop PID %d",
-                            comment: "Force stop action"
-                        ),
-                        pid
-                    ),
-                    role: .destructive
-                ) {
-                    Task { await viewModel.confirmForceStop() }
-                }
-            }
-            Button(NSLocalizedString("generic.cancel", value: "Cancel", comment: "Cancel"), role: .cancel) {
+            onConfirm: {
+                Task { await viewModel.confirmForceStop() }
+            },
+            onCancel: {
                 viewModel.pendingForceStopPID = nil
             }
-        } message: {
-            Text(
-                NSLocalizedString(
-                    "codex.runtime.force_stop.message",
-                    value: "This sends SIGKILL directly. Use only when normal stop fails.",
-                    comment: "Force stop confirmation message"
-                )
-            )
-        }
-        .alert(
-            NSLocalizedString("codex.runtime.error.title", value: "Runtime Error", comment: "Runtime error title"),
-            isPresented: Binding(
-                get: { viewModel.alertMessage != nil },
-                set: { if !$0 { viewModel.alertMessage = nil } }
-            )
-        ) {
-            Button(NSLocalizedString("generic.copy", value: "Copy", comment: "Copy")) {
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(viewModel.alertMessage ?? "", forType: .string)
-            }
-            Button(NSLocalizedString("generic.ok", value: "OK", comment: "OK"), role: .cancel) {
-                viewModel.alertMessage = nil
-            }
-        } message: {
-            Text(viewModel.alertMessage ?? "")
-        }
-    }
-
-    private var actionsSection: some View {
-        HStack(spacing: 10) {
-            Button {
-                Task { await viewModel.refresh() }
-            } label: {
-                Label(
-                    NSLocalizedString("codex.runtime.action.refresh", value: "Refresh", comment: "Refresh runtime"),
-                    systemImage: "arrow.clockwise"
-                )
-            }
-            .disabled(viewModel.isRefreshing || viewModel.isStopping)
-
-            if let summary = viewModel.lastStopMessage, !summary.isEmpty {
-                Text(summary)
-                    .font(.caption)
-                    .dsSecondaryText(font: .caption)
-            }
-
-            Spacer()
-        }
-    }
-
-    private var processesSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(NSLocalizedString("codex.runtime.processes.title", value: "Runtime Processes", comment: "Runtime process list title"))
-                .font(.headline)
-
-            if viewModel.processes.isEmpty {
-                Text(NSLocalizedString("codex.runtime.processes.empty", value: "No running Codex processes.", comment: "No runtime process"))
-                    .dsSecondaryText(font: .callout)
-            } else {
-                ForEach(viewModel.processes) { process in
-                    processRow(process)
-                }
-            }
-        }
-        .padding(12)
-        .dsCard(
-            background: DesignSystem.Colors.Background.surface,
-            cornerRadius: DesignSystem.Metrics.cornerRadiusM,
-            borderColor: DesignSystem.Colors.Component.border,
-            borderWidth: 1
         )
+        .copyableMessageAlert(
+            title: NSLocalizedString("codex.runtime.error.title", value: "Runtime Error", comment: "Runtime error title"),
+            message: $viewModel.alertMessage,
+            onCopy: { message in
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(message, forType: .string)
+            }
+        )
+    }
+
+    private var forceStopDialogData: DestructiveConfirmationDialogData {
+        DestructiveConfirmationDialogData(
+            title: NSLocalizedString("codex.runtime.force_stop.title", value: "Force Stop", comment: "Force stop confirmation title"),
+            message: NSLocalizedString(
+                "codex.runtime.force_stop.message",
+                value: "This sends SIGKILL directly. Use only when normal stop fails.",
+                comment: "Force stop confirmation message"
+            ),
+            confirmTitle: String(
+                format: NSLocalizedString(
+                    "codex.runtime.force_stop.action",
+                    value: "Force Stop PID %d",
+                    comment: "Force stop action"
+                ),
+                viewModel.pendingForceStopPID ?? 0
+            )
+        )
+    }
+
+    private var actionsBarData: CodexRuntimeActionsBarData {
+        CodexRuntimeActionsBarData(
+            stopSummary: viewModel.lastStopMessage,
+            isBusy: viewModel.isRefreshing || viewModel.isStopping
+        )
+    }
+
+    private var processesSectionData: CodexRuntimeProcessesSectionData {
+        CodexRuntimeProcessesSectionData()
     }
 
     private func processRow(_ process: CodexRuntimeProcessItem) -> some View {
         let isSelected = viewModel.selectedPID == process.pid
 
-        return VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 10) {
-                Text(
-                    String(
-                        format: NSLocalizedString(
-                            "codex.runtime.pid.label",
-                            value: "PID %d",
-                            comment: "Runtime PID label"
-                        ),
-                        process.pid
-                    )
-                )
-                    .font(.subheadline.monospacedDigit())
-                Text(process.elapsed)
-                    .font(.caption.monospacedDigit())
-                    .dsSecondaryText(font: .caption)
-                if let hint = process.providerHint, !hint.isEmpty {
-                    Text(hint)
-                        .font(.caption)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .dsBadge(
-                            foreground: DesignSystem.Colors.Text.secondary,
-                            background: DesignSystem.Colors.Background.elevated
-                        )
-                }
-                Spacer()
-                Button(NSLocalizedString("codex.runtime.process.stop", value: "Stop", comment: "Stop runtime process")) {
-                    Task { await viewModel.stop(pid: process.pid, force: false) }
-                }
-                .disabled(viewModel.isStopping)
-
-                Button(NSLocalizedString("codex.runtime.process.force", value: "Force", comment: "Force stop runtime process")) {
-                    viewModel.requestForceStop(pid: process.pid)
-                }
-                .disabled(viewModel.isStopping)
+        return NolonUI.CodexRuntimeProcessRowView(
+            data: processRowData(process: process, isSelected: isSelected),
+            onStop: {
+                Task { await viewModel.stop(pid: process.pid, force: false) }
+            },
+            onForce: {
+                viewModel.requestForceStop(pid: process.pid)
+            },
+            onToggleSelection: {
+                viewModel.selectProcess(pid: isSelected ? nil : process.pid)
             }
-
-            Text(process.command)
-                .font(.caption.monospaced())
-                .lineLimit(2)
-                .textSelection(.enabled)
-                .dsSecondaryText(font: .caption)
-
-            if let workingDirectory = process.workingDirectory, !workingDirectory.isEmpty {
-                HStack(spacing: 6) {
-                    Image(systemName: "folder")
-                        .font(.caption)
-                        .dsSecondaryText(font: .caption)
-                    Text(workingDirectory)
-                        .font(.caption.monospaced())
-                        .lineLimit(1)
-                        .textSelection(.enabled)
-                        .dsSecondaryText(font: .caption)
-                }
-            }
-
+        ) {
             if isSelected {
                 processDiagnosticsSection(process: process)
                 inlineLogsSection
             }
         }
-        .padding(10)
-        .dsCard(
-            background: isSelected ? DesignSystem.Colors.primary.opacity(0.08) : DesignSystem.Colors.Background.elevated,
-            cornerRadius: DesignSystem.Metrics.cornerRadiusS,
-            borderColor: isSelected ? DesignSystem.Colors.primary.opacity(0.45) : DesignSystem.Colors.Component.border,
-            borderWidth: 1
+    }
+
+    private func processRowData(process: CodexRuntimeProcessItem, isSelected: Bool) -> CodexRuntimeProcessRowData {
+        CodexRuntimeProcessRowData(
+            id: process.id,
+            pidText: String(
+                format: NSLocalizedString(
+                    "codex.runtime.pid.label",
+                    value: "PID %d",
+                    comment: "Runtime PID label"
+                ),
+                process.pid
+            ),
+            elapsedText: process.elapsed,
+            providerHint: process.providerHint,
+            commandText: process.command,
+            workingDirectory: process.workingDirectory,
+            isStopping: viewModel.isStopping,
+            isSelected: isSelected
         )
-        .contentShape(Rectangle())
-        .onTapGesture {
-            viewModel.selectProcess(pid: isSelected ? nil : process.pid)
-        }
     }
 
     @ViewBuilder
     private func processDiagnosticsSection(process: CodexRuntimeProcessItem) -> some View {
-        let rows = viewModel.processDiagnosticsRows(for: process)
-        if !rows.isEmpty {
-            VStack(alignment: .leading, spacing: 6) {
-                Text(NSLocalizedString("codex.runtime.diagnostics.title", value: "Diagnostics", comment: "Runtime diagnostics title"))
-                    .font(.caption)
-                    .dsSecondaryText(font: .caption)
-
-                ForEach(rows, id: \.key.rawValue) { row in
-                    HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        diagnosticLabel(localizedDiagnosticLabel(for: row.key))
-                            .frame(width: 90, alignment: .leading)
-                        diagnosticValue(row.value)
-                            .lineLimit(1)
-                    }
-                }
-            }
-            .padding(8)
-            .dsCard(
-                background: DesignSystem.Colors.Background.elevated,
-                cornerRadius: DesignSystem.Metrics.cornerRadiusS,
-                borderColor: DesignSystem.Colors.Component.border,
-                borderWidth: 1
+        let rows = viewModel.processDiagnosticsRows(for: process).map { row in
+            CodexRuntimeDiagnosticRowData(
+                id: row.key.rawValue,
+                label: localizedDiagnosticLabel(for: row.key),
+                value: row.value
             )
         }
-    }
-
-    private var inlineLogsSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text(NSLocalizedString("codex.runtime.logs.title", value: "PID Logs", comment: "Runtime logs title"))
-                    .font(.headline)
-                Spacer()
-                if let selectedPID = viewModel.selectedPID {
-                    Text(
-                        String(
-                            format: NSLocalizedString(
-                                "codex.runtime.pid.label",
-                                value: "PID %d",
-                                comment: "Runtime PID label"
-                            ),
-                            selectedPID
-                        )
-                    )
-                        .font(.caption.monospacedDigit())
-                        .dsSecondaryText(font: .caption)
-                }
-            }
-
-            HStack(spacing: 10) {
-                Button(NSLocalizedString("codex.runtime.logs.refresh", value: "Refresh Logs", comment: "Refresh logs")) {
-                    Task { await viewModel.refreshSelectedProcessLogs() }
-                }
-                .disabled(viewModel.isLoadingLogs)
-
-                Button(NSLocalizedString("generic.copy", value: "Copy", comment: "Copy")) {
-                    NSPasteboard.general.clearContents()
-                    NSPasteboard.general.setString(viewModel.logsText, forType: .string)
-                }
-                .disabled(viewModel.logsText.isEmpty)
-
-                Button(NSLocalizedString("codex.runtime.logs.clear", value: "Clear", comment: "Clear logs")) {
-                    viewModel.clearLogs()
-                }
-                .disabled(viewModel.logsText.isEmpty && viewModel.logsErrorMessage == nil)
-
-                Spacer()
-
-                if viewModel.isLoadingLogs {
-                    ProgressView()
-                        .controlSize(.small)
-                }
-            }
-
-            if let error = viewModel.logsErrorMessage, !error.isEmpty {
-                Text(error)
-                    .font(.caption)
-                    .foregroundStyle(DesignSystem.Colors.Status.error)
-            }
-
-            ScrollView {
-                Text(viewModel.logsText.isEmpty
-                     ? NSLocalizedString("codex.runtime.logs.empty", value: "No log output in selected window.", comment: "No logs")
-                     : viewModel.logsText)
-                    .font(.system(.caption, design: .monospaced))
-                    .textSelection(.enabled)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(8)
-            }
-            .frame(minHeight: 140)
-            .dsCard(
-                background: DesignSystem.Colors.Background.elevated,
-                cornerRadius: DesignSystem.Metrics.cornerRadiusS,
-                borderColor: DesignSystem.Colors.Component.border,
-                borderWidth: 1
-            )
-        }
-        .padding(.top, 2)
-        .dsCard(
-            background: DesignSystem.Colors.Background.elevated,
-            cornerRadius: DesignSystem.Metrics.cornerRadiusS,
-            borderColor: DesignSystem.Colors.Component.border,
-            borderWidth: 1
+        NolonUI.CodexRuntimeDiagnosticsCardView(
+            rows: rows
         )
     }
 
-    private func diagnosticLabel(_ value: String) -> some View {
-        Text(value)
-            .font(.caption)
-            .dsSecondaryText(font: .caption)
+    private var inlineLogsSection: some View {
+        NolonUI.CodexRuntimeLogsCardView(
+            data: logsSectionData,
+            onRefresh: {
+                Task { await viewModel.refreshSelectedProcessLogs() }
+            },
+            onCopy: {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(viewModel.logsText, forType: .string)
+            },
+            onClear: {
+                viewModel.clearLogs()
+            }
+        )
     }
 
-    private func diagnosticValue(_ value: String) -> some View {
-        Text(value)
-            .font(.callout.monospaced())
-            .textSelection(.enabled)
+    private var logsSectionData: CodexRuntimeLogsSectionData {
+        CodexRuntimeLogsSectionData(
+            pidText: viewModel.selectedPID.map {
+                String(
+                    format: NSLocalizedString(
+                        "codex.runtime.pid.label",
+                        value: "PID %d",
+                        comment: "Runtime PID label"
+                    ),
+                    $0
+                )
+            },
+            isLoading: viewModel.isLoadingLogs,
+            logsText: viewModel.logsText,
+            errorMessage: viewModel.logsErrorMessage
+        )
     }
 
     private func localizedDiagnosticLabel(for key: CodexRuntimeProcessDiagnosticField.Key) -> String {

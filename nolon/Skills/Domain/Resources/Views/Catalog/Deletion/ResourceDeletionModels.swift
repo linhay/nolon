@@ -8,29 +8,6 @@ enum ResourceDeleteTarget: Equatable, Sendable {
     case allProvidersAndGlobalCache
 }
 
-struct ResourceDeleteTargetSheetState: Equatable, Sendable {
-    let selectedProviderID: Provider.ID?
-    let deleteAll: Bool
-
-    static func initial(preferredProvider: Provider?, providers: [Provider]) -> Self {
-        if let preferredProvider {
-            return Self(
-                selectedProviderID: preferredProvider.id,
-                deleteAll: false
-            )
-        }
-
-        return Self(
-            selectedProviderID: nil,
-            deleteAll: true
-        )
-    }
-
-    static func providerSelection(preferredProvider: Provider?, providers: [Provider]) -> Provider.ID? {
-        preferredProvider?.id ?? providers.first?.id
-    }
-}
-
 struct ResourceDeletionProviderTarget: Equatable, Sendable {
     let id: Provider.ID
     let name: String

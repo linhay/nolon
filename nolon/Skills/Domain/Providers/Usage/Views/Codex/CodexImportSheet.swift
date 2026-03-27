@@ -1,9 +1,9 @@
 import SwiftUI
 import Observation
 import Foundation
-import AppKit
 import ProviderUsage
-import UniformTypeIdentifiers
+import NolonUIFoundation
+import NolonUI
 
 struct CodexImportSheet: View {
     static func minimumSheetHeight(hasAnyCandidates: Bool) -> CGFloat {
@@ -40,411 +40,147 @@ struct CodexImportSheet: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(NSLocalizedString("codex.import.sheet.title", value: "导入账号", comment: "Codex import sheet title"))
-                    .font(.title3.weight(.semibold))
-                Text(NSLocalizedString(
-                    "codex.import.sheet.subtitle",
-                    value: "把账号文件先放进来，再决定导入哪些账号。",
-                    comment: "Codex import sheet subtitle"
-                ))
-                .font(.subheadline)
-                .foregroundStyle(DesignSystem.Colors.Text.secondary)
-            }
-
-            dropZone
-
-            if let globalErrorMessage = viewModel.globalErrorMessage, !globalErrorMessage.isEmpty {
-                errorBanner(globalErrorMessage)
-            }
-
-            if viewModel.hasAnyCandidates {
-                candidateToolbar
-                candidateList
-            }
-
-            HStack(alignment: .center, spacing: 12) {
-                Button(NSLocalizedString("generic.cancel", value: "Cancel", comment: "Cancel")) {
-                    onCancel()
-                }
-                .keyboardShortcut(.cancelAction)
-
-                if isBusy {
-                    Spacer()
-                    HStack(spacing: 8) {
-                        ProgressView()
-                            .controlSize(.small)
-                        Text(
-                            viewModel.isRunningValidation
-                                ? NSLocalizedString("codex.import.sheet.progress.validating", value: "正在校验账号文件...", comment: "Codex import validating progress")
-                                : NSLocalizedString("codex.import.sheet.progress.testing", value: "正在测试连接...", comment: "Codex import testing progress")
-                        )
-                        .font(.caption)
-                        .foregroundStyle(DesignSystem.Colors.Text.secondary)
-                    }
-                }
-
-                Spacer()
-                Button(importButtonTitle) {
-                    viewModel.applySelectedImports()
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(!canImport || viewModel.isRunningValidation)
-                .keyboardShortcut(.defaultAction)
-            }
-        }
-        .padding(20)
-        .frame(minWidth: 760, minHeight: Self.minimumSheetHeight(hasAnyCandidates: viewModel.hasAnyCandidates))
+        NolonUI.CodexImportSheetScaffold(
+            data: .init(
+                importButtonTitle: importButtonTitle,
+                isBusy: isBusy,
+                isRunningValidation: viewModel.isRunningValidation,
+                canImport: canImport,
+                hasAnyCandidates: viewModel.hasAnyCandidates,
+                minHeight: Self.minimumSheetHeight(hasAnyCandidates: viewModel.hasAnyCandidates)
+            ),
+            globalErrorMessage: viewModel.globalErrorMessage,
+            onCancel: onCancel,
+            onImport: { viewModel.applySelectedImports() },
+            dropZone: { dropZone },
+            toolbar: { candidateToolbar },
+            candidateList: { candidateList }
+        )
     }
 
     private var dropZone: some View {
-        VStack(spacing: 10) {
-            Image(systemName: "square.and.arrow.down.on.square")
-                .font(.system(size: 28, weight: .medium))
-                .foregroundStyle(DesignSystem.Colors.primary)
-            Text(NSLocalizedString("codex.import.sheet.drop.title", value: "拖拽 auth.json 或 ZIP 到这里", comment: "Codex import drop title"))
-                .font(.headline)
-            Text(NSLocalizedString("codex.import.sheet.drop.subtitle", value: "支持 .json / .zip，也可以直接粘贴 auth JSON 或 localhost 登录回调链接。", comment: "Codex import drop subtitle"))
-                .font(.caption)
-                .foregroundStyle(DesignSystem.Colors.Text.secondary)
-            HStack(spacing: 10) {
-                Button(NSLocalizedString("codex.import.sheet.pick_files", value: "选择文件", comment: "Pick import files")) {
-                    viewModel.pickFiles()
-                }
-                .buttonStyle(.borderedProminent)
-                Button(NSLocalizedString("codex.import.sheet.paste", value: "粘贴", comment: "Paste import content")) {
-                    viewModel.pasteFromClipboard()
-                }
-                .buttonStyle(.bordered)
+        NolonUI.CodexImportDropZoneView(
+            data: .init(),
+            isTargeted: $viewModel.isTargetingDropZone,
+            onPickFiles: { viewModel.pickFiles() },
+            onPaste: { viewModel.pasteFromClipboard() },
+            onDroppedURLs: { urls in
+                viewModel.handleDropFiles(urls)
             }
-        }
-        .frame(maxWidth: .infinity, minHeight: 140)
-        .background {
-            RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusL, style: .continuous)
-                .fill(viewModel.isTargetingDropZone ? DesignSystem.Colors.primary.opacity(0.12) : DesignSystem.Colors.Background.surface)
-        }
-        .overlay {
-            RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusL, style: .continuous)
-                .strokeBorder(
-                    viewModel.isTargetingDropZone ? DesignSystem.Colors.primary : DesignSystem.Colors.Component.border.opacity(0.7),
-                    style: StrokeStyle(lineWidth: viewModel.isTargetingDropZone ? 2 : 1, dash: [6, 4])
-                )
-        }
-        .onDrop(of: [UTType.fileURL.identifier], isTargeted: $viewModel.isTargetingDropZone) { providers in
-            resolveDroppedURLs(from: providers)
-        }
+        )
     }
 
     private var candidateToolbar: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 10) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(String(
-                        format: NSLocalizedString("codex.accounts.selection.count", value: "已选 %d", comment: "Selected Codex account count"),
-                        selectedCount
-                    ))
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(DesignSystem.Colors.Text.primary)
-                    Text(String(
-                        format: NSLocalizedString("codex.import.sheet.source_group_count", value: "%d 个来源组", comment: "Codex import source group count"),
-                        viewModel.sections.count
-                    ))
-                    .font(.caption2)
-                    .foregroundStyle(DesignSystem.Colors.Text.secondary)
-                }
-
-                Spacer()
-
-                SearchField(
-                    placeholder: NSLocalizedString(
-                        "codex.import.sheet.search.placeholder",
-                        value: "搜索邮箱、名称或文件名",
-                        comment: "Search import candidates placeholder"
-                    ),
-                    text: $viewModel.searchText,
-                    width: 260
-                )
-            }
-
-            HStack(spacing: 10) {
-                Spacer()
-
-                Button(NSLocalizedString("codex.import.sheet.select_all", value: "全选", comment: "Select all import candidates")) {
-                    viewModel.selectAll()
-                }
-                .disabled(viewModel.sections.flatMap(\.items).allSatisfy { !$0.validation.isValid })
-
-                Button(NSLocalizedString("codex.import.sheet.deselect_all", value: "取消全选", comment: "Deselect all import candidates")) {
-                    viewModel.deselectAll()
-                }
-                .disabled(viewModel.sections.flatMap(\.items).isEmpty)
-
-                Button(NSLocalizedString("codex.import.sheet.action.export_zip", value: "导出 ZIP", comment: "Export selected import candidates to ZIP")) {
-                    viewModel.exportSelectedAsZIP()
-                }
-                .disabled(!canImport || viewModel.isRunningValidation)
-
-                Button(NSLocalizedString("codex.import.sheet.action.export_sub2api", value: "导出 sub2api", comment: "Export selected import candidates to sub2api")) {
-                    viewModel.exportSelectedAsSub2API()
-                }
-                .disabled(!canImport || viewModel.isRunningValidation)
-
-                Button(NSLocalizedString("codex.import.sheet.paste", value: "粘贴", comment: "Paste import content")) {
-                    viewModel.pasteFromClipboard()
-                }
-
-                Button(NSLocalizedString("codex.import.sheet.retry_all", value: "重新测试全部", comment: "Retry all Codex import tests")) {
-                    viewModel.retryAllConnectionTests()
-                }
-                .disabled(viewModel.sections.flatMap(\.items).filter(\.validation.isValid).isEmpty || viewModel.isRunningConnectionTests || viewModel.isRunningValidation)
-            }
-        }
+        NolonUI.CodexImportToolbarView(
+            data: .init(
+                selectedCountText: String(
+                    format: NSLocalizedString("codex.accounts.selection.count", value: "已选 %d", comment: "Selected Codex account count"),
+                    selectedCount
+                ),
+                sourceGroupCountText: String(
+                    format: NSLocalizedString("codex.import.sheet.source_group_count", value: "%d 个来源组", comment: "Codex import source group count"),
+                    viewModel.sections.count
+                ),
+                isSelectAllDisabled: viewModel.sections.flatMap(\.items).allSatisfy { !$0.validation.isValid },
+                isDeselectAllDisabled: viewModel.sections.flatMap(\.items).isEmpty,
+                isExportZipDisabled: !canImport || viewModel.isRunningValidation,
+                isExportSub2apiDisabled: !canImport || viewModel.isRunningValidation,
+                isRetryAllDisabled: viewModel.sections.flatMap(\.items).filter(\.validation.isValid).isEmpty || viewModel.isRunningConnectionTests || viewModel.isRunningValidation
+            ),
+            searchText: $viewModel.searchText,
+            onSelectAll: { viewModel.selectAll() },
+            onDeselectAll: { viewModel.deselectAll() },
+            onExportZip: { viewModel.exportSelectedAsZIP() },
+            onExportSub2api: { viewModel.exportSelectedAsSub2API() },
+            onPaste: { viewModel.pasteFromClipboard() },
+            onRetryAll: { viewModel.retryAllConnectionTests() }
+        )
     }
 
     private var candidateList: some View {
-        Group {
-            if viewModel.sections.flatMap(\.items).isEmpty {
-                if hasSearchText {
-                    ContentUnavailableView(
-                        NSLocalizedString("codex.import.sheet.search.empty.title", value: "没有匹配的候选账号", comment: "Empty search result title"),
-                        systemImage: "magnifyingglass",
-                        description: Text(NSLocalizedString(
-                            "codex.import.sheet.search.empty.subtitle",
-                            value: "换个关键字试试，或者清空搜索后查看全部候选项。",
-                            comment: "Empty search result subtitle"
-                        ))
-                    )
-                } else {
-                    ContentUnavailableView(
-                        NSLocalizedString("codex.import.sheet.empty.title", value: "还没有候选账号", comment: "Empty import candidates title"),
-                        systemImage: "tray",
-                        description: Text(NSLocalizedString(
-                            "codex.import.sheet.empty.subtitle",
-                            value: "拖拽或选择 auth.json / ZIP 后，候选账号会先显示在这里。",
-                            comment: "Empty import candidates subtitle"
-                        ))
-                    )
-                }
-            } else {
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 12) {
-                        ForEach(viewModel.sections) { section in
-                            sectionView(section)
-                        }
-                    }
-                }
+        NolonUI.CodexImportCandidateListContainerView(
+            data: .init(
+                hasItems: !viewModel.sections.flatMap(\.items).isEmpty,
+                hasSearchText: hasSearchText
+            )
+        ) {
+            ForEach(viewModel.sections) { section in
+                sectionView(section)
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
     private func sectionView(_ section: ProviderUsageEngine.CodexImportCandidateSection) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .firstTextBaseline, spacing: 10) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(section.title)
-                        .font(.headline)
-                    Text(String(
-                        format: NSLocalizedString("codex.import.sheet.group.count", value: "%d / %d 已选", comment: "Selected count in import group"),
-                        section.selectedItemCount,
-                        section.selectableItemCount
-                    ))
-                    .font(.caption)
-                    .foregroundStyle(DesignSystem.Colors.Text.secondary)
-                }
+        let isFullySelected = section.selectedItemCount == section.selectableItemCount && section.selectableItemCount > 0
+        let data = CodexImportSectionCardData(
+            id: section.id,
+            title: section.title,
+            selectedItemCount: section.selectedItemCount,
+            selectableItemCount: section.selectableItemCount,
+            selectActionTitle: isFullySelected
+                ? NSLocalizedString("codex.import.sheet.group.deselect", value: "取消全选", comment: "Deselect group import candidates")
+                : NSLocalizedString("codex.import.sheet.group.select", value: "全选", comment: "Select group import candidates"),
+            isSelectActionDisabled: section.selectableItemCount == 0
+        )
 
-                Spacer()
-
-                Button(
-                    section.selectedItemCount == section.selectableItemCount && section.selectableItemCount > 0
-                        ? NSLocalizedString("codex.import.sheet.group.deselect", value: "取消全选", comment: "Deselect group import candidates")
-                        : NSLocalizedString("codex.import.sheet.group.select", value: "全选", comment: "Select group import candidates")
-                ) {
-                    let selectAllInGroup = !(section.selectedItemCount == section.selectableItemCount && section.selectableItemCount > 0)
-                    viewModel.setGroupSelected(selectAllInGroup, sourceGroupID: section.id)
-                }
-                .disabled(section.selectableItemCount == 0)
-                .font(.caption)
-                .buttonStyle(.link)
+        return NolonUI.CodexImportSectionCardView(
+            data: data,
+            onSelectAction: {
+                let selectAllInGroup = !isFullySelected
+                viewModel.setGroupSelected(selectAllInGroup, sourceGroupID: section.id)
             }
-            .padding(.horizontal, 12)
-            .padding(.top, 12)
-            .padding(.bottom, 8)
-
-            VStack(spacing: 4) {
-                ForEach(section.items) { candidate in
-                    row(candidate)
-                }
+        ) {
+            ForEach(section.items) { candidate in
+                row(candidate)
             }
-            .padding(.horizontal, 8)
-            .padding(.bottom, 8)
-        }
-        .background {
-            RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusL, style: .continuous)
-                .fill(DesignSystem.Colors.Background.surface)
-        }
-        .overlay {
-            RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusL, style: .continuous)
-                .strokeBorder(DesignSystem.Colors.Component.border.opacity(0.45), lineWidth: 1)
         }
     }
 
     private func row(_ candidate: ProviderUsageEngine.CodexImportCandidate) -> some View {
         let isValid = candidate.validation.isValid
+        let rowData = CodexImportCandidateRowData(
+            id: candidate.id,
+            title: candidate.validation.suggestedName ?? candidate.sourceFileURL.deletingPathExtension().lastPathComponent,
+            email: candidate.validation.email,
+            sourceFileName: candidate.sourceFileURL.lastPathComponent,
+            isValid: isValid,
+            isSelected: candidate.isSelected,
+            testSummary: candidate.testSummary,
+            statusBadge: statusBadgeData(for: candidate),
+            canRetry: isValid && candidate.testStatus != .testing,
+            canRemove: candidate.testStatus != .testing,
+            isRetryDisabled: viewModel.isRunningValidation,
+            isSelectionDisabled: !isValid
+        )
 
-        return VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .top, spacing: 12) {
-                Toggle(
-                    "",
-                    isOn: Binding(
-                        get: { candidate.isSelected },
-                        set: { viewModel.setCandidateSelected($0, id: candidate.id) }
-                    )
-                )
-                .toggleStyle(.checkbox)
-                .labelsHidden()
-                .disabled(!isValid)
-                .padding(.top, 2)
-
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(candidate.validation.suggestedName ?? candidate.sourceFileURL.deletingPathExtension().lastPathComponent)
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(isValid ? DesignSystem.Colors.Text.primary : DesignSystem.Colors.Text.secondary)
-                    if let email = candidate.validation.email, !email.isEmpty {
-                        Text(email)
-                            .font(.caption2)
-                            .foregroundStyle(DesignSystem.Colors.Text.secondary)
-                        Text(candidate.sourceFileURL.lastPathComponent)
-                            .font(.caption2)
-                            .foregroundStyle(DesignSystem.Colors.Text.tertiary)
-                    } else {
-                        Text(candidate.sourceFileURL.lastPathComponent)
-                            .font(.caption2)
-                            .foregroundStyle(DesignSystem.Colors.Text.secondary)
-                    }
-                }
-
-                Spacer(minLength: 8)
-
-                VStack(alignment: .trailing, spacing: 4) {
-                    statusBadge(for: candidate)
-
-                    if candidate.testStatus != .testing {
-                        HStack(spacing: 8) {
-                            if isValid {
-                                Button(NSLocalizedString("codex.import.sheet.retry_single", value: "重试", comment: "Retry single import test")) {
-                                    viewModel.retryConnectionTest(id: candidate.id)
-                                }
-                                .disabled(viewModel.isRunningValidation)
-                                .buttonStyle(.link)
-                            }
-
-                            Button(NSLocalizedString("codex.import.sheet.remove", value: "移除", comment: "Remove import candidate")) {
-                                viewModel.removeCandidate(id: candidate.id)
-                            }
-                            .buttonStyle(.link)
-                        }
-                        .font(.caption2)
-                        .foregroundStyle(DesignSystem.Colors.Text.tertiary)
-                    }
-                }
-            }
-
-            if let summary = candidate.testSummary, !summary.isEmpty {
-                Text(summary)
-                    .font(.caption2)
-                    .foregroundStyle(candidate.testStatus == .failure ? DesignSystem.Colors.Status.error : DesignSystem.Colors.Text.secondary)
-                    .padding(.leading, 26)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-        .padding(10)
-        .background {
-            RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusL, style: .continuous)
-                .fill(isValid ? DesignSystem.Colors.Background.elevated.opacity(0.6) : DesignSystem.Colors.Background.elevated.opacity(0.25))
-        }
-        .opacity(isValid ? 1 : 0.72)
+        return NolonUI.CodexImportCandidateRowView(
+            data: rowData,
+            onSetSelected: { viewModel.setCandidateSelected($0, id: candidate.id) },
+            onRetry: { viewModel.retryConnectionTest(id: candidate.id) },
+            onRemove: { viewModel.removeCandidate(id: candidate.id) }
+        )
     }
 
-    private func errorBanner(_ message: String) -> some View {
-        HStack(alignment: .top, spacing: 10) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundStyle(DesignSystem.Colors.Status.error)
-            Text(message)
-                .font(.caption)
-                .foregroundStyle(DesignSystem.Colors.Status.error)
-                .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .padding(10)
-        .background(DesignSystem.Colors.Status.error.opacity(0.08), in: RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusM, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: DesignSystem.Metrics.cornerRadiusM, style: .continuous)
-                .strokeBorder(DesignSystem.Colors.Status.error.opacity(0.25), lineWidth: 1)
-        }
-    }
-
-    private func statusBadge(for candidate: ProviderUsageEngine.CodexImportCandidate) -> some View {
+    private func statusBadgeData(for candidate: ProviderUsageEngine.CodexImportCandidate) -> CodexImportStatusBadgeData {
         let label: String
-        let color: Color
+        let tone: CodexImportStatusTone
         switch candidate.testStatus {
         case .idle:
             label = NSLocalizedString("codex.import.sheet.status.idle", value: "待测试", comment: "Idle import test status")
-            color = DesignSystem.Colors.Text.secondary
+            tone = .neutral
         case .testing:
             label = NSLocalizedString("codex.import.sheet.status.testing", value: "测试中", comment: "Testing import status")
-            color = DesignSystem.Colors.primary
+            tone = .info
         case .success:
             label = NSLocalizedString("codex.import.sheet.status.connected", value: "已联通", comment: "Connected import status")
-            color = DesignSystem.Colors.Status.success
+            tone = .success
         case .failure:
             label = candidate.validation.isValid
                 ? NSLocalizedString("codex.import.sheet.status.failed", value: "失败", comment: "Failed import status")
                 : NSLocalizedString("codex.import.sheet.status.invalid", value: "无效", comment: "Invalid import status")
-            color = DesignSystem.Colors.Status.error
+            tone = .error
         }
-
-        return Text(label)
-            .font(.caption.weight(.medium))
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(color.opacity(0.12), in: Capsule())
-            .foregroundStyle(color)
+        return .init(text: label, tone: tone)
     }
 
-    private func resolveDroppedURLs(from providers: [NSItemProvider]) -> Bool {
-        guard !providers.isEmpty else { return false }
-        let group = DispatchGroup()
-        var urls: [URL] = []
-        let lock = NSLock()
-
-        for provider in providers {
-            group.enter()
-            provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { item, _ in
-                defer { group.leave() }
-                let resolvedURL: URL? = {
-                    if let data = item as? Data {
-                        return URL(dataRepresentation: data, relativeTo: nil)
-                    }
-                    if let url = item as? URL {
-                        return url
-                    }
-                    if let string = item as? String {
-                        return URL(string: string)
-                    }
-                    return nil
-                }()
-                guard let resolvedURL else { return }
-                lock.lock()
-                urls.append(resolvedURL)
-                lock.unlock()
-            }
-        }
-
-        group.notify(queue: .main) {
-            guard !urls.isEmpty else { return }
-            viewModel.handleDropFiles(urls)
-        }
-        return true
-    }
 }

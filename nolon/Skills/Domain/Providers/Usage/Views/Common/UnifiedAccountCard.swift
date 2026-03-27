@@ -5,94 +5,6 @@ import Shimmer
 import NolonUI
 import NolonUIFoundation
 
-typealias AccountCardSelectionStyle = NolonUIFoundation.AccountCardSelectionStyle
-typealias AccountCardPresentation = NolonUIFoundation.AccountCardPresentation
-typealias AccountSummaryCardBadgeTone = NolonUIFoundation.AccountSummaryCardBadgeTone
-typealias AccountSummaryCardBadgeModel = NolonUIFoundation.AccountSummaryCardBadgeModel
-typealias AccountSummaryCardHeaderModel = NolonUIFoundation.AccountSummaryCardHeaderModel
-
-struct AccountSummaryCard<Content: View>: View {
-    @State private var viewModel = NolonUI.AccountSummaryCardViewModel()
-    let presentation: AccountCardPresentation
-    let contentInsets: EdgeInsets
-    @ViewBuilder let content: Content
-
-    init(
-        presentation: AccountCardPresentation = .neutral,
-        contentInsets: EdgeInsets = EdgeInsets(top: 12, leading: 12, bottom: 12, trailing: 12),
-        @ViewBuilder content: () -> Content
-    ) {
-        self.presentation = presentation
-        self.contentInsets = contentInsets
-        self.content = content()
-    }
-
-    var body: some View {
-        NolonUI.AccountSummaryCard(
-            presentation: presentation,
-            contentInsets: contentInsets
-        ) {
-            content
-        }
-    }
-
-    static func backgroundOpacity(for selectionStyle: AccountCardSelectionStyle) -> Double {
-        NolonUI.AccountSummaryCard<Content>.backgroundOpacity(for: selectionStyle)
-    }
-
-    static func borderLineWidth(for selectionStyle: AccountCardSelectionStyle) -> CGFloat {
-        NolonUI.AccountSummaryCard<Content>.borderLineWidth(for: selectionStyle)
-    }
-
-    static func borderDash(for selectionStyle: AccountCardSelectionStyle) -> [CGFloat] {
-        NolonUI.AccountSummaryCard<Content>.borderDash(for: selectionStyle)
-    }
-}
-
-struct AccountSummaryContentCard<Body: View, Details: View, Actions: View>: View {
-    @State private var componentViewModel = NolonUI.AccountSummaryContentCardViewModel()
-    let presentation: AccountCardPresentation
-    let header: AccountSummaryCardHeaderModel
-    let showsDetailsSection: Bool
-    let showsActionsSection: Bool
-    @ViewBuilder let bodyContent: Body
-    @ViewBuilder let detailsContent: Details
-    @ViewBuilder let actionsContent: Actions
-
-    init(
-        presentation: AccountCardPresentation = .neutral,
-        header: AccountSummaryCardHeaderModel,
-        showsDetailsSection: Bool = false,
-        showsActionsSection: Bool = false,
-        @ViewBuilder body: () -> Body,
-        @ViewBuilder details: () -> Details = { EmptyView() },
-        @ViewBuilder actions: () -> Actions = { EmptyView() }
-    ) {
-        self.presentation = presentation
-        self.header = header
-        self.showsDetailsSection = showsDetailsSection
-        self.showsActionsSection = showsActionsSection
-        self.bodyContent = body()
-        self.detailsContent = details()
-        self.actionsContent = actions()
-    }
-
-    var body: some View {
-        NolonUI.AccountSummaryContentCard(
-            presentation: presentation,
-            header: header,
-            showsDetailsSection: showsDetailsSection,
-            showsActionsSection: showsActionsSection
-        ) {
-            bodyContent
-        } details: {
-            detailsContent
-        } actions: {
-            actionsContent
-        }
-    }
-}
-
 struct UnifiedAccountCard: View, DebugCardLocatable {
     let data: AccountCardViewData
     let onTap: (AccountRecordID) -> Void
@@ -124,7 +36,7 @@ struct UnifiedAccountCard: View, DebugCardLocatable {
     }
 
     private var cardContent: some View {
-        AccountSummaryContentCard(
+        NolonUI.AccountSummaryContentCard(
             presentation: data.presentation,
             header: data.header,
             showsDetailsSection: !data.detailRows.isEmpty,
@@ -181,7 +93,6 @@ struct UnifiedAccountCard: View, DebugCardLocatable {
             NolonUI.AccountLoadingStateModule()
         } else if let message = quota.errorMessage?.trimmingCharacters(in: .whitespacesAndNewlines), !message.isEmpty {
             NolonUI.AccountErrorStateModule(
-                title: NSLocalizedString("usage.error.title", value: "Sync Failed", comment: "Error title"),
                 message: message
             )
         } else if let usage = quota.usage {
@@ -189,14 +100,8 @@ struct UnifiedAccountCard: View, DebugCardLocatable {
                 rows: quotaRows(quota: quota, usage: usage, provider: quota.provider),
                 creditsText: quotaCreditsText(quota.credits)
             )
-        } else if quota.showsEmptyState {
-            NolonUI.AccountEmptyStateModule(
-                text: NSLocalizedString("usage.monitor.empty.desc", value: "No data available.", comment: "Empty data")
-            )
         } else {
-            NolonUI.AccountEmptyStateModule(
-                text: NSLocalizedString("usage.monitor.empty.desc", value: "No data available.", comment: "Empty data")
-            )
+            NolonUI.AccountEmptyStateModule()
         }
     }
 
@@ -461,7 +366,7 @@ struct UnifiedAccountCard: View, DebugCardLocatable {
         return debugCardMarkerItems + [PageMarkerItem(title: label.isEmpty ? "Footer" : label)]
     }
 
-    private func tintColor(_ tone: AccountSummaryCardBadgeTone?) -> Color {
+    private func tintColor(_ tone: NolonUIFoundation.AccountSummaryCardBadgeTone?) -> Color {
         switch tone {
         case .active:
             return DesignSystem.Colors.primary
@@ -477,7 +382,7 @@ struct UnifiedAccountCardSkeleton: View {
     let providerName: String
 
     var body: some View {
-        AccountSummaryContentCard(
+        NolonUI.AccountSummaryContentCard(
             header: .init(
                 eyebrow: providerName,
                 title: "Loading",

@@ -15,7 +15,7 @@ final class ResourceCenterViewModel {
     }
 
     var selectedRepository: RemoteRepository?
-    var selectedTab: ResourceContentTabType? = .skills
+    var selectedTab: ResourceCenterTabID? = .skills
     var searchText = ""
     var columnVisibility: NavigationSplitViewVisibility = .all
     var installedSlugs: Set<String> = []
@@ -28,7 +28,7 @@ final class ResourceCenterViewModel {
     @ObservationIgnored
     private var postInstallRefreshTasks: [PostInstallRefreshKind: Task<Void, Never>] = [:]
 
-    init(selectedTab: ResourceContentTabType? = .skills) {
+    init(selectedTab: ResourceCenterTabID? = .skills) {
         self.selectedTab = selectedTab
     }
 

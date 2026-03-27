@@ -1,4 +1,5 @@
 import SwiftUI
+import NolonUI
 
 struct ProviderWorkflowsGridView: View {
     let viewModel: ProviderDetailGridViewModel
@@ -6,29 +7,32 @@ struct ProviderWorkflowsGridView: View {
     let markerBaseItems: [PageMarkerItem]
     
     var body: some View {
-        if viewModel.filteredWorkflows.isEmpty {
-            ContentUnavailableView(
-                viewModel.searchText.isEmpty ? NSLocalizedString("workflows.empty", comment: "No Workflows") : "No Results",
-                systemImage: viewModel.searchText.isEmpty ? "arrow.triangle.branch" : "magnifyingglass",
-                description: Text(viewModel.searchText.isEmpty ? NSLocalizedString("workflows.empty_desc", comment: "No workflows in this provider") : "No matching workflows found")
-                    .dsSecondaryText(font: .body)
-            )
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-        } else {
-            LazyVGrid(columns: columns, spacing: 16) {
-                ForEach(viewModel.filteredWorkflows) { workflow in
-                    WorkflowCardView(
-                        workflow: workflow,
-                        searchText: viewModel.searchText,
-                        onReveal: { viewModel.revealWorkflowInFinder(workflow) },
-                        onDelete: { await viewModel.deleteWorkflow(workflow) },
-                        onTap: {
-                            // Open workflow file in default editor
-                            NSWorkspace.shared.open(URL(fileURLWithPath: workflow.path))
-                        }
+        NolonUI.ProviderResourceGridSectionView(
+            isEmpty: viewModel.filteredWorkflows.isEmpty,
+            searchText: viewModel.searchText,
+            kind: .workflows,
+            noResultsDescription: "No matching workflows found",
+            columns: columns
+        ) {
+            ForEach(viewModel.filteredWorkflows) { workflow in
+                NolonUI.WorkflowCardView(
+                    workflow: workflow,
+                    searchText: viewModel.searchText,
+                    onReveal: { viewModel.revealWorkflowInFinder(workflow) },
+                    onDelete: { await viewModel.deleteWorkflow(workflow) },
+                    onTap: {
+                        // Open workflow file in default editor
+                        NSWorkspace.shared.open(URL(fileURLWithPath: workflow.path))
+                    }
+                ) { workflow in
+                    debugPageMarkerMenuItem(
+                        [
+                            PageMarkerItem(title: NSLocalizedString("tab.workflows", comment: "Workflows")),
+                            PageMarkerItem(title: workflow.name)
+                        ]
                     )
-                    .debugCardLocator(markerBaseItems + [PageMarkerItem(title: workflow.name)])
                 }
+                .debugCardLocator(markerBaseItems + [PageMarkerItem(title: workflow.name)])
             }
         }
     }
