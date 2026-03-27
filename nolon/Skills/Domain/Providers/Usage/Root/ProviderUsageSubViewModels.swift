@@ -147,16 +147,8 @@ final class ProviderUsageAccountsViewModel {
             )
         }
 
-        static func shouldShowActivateAccountContextAction(isActiveAccount: Bool) -> Bool {
-            !isActiveAccount
-        }
-
         static func shouldShowActivateGatewayContextAction(isActiveGateway: Bool) -> Bool {
             !isActiveGateway
-        }
-
-        func shouldShowActivateAccountContextAction(isActiveAccount: Bool) -> Bool {
-            Self.shouldShowActivateAccountContextAction(isActiveAccount: isActiveAccount)
         }
 
         func shouldShowActivateGatewayContextAction(isActiveGateway: Bool) -> Bool {
@@ -201,10 +193,6 @@ final class ProviderUsageAccountsViewModel {
 
         func refreshAccountImmediately(id: UUID) async {
             await engine.refreshCodexAccountImmediately(id: id)
-        }
-
-        func toggleAccountSelection(id: UUID) {
-            engine.toggleCodexAccountSelection(id: id)
         }
 
         func isAccountSelected(id: UUID?) -> Bool {
@@ -428,14 +416,6 @@ final class ProviderUsageAccountsViewModel {
         }
         var pendingImportCandidate: GeminiCLIGlobalSessionImportCandidate? { engine.pendingGeminiImportCandidate }
         
-        static func shouldUseFullWidthCardLayout(accountCount: Int) -> Bool {
-            accountCount == 1
-        }
-
-        func shouldUseFullWidthCardLayout(accountCount: Int) -> Bool {
-            Self.shouldUseFullWidthCardLayout(accountCount: accountCount)
-        }
-
         func activateAccount(id: UUID) async {
             await engine.activateGeminiAccount(id: id)
         }
