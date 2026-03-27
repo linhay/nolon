@@ -26,12 +26,12 @@ struct RemoteWorkflowDetailView: View {
     private var detailData: RemoteResourceDetailData {
         var sections: [RemoteResourceDetailData.Section] = []
 
-        if let summary = workflow.summary, !summary.isEmpty {
-            sections.append(.markdown(id: "summary", title: "Description", content: summary))
+        if let description = RemoteResourceDetailBuilders.descriptionSection(summary: workflow.summary) {
+            sections.append(description)
         }
 
-        if let changelog = workflow.latestVersion?.changelog, !changelog.isEmpty {
-            sections.append(.markdown(id: "changelog", title: "Changelog", content: changelog))
+        if let changelog = RemoteResourceDetailBuilders.changelogSection(changelog: workflow.latestVersion?.changelog) {
+            sections.append(changelog)
         }
 
         var stats: [RemoteResourceDetailData.StatItem] = []
@@ -59,7 +59,6 @@ struct RemoteWorkflowDetailView: View {
 
     private var versionSubtitle: String? {
         guard let version = workflow.latestVersion else { return nil }
-        let date = Date(timeIntervalSince1970: version.createdAt).formatted(date: .abbreviated, time: .omitted)
-        return date.isEmpty ? version.version : "\(version.version) • \(date)"
+        return RemoteResourceDetailBuilders.versionSubtitle(version: version.version, createdAt: version.createdAt)
     }
 }

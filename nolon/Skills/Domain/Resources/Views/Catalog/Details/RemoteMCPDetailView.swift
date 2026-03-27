@@ -26,8 +26,8 @@ struct RemoteMCPDetailView: View {
     private var detailData: RemoteResourceDetailData {
         var sections: [RemoteResourceDetailData.Section] = []
 
-        if let summary = mcp.summary, !summary.isEmpty {
-            sections.append(.markdown(id: "summary", title: "Description", content: summary))
+        if let description = RemoteResourceDetailBuilders.descriptionSection(summary: mcp.summary) {
+            sections.append(description)
         }
 
         if let config = mcp.configuration {
@@ -46,8 +46,8 @@ struct RemoteMCPDetailView: View {
             }
         }
 
-        if let changelog = mcp.latestVersion?.changelog, !changelog.isEmpty {
-            sections.append(.markdown(id: "changelog", title: "Changelog", content: changelog))
+        if let changelog = RemoteResourceDetailBuilders.changelogSection(changelog: mcp.latestVersion?.changelog) {
+            sections.append(changelog)
         }
 
         var stats: [RemoteResourceDetailData.StatItem] = []
@@ -75,7 +75,6 @@ struct RemoteMCPDetailView: View {
 
     private var versionSubtitle: String? {
         guard let version = mcp.latestVersion else { return nil }
-        let date = Date(timeIntervalSince1970: version.createdAt).formatted(date: .abbreviated, time: .omitted)
-        return date.isEmpty ? version.version : "\(version.version) • \(date)"
+        return RemoteResourceDetailBuilders.versionSubtitle(version: version.version, createdAt: version.createdAt)
     }
 }
