@@ -116,20 +116,6 @@ public class ProviderSettings {
         remoteRepositories.removeAll { $0.id == repository.id }
     }
 
-    // MARK: - Provider Accessors
-
-    public func path(for provider: Provider) -> URL {
-        pathFolder(for: provider).url
-    }
-
-    public func pathFolder(for provider: Provider) -> STFolder {
-        STFolder(provider.defaultSkillsPath)
-    }
-
-    public func method(for provider: Provider) -> SkillInstallationMethod {
-        provider.installMethod
-    }
-
     // MARK: - Persistence
 
     private var providersFile: STFile {
