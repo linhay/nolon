@@ -2366,15 +2366,23 @@ final class ProviderUsageEngine {
     }
 
     static func isAuthFailure(error: Error) -> Bool {
-        ProviderUsageErrorFormatter.isAuthFailure(error: error)
+        CodexAuthFailureClassifier.isAuthFailure(errorText: errorDetailText(error: error))
     }
 
     static func errorSummaryText(error: Error, maxLength: Int = 140) -> String {
-        ProviderUsageErrorFormatter.summaryText(error: error, maxLength: maxLength)
+        let detail = errorDetailText(error: error)
+        return ProviderUsageErrorTextFormatter.summaryText(
+            errorDetail: detail,
+            isAuthFailure: CodexAuthFailureClassifier.isAuthFailure(errorText: detail),
+            maxLength: maxLength
+        )
     }
 
     static func errorDetailText(error: Error) -> String {
-        ProviderUsageErrorFormatter.detailText(error: error)
+        ProviderUsageErrorTextFormatter.detailText(
+            localizedDescription: error.localizedDescription,
+            fallbackDescription: String(describing: error)
+        )
     }
 
     func reopenLoginURLInBrowser() {

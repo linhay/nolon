@@ -1,5 +1,7 @@
 import Testing
 import Foundation
+import ProviderUsage
+import NolonUIFoundation
 @testable import nolon
 
 private enum ProviderUsageErrorFormatterTestError: Error, LocalizedError {
@@ -17,7 +19,15 @@ struct ProviderUsageErrorFormatterTests {
     @Test("BDD: Given auth expired error when formatting summary then returns localized auth expired text")
     func testBDD_GivenAuthExpiredError_WhenFormattingSummary_ThenReturnsLocalizedAuthExpiredText() {
         let error = ProviderUsageErrorFormatterTestError.message("Unauthorized: session expired")
-        let summary = ProviderUsageErrorFormatter.summaryText(error: error)
+        let detail = ProviderUsageErrorTextFormatter.detailText(
+            localizedDescription: error.localizedDescription,
+            fallbackDescription: String(describing: error)
+        )
+        let summary = ProviderUsageErrorTextFormatter.summaryText(
+            errorDetail: detail,
+            isAuthFailure: CodexAuthFailureClassifier.isAuthFailure(errorText: detail),
+            maxLength: 140
+        )
         #expect(
             summary.contains("Authentication expired")
                 || summary.contains("认证已失效")

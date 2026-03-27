@@ -397,7 +397,7 @@ enum AccountRecordBuilder {
                 return .loading
             }
             if case let .failure(error) = outcome.outcome.result,
-               CodexAuthFailureClassifier.isAuthFailure(errorText: ProviderUsageErrorFormatter.detailText(error: error)) {
+               CodexAuthFailureClassifier.isAuthFailure(errorText: providerUsageErrorDetailText(error: error)) {
                 return .warning
             }
             if summary?.lastSyncFailureMessage?.isEmpty == false && canRelogin {
@@ -415,12 +415,12 @@ enum AccountRecordBuilder {
         let persistedFailureDetail = summary?.lastSyncFailureMessage?.trimmingCharacters(in: .whitespacesAndNewlines)
         let failureDetail: String? = {
             if let persistedFailureDetail, !persistedFailureDetail.isEmpty { return persistedFailureDetail }
-            if let liveFailureError { return ProviderUsageErrorFormatter.detailText(error: liveFailureError) }
+            if let liveFailureError { return providerUsageErrorDetailText(error: liveFailureError) }
             return nil
         }()
         let failureSummary: String? = {
             if let liveFailureError {
-                return ProviderUsageErrorFormatter.summaryText(error: liveFailureError)
+                return providerUsageErrorSummaryText(error: liveFailureError)
             }
             if let failureDetail, canRelogin, CodexAuthFailureClassifier.isAuthFailure(errorText: failureDetail) {
                 return NSLocalizedString(
@@ -544,6 +544,22 @@ enum AccountRecordBuilder {
 
         return parts.isEmpty ? nil : parts.joined(separator: " • ")
     }
+}
+
+private func providerUsageErrorDetailText(error: Error) -> String {
+    ProviderUsageErrorTextFormatter.detailText(
+        localizedDescription: error.localizedDescription,
+        fallbackDescription: String(describing: error)
+    )
+}
+
+private func providerUsageErrorSummaryText(error: Error, maxLength: Int = 140) -> String {
+    let detail = providerUsageErrorDetailText(error: error)
+    return ProviderUsageErrorTextFormatter.summaryText(
+        errorDetail: detail,
+        isAuthFailure: CodexAuthFailureClassifier.isAuthFailure(errorText: detail),
+        maxLength: maxLength
+    )
 }
 
 enum AccountCardRowStyle: Equatable {

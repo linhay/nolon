@@ -292,7 +292,10 @@ extension ProviderUsageAccountsViewModel.GeminiState {
                     syncedAt: nil,
                     isLoading: isLoading,
                     showsEmptyState: false,
-                    errorMessage: ProviderUsageErrorFormatter.detailText(error: error)
+                    errorMessage: ProviderUsageErrorTextFormatter.detailText(
+                        localizedDescription: error.localizedDescription,
+                        fallbackDescription: String(describing: error)
+                    )
                 )
             }
         }()
@@ -391,7 +394,12 @@ extension ProviderUsageAccountsViewModel.CodexState {
         let persistedFailureDetail = summary?.lastSyncFailureMessage?.trimmingCharacters(in: .whitespacesAndNewlines)
         let failureDetail: String? = {
             if let persistedFailureDetail, !persistedFailureDetail.isEmpty { return persistedFailureDetail }
-            if let liveFailureError { return ProviderUsageErrorFormatter.detailText(error: liveFailureError) }
+            if let liveFailureError {
+                return ProviderUsageErrorTextFormatter.detailText(
+                    localizedDescription: liveFailureError.localizedDescription,
+                    fallbackDescription: String(describing: liveFailureError)
+                )
+            }
             return nil
         }()
 
