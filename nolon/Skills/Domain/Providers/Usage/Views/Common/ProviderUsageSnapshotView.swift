@@ -75,8 +75,12 @@ struct ProviderUsageSnapshotView: View {
                 )
             )
         case let .failure(error):
-            let code = UsageIssueClassifier.classify(provider: outcome.provider, error: error)
-            let hints = UsageIssueClassifier.hints(provider: outcome.provider, code: code)
+            let code = ProviderUsageIssueClassifier.classify(
+                providerID: outcome.provider.rawValue,
+                errorText: error.localizedDescription,
+                usageErrorCode: usageErrorCode(from: error)
+            )
+            let hints = ProviderUsageIssueClassifier.hints(providerID: outcome.provider.rawValue, code: code)
             return .init(
                 header: .init(
                     displayName: outcome.displayName,
@@ -92,6 +96,23 @@ struct ProviderUsageSnapshotView: View {
                 )
             )
         }
+    }
+}
+
+private func usageErrorCode(from error: Error) -> String? {
+    guard let usageError = error as? ProviderUsageError else {
+        return nil
+    }
+
+    switch usageError {
+    case .unsupported:
+        return "unsupported"
+    case .missingToken:
+        return "missingToken"
+    case .missingAccount:
+        return "missingAccount"
+    case .authExpired:
+        return "authExpired"
     }
 }
 
