@@ -4,6 +4,16 @@ public enum RepositorySyncStatusData {
     case syncing
     case lastSynced(Date)
     case notSynced(String)
+
+    public static func notSyncedDefault() -> Self {
+        .notSynced(
+            NSLocalizedString(
+                "repository.sync.not_synced",
+                value: "Not synced",
+                comment: "Repository not synced state"
+            )
+        )
+    }
 }
 
 public struct RepositorySidebarRowData: Identifiable {

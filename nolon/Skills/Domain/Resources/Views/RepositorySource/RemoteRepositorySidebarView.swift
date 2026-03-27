@@ -210,7 +210,7 @@ struct RemoteRepositorySidebarView: View, DebugPageLocatable {
         if let syncDate = repo.lastSyncDate {
             return .lastSynced(syncDate)
         }
-        return .notSynced(NSLocalizedString("Not synced", comment: "Repository not synced"))
+        return .notSyncedDefault()
     }
     
     private func deleteRepositories(_ offsets: IndexSet, in repos: [RemoteRepository]) {
