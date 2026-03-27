@@ -72,12 +72,7 @@ struct CodexRuntimeTabView: View {
                 comment: "Force stop confirmation message"
             ),
             confirmTitle: String(
-                format: NSLocalizedString(
-                    "codex.runtime.force_stop.action",
-                    value: "Force Stop PID %d",
-                    comment: "Force stop action"
-                ),
-                viewModel.pendingForceStopPID ?? 0
+                CodexRuntimeBuilders.forceStopActionTitle(pid: viewModel.pendingForceStopPID ?? 0)
             )
         )
     }
@@ -118,14 +113,7 @@ struct CodexRuntimeTabView: View {
     private func processRowData(process: CodexRuntimeProcessItem, isSelected: Bool) -> CodexRuntimeProcessRowData {
         CodexRuntimeProcessRowData(
             id: process.id,
-            pidText: String(
-                format: NSLocalizedString(
-                    "codex.runtime.pid.label",
-                    value: "PID %d",
-                    comment: "Runtime PID label"
-                ),
-                process.pid
-            ),
+            pidText: CodexRuntimeBuilders.pidText(process.pid),
             elapsedText: process.elapsed,
             providerHint: process.providerHint,
             commandText: process.command,
@@ -140,7 +128,7 @@ struct CodexRuntimeTabView: View {
         let rows = viewModel.processDiagnosticsRows(for: process).map { row in
             CodexRuntimeDiagnosticRowData(
                 id: row.key.rawValue,
-                label: localizedDiagnosticLabel(for: row.key),
+                label: CodexRuntimeBuilders.diagnosticLabel(for: row.key.rawValue),
                 value: row.value
             )
         }
@@ -167,40 +155,10 @@ struct CodexRuntimeTabView: View {
 
     private var logsSectionData: CodexRuntimeLogsSectionData {
         CodexRuntimeLogsSectionData(
-            pidText: viewModel.selectedPID.map {
-                String(
-                    format: NSLocalizedString(
-                        "codex.runtime.pid.label",
-                        value: "PID %d",
-                        comment: "Runtime PID label"
-                    ),
-                    $0
-                )
-            },
+            pidText: viewModel.selectedPID.map(CodexRuntimeBuilders.pidText),
             isLoading: viewModel.isLoadingLogs,
             logsText: viewModel.logsText,
             errorMessage: viewModel.logsErrorMessage
         )
-    }
-
-    private func localizedDiagnosticLabel(for key: CodexRuntimeProcessDiagnosticField.Key) -> String {
-        switch key {
-        case .provider:
-            return NSLocalizedString("codex.runtime.diag.provider", value: "Provider", comment: "Runtime diagnostics provider label")
-        case .accounts:
-            return NSLocalizedString("codex.runtime.diag.accounts", value: "Accounts", comment: "Runtime diagnostics accounts label")
-        case .active:
-            return NSLocalizedString("codex.runtime.diag.active", value: "Active", comment: "Runtime diagnostics active account label")
-        case .running:
-            return NSLocalizedString("codex.runtime.diag.running", value: "Running", comment: "Runtime diagnostics running count label")
-        case .binary:
-            return NSLocalizedString("codex.runtime.diag.binary", value: "Binary", comment: "Runtime diagnostics binary label")
-        case .pathActive:
-            return NSLocalizedString("codex.runtime.diag.path_active", value: "Path Active", comment: "Runtime diagnostics path active label")
-        case .executable:
-            return NSLocalizedString("codex.runtime.diag.executable", value: "Executable", comment: "Runtime diagnostics executable label")
-        case .hint:
-            return NSLocalizedString("codex.runtime.diag.hint", value: "Hint", comment: "Runtime diagnostics hint label")
-        }
     }
 }
