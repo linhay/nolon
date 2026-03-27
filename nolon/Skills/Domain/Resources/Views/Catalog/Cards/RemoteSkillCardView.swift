@@ -11,15 +11,59 @@ struct RemoteSkillCardView: View, DebugPageLocatable {
     let isInstalled: Bool
     let isInstalling: Bool
     let installErrorMessage: String?
-    let isSelected: Bool = false
+    let isSelected: Bool
     let targetProvider: Provider?
     let providers: [Provider]
     let onInstall: (Provider) -> Void
     let onDeleteRequest: (() -> Void)?
     let isDeleting: Bool
     let onTap: () -> Void
-    
-    @State private var showingInstallSheet = false
+    @State private var installSelection: ResourceInstallSelectionViewModel
+
+    init(
+        skill: RemoteSkill,
+        isInstalled: Bool,
+        isInstalling: Bool,
+        installErrorMessage: String?,
+        isSelected: Bool = false,
+        targetProvider: Provider?,
+        providers: [Provider],
+        onInstall: @escaping (Provider) -> Void,
+        onDeleteRequest: (() -> Void)?,
+        isDeleting: Bool,
+        onTap: @escaping () -> Void
+    ) {
+        self.skill = skill
+        self.isInstalled = isInstalled
+        self.isInstalling = isInstalling
+        self.installErrorMessage = installErrorMessage
+        self.isSelected = isSelected
+        self.targetProvider = targetProvider
+        self.providers = providers
+        self.onInstall = onInstall
+        self.onDeleteRequest = onDeleteRequest
+        self.isDeleting = isDeleting
+        self.onTap = onTap
+        self._installSelection = State(
+            initialValue: .init(
+                itemName: skill.displayName,
+                targetProviderID: targetProvider?.id,
+                providers: providers.map {
+                    SkillInstallProviderOption(
+                        id: $0.id,
+                        name: $0.name,
+                        iconName: $0.iconName
+                    )
+                },
+                onSelectProviderID: { providerID in
+                    guard let provider = providers.first(where: { $0.id == providerID }) else {
+                        return
+                    }
+                    onInstall(provider)
+                }
+            )
+        )
+    }
 
     var debugPageMarkerItems: [PageMarkerItem] {
         [
@@ -40,8 +84,8 @@ struct RemoteSkillCardView: View, DebugPageLocatable {
             isSelected: isSelected,
             isDeleting: isDeleting,
             onTap: onTap,
-            onInstall: handleInstall,
-            onRetry: handleInstall,
+            onInstall: { installSelection.requestInstall() },
+            onRetry: { installSelection.requestInstall() },
             onRevealInFinder: revealInFinderAction,
             onDeleteRequest: onDeleteRequest
         ) {
@@ -67,24 +111,7 @@ struct RemoteSkillCardView: View, DebugPageLocatable {
         }
         .textSelection(.disabled)
         .debugCardLocator(debugPageMarkerItems)
-        .installProviderSelectionSheet(
-            isPresented: $showingInstallSheet,
-            itemName: skill.displayName,
-            providers: providerOptions
-        ) { providerID in
-            guard let provider = providers.first(where: { $0.id == providerID }) else {
-                return
-            }
-            onInstall(provider)
-        }
-    }
-    
-    private func handleInstall() {
-        if let target = targetProvider {
-            onInstall(target)
-        } else {
-            showingInstallSheet = true
-        }
+        .resourceInstallSelectionSheet(using: installSelection)
     }
 
     private func handleUITestDirectDelete() {
@@ -123,15 +150,5 @@ struct RemoteSkillCardView: View, DebugPageLocatable {
         }
 
         return candidates.first(where: { FileManager.default.fileExists(atPath: $0.path) })
-    }
-
-    private var providerOptions: [SkillInstallProviderOption] {
-        providers.map { provider in
-            SkillInstallProviderOption(
-                id: provider.id,
-                name: provider.name,
-                iconName: provider.iconName
-            )
-        }
     }
 }

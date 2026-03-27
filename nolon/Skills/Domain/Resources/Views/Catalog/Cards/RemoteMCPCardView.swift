@@ -18,8 +18,52 @@ struct RemoteMCPCardView: View, DebugPageLocatable {
     let onDeleteRequest: (() -> Void)?
     let isDeleting: Bool
     let onTap: () -> Void
-    
-    @State private var showingInstallSheet = false
+    @State private var installSelection: ResourceInstallSelectionViewModel
+
+    init(
+        mcp: RemoteMCP,
+        isInstalled: Bool,
+        isInstalling: Bool,
+        installErrorMessage: String?,
+        isSelected: Bool,
+        targetProvider: Provider?,
+        providers: [Provider],
+        onInstall: @escaping (Provider) -> Void,
+        onDeleteRequest: (() -> Void)?,
+        isDeleting: Bool,
+        onTap: @escaping () -> Void
+    ) {
+        self.mcp = mcp
+        self.isInstalled = isInstalled
+        self.isInstalling = isInstalling
+        self.installErrorMessage = installErrorMessage
+        self.isSelected = isSelected
+        self.targetProvider = targetProvider
+        self.providers = providers
+        self.onInstall = onInstall
+        self.onDeleteRequest = onDeleteRequest
+        self.isDeleting = isDeleting
+        self.onTap = onTap
+        self._installSelection = State(
+            initialValue: .init(
+                itemName: mcp.displayName,
+                targetProviderID: targetProvider?.id,
+                providers: providers.map {
+                    SkillInstallProviderOption(
+                        id: $0.id,
+                        name: $0.name,
+                        iconName: $0.iconName
+                    )
+                },
+                onSelectProviderID: { providerID in
+                    guard let provider = providers.first(where: { $0.id == providerID }) else {
+                        return
+                    }
+                    onInstall(provider)
+                }
+            )
+        )
+    }
 
     var debugPageMarkerItems: [PageMarkerItem] {
         [
@@ -41,8 +85,8 @@ struct RemoteMCPCardView: View, DebugPageLocatable {
             isSelected: isSelected,
             isDeleting: isDeleting,
             onTap: onTap,
-            onInstall: handleInstall,
-            onRetry: handleInstall,
+            onInstall: { installSelection.requestInstall() },
+            onRetry: { installSelection.requestInstall() },
             onRevealInFinder: revealInFinderAction,
             onDeleteRequest: onDeleteRequest,
             onCopyCommand: copyCommandAction
@@ -55,24 +99,7 @@ struct RemoteMCPCardView: View, DebugPageLocatable {
         }
         .textSelection(.disabled)
         .debugCardLocator(debugPageMarkerItems)
-        .installProviderSelectionSheet(
-            isPresented: $showingInstallSheet,
-            itemName: mcp.displayName,
-            providers: providerOptions
-        ) { providerID in
-            guard let provider = providers.first(where: { $0.id == providerID }) else {
-                return
-            }
-            onInstall(provider)
-        }
-    }
-    
-    private func handleInstall() {
-        if let target = targetProvider {
-            onInstall(target)
-        } else {
-            showingInstallSheet = true
-        }
+        .resourceInstallSelectionSheet(using: installSelection)
     }
 
     private var mappedMetaItems: [NolonUI.ResourceCardMetaItem] {
@@ -118,15 +145,5 @@ struct RemoteMCPCardView: View, DebugPageLocatable {
         candidates.append(NolonManager.shared.mcpsURL.appendingPathComponent(mcp.slug))
 
         return candidates.first(where: { FileManager.default.fileExists(atPath: $0.path) })
-    }
-
-    private var providerOptions: [SkillInstallProviderOption] {
-        providers.map { provider in
-            SkillInstallProviderOption(
-                id: provider.id,
-                name: provider.name,
-                iconName: provider.iconName
-            )
-        }
     }
 }
