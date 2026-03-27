@@ -1,0 +1,797 @@
+# UI 全量下沉到 NolonUI 迁移计划（长线）
+
+日期：2026-03-26
+
+## 目标
+- 主工程（`nolon/`）不再承担“可复用渲染组件”实现，只保留：
+  - 业务编排（Providers 驱动）
+  - 状态管理与数据映射（主工程 ViewModel -> `NolonUIFoundation` 模型）
+  - 导航与窗口组织
+- `NolonUIFoundation`：放跨模块 UI 数据模型。
+- `NolonUI`：只做纯渲染组件与 UI 交互转发。
+
+## 迁移原则（沿用本次 SkillDetail 模式）
+1. 先抽模型到 `NolonUIFoundation`。
+2. 再把渲染下沉到 `NolonUI`（组件只收 ViewData / ViewModel / 回调）。
+3. 主工程通过 Providers 和业务 VM 驱动数据，构建 `NolonUI` VM。
+4. 删除主工程 UI 壳层，入口处直接构造业务 VM 并渲染 `NolonUI` 组件。
+5. 每批迁移后执行：
+   - `swift build`（`libs/NolonUI`）
+   - `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build`
+
+## 分批范围
+### Batch 1（已完成）
+- `SkillDetail` 全链路下沉：模型 -> Foundation，渲染 -> NolonUI，主工程仅业务驱动。
+- `NolonUI` 移除 `Providers` / `STFilePath` 直接依赖。
+- 主工程壳层 `SkillDetailView` 删除，入口直接渲染 `NolonUI.SkillDetailView`。
+- 主工程重复组件桥接到 `NolonUI`：
+  - `SearchField` -> `typealias NolonUI.SearchField`
+  - `ToastView` -> `typealias NolonUI.ToastView`
+
+### Batch 2（已完成）
+- Onboarding 三页（welcome/selection/completion）下沉到 `NolonUI`。
+- 主工程 `OnboardingView` 直接组合 `NolonUI` 页面并注入业务数据/回调。
+- 清理主工程失效绑定：
+  - 删除 `ViewComponentBindings` 中 `OnboardingWelcome/Completion/ProviderSelection` 绑定
+  - 删除对应占位 `ViewModel`
+
+### Batch 3（已完成）
+- 下沉 `LiquidBackgroundView` 到 `NolonUI`：
+  - `NolonUI.LiquidBackgroundView + LiquidBackgroundViewModel`
+  - 主工程同名组件改为 `typealias` 桥接
+- `HighlightedText` 改为主工程桥接别名，避免重复壳层。
+- `SkillDetailView` 绑定显式指向 `NolonUI.SkillDetailView`。
+
+### Batch 4（下一批）
+- Provider 详情区（`ProviderDetailGridView`）渲染层拆出 `NolonUI` 组件：
+  - 网格空态/加载态/搜索区/卡片区布局
+  - 主工程仅保留选择、安装、删除、弹窗路由
+
+当前进展（Batch 4 内）：
+- 三类卡片调用已直连 `NolonUI`，主工程壳层已删除：
+  - `SkillCardView`
+  - `WorkflowCardView`
+  - `RuleCardView`
+- `ProviderSkillsView` 的 `ProviderSkillCard` 已下沉：
+  - `NolonUIFoundation.ProviderSkillCardInfo/ProviderSkillCardState`
+  - `NolonUI.ProviderSkillCardView`
+  - 主工程壳层 `ProviderSkillCard` 删除
+- Provider 详情数据模型继续收敛到 `NolonUIFoundation`：
+  - `WorkflowInfo`、`RuleInfo`、`AgentDocInfo` 改为直接使用 Foundation 模型
+  - 主工程本地同名模型壳删除
+- 主工程桥接别名进一步清理（调用点改为直接 `NolonUI.*`）：
+  - 删除 `nolon/DesignSystem/SearchField.swift`
+  - 删除 `nolon/DesignSystem/ToastView.swift`
+  - 删除 `nolon/Skills/Shared/UI/HighlightedText.swift`
+  - 删除 `nolon/Skills/Shared/UI/SkillBadges.swift`
+  - 删除 `nolon/Skills/Domain/Onboarding/Views/LiquidBackgroundView.swift`
+- `ViewComponentBindings` 对应绑定改为直接挂载 `NolonUI` 组件类型（不再依赖主工程别名层）。
+
+### Batch 5
+- Resource Center 详情与侧栏统一迁移：
+  - `ResourceCatalogGridView` 结构组件下沉
+  - `Remote*DetailView` 公共展示块下沉
+
+### Batch 6
+- Settings 与辅助弹层（sheet/header/form）统一到 `NolonUI` 组件体系。
+
+当前进展（Batch 6 内）：
+- `SkillInstallSheet` 已完成下沉：
+  - `NolonUIFoundation` 新增 `SkillInstallProviderOption`、`SkillInstallSheetData`
+  - `NolonUI` 新增 `SkillInstallSheetView + SkillInstallSheetViewModel`
+  - 主工程 `RemoteSkillCardView` 改为直接使用 `NolonUI.SkillInstallSheetView`
+  - 主工程壳层 `nolon/Skills/Shared/UI/SkillInstallSheet.swift` 删除
+- `DirectoryPickerSheet` 已完成下沉：
+  - `NolonUIFoundation` 新增 `DirectoryPickerCandidateInfo`、`DirectoryPickerSheetData`
+  - `NolonUI` 新增 `DirectoryPickerSheetView + DirectoryPickerSheetViewModel`
+  - 主工程 `RemoteRepositorySidebarView` 改为直接使用 `NolonUI.DirectoryPickerSheetView`
+  - 主工程壳层 `nolon/Skills/Shared/UI/DirectoryPickerSheet.swift` 删除
+- `SheetLayout` 基础壳已下沉：
+  - `NolonUI` 新增 `SheetLayout`、`SheetDivider`、`sheetScrollContentPadding()`
+  - 主工程壳层 `nolon/Skills/Shared/UI/SheetLayout.swift` 删除
+- `GenericSelectionControl` 已下沉：
+  - `NolonUI` 新增 `GenericSelectionControl + GenericSelectionControlViewModel`
+  - 主工程调用点统一改为 `NolonUI.GenericSelectionControl`
+  - 主工程壳层 `nolon/Skills/Shared/UI/GenericSelectionControl.swift` 删除
+- `WebCodeEditor` 组件已下沉：
+  - `NolonUI` 新增 `WebCodeEditorBridge/WebCodeEditorView/WebCodeEditorHighlight/WebCodeEditorFormat`
+  - `McpConfigEditorView` / `CodexConfigEditorView` / `RuleMarkdownEditorView` / `ProviderMcpGridView` 全部改为使用 `NolonUI.WebCodeEditor*`
+  - 主工程壳层 `nolon/Skills/Shared/UI/WebCodeEditorView.swift` 删除
+- `IDBox` 数据模型已下沉：
+  - `NolonUIFoundation` 新增 `IDBox` 与 `Identifiable.boxedID`
+  - 主工程 `ProviderUsage` 调用点改为直接依赖 `NolonUIFoundation.IDBox`
+- 主工程 Shared UI 目录完成清空：
+  - `nolon/Skills/Shared/UI/AccountSummaryCard.swift` 迁移至 `ProviderUsage` 领域目录
+  - `nolon/Skills/Shared/UI/PageMarkerView.swift` 迁移至 `App/Debug` 目录
+  - `nolon/Skills/Shared/UI/IDBox.swift` 删除
+- 无调用点历史壳层清理：
+  - 删除 `nolon/Skills/Domain/SkillsDetail/Views/SkillDetailContentView.swift`
+- 资源安装弹层去壳（复用 `NolonUI.SkillInstallSheetView`）：
+  - `RemoteMCPCardView` 删除本地 `MCPInstallSheet`，改为 `NolonUI.SkillInstallSheetView`
+  - `RemoteWorkflowCardView` 删除本地 `WorkflowInstallSheet`，改为 `NolonUI.SkillInstallSheetView`
+- Usage 空态卡片已下沉：
+  - `NolonUI` 新增 `ProviderUsageEmptyStateCard + ProviderUsageEmptyStateCardViewModel`
+  - 主工程实现 `nolon/Skills/Domain/Providers/Usage/Views/Common/ProviderUsageEmptyStateCard.swift` 删除
+- Resource Center 侧栏桥接壳清理：
+  - `ResourceCenterTabView` 直接渲染 `NolonUI.ResourceCenterSidebarComponent`
+  - 删除主工程壳 `nolon/Skills/Domain/Resources/Views/ResourceCenter/ResourceCenterSidebar.swift`
+- 无调用点历史详情壳清理：
+  - 删除 `nolon/Skills/Domain/Resources/Views/Catalog/Details/RemoteSkillDetailView.swift`
+- Usage Snapshot 卡片骨架下沉：
+  - `NolonUIFoundation` 新增 `UsageSnapshotCardData`
+  - `NolonUI` 新增 `UsageSnapshotCardView`
+  - 主工程 `ProviderUsageSnapshotView` 仅保留业务结果映射与 `ProviderQuotaSection` 内容注入
+- Usage Quota 区块下沉：
+  - `NolonUIFoundation` 新增 `ProviderQuotaSectionData`（含 `WindowRow`）
+  - `NolonUI` 新增 `ProviderQuotaSectionView`
+  - 主工程 `ProviderQuotaSection` 重构为适配层：仅负责 `UsageSnapshot/CreditsSnapshot` 到 `ProviderQuotaSectionData` 映射，并保留 `displayWindows` 兼容调用点
+- 资源详情弹层下沉：
+  - `NolonUIFoundation` 新增 `RemoteResourceDetailData`
+  - `NolonUI` 新增 `RemoteResourceDetailSheetView`
+  - `RemoteMCPDetailView` / `RemoteWorkflowDetailView` 重构为主工程映射层（将远程资源模型映射到 `RemoteResourceDetailData`）
+- 删除目标弹层下沉：
+  - `NolonUIFoundation` 新增 `ResourceDeleteTargetSheetData`
+  - `NolonUI` 新增 `ResourceDeleteTargetSheetView`
+  - 主工程 `ResourceDeleteTargetSheet` 重构为语义适配层（`deleteAll/providerID` -> `ResourceDeleteTarget`）
+- Token Trend 区块下沉：
+  - `NolonUIFoundation` 新增 `ProviderTokenTrendSectionData`、`ProviderTokenTrendSnapshotData`、`ProviderTokenTrendPointData`、`ProviderTokenTrendRangeOption`
+  - `NolonUI` 新增 `ProviderTokenTrendSectionView`
+  - 主工程 `ProviderTokenTrendSection` 重构为适配层（`ProviderTokenTrendSnapshot + TokenTrendRange` -> Foundation 视图数据，并桥接 range 选择回调）
+- Codex 紧凑列表行渲染下沉：
+  - `NolonUI` 新增 `CodexCompactAccountsTableHeaderView`、`CodexCompactAccountRowView`（含 `CodexCompactUsageWindowDisplay` / `CodexCompactMenuAction` / `CodexCompactStatusTone`）
+  - 主工程 `ProviderUsageView` 删除紧凑行/表头的本地渲染实现，仅保留 `ProviderUsageCodexCardModel -> NolonUI` 映射与 action 回调桥接
+- Provider Usage 登录弹层下沉：
+  - `NolonUI` 新增 `UsageLoginSheetView`、`ProviderLoginWebView`、`CodexLoginURLSheetView`
+  - 主工程 `ProviderUsageLoginSheet.swift` 删除，`ProviderUsageView` 直接渲染 NolonUI 组件
+- Repository Token 输入弹层下沉：
+  - `NolonUI` 新增 `TokenInputSheetView`
+  - 主工程 `RemoteRepositorySidebarView` 改为直接调用 `NolonUI.TokenInputSheetView`
+  - 主工程内嵌 `TokenInputSheet` 删除
+- 历史无调用壳层继续清理：
+  - 删除 `nolon/Skills/Domain/Resources/Views/Catalog/Details/RemoteLocalSkillDetailView.swift`
+- 依赖边界清理：
+  - `ProviderUsageView` 删除 `AppKit/WebKit/UniformTypeIdentifiers` 失效 import（登录相关渲染已迁入 `NolonUI`）
+- Codex Config 编辑弹层下沉：
+  - `NolonUI` 新增 `CodexConfigEditorSheetView`
+  - 主工程 `CodexConfigEditorSheet` 重构为纯适配层，仅做 `ProviderUsage` 草稿到 `NolonUI` 参数/Binding 映射
+  - `NolonUI` 无新增 `Providers` 依赖
+- Provider MCP 卡片壳层清理：
+  - 删除主工程 `McpServerCard.swift`（历史薄壳）
+  - `ProviderMcpGridView` 直接渲染 `NolonUI.McpServerCardView`，并在主工程内联命令/Logo 映射与调试菜单注入
+- Codex Import 局部渲染下沉：
+  - `NolonUIFoundation` 新增 `CodexImportStatusTone`、`CodexImportStatusBadgeData`、`CodexImportCandidateRowData`
+  - `NolonUI` 新增 `CodexImportErrorBannerView`、`CodexImportCandidateRowView`
+  - 主工程 `CodexImportSheet` 改为映射 `ProviderUsageEngine.CodexImportCandidate -> CodexImportCandidateRowData` 并桥接选择/重试/移除回调
+  - 修复下沉组件并发告警（`@Sendable` 回调）
+- Codex Import 分组卡片下沉：
+  - `NolonUIFoundation` 新增 `CodexImportSectionCardData`
+  - `NolonUI` 新增 `CodexImportSectionCardView`
+  - 主工程 `CodexImportSheet` 的 section header/外框渲染改为 `CodexImportSectionCardView`，仅保留分组全选/取消的业务回调
+- Codex Import 容器层继续下沉：
+  - `NolonUIFoundation` 新增 `CodexImportSheetScaffoldData`、`CodexImportCandidateListContainerData`
+  - `NolonUI` 新增 `CodexImportSheetScaffold`、`CodexImportCandidateListContainerView`
+  - 主工程 `CodexImportSheet` 删除本地标题/底部操作栏/空列表渲染，实现进一步收敛为数据映射与动作桥接
+- Provider Grid 空态统一下沉：
+  - `NolonUI` 新增 `ProviderGridEmptyStateView`
+  - `ProviderAgentsGridView` / `ProviderRulesGridView` / `ProviderSkillsGridView` / `ProviderWorkflowsGridView` 改为直接调用 `NolonUI.ProviderGridEmptyStateView`
+  - 主工程空态 UI 重复实现删除（保留文案与业务状态判断）
+- Provider Detail 公共块下沉（进行中）：
+  - `NolonUI` 新增 `ProviderDetailPlaceholderView`、`ProviderWarningCardView`
+  - `ProviderDetailGridView` 的 “未选 Provider/Tab” 占位与 warning 卡片改为直接使用 `NolonUI` 组件
+  - 主工程该文件继续保留业务流程、路由与 tab 级数据组织，后续继续拆搜索/容器层
+- Provider Detail 容器骨架下沉（进行中）：
+  - `NolonUI` 新增 `ProviderDetailGridScaffoldView`（统一承载 `NavigationStack`、`ScrollViewReader`、Search 区和 FAB 容器）
+  - `ProviderDetailGridView` 的 `gridContent` 改为使用 `NolonUI.ProviderDetailGridScaffoldView`，主工程只注入业务内容块与 FAB 动作
+- Provider Detail 通知卡片下沉（进行中）：
+  - `NolonUI` 新增 `ProviderCodexXcodeNoticeCardView`
+  - `ProviderDetailGridView` 的 `codexXcodeNotice` 渲染改为 `NolonUI` 组件，主工程仅保留文案与关闭状态绑定
+- Provider Detail FAB 下沉（进行中）：
+  - `NolonUI` 新增 `FloatingAccentActionButton`
+  - `ProviderDetailGridView` 的 `quickInstallButton` 渲染改为 `NolonUI.FloatingAccentActionButton`，主工程仅保留 tab 分发动作
+- Provider Detail 健康摘要与 Codex 链接提示下沉（进行中）：
+  - `NolonUIFoundation` 新增 `ProviderResourceHealthSummaryData`、`ProviderCodexLinkedHintData`
+  - `NolonUI` 新增 `ProviderResourceHealthSummaryCardView`、`ProviderCodexLinkedHintCardView`
+  - `ProviderDetailGridView` 的 `resourceHealthSummary` 和 `codexLinkedHint` 改为 NolonUI 渲染；主工程保留统计计算、符号链接判断、跳转/新增 Provider 业务动作
+- Provider Detail Tab 容器壳层下沉（进行中）：
+  - `NolonUI` 新增 `ProviderTabSectionView`（统一 `warning + content` 容器）
+  - `ProviderDetailGridView` 的 `skills/workflows/rules/agents/mcp` 五个重复 `VStack + warning` 块改为 `NolonUI.ProviderTabSectionView`
+  - 主工程本地 `warningCard` 辅助函数删除
+- Provider Sidebar 表单行组件下沉（进行中）：
+  - `NolonUI` 新增 `ProviderProjectFolderPickerRow`、`ProviderResolvedPathRow`
+  - `AddProviderSheet` / `EditProviderSheet` 的项目目录行与路径展示行改为 NolonUI 组件，主工程保留表单状态、校验和保存逻辑
+  - `NolonUIFoundation` 新增 `ProviderNameSectionData`、`ProviderLabeledValueData`
+  - `NolonUI` 新增 `ProviderIdentityAndPathsFormSections`（统一承载 名称 + 可选 vendor 标签 + 项目目录 + 解析路径 四段结构）
+  - `AddProviderSheet` / `EditProviderSheet` 删除重复 `Section` 壳层，改为复用 `ProviderIdentityAndPathsFormSections`
+- Provider Sidebar 底部操作栏下沉（进行中）：
+  - `NolonUI` 新增 `SheetActionFooterView`
+  - `AddProviderSheet` / `EditProviderSheet` 的底部 `Cancel + Primary` 操作区改为复用 `NolonUI.SheetActionFooterView`
+  - 主工程保留按钮行为（保存校验、dismiss 逻辑）
+- Provider Sidebar 历史壳与无效分支清理（进行中）：
+  - 删除主工程无调用文件 `nolon/Skills/Domain/Providers/Sidebar/ProviderRowView.swift`（渲染已由 `NolonUI.SidebarProviderRowView` 承担）
+  - `EditProviderSheet` 删除无入口触发的历史 `fileImporter` 状态与分支（skills/workflow/command），保留实际使用中的 project folder importer
+- Resource Catalog 公共壳层下沉（进行中）：
+  - `NolonUI` 新增 `ResourceCatalogToolbarView`、`ResourceCatalogSectionBlock`、`InlineWarningBannerView`、`CircularIconActionButton`
+  - `ResourceCatalogGridView` 的 search/顶部操作工具栏、section header+count 结构、inline warning banner 改为 NolonUI 渲染
+  - `ResourceCatalogGridView` 中 skills/workflows/mcps 三处空态改为复用 `NolonUI.ProviderGridEmptyStateView`
+- Repository Sidebar 公共块下沉（进行中）：
+  - `NolonUI` 新增 `RepositoryFloatingAddButton`、`SyncHUDCardView`（`RemoteRepositorySidebarComponents.swift`）
+  - `RemoteRepositorySidebarView` 的浮动新增按钮与 sync HUD 卡片渲染改为 NolonUI 组件
+  - 主工程保留同步状态机与 Repository 业务动作
+  - 继续下沉 `RepositorySidebarSectionToggleRow`、`RepositoryGitSyncStatusRow`，替换主工程分组折叠头和 Git 同步状态行渲染
+  - 主工程删除过渡枚举 `SyncHUDStyle`（直接映射到 `NolonUI.SyncHUDTone`）
+  - `NolonUIFoundation` 新增 `RepositorySyncStatusData`、`RepositorySidebarRowData`；`NolonUI` 新增 `RepositorySidebarRowView`
+  - `RemoteRepositorySidebarView` 的 repository 行主体渲染改为 `NolonUI.RepositorySidebarRowView`，主工程仅保留 context menu 与业务动作回调
+- Add Repository Sheet 继续下沉（进行中）：
+  - `NolonUI` 新增 `FolderDropPickerCardView`，承接本地文件夹拖拽/点击选择卡片 UI 渲染
+  - `AddRepositorySheet` 的 local folder drop zone 改为 `NolonUI.FolderDropPickerCardView`，主工程仅保留 `selectLocalFolder` 与 `applyDroppedFolderURLs` 行为
+  - `AddRepositorySheet` 底部按钮区改为复用 `NolonUI.SheetActionFooterView`，主工程保留校验错误文案与保存动作
+  - `NolonUI` 新增 `RepositoryReadOnlyFieldView`、`RepositoryGitURLInputRowView`（`RepositoryFormCommonViews.swift`）
+  - `AddRepositorySheet` 的 Clawdhub 只读 URL 样式和 Git URL 输入+Paste 样式改为 NolonUI 组件，主工程仅保留 provider 识别与 Paste 行为绑定
+  - `NolonUI` 新增 `RepositoryTemplateSelectionView`（含 `RepositoryTemplateOptionItem`）
+  - `AddRepositorySheet` 的 Repository Type 模板选择区改为 `NolonUI.RepositoryTemplateSelectionView`，主工程仅保留 `RepositoryTemplate.rawValue` 映射
+  - `NolonUI` 新增 `BlockingProgressOverlayView`，接管仓库添加过程的 loading 蒙层渲染
+  - `AddRepositorySheet` 删除本地 loading overlay 实现，改为 `NolonUI.BlockingProgressOverlayView`
+  - `NolonUI` 新增 `FormSectionBlockView`、`FormSecondaryHintText`（统一 section 标题+说明文案样式）
+  - `AddRepositorySheet` 的 `Details` / `Skills Folder` / `Git Repository` 结构块改为上述公共组件，主工程只保留状态与动作绑定
+- Resource Catalog 状态视图下沉（进行中）：
+  - `NolonUI` 新增 `ResourceCatalogPlaceholderView`、`CenteredLoadingIndicatorView`（`ResourceCatalogStateViews.swift`）
+  - `ResourceCatalogGridView` 的“未选仓库”“未选 Tab”“首屏加载中”三处状态渲染改为 NolonUI 组件
+  - `NolonUI` 新增 `ResourceCatalogErrorStateView`，统一错误空态（标题、错误文案复制、Retry）
+  - `ResourceCatalogGridView` 的错误空态渲染改为 `NolonUI.ResourceCatalogErrorStateView`，主工程仅保留复制到剪贴板与重试动作
+- Resource Center 顶层壳层下沉（进行中）：
+  - `NolonUI` 新增 `DismissibleWarningBannerView`（可关闭 warning 条）
+  - `ResourceCenterView` 顶部 import error 提示条改为 `NolonUI.DismissibleWarningBannerView`，主工程仅保留 message 状态与 dismiss 逻辑
+  - `NolonUI` 新增 `UnavailableStateView`（统一不可用/空上下文页）
+  - `ResourceCenterWindowRootView` 的“无 Resource Center 上下文”空态改为 `NolonUI.UnavailableStateView`
+- Repository Sidebar 标题壳层下沉（进行中）：
+  - `NolonUI` 新增 `SidebarTitleHeaderRowView`
+  - `RemoteRepositorySidebarView` 在 `showsHeader == false` 场景下的标题头渲染改为 `NolonUI.SidebarTitleHeaderRowView`
+
+## 验收口径（每批）
+- 主工程该批目录中不再新增可复用 UI 组件实现。
+- 新增渲染逻辑均在 `libs/NolonUI`。
+- 主工程调用点仅保留业务 VM 与回调绑定。
+- 编译通过（双构建命令）。
+- Provider Skills 页面壳层继续下沉（进行中）：
+  - `NolonUI` 新增 `OrphanedSkillsMigrationBannerView`（孤儿技能提示 + 一键导入按钮）
+  - `ProviderSkillsView` 的 migration banner 改为 `NolonUI.OrphanedSkillsMigrationBannerView`，主工程仅保留 `migrateAll` 动作
+  - `ProviderSkillsView` 的空态改为 `NolonUI.UnavailableStateView`，主工程删除本地 `ContentUnavailableView` 样式实现
+  - 清理 `ProviderSkillsView` 中未引用的历史 `ProviderSkillRow` 视图实现
+- Provider Skills Grid 组头壳层下沉（进行中）：
+- Resource Catalog 结构壳层继续下沉（进行中）：
+  - `NolonUI` 新增 `ResourceCatalogLoadMoreStateView`，统一承载 `load more` 的 `error / canLoadMore / end` 三态渲染
+  - `ResourceCatalogGridView` 删除本地 `loadMoreRowIfNeeded` UI 分支，改为 `NolonUI.ResourceCatalogLoadMoreStateView`，主工程仅保留 `triggerLoadMore()` 业务触发
+  - `NolonUI` 新增 `ResourceCatalogMainScaffoldView`，统一承载“未选仓库 / 未选 Tab / 内容区”三态
+  - `ResourceCatalogGridView` 删除本地 `mainContentView` 占位分支，改为 `NolonUI.ResourceCatalogMainScaffoldView`
+  - `NolonUI` 新增 `ResourceCatalogGridOverlayScaffold`，统一承载“滚动内容 + 右下角 overlay（toast）”容器
+  - `ResourceCatalogGridView` 删除本地 `ZStack + PaddedScrollContainer + toast` 样板，改为 `NolonUI.ResourceCatalogGridOverlayScaffold`
+  - `NolonUI` 新增 `ResourceCatalogTabStateSectionsScaffold`，统一承载“空态切换 + Installed/Installing/Available 三段 section”组合壳层
+  - `ResourceCatalogGridView` 的 `skills/workflows/mcps` 三个 tab 删除重复 `ResourceCatalogTabEmptyStateScaffold + ResourceInstallStateSectionsView` 拼装代码，改为调用 `NolonUI.ResourceCatalogTabStateSectionsScaffold`
+  - `NolonUIFoundation` 新增 `ResourceInstallBuckets`，统一 `installed/installing/available` 分桶逻辑
+  - `ResourceCatalogGridView` 三个 tab 改为基于 `ResourceInstallBuckets` 产出分组数据，删除重复 filter 条件样板
+- 全局右下角 overlay 展示壳层下沉（进行中）：
+  - `NolonUI` 新增 `bottomTrailingOverlay` 通用 modifier（`BottomTrailingOverlayModifier`）
+  - `ProviderUsageView` 的复制成功 toast 展示逻辑改为调用 `NolonUI.bottomTrailingOverlay`
+  - `ResourceCatalogGridOverlayScaffold` 内部也改为复用该 modifier，统一动画与边距约定
+  - `RemoteRepositorySidebarView` 的浮动新增按钮展示改为 `NolonUI.bottomTrailingOverlay`，主工程删除本地 `.overlay(alignment: .bottomTrailing)` 样板
+- Resource Center 顶层 overlay 组织壳层下沉（进行中）：
+  - `NolonUI.ResourceCenterOverlayViews` 新增 `resourceCenterOverlays` modifier，统一承载顶部 import warning 与 topTrailing UI test actions 的 overlay 组合
+  - `ResourceCenterView` 删除本地两段 `.overlay(...)` 组织代码，改为调用 `resourceCenterOverlays(...)`
+- 资源卡片安装弹层绑定壳层下沉（进行中）：
+  - `NolonUI` 新增 `installProviderSelectionSheet` modifier（封装 `InstallProviderSelectionSheet` 的 `.sheet(isPresented:)` 绑定）
+  - `RemoteSkillCardView` / `RemoteWorkflowCardView` / `RemoteMCPCardView` 删除重复 `.sheet { InstallProviderSelectionSheet ... }` 样板，改为统一调用该 modifier
+- 删除目标弹层主工程适配壳清理（进行中）：
+  - `ResourceCatalogGridView` 删除对主工程 `ResourceDeleteTargetSheet` 的依赖，改为直接渲染 `NolonUI.ResourceDeleteTargetSheetView`
+  - 删除无调用壳层文件 `nolon/Skills/Domain/Resources/Views/Catalog/Deletion/ResourceDeleteTargetSheet.swift`
+  - 清理无引用状态结构 `ResourceDeleteTargetSheetState`（`ResourceDeletionModels.swift`）
+  - `NolonUI` 新增 `ProviderGroupedPathHeaderView`
+  - `ProviderSkillsGridView` 的分组路径 header 改为 `NolonUI.ProviderGroupedPathHeaderView`
+  - 主工程该处仅保留 `displayPath` 文本映射与数据分组循环
+- Codex Binary 版本区块壳层下沉（进行中）：
+  - `NolonUI` 新增 `CodexBinaryVersionsSectionView`
+  - `CodexBinaryConfigView` 的版本列表区块改为 `NolonUI.CodexBinaryVersionsSectionView`
+  - 主工程删除本地 `versionTable` 壳层函数，仅保留版本数据与动作回调映射
+- Provider MCP 状态分支壳层继续下沉（进行中）：
+  - `NolonUI` 新增 `ProviderMcpConfigScaffoldView`（统一承载“不支持原生配置 + 配置状态切换”）
+  - `ProviderMcpGridView` 删除主工程内嵌的多层 `if/else` UI 分支，改由 `NolonUI.ProviderMcpConfigScaffoldView` 组织
+  - 主工程仅保留 `ProviderTemplate` 解析、配置文件创建逻辑与 MCP 操作回调绑定
+- Resource Catalog 三段分区壳层下沉（进行中）：
+  - `NolonUI` 新增 `ResourceInstallStateSectionsView`（统一承载 `Installed / Installing / Available` 三段式 section 布局）
+  - `ResourceCatalogGridView` 在 `skills/workflows/mcps` 三个 tab 中删除重复 `VStack + 3x ResourceCatalogGridSection` 壳层
+  - 主工程仅保留各状态集合划分与卡片业务回调绑定
+  - `NolonUI` 新增 `ResourceCatalogLoadMoreFooterView`（统一承载分页底部行布局）
+  - `ResourceCatalogGridView` 删除本地 `loadMoreFooter` 样板函数，改为复用 `NolonUI.ResourceCatalogLoadMoreFooterView`
+  - `NolonUI` 新增 `ResourceCatalogSheetsPresenter`（统一承载 `workflow/mcp/delete` 三段 `.sheet(item:)` 组织）
+  - `ResourceCatalogGridView` 删除本地三段 `.sheet(item:)` 样板链，改为注入各 sheet 内容构造闭包
+  - `NolonUI` 新增 `ResourceCatalogTabEmptyStateScaffold`（统一承载“空态/无搜索结果态”切换）
+  - `ResourceCatalogGridView` 在 `skills/workflows/mcps` 三个 tab 中删除重复 `searchText.isEmpty ? empty : noResults` 判定样板
+  - `NolonUI` 新增 `ResourceCatalogBodyStateContainerView`（统一承载 “首屏加载 / 首屏错误 / 内容 + inline warning” 状态切换）
+  - `ResourceCatalogGridView` 删除本地 `contentBody` 分支样板与 `inlineErrorBanner` 辅助函数，改为注入 `gridContent` 和业务回调
+- Provider MCP 多状态空态继续下沉（进行中）：
+  - `NolonUI` 新增 `ActionUnavailableStateView`（支持标题/图标/说明/单动作按钮）
+  - `ProviderMcpGridView` 的 `No Configuration`、`No Servers` 状态改为 `NolonUI.ActionUnavailableStateView`
+  - `ProviderMcpGridView` 的 `MCP Not Supported`、`No Results` 状态改为 `NolonUI.UnavailableStateView`
+  - 主工程保留配置文件创建、打开编辑器、刷新数据等业务动作闭包
+- Provider Detail 加载态壳层下沉（进行中）：
+  - `ProviderDetailGridView` 的全屏加载占位由本地 `ProgressView + frame` 改为 `NolonUI.CenteredLoadingIndicatorView`
+  - 主工程进一步收敛为状态判断与业务流程编排
+- 配置编辑器壳层下沉（进行中）：
+  - `NolonUI` 新增 `CodeEditorSheetView`（统一 `NavigationStack`、toolbar、dirty/save 状态、错误弹窗）
+  - `CodexConfigEditorView` 改为使用 `NolonUI.CodeEditorSheetView`，主工程保留 `config.toml` 读取/校验/写回逻辑
+  - `McpConfigEditorView` 改为使用 `NolonUI.CodeEditorSheetView`，主工程保留 JSON/TOML 校验、写回与回调逻辑
+- Provider 内容栏 CLI 菜单壳层下沉（进行中）：
+  - `NolonUIFoundation` 新增 `CLITerminalMenuOption`（终端菜单项模型）
+  - `NolonUI` 新增 `CLITerminalMenuButton`（统一 Open CLI 的 toolbar Menu 渲染）
+  - `ProviderContentTabView` 的 CLI toolbar 渲染改为 `NolonUI.CLITerminalMenuButton`，主工程仅保留 `option -> terminal app` 映射与打开动作
+- Provider MCP 工具栏壳层下沉（进行中）：
+  - `NolonUI` 新增 `McpConfigActionsToolbarView`（统一 Documentation + Edit Config 工具栏菜单）
+  - `ProviderMcpGridView` 两处重复 toolbar 渲染改为复用 `NolonUI.McpConfigActionsToolbarView`
+  - 主工程保留 `editingConfig` 状态与配置编辑动作
+- Provider Codex Binary 卡片壳层下沉（进行中）：
+  - `NolonUI` 新增 `CodexBinaryModelCardView`（统一标题、说明、Model Picker、保存按钮、保存态、状态文案）
+  - `ProviderCodexBinaryView` 改为复用 `NolonUI.CodexBinaryModelCardView`，主工程仅保留 `draftModel` 与 `selectedCodexModel` 映射、保存动作
+- Provider Usage 空态壳层下沉（进行中）：
+  - `ProviderUsageView` 的 `usageProvider == nil` 空态改为 `NolonUI.UnavailableStateView`
+  - `gatewayAccountSelectionSheet` 中“没有可添加账号”空态改为 `NolonUI.UnavailableStateView`
+  - 主工程保留业务分支判断与数据绑定
+- Skill Detail Window 空态壳层下沉（进行中）：
+  - `SkillDetailWindowRootView` 的 `payload == nil` 空态改为 `NolonUI.UnavailableStateView`
+  - 主工程保留窗口协调与 payload 分发逻辑
+- Plugin 管理页面空态壳层下沉（进行中）：
+  - `PluginManagementView` 的无插件空态改为 `NolonUI.UnavailableStateView`
+  - 主工程保留插件状态加载与运行时控制逻辑
+- Codex Binary 配置页状态壳层下沉（进行中）：
+  - `CodexBinaryConfigView` 的 not-supported 空态改为 `NolonUI.UnavailableStateView`
+  - `CodexBinaryConfigView` 的全屏 loading 改为 `NolonUI.CenteredLoadingIndicatorView`
+  - 主工程保留 binary 管理业务状态与动作
+- Settings 页面 section 壳层下沉（进行中）：
+  - `NolonUI` 新增 `SettingsSectionView`（统一 section 标题 + 内容容器）
+  - `AppSettingsView` 中 General/Display/Advanced 的 section 容器调用改为 `NolonUI.SettingsSectionView`
+  - 删除主工程本地 `settingsSection` 辅助函数
+- Provider 配置编辑壳层继续收敛（进行中）：
+  - `RuleMarkdownEditorView` 改为直接复用 `NolonUI.CodeEditorSheetView`
+  - 主工程删除该页本地 `WebCodeEditorBridge` / `NavigationStack` / toolbar / alert 状态管理，仅保留文件读写与 `onSave` 业务回调
+- Settings/Plugins 状态视图继续统一（进行中）：
+  - `UpdatesView` 的 checking/loading 改为 `NolonUI.CenteredLoadingIndicatorView`
+  - `UpdatesView` 的“全部已更新”空态改为 `NolonUI.UnavailableStateView`
+  - `PluginManagementView` 的 checking/loading 改为 `NolonUI.CenteredLoadingIndicatorView`
+- Updates 行渲染下沉（进行中）：
+  - `NolonUIFoundation` 新增 `SkillUpdateRowData`
+  - `NolonUI` 新增 `SkillUpdateRowView`
+  - 主工程 `UpdatesView` 删除本地 `UpdateRowView` 渲染实现，改为 `SkillUpdateInfo -> SkillUpdateRowData` 映射与回调桥接
+- Codex Runtime 区块渲染下沉（进行中）：
+  - `NolonUIFoundation` 新增 `CodexRuntimeDiagnosticRowData`、`CodexRuntimeLogsSectionData`
+  - `NolonUI` 新增 `CodexRuntimeDiagnosticsCardView`、`CodexRuntimeLogsCardView`
+  - 主工程 `CodexRuntimeTabView` 的 diagnostics/logs 渲染改为 NolonUI 组件，主工程仅保留文案映射与 refresh/copy/clear 动作桥接
+- Codex Binary 状态头渲染下沉（进行中）：
+  - `NolonUIFoundation` 新增 `CodexBinaryStatusHeaderData`
+  - `NolonUI` 新增 `CodexBinaryStatusHeaderView`
+  - 主工程 `CodexBinaryConfigView` 的“状态点 + 当前 CLI + 远程同步状态”渲染改为 NolonUI 组件，主工程保留业务状态计算、动作行与版本表逻辑
+- Codex Binary 版本表渲染下沉（进行中）：
+  - `NolonUIFoundation` 新增 `CodexBinaryVersionTableData`、`CodexBinaryVersionRowData`、`CodexBinaryRowTone`
+  - `NolonUI` 新增 `CodexBinaryVersionTableView`
+  - 主工程 `CodexBinaryConfigView` 的版本表 header/row/progress/action 渲染改为 NolonUI 组件，主工程仅保留 `VersionRow -> ViewData` 映射与 `download/activate/remove` 动作桥接
+- Codex Binary 操作栏渲染下沉（进行中）：
+  - `NolonUIFoundation` 新增 `CodexBinaryActionBarData`
+  - `NolonUI` 新增 `CodexBinaryActionsBarView`（统一 expanded/compact 两套 actions + toggle）
+  - 主工程 `CodexBinaryConfigView` 删除本地 `expandedActionRow/compactActionRow`，改为 `actionBarData` 映射与 `primary/check/import/github/toggle` 回调桥接
+  - 修复新组件的 Swift Concurrency Sendable 警告（toggle binding set 闭包显式包裹）
+- Codex Binary 顶部检查中提示下沉（进行中）：
+  - `NolonUI` 新增 `TopLoadingStatusBannerView`
+  - 主工程 `CodexBinaryConfigView` 顶部 checking overlay 改为复用 `NolonUI.TopLoadingStatusBannerView`
+- Codex Runtime 壳层继续下沉（进行中）：
+  - `NolonUIFoundation` 新增 `CodexRuntimeActionsBarData`、`CodexRuntimeProcessesSectionData`
+  - `NolonUI` 新增 `CodexRuntimeActionsBarView`、`CodexRuntimeProcessesSectionCard`
+  - 主工程 `CodexRuntimeTabView` 的 actions 条与 processes section 容器改为 NolonUI，`processRow` 业务交互暂保留在主工程
+- Codex Advanced 通用渲染块下沉（进行中）：
+  - `NolonUIFoundation` 新增 `CodexAdvancedStatTileData`、`CodexAdvancedPathInfoRowData`
+  - `NolonUI` 新增 `CodexAdvancedSectionHeaderView`、`CodexAdvancedStatTileView`、`CodexAdvancedPathInfoRowView`
+  - 主工程 `CodexAdvancedConfigView` 的 section 标题、runtime overview 统计卡片、Xcode 链接路径行改为复用 NolonUI，保留业务状态与动作在 ViewModel
+- Codex Advanced PATH 状态条下沉（进行中）：
+  - `NolonUIFoundation` 新增 `CodexPathStatusBarData`
+  - `NolonUI` 新增 `CodexPathStatusBarView`
+  - 主工程 `CodexAdvancedConfigView` 的 PATH 区块（状态 + Configure/Check 按钮）改为 NolonUI 组件，主工程仅保留 `pathStatus` 文案映射与动作回调
+- Codex Advanced Feature 行渲染下沉（进行中）：
+  - `NolonUIFoundation` 新增 `CodexAdvancedFeatureRowData`、`CodexFeatureChipTone`
+  - `NolonUI` 新增 `CodexAdvancedFeatureRowView`（关键词高亮、maturity/source chips、toggle）
+  - 主工程 `CodexAdvancedConfigView` 的 Feature 行改为 `NolonUI.CodexAdvancedFeatureRowView`，主工程保留排序/过滤/开启关闭与保存触发逻辑
+- Codex Advanced 配置行壳层下沉（进行中）：
+  - `NolonUI` 新增 `CodexAdvancedAlignedConfigRow`
+  - 主工程 `CodexAdvancedConfigView` 的 `alignedConfigRow` 布局改为复用 NolonUI 组件，主工程仅保留字段绑定与 debug marker 逻辑
+- Codex Advanced Xcode 链接单项卡片下沉（进行中）：
+  - `NolonUIFoundation` 新增 `CodexXcodeFolderLinkCardData`
+  - `NolonUI` 新增 `CodexXcodeFolderLinkCardView`
+  - 主工程 `CodexAdvancedConfigView` 的链接项卡片渲染改为 NolonUI 组件，主工程仅保留 `CodexLinkState -> CardData` 映射、`toggle/show in finder` 动作和 debug marker
+- Codex Advanced Section 容器壳层下沉（进行中）：
+  - `NolonUI` 新增 `CodexAdvancedSectionCardView`
+  - 主工程 `CodexAdvancedConfigView` 的 `Common Options / Feature Flags / Multi-Agent Roles / Xcode Folder Links` 四个 section 外层卡片容器改为统一复用该组件
+- Codex Advanced Multi-Agent 角色卡片下沉（进行中）：
+  - `NolonUIFoundation` 新增 `CodexAdvancedRoleRowData`
+  - `NolonUI` 新增 `CodexAdvancedRoleEmptyStateCardView`、`CodexAdvancedRoleRowView`
+  - 主工程 `CodexAdvancedConfigView` 的多代理空态卡片与角色行卡片改为 NolonUI 组件，主工程仅保留 `RoleDraft -> ViewData` 映射与 `edit/delete` 动作
+- Codex Advanced RoleEditor 行壳层下沉（进行中）：
+  - `NolonUI` 新增 `CodexAdvancedRoleEditorRow`
+  - 主工程 `CodexAdvancedConfigView` 的 `roleTextFieldRow`、`roleEnumPickerField` 布局改为复用该组件，主工程仅保留输入绑定、选项生成与保存触发
+- Codex Advanced RoleEditor 底部操作栏下沉（进行中）：
+  - `NolonUI` 新增 `CodexAdvancedEditorFooterView`
+  - 主工程 `CodexAdvancedConfigView` 的 role editor `Close/Save` 按钮区改为复用该组件，主工程保留 `commit/save/close` 业务动作
+- Codex Advanced RoleEditor 外层壳层下沉（进行中）：
+  - `NolonUI` 新增 `CodexAdvancedEditorScaffold`
+  - 主工程 `CodexAdvancedConfigView` 的 role editor `ScrollView + title + padding + frame` 容器改为复用该组件，主工程保留字段绑定与动作编排
+- Codex Advanced Models/Reasoning 提示壳层下沉（进行中）：
+  - `NolonUI` 新增 `CodexAdvancedSectionHeaderRowView`、`CodexAdvancedHintTextView`
+  - 主工程 `CodexAdvancedConfigView` 的 `availableModelsSection` 标题行 loading 渲染、空模型提示、隐藏模型提示，以及 `reasoningEffortSection` unsupported 提示改为复用 NolonUI 组件
+- Codex Advanced Multi-Agent 顶部状态壳层下沉（进行中）：
+  - `NolonUIFoundation` 新增 `CodexAdvancedMultiAgentToggleRowData`、`CodexAdvancedMultiAgentStatusRowData`
+  - `NolonUI` 新增 `CodexAdvancedMultiAgentToggleRowView`、`CodexAdvancedMultiAgentStatusRowView`
+  - 主工程 `CodexAdvancedConfigView` 的 multi-agent 开关行与状态行改为 NolonUI 组件，主工程保留 `featureEnabled/setFeature` 与保存触发逻辑
+- Codex Advanced Multi-Agent 底部动作条下沉（进行中）：
+  - `NolonUI` 新增 `CodexAdvancedRoleSectionFooterView`
+  - 主工程 `CodexAdvancedConfigView` 的 `Add Role(Menu) + Save` 动作区改为复用该组件，主工程保留菜单项业务逻辑与保存动作
+- Codex Binary Section 壳层继续下沉（进行中）：
+  - 主工程 `CodexBinaryConfigView` 的 section 标题渲染改为复用 `NolonUI.CodexAdvancedSectionHeaderView`
+  - 主工程 `CodexBinaryConfigView` 的版本区外层卡片容器改为复用 `NolonUI.CodexAdvancedSectionCardView`
+  - 删除 `CodexBinaryConfigView` 本地 `sectionHeader` 辅助函数
+- Codex Advanced Picker 行壳层下沉（进行中）：
+  - `NolonUIFoundation` 新增 `CodexAdvancedPickerOption`
+  - `NolonUI` 新增 `CodexAdvancedPickerRowView`
+  - 主工程 `CodexAdvancedConfigView` 的 Model 选择行与 Reasoning Effort 选择行改为复用该组件，主工程保留选项映射与 `activate/apply` 业务逻辑
+- Codex Advanced Runtime Meta 文本行下沉（进行中）：
+  - `NolonUIFoundation` 新增 `CodexAdvancedMetaRowData`
+  - `NolonUI` 新增 `CodexAdvancedMetaRowsView`
+  - 主工程 `CodexAdvancedConfigView` 的 runtime overview 中 `sourcePath/clientVersion` 文本行改为复用该组件，主工程保留数据映射
+- Provider 弹窗壳层继续下沉（进行中）：
+  - `NolonUIFoundation` 新增 `MessageAlertData`
+  - `NolonUI` 扩展 `MessageAlertPresenter`，新增 `messageAlert(alert:)`（动态标题+消息）与 `copyableMessageAlert(...)`（复制+确认）
+  - 主工程 `ProviderMcpGridView` 的 migration 成功/失败提示改为 `NolonUI.messageAlert(alert:)`
+  - 主工程 `ProviderSkillsView`、`CodexBinaryConfigView`、`CodexAdvancedConfigView` 的单消息错误弹窗改为 `NolonUI.messageAlert(title:message:)`
+  - 主工程 `CodexRuntimeTabView` 的 runtime 错误弹窗改为 `NolonUI.copyableMessageAlert(...)`，主工程仅保留复制动作实现
+- ProviderContent 弹窗壳层下沉补充记录（进行中）：
+  - 主工程 `ProviderContentTabView` 的 CLI 错误弹窗已改为 `NolonUI.messageAlert(title:message:)`
+- Codex Runtime 强制停止确认框壳层下沉（进行中）：
+  - `NolonUIFoundation` 新增 `DestructiveConfirmationDialogData`
+  - `NolonUI` 新增 `destructiveConfirmationDialog(...)`（destructive + cancel 的确认弹窗壳层）
+  - 主工程 `CodexRuntimeTabView` 的 Force Stop confirmationDialog 改为复用 NolonUI 组件，主工程保留 `confirmForceStop` 与取消清理逻辑
+- Codex Advanced 三按钮冲突弹窗壳层下沉（进行中）：
+  - `NolonUIFoundation` 新增 `TriActionAlertData`
+  - `NolonUI` 新增 `triActionAlert(...)`（destructive + secondary + cancel）
+  - 主工程 `CodexAdvancedConfigView` 的 link conflict 三按钮 alert 改为复用 `NolonUI.triActionAlert(...)`，主工程仅保留确认删除与 Finder 跳转动作
+- Provider Usage 弹窗壳层下沉（进行中）：
+  - `NolonUIFoundation` 新增 `ConfirmationAlertData`
+  - `NolonUI` 新增 `confirmationAlert(...)`（confirm/cancel，支持 destructive confirm）
+  - 主工程 `ProviderUsageView` 的 Gemini 导入确认、Codex 激活确认、Codex 删除确认改为复用 `NolonUI.confirmationAlert(...)`
+  - 主工程 `ProviderUsageView` 的通用 title/message 提示改为 `NolonUI.messageAlert(alert:)` + `MessageAlertData` 绑定映射
+- Resource Catalog 弹窗壳层下沉（进行中）：
+  - 主工程 `ResourceCatalogGridView` 的“Delete from all providers”确认框改为 `NolonUI.destructiveConfirmationDialog(...)`
+  - 主工程 `ResourceCatalogGridView` 的删除结果提示改为 `NolonUI.messageAlert(title:message:)`
+  - 主工程保留删除动作编排与请求参数映射，NolonUI 负责弹窗渲染壳层
+- Settings 弹窗壳层下沉（进行中）：
+  - `UpdatesView` 的更新确认 alert 改为 `NolonUI.confirmationAlert(...)`
+  - `AppSettingsView` 中 General 的 onboarding reset 确认框改为 `NolonUI.confirmationAlert(...)`
+  - `AppSettingsView` 中 Advanced 的 skill-lock rebuild 确认框改为 `NolonUI.confirmationAlert(...)`
+- Resource Detail Sheet 尺寸壳层下沉（进行中）：
+  - `NolonUI` 新增 `remoteDetailSheetFrame()` modifier，统一远程资源详情弹窗尺寸规范
+  - 主工程 `ResourceCatalogGridView` 中 workflow/mcp 详情 sheet 的固定 frame 改为复用该 modifier
+- 2026-03-27: 新增 `ProviderTabScrollScaffold`（`libs/NolonUI`），统一封装 Providers 页签常用滚动壳层（`ScrollView + VStack(.leading, spacing: 16) + padding(16)`）。
+- 2026-03-27: 将以下页面改为复用该壳层：`CodexRuntimeTabView`、`CodexBinaryConfigView`、`CodexAdvancedConfigView`。
+- 验证：`swift build`（`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 均通过。
+- 2026-03-27: 新增 `SettingsSidebarItemData`（`NolonUIFoundation`）与 `SettingsSheetScaffoldView`（`NolonUI`），将 `AppSettingsView` 的设置页双栏壳层（Header+Sidebar+Content）下沉到 UI 库。
+- 2026-03-27: 新增 `SheetHeaderFooterScaffold`（`NolonUI`），并替换 `AddProviderSheet` / `EditProviderSheet` 的壳层。
+- 2026-03-27: 新增 `RepositoryEditorSheetScaffoldView`（`NolonUI`），并替换 `AddRepositorySheet` 外壳（滚动正文+底部操作栏+阻塞进度层）。
+- 验证：`swift build`（`libs/NolonUI`、`libs/NolonUIFoundation`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 全部通过。
+- 2026-03-27: 新增 `SheetHeaderSection`（`NolonUI`），替换 `UpdatesView` 与 `RemoteRepositorySidebarView` 的 header+divider 壳层。
+- 验证：`swift build`（`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: 新增 `PaddedScrollContainer`（`NolonUI`），统一 `ScrollView + padding(+可选 maxContentWidth)` 壳层。
+- 2026-03-27: 替换调用点：`PluginManagementView`、`ProviderSkillsView`、`ResourceCatalogGridView`、`NolonAccountsView`。
+- 验证：`swift build`（`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: 新增 `PluginRuntimeLogsSheetView`（`NolonUI`），`PluginManagementView` 日志弹层改为复用组件。
+- 2026-03-27: 新增 `GroupedSheetForm`（`NolonUI`），替换 `AddProviderSheet`/`EditProviderSheet` 的 `Form + grouped + sheetScrollContentPadding` 样板。
+- 2026-03-27: `ProviderUsageView` 主内容滚动壳改为 `PaddedScrollContainer`。
+- 验证：`rg -n "ScrollView \{" nolon/Skills/Domain -S` 已无结果；`swift build`（`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: 新增 `SheetPaddedList`（`NolonUI`），统一 `List + sheetScrollContentPadding` 壳层。
+- 2026-03-27: 新增 `SettingsCardRows`（`NolonUI`），统一 `VStack(spacing: 0) + dsCard()` 设置列表容器壳层。
+- 2026-03-27: `UpdatesView` 改为复用 `NolonUI.SheetPaddedList`，移除 Domain 里的 `.sheetScrollContentPadding()`。
+- 2026-03-27: `AppSettingsView`（`DisplaySettingsView`）改为复用 `NolonUI.SettingsCardRows`，移除 Domain 里两处 `VStack(spacing: 0)` 页面壳样板。
+- 验证：`rg -n "sheetScrollContentPadding\\(\\)|VStack\\(spacing:\\s*0\\)\\s*\\{|ScrollView\\s*\\{|NavigationStack\\s*\\{|\\.formStyle\\(\\.grouped\\)" nolon/Skills -S` 无结果；`swift build`（`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: `ColorSystemPreview` 改为复用 `NolonUI.PaddedScrollContainer`，移除主工程残余 `ScrollView` 壳层。
+- 验证：`rg -n "NavigationStack\\s*\\{|ScrollView\\s*\\{|\\.formStyle\\(\\.grouped\\)|sheetScrollContentPadding\\(\\)|HSplitView\\s*\\{|VStack\\(spacing:\\s*0\\)\\s*\\{" nolon -S` 无结果；`xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: 新增 `ProviderGridContentScaffold`（`NolonUI`），统一 Provider 详情页中卡片网格的“空态 + LazyVGrid”壳层样板。
+- 2026-03-27: `ProviderAgentsGridView` / `ProviderRulesGridView` / `ProviderWorkflowsGridView` / `ProviderSkillsGridView` 改为复用 `NolonUI.ProviderGridContentScaffold`，主工程仅保留业务数据映射与动作闭包。
+- 验证：`swift build`（`libs/NolonUI`）通过；`xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: 新增 `ProviderEmptyStateScaffold`（`NolonUI`），统一“空态/内容”切换壳层（不强制网格布局）。
+- 2026-03-27: `ResourceCatalogGridView` 在 `skills/workflows/mcps` 三个 tab 的 `if filtered.isEmpty { ... } else { ... }` 结构改为复用 `NolonUI.ProviderEmptyStateScaffold`。
+- 验证：`swift build`（`libs/NolonUI`）通过；`xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: 新增 `ResourceCatalogGridSection`（`NolonUI`），统一资源中心分组 section 的 `title/count + LazyVGrid + ForEach` 壳层。
+- 2026-03-27: `ResourceCatalogGridView` 的 `skills/workflows/mcps` 三个 tab 内 `installed/pending/available` 三组 section 全部改为 `NolonUI.ResourceCatalogGridSection`。
+- 2026-03-27: 删除 `ResourceCatalogGridView` 已失效的本地 `sectionBlock` 辅助函数（死代码清理）。
+- 验证：`rg -n "sectionBlock\\(|LazyVGrid\\(columns: columns, spacing: 16\\)" nolon/Skills/Domain/Resources/Views/ResourceCenter/ResourceCatalogGridView.swift -S` 无结果；`swift build`（`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: `ProviderSkillsView` 的“空态/内容”分支改为复用 `NolonUI.ProviderEmptyStateScaffold`，主工程只保留内容渲染闭包。
+- 验证：`swift build`（`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: 新增 `McpConfigStateViews`（`NolonUI`），统一 `MCP 配置不支持 / 需操作态 / 无结果态` 三类状态壳。
+- 2026-03-27: `ProviderMcpGridView` 的状态分支渲染改为复用 `NolonUI.McpConfigUnsupportedStateView`、`NolonUI.McpConfigActionStateView`、`NolonUI.McpConfigNoResultsStateView`，主工程保留状态判断与动作逻辑。
+- 验证：`swift build`（`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: 新增 `AdaptiveCardGrid`（`NolonUI`），统一 `LazyVGrid(columns/alignment/spacing)` 卡片网格壳层。
+- 2026-03-27: `ProviderUsageUnifiedAccountCardGrid` 的 `loadingContent` / `cardGrid` 改为复用 `NolonUI.AdaptiveCardGrid`。
+- 2026-03-27: `ProviderUsageView` 中 `codexOutcomesContainer` 与 `codexAccountsLoadingSkeleton` 的网格分支改为复用 `NolonUI.AdaptiveCardGrid`。
+- 验证：`swift build`（`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: `ProviderUsageView` 的 `usageProvider == nil` 分支改为复用 `NolonUI.ProviderEmptyStateScaffold`，统一空态壳层。
+- 2026-03-27: `ProviderUsageView.gatewayAccountSelectionSheet` 的 `candidates.isEmpty` 分支改为复用 `NolonUI.ProviderEmptyStateScaffold`。
+- 验证：`swift build`（`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: `UpdatesView` 空态从 `NolonUI.UnavailableStateView` 切换为 `NolonUI.EmptyStateScaffold`，统一主工程空态壳层入口。
+- 2026-03-27: `CodexBinaryConfigView` 非 Codex provider 分支空态切换为 `NolonUI.EmptyStateScaffold`，主工程仅保留状态判断。
+- 2026-03-27: `ProviderSkillsView` 网格改为 `NolonUI.ProviderGridContentScaffold`（内聚空态+网格壳层），移除主工程内联 `LazyVGrid` 壳样板。
+- 2026-03-27: `ProviderMcpGridView` 的卡片网格改为 `NolonUI.AdaptiveCardGrid`，统一网格容器壳层。
+- 2026-03-27: `CodexAdvancedConfigView.runtimeOverviewSection` 中统计网格改为复用 `NolonUI.AdaptiveCardGrid`，收敛主工程 `LazyVGrid` 直接依赖。
+- 验证：`rg -n "UnavailableStateView|LazyVGrid\\(" nolon/Skills/Domain -S` 仅剩 `CodexBinaryConfigView` 中可复用的 `CodexAdvancedOptionButtonsCardView` 内部实现；`swift build`（`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: `ColorSystemPreview` 的颜色卡片网格从 `LazyVGrid` 迁移为 `NolonUI.AdaptiveCardGrid`，主工程内联网格壳层清零。
+- 验证：`rg -n "LazyVGrid\\(|UnavailableStateView" nolon -S` 无结果；`xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: `NolonAccountsView` 的本地 `AccountSectionHeader` 组件下沉到 UI 库。
+- 2026-03-27: `NolonUIFoundation` 新增 `AccountSectionHeaderData`，`NolonUI` 新增 `AccountSectionHeaderView`；主工程仅保留 section/provider 到 UI 数据模型的映射。
+- 验证：`swift build`（`libs/NolonUIFoundation`、`libs/NolonUI`）通过；`xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: `AppSettingsView` 的 `AboutSettingsView` 下沉到 UI 库。
+- 2026-03-27: `NolonUIFoundation` 新增 `AboutSettingsData`，`NolonUI` 新增 `AboutSettingsSectionView`；主工程仅保留文案/版本映射与 Sparkle 更新动作回调。
+- 验证：`swift build`（`libs/NolonUIFoundation`、`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: `NolonAccountsView` dashboard 两个面板（Trend / Ranking）下沉到 UI 库。
+- 2026-03-27: `NolonUIFoundation` 新增 `AccountDashboardModels`（`AccountTrendPanelData`、`AccountRankingPanelData` 等），`NolonUI` 新增 `AccountTrendPanelView` 与 `AccountRankingPanelView`。
+- 2026-03-27: 主工程 `NolonAccountsView` 改为仅保留数据计算与映射（窗口选项、样本、排行），移除 dashboard 面板渲染细节。
+- 验证：`swift build`（`libs/NolonUIFoundation`、`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: `NolonAccountsView` 顶部 `accountsHeader` 下沉到 UI 库。
+- 2026-03-27: `NolonUIFoundation` 新增 `AccountPageHeaderData`，`NolonUI` 新增 `AccountPageHeaderView`；主工程仅保留数据映射与刷新/新增动作回调。
+- 验证：`swift build`（`libs/NolonUIFoundation`、`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: `DisplaySettingsView` 的 `appearanceRow` / `languageRow` 统一下沉为可复用选中行组件。
+- 2026-03-27: `NolonUIFoundation` 新增 `SelectableSettingsRowData`；`NolonUI` 新增 `SelectableSettingsRowView`。
+- 2026-03-27: 主工程 `AppSettingsView` 改为仅保留业务状态映射（语言/外观选中态与点击动作）。
+- 验证：`swift build`（`libs/NolonUIFoundation`、`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: `AdvancedSettingsView` 两张 action card（Skill Lock 重建、Updates 入口）下沉为统一组件。
+- 2026-03-27: `NolonUIFoundation` 新增 `SettingsActionCardData`；`NolonUI` 新增 `SettingsActionCardView`（支持 leading loading、trailing badge tone）。
+- 2026-03-27: 主工程 `AppSettingsView` 保留动作编排与状态（rebuild/updateCount），移除 action card 渲染样板。
+- 验证：`swift build`（`libs/NolonUIFoundation`、`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: `AdvancedSettingsView` 的 Skill Lock 区块（描述 + Toggle + Action + 反馈文案）下沉到统一壳组件。
+- 2026-03-27: `NolonUIFoundation` 新增 `SettingsDescriptionToggleActionData`；`NolonUI` 新增 `SettingsDescriptionToggleActionView`。
+- 2026-03-27: 主工程 `AppSettingsView` 仅保留业务状态映射、确认弹窗和重建动作编排。
+- 验证：`swift build`（`libs/NolonUIFoundation`、`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: `GeneralSettingsView` 的工作区信息卡下沉到 `NolonUI.SettingsWorkspaceCardView`。
+- 2026-03-27: `NolonUIFoundation` 新增 `SettingsWorkspaceCardData`；主工程仅保留 label/path 映射。
+- 2026-03-27: `GeneralSettingsView` 的 onboarding rerun 行改为复用 `NolonUI.SettingsActionCardView`，统一设置操作卡样式。
+- 验证：`swift build`（`libs/NolonUIFoundation`、`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: `PluginManagementView` 的 `pluginCard` 渲染整体下沉到 `NolonUI.PluginManagementCardView`。
+- 2026-03-27: `NolonUIFoundation` 新增 `PluginManagementCardData`，主工程仅保留 runtime/install/upgrade/uninstall 动作编排与数据映射。
+- 验证：`swift build`（`libs/NolonUIFoundation`、`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: `MainSplitView` 的插件导航侧栏壳层下沉到 `NolonUI.PluginManagementNavigationView`。
+- 2026-03-27: `NolonUIFoundation` 新增 `PluginNavigationData`。
+- 2026-03-27: `PluginManagementView` 的插件卡片 UI 下沉到 `NolonUI.PluginManagementCardView`，主工程保留动作编排与数据映射。
+- 2026-03-27: `NolonUIFoundation` 新增 `PluginManagementCardData`。
+- 验证：`swift build`（`libs/NolonUIFoundation`、`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: `RemoteRepositorySidebarView` 的 `List/Section/Row` 壳层下沉到 `NolonUI.RepositorySidebarListView`，主工程仅保留仓库分组与行为编排。
+- 2026-03-27: `NolonUIFoundation` 新增 `RepositorySidebarSectionData`（section 模型），`NolonUI` 新增 `RepositorySidebarListView`（可复用仓库侧栏列表组件）。
+- 2026-03-27: `RemoteRepositorySidebarView` 改为 `selectedRepository <-> selectedRowID` 绑定映射，context menu / 删除动作通过闭包注入。
+- 验证：`swift build`（`libs/NolonUIFoundation`、`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: `SkillDetailWindowRootView` 与 `ResourceCenterWindowRootView` 的窗口空态壳层下沉到 `NolonUI.WindowEmptyStateScaffold`。
+- 2026-03-27: 主工程窗口 root 仅保留 payload 分发与业务闭包，不再直接拼装 `EmptyStateScaffold + frame(minWidth/minHeight)` 样板。
+- 验证：`swift build`（`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: `CodexQuickSwitchMenuBarView` 的主内容滚动壳层改为复用 `NolonUI.PaddedScrollContainer`，主工程移除直接 `ScrollView` 使用。
+- 2026-03-27: `NolonUI.PaddedScrollContainer` 增强：新增 `showsIndicators`、`minHeight`、`maxHeight` 可选参数，保持默认行为兼容。
+- 验证：`rg -n "\\bScrollView\\s*\\(" nolon/Skills/Domain -S` 无结果；`swift build`（`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: `ProviderUsageView.gatewayCardPickerSheet` 下沉到 `NolonUI.GatewayCardPickerSheetView`，主工程仅保留数据映射与点击动作编排。
+- 2026-03-27: 新增 `NolonUIFoundation` 数据模型：`GatewayCardPickerSheetData` / `GatewayCardPickerItemData`。
+- 2026-03-27: `ProviderUsageView.gatewayAccountSelectionSheet` 的分组多选列表下沉到 `NolonUI.GatewayAccountCandidateListView`。
+- 2026-03-27: 新增 `NolonUIFoundation` 数据模型：`GatewayAccountCandidateSectionData` / `GatewayAccountCandidateItemData` / `GatewayCandidateSectionTone`。
+- 验证：`rg -n "\\bList\\s*\\{|\\bList\\s*\\(" nolon/Skills/Domain -S` 与 `rg -n "\\bScrollView\\s*\\(" nolon/Skills/Domain -S` 均无结果；`swift build`（`libs/NolonUIFoundation`、`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: `OnboardingView` footer 样板下沉：新增 `NolonUI.OnboardingFooterBar` 与 `NolonUI.OnboardingPrimaryButtonStyle` / `OnboardingSecondaryButtonStyle`。
+- 2026-03-27: 主工程移除 onboarding 本地按钮样式实现，改为复用 `NolonUI`，仅保留步骤状态与动作逻辑。
+- 2026-03-27: `MainSplitView` 移除本地 `PluginManagementNavigationView` wrapper，直接复用 `NolonUI.PluginManagementNavigationView`。
+- 验证：`swift build`（`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过；`rg -n "private struct .*View" nolon/Skills/Domain/App/Core/MainSplitView.swift -S` 无结果。
+- 2026-03-27: `DisplaySettingsView` 页面内容壳层下沉到 `NolonUI.DisplaySettingsContentView`，主工程仅保留 `AppAppearance/AppLanguage` 状态映射与更新动作。
+- 2026-03-27: `NolonUIFoundation` 新增 `DisplaySettingsContentData` / `DisplaySettingsOptionRowData`。
+- 验证：`swift build`（`libs/NolonUIFoundation`、`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: `GeneralSettingsView` 页面内容壳层下沉到 `NolonUI.GeneralSettingsContentView`，主工程仅保留 onboarding 重跑确认与状态更新逻辑。
+- 验证：`swift build`（`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: `AppSettingsView` 引入 `AppSettingsViewModel`（`@Observable`），统一承接 Settings 页面业务状态与动作编排（分类选择、语言/外观切换、onboarding 重跑、skill-lock 重建、updates 统计）。
+- 2026-03-27: 删除 `AppSettingsView` 内部 `GeneralSettingsView` / `DisplaySettingsView` / `AdvancedSettingsView` 三个私有渲染子视图，改为直接组合 `NolonUI.GeneralSettingsContentView` / `NolonUI.DisplaySettingsContentView` / `NolonUI.AdvancedSettingsContentView`。
+- 2026-03-27: 主工程 Settings 页进一步收敛为“数据映射 + 回调注入”，`NolonUI` 负责渲染壳层，符合“主工程用 ViewModel/Providers 驱动数据”的迁移策略。
+- 验证：`swift build`（`libs/NolonUIFoundation`、`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: `UpdatesView` 页面壳层下沉到 `NolonUI.UpdatesSheetContentView`，主工程仅保留 `UpdatesViewModel` 驱动、`SkillUpdateInfo -> SkillUpdateRowData` 映射与更新确认动作。
+- 2026-03-27: `NolonUIFoundation` 新增 `UpdatesSheetContentData`，集中承载 Updates 页面标题/副标题、计数文案、空态文案、加载态与行数据。
+- 验证：`swift build`（`libs/NolonUIFoundation`、`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: `RemoteRepositorySidebarView` 的 sync HUD 渲染壳层下沉到 `NolonUI.RepositorySyncHUDOverlay`，主工程仅保留同步状态与 completion tone 映射。
+- 2026-03-27: `NolonUI` `RemoteRepositorySidebarComponents.swift` 新增 `RepositorySyncHUDOverlay`，统一同步中/完成态图标、色调与过渡动画。
+- 验证：`swift build`（`libs/NolonUIFoundation`、`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: `AddRepositorySheet` 的“模板选择 + 分支表单（clawdhub/localFolder/git）”渲染壳层下沉到 `NolonUI.RepositoryEditorFormContentView`，主工程仅保留 `AddRepositoryViewModel` 状态绑定与动作回调。
+- 2026-03-27: `NolonUIFoundation` 新增 `RepositoryEditorTemplateKind` / `RepositoryTemplateDetailData`（`RepositoryEditorModels.swift`），用于主工程向 UI 层传递模板分支渲染数据。
+- 验证：`swift build`（`libs/NolonUIFoundation`、`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: `AddRepositorySheet` 的 footer（错误文案 + Cancel/Primary 操作区）下沉到 `NolonUI.RepositoryEditorFooterView`，主工程仅保留校验状态和保存动作编排。
+- 2026-03-27: `NolonUIFoundation` 新增 `RepositoryEditorFooterData`（`RepositoryEditorFooterModels.swift`）。
+- 验证：`swift build`（`libs/NolonUIFoundation`、`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: `CodexQuickSwitchMenuBarView` 的 header/provider-picker、section-header、empty-state 下沉到 `NolonUI`（`QuickSwitchHeaderView`、`QuickSwitchSectionHeaderView`、`QuickSwitchEmptyStateView`）。
+- 2026-03-27: `NolonUIFoundation` 新增 `QuickSwitchHeaderData` / `QuickSwitchProviderOptionData`（`QuickSwitchModels.swift`），主工程仅保留 provider 状态映射与动作回调。
+- 验证：`swift build`（`libs/NolonUIFoundation`、`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: `CodexQuickSwitchMenuBarView` 的 footer toolbar（4 个 action icon + quit）下沉到 `NolonUI.QuickSwitchFooterToolbarView`，主工程仅保留动作分发与窗口导航行为。
+- 2026-03-27: `NolonUIFoundation` 新增 `QuickSwitchFooterActionData` / `QuickSwitchFooterData`（`QuickSwitchFooterModels.swift`）。
+- 验证：`swift build`（`libs/NolonUIFoundation`）通过；`libs/NolonUI` 初次增量构建命中缓存导致类型可见性异常，执行 `swift package clean && swift build` 后通过；`xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: `NolonAccountsView` 的 dashboard 外层壳（分割线 + 趋势/排行双栏布局）下沉到 `NolonUI.AccountDashboardSectionView`，主工程仅保留趋势/排行数据映射与交互回调。
+- 2026-03-27: 新增 `libs/NolonUI/Sources/NolonUI/Components/AccountCard/AccountDashboardSectionView.swift`，统一账户页 dashboard 区块容器样式，减少主工程布局重复。
+- 验证：`swift build`（`libs/NolonUIFoundation`、`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: `OnboardingView` 的 footer 按钮与中心提示渲染壳层下沉到 `NolonUI.OnboardingStepFooterView`，主工程仅保留步骤状态与动作路由。
+- 2026-03-27: `NolonUIFoundation` 新增 `OnboardingFooterData` / `OnboardingStepKind` / `OnboardingFooterTextTone`（`OnboardingFooterModels.swift`），统一 onboarding footer 的视图数据输入。
+- 2026-03-27: 主工程 `OnboardingView` 移除对 `DesignSystem` 的 footer 直接依赖，改为 `footerData` 映射 + `onSkip/onBack/onNext/onStart` 回调注入。
+- 验证：`swift build`（`libs/NolonUIFoundation`、`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: `AddProviderSheet` / `EditProviderSheet` 的重复壳层区块（项目目录选择 section + 解析路径 section）下沉到 `NolonUI.ProviderProjectFolderSection` 与 `NolonUI.ProviderResolvedPathsSection`。
+- 2026-03-27: `NolonUIFoundation` 新增 `ProviderProjectFolderSectionData`、`ProviderProjectFolderSectionMode`、`ProviderResolvedPathItemData`（`ProviderFormSectionModels.swift`）。
+- 2026-03-27: 主工程 `AddProviderSheet` / `EditProviderSheet` 改为仅负责 ViewModel 状态映射与动作回调，不再直接拼装重复表单壳层。
+- 验证：`swift build`（`libs/NolonUIFoundation`、`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: `ResourceCenterView` 顶部 overlay 壳层下沉：导入错误警告改为 `NolonUI.ResourceCenterImportWarningOverlay`，UITest 删除动作面板改为 `NolonUI.ResourceCenterUITestActionsOverlay`。
+- 2026-03-27: `NolonUIFoundation` 新增 `ResourceCenterUITestActionData`（`ResourceCenterOverlayModels.swift`），用于主工程向 UI 层传递 UITest overlay 操作数据。
+- 2026-03-27: 主工程 `ResourceCenterView` 移除 overlay 内联按钮/布局渲染，改为 `uiTestActionItems` 数据映射 + `handleUITestActionTap` 行为分发。
+- 验证：`swift build`（`libs/NolonUIFoundation`、`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: `ResourceCenter` UITest overlay 交互从字符串 actionID 解析改为强类型模型驱动；`ResourceCenterUITestActionData` 新增 `kind/slug/providerIndex` 字段，点击回调直接分发行为，移除字符串拆解逻辑。
+- 验证：`swift build`（`libs/NolonUIFoundation`、`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: `NolonAccountsView` 根页面壳层下沉到 `NolonUI.AccountPanoramaScaffold`，统一账户页背景、滚动容器、header/empty/content/dashboard 切换结构。
+- 2026-03-27: 主工程 `NolonAccountsView` 去除页面壳层布局实现，仅保留业务数据映射与 section/dashboard 内容注入。
+- 2026-03-27: 为兼容既有单测，`NolonAccountsThemeTokens.pageBackground*` 常量保留（测试仍有依赖）。
+- 验证：`swift build`（`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: `PluginManagementView` 页面壳层下沉到 `NolonUI.PluginManagementPageScaffold`，主工程移除 loading/empty/error 的容器渲染样板。
+- 2026-03-27: `CodexBinaryConfigView` 页面状态壳层下沉到 `NolonUI.CodexBinaryPageScaffold`，统一 unsupported/loading/content 与顶部 checking banner 渲染。
+- 验证：`swift build`（`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: `CodexAdvancedConfigView.runtimeOverviewSection` 下沉到 `NolonUI.CodexAdvancedRuntimeOverviewView`，统一 stats grid + meta rows 页面壳层。
+- 2026-03-27: 主工程移除本地 `statTile(...)` 渲染函数，改为 `runtimeOverviewStats` 纯数据映射。
+- 验证：`swift build`（`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: `CodexAdvancedConfigView.availableModelsSection + reasoningEffortSection` 下沉到 `NolonUI.CodexAdvancedModelsCacheSectionView`，统一“标题/Reasoning Picker/Model Picker/Hint”组合壳层。
+- 2026-03-27: 主工程删除 `reasoningEffortSection` 私有视图，保留 `reasoningEffortOptions` 与模型选择/应用动作绑定。
+- 验证：`swift build`（`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: `CodexAdvancedConfigView` 行级输入壳层下沉：新增 `NolonUI.CodexAdvancedTextFieldRowView`、`NolonUI.CodexAdvancedNumericFieldRowView`，并增强 `NolonUI.CodexAdvancedPickerRowView`（支持 `description` 与 `onSelectionChanged`）。
+- 2026-03-27: 主工程 `commonOptionRow` / `numericInputRow` / `commonOptionPickerRow` 改为复用上述 `NolonUI` 组件，移除本地 `alignedConfigRow` 渲染函数。
+- 验证：`swift build`（`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: `CodexAdvancedConfigView` role editor 行壳层下沉：新增 `NolonUI.CodexAdvancedRoleTextFieldRowView`、`NolonUI.CodexAdvancedRolePickerRowView`，主工程移除 `roleTextFieldRow` / `roleEnumPickerField` 本地包装函数。
+- 2026-03-27: 修复 `NolonUI` 单包构建一致性：`CodexAdvancedRoleEditorRows.swift` 补充 `import NolonUIFoundation`（用于 `CodexAdvancedPickerOption`）。
+- 验证：`swift build`（`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: `CodexAdvancedConfigView` Common Options 底部右侧动作行下沉到 `NolonUI.CodexAdvancedTrailingActionRowView`，主工程移除本地 `HStack + Button` 壳层实现。
+- 2026-03-27: `CodexAdvancedConfigView` Multi-Agent 的 Add Role 菜单内容下沉到 `NolonUI.CodexAdvancedRoleAddMenuContentView`，主工程仅保留 built-in role 菜单数据映射与选择分发逻辑。
+- 2026-03-27: `NolonUIFoundation` 新增 `CodexAdvancedRoleAddBuiltinItem`（`CodexAdvancedRoleMenuModels.swift`），统一菜单项视图数据输入模型。
+- 验证：`swift build`（`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: `CodexAdvancedConfigView` Multi-Agent 角色列表区块（空态/角色行）下沉到 `NolonUI.CodexAdvancedRoleListView`，主工程仅保留 `CodexAgentRoleDraft -> CodexAdvancedRoleRowData` 映射及 edit/delete 事件分发。
+- 2026-03-27: 新增 `libs/NolonUI/Sources/NolonUI/Components/Shared/CodexAdvancedRoleListView.swift`，复用已有 `CodexAdvancedRoleEmptyStateCardView` 与 `CodexAdvancedRoleRowView` 统一列表渲染壳层。
+- 验证：`swift build`（`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: `CodexAdvancedConfigView.featureFlagsSection` 渲染壳层下沉到 `NolonUI.CodexAdvancedFeatureFlagsSectionView`，主工程仅保留 feature 过滤/排序与 `onToggle` 业务分发。
+- 2026-03-27: 新增 `libs/NolonUI/Sources/NolonUI/Components/Shared/CodexAdvancedFeatureFlagsSectionView.swift`，统一 Search TextField + FeatureRow 列表渲染结构。
+- 验证：`swift build`（`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: `CodexAdvancedConfigView.xcodeFolderLinksSection` 的说明 + 卡片列表容器下沉到 `NolonUI.CodexXcodeFolderLinksSectionView`，主工程仅保留 `CodexLinkFolder` 到 cardData 的映射与 toggle/finder 事件分发。
+- 2026-03-27: 新增 `libs/NolonUI/Sources/NolonUI/Components/Shared/CodexXcodeFolderLinksSectionView.swift`。
+- 验证：`swift build`（`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: `ProviderSkillsView` 顶部 controls 下沉：主工程内联 Provider 分段选择器与 orphaned migration banner 抽到 `NolonUI.ProviderSkillsTopControlsView`。
+- 2026-03-27: `NolonUIFoundation` 新增 `ProviderSkillsOption`（`ProviderSkillsTopControlsModels.swift`），主工程仅保留 `Provider -> ProviderSkillsOption` 映射与迁移动作编排。
+- 验证：`swift build`（`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: `ProviderMcpGridView` 重复的 MCP toolbar 壳层下沉到 `NolonUI.McpConfigToolbarScaffoldView`，主工程移除两处重复 `toolbar + McpConfigActionsToolbarView` 代码，仅保留编辑行为回调。
+- 2026-03-27: 新增 `libs/NolonUI/Sources/NolonUI/Components/Shared/McpConfigToolbarScaffoldView.swift`。
+- 验证：`swift build`（`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: `ProviderDetailGridView` 顶部提示区（`codexXcodeNotice` + `codexLinkedHint`）合并下沉到 `NolonUI.ProviderCodexTopHintsView`，主工程改为仅输出 `notice/hint` 数据与动作回调。
+- 2026-03-27: `NolonUIFoundation` 新增 `ProviderCodexXcodeNoticeData`（`ProviderDetailSharedModels.swift`）；`NolonUI` 在 `ProviderDetailCommonViews.swift` 新增 `ProviderCodexTopHintsView`。
+- 验证：`swift build`（`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: `ProviderDetailGridView` 最外层状态分支（无 Provider / 无 Tab / Loading / Content）下沉到 `NolonUI.ProviderDetailStateContainerView`，主工程移除顶层条件渲染样板，仅保留占位视图/内容视图注入。
+- 2026-03-27: 新增 `libs/NolonUI/Sources/NolonUI/Components/Shared/ProviderDetailStateContainerView.swift`。
+- 验证：`swift build`（`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: `ProviderSkillsGridView` / `ProviderWorkflowsGridView` / `ProviderRulesGridView` / `ProviderAgentsGridView` 共同空态壳层下沉到 `NolonUI.ProviderResourceGridSectionView`，主工程去除重复 `searchText.isEmpty ? ... : ...` 空态样板。
+- 2026-03-27: 新增 `libs/NolonUI/Sources/NolonUI/Components/Shared/ProviderResourceGridSectionView.swift`，统一资源网格页 empty/no-results 切换逻辑。
+- 验证：`swift build`（`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: `ProviderMcpGridView` 状态分支壳层（无配置/无服务器/无搜索结果/正常列表）下沉到 `NolonUI.McpConfigStateContainerView`，主工程仅保留状态布尔和业务动作闭包。
+- 2026-03-27: 新增 `libs/NolonUI/Sources/NolonUI/Components/Shared/McpConfigStateContainerView.swift`。
+- 验证：`swift build`（`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: `CodexRuntimeTabView` 的页面组合壳层（Actions + Processes）下沉到 `NolonUI.CodexRuntimeTabContentView`，主工程移除 `actionsSection` / `processesSection` 两个拼装函数，仅保留数据与 process row 行为注入。
+- 2026-03-27: 新增 `libs/NolonUI/Sources/NolonUI/Components/Shared/CodexRuntimeTabContentView.swift`。
+- 验证：`swift build`（`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: 移除主工程 `ResourceContentTabType` 桥接别名，`ResourceCenter` 全链路（`ResourceCenterView/Tab/Grid`、window coordinator、UITest 解析、PageMarker、Provider 跳转）统一直接使用 `NolonUIFoundation.ResourceCenterTabID`。
+- 2026-03-27: 新增 `ResourceCenterTabID+Localization.swift`，将 tab 本地化标题扩展绑定到 `ResourceCenterTabID`，`ResourceCenterTabView` 直接向 `NolonUI.ResourceCenterSidebarComponent` 透传 `Binding<ResourceCenterTabID?>`，删除原映射壳层。
+- 2026-03-27: `nolonTests/ResourceCenterTabTypeMappingTests` 同步改为 `ResourceCenterTabID.localizedName` 行为测试，删除已无意义的 `foundationID/fromFoundationID` 断言。
+- 验证：`xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过；`swift build`（`libs/NolonUI`）通过；`xcodebuild test -project nolon.xcodeproj -scheme nolon-tests -destination 'platform=macOS'` 失败（与本次改动无关的既有编译错误：`CodexAdvancedConfigView.swift:1492/2021`、`ProviderMcpGridView.swift:217/230/288`）。
+- 2026-03-27: `RemoteRepositorySidebarView` 顶层容器壳（`SidebarHeaderScaffold + RepositorySidebarListView + floating add button + sync HUD overlay`）下沉到 `NolonUI.RepositorySidebarScaffoldView`，主工程仅保留仓库分组映射、选择状态与行为回调。
+- 2026-03-27: 新增 `libs/NolonUI/Sources/NolonUI/Components/Remote/RepositorySidebarScaffoldView.swift`；主工程删除 `floatingAddRepositoryButton` / `syncHUDOverlay` 本地壳层。
+- 验证：`swift build`（`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: `RemoteRepositorySidebarView.repositoryContextMenu` 按钮壳层下沉到 `NolonUI.RepositoryRowContextMenuView`，主工程仅保留菜单条件与动作回调（sync/reveal/edit/remove/debug marker）。
+- 2026-03-27: 新增 `libs/NolonUI/Sources/NolonUI/Components/Remote/RepositoryRowContextMenuView.swift`。
+- 验证：`swift build`（`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: `RemoteRepositorySidebarView` 的 4 组 sheet 组织壳（add / directory-picker / token-input / edit）下沉到 `NolonUI.repositorySidebarSheetPresenters(...)` modifier，主工程仅传状态与具体 sheet 内容。
+- 2026-03-27: 新增 `libs/NolonUI/Sources/NolonUI/Components/Remote/RepositorySidebarSheetPresenters.swift`。
+- 验证：`swift build`（`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: `ResourceCatalogGridView` 三个 tab 的公共分段壳参数（installed/installing/available + no-results 公共文案）下沉到 `NolonUI.ResourceCatalogStandardTabScaffold`，主工程保留各 tab 业务卡片内容与状态映射。
+- 2026-03-27: 新增 `libs/NolonUI/Sources/NolonUI/Components/Remote/ResourceCatalogStandardTabScaffold.swift`，并替换 `ResourceCatalogGridView` 中三处 `ResourceCatalogTabStateSectionsScaffold` 直接调用。
+- 验证：`swift build`（`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: `ResourceCatalogLoadMoreStateView` 的默认文案（retry/loadMore/loading/end）下沉到 `NolonUI` 组件 init 默认参数，主工程 `ResourceCatalogGridView` 调用移除重复文案传参。
+- 2026-03-27: `ResourceCatalogGridView` 保持行为不变，仅保留 load-more 状态与回调输入。
+- 验证：`swift build`（`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: `ResourceCatalog` 继续下沉默认文案参数：`ResourceCatalogBodyStateContainerView`（load-error/retry）、`ResourceCatalogMainScaffoldView`（no-repository/no-tab）、`ResourceCatalogToolbarView`（search placeholder）均在 `NolonUI` 提供默认本地化值。
+- 2026-03-27: `ResourceCatalogKindTabScaffold` 新增按 `kind` 推导的 `emptyDescription` / `noResultsDescription` 默认值，主工程 `ResourceCatalogGridView` 的三类 tab 调用移除重复文案传参。
+- 2026-03-27: `ResourceCenterSidebarComponent` 新增空态 `emptyTitle/emptyDescription` 默认值，主工程 `ResourceCenterTabView` 调用进一步收敛为“状态 + 数据 + 绑定”。
+- 验证：`swift build`（`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: `ResourceCenterView` 移除 `UIThreeColumnScaffold` 桥接调用，改为直接使用 `NolonUI.ThreeColumnScaffold`，主工程继续收敛桥接层依赖。
+- 2026-03-27: 删除 `nolon/Skills/Domain/App/Core/NolonUIMainSplitBridge.swift` 内已无引用的 `UIThreeColumnScaffoldMode/UIThreeColumnSidebarWidth/UIThreeColumnScaffold` 适配实现，仅保留 `UIMainSplitScaffold`。
+- 验证：`swift build`（`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: 进一步删除已无引用的 `UIMainSplitScaffold` 桥接，移除文件 `nolon/Skills/Domain/App/Core/NolonUIMainSplitBridge.swift`，主工程完全直连 `NolonUI.MainSplitScaffold`。
+- 2026-03-27: `ResourceCardMetaBuilder` 改为直接产出 `NolonUI.ResourceCardMetaItem`，`RemoteSkill/Workflow/MCPCardView` 去掉 `NolonUIAdapter.resourceMetaItems(...)` 转换调用；同步移除 `NolonUIAdapter` 中对应转换函数。
+- 验证：`swift build`（`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: `RepositorySidebarScaffoldView` 新增 `addButtonTitle` 默认本地化值（`Add Repository`），主工程 `RemoteRepositorySidebarView` 调用移除 `sheetTitle/addButtonTitle` 显式传参，继续压缩主工程 UI 参数面。
+- 2026-03-27: `NolonUIFoundation.RepositorySidebarRowData` 的 `builtInText` 默认值改为本地化字符串（`Built-in`）。
+- 验证：`swift build`（`libs/NolonUIFoundation`、`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: 删除 `nolon/Skills/Shared/Adapters/NolonUIAdapter.swift`，去掉剩余桥接扩展（`ProviderSkillState -> ProviderSkillCardInfo`、`WorkflowSourceKind -> WorkflowSource`、`McpCacheState -> McpServerCardCacheState`）。
+- 2026-03-27: `ProviderSkillsView` 与 `ProviderDetailGridViewModel` 改为本地显式映射 `NolonUIFoundation` 模型，移除对 Adapter 层的依赖，主工程 UI 映射路径更直接。
+- 验证：`swift build`（`libs/NolonUIFoundation`、`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: `ResourceCenterSidebarComponent` 的 `title` 改为可选输入，默认回退 `resource.center.title` 下沉到 `NolonUI` 组件内部；主工程 `ResourceCenterTabView` 调用改为仅传仓库名（`repository?.name`）。
+- 验证：`swift build`（`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: 清理 `NolonUI` 组件冗余状态：移除 `ResourceCenterSidebarComponent`、`ProviderSidebarComponent`、`ProviderContentTabSidebarComponent` 中未使用的 `@State viewModel` 挂件，保留组件行为不变。
+- 验证：`swift build`（`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: 删除主工程最后一处 `ProviderSidebarAdapter` 桥接（`nolon/Skills/Domain/Providers/Sidebar/ProviderSidebarAdapter.swift`），`ProviderSidebarView` 直接使用 `SidebarSelectionKey` 和 `SidebarSectionBuilder`。
+- 2026-03-27: `ProviderSidebarView` 的 sidebar section 组装逻辑上移到 `ProviderSidebarViewModel.sidebarSections`，主视图仅负责渲染与事件绑定，继续收敛“主工程拼装 UI 壳”。
+- 验证：`swift build`（`libs/NolonUIFoundation`、`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: `ResourceCenterTabID.localizedName` 从主工程扩展下沉到 `NolonUIFoundation`（`ResourceCenterSidebarModels.swift`），删除主工程文件 `ResourceCenterTabID+Localization.swift`，统一由基础模型层提供 tab 名称语义。
+- 验证：`swift build`（`libs/NolonUIFoundation`、`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: `ProviderDetailGridScaffoldView` 的 `searchPlaceholder` 默认值下沉到 `NolonUI` 组件内部（`search.placeholder`），主工程 `ProviderDetailGridView` 调用移除该固定文案参数，继续减少主工程 UI 默认参数噪音。
+- 验证：`swift build`（`libs/NolonUIFoundation`、`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: `ProviderResourceGridSectionView` 新增 `kind`（`skills/workflows/rules/agents`）并在组件内部下沉默认空态 title/icon/description；主工程 `ProviderSkillsGridView`、`ProviderWorkflowsGridView`、`ProviderRulesGridView`、`ProviderAgentsGridView` 删除重复 `empty*` 参数，仅保留差异化 `noResultsDescription`。
+- 验证：`swift build`（`libs/NolonUIFoundation`、`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: `ProviderSkillsTopControlsView` 下沉默认本地化文案（provider picker 标题与 orphaned migration banner 标题/描述/按钮文案），主工程 `ProviderSkillsView` 调用移除 4 个固定本地化参数，仅保留数据绑定与迁移动作回调。
+- 验证：`swift build`（`libs/NolonUIFoundation`、`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: `ProviderGridContentScaffold` 下沉 provider 页默认空态参数（`provider.empty` / `provider.empty_desc` / `folder.badge.questionmark`）；主工程 `ProviderSkillsView` 调用删除对应 `emptyTitle/emptySystemImage/emptyDescription` 固定传参。
+- 验证：`swift build`（`libs/NolonUIFoundation`、`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: `NavigationTopContentScaffold` 下沉默认导航标题（`provider.title`），主工程 `ProviderSkillsView` 调用删除 `navigationTitle` 固定传参，仅保留 top/content 结构与行为。
+- 验证：`swift build`（`libs/NolonUIFoundation`、`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: `CodexImport` 文案默认值下沉到 `NolonUIFoundation`：`CodexImportToolbarData` 增加 `searchPlaceholder/selectAll/deselectAll/export/paste/retry` 默认本地化；`CodexImportCandidateListContainerData` 增加 `emptySearch*` 与 `empty*` 默认本地化。
+- 2026-03-27: 主工程 `CodexImportSheet` 调用删除上述固定文案参数，仅保留动态计数、状态布尔与行为回调。
+- 验证：`swift build`（`libs/NolonUIFoundation`、`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: `PluginManagementPageScaffold` 下沉插件页空态默认值（`plugin.empty.title` / `plugin.empty.desc` / `puzzlepiece`）；主工程 `PluginManagementView` 调用移除固定 `emptyTitle/emptySystemImage/emptyDescription` 传参。
+- 验证：`swift build`（`libs/NolonUIFoundation`、`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: `UpdatesSheetContentData` 下沉默认空态与按钮辅助文案（`refreshHelpText`、`closeAccessibilityLabel`、`emptyTitle`、`emptySystemImage`、`emptyDescription`），主工程 `UpdatesView` 调用移除对应固定参数。
+- 2026-03-27: 处理一次编译回归：`NolonUIFoundation` 默认参数中使用 `NSLocalizedString` 在纯 SwiftPM 目标不可用，改为稳定字面默认值后恢复绿灯。
+- 验证：`swift build`（`libs/NolonUIFoundation`、`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: `CodexAdvancedFeatureFlagsSectionView` 下沉 `searchPlaceholder` 默认值（`codex.features.search.placeholder`），主工程 `CodexAdvancedConfigView` 调用移除固定占位文案参数。
+- 验证：`swift build`（`libs/NolonUIFoundation`、`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: `CodexRuntimeDiagnosticsCardView` 下沉默认标题（`codex.runtime.diagnostics.title`），主工程 `CodexRuntimeTabView` 调用移除固定 `title` 参数，仅保留诊断行数据输入。
+- 验证：`swift build`（`libs/NolonUIFoundation`、`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: `PluginRuntimeLogsSheetView` 下沉运行日志弹窗默认文案（title/empty/auto/clear/copy/close），主工程 `PluginManagementView` 调用移除对应固定文案参数，仅保留 `logs`、`autoScroll` 与行为回调。
+- 验证：`swift build`（`libs/NolonUIFoundation`、`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: Settings 页面固定 section 标题继续下沉：`SettingsSheetScaffoldView`（`settings.title`）、`GeneralSettingsContentView`（`project_configuration/importing`）、`AdvancedSettingsContentView`（`skill_lock/updates`）均改为组件内默认值；主工程 `AppSettingsView` 调用移除对应固定文案参数。
+- 验证：`swift build`（`libs/NolonUIFoundation`、`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: `CodeEditorSheetView` 下沉通用默认参数：`invalidAlertTitle`、`cancelTitle`、`saveTitle`、`okTitle` 以及默认尺寸 `760x560`，主工程 `McpConfigEditorView` / `CodexConfigEditorView` / `RuleMarkdownEditorView` 删除重复固定传参，仅保留差异化标题、校验与保存行为。
+- 验证：`swift build`（`libs/NolonUIFoundation`、`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: `SettingsWorkspaceCardData` 下沉 `label` 默认值（`settings.workspace.current`），并为 `SettingsActionCardData` 新增 `onboardingRerun()` 工厂（内含 onboarding 标题/描述/图标默认值）；主工程 `AppSettingsView` 调用改为仅传动态 `workspacePath`，移除 General 页固定文案拼装。
+- 验证：`swift build`（`libs/NolonUIFoundation`、`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: `McpConfigActionsToolbarView` / `McpConfigToolbarScaffoldView` 下沉默认动作文案（`Documentation` / `Edit Config`）；`McpConfigUnsupportedStateView` 与 `McpConfigNoResultsStateView` 下沉默认空态文案与图标。
+- 2026-03-27: 主工程 `ProviderMcpGridView` 清理重复固定参数：两处 MCP toolbar 删除 `documentationTitle/editTitle` 传参，`noResults` 与 `unsupported` 改为组件默认构造；`messageAlert` 删除冗余 `okTitle` 传参。
+- 验证：`swift build`（`libs/NolonUIFoundation`、`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: `CodexRuntime` 文案默认值继续下沉到 `NolonUIFoundation`：`CodexRuntimeActionsBarData`（refresh title/icon）、`CodexRuntimeProcessesSectionData`（section title/empty text）、`CodexRuntimeProcessRowData`（stop/force）以及 `CodexRuntimeLogsSectionData`（logs title/refresh/copy/clear/empty）。
+- 2026-03-27: 主工程 `CodexRuntimeTabView` 删除上述重复固定传参，保留动态 `pidText`、运行状态和行为回调，继续压缩主工程 UI 文案拼装。
+- 验证：`swift build`（`libs/NolonUIFoundation`、`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: 并行推进 `Provider Usage` 列表表头默认值下沉：`AccountListModeModule` 与 `CodexCompactAccountsTableHeaderView` 的 `account/plan/usage` 标题均改为组件内部 `NSLocalizedString` 默认值。
+- 2026-03-27: 主工程调用点同步减参：`ProviderUsageUnifiedAccountCardGrid` 与 `ProviderUsageView.codexListTableHeader` 删除重复 `accountColumnTitle/planColumnTitle/usageColumnTitle` 传参，仅保留列宽与行为回调。
+- 验证：`swift build`（`libs/NolonUIFoundation`、`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: 并行推进 `Resources` 侧重去重：`NolonUI` 新增 `ResourceCopyTitleMenuItem`（默认本地化文案 + 图标），`RemoteSkillCardView`/`RemoteWorkflowCardView`/`RemoteMCPCardView` 三处 `Copy Title` context menu 统一复用该组件。
+- 2026-03-27: `ToastView` 增加 `copied()` 便捷构造（默认 `remote.error.copied` + `doc.on.doc` + `.success`），`ResourceCatalogGridView` overlay toast 调用改为 `NolonUI.ToastView.copied()`，删除重复固定参数。
+- 验证：`swift build`（`libs/NolonUIFoundation`、`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: 并行推进 Window 空态下沉：`WindowEmptyStateScaffold` 新增场景化入口 `resourceCenterEmptyState(...)` 与 `skillDetailEmptyState(...)`，封装默认本地化文案与图标；`ResourceCenterWindowCoordinator` 与 `SkillDetailWindowCoordinator` 调用删除重复 `NSLocalizedString`/icon 传参。
+- 2026-03-27: 并行推进 Usage 空态下沉：`ProviderEmptyStateScaffold` 新增 `Preset`（`.usageUnsupported` / `.gatewayPickerEmpty`）与 `preset` 初始化入口；`ProviderUsageView` 两处调用改为 preset 驱动，减少重复文案与 icon 参数，并复用 preset 标题用于 debug marker。
+- 验证：`swift build`（`libs/NolonUIFoundation`、`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: `McpConfigActionStateView` 新增 `Preset`（`.noConfiguration` / `.noServers`）场景化入口并下沉默认文案与图标；主工程 `ProviderMcpGridView` 两处空态调用改为 `preset`，移除重复硬编码字符串。
+- 2026-03-27: `CodexImport` 继续下沉默认文案到 `NolonUIFoundation`：`CodexImportDropZoneData`（title/subtitle/pick/paste）与 `CodexImportSheetScaffoldData`（title/subtitle/cancel/validating/testing）改为默认值；主工程 `CodexImportSheet` 仅保留动态 `importButtonTitle`、状态布尔和回调。
+- 验证：`swift build`（`libs/NolonUIFoundation`、`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: `RepositoryEditorFooterData` 下沉 `cancelTitle` 默认值（`generic.cancel`），主工程 `AddRepositorySheet` 调用移除固定 `cancelTitle: "Cancel"` 参数。
+- 2026-03-27: `CLITerminalMenuButton` 下沉默认入口文案与图标（`provider.cli.open` + `terminal`），主工程 `ProviderContentTabView` toolbar 调用移除固定 `title/systemImage` 传参。
+- 验证：`swift build`（`libs/NolonUIFoundation`、`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: `ProviderDetailPlaceholderView` 新增 `Preset`（`.noProvider` / `.noTab`）场景化入口并内置默认文案与图标；主工程 `ProviderDetailGridView` 两处占位态切换为 `preset` 调用。
+- 2026-03-27: `ProviderMcpConfigScaffoldView` 下沉 unsupported 默认参数（title/systemImage/description），主工程 `ProviderMcpGridView` 调用移除固定 `unsupportedTitle` 传参。
+- 验证：`swift build`（`libs/NolonUIFoundation`、`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: `MessageAlertData` 新增语义化工厂 `migrate(message:)` / `update(message:)`，统一迁移与更新提示标题来源。
+- 2026-03-27: 主工程 `ProviderMcpGridView` 将 4 处重复 `MessageAlertData(title:...)` 构造替换为语义工厂调用，减少重复本地化拼装。
+- 验证：`swift build`（`libs/NolonUIFoundation`、`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: QuickSwitch 菜单栏文案继续下沉到 `NolonUI/NolonUIFoundation`：`QuickSwitchSectionHeaderView` 新增 `Preset`（`.active/.available`），`QuickSwitchEmptyStateView` 与 `QuickSwitchExhaustedGroupView` 增加默认标题与图标，`QuickSwitchHeaderData.title` 与 `QuickSwitchAccountCardData.activeBadgeTitle` 增加默认值。
+- 2026-03-27: `QuickSwitchFooterActionData` 新增 `default()` 工厂，`QuickSwitchFooterData.quitTitle` 增加默认值；主工程 `CodexQuickSwitchMenuBarView` 移除对应硬编码文案参数，仅保留状态与动作回调。
+- 验证：`swift build`（`libs/NolonUIFoundation`、`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: QuickSwitch footer 再收口：`QuickSwitchFooterData` 已有默认 actions/quitTitle 后，主工程 `CodexQuickSwitchMenuBarView` 调用由 `data: .init(actions: .default())` 精简为 `data: .init()`。
+- 验证：`swift build`（`libs/NolonUIFoundation`、`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: `RemoteRepositorySidebarView` 下沉默认 `title`（`resource.center.title`），主工程 `ResourceCenterView` 调用移除固定标题传参。
+- 2026-03-27: `AccountErrorStateModule` 与 `AccountEmptyStateModule` 下沉默认文案，主工程 `UnifiedAccountCard` 删除重复 `Sync Failed/No data available` 传参，并收敛空态分支为统一 `AccountEmptyStateModule()`。
+- 验证：`swift build`（`libs/NolonUIFoundation`、`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: `DestructiveConfirmationDialogData` 下沉 `cancelTitle` 默认值（`generic.cancel`），调用方可仅传 title/message/confirm。
+- 2026-03-27: 主工程减参：`ResourceCatalogGridView` 与 `CodexRuntimeTabView` 的 destructive dialog 删除固定 `cancelTitle` 传参；`ResourceCatalogGridView.messageAlert` 删除冗余 `okTitle` 传参。
+- 验证：`swift build`（`libs/NolonUIFoundation`、`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: `RepositoryEditorSheetScaffoldView` 下沉 `blockingMessage` 默认值（`Adding repository...`），主工程 `AddRepositorySheet` 调用删除固定 `blockingMessage` 传参。
+- 验证：`swift build`（`libs/NolonUIFoundation`、`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。
+- 2026-03-27: `SheetActionFooterView` 下沉 `cancelTitle` 默认值（`generic.cancel`），主工程 `AddProviderSheet` 与 `EditProviderSheet` 调用移除固定 `cancelTitle` 传参。
+- 2026-03-27: `OnboardingFooterData` 下沉 `skip/getStarted/back/continue/start` 五个按钮文案默认值，主工程 `OnboardingView.footerData` 仅保留 step/hint/enable 等动态字段。
+- 验证：`swift build`（`libs/NolonUIFoundation`、`libs/NolonUI`）与 `xcodebuild -project nolon.xcodeproj -scheme nolon -destination 'platform=macOS' build` 通过。

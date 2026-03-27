@@ -73,10 +73,9 @@ test_output.txt
 *.log
 nolon/参考
 
-reference-projects/
 nolonTests/Snapshots
-/references
-
+docs-linhay/references
+docs-linhay/screenshots
 
 /projects/leaderboard-template/
 design-proposals/
