@@ -416,10 +416,6 @@ final class ProviderDetailGridViewModel {
         }
     }
 
-    private func normalizedProviderServerConfig(for mcp: MCP) -> [String: Any] {
-        normalizedServerConfigForComparison(mcp.dictionaryValue, name: mcp.name, isEnabled: mcp.isEnabled)
-    }
-
     private func normalizedServerConfigForComparison(
         _ input: [String: Any],
         name: String,
