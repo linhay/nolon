@@ -97,10 +97,6 @@ public struct RepositoryDraftService: Sendable {
         )
     }
 
-    public func inferredRepositoryName(from gitURL: String) -> String {
-        RemoteRepository.extractRepoName(from: gitURL)
-    }
-
     public func parseImportIntent(from rawURL: String) -> ImportedResourceIntent {
         let trimmed = rawURL.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {

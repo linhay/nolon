@@ -101,7 +101,7 @@ final class AddRepositoryViewModel {
 
     func handleGitURLChange(_ newURL: String) {
         if selectedTemplate == .git && !newURL.isEmpty {
-            let extractedName = draftService.inferredRepositoryName(from: newURL)
+            let extractedName = RemoteRepository.extractRepoName(from: newURL)
             if !extractedName.isEmpty {
                 newRepoName = extractedName
             }
@@ -329,7 +329,7 @@ final class AddRepositoryViewModel {
             return URL(fileURLWithPath: trimmed).lastPathComponent
         case .git:
             if !newRepoName.isEmpty { return newRepoName }
-            let inferred = draftService.inferredRepositoryName(from: newGitURL)
+            let inferred = RemoteRepository.extractRepoName(from: newGitURL)
             if !inferred.isEmpty { return inferred }
             return "git-repo"
         case .clawdhub:
