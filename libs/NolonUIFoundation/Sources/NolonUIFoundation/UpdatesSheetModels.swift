@@ -1,3 +1,5 @@
+import Foundation
+
 public struct UpdatesSheetContentData: Equatable, Sendable {
     public let title: String
     public let subtitle: String?
@@ -14,11 +16,27 @@ public struct UpdatesSheetContentData: Equatable, Sendable {
         title: String,
         subtitle: String? = nil,
         availableCountText: String? = nil,
-        refreshHelpText: String = "Check for updates",
-        closeAccessibilityLabel: String = "Close",
-        emptyTitle: String = "All skills up to date",
+        refreshHelpText: String = NSLocalizedString(
+            "updates.refresh_help_text",
+            value: "Check for updates",
+            comment: "Check for updates button help text"
+        ),
+        closeAccessibilityLabel: String = NSLocalizedString(
+            "generic.close",
+            value: "Close",
+            comment: "Close accessibility label"
+        ),
+        emptyTitle: String = NSLocalizedString(
+            "updates.empty_title",
+            value: "All skills up to date",
+            comment: "All skills up to date"
+        ),
         emptySystemImage: String = "checkmark.circle.fill",
-        emptyDescription: String = "No updates available.",
+        emptyDescription: String = NSLocalizedString(
+            "updates.empty_description",
+            value: "No updates available.",
+            comment: "No updates available"
+        ),
         isChecking: Bool,
         rows: [SkillUpdateRowData]
     ) {

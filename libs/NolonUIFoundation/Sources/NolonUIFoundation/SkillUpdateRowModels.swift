@@ -1,3 +1,5 @@
+import Foundation
+
 public struct SkillUpdateRowData: Identifiable, Equatable, Sendable {
     public let id: String
     public let skillName: String
@@ -17,8 +19,16 @@ public struct SkillUpdateRowData: Identifiable, Equatable, Sendable {
         currentVersionText: String?,
         latestVersionText: String?,
         hasUpdate: Bool,
-        updateButtonTitle: String,
-        upToDateText: String
+        updateButtonTitle: String = NSLocalizedString(
+            "generic.save",
+            value: "Save",
+            comment: "Save button title"
+        ),
+        upToDateText: String = NSLocalizedString(
+            "updates.empty_title",
+            value: "All skills up to date",
+            comment: "All skills up to date text"
+        )
     ) {
         self.id = id
         self.skillName = skillName
