@@ -1,3 +1,5 @@
+import Foundation
+
 public struct CodexBinaryVersionTableData: Equatable, Sendable {
     public let nameTitle: String
     public let versionTitle: String
@@ -7,11 +9,31 @@ public struct CodexBinaryVersionTableData: Equatable, Sendable {
     public let rows: [CodexBinaryVersionRowData]
 
     public init(
-        nameTitle: String,
-        versionTitle: String,
-        sourceTitle: String,
-        stateTitle: String,
-        actionsTitle: String,
+        nameTitle: String = NSLocalizedString(
+            "codex.binary.table.name",
+            value: "Name",
+            comment: "Version table name"
+        ),
+        versionTitle: String = NSLocalizedString(
+            "codex.binary.table.version",
+            value: "Version",
+            comment: "Version table version"
+        ),
+        sourceTitle: String = NSLocalizedString(
+            "codex.binary.table.source",
+            value: "Source",
+            comment: "Version table source"
+        ),
+        stateTitle: String = NSLocalizedString(
+            "codex.binary.table.state",
+            value: "State",
+            comment: "Version table state"
+        ),
+        actionsTitle: String = NSLocalizedString(
+            "codex.binary.table.actions",
+            value: "Actions",
+            comment: "Version table actions"
+        ),
         rows: [CodexBinaryVersionRowData]
     ) {
         self.nameTitle = nameTitle

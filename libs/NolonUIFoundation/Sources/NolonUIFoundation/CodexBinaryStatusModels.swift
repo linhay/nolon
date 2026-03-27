@@ -1,3 +1,5 @@
+import Foundation
+
 public struct CodexBinaryStatusHeaderData: Equatable, Sendable {
     public let hasUpdateAvailable: Bool
     public let statusText: String
@@ -11,12 +13,24 @@ public struct CodexBinaryStatusHeaderData: Equatable, Sendable {
     public init(
         hasUpdateAvailable: Bool,
         statusText: String,
-        currentCLITitle: String,
+        currentCLITitle: String = NSLocalizedString(
+            "codex.binary.cli_version",
+            value: "Current CLI",
+            comment: "Current CLI version"
+        ),
         currentCLIVersion: String,
         isSyncingRemoteVersions: Bool,
         remoteVersionSyncFailed: Bool,
-        syncingText: String,
-        failedText: String
+        syncingText: String = NSLocalizedString(
+            "codex.binary.update.checking",
+            value: "Checking updates...",
+            comment: "Update status"
+        ),
+        failedText: String = NSLocalizedString(
+            "codex.binary.update.failed",
+            value: "Update check failed",
+            comment: "Update status"
+        )
     ) {
         self.hasUpdateAvailable = hasUpdateAvailable
         self.statusText = statusText
