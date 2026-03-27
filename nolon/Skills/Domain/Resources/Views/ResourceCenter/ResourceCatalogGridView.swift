@@ -185,22 +185,26 @@ struct ResourceCatalogGridView: View {
         ) {
             contentWithPendingSync
         } workflowSheet: { workflow in
-            RemoteWorkflowDetailView(
-                workflow: workflow,
-                providers: providers,
-                targetProvider: targetProvider,
-                onInstall: { provider in
+            NolonUI.RemoteResourceDetailSheetView(
+                data: workflowDetailData(workflow),
+                onInstall: { providerID in
+                    guard let provider = providers.first(where: { $0.id == providerID }) else { return }
                     onInstallWorkflow?(workflow, provider)
+                },
+                onClose: {
+                    viewModel.selectedWorkflowForDetail = nil
                 }
             )
             .remoteDetailSheetFrame()
         } mcpSheet: { mcp in
-            RemoteMCPDetailView(
-                mcp: mcp,
-                providers: providers,
-                targetProvider: targetProvider,
-                onInstall: { provider in
+            NolonUI.RemoteResourceDetailSheetView(
+                data: mcpDetailData(mcp),
+                onInstall: { providerID in
+                    guard let provider = providers.first(where: { $0.id == providerID }) else { return }
                     onInstallMCP?(mcp, provider)
+                },
+                onClose: {
+                    viewModel.selectedMCPForDetail = nil
                 }
             )
             .remoteDetailSheetFrame()
@@ -683,6 +687,90 @@ struct ResourceCatalogGridView: View {
         case .mcp:
             return NSLocalizedString("tab.mcps", comment: "MCPs")
         }
+    }
+
+    private func workflowDetailData(_ workflow: RemoteWorkflow) -> RemoteResourceDetailData {
+        var sections: [RemoteResourceDetailData.Section] = []
+
+        if let description = RemoteResourceDetailBuilders.descriptionSection(summary: workflow.summary) {
+            sections.append(description)
+        }
+
+        if let changelog = RemoteResourceDetailBuilders.changelogSection(changelog: workflow.latestVersion?.changelog) {
+            sections.append(changelog)
+        }
+
+        var stats: [RemoteResourceDetailData.StatItem] = []
+        if let values = workflow.stats {
+            stats.append(contentsOf: RemoteResourceDetailBuilders.commonStats(stars: values.stars, downloads: values.downloads))
+            if let usages = values.usages {
+                stats.append(RemoteResourceDetailBuilders.usagesStat(usages))
+            }
+        }
+
+        return .init(
+            title: workflow.displayName,
+            subtitle: workflowVersionSubtitle(workflow),
+            stats: stats,
+            sections: sections,
+            providers: providers.map { .init(id: $0.id, name: $0.name, iconName: $0.iconName) },
+            preferredProviderID: targetProvider?.id
+        )
+    }
+
+    private func mcpDetailData(_ mcp: RemoteMCP) -> RemoteResourceDetailData {
+        var sections: [RemoteResourceDetailData.Section] = []
+
+        if let description = RemoteResourceDetailBuilders.descriptionSection(summary: mcp.summary) {
+            sections.append(description)
+        }
+
+        if let config = mcp.configuration {
+            if let command = config.command, !command.isEmpty {
+                sections.append(.codeBlock(id: "command", title: "Command", content: command))
+            }
+            if let args = config.args, !args.isEmpty {
+                sections.append(.list(id: "args", title: "Arguments", items: args, monospaced: true))
+            }
+            if let env = config.env, !env.isEmpty {
+                let envItems = env.keys.sorted().compactMap { key -> String? in
+                    guard let value = env[key] else { return nil }
+                    return "\(key)=\(value)"
+                }
+                sections.append(.kvList(id: "env", title: "Environment Variables", items: envItems, monospaced: true))
+            }
+        }
+
+        if let changelog = RemoteResourceDetailBuilders.changelogSection(changelog: mcp.latestVersion?.changelog) {
+            sections.append(changelog)
+        }
+
+        var stats: [RemoteResourceDetailData.StatItem] = []
+        if let values = mcp.stats {
+            stats.append(contentsOf: RemoteResourceDetailBuilders.commonStats(stars: values.stars, downloads: values.downloads))
+            if let installs = values.installs {
+                stats.append(RemoteResourceDetailBuilders.installsStat(installs))
+            }
+        }
+
+        return .init(
+            title: mcp.displayName,
+            subtitle: mcpVersionSubtitle(mcp),
+            stats: stats,
+            sections: sections,
+            providers: providers.map { .init(id: $0.id, name: $0.name, iconName: $0.iconName) },
+            preferredProviderID: targetProvider?.id
+        )
+    }
+
+    private func workflowVersionSubtitle(_ workflow: RemoteWorkflow) -> String? {
+        guard let version = workflow.latestVersion else { return nil }
+        return RemoteResourceDetailBuilders.versionSubtitle(version: version.version, createdAt: version.createdAt)
+    }
+
+    private func mcpVersionSubtitle(_ mcp: RemoteMCP) -> String? {
+        guard let version = mcp.latestVersion else { return nil }
+        return RemoteResourceDetailBuilders.versionSubtitle(version: version.version, createdAt: version.createdAt)
     }
 
     private func beginSkillInstall(_ skill: RemoteSkill, provider: Provider) {

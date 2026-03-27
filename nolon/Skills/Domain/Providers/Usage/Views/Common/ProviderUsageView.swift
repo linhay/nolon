@@ -601,9 +601,114 @@ extension ProviderUsageView {
                 }
 
                 ForEach(outcomes) { outcome in
-                    ProviderUsageSnapshotView(outcome: outcome, isLoading: viewModel.isLoading)
+                    genericOutcomeSnapshotView(outcome: outcome)
                 }
             }
+        }
+    }
+
+    private func genericOutcomeSnapshotView(outcome: ProviderAccountUsageOutcome) -> some View {
+        NolonUI.UsageSnapshotCardView(data: genericOutcomeSnapshotCardData(outcome)) {
+            if case let .success(result) = outcome.outcome.result {
+                ProviderQuotaSection(
+                    provider: outcome.provider,
+                    usage: result.usage,
+                    credits: result.credits,
+                    creditsRefreshedAt: nil,
+                    isLoading: viewModel.isLoading,
+                    showsEmptyState: true
+                )
+            }
+        }
+    }
+
+    private func genericOutcomeSnapshotCardData(_ outcome: ProviderAccountUsageOutcome) -> UsageSnapshotCardData {
+        let providerLabel = outcome.provider.rawValue.uppercased()
+        switch outcome.outcome.result {
+        case let .success(result):
+            let detail = genericOutcomeIdentityDetails(outcome: outcome, result: result)
+            return .init(
+                header: .init(
+                    displayName: outcome.displayName,
+                    providerLabel: providerLabel,
+                    identityLine: genericOutcomeIdentityLine(outcome: outcome, result: result),
+                    accountLine: detail.account,
+                    planLine: detail.plan
+                ),
+                body: .success(
+                    footerItems: [
+                        result.fetchKind.nolonLabel,
+                        result.strategyKind.nolonLabel,
+                        result.usage.updatedAt.formatted(date: .abbreviated, time: .shortened)
+                    ]
+                )
+            )
+        case let .failure(error):
+            let code = ProviderUsageIssueClassifier.classify(
+                providerID: outcome.provider.rawValue,
+                errorText: error.localizedDescription,
+                usageErrorCode: genericUsageErrorCode(from: error)
+            )
+            let hints = ProviderUsageIssueClassifier.hints(providerID: outcome.provider.rawValue, code: code)
+            return .init(
+                header: .init(
+                    displayName: outcome.displayName,
+                    providerLabel: providerLabel,
+                    identityLine: nil,
+                    accountLine: nil,
+                    planLine: nil
+                ),
+                body: .error(
+                    message: error.localizedDescription,
+                    diagnostic: code != .unknown ? code.rawValue : nil,
+                    hints: hints
+                )
+            )
+        }
+    }
+
+    private func genericOutcomeIdentityLine(
+        outcome: ProviderAccountUsageOutcome,
+        result: ProviderFetchResult
+    ) -> String? {
+        let identity = result.usage.identity?.scoped(to: outcome.provider)
+        let parts: [String] = [
+            identity?.accountOrganization?.trimmingCharacters(in: .whitespacesAndNewlines),
+            identity?.loginMethod?.trimmingCharacters(in: .whitespacesAndNewlines),
+        ].compactMap { value in
+            guard let value, !value.isEmpty else { return nil }
+            return value
+        }
+        return parts.isEmpty ? nil : parts.joined(separator: " • ")
+    }
+
+    private func genericOutcomeIdentityDetails(
+        outcome: ProviderAccountUsageOutcome,
+        result: ProviderFetchResult
+    ) -> (account: String?, plan: String?) {
+        let identity = result.usage.identity?.scoped(to: outcome.provider)
+        let account = identity?.accountEmail?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let plan = identity?.plan?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return (
+            account: (account?.isEmpty == false) ? account : nil,
+            plan: (plan?.isEmpty == false) ? plan : nil
+        )
+    }
+
+    private func genericUsageErrorCode(from error: Error) -> String? {
+        guard let usageError = error as? ProviderUsageError else {
+            return nil
+        }
+
+        switch usageError {
+        case .unsupported:
+            return "unsupported"
+        case .missingToken:
+            return "missingToken"
+        case .missingAccount:
+            return "missingAccount"
+        case .authExpired:
+            return "authExpired"
         }
     }
 
@@ -2106,5 +2211,35 @@ extension ProviderUsageView {
             onRefresh: { tokenTrendViewModel.refreshNow() },
             debugPageMarkerItems: tokenTrendDebugPageMarkerItems
         )
+    }
+}
+
+private extension ProviderFetchKind {
+    var nolonLabel: String {
+        switch self {
+        case .web:
+            return NSLocalizedString("usage.source.web", value: "Web", comment: "Web")
+        case .cli:
+            return NSLocalizedString("usage.source.cli", value: "CLI", comment: "CLI")
+        case .oauth:
+            return NSLocalizedString("usage.source.oauth", value: "OAuth", comment: "OAuth")
+        case .apiToken:
+            return NSLocalizedString("usage.source.api_token", value: "API token", comment: "API token")
+        case .localProbe:
+            return NSLocalizedString("usage.source.local_probe", value: "Local probe", comment: "Local probe")
+        case .webDashboard:
+            return NSLocalizedString("usage.source.web_dashboard", value: "Web dashboard", comment: "Web dashboard")
+        }
+    }
+}
+
+private extension ProviderFetchStrategyKind {
+    var nolonLabel: String {
+        switch self {
+        case .direct:
+            NSLocalizedString("usage.strategy.direct", value: "Direct", comment: "Direct fetch")
+        case .fallback:
+            NSLocalizedString("usage.strategy.fallback", value: "Fallback", comment: "Fallback fetch")
+        }
     }
 }
