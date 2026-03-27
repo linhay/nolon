@@ -105,16 +105,6 @@ final class ResourceCatalogGridViewModel {
         selectedSkillForDetail = skill
     }
 
-    func consumeSelectedSkillForDetail() -> RemoteSkill? {
-        Self.consumeSkillDetailSelection(&selectedSkillForDetail)
-    }
-
-    static func consumeSkillDetailSelection(_ selection: inout RemoteSkill?) -> RemoteSkill? {
-        let skill = selection
-        selection = nil
-        return skill
-    }
-    
     func loadContent(for repository: RemoteRepository?, tab: ResourceCenterTabID?, searchQuery: String, cacheBuster: String) async {
         guard let repository = repository, let tab = tab else {
             skills = []
@@ -688,4 +678,3 @@ final class ResourceCatalogGridViewModel {
         }
     }
 }
-

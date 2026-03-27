@@ -249,7 +249,8 @@ struct ResourceCatalogGridView: View {
             )
         }
             .onChange(of: viewModel.selectedSkillForDetail?.slug) { _, _ in
-                guard let skill = viewModel.consumeSelectedSkillForDetail() else { return }
+                guard let skill = viewModel.selectedSkillForDetail else { return }
+                viewModel.selectedSkillForDetail = nil
                 SkillDetailWindowCoordinator.shared.presentRemote(
                     skill: skill,
                     providers: providers,
