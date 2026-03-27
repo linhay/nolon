@@ -104,18 +104,6 @@ struct ResourceCatalogGridView: View {
     }
 
     private var normalizedSearchQuery: String {
-        Self.resolveSearchQuery(
-            isClawdhub: isClawdhub,
-            debouncedSearchText: debouncedSearchText,
-            searchText: searchText
-        )
-    }
-
-    static func resolveSearchQuery(
-        isClawdhub: Bool,
-        debouncedSearchText: String,
-        searchText: String
-    ) -> String {
         guard isClawdhub else { return "" }
         let debounced = debouncedSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
         if !debounced.isEmpty {

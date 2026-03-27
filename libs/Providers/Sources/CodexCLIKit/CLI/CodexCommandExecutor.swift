@@ -29,12 +29,6 @@ public struct CodexCommandExecutor: Sendable {
         return STFolder(NSHomeDirectory()).folder(".codex")
     }
 
-    public static func codexHomeDirectoryPath(
-        environment: [String: String] = ProcessInfo.processInfo.environment
-    ) -> String {
-        codexHomeDirectoryURL(environment: environment).path
-    }
-
     public func resolveExecutable() -> String? {
         if executable.contains("/") {
             return Self.isExecutable(path: executable) ? executable : nil

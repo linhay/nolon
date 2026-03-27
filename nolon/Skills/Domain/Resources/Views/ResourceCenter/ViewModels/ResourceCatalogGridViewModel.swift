@@ -56,17 +56,6 @@ final class ResourceCatalogGridViewModel {
         self.itemMapper = itemMapper
     }
 
-    private func mapKind(_ tab: ResourceCenterTabID) -> SkillsRepositoryFacade.RemoteCatalogKind {
-        switch tab {
-        case .skills:
-            return .skill
-        case .workflows:
-            return .workflow
-        case .mcps:
-            return .mcp
-        }
-    }
-
     // 过滤逻辑现在在这里
     func filteredSkills(searchText: String) -> [RemoteSkill] {
         if searchText.isEmpty {
@@ -119,7 +108,7 @@ final class ResourceCatalogGridViewModel {
 
         let trimmedQuery = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
         let hasQuery = !trimmedQuery.isEmpty
-        let kind = mapKind(tab)
+        let kind = tab.catalogKind
         let cacheKey = pagingStore.key(repositoryID: repository.id, kind: kind, query: trimmedQuery)
         let previousCacheEntry = pagingStore.entry(for: cacheKey)
         let loadID = UUID()
@@ -240,7 +229,7 @@ final class ResourceCatalogGridViewModel {
         guard repository.templateType == .clawdhub else { return }
 
         let trimmedQuery = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
-        let kind = mapKind(tab)
+        let kind = tab.catalogKind
         let cacheKey = pagingStore.key(repositoryID: repository.id, kind: kind, query: trimmedQuery)
         let currentLimit = pagingStore.currentLimit(for: cacheKey)
         guard let nextLimit = pagingStore.nextLimit(for: cacheKey) else { return }
@@ -675,6 +664,19 @@ final class ResourceCatalogGridViewModel {
             default:
                 return false
             }
+        }
+    }
+}
+
+private extension ResourceCenterTabID {
+    var catalogKind: SkillsRepositoryFacade.RemoteCatalogKind {
+        switch self {
+        case .skills:
+            return .skill
+        case .workflows:
+            return .workflow
+        case .mcps:
+            return .mcp
         }
     }
 }

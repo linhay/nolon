@@ -124,32 +124,19 @@ struct ResourceCenterView: View, DebugPageLocatable {
         }
     }
 
-    private func executeUITestProviderSkillDelete(slug: String, providerIndex: Int) {
-        guard let onRegisterDeleteRequest, let onMakeDeleteRequestExecutor else { return }
-        Task {
-            let requestID = onRegisterDeleteRequest(
-                slug,
-                .skill,
-                providerIndex,
-                false,
-                nil
-            )
-            let executeDeleteRequest = onMakeDeleteRequestExecutor(requestID)
-            _ = await executeDeleteRequest()
-            await MainActor.run {
-                refreshData()
-            }
-        }
-    }
-
-    private func executeUITestDelete(slug: String, resourceType: RemoteContentType) {
+    private func executeUITestDelete(
+        slug: String,
+        resourceType: RemoteContentType,
+        providerIndex: Int? = nil,
+        deleteFromGlobalCache: Bool = true
+    ) {
         guard let onRegisterDeleteRequest, let onMakeDeleteRequestExecutor else { return }
         Task {
             let requestID = onRegisterDeleteRequest(
                 slug,
                 resourceType,
-                nil,
-                true,
+                providerIndex,
+                deleteFromGlobalCache,
                 nil
             )
             let executeDeleteRequest = onMakeDeleteRequestExecutor(requestID)
@@ -227,7 +214,12 @@ struct ResourceCenterView: View, DebugPageLocatable {
             executeUITestDelete(slug: action.slug, resourceType: .mcp)
         case .deleteProviderSkill:
             guard let providerIndex = action.providerIndex else { return }
-            executeUITestProviderSkillDelete(slug: action.slug, providerIndex: providerIndex)
+            executeUITestDelete(
+                slug: action.slug,
+                resourceType: .skill,
+                providerIndex: providerIndex,
+                deleteFromGlobalCache: false
+            )
         }
     }
     
