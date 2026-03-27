@@ -4,6 +4,7 @@ import OSLog
 import ProviderCatalog
 import NolonCoreCLIKit
 import SKProcessRunner
+import NolonUIFoundation
 
 struct CodexRuntimeProcessItem: Identifiable, Equatable {
     let pid: Int32
@@ -361,25 +362,10 @@ final class CodexRuntimeTabViewModel {
 
         do {
             let result = try await runtimeService.runtimeStop(pid: pid, force: force, timeoutSeconds: timeoutSeconds)
-            lastStopMessage = String(
-                format: NSLocalizedString(
-                    "codex.runtime.stop.summary",
-                    value: "PID %d (%@) -> exited=%@",
-                    comment: "Runtime stop summary"
-                ),
-                result.pid,
-                result.requestedSignal.uppercased(),
-                result.exited
-                    ? NSLocalizedString(
-                        "codex.runtime.bool.true",
-                        value: "true",
-                        comment: "Runtime boolean true"
-                    )
-                    : NSLocalizedString(
-                        "codex.runtime.bool.false",
-                        value: "false",
-                        comment: "Runtime boolean false"
-                    )
+            lastStopMessage = CodexRuntimeBuilders.stopSummary(
+                pid: result.pid,
+                signal: result.requestedSignal,
+                exited: result.exited
             )
             await refresh()
         } catch {
@@ -444,7 +430,7 @@ final class CodexRuntimeTabViewModel {
             .init(key: .active, value: activeAccountDisplayText(for: diagnostics)),
             .init(key: .running, value: "\(diagnostics.runtimeCount)"),
             .init(key: .binary, value: diagnostics.currentVersion ?? "-"),
-            .init(key: .pathActive, value: diagnostics.pathActive ? "true" : "false"),
+            .init(key: .pathActive, value: CodexRuntimeBuilders.booleanText(diagnostics.pathActive)),
             .init(key: .executable, value: diagnostics.resolvedExecutable ?? "-"),
             .init(key: .hint, value: diagnostics.probeHint ?? diagnostics.probeWarning ?? "-")
         ]
