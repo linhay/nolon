@@ -564,49 +564,17 @@ struct CodexBinaryConfigView: View {
         CodexBinaryStatusHeaderData(
             hasUpdateAvailable: viewModel.hasUpdateAvailable,
             statusText: viewModel.statusText(),
-            currentCLITitle: NSLocalizedString("codex.binary.cli_version", value: "Current CLI", comment: "Current CLI version"),
             currentCLIVersion: viewModel.currentCLIVersion,
             isSyncingRemoteVersions: viewModel.isSyncingRemoteVersions,
-            remoteVersionSyncFailed: viewModel.remoteVersionSyncFailed,
-            syncingText: NSLocalizedString("codex.binary.update.checking", value: "Checking updates...", comment: "Update status"),
-            failedText: NSLocalizedString("codex.binary.update.failed", value: "Update check failed", comment: "Update status")
+            remoteVersionSyncFailed: viewModel.remoteVersionSyncFailed
         )
     }
 
     private var actionBarData: CodexBinaryActionBarData {
         CodexBinaryActionBarData(
             primaryActionTitle: viewModel.primaryActionTitle,
-            checkUpdatesTitle: NSLocalizedString("codex.binary.check_updates", value: "Check Updates", comment: "Check updates"),
-            importLocalTitle: NSLocalizedString("codex.binary.import_local", value: "Import Local Binary", comment: "Import local"),
-            openGitHubTitle: NSLocalizedString("codex.binary.github", value: "Open GitHub Releases", comment: "Open GitHub releases"),
-            moreActionsTitle: NSLocalizedString("codex.binary.more_actions", value: "More", comment: "More actions"),
-            showBetaTitle: NSLocalizedString("codex.binary.beta.toggle", value: "Show beta versions", comment: "Show beta versions toggle"),
             isBusy: viewModel.isCheckingUpdates || viewModel.isDownloadingRemoteVersion,
             showBetaEnabled: viewModel.showBetaVersions
-        )
-    }
-
-    private func formatByteProgress(completed: Int64, total: Int64) -> String {
-        func formatBytes(_ value: Int64) -> String {
-            let kb: Double = 1024
-            let mb = kb * 1024
-            let gb = mb * 1024
-            let bytes = Double(value)
-            if bytes >= gb { return String(format: "%.1f GB", bytes / gb) }
-            if bytes >= mb { return String(format: "%.1f MB", bytes / mb) }
-            if bytes >= kb { return String(format: "%.1f KB", bytes / kb) }
-            return String(format: "%.0f B", bytes)
-        }
-        if total <= 0 {
-            return String(
-                format: NSLocalizedString("codex.binary.download.progress.single", value: "Downloaded %@", comment: "Download progress bytes without total"),
-                formatBytes(completed)
-            )
-        }
-        return String(
-            format: NSLocalizedString("codex.binary.download.progress", value: "%@ / %@", comment: "Download progress bytes"),
-            formatBytes(completed),
-            formatBytes(total)
         )
     }
 
@@ -621,7 +589,7 @@ struct CodexBinaryConfigView: View {
                    let progress = viewModel.remoteDownloadProgress,
                    let completed = progress.completedBytes,
                    let total = progress.totalBytes {
-                    progressText = formatByteProgress(completed: completed, total: total)
+                    progressText = CodexBinaryFormatters.byteProgressText(completed: completed, total: total)
                 } else {
                     progressText = nil
                 }
@@ -669,14 +637,7 @@ struct CodexBinaryConfigView: View {
             }
         }
 
-        return CodexBinaryVersionTableData(
-            nameTitle: NSLocalizedString("codex.binary.table.name", value: "Name", comment: "Version table name"),
-            versionTitle: NSLocalizedString("codex.binary.table.version", value: "Version", comment: "Version table version"),
-            sourceTitle: NSLocalizedString("codex.binary.table.source", value: "Source", comment: "Version table source"),
-            stateTitle: NSLocalizedString("codex.binary.table.state", value: "State", comment: "Version table state"),
-            actionsTitle: NSLocalizedString("codex.binary.table.actions", value: "Actions", comment: "Version table actions"),
-            rows: rows
-        )
+        return CodexBinaryVersionTableData(rows: rows)
     }
 
     private func handleVersionTableSelect(rowID: String) {
