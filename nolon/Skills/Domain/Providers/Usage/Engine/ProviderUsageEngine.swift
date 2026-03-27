@@ -1519,10 +1519,6 @@ final class ProviderUsageEngine {
         }
     }
 
-    func toggleCodexMultiSelectionMode() {
-        setCodexMultiSelectionEnabled(!isCodexMultiSelectionEnabled)
-    }
-
     func toggleCodexAccountSelection(id: UUID) {
         guard isCodexMultiSelectionEnabled else { return }
         selectedCodexAccountIDs = GenericSelectionStateResolver.resolveMultiSelection(
@@ -1600,10 +1596,6 @@ final class ProviderUsageEngine {
             state.lastUsedCardID = nil
         }
         updateGatewayCardsState(state)
-    }
-
-    func addAccountToGatewayCard(accountID: UUID, cardID: UUID) {
-        addAccountsToGatewayCard(accountIDs: [accountID], cardID: cardID)
     }
 
     func addAccountsToGatewayCard(accountIDs: [UUID], cardID: UUID) {
@@ -2460,10 +2452,6 @@ final class ProviderUsageEngine {
         pendingGeminiImportCandidate = nil
     }
 
-    func closeCLILoginSheet() {
-        cancelCLILoginIfNeeded()
-    }
-
     func handleLoginURLSheetDismissed() {
         guard isRunningCLILogin else { return }
         cancelCLILoginIfNeeded()
@@ -2808,14 +2796,10 @@ final class ProviderUsageEngine {
         return result
     }
 
-    private func selectedCodexAccountIDsInDisplayOrder() -> [UUID] {
+    func selectedCodexAccountIDsInDisplayOrder() -> [UUID] {
         codexAccounts
             .map(\.id)
             .filter { selectedCodexAccountIDs.contains($0) }
-    }
-
-    func selectedCodexAccountIDsInCurrentDisplayOrder() -> [UUID] {
-        selectedCodexAccountIDsInDisplayOrder()
     }
 
     private func updateGatewayCardsState(_ state: CodexGatewayCardsState) {

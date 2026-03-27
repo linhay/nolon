@@ -61,7 +61,7 @@ final class ProviderUsageAccountsViewModel {
         }
         var hasSelectedAccounts: Bool { !engine.selectedCodexAccountIDs.isEmpty }
         var selectedAccountIDsInDisplayOrder: [UUID] {
-            engine.selectedCodexAccountIDsInCurrentDisplayOrder()
+            engine.selectedCodexAccountIDsInDisplayOrder()
         }
         var selectedAccountCount: Int { engine.codexSelectedAccountCount }
         var pendingActivateAccount: CodexAuthAccount? {
@@ -278,7 +278,7 @@ final class ProviderUsageAccountsViewModel {
         }
 
         func toggleMultiSelectionMode() {
-            engine.toggleCodexMultiSelectionMode()
+            engine.setCodexMultiSelectionEnabled(!engine.isCodexMultiSelectionEnabled)
         }
 
         func setHideZeroQuotaAccounts(_ hidden: Bool) {
