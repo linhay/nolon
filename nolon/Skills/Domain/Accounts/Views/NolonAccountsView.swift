@@ -202,8 +202,8 @@ struct NolonAccountsView: View, DebugPageLocatable {
 
     private func sectionHeaderData(_ section: ProviderPresentationSections.ProviderSection) -> AccountSectionHeaderData {
         let title = NSLocalizedString(section.titleKey, value: section.fallbackTitle, comment: "Account provider section")
-        let shortLabel = String(title.prefix(1)).uppercased()
-        let countText = "\(section.providers.count) \(NSLocalizedString("accounts.section.accounts", value: "accounts", comment: "accounts unit"))"
+        let shortLabel = AccountSectionHeaderBuilders.shortLabel(from: title)
+        let countText = AccountSectionHeaderBuilders.accountCountText(section.providers.count)
         let tone: AccountSectionHeaderData.SectionTone
         switch section.id {
         case .originalVendors:
