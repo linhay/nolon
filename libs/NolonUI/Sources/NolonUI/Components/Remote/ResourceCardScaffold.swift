@@ -9,7 +9,6 @@ public enum ResourceCardMetaItem: Equatable, Sendable {
 }
 
 struct ResourceCardScaffold<HeaderContent: View, SummaryContent: View, MetaContent: View, ActionContent: View, MenuContent: View>: View {
-    @State private var viewModel = ResourceCardScaffoldViewModel()
     let minHeight: CGFloat
     let isSelected: Bool
     let onTap: () -> Void
@@ -40,53 +39,32 @@ struct ResourceCardScaffold<HeaderContent: View, SummaryContent: View, MetaConte
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .center) {
-                headerContent
-                Spacer()
-                moreMenu
-            }
+        UnifiedCardContainerView(
+            minHeight: minHeight,
+            contentPadding: 16,
+            style: .resource(isSelected: isSelected),
+            onTap: onTap
+        ) {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(alignment: .center) {
+                    headerContent
+                    Spacer()
+                    moreMenu
+                }
 
-            summaryContent
+                summaryContent
 
-            HStack(alignment: .center) {
-                metaContent
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .layoutPriority(0)
-                Spacer()
-                actionContent
-                    .fixedSize(horizontal: true, vertical: false)
-                    .layoutPriority(2)
+                HStack(alignment: .center) {
+                    metaContent
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .layoutPriority(0)
+                    Spacer()
+                    actionContent
+                        .fixedSize(horizontal: true, vertical: false)
+                        .layoutPriority(2)
+                }
             }
-        }
-        .padding(16)
-        .frame(minHeight: minHeight)
-        .dsCard(
-            background: isSelected
-                ? DesignSystem.Colors.primary.opacity(0.10)
-                : DesignSystem.Colors.Background.elevated,
-            borderColor: isSelected
-                ? DesignSystem.Colors.primary
-                : (viewModel.isHovered
-                    ? DesignSystem.Colors.primary.opacity(0.24)
-                    : DesignSystem.Colors.Component.border.opacity(0.60)),
-            borderWidth: isSelected ? 2 : 1
-        )
-        .contentShape(Rectangle())
-        .shadow(
-            color: DesignSystem.Colors.Shadow.floating.opacity(viewModel.isHovered ? 0.28 : 0.18),
-            radius: viewModel.isHovered ? 12 : 7,
-            y: viewModel.isHovered ? 6 : 3
-        )
-        .scaleEffect(viewModel.isHovered ? 1.015 : 1.0)
-        .animation(.easeInOut(duration: 0.2), value: viewModel.isHovered)
-        .onHover { hovering in
-            viewModel.isHovered = hovering
-        }
-        .onTapGesture {
-            onTap()
-        }
-        .contextMenu {
+        } menuContent: {
             menuContent
         }
     }

@@ -7,7 +7,6 @@ public struct ProviderCardTemplate<
     ActionContent: View,
     ContextMenuContent: View
 >: View {
-    @State private var viewModel = ProviderCardTemplateViewModel()
     private let minHeight: CGFloat
     private let isSelected: Bool
     private let showsActionDivider: Bool
@@ -41,28 +40,22 @@ public struct ProviderCardTemplate<
     }
 
     public var body: some View {
-        if let onTap {
-            cardBody.onTapGesture(perform: onTap)
-        } else {
-            cardBody
-        }
-    }
-
-    private var cardBody: some View {
-        VStack(alignment: .leading, spacing: DesignSystem.Metrics.spacingM) {
-            headerContent()
-            bodyContent()
-            footerContent()
-            if showsActionDivider {
-                Divider()
+        UnifiedCardContainerView(
+            minHeight: minHeight,
+            contentPadding: DesignSystem.Metrics.spacingL,
+            style: .provider(isSelected: isSelected),
+            onTap: onTap
+        ) {
+            VStack(alignment: .leading, spacing: DesignSystem.Metrics.spacingM) {
+                headerContent()
+                bodyContent()
+                footerContent()
+                if showsActionDivider {
+                    Divider()
+                }
+                actionContent()
             }
-            actionContent()
-        }
-        .padding(DesignSystem.Metrics.spacingL)
-        .frame(maxWidth: .infinity, minHeight: minHeight, alignment: .topLeading)
-        .providerTabCardStyle(isSelected: isSelected)
-        .contentShape(Rectangle())
-        .contextMenu {
+        } menuContent: {
             contextMenuContent()
         }
     }
