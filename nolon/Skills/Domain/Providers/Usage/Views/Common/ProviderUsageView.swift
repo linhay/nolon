@@ -583,7 +583,10 @@ extension ProviderUsageView {
                             cards: cards.map(\.data),
                             isLoading: false,
                             columns: claudeAccountColumns,
-                            layoutMode: viewModel.shouldUseCompactUnifiedListRows(accountCount: cards.count) ? .list : .cards,
+                            layoutMode: ProviderUsageSubViewModels.shouldUseCompactUnifiedListRows(
+                                layoutMode: viewModel.accountLayoutMode,
+                                accountCount: cards.count
+                            ) ? .list : .cards,
                             onTap: { cardData in
                                 guard let card = cards.first(where: { $0.data.id == cardData.id }) else { return }
                                 Task { await card.onTap() }
@@ -825,7 +828,13 @@ extension ProviderUsageView {
                     .controlSize(.small)
                 }
 
-                ForEach(viewModel.codex.visiblePrimaryHeaderActions(), id: \.id) { action in
+                ForEach(
+                    ProviderUsageSubViewModels.CodexState.visiblePrimaryHeaderActions(
+                        from: viewModel.codex.primaryHeaderActions,
+                        isMultiSelectionEnabled: viewModel.codex.isMultiSelectionEnabled
+                    ),
+                    id: \.id
+                ) { action in
                     headerActionButton(action)
                         .buttonStyle(.bordered)
                         .controlSize(.small)
@@ -1799,7 +1808,9 @@ extension ProviderUsageView {
 
             Divider()
 
-            if viewModel.codex.shouldShowActivateGatewayContextAction(isActiveGateway: isActiveGateway) {
+            if ProviderUsageSubViewModels.CodexState.shouldShowActivateGatewayContextAction(
+                isActiveGateway: isActiveGateway
+            ) {
                 Button {
                     handleGatewayCardSelection(cardID: card.id)
                 } label: {

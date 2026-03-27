@@ -140,19 +140,8 @@ final class ProviderUsageAccountsViewModel {
             return Array(actions.prefix(2))
         }
 
-        func visiblePrimaryHeaderActions() -> [ProviderUsageEngine.CodexPrimaryHeaderAction] {
-            Self.visiblePrimaryHeaderActions(
-                from: primaryHeaderActions,
-                isMultiSelectionEnabled: isMultiSelectionEnabled
-            )
-        }
-
         static func shouldShowActivateGatewayContextAction(isActiveGateway: Bool) -> Bool {
             !isActiveGateway
-        }
-
-        func shouldShowActivateGatewayContextAction(isActiveGateway: Bool) -> Bool {
-            Self.shouldShowActivateGatewayContextAction(isActiveGateway: isActiveGateway)
         }
 
         static func usesCompactListRows(layoutMode: ProviderUsageEngine.CodexAccountLayoutMode) -> Bool {
@@ -502,13 +491,6 @@ final class ProviderUsageAccountsViewModel {
         accountCount: Int
     ) -> Bool {
         layoutMode == .list && accountCount > 0
-    }
-
-    func shouldUseCompactUnifiedListRows(accountCount: Int) -> Bool {
-        Self.shouldUseCompactUnifiedListRows(
-            layoutMode: accountLayoutMode,
-            accountCount: accountCount
-        )
     }
 
 }
