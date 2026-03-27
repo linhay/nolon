@@ -88,23 +88,20 @@ struct AddRepositorySheet: View {
 
     private var templateDetailData: RepositoryTemplateDetailData {
         let provider = RemoteRepository.detectProvider(from: viewModel.newGitURL) ?? .github
+        let templateKind: RepositoryEditorTemplateKind = switch viewModel.selectedTemplate {
+        case .clawdhub:
+            .clawdhub
+        case .localFolder:
+            .localFolder
+        case .git, .globalSkills:
+            .git
+        }
         return RepositoryTemplateDetailData(
-            templateKind: templateKind(from: viewModel.selectedTemplate),
+            templateKind: templateKind,
             clawdhubBaseURL: viewModel.selectedTemplate.defaultBaseURL,
             localFolderDisplayText: viewModel.newLocalPath,
             gitProviderDisplayName: provider.displayName,
             gitProviderLogoName: provider.logoName
         )
-    }
-
-    private func templateKind(from template: RepositoryTemplate) -> RepositoryEditorTemplateKind {
-        switch template {
-        case .clawdhub:
-            return .clawdhub
-        case .localFolder:
-            return .localFolder
-        case .git, .globalSkills:
-            return .git
-        }
     }
 }
