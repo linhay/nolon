@@ -56,16 +56,6 @@ final class ProviderSidebarViewModel {
     }
 
     @MainActor
-    func deleteProviders(at offsets: IndexSet) {
-        settings.removeProvider(at: offsets)
-    }
-
-    @MainActor
-    func moveProviders(from source: IndexSet, to destination: Int) {
-        settings.moveProvider(from: source, to: destination)
-    }
-
-    @MainActor
     func moveProviders<Value: Equatable>(
         in keyPath: KeyPath<Provider, Value>,
         matching value: Value,
@@ -186,7 +176,7 @@ public struct ProviderSidebarView: View, DebugPageLocatable {
                         idsToDelete.contains(provider.id) ? index : nil
                     }
                 )
-                viewModel.deleteProviders(at: originalIndices)
+                settings.removeProvider(at: originalIndices)
             },
             onMove: { section, source, destination in
                 switch section.id {
