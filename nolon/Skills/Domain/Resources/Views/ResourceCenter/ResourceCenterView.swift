@@ -124,18 +124,6 @@ struct ResourceCenterView: View, DebugPageLocatable {
         }
     }
 
-    private func executeUITestGlobalSkillDelete(slug: String) {
-        executeUITestDelete(slug: slug, resourceType: .skill)
-    }
-
-    private func executeUITestGlobalWorkflowDelete(slug: String) {
-        executeUITestDelete(slug: slug, resourceType: .workflow)
-    }
-
-    private func executeUITestGlobalMCPDelete(slug: String) {
-        executeUITestDelete(slug: slug, resourceType: .mcp)
-    }
-
     private func executeUITestProviderSkillDelete(slug: String, providerIndex: Int) {
         guard let onRegisterDeleteRequest, let onMakeDeleteRequestExecutor else { return }
         Task {
@@ -232,11 +220,11 @@ struct ResourceCenterView: View, DebugPageLocatable {
     private func handleUITestActionTap(_ action: ResourceCenterUITestActionData) {
         switch action.kind {
         case .deleteGlobalSkill:
-            executeUITestGlobalSkillDelete(slug: action.slug)
+            executeUITestDelete(slug: action.slug, resourceType: .skill)
         case .deleteGlobalWorkflow:
-            executeUITestGlobalWorkflowDelete(slug: action.slug)
+            executeUITestDelete(slug: action.slug, resourceType: .workflow)
         case .deleteGlobalMCP:
-            executeUITestGlobalMCPDelete(slug: action.slug)
+            executeUITestDelete(slug: action.slug, resourceType: .mcp)
         case .deleteProviderSkill:
             guard let providerIndex = action.providerIndex else { return }
             executeUITestProviderSkillDelete(slug: action.slug, providerIndex: providerIndex)
