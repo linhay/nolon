@@ -85,3 +85,51 @@ public struct WorkflowInfo: Identifiable, Hashable, Sendable, Codable {
         self.source = source
     }
 }
+
+public enum ProviderSkillCardState: String, CaseIterable, Sendable, Codable, Hashable {
+    case installed
+    case orphaned
+    case broken
+}
+
+public struct ProviderSkillCardInfo: Identifiable, Hashable, Sendable, Codable {
+    public var id: String { path }
+    public let skillName: String
+    public let state: ProviderSkillCardState
+    public let path: String
+
+    public init(skillName: String, state: ProviderSkillCardState, path: String) {
+        self.skillName = skillName
+        self.state = state
+        self.path = path
+    }
+}
+
+public struct SkillRowInfo: Identifiable, Hashable, Sendable, Codable {
+    public var id: String { globalPath }
+    public let name: String
+    public let description: String
+    public let isInstalled: Bool
+    public let version: String
+    public let globalPath: String
+    public let referenceCount: Int
+    public let scriptCount: Int
+
+    public init(
+        name: String,
+        description: String,
+        isInstalled: Bool,
+        version: String,
+        globalPath: String,
+        referenceCount: Int,
+        scriptCount: Int
+    ) {
+        self.name = name
+        self.description = description
+        self.isInstalled = isInstalled
+        self.version = version
+        self.globalPath = globalPath
+        self.referenceCount = referenceCount
+        self.scriptCount = scriptCount
+    }
+}

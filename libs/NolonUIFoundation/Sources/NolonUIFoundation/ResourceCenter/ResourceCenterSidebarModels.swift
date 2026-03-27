@@ -8,6 +8,19 @@ public enum ResourceCenterTabID: String, CaseIterable, Codable, Hashable, Sendab
     public var id: Self { self }
 }
 
+public extension ResourceCenterTabID {
+    var localizedName: String {
+        switch self {
+        case .skills:
+            return NSLocalizedString("tab.skills", value: "Skills", comment: "Skills tab title")
+        case .workflows:
+            return NSLocalizedString("tab.workflows", value: "Workflows", comment: "Workflows tab title")
+        case .mcps:
+            return NSLocalizedString("tab.mcps", value: "MCPs", comment: "MCPs tab title")
+        }
+    }
+}
+
 public struct ResourceCenterTabItem: Codable, Hashable, Sendable, Identifiable {
     public let id: ResourceCenterTabID
     public let titleKey: String
