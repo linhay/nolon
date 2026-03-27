@@ -215,7 +215,12 @@ public actor GitRepository: RemoteResourceRepository {
         }
 
         // Initialize local folder repository after sync
-        localFolderRepo = makeLocalFolderRepository()
+        localFolderRepo = Self.makeLocalFolderRepository(
+            id: id,
+            name: name,
+            localClonePath: localClonePath,
+            skillsPaths: skillsPaths
+        )
 
         return true
     }
@@ -339,7 +344,12 @@ public actor GitRepository: RemoteResourceRepository {
             )
         }
 
-        localFolderRepo = makeLocalFolderRepository()
+        localFolderRepo = Self.makeLocalFolderRepository(
+            id: id,
+            name: name,
+            localClonePath: localClonePath,
+            skillsPaths: skillsPaths
+        )
 
         let watchPaths = resolveBasePaths(from: skillsPaths)
         await MainActor.run {
@@ -368,15 +378,6 @@ public actor GitRepository: RemoteResourceRepository {
             }
             return path == "." ? localClonePath.path : localClonePath.appendingPathComponent(path).path
         }
-    }
-
-    private func makeLocalFolderRepository() -> LocalFolderRepository {
-        Self.makeLocalFolderRepository(
-            id: id,
-            name: name,
-            localClonePath: localClonePath,
-            skillsPaths: skillsPaths
-        )
     }
 
     private static func makeLocalFolderRepository(
