@@ -880,7 +880,7 @@ extension ProviderUsageView {
 
             Section {
                 Picker(selection: autoRefreshIntervalBinding) {
-                    ForEach(UsageAutoRefreshInterval.allCases) { option in
+                    ForEach(ProviderUsageAutoRefreshInterval.allCases) { option in
                         Text(option.title).tag(option.rawValue)
                     }
                 } label: {

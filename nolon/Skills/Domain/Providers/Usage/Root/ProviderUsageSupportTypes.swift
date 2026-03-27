@@ -29,21 +29,6 @@ extension ProviderSourceMode {
     }
 }
 
-enum UsageAutoRefreshInterval: Int, CaseIterable, Identifiable {
-    case off = 0
-    case fiveMinutes = 5
-    case fifteenMinutes = 15
-    case thirtyMinutes = 30
-    case twoHours = 120
-    case fiveHours = 300
-
-    var id: Int { rawValue }
-
-    var title: String {
-        ProviderUsageTextBuilders.autoRefreshTitle(minutes: rawValue)
-    }
-}
-
 typealias UsageIssueCode = ProviderUsageIssueCode
 
 enum UsageIssueClassifier {
