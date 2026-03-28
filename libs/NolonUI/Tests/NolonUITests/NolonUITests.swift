@@ -79,11 +79,20 @@ final class NolonUITests: XCTestCase {
         XCTAssertEqual(SkillDetailScaffoldMetrics.closeButtonPadding, 16)
     }
 
-    func testThreeColumnSidebarWidth_StoresExpectedValues() {
-        let width = ThreeColumnSidebarWidth(min: 200, ideal: 220, max: 240)
+    func testSplitLayoutColumnWidth_StoresExpectedValues() {
+        let width = SplitLayoutColumnWidth(min: 200, ideal: 220, max: 240)
         XCTAssertEqual(width.min, 200)
         XCTAssertEqual(width.ideal, 220)
         XCTAssertEqual(width.max, 240)
+    }
+
+    func testSplitLayoutProfiles_ExposeExpectedModes() {
+        XCTAssertEqual(SplitLayoutProfiles.main.mode, .threeColumn)
+        XCTAssertEqual(SplitLayoutProfiles.accounts.mode, .twoColumn)
+        XCTAssertEqual(SplitLayoutProfiles.skillDetail.mode, .twoColumn)
+        XCTAssertEqual(SplitLayoutProfiles.settings.mode, .twoColumn)
+        XCTAssertEqual(SplitLayoutProfiles.resourceCenter(isTwoColumn: true).mode, .twoColumn)
+        XCTAssertEqual(SplitLayoutProfiles.resourceCenter(isTwoColumn: false).mode, .threeColumn)
     }
 
     func testMcpServerCardCacheState_ContainsExpectedStates() {

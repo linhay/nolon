@@ -10,12 +10,42 @@ public struct MainSplitScaffold<
     MainLayout: View,
     Overlay: View
 >: View {
+    public struct Config {
+        public var isAccountsSelected: Bool
+        public var showsOverlay: Bool
+        public var accountsLayout: () -> AccountsLayout
+        public var mainLayout: () -> MainLayout
+        public var overlay: () -> Overlay
+
+        public init(
+            isAccountsSelected: Bool,
+            showsOverlay: Bool,
+            @ViewBuilder accountsLayout: @escaping () -> AccountsLayout,
+            @ViewBuilder mainLayout: @escaping () -> MainLayout,
+            @ViewBuilder overlay: @escaping () -> Overlay
+        ) {
+            self.isAccountsSelected = isAccountsSelected
+            self.showsOverlay = showsOverlay
+            self.accountsLayout = accountsLayout
+            self.mainLayout = mainLayout
+            self.overlay = overlay
+        }
+    }
+
     @State private var viewModel = MainSplitScaffoldViewModel()
     private let isAccountsSelected: Bool
     private let showsOverlay: Bool
     private let accountsLayout: () -> AccountsLayout
     private let mainLayout: () -> MainLayout
     private let overlay: () -> Overlay
+
+    public init(config: Config) {
+        self.isAccountsSelected = config.isAccountsSelected
+        self.showsOverlay = config.showsOverlay
+        self.accountsLayout = config.accountsLayout
+        self.mainLayout = config.mainLayout
+        self.overlay = config.overlay
+    }
 
     public init(
         isAccountsSelected: Bool,
@@ -24,11 +54,15 @@ public struct MainSplitScaffold<
         @ViewBuilder mainLayout: @escaping () -> MainLayout,
         @ViewBuilder overlay: @escaping () -> Overlay
     ) {
-        self.isAccountsSelected = isAccountsSelected
-        self.showsOverlay = showsOverlay
-        self.accountsLayout = accountsLayout
-        self.mainLayout = mainLayout
-        self.overlay = overlay
+        self.init(
+            config: Config(
+                isAccountsSelected: isAccountsSelected,
+                showsOverlay: showsOverlay,
+                accountsLayout: accountsLayout,
+                mainLayout: mainLayout,
+                overlay: overlay
+            )
+        )
     }
 
     public var body: some View {
@@ -47,38 +81,4 @@ public struct MainSplitScaffold<
         }
         .animation(.easeInOut(duration: MainSplitScaffoldMetrics.overlayAnimationDuration), value: showsOverlay)
     }
-}
-
-@MainActor
-private struct MainSplitScaffoldPreviewContainer: View {
-    @State private var isAccountsSelected = false
-    @State private var showsOverlay = true
-
-    var body: some View {
-        MainSplitScaffold(
-            isAccountsSelected: isAccountsSelected,
-            showsOverlay: showsOverlay
-        ) {
-            Text("Accounts Layout")
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-        } mainLayout: {
-            Text("Main Layout")
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-        } overlay: {
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(.ultraThinMaterial)
-                .frame(width: 380, height: 200)
-        }
-        .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                Button("Toggle Overlay") {
-                    showsOverlay.toggle()
-                }
-            }
-        }
-    }
-}
-
-#Preview("Main Split Scaffold") {
-    MainSplitScaffoldPreviewContainer()
 }

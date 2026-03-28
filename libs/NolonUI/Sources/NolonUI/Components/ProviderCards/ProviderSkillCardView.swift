@@ -2,6 +2,34 @@ import SwiftUI
 import NolonUIFoundation
 
 public struct ProviderSkillCardView: View {
+    public struct Config {
+        public var state: ProviderSkillCardInfo
+        public var hasUpdate: Bool
+        public var onUninstall: () async -> Void
+        public var onMigrate: () async -> Void
+        public var onRepair: () async -> Void
+        public var onDelete: () async -> Void
+        public var onUpdate: () async -> Void
+
+        public init(
+            state: ProviderSkillCardInfo,
+            hasUpdate: Bool,
+            onUninstall: @escaping () async -> Void,
+            onMigrate: @escaping () async -> Void,
+            onRepair: @escaping () async -> Void,
+            onDelete: @escaping () async -> Void,
+            onUpdate: @escaping () async -> Void
+        ) {
+            self.state = state
+            self.hasUpdate = hasUpdate
+            self.onUninstall = onUninstall
+            self.onMigrate = onMigrate
+            self.onRepair = onRepair
+            self.onDelete = onDelete
+            self.onUpdate = onUpdate
+        }
+    }
+
     @State private var viewModel = ProviderSkillCardViewViewModel()
     private let state: ProviderSkillCardInfo
     private let hasUpdate: Bool
@@ -14,6 +42,16 @@ public struct ProviderSkillCardView: View {
     @State private var showingDeleteConfirmation = false
     @State private var isHovered = false
 
+    public init(config: Config) {
+        self.state = config.state
+        self.hasUpdate = config.hasUpdate
+        self.onUninstall = config.onUninstall
+        self.onMigrate = config.onMigrate
+        self.onRepair = config.onRepair
+        self.onDelete = config.onDelete
+        self.onUpdate = config.onUpdate
+    }
+
     public init(
         state: ProviderSkillCardInfo,
         hasUpdate: Bool,
@@ -23,13 +61,17 @@ public struct ProviderSkillCardView: View {
         onDelete: @escaping () async -> Void,
         onUpdate: @escaping () async -> Void
     ) {
-        self.state = state
-        self.hasUpdate = hasUpdate
-        self.onUninstall = onUninstall
-        self.onMigrate = onMigrate
-        self.onRepair = onRepair
-        self.onDelete = onDelete
-        self.onUpdate = onUpdate
+        self.init(
+            config: Config(
+                state: state,
+                hasUpdate: hasUpdate,
+                onUninstall: onUninstall,
+                onMigrate: onMigrate,
+                onRepair: onRepair,
+                onDelete: onDelete,
+                onUpdate: onUpdate
+            )
+        )
     }
 
     public var body: some View {
@@ -209,22 +251,4 @@ public struct ProviderSkillCardView: View {
             Spacer()
         }
     }
-}
-
-#Preview {
-    ProviderSkillCardView(
-        state: ProviderSkillCardInfo(
-            skillName: "swiftui-patterns",
-            state: .orphaned,
-            path: "/tmp/swiftui-patterns"
-        ),
-        hasUpdate: true,
-        onUninstall: {},
-        onMigrate: {},
-        onRepair: {},
-        onDelete: {},
-        onUpdate: {}
-    )
-    .frame(width: 280)
-    .padding(16)
 }

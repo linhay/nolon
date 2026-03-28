@@ -641,7 +641,7 @@ public final class SidebarColumnScaffoldViewModel {
 }
 
 @Observable
-public final class ThreeColumnScaffoldViewModel {
+public final class SplitLayoutScaffoldViewModel {
     public init() {}
 }
 

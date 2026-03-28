@@ -10,10 +10,36 @@ public struct ToastView: View {
     var systemImage: String?
     var style: Style = .neutral
 
+    public struct Config {
+        public var text: String
+        public var systemImage: String?
+        public var style: Style
+
+        public init(
+            text: String,
+            systemImage: String? = nil,
+            style: Style = .neutral
+        ) {
+            self.text = text
+            self.systemImage = systemImage
+            self.style = style
+        }
+    }
+
+    public init(config: Config) {
+        self.text = config.text
+        self.systemImage = config.systemImage
+        self.style = config.style
+    }
+
     public init(text: String, systemImage: String? = nil, style: Style = .neutral) {
-        self.text = text
-        self.systemImage = systemImage
-        self.style = style
+        self.init(
+            config: Config(
+                text: text,
+                systemImage: systemImage,
+                style: style
+            )
+        )
     }
 
     public static func copied() -> ToastView {

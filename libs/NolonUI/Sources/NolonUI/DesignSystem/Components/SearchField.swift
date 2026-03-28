@@ -8,16 +8,46 @@ public struct SearchField: View {
 
     @FocusState private var isFocused: Bool
 
+    public struct Config {
+        public var placeholder: String
+        public var text: Binding<String>
+        public var width: CGFloat?
+        public var showSearching: Bool
+
+        public init(
+            placeholder: String,
+            text: Binding<String>,
+            width: CGFloat? = nil,
+            showSearching: Bool = false
+        ) {
+            self.placeholder = placeholder
+            self.text = text
+            self.width = width
+            self.showSearching = showSearching
+        }
+    }
+
+    public init(config: Config) {
+        self.placeholder = config.placeholder
+        self._text = config.text
+        self.width = config.width
+        self.showSearching = config.showSearching
+    }
+
     public init(
         placeholder: String,
         text: Binding<String>,
         width: CGFloat? = nil,
         showSearching: Bool = false
     ) {
-        self.placeholder = placeholder
-        self._text = text
-        self.width = width
-        self.showSearching = showSearching
+        self.init(
+            config: Config(
+                placeholder: placeholder,
+                text: text,
+                width: width,
+                showSearching: showSearching
+            )
+        )
     }
 
     public var body: some View {

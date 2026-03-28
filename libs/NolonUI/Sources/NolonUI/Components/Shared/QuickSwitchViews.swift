@@ -6,14 +6,40 @@ public struct QuickSwitchHeaderView: View {
     let onSelectProvider: (String) -> Void
     let onRefresh: () -> Void
 
+    public struct Config {
+        public var data: QuickSwitchHeaderData
+        public var onSelectProvider: (String) -> Void
+        public var onRefresh: () -> Void
+
+        public init(
+            data: QuickSwitchHeaderData,
+            onSelectProvider: @escaping (String) -> Void,
+            onRefresh: @escaping () -> Void
+        ) {
+            self.data = data
+            self.onSelectProvider = onSelectProvider
+            self.onRefresh = onRefresh
+        }
+    }
+
+    public init(config: Config) {
+        self.data = config.data
+        self.onSelectProvider = config.onSelectProvider
+        self.onRefresh = config.onRefresh
+    }
+
     public init(
         data: QuickSwitchHeaderData,
         onSelectProvider: @escaping (String) -> Void,
         onRefresh: @escaping () -> Void
     ) {
-        self.data = data
-        self.onSelectProvider = onSelectProvider
-        self.onRefresh = onRefresh
+        self.init(
+            config: Config(
+                data: data,
+                onSelectProvider: onSelectProvider,
+                onRefresh: onRefresh
+            )
+        )
     }
 
     public var body: some View {
@@ -94,8 +120,20 @@ public struct QuickSwitchSectionHeaderView: View {
 
     let title: String
 
+    public struct Config {
+        public var title: String
+
+        public init(title: String) {
+            self.title = title
+        }
+    }
+
+    public init(config: Config) {
+        self.title = config.title
+    }
+
     public init(title: String) {
-        self.title = title
+        self.init(config: Config(title: title))
     }
 
     public init(preset: Preset) {
@@ -127,6 +165,28 @@ public struct QuickSwitchEmptyStateView: View {
     let title: String
     let systemImage: String
 
+    public struct Config {
+        public var title: String
+        public var systemImage: String
+
+        public init(
+            title: String = NSLocalizedString(
+                "quickswitch.empty.title",
+                value: "暂无可用账号",
+                comment: "Quick switch empty state title"
+            ),
+            systemImage: String = "person.crop.circle.badge.questionmark"
+        ) {
+            self.title = title
+            self.systemImage = systemImage
+        }
+    }
+
+    public init(config: Config) {
+        self.title = config.title
+        self.systemImage = config.systemImage
+    }
+
     public init(
         title: String = NSLocalizedString(
             "quickswitch.empty.title",
@@ -135,8 +195,7 @@ public struct QuickSwitchEmptyStateView: View {
         ),
         systemImage: String = "person.crop.circle.badge.questionmark"
     ) {
-        self.title = title
-        self.systemImage = systemImage
+        self.init(config: Config(title: title, systemImage: systemImage))
     }
 
     public var body: some View {
@@ -159,12 +218,29 @@ public struct QuickSwitchAccountCardView: View {
 
     @State private var isHovered = false
 
+    public struct Config {
+        public var data: QuickSwitchAccountCardData
+        public var onTap: () -> Void
+
+        public init(
+            data: QuickSwitchAccountCardData,
+            onTap: @escaping () -> Void
+        ) {
+            self.data = data
+            self.onTap = onTap
+        }
+    }
+
+    public init(config: Config) {
+        self.data = config.data
+        self.onTap = config.onTap
+    }
+
     public init(
         data: QuickSwitchAccountCardData,
         onTap: @escaping () -> Void
     ) {
-        self.data = data
-        self.onTap = onTap
+        self.init(config: Config(data: data, onTap: onTap))
     }
 
     public var body: some View {
@@ -297,6 +373,34 @@ public struct QuickSwitchExhaustedGroupView<Content: View>: View {
     @Binding var isExpanded: Bool
     let content: () -> Content
 
+    public struct Config {
+        public var title: String
+        public var count: Int
+
+        public init(
+            title: String = NSLocalizedString(
+                "quickswitch.exhausted.title",
+                value: "已耗尽账号",
+                comment: "Quick switch exhausted section title"
+            ),
+            count: Int
+        ) {
+            self.title = title
+            self.count = count
+        }
+    }
+
+    public init(
+        isExpanded: Binding<Bool>,
+        config: Config,
+        @ViewBuilder content: @escaping () -> Content
+    ) {
+        self.title = config.title
+        self.count = config.count
+        self._isExpanded = isExpanded
+        self.content = content
+    }
+
     public init(
         title: String = NSLocalizedString(
             "quickswitch.exhausted.title",
@@ -307,10 +411,11 @@ public struct QuickSwitchExhaustedGroupView<Content: View>: View {
         isExpanded: Binding<Bool>,
         @ViewBuilder content: @escaping () -> Content
     ) {
-        self.title = title
-        self.count = count
-        self._isExpanded = isExpanded
-        self.content = content
+        self.init(
+            isExpanded: isExpanded,
+            config: Config(title: title, count: count),
+            content: content
+        )
     }
 
     public var body: some View {
@@ -355,14 +460,40 @@ public struct QuickSwitchFooterToolbarView: View {
     let onTapAction: (String) -> Void
     let onTapQuit: () -> Void
 
+    public struct Config {
+        public var data: QuickSwitchFooterData
+        public var onTapAction: (String) -> Void
+        public var onTapQuit: () -> Void
+
+        public init(
+            data: QuickSwitchFooterData,
+            onTapAction: @escaping (String) -> Void,
+            onTapQuit: @escaping () -> Void
+        ) {
+            self.data = data
+            self.onTapAction = onTapAction
+            self.onTapQuit = onTapQuit
+        }
+    }
+
+    public init(config: Config) {
+        self.data = config.data
+        self.onTapAction = config.onTapAction
+        self.onTapQuit = config.onTapQuit
+    }
+
     public init(
         data: QuickSwitchFooterData,
         onTapAction: @escaping (String) -> Void,
         onTapQuit: @escaping () -> Void
     ) {
-        self.data = data
-        self.onTapAction = onTapAction
-        self.onTapQuit = onTapQuit
+        self.init(
+            config: Config(
+                data: data,
+                onTapAction: onTapAction,
+                onTapQuit: onTapQuit
+            )
+        )
     }
 
     public var body: some View {
