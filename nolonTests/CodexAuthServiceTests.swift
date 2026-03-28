@@ -24,14 +24,17 @@ actor AsyncGate {
 
 @MainActor
 final class CodexAuthManagerTests: XCTestCase {
-    func testBDD_GivenRealCodexAccount_WhenStoringUsageCache_ThenUsageCacheIsPersisted() async throws {
-        let service = CodexAuthManager()
-        let accounts = try await service.loadAccounts()
-        if accounts.isEmpty {
-            throw XCTSkip("No codex accounts found under ~/.nolon/codex/auth")
-        }
+    func testBDD_GivenIsolatedCodexAccount_WhenStoringUsageCache_ThenUsageCacheIsPersisted() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codex-auth-usage-cache-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
 
-        let account = accounts[0]
+        let service = CodexAuthManager(rootURL: root)
+        let account = try await service.addAccount(
+            name: "isolated",
+            authJSONString: #"{"tokens":{"id_token":"id-token","access_token":"access-token"},"user":{"email":"isolated@example.com"}}"#
+        )
         let file = await service.accountAuthFile(account)
         let fileURL = file.url
         let originalData = try Data(contentsOf: fileURL)

@@ -7,6 +7,7 @@ import ProvidersShared
 
 public actor CodexBinaryManager {
     public static let shared = CodexBinaryManager()
+    public typealias DownloadProgressHandler = @MainActor @Sendable (CodexDownloadProgress) -> Void
 
     private static let logger = Logger(subsystem: "com.nolon", category: "CodexBinaryManager")
     private static let pathMarkerStart = "# >>> Nolon Codex PATH >>>"
@@ -217,7 +218,7 @@ public actor CodexBinaryManager {
     public func downloadAndImport(
         from downloadURL: URL,
         displayName: String? = nil,
-        progress: ((CodexDownloadProgress) -> Void)? = nil
+        progress: DownloadProgressHandler? = nil
     ) async throws -> ManagedCodexVersion {
         let (tmpURL, response) = try await downloadFile(from: downloadURL, progress: progress)
         return try await importDownloadedFile(
@@ -228,7 +229,7 @@ public actor CodexBinaryManager {
         )
     }
 
-    private func downloadFile(from downloadURL: URL, progress: ((CodexDownloadProgress) -> Void)?) async throws -> (URL, URLResponse) {
+    private func downloadFile(from downloadURL: URL, progress: DownloadProgressHandler?) async throws -> (URL, URLResponse) {
         final class DownloadObservationBox: @unchecked Sendable {
             var observation: NSKeyValueObservation?
         }

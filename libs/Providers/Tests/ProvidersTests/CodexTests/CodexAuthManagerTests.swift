@@ -1028,6 +1028,34 @@ struct CodexAuthManagerTests {
         #expect(providerAuth.isSymbolicLink == true)
     }
 
+    @Test("Given snapshot folder contains non-importable files, when loading accounts then those files are pruned")
+    func loadAccountsPrunesNonImportableSnapshotFiles() async throws {
+        let root = try makeTempRoot("codex-auth-load-prune-non-importable")
+        defer { try? root.delete() }
+
+        let manager = CodexAuthManager(rootURL: root.url)
+        let authFolder = manager.nolonCodexAuthFolder()
+        _ = authFolder.createIfNotExists()
+
+        let activeFile = authFolder.file("active.json")
+        try #"{"email":"active@example.com","nolon":{"account":{"relativeAuthPath":"auth/active.json"}}}"#
+            .write(to: activeFile.url, atomically: true, encoding: .utf8)
+        let testFile = authFolder.file("test.json")
+        try #"{"nolon":{"account":{"relativeAuthPath":"auth/test.json"}}}"#
+            .write(to: testFile.url, atomically: true, encoding: .utf8)
+        let validFile = authFolder.file("valid.json")
+        try #"{"tokens":{"id_token":"id-valid","access_token":"access-valid"},"email":"valid@example.com"}"#
+            .write(to: validFile.url, atomically: true, encoding: .utf8)
+
+        let accounts = try await manager.loadAccounts()
+
+        #expect(accounts.count == 1)
+        #expect(accounts.first?.relativeAuthPath == "auth/valid.json")
+        #expect(activeFile.isExists == false)
+        #expect(testFile.isExists == false)
+        #expect(validFile.isExists == true)
+    }
+
     @Test("Given active snapshot drifted by external write, when preflight runs then active snapshot is restored and drifted auth is preserved separately")
     func preflightRestoresActiveSnapshotAfterExternalDrift() async throws {
         let root = try makeTempRoot("codex-auth-preflight-drift")

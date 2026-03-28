@@ -839,6 +839,9 @@ public actor CodexAuthManager {
             let relativeAuthPath = "auth/\(fileName)"
             let file = folder.file(fileName)
             do {
+                if try shouldPruneSnapshotFileBeforeLoad(file: file, relativeAuthPath: relativeAuthPath) {
+                    continue
+                }
                 let account = try loadAccount(file: file, relativeAuthPath: relativeAuthPath)
                 accounts.append(account)
             } catch {
@@ -851,6 +854,24 @@ public actor CodexAuthManager {
         accounts = try alignSnapshotFileNamesWithEmailIfNeeded(accounts)
         accounts.sort(by: { $0.createdAt > $1.createdAt })
         return accounts
+    }
+
+    private func shouldPruneSnapshotFileBeforeLoad(file: STFile, relativeAuthPath: String) throws -> Bool {
+        let data = try file.data()
+        guard !data.isEmpty else {
+            try? file.delete()
+            Self.logger.warning("Pruned empty Codex snapshot file before load. file=\(relativeAuthPath, privacy: .public)")
+            return true
+        }
+        guard let raw = String(data: data, encoding: .utf8) else {
+            return false
+        }
+        if isGatewayVirtualAuthPayload(data) || !hasImportableCredentials(authJSONString: raw) {
+            try? file.delete()
+            Self.logger.warning("Pruned non-importable Codex snapshot file before load. file=\(relativeAuthPath, privacy: .public)")
+            return true
+        }
+        return false
     }
 
     private nonisolated func stableAuthSnapshotFileNames(in folder: STFolder) -> [String] {
@@ -1964,20 +1985,32 @@ private extension CodexAuthManager {
         let resolved: CodexAuthAccount
         switch preferred.source {
         case .provider:
-            resolved = try upsertSnapshotFromProviderData(
+            guard let candidate = try? upsertSnapshotFromProviderData(
                 authData: providerData,
                 providerRaw: providerRaw,
                 snapshots: snapshots,
                 excludedAccountID: nil
-            )
+            ) else {
+                Self.logger.warning(
+                    "Codex preflight skipped non-importable provider auth payload. provider=\(provider.id, privacy: .public)"
+                )
+                return nil
+            }
+            resolved = candidate
         case .snapshot:
             guard let account = preferred.account else {
-                resolved = try upsertSnapshotFromProviderData(
+                guard let candidate = try? upsertSnapshotFromProviderData(
                     authData: providerData,
                     providerRaw: providerRaw,
                     snapshots: snapshots,
                     excludedAccountID: nil
-                )
+                ) else {
+                    Self.logger.warning(
+                        "Codex preflight skipped fallback upsert due to non-importable payload. provider=\(provider.id, privacy: .public)"
+                    )
+                    return nil
+                }
+                resolved = candidate
                 break
             }
             resolved = account
@@ -2105,6 +2138,16 @@ private extension CodexAuthManager {
             raw = converted
         } else {
             throw CocoaError(.fileReadInapplicableStringEncoding)
+        }
+
+        guard !isGatewayVirtualAuthPayload(authData),
+              hasImportableCredentials(authJSONString: raw)
+        else {
+            if let matched = matchAccount(authData: authData, accounts: snapshots),
+               matched.id != excludedAccountID {
+                return matched
+            }
+            throw CocoaError(.validationMissingMandatoryProperty)
         }
 
         let authSummary = CodexAuthSummary.fromJSONData(authData)
