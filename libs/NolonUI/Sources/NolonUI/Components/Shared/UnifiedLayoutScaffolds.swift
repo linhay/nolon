@@ -254,7 +254,6 @@ public struct PluginManagementPageScaffold<Content: View>: View {
 
 
 public struct SettingsSheetScaffoldView<Content: View>: View {
-    let title: String
     let items: [SettingsSidebarItemData]
     @Binding var selectedID: String
     let onClose: () -> Void
@@ -281,7 +280,6 @@ public struct SettingsSheetScaffoldView<Content: View>: View {
         config: Config,
         @ViewBuilder content: @escaping () -> Content
     ) {
-        self.title = config.title
         self.items = config.items
         self._selectedID = selectedID
         self.onClose = config.onClose
@@ -307,13 +305,7 @@ public struct SettingsSheetScaffoldView<Content: View>: View {
     }
 
     public var body: some View {
-        VStack(spacing: 0) {
-            SheetHeaderView(title: title) {
-                onClose()
-            }
-
-            SheetDivider()
-
+        ZStack(alignment: .topTrailing) {
             SplitLayoutScaffold(
                 columnVisibility: .constant(.all),
                 profile: SplitLayoutProfiles.settings
@@ -324,8 +316,16 @@ public struct SettingsSheetScaffoldView<Content: View>: View {
             } detail: {
                 settingsDetail
             }
+
+            FloatingCloseButton(
+                help: "Close",
+                enableCancelShortcut: true,
+                action: onClose
+            )
+            .padding(SkillDetailScaffoldMetrics.closeButtonPadding)
         }
         .frame(minWidth: 720, minHeight: 480)
+        .background(DesignSystem.Colors.Background.canvas)
     }
 
     private var settingsSidebar: some View {
@@ -350,7 +350,7 @@ public struct SettingsSheetScaffoldView<Content: View>: View {
             }
             Spacer()
         }
-        .padding(.top, 40)
+        .padding(.top, 56)
         .padding(.horizontal, 12)
         .background(DesignSystem.Colors.Component.controlFillSubtle.opacity(0.6))
     }
@@ -361,6 +361,7 @@ public struct SettingsSheetScaffoldView<Content: View>: View {
                 VStack(alignment: .leading, spacing: 32) {
                     content()
                 }
+                .padding(.top, 56)
                 .padding(.horizontal, 32)
                 .padding(.bottom, 32)
             }
