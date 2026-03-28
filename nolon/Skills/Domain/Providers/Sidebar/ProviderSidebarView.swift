@@ -138,6 +138,8 @@ public struct ProviderSidebarView: View, DebugPageLocatable {
             } else {
                 items.append(PageMarkerItem(title: "Provider"))
             }
+        case .nolon:
+            items.append(PageMarkerItem(title: "Nolon"))
         case .accounts:
             items.append(PageMarkerItem(title: NSLocalizedString("sidebar.tools.accounts", value: "Accounts", comment: "Accounts sidebar item")))
         case .pluginManagement:

@@ -3,6 +3,7 @@ import ProviderCatalog
 
 public enum MainSidebarSelection: Hashable {
     case provider(Provider.ID)
+    case nolon
     case accounts
     case pluginManagement
 
@@ -10,6 +11,8 @@ public enum MainSidebarSelection: Hashable {
         switch self {
         case .provider(let providerID):
             return "provider:\(providerID)"
+        case .nolon:
+            return "nolon"
         case .accounts:
             return "accounts"
         case .pluginManagement:
@@ -18,7 +21,9 @@ public enum MainSidebarSelection: Hashable {
     }
 
     init?(storageKey: String) {
-        if storageKey == "accounts" {
+        if storageKey == "nolon" {
+            self = .nolon
+        } else if storageKey == "accounts" {
             self = .accounts
         } else if storageKey == "pluginManagement" {
             self = .pluginManagement

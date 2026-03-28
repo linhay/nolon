@@ -21,6 +21,15 @@ final class MainSplitViewModelTests: XCTestCase {
         XCTAssertEqual(ResourceCenterWindowCoordinator.windowID, "resource-center")
     }
 
+    func testBDD_GivenNolonSelectionKey_WhenNormalize_ThenKeyIsRetained() {
+        let normalized = MainSplitViewModel.normalizedSidebarSelectionKey(
+            MainSidebarSelection.nolon.storageKey,
+            providers: fixture.providerSettings.providers
+        )
+
+        XCTAssertEqual(normalized, MainSidebarSelection.nolon.storageKey)
+    }
+
     func testBDD_GivenFixtureProviders_WhenLookingUpCodexIndex_ThenLookupSucceedsWithoutSetup() {
         let codexIndex = fixture.providerSettings.providers.firstIndex { $0.templateId == "codex" }
         XCTAssertNotNil(codexIndex)

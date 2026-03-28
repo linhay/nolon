@@ -105,7 +105,7 @@ struct ResourceCenterView: View, DebugPageLocatable {
             } else {
                 switch template {
                 case .globalSkills:
-                    viewModel.selectedRepository = .globalSkills
+                    viewModel.selectedRepository = settings.remoteRepositories.first { $0.templateType != .globalSkills }
                 case .clawdhub:
                     viewModel.selectedRepository = .clawdhub
                 case .localFolder, .git:

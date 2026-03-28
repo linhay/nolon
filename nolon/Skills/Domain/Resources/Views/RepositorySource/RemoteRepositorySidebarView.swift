@@ -20,7 +20,7 @@ struct RemoteRepositorySidebarView: View, DebugPageLocatable {
     }
     
     var body: some View {
-        let sections = repositorySections(settings.remoteRepositories)
+        let sections = repositorySections(resourceCenterVisibleRepositories(settings.remoteRepositories))
         let orderedRepositories = sections.flatMap { $0.repositories }
         let sectionData = repositorySectionData(sections)
         NolonUI.RepositorySidebarScaffoldView(
@@ -122,7 +122,9 @@ struct RemoteRepositorySidebarView: View, DebugPageLocatable {
             )
         })
         .onAppear {
-            if selectedRepository == nil {
+            if selectedRepository?.templateType == .globalSkills {
+                selectedRepository = orderedRepositories.first
+            } else if selectedRepository == nil {
                 selectedRepository = orderedRepositories.first
             }
         }
@@ -240,6 +242,10 @@ private struct RepositorySection: Identifiable {
     let id: String
     let title: String
     let repositories: [RemoteRepository]
+}
+
+func resourceCenterVisibleRepositories(_ repos: [RemoteRepository]) -> [RemoteRepository] {
+    repos.filter { $0.templateType != .globalSkills }
 }
 
 private func repositorySections(_ repos: [RemoteRepository]) -> [RepositorySection] {

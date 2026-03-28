@@ -896,7 +896,13 @@ public actor CodexBinaryManager {
             guard release.tagName.hasPrefix("rust-v") else { continue }
             let version = String(release.tagName.dropFirst("rust-v".count))
             if !includePrerelease, !Self.isStableVersion(version) { continue }
-            guard let asset = release.assets.first(where: { $0.name.contains(archNeedle) && $0.name.hasSuffix(".tar.gz") }) else {
+            guard let assetName = Self.preferredCodexArchiveAssetName(
+                from: release.assets.map(\.name),
+                architectureNeedle: archNeedle
+            ) else {
+                continue
+            }
+            guard let asset = release.assets.first(where: { $0.name == assetName }) else {
                 continue
             }
             output.append(
@@ -923,6 +929,18 @@ public actor CodexBinaryManager {
         #else
         return "x86_64-apple-darwin"
         #endif
+    }
+
+    static func preferredCodexArchiveAssetName(from assetNames: [String], architectureNeedle: String) -> String? {
+        let exactPrimary = "codex-\(architectureNeedle).tar.gz"
+        if assetNames.contains(exactPrimary) {
+            return exactPrimary
+        }
+
+        // Backward compatibility: older releases might package codex under a nested folder.
+        return assetNames.first { name in
+            name == "codex.tar.gz" || name == "codex-\(architectureNeedle).tgz"
+        }
     }
 
     public static func compareVersion(_ lhsRaw: String, _ rhsRaw: String) -> Int {

@@ -47,5 +47,6 @@ final class ProviderSidebarAdapterTests: XCTestCase {
         XCTAssertEqual(SidebarSelectionKey.provider("abc").rawValue, MainSidebarSelection.provider("abc").storageKey)
         XCTAssertEqual(SidebarSelectionKey.accounts.rawValue, MainSidebarSelection.accounts.storageKey)
         XCTAssertEqual(SidebarSelectionKey.pluginManagement.rawValue, MainSidebarSelection.pluginManagement.storageKey)
+        XCTAssertEqual(SidebarSelectionKey.nolon.rawValue, MainSidebarSelection.nolon.storageKey)
     }
 }

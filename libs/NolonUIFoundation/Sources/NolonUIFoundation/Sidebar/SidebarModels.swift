@@ -19,6 +19,7 @@ public enum SidebarVendorCategory: String, Codable, Hashable, Sendable {
 }
 
 public enum SidebarToolID: String, Codable, Hashable, Sendable, CaseIterable, Identifiable {
+    case nolon
     case accounts
     case pluginManagement
 
@@ -125,6 +126,12 @@ public struct SidebarToolItem: Hashable, Sendable, Codable, Identifiable {
     }
 
     public static let `default`: [SidebarToolItem] = [
+        SidebarToolItem(
+            id: .nolon,
+            titleKey: "sidebar.tools.nolon",
+            fallbackTitle: "Nolon",
+            systemImage: "star.fill"
+        ),
         SidebarToolItem(
             id: .accounts,
             titleKey: "sidebar.tools.accounts",

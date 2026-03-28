@@ -16,4 +16,8 @@ final class SidebarSectionBuilderTests: XCTestCase {
         XCTAssertEqual(sections[1].items.map(\.id), ["claude"])
         XCTAssertEqual(sections[2].items.map(\.id), ["proj"])
     }
+
+    func testSidebarDefaultTools_ContainsNolonEntry() {
+        XCTAssertTrue(SidebarToolItem.default.contains { $0.id == .nolon })
+    }
 }

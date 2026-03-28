@@ -11,6 +11,7 @@ public struct SidebarSelectionKey: RawRepresentable, Hashable, Sendable, Codable
         SidebarSelectionKey(rawValue: "provider:\(providerID)")
     }
 
+    public static let nolon = SidebarSelectionKey(rawValue: "nolon")
     public static let accounts = SidebarSelectionKey(rawValue: "accounts")
     public static let pluginManagement = SidebarSelectionKey(rawValue: "pluginManagement")
 

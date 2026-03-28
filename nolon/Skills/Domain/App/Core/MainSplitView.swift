@@ -40,6 +40,7 @@ final class MainSplitViewModel {
     var selectedTab: ProviderContentTabType? = .skills {
         didSet { persistSelectedTab() }
     }
+    var nolonCenterViewModel = ResourceCenterViewModel(selectedTab: .skills)
     var columnVisibility: NavigationSplitViewVisibility = .all
     
     var showingSettings = false
@@ -86,8 +87,16 @@ final class MainSplitViewModel {
         selectedSidebarItem == .pluginManagement
     }
 
+    var isNolonSelected: Bool {
+        selectedSidebarItem == .nolon
+    }
+
     var isAccountsSelected: Bool {
         selectedSidebarItem == .accounts
+    }
+
+    var nolonRepository: RemoteRepository {
+        settings.remoteRepositories.first(where: { $0.templateType == .globalSkills }) ?? .globalSkills
     }
 
     @MainActor
@@ -120,6 +129,7 @@ final class MainSplitViewModel {
             }
         }
         installer = SkillInstaller(repository: repository, settings: settings)
+        refreshNolonResourceCenterState()
         if !UITestSupport.isRunningUnitTests {
             resourceMonitor = ProviderResourceMonitor { [weak self] in
                 self?.refreshTrigger += 1
@@ -209,6 +219,8 @@ final class MainSplitViewModel {
         switch selection {
         case let .provider(providerID):
             return providers.contains(where: { $0.id == providerID }) ? storageKey : nil
+        case .nolon:
+            return storageKey
         case .accounts, .pluginManagement:
             return storageKey
         }
@@ -244,6 +256,18 @@ final class MainSplitViewModel {
             return
         }
         resourceMonitor?.startWatching(provider: provider)
+    }
+
+    @MainActor
+    func refreshNolonResourceCenterState() {
+        let globalRepository = nolonRepository
+        nolonCenterViewModel.selectedRepository = globalRepository
+        nolonCenterViewModel.refreshInstalledResources(
+            repository: repository,
+            selectedRepository: globalRepository,
+            fallbackTargetProvider: nil,
+            settings: settings
+        )
     }
 
     @MainActor
@@ -678,6 +702,13 @@ public struct MainSplitView: View, DebugPageLocatable {
             items.append(contentsOf: PageMarkerRouteResolver.pluginManagementItems())
             return items
         }
+        if viewModel.isNolonSelected {
+            items.append(contentsOf: [
+                PageMarkerItem(title: "Nolon"),
+                PageMarkerItem(title: viewModel.nolonCenterViewModel.selectedTab?.localizedName ?? ResourceCenterTabID.skills.localizedName)
+            ])
+            return items
+        }
         items.append(
             contentsOf: PageMarkerRouteResolver.providerDetailItems(
                 provider: viewModel.selectedProvider,
@@ -728,6 +759,12 @@ public struct MainSplitView: View, DebugPageLocatable {
                             groupTitle: NSLocalizedString("plugins.navigation.group", value: "Plugins", comment: "Plugins navigation group title")
                         )
                     )
+                } else if viewModel.isNolonSelected {
+                    ResourceCenterTabView(
+                        repository: viewModel.nolonRepository,
+                        selectedTab: nolonSelectedTabBinding,
+                        refreshTrigger: viewModel.nolonCenterViewModel.refreshTrigger
+                    )
                 } else {
                     ProviderContentTabView(
                         provider: viewModel.selectedProvider,
@@ -739,6 +776,52 @@ public struct MainSplitView: View, DebugPageLocatable {
             } detail: {
                 if viewModel.isPluginManagementSelected {
                     PluginManagementView()
+                } else if viewModel.isNolonSelected {
+                    ResourceCatalogGridView(
+                        repository: viewModel.nolonRepository,
+                        selectedTab: viewModel.nolonCenterViewModel.selectedTab,
+                        searchText: nolonSearchTextBinding,
+                        installedSlugs: viewModel.nolonCenterViewModel.installedSlugs,
+                        installedSkills: viewModel.nolonCenterViewModel.installedSkills,
+                        installedWorkflowSlugs: viewModel.nolonCenterViewModel.installedWorkflowSlugs,
+                        installedMcpSlugs: viewModel.nolonCenterViewModel.installedMcpSlugs,
+                        providers: viewModel.settings.providers,
+                        refreshTrigger: viewModel.nolonCenterViewModel.refreshTrigger,
+                        targetProvider: nil,
+                        onInstall: { skill, provider in
+                            Task {
+                                await viewModel.installRemoteSkill(skill, to: provider)
+                            }
+                        },
+                        onInstallWorkflow: { workflow, provider in
+                            Task {
+                                await viewModel.installRemoteWorkflow(workflow, to: provider)
+                            }
+                        },
+                        onInstallMCP: { mcp, provider in
+                            Task {
+                                await viewModel.installRemoteMCP(mcp, to: provider)
+                            }
+                        },
+                        onRegisterDeleteRequest: { slug, resourceType, providerIndex, removeGlobalCache, globalCachePathHint in
+                            viewModel.registerDeleteRequest(
+                                slug: slug,
+                                resourceType: resourceType,
+                                providerIndex: providerIndex,
+                                removeGlobalCache: removeGlobalCache,
+                                globalCachePathHint: globalCachePathHint
+                            )
+                        },
+                        onMakeDeleteRequestExecutor: { requestID in
+                            {
+                                await viewModel.executeRegisteredDeleteRequest(id: requestID)
+                            }
+                        },
+                        onRefresh: {
+                            viewModel.refreshNolonResourceCenterState()
+                        },
+                        onClose: nil
+                    )
                 } else {
                     ProviderDetailGridView(
                         provider: viewModel.selectedProvider,
@@ -789,9 +872,20 @@ public struct MainSplitView: View, DebugPageLocatable {
         }
         .onChange(of: viewModel.selectedSidebarSelectionKey) { _, _ in
             viewModel.updateResourceMonitoring()
+            if viewModel.isNolonSelected {
+                viewModel.refreshNolonResourceCenterState()
+            }
         }
         .onChange(of: viewModel.settings.providers) { _, _ in
             viewModel.updateResourceMonitoring()
+            if viewModel.isNolonSelected {
+                viewModel.refreshNolonResourceCenterState()
+            }
+        }
+        .onChange(of: viewModel.refreshTrigger) { _, _ in
+            if viewModel.isNolonSelected {
+                viewModel.refreshNolonResourceCenterState()
+            }
         }
         .onChange(of: AppCommandState.shared.pendingNavigation) { _, pendingNavigation in
             guard let pendingNavigation else { return }
@@ -801,6 +895,20 @@ public struct MainSplitView: View, DebugPageLocatable {
             }
             AppCommandState.shared.pendingNavigation = nil
         }
+    }
+
+    private var nolonSelectedTabBinding: Binding<ResourceCenterTabID?> {
+        Binding(
+            get: { viewModel.nolonCenterViewModel.selectedTab },
+            set: { viewModel.nolonCenterViewModel.selectedTab = $0 }
+        )
+    }
+
+    private var nolonSearchTextBinding: Binding<String> {
+        Binding(
+            get: { viewModel.nolonCenterViewModel.searchText },
+            set: { viewModel.nolonCenterViewModel.searchText = $0 }
+        )
     }
 
     @ToolbarContentBuilder
