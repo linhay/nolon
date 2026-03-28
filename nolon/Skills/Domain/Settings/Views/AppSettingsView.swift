@@ -13,9 +13,11 @@ struct AppSettingsView: View {
         @Bindable var viewModel = viewModel
 
         NolonUI.SettingsSheetScaffoldView(
-            items: viewModel.sidebarItems,
             selectedID: $viewModel.selectedCategoryID,
-            onClose: { dismiss() }
+            config: .init(
+                items: viewModel.sidebarItems,
+                onClose: { dismiss() }
+            )
         ) {
             contentForSelectedCategory
         }
@@ -28,11 +30,13 @@ struct AppSettingsView: View {
         switch viewModel.selectedCategory {
         case .general:
             NolonUI.GeneralSettingsContentView(
-                workspaceData: .init(
-                    path: viewModel.settingsStore.workspacePath
-                ),
-                onboardingActionData: .onboardingRerun(),
-                onTapOnboardingAction: { viewModel.showingOnboardingResetConfirm = true }
+                config: .init(
+                    workspaceData: .init(
+                        path: viewModel.settingsStore.workspacePath
+                    ),
+                    onboardingActionData: .onboardingRerun(),
+                    onTapOnboardingAction: { viewModel.showingOnboardingResetConfirm = true }
+                )
             )
             .confirmationAlert(
                 data: viewModel.onboardingResetConfirmationData,
@@ -42,21 +46,25 @@ struct AppSettingsView: View {
             )
         case .display:
             NolonUI.DisplaySettingsContentView(
-                data: viewModel.displayData,
-                onSelectAppearance: { viewModel.selectAppearance(id: $0) },
-                onSelectLanguage: { viewModel.selectLanguage(id: $0) }
+                config: .init(
+                    data: viewModel.displayData,
+                    onSelectAppearance: { viewModel.selectAppearance(id: $0) },
+                    onSelectLanguage: { viewModel.selectLanguage(id: $0) }
+                )
             )
             .onAppear {
                 viewModel.normalizeLanguageIfNeeded()
             }
         case .advanced:
             NolonUI.AdvancedSettingsContentView(
-                skillLockData: viewModel.skillLockSectionData,
-                overwriteExisting: $viewModel.overwriteExisting,
-                isRebuildingSkillLock: viewModel.isRebuildingSkillLock,
-                onTapRebuildSkillLock: { viewModel.showingRebuildConfirmation = true },
-                updatesActionData: viewModel.updatesActionData,
-                onTapUpdates: { viewModel.showingUpdatesSheet = true }
+                config: .init(
+                    skillLockData: viewModel.skillLockSectionData,
+                    overwriteExisting: $viewModel.overwriteExisting,
+                    isRebuildingSkillLock: viewModel.isRebuildingSkillLock,
+                    onTapRebuildSkillLock: { viewModel.showingRebuildConfirmation = true },
+                    updatesActionData: viewModel.updatesActionData,
+                    onTapUpdates: { viewModel.showingUpdatesSheet = true }
+                )
             )
             .confirmationAlert(
                 data: viewModel.rebuildSkillLockConfirmationData,
@@ -73,9 +81,12 @@ struct AppSettingsView: View {
                 await viewModel.refreshUpdateCount()
             }
         case .about:
-            NolonUI.AboutSettingsSectionView(data: viewModel.aboutSettingsData) {
-                nolonApp.updaterController?.updater.checkForUpdates()
-            }
+            NolonUI.AboutSettingsSectionView(
+                config: .init(
+                    data: viewModel.aboutSettingsData,
+                    onCheckUpdates: { nolonApp.updaterController?.updater.checkForUpdates() }
+                )
+            )
         }
     }
 }

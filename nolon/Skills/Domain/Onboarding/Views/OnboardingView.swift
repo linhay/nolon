@@ -20,7 +20,7 @@ struct OnboardingView: View {
     
     var body: some View {
         ZStack {
-            NolonUI.LiquidBackgroundView()
+            NolonUI.LiquidBackgroundView(config: .init())
             onboardingCard
         }
         .frame(minWidth: 900, minHeight: 700)
@@ -61,17 +61,19 @@ struct OnboardingView: View {
 private extension OnboardingView {
     var onboardingCard: some View {
         NolonUI.OnboardingCardScaffold(
-            currentStepIndex: step.rawValue,
-            totalSteps: Step.allCases.count
-        ) {
-            Image(nsImage: NSApp.applicationIconImage)
-                .resizable()
-                .frame(width: 28, height: 28)
-        } content: {
-            stepContent
-        } footer: {
-            footerContent
-        }
+            config: .init(
+                currentStepIndex: step.rawValue,
+                totalSteps: Step.allCases.count
+            ) {
+                Image(nsImage: NSApp.applicationIconImage)
+                    .resizable()
+                    .frame(width: 28, height: 28)
+            } content: {
+                stepContent
+            } footer: {
+                footerContent
+            }
+        )
         .animation(.spring(response: 0.45, dampingFraction: 0.85), value: step)
     }
 
@@ -80,53 +82,59 @@ private extension OnboardingView {
         switch step {
         case .welcome:
             NolonUI.OnboardingWelcomeView(
-                viewModel: NolonUI.OnboardingWelcomeViewViewModel(
-                    appIcon: Image(nsImage: NSApp.applicationIconImage)
+                config: .init(
+                    viewModel: NolonUI.OnboardingWelcomeViewViewModel(
+                        appIcon: Image(nsImage: NSApp.applicationIconImage)
+                    )
                 )
             )
             .transition(.asymmetric(insertion: .opacity.combined(with: .move(edge: .trailing)), removal: .opacity.combined(with: .move(edge: .leading))))
         case .providerSelection:
             NolonUI.OnboardingProviderSelectionView(
-                viewModel: NolonUI.OnboardingProviderSelectionViewViewModel(
-                    subtitleKey: detectedProviders.isEmpty ? "onboarding.provider.subtitle" : "onboarding.provider.subtitle_detected",
-                    sections: templateSections.map { section in
-                        .init(
-                            id: section.id.rawValue,
-                            title: NSLocalizedString(section.titleKey, value: section.fallbackTitle, comment: "Template section title"),
-                            providers: section.templates.map { template in
+                config: .init(
+                    viewModel: NolonUI.OnboardingProviderSelectionViewViewModel(
+                        subtitleKey: detectedProviders.isEmpty ? "onboarding.provider.subtitle" : "onboarding.provider.subtitle_detected",
+                        sections: templateSections.map { section in
+                            .init(
+                                id: section.id.rawValue,
+                                title: NSLocalizedString(section.titleKey, value: section.fallbackTitle, comment: "Template section title"),
+                                providers: section.templates.map { template in
+                                    .init(
+                                        id: template.rawValue,
+                                        name: template.displayName,
+                                        logoName: template.logoFile
+                                    )
+                                }
+                            )
+                        },
+                        selectedProviderIDs: Set(selectedProviders.map(\.rawValue)),
+                        detectedProviderIDs: Set(detectedProviders.map(\.rawValue)),
+                        onToggleProvider: { providerID in
+                            guard let template = ProviderTemplate(rawValue: providerID) else { return }
+                            if selectedProviders.contains(template) {
+                                selectedProviders.remove(template)
+                            } else {
+                                selectedProviders.insert(template)
+                            }
+                        }
+                    )
+                )
+            )
+            .transition(.asymmetric(insertion: .opacity.combined(with: .move(edge: .trailing)), removal: .opacity.combined(with: .move(edge: .leading))))
+        case .completion:
+            NolonUI.OnboardingCompletionView(
+                config: .init(
+                    viewModel: NolonUI.OnboardingCompletionViewViewModel(
+                        providers: Array(selectedProviders)
+                            .sorted { $0.rawValue < $1.rawValue }
+                            .map { template in
                                 .init(
                                     id: template.rawValue,
                                     name: template.displayName,
                                     logoName: template.logoFile
                                 )
                             }
-                        )
-                    },
-                    selectedProviderIDs: Set(selectedProviders.map(\.rawValue)),
-                    detectedProviderIDs: Set(detectedProviders.map(\.rawValue)),
-                    onToggleProvider: { providerID in
-                        guard let template = ProviderTemplate(rawValue: providerID) else { return }
-                        if selectedProviders.contains(template) {
-                            selectedProviders.remove(template)
-                        } else {
-                            selectedProviders.insert(template)
-                        }
-                    }
-                )
-            )
-            .transition(.asymmetric(insertion: .opacity.combined(with: .move(edge: .trailing)), removal: .opacity.combined(with: .move(edge: .leading))))
-        case .completion:
-            NolonUI.OnboardingCompletionView(
-                viewModel: NolonUI.OnboardingCompletionViewViewModel(
-                    providers: Array(selectedProviders)
-                        .sorted { $0.rawValue < $1.rawValue }
-                        .map { template in
-                            .init(
-                                id: template.rawValue,
-                                name: template.displayName,
-                                logoName: template.logoFile
-                            )
-                        }
+                    )
                 )
             )
             .transition(.asymmetric(insertion: .opacity.combined(with: .move(edge: .trailing)), removal: .opacity.combined(with: .move(edge: .leading))))
@@ -135,30 +143,32 @@ private extension OnboardingView {
 
     var footerContent: some View {
         NolonUI.OnboardingStepFooterView(
-            data: footerData,
-            onSkip: onComplete,
-            onBack: {
-                switch step {
-                case .providerSelection:
-                    go(to: .welcome)
-                case .completion:
-                    go(to: .providerSelection)
-                case .welcome:
-                    break
-                }
-            },
-            onNext: {
-                switch step {
-                case .welcome:
-                    go(to: .providerSelection)
-                case .providerSelection:
-                    guard !selectedProviders.isEmpty else { return }
-                    go(to: .completion)
-                case .completion:
-                    break
-                }
-            },
-            onStart: finishOnboarding
+            config: .init(
+                data: footerData,
+                onSkip: onComplete,
+                onBack: {
+                    switch step {
+                    case .providerSelection:
+                        go(to: .welcome)
+                    case .completion:
+                        go(to: .providerSelection)
+                    case .welcome:
+                        break
+                    }
+                },
+                onNext: {
+                    switch step {
+                    case .welcome:
+                        go(to: .providerSelection)
+                    case .providerSelection:
+                        guard !selectedProviders.isEmpty else { return }
+                        go(to: .completion)
+                    case .completion:
+                        break
+                    }
+                },
+                onStart: finishOnboarding
+            )
         )
     }
 

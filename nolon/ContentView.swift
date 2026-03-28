@@ -28,9 +28,11 @@ struct ContentView: View {
         .overlay(alignment: .bottom) {
             if debugMarkerToastCenter.isVisible {
                 NolonUI.ToastView(
-                    text: debugMarkerToastCenter.message,
-                    systemImage: "checkmark",
-                    style: .success
+                    config: .init(
+                        text: debugMarkerToastCenter.message,
+                        systemImage: "checkmark",
+                        style: .success
+                    )
                 )
                 .padding(.bottom, 20)
             }

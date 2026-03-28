@@ -1486,10 +1486,12 @@ struct CodexAdvancedConfigView: View {
     private func roleEditorSheet(for target: RoleEditorTarget) -> some View {
         if let role = roleBinding(for: target) {
             NolonUI.CodexAdvancedEditorScaffold(
-                title: role.wrappedValue.name.nonEmpty ?? NSLocalizedString(
-                    "codex.advanced.config.multi_agent.unnamed_role",
-                    value: "Unnamed Role",
-                    comment: "Unnamed role"
+                config: .init(
+                    title: role.wrappedValue.name.nonEmpty ?? NSLocalizedString(
+                        "codex.advanced.config.multi_agent.unnamed_role",
+                        value: "Unnamed Role",
+                        comment: "Unnamed role"
+                    )
                 )
             ) {
                     NolonUI.CodexAdvancedRoleTextFieldRowView(

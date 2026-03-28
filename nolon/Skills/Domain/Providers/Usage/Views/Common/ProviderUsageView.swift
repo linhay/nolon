@@ -183,9 +183,11 @@ struct ProviderUsageView: View, DebugPageLocatable {
             }
             .bottomTrailingOverlay(isPresented: viewModel.isShowingCopyToast) {
                 NolonUI.ToastView(
-                    text: viewModel.copyToastMessage ?? "",
-                    systemImage: "doc.on.doc",
-                    style: .success
+                    config: .init(
+                        text: viewModel.copyToastMessage ?? "",
+                        systemImage: "doc.on.doc",
+                        style: .success
+                    )
                 )
             }
             .animation(Animation.easeOut(duration: 0.2), value: viewModel.isShowingCopyToast)

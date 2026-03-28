@@ -90,7 +90,7 @@ struct UnifiedAccountCard: View, DebugCardLocatable {
     @ViewBuilder
     private func quotaBodyContent(_ quota: AccountCardQuotaViewData) -> some View {
         if quota.isLoading {
-            NolonUI.AccountLoadingStateModule()
+            NolonUI.AccountLoadingStateModule(config: .init())
         } else if let message = quota.errorMessage?.trimmingCharacters(in: .whitespacesAndNewlines), !message.isEmpty {
             NolonUI.AccountErrorStateModule(
                 message: message

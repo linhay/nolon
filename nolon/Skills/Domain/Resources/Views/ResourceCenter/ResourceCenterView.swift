@@ -229,12 +229,11 @@ struct ResourceCenterView: View, DebugPageLocatable {
             for: viewModel.selectedRepository,
             fallback: targetProvider
         )
-        let layoutMode: NolonUI.ThreeColumnScaffoldMode = isClawdhub ? .twoColumn : .threeColumn
+        let layoutProfile = NolonUI.SplitLayoutProfiles.resourceCenter(isTwoColumn: isClawdhub)
         let selectedResourceTab: ResourceCenterTabID? = isClawdhub ? .skills : viewModel.selectedTab
-        NolonUI.ThreeColumnScaffold(
-            mode: layoutMode,
+        NolonUI.SplitLayoutScaffold(
             columnVisibility: $viewModel.columnVisibility,
-            sidebarWidth: .init(min: 200, ideal: 220, max: 240)
+            profile: layoutProfile
         ) {
             RemoteRepositorySidebarView(
                 selectedRepository: $viewModel.selectedRepository,

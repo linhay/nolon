@@ -692,9 +692,9 @@ public struct MainSplitView: View, DebugPageLocatable {
             isAccountsSelected: viewModel.isAccountsSelected,
             showsOverlay: false
         ) {
-            NolonUI.ThreeColumnScaffold(
-                mode: .twoColumn,
-                columnVisibility: .constant(.all)
+            NolonUI.SplitLayoutScaffold(
+                columnVisibility: .constant(.all),
+                profile: NolonUI.SplitLayoutProfiles.accounts
             ) {
                 ProviderSidebarView(
                     selectedItemKey: $viewModel.selectedSidebarSelectionKey,
@@ -711,9 +711,9 @@ public struct MainSplitView: View, DebugPageLocatable {
                 )
             }
         } mainLayout: {
-            NolonUI.ThreeColumnScaffold(
-                mode: .threeColumn,
-                columnVisibility: $viewModel.columnVisibility
+            NolonUI.SplitLayoutScaffold(
+                columnVisibility: $viewModel.columnVisibility,
+                profile: NolonUI.SplitLayoutProfiles.main
             ) {
                 ProviderSidebarView(
                     selectedItemKey: $viewModel.selectedSidebarSelectionKey,
