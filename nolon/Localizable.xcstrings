@@ -8479,30 +8479,6 @@
         }
       }
     },
-    "debug.menu.page_markers" : {
-      "comment" : "Toggle debug page markers",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Show Page Markers"
-          }
-        }
-      }
-    },
-    "debug.menu.title" : {
-      "comment" : "Debug menu",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Debug"
-          }
-        }
-      }
-    },
     "debug.page_marker.copied" : {
       "comment" : "Toast after copying debug page marker",
       "extractionState" : "extracted_with_value",
