@@ -4,6 +4,7 @@ import NolonResourceKit
 import Observation
 import NolonUI
 import NolonUIFoundation
+import AppKit
 
 @MainActor
 @Observable
@@ -52,6 +53,7 @@ struct ResourceCenterWindowRootView: View {
                     onClose: {
                         payload.onClose?()
                         dismiss()
+                        NSApp.keyWindow?.performClose(nil)
                     },
                     onInstall: payload.onInstall,
                     onInstallWorkflow: payload.onInstallWorkflow,

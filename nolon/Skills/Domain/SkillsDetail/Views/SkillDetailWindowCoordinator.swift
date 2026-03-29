@@ -3,6 +3,7 @@ import ProviderCatalog
 import NolonResourceKit
 import Observation
 import NolonUI
+import AppKit
 
 @MainActor
 @Observable
@@ -104,6 +105,7 @@ public struct SkillDetailWindowRootView: View {
     private func closeWindow() {
         dismissWindow(id: SkillDetailWindowCoordinator.windowID)
         dismiss()
+        NSApp.keyWindow?.performClose(nil)
     }
 }
 
