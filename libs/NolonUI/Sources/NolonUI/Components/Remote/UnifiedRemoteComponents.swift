@@ -380,17 +380,25 @@ public struct RepositorySidebarRowView: View {
                     Text(data.title)
                         .font(.body)
                         .foregroundStyle(DesignSystem.Colors.Text.primary)
-                        .lineLimit(1)
 
-                    if let secondaryText = data.secondaryText {
-                        Text(secondaryText)
-                            .font(.caption)
-                            .dsSecondaryText(font: .caption)
-                            .lineLimit(1)
-                    }
+                    if data.secondaryText != nil || (data.showGitStatus && data.syncStatus != nil) {
+                        HStack(spacing: 4) {
+                            if let secondaryText = data.secondaryText {
+                                Text(secondaryText)
+                                    .font(.caption)
+                                    .dsSecondaryText(font: .caption)
+                                    .lineLimit(1)
+                            }
 
-                    if data.showGitStatus, let syncStatus = data.syncStatus {
-                        gitStatusView(syncStatus)
+                            if data.showGitStatus, let syncStatus = data.syncStatus {
+                                if data.secondaryText != nil {
+                                    Text("·")
+                                        .font(.caption)
+                                        .dsSecondaryText(font: .caption)
+                                }
+                                gitStatusInlineView(syncStatus)
+                            }
+                        }
                     }
                 }
             }
@@ -413,26 +421,26 @@ public struct RepositorySidebarRowView: View {
     }
 
     @ViewBuilder
-    private func gitStatusView(_ status: RepositorySyncStatusData) -> some View {
+    private func gitStatusInlineView(_ status: RepositorySyncStatusData) -> some View {
         switch status {
         case .syncing:
-            RepositoryGitSyncStatusRow(
-                isSyncing: true,
-                lastSyncDate: nil,
-                notSyncedText: ""
+            Text(
+                NSLocalizedString(
+                    "repository.sync.syncing",
+                    value: "Syncing",
+                    comment: "Repository syncing state"
+                )
             )
+            .font(.caption2)
+            .foregroundStyle(DesignSystem.Colors.Status.info)
         case .lastSynced(let date):
-            RepositoryGitSyncStatusRow(
-                isSyncing: false,
-                lastSyncDate: date,
-                notSyncedText: ""
-            )
+            Text(date, style: .time)
+                .font(.caption2)
+                .dsSecondaryText(font: .caption2)
         case .notSynced(let text):
-            RepositoryGitSyncStatusRow(
-                isSyncing: false,
-                lastSyncDate: nil,
-                notSyncedText: text
-            )
+            Text(text)
+                .font(.caption2)
+                .foregroundStyle(DesignSystem.Colors.Status.warning)
         }
     }
 }

@@ -202,7 +202,7 @@ struct RemoteRepositorySidebarView: View, DebugPageLocatable {
             id: repo.id,
             title: repositoryDisplayName(repo),
             secondaryText: repositorySecondaryLine(repo),
-            logoName: repo.logoName ?? repo.provider.logoName,
+            logoName: repo.templateType == .git ? nil : (repo.logoName ?? repo.provider.logoName),
             fallbackSystemIconName: repo.iconName,
             showGitStatus: repo.templateType == .git,
             syncStatus: syncStatusData(for: repo),
@@ -333,22 +333,23 @@ func remoteRepositorySidebarMarkerItems(selectedRepository: RemoteRepository?) -
     return items
 }
 
-private func repositoryDisplayName(_ repo: RemoteRepository) -> String {
+func repositoryDisplayName(_ repo: RemoteRepository) -> String {
     guard repo.templateType == .git else { return repo.name }
     return gitRepositoryDisplayName(repo) ?? repo.name
 }
 
-private func repositorySecondaryLine(_ repo: RemoteRepository) -> String? {
+func repositorySecondaryLine(_ repo: RemoteRepository) -> String? {
     guard repo.templateType == .git else { return nil }
-    if let host = gitRepositoryHost(repo) {
-        return host
+    if let owner = gitRepositoryComponents(repo)?.owner,
+       !owner.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        return owner
     }
     return nil
 }
 
 private func gitRepositoryDisplayName(_ repo: RemoteRepository) -> String? {
     guard let components = gitRepositoryComponents(repo) else { return nil }
-    return "\(components.owner)@\(components.repo)"
+    return components.repo
 }
 
 private func gitRepositoryHost(_ repo: RemoteRepository) -> String? {
