@@ -1467,9 +1467,9 @@ extension ProviderUsageView {
                 )
             ],
             accountColumnTitle: NSLocalizedString("codex.accounts.list.header.account", value: "Account", comment: "Codex account list table account column"),
-            planColumnTitle: NSLocalizedString("codex.accounts.list.header.plan", value: "Plan", comment: "Codex account list table plan column"),
+            planColumnTitle: "",
             usageColumnTitle: NSLocalizedString("codex.accounts.list.header.usage", value: "Usage", comment: "Codex account list table usage column"),
-            planColumnWidth: viewModel.codex.listPlanColumnWidth,
+            planColumnWidth: 0,
             usageColumnWidth: viewModel.codex.listUsageColumnWidth,
             onTap: { itemID in
                 guard let model = modelByID[itemID] else { return }
@@ -1572,11 +1572,11 @@ extension ProviderUsageView {
             ),
             title: model.data.header.title,
             secondaryText: compactSecondaryText(from: model.data.header),
-            planText: compactPlanText(from: model.data.header),
+            planText: "",
             usageWindows: usageWindows.map {
                 .init(id: $0.id, title: $0.title, remainingPercent: $0.remainingPercent)
             },
-            planColumnWidth: viewModel.codex.listPlanColumnWidth,
+            planColumnWidth: 0,
             usageColumnWidth: viewModel.codex.listUsageColumnWidth,
             isSelected: model.presentation == .selected,
             menuActions: model.data.menuActions.map {
@@ -1597,7 +1597,8 @@ extension ProviderUsageView {
 
     private var codexListTableHeader: some View {
         NolonUI.CodexCompactAccountsTableHeaderView(
-            planColumnWidth: viewModel.codex.listPlanColumnWidth,
+            planTitle: "",
+            planColumnWidth: 0,
             usageColumnWidth: viewModel.codex.listUsageColumnWidth
         )
     }
@@ -2057,83 +2058,98 @@ extension ProviderUsageView {
 
     func gatewayAccountSelectionSheet(cardID: UUID) -> some View {
         let card = gatewayCardsViewModel.gatewayCards.first(where: { $0.id == cardID })
-        let candidates = gatewayCardsViewModel.gatewayCandidateAccounts(for: cardID)
-        let candidateSections = gatewayCardsViewModel.gatewayCandidateSections(for: cardID)
         let cardName = card?.name ?? NSLocalizedString("codex.gateway.cards.unknown", value: "网关卡片", comment: "Gateway card fallback name")
-
-        return VStack(alignment: .leading, spacing: 12) {
-            Text(
-                String(
-                    format: NSLocalizedString(
-                        "codex.gateway.accounts.picker.title",
-                        value: "为 %@ 选择账号",
-                        comment: "Gateway account picker title"
-                    ),
-                    cardName
-                )
-            )
-            .font(.headline)
-
-            NolonUI.ProviderEmptyStateScaffold(
-                isEmpty: candidates.isEmpty,
-                preset: .gatewayPickerEmpty
-            ) {
-                NolonUI.GatewayAccountCandidateListView(
-                    sections: candidateSections.map { section in
-                        GatewayAccountCandidateSectionData(
-                            id: section.id,
-                            title: section.title,
-                            iconName: gatewayCandidateSectionIcon(for: section.title),
-                            tone: gatewayCandidateSectionTone(for: section.title),
-                            items: section.items.map { account in
-                                let title = gatewayCandidateTitle(for: account)
-                                let subtitle = gatewayCandidateSubtitle(for: account, title: title)
-                                return GatewayAccountCandidateItemData(
-                                    id: account.id,
-                                    title: title,
-                                    subtitle: subtitle
-                                )
-                            }
-                        )
-                    },
-                    selections: $gatewayAccountPickerSelection
-                )
-            }
-
-            HStack {
-                Button(NSLocalizedString("cancel", value: "Cancel", comment: "Cancel")) {
-                    dismissGatewayAccountPicker()
-                }
-                Spacer(minLength: 0)
-                Button(
-                    NSLocalizedString(
-                        "codex.gateway.accounts.picker.add",
-                        value: "加入网关",
-                        comment: "Add accounts to gateway card"
-                    )
-                ) {
-                    confirmGatewayAccountPickerSelection()
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(gatewayAccountPickerSelection.isEmpty)
-            }
-        }
-        .padding(16)
-        .frame(width: 420, height: 360)
-        .debugCardLocator(
-            gatewayCardsDebugPageMarkerItems + [
-                PageMarkerItem(
-                    title: String(
-                        format: NSLocalizedString(
-                            "codex.gateway.accounts.picker.title",
-                            value: "为 %@ 选择账号",
-                            comment: "Gateway account picker title"
-                        ),
-                        cardName
-                    )
-                )
-            ]
+        let title = String(
+            format: NSLocalizedString(
+                "codex.gateway.accounts.picker.title",
+                value: "为 %@ 选择账号",
+                comment: "Gateway account picker title"
+            ),
+            cardName
         )
+
+        return GatewayAccountSelectionSheetView(
+            title: title,
+            listSections: gatewayAccountCandidateListSections(for: cardID),
+            selections: $gatewayAccountPickerSelection,
+            cancelTitle: NSLocalizedString("cancel", value: "Cancel", comment: "Cancel"),
+            confirmTitle: NSLocalizedString(
+                "codex.gateway.accounts.picker.add",
+                value: "加入网关",
+                comment: "Add accounts to gateway card"
+            ),
+            onCancel: dismissGatewayAccountPicker,
+            onConfirm: confirmGatewayAccountPickerSelection,
+            debugPageMarkerItems: gatewayCardsDebugPageMarkerItems + [PageMarkerItem(title: title)]
+        )
+    }
+
+    private func gatewayAccountCandidateListSections(for cardID: UUID) -> [NolonUI.AccountListModeSection] {
+        let usageListItemsByAccountID = gatewayCandidateUsageListItemsByAccountID()
+        return gatewayCardsViewModel.gatewayCandidateSections(for: cardID).map { section in
+            NolonUI.AccountListModeSection(
+                id: section.id,
+                title: section.title,
+                items: section.items.map { account in
+                    if let existing = usageListItemsByAccountID[account.id] {
+                        return existing
+                    }
+
+                    let displayName = gatewayCandidateTitle(for: account)
+                    let subtitle = gatewayCandidateSubtitle(for: account, title: displayName)
+                    return NolonUI.AccountListModeItem(
+                        id: account.id.uuidString,
+                        presentation: .neutral,
+                        header: .init(
+                            eyebrow: nil,
+                            title: displayName,
+                            subtitle: nil,
+                            meta: subtitle,
+                            badge: nil
+                        ),
+                        usageWindows: [.init(id: "none", title: "-", progress: 0, percentText: "0%")]
+                    )
+                }
+            )
+        }
+    }
+
+    private func gatewayCandidateUsageListItemsByAccountID() -> [UUID: NolonUI.AccountListModeItem] {
+        let hasActiveGatewayCardSelection = gatewayCardsViewModel.hasActiveGatewayCardSelection
+        let models = viewModel.codex.accountDisplaySections
+            .flatMap(\.items)
+            .map {
+                accountsViewModel.codex.makeUsageCardModel(
+                    outcome: $0,
+                    hasActiveGatewayCardSelection: hasActiveGatewayCardSelection,
+                    isRunningCLILogin: loginFlowViewModel.isRunningCLILogin
+                )
+            }
+
+        var result: [UUID: NolonUI.AccountListModeItem] = [:]
+        for model in models {
+            guard let accountID = model.accountID else { continue }
+            result[accountID] = .init(
+                id: accountID.uuidString,
+                presentation: model.presentation,
+                header: model.data.header,
+                usageWindows: accountListModeUsageWindows(from: model.data),
+                menuActions: []
+            )
+        }
+        return result
+    }
+
+    private func accountListModeUsageWindows(from data: AccountCardViewData) -> [NolonUI.AccountListModeUsageWindow] {
+        compactUsageWindows(from: data).map {
+            let normalized = max(0, min(100, $0.remainingPercent.isInfinite ? 100 : $0.remainingPercent))
+            return .init(
+                id: $0.id,
+                title: $0.title,
+                progress: CGFloat(normalized / 100),
+                percentText: $0.remainingPercent.isInfinite ? "∞" : String(format: "%.0f%%", normalized)
+            )
+        }
     }
 
     private func gatewayCandidateTitle(for account: CodexAuthAccount) -> String {
@@ -2141,7 +2157,7 @@ extension ProviderUsageView {
         return ProviderUsageAccountDisplayNameResolver.resolve(
             email: summary?.email,
             summaryAccountID: summary?.accountID,
-            cardKind: summary.map { "\($0.cardKind)" },
+            cardKind: summary?.cardKind?.rawValue,
             apiKeySuffix: summary?.apiKeySuffix,
             relayModelProvider: summary?.relayModelProvider,
             relayBaseURL: summary?.relayBaseURL,

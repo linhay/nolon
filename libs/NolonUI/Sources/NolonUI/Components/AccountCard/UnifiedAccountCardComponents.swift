@@ -1657,12 +1657,19 @@ public struct AccountListModeModule: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    private var showsPlanColumn: Bool {
+        let normalizedTitle = planColumnTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        return planColumnWidth > 0 && !normalizedTitle.isEmpty
+    }
+
     private var tableHeader: some View {
         HStack(spacing: PreviewLayoutTokens.Spacing.group) {
             Text(accountColumnTitle)
                 .frame(maxWidth: .infinity, alignment: .leading)
-            Text(planColumnTitle)
-                .frame(width: planColumnWidth, alignment: .leading)
+            if showsPlanColumn {
+                Text(planColumnTitle)
+                    .frame(width: planColumnWidth, alignment: .leading)
+            }
             Text(usageColumnTitle)
                 .frame(width: usageColumnWidth, alignment: .leading)
         }
@@ -1695,26 +1702,39 @@ public struct AccountListModeModule: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
-            Text(planText(for: item))
-                .font(.caption)
-                .foregroundStyle(DesignSystem.Colors.Text.secondary)
-                .lineLimit(1)
-                .frame(width: planColumnWidth, alignment: .leading)
+            if showsPlanColumn {
+                Text(planText(for: item))
+                    .font(.caption)
+                    .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                    .lineLimit(1)
+                    .frame(width: planColumnWidth, alignment: .leading)
+            }
 
             usageWindowsColumn(item.usageWindows)
                 .frame(width: usageColumnWidth, alignment: .leading)
         }
         .padding(.vertical, 10)
 
+        let decoratedRow = row
+            .padding(.horizontal, 8)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(rowBackgroundColor(for: item))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(rowBorderColor(for: item), lineWidth: rowBorderLineWidth(for: item))
+            )
+
         if let onTap {
             if item.menuActions.isEmpty {
-                row
+                decoratedRow
                     .contentShape(Rectangle())
                     .onTapGesture {
                         onTap(item.id)
                     }
             } else {
-                row
+                decoratedRow
                     .contentShape(Rectangle())
                     .onTapGesture {
                         onTap(item.id)
@@ -1735,9 +1755,9 @@ public struct AccountListModeModule: View {
                     }
             }
         } else if item.menuActions.isEmpty {
-            row
+            decoratedRow
         } else {
-            row.contextMenu {
+            decoratedRow.contextMenu {
                 ForEach(item.menuActions) { action in
                     Button(role: action.role) {
                         onMenuAction?(item.id, action.id)
@@ -1751,6 +1771,41 @@ public struct AccountListModeModule: View {
                     .disabled(!action.isEnabled)
                 }
             }
+        }
+    }
+
+    private func rowBackgroundColor(for item: AccountListModeItem) -> Color {
+        switch item.presentation.selectionStyle {
+        case .active:
+            return DesignSystem.Colors.primary.opacity(0.12)
+        case .pending:
+            return DesignSystem.Colors.Status.warning.opacity(0.14)
+        case .selected:
+            return DesignSystem.Colors.primary.opacity(0.10)
+        case .neutral:
+            return Color.clear
+        }
+    }
+
+    private func rowBorderColor(for item: AccountListModeItem) -> Color {
+        switch item.presentation.selectionStyle {
+        case .active:
+            return DesignSystem.Colors.primary.opacity(0.45)
+        case .pending:
+            return DesignSystem.Colors.Status.warning.opacity(0.45)
+        case .selected:
+            return DesignSystem.Colors.primary.opacity(0.35)
+        case .neutral:
+            return Color.clear
+        }
+    }
+
+    private func rowBorderLineWidth(for item: AccountListModeItem) -> CGFloat {
+        switch item.presentation.selectionStyle {
+        case .neutral:
+            return 0
+        case .active, .pending, .selected:
+            return 1
         }
     }
 
@@ -1909,14 +1964,21 @@ public struct CodexCompactAccountsTableHeaderView: View {
         HStack(spacing: 12) {
             Text(accountTitle)
                 .frame(maxWidth: .infinity, alignment: .leading)
-            Text(planTitle)
-                .frame(width: planColumnWidth, alignment: .leading)
+            if showsPlanColumn {
+                Text(planTitle)
+                    .frame(width: planColumnWidth, alignment: .leading)
+            }
             Text(usageTitle)
                 .frame(width: usageColumnWidth, alignment: .leading)
         }
         .font(.caption2.weight(.semibold))
         .foregroundStyle(DesignSystem.Colors.Text.tertiary)
         .padding(.vertical, 8)
+    }
+
+    private var showsPlanColumn: Bool {
+        let normalizedTitle = planTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        return planColumnWidth > 0 && !normalizedTitle.isEmpty
     }
 }
 
@@ -2034,11 +2096,13 @@ public struct CodexCompactAccountRowView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
-            Text(planText)
-                .font(.caption)
-                .foregroundStyle(DesignSystem.Colors.Text.secondary)
-                .lineLimit(1)
-                .frame(width: planColumnWidth, alignment: .leading)
+            if showsPlanColumn {
+                Text(planText)
+                    .font(.caption)
+                    .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                    .lineLimit(1)
+                    .frame(width: planColumnWidth, alignment: .leading)
+            }
 
             VStack(alignment: .leading, spacing: 6) {
                 ForEach(usageWindows) { window in
@@ -2073,6 +2137,10 @@ public struct CodexCompactAccountRowView: View {
                 .disabled(!action.isEnabled)
             }
         }
+    }
+
+    private var showsPlanColumn: Bool {
+        planColumnWidth > 0
     }
 
     private var statusColor: Color {

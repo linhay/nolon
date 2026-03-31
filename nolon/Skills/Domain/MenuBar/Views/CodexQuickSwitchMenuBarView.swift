@@ -1,6 +1,7 @@
 import SwiftUI
 import AppKit
 import Observation
+import CodexBarProviderCatalog
 import ProviderCatalog
 import ProviderUsage
 import NolonResourceKit
@@ -116,6 +117,10 @@ final class CodexQuickSwitchMenuBarViewModel {
         }
     }
 
+    private enum ListLayout {
+        static let usageColumnWidth: CGFloat = 232
+    }
+
     private let settings: ProviderSettings
     private var usageRootViewModel: ProviderUsageRootViewModel?
     private let userDefaults: UserDefaults
@@ -124,6 +129,18 @@ final class CodexQuickSwitchMenuBarViewModel {
     var rows: [Row] {
         guard let usageRootViewModel else { return [] }
         return Self.makeRows(from: usageRootViewModel.accountsViewModel)
+    }
+
+    var tableSections: [NolonUI.AccountListModeSection] {
+        guard let usageRootViewModel else { return [] }
+        let accountsViewModel = usageRootViewModel.accountsViewModel
+        let isRunningCLILogin = usageRootViewModel.loginFlowViewModel.isRunningCLILogin
+        let items = Self.makeTableItems(
+            from: accountsViewModel,
+            isRunningCLILogin: isRunningCLILogin
+        )
+        guard !items.isEmpty else { return [] }
+        return [.init(id: "menu-codex-usage-list", items: items)]
     }
     
     var activeRows: [Row] {
@@ -249,12 +266,59 @@ final class CodexQuickSwitchMenuBarViewModel {
                 )
             }
     }
+
+    private static func makeTableItems(
+        from accountsViewModel: ProviderUsageAccountsViewModel,
+        isRunningCLILogin: Bool
+    ) -> [NolonUI.AccountListModeItem] {
+        accountsViewModel.codex.accountOutcomes.map { outcome in
+            let model = accountsViewModel.codex.makeUsageCardModel(
+                outcome: outcome,
+                hasActiveGatewayCardSelection: false,
+                isRunningCLILogin: isRunningCLILogin
+            )
+            return NolonUI.AccountListModeItem(
+                id: model.data.id,
+                presentation: model.presentation,
+                header: model.data.header,
+                usageWindows: compactUsageWindows(from: model.data),
+                menuActions: []
+            )
+        }
+    }
+
+    private static func compactUsageWindows(from data: AccountCardViewData) -> [NolonUI.AccountListModeUsageWindow] {
+        guard case let .quota(quota) = data.body, let usage = quota.usage else {
+            return [.init(id: "none", title: "-", progress: 0, percentText: "0%")]
+        }
+        let metadata = ProviderUsageRegistry.metadata(for: quota.provider)
+        return ProviderQuotaSection
+            .displayWindows(for: usage, provider: quota.provider)
+            .prefix(3)
+            .map { item in
+                let title: String
+                switch item.id {
+                case "primary":
+                    title = metadata?.sessionLabel ?? "Session"
+                case "secondary":
+                    title = metadata?.weeklyLabel ?? "Weekly"
+                default:
+                    title = item.title
+                }
+                let normalized = max(0, min(100, item.window.remainingPercent.isInfinite ? 100 : item.window.remainingPercent))
+                return .init(
+                    id: item.id,
+                    title: title,
+                    progress: CGFloat(normalized / 100),
+                    percentText: item.window.remainingPercent.isInfinite ? "∞" : String(format: "%.0f%%", normalized)
+                )
+            }
+    }
 }
 
 struct CodexQuickSwitchMenuBarView: View, DebugPageLocatable {
     @Environment(\.openWindow) private var openWindow
     @State private var viewModel = CodexQuickSwitchMenuBarViewModel(settings: ProviderSettings.shared)
-    @State private var isExhaustedExpanded = false
     private let refreshTimer = Timer.publish(every: 60, on: .main, in: .common).autoconnect()
 
     var debugPageMarkerItems: [PageMarkerItem] {
@@ -277,32 +341,15 @@ struct CodexQuickSwitchMenuBarView: View, DebugPageLocatable {
         } content: {
             NolonUI.PaddedScrollContainer(
                 showsIndicators: false,
-                padding: EdgeInsets(top: 0, leading: 16, bottom: 16, trailing: 16),
+                padding: EdgeInsets(top: 0, leading: 0, bottom: 16, trailing: 0),
                 minHeight: 300,
                 maxHeight: 1500
             ) {
-                VStack(alignment: .leading, spacing: 16) {
-                    if viewModel.rows.isEmpty {
-                        emptyStateView
-                    } else {
-                        if !viewModel.activeRows.isEmpty {
-                            NolonUI.QuickSwitchSectionHeaderView(preset: .active)
-                            ForEach(viewModel.activeRows) { row in
-                                accountCard(row)
-                            }
-                        }
-
-                        if !viewModel.availableRows.isEmpty {
-                            NolonUI.QuickSwitchSectionHeaderView(preset: .available)
-                            ForEach(viewModel.availableRows) { row in
-                                accountCard(row)
-                            }
-                        }
-
-                        if !viewModel.exhaustedRows.isEmpty {
-                            exhaustedGroup
-                        }
-                    }
+                if menuTableItems.isEmpty {
+                    emptyStateView
+                        .padding(.horizontal, 16)
+                } else {
+                    menuTableRows
                 }
             }
         } footer: {
@@ -340,42 +387,6 @@ struct CodexQuickSwitchMenuBarView: View, DebugPageLocatable {
         )
     }
 
-    private func accountCard(_ row: CodexQuickSwitchMenuBarViewModel.Row) -> some View {
-        NolonUI.QuickSwitchAccountCardView(
-            data: .init(
-                id: row.id.uuidString,
-                title: row.title,
-                detail: row.detail,
-                isActive: row.isActive,
-                isExhausted: row.isExhausted,
-                usageWindows: row.usageWindows.map { window in
-                    .init(
-                        id: window.id,
-                        title: window.title,
-                        remainingPercent: window.window.remainingPercent
-                    )
-                }
-            ),
-            onTap: {
-                Task { await viewModel.activateAccount(id: row.id) }
-            }
-        )
-    }
-
-    private var exhaustedGroup: some View {
-        NolonUI.QuickSwitchExhaustedGroupView(
-            count: viewModel.exhaustedRows.count,
-            isExpanded: $isExhaustedExpanded
-        ) {
-            VStack(spacing: 10) {
-                ForEach(viewModel.exhaustedRows) { row in
-                    accountCard(row)
-                        .transition(.move(edge: .top).combined(with: .opacity))
-                }
-            }
-        }
-    }
-
     private var footerToolbarSection: some View {
         NolonUI.QuickSwitchFooterToolbarView(
             data: .init(),
@@ -404,5 +415,112 @@ struct CodexQuickSwitchMenuBarView: View, DebugPageLocatable {
 
     private var emptyStateView: some View {
         NolonUI.QuickSwitchEmptyStateView()
+    }
+
+    private var menuTableItems: [NolonUI.AccountListModeItem] {
+        viewModel.tableSections.flatMap { $0.items }
+    }
+
+    private var menuTableRows: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(Array(menuTableItems.enumerated()), id: \.element.id) { index, item in
+                menuTableRow(item)
+
+                if index < menuTableItems.count - 1 {
+                    Divider()
+                        .overlay(DesignSystem.Colors.Component.border.opacity(0.25))
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder
+    private func menuTableRow(_ item: NolonUI.AccountListModeItem) -> some View {
+        let rowContent = VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .center, spacing: 8) {
+                Circle()
+                    .fill(statusColor(for: item))
+                    .frame(width: 6, height: 6)
+
+                Text(item.header.title)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(DesignSystem.Colors.Text.primary)
+                    .lineLimit(1)
+
+                Spacer(minLength: 0)
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                ForEach(item.usageWindows) { window in
+                    HStack(spacing: 8) {
+                        Text(window.title)
+                            .font(.caption2)
+                            .foregroundStyle(DesignSystem.Colors.Text.tertiary)
+                            .frame(width: 56, alignment: .leading)
+
+                        NolonUI.AccountInlineQuotaProgress(
+                            progress: window.progress,
+                            percentText: window.percentText
+                        )
+                    }
+                }
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
+
+        if item.menuActions.isEmpty {
+            rowContent
+                .onTapGesture {
+                    guard let id = UUID(uuidString: item.id) else { return }
+                    Task { await viewModel.activateAccount(id: id) }
+                }
+        } else {
+            rowContent
+                .contextMenu {
+                    ForEach(item.menuActions) { action in
+                        Button(role: action.role) {
+                            // Currently no menu actions in quick switch; keep for future extension.
+                        } label: {
+                            if let symbol = action.systemImage, !symbol.isEmpty {
+                                Label(action.title, systemImage: symbol)
+                            } else {
+                                Text(action.title)
+                            }
+                        }
+                        .disabled(!action.isEnabled)
+                    }
+                }
+                .onTapGesture {
+                    guard let id = UUID(uuidString: item.id) else { return }
+                    Task { await viewModel.activateAccount(id: id) }
+                }
+        }
+    }
+
+    private func statusColor(for item: NolonUI.AccountListModeItem) -> Color {
+        if let badge = item.header.badge {
+            switch badge.tone {
+            case .active:
+                return DesignSystem.Colors.primary
+            case .warning:
+                return DesignSystem.Colors.Status.warning
+            case .neutral:
+                return DesignSystem.Colors.Text.secondary
+            }
+        }
+        switch item.presentation.selectionStyle {
+        case .active:
+            return DesignSystem.Colors.primary
+        case .pending:
+            return DesignSystem.Colors.Status.warning
+        case .selected:
+            return DesignSystem.Colors.primary
+        case .neutral:
+            return DesignSystem.Colors.Text.secondary
+        }
     }
 }

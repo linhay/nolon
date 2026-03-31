@@ -439,6 +439,25 @@ struct CodexAuthManagerTests {
         #expect(createdPair?.accessToken == "new-access")
     }
 
+    @Test("Given long sync failure detail when persisting then lastSyncFailureMessage keeps full text")
+    func updateSyncFailurePersistsFullMessage() async throws {
+        let root = try makeTempRoot("codex-auth-sync-failure-full")
+        defer { try? root.delete() }
+
+        let manager = CodexAuthManager(rootURL: root.url)
+        let account = try await manager.addAccount(
+            name: "cli",
+            authJSONString: #"{"tokens":{"id_token":"id","access_token":"access"},"email":"cli@example.com"}"#
+        )
+
+        let longMessage = String(repeating: "A", count: 500)
+        try await manager.updateSyncFailure(for: account, message: longMessage, date: Date(timeIntervalSince1970: 1_700_000_000))
+
+        let file = await manager.accountAuthFile(account)
+        let summary = CodexAuthSummary.fromJSONData(try file.data())
+        #expect(summary.lastSyncFailureMessage == longMessage)
+    }
+
     @Test("Given existing snapshot with same email and same account id, when recording CLI login snapshot, then account is overwritten in-place")
     func recordCLILoginSnapshotOverwritesWhenEmailAndAccountIDMatch() async throws {
         let root = try makeTempRoot("codex-auth-record-email-accountid")

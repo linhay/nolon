@@ -970,13 +970,12 @@ public actor CodexAuthManager {
     public func updateSyncFailure(for account: CodexAuthAccount, message: String, date: Date = Date()) throws {
         let file = accountAuthFile(account)
         let trimmed = message.trimmingCharacters(in: .whitespacesAndNewlines)
-        let clipped = String(trimmed.prefix(220))
         try updateSyncMetadata(
             file: file,
             loginAt: nil,
             successAt: nil,
             failureAt: date,
-            failureMessage: clipped.isEmpty ? nil : clipped,
+            failureMessage: trimmed.isEmpty ? nil : trimmed,
             clearFailure: false
         )
     }

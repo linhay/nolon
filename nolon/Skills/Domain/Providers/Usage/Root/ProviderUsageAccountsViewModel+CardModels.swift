@@ -281,6 +281,10 @@ extension ProviderUsageAccountsViewModel.GeminiState {
                     errorMessage: nil
                 )
             case let .failure(error):
+                let rawDetail = ProviderUsageErrorTextFormatter.detailText(
+                    localizedDescription: error.localizedDescription,
+                    fallbackDescription: String(describing: error)
+                )
                 return .init(
                     provider: liveOutcome.provider,
                     accountTitle: account.email ?? account.name,
@@ -292,10 +296,7 @@ extension ProviderUsageAccountsViewModel.GeminiState {
                     syncedAt: nil,
                     isLoading: isLoading,
                     showsEmptyState: false,
-                    errorMessage: ProviderUsageErrorTextFormatter.detailText(
-                        localizedDescription: error.localizedDescription,
-                        fallbackDescription: String(describing: error)
-                    )
+                    errorMessage: ProviderUsageErrorTextFormatter.displayText(errorDetail: rawDetail)
                 )
             }
         }()
@@ -392,7 +393,7 @@ extension ProviderUsageAccountsViewModel.CodexState {
             return nil
         }()
         let persistedFailureDetail = summary?.lastSyncFailureMessage?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let failureDetail: String? = {
+        let failureDetailRaw: String? = {
             if let persistedFailureDetail, !persistedFailureDetail.isEmpty { return persistedFailureDetail }
             if let liveFailureError {
                 return ProviderUsageErrorTextFormatter.detailText(
@@ -402,7 +403,6 @@ extension ProviderUsageAccountsViewModel.CodexState {
             }
             return nil
         }()
-
         let title = ProviderUsageAccountDisplayNameResolver.resolve(
             email: summary?.email,
             summaryAccountID: summary?.accountID,
@@ -416,7 +416,7 @@ extension ProviderUsageAccountsViewModel.CodexState {
         )
 
         let primaryActions: [AccountCardActionViewData] = {
-            guard let failureDetail else { return [] }
+            guard let failureDetailRaw else { return [] }
             var actions: [AccountCardActionViewData] = [
                 .init(
                     id: "copyError",
@@ -440,8 +440,8 @@ extension ProviderUsageAccountsViewModel.CodexState {
                         isEnabled: !isLoggingIn
                     )
                 )
-            } else if !failureDetail.isEmpty {
-                _ = failureDetail
+            } else if !failureDetailRaw.isEmpty {
+                _ = failureDetailRaw
             }
             return actions
         }()
@@ -519,7 +519,7 @@ extension ProviderUsageAccountsViewModel.CodexState {
             accountID: accountID,
             data: data,
             presentation: presentation,
-            failureDetail: failureDetail,
+            failureDetail: failureDetailRaw,
             canRefresh: accountID != nil,
             canLogin: canLogin
         )

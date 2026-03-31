@@ -33,6 +33,17 @@ public class ProviderSettings {
 
     // MARK: - Provider Management
 
+    /// Backward-compatible path accessors used by legacy callers/tests.
+    /// Prefer reading `provider.defaultSkillsPath` directly in new code.
+    public func pathFolder(for provider: Provider) -> STFolder {
+        STFolder(provider.defaultSkillsPath)
+    }
+
+    /// Backward-compatible URL accessor for provider skills root.
+    public func path(for provider: Provider) -> URL {
+        pathFolder(for: provider).url
+    }
+
     public func addProvider(_ provider: Provider) {
         providers.append(provider)
     }

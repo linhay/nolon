@@ -1717,7 +1717,7 @@ final class ProviderUsageEngine {
             let title = ProviderUsageAccountDisplayNameResolver.resolve(
                 email: summary?.email,
                 summaryAccountID: summary?.accountID,
-                cardKind: summary.map { "\($0.cardKind)" },
+                cardKind: summary?.cardKind?.rawValue,
                 apiKeySuffix: summary?.apiKeySuffix,
                 relayModelProvider: summary?.relayModelProvider,
                 relayBaseURL: summary?.relayBaseURL,

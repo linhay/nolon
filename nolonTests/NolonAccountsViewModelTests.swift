@@ -19,6 +19,17 @@ private final class URLSink: @unchecked Sendable {
     var value: URL?
 }
 
+private enum CodexCardTestError: LocalizedError {
+    case message(String)
+
+    var errorDescription: String? {
+        switch self {
+        case let .message(text):
+            return text
+        }
+    }
+}
+
 @MainActor
 final class NolonAccountsViewModelTests: XCTestCase {
     func testBDD_GivenAccountsThemeTokens_WhenComparingLightDarkValues_ThenLightModeUsesDedicatedPalette() {
@@ -299,6 +310,38 @@ final class NolonAccountsViewModelTests: XCTestCase {
         XCTAssertEqual(cards[0].tapBehavior, .activate)
         XCTAssertTrue(cards[0].primaryActions.isEmpty)
         XCTAssertEqual(cards[0].menuActions.map(\.actionID), [.copyAccountID, .copyAuthPath, .copyAuthJSON, .editAuthJSON])
+    }
+
+    func testBDD_GivenCodexAuthFailure_WhenBuildingRecord_ThenDetailFieldsContainSummaryAndErrorDetail() {
+        let outcome = ProviderAccountUsageOutcome(
+            provider: .codex,
+            account: .default,
+            outcome: ProviderFetchOutcome(
+                fetchKind: .cli,
+                result: .failure(CodexCardTestError.message("Codex protocol error: 401 Unauthorized; token expired"))
+            )
+        )
+
+        let record = AccountRecordBuilder.codexUsage(
+            outcome: outcome,
+            summary: CodexAuthSummary(cardKind: .chatgptAccount),
+            presentation: .codex(isActive: false, isPending: false, isBatchSelected: false, selectableAccountCount: 1),
+            title: "Work",
+            creditsRefreshedAt: nil,
+            isRefreshing: false,
+            canRelogin: true
+        )
+
+        XCTAssertEqual(record.detailFields.map(\.id), ["failureSummary", "failureDetail"])
+        XCTAssertEqual(
+            record.detailFields.first?.value,
+            NSLocalizedString(
+                "codex.accounts.error.auth_expired",
+                value: "Authentication expired. Please sign in again.",
+                comment: "Codex auth expired summary"
+            )
+        )
+        XCTAssertEqual(record.detailFields.last?.value, "Codex protocol error: 401 Unauthorized; token expired")
     }
 
     func testBDD_GivenActiveCodexSnapshotCard_WhenBuildingAccountCards_ThenShowsActiveStateWithoutActivateAction() {

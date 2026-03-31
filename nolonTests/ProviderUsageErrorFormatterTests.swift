@@ -16,6 +16,14 @@ private enum ProviderUsageErrorFormatterTestError: Error, LocalizedError {
 }
 
 struct ProviderUsageErrorFormatterTests {
+    @Test("BDD: Given long error detail when formatting display text then it is ellipsized for UI")
+    func testBDD_GivenLongErrorDetail_WhenFormattingDisplayText_ThenEllipsized() {
+        let detail = String(repeating: "x", count: 260)
+        let display = ProviderUsageErrorTextFormatter.displayText(errorDetail: detail, maxLength: 80)
+        #expect(display.count == 80)
+        #expect(display.hasSuffix("..."))
+    }
+
     @Test("BDD: Given auth expired error when formatting summary then returns localized auth expired text")
     func testBDD_GivenAuthExpiredError_WhenFormattingSummary_ThenReturnsLocalizedAuthExpiredText() {
         let error = ProviderUsageErrorFormatterTestError.message("Unauthorized: session expired")

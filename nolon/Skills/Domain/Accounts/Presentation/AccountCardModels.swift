@@ -413,16 +413,19 @@ enum AccountRecordBuilder {
             return nil
         }()
         let persistedFailureDetail = summary?.lastSyncFailureMessage?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let failureDetail: String? = {
+        let failureDetailRaw: String? = {
             if let persistedFailureDetail, !persistedFailureDetail.isEmpty { return persistedFailureDetail }
             if let liveFailureError { return providerUsageErrorDetailText(error: liveFailureError) }
             return nil
         }()
+        let failureDetail: String? = failureDetailRaw.map {
+            ProviderUsageErrorTextFormatter.displayText(errorDetail: $0)
+        }
         let failureSummary: String? = {
             if let liveFailureError {
                 return providerUsageErrorSummaryText(error: liveFailureError)
             }
-            if let failureDetail, canRelogin, CodexAuthFailureClassifier.isAuthFailure(errorText: failureDetail) {
+            if let failureDetailRaw, canRelogin, CodexAuthFailureClassifier.isAuthFailure(errorText: failureDetailRaw) {
                 return NSLocalizedString(
                     "codex.accounts.error.auth_expired",
                     value: "Authentication expired. Please sign in again.",
@@ -463,6 +466,35 @@ enum AccountRecordBuilder {
             }
         }()
 
+        let detailFields: [AccountRecordField] = {
+            guard let failureSummary else { return [] }
+            var fields: [AccountRecordField] = [
+                .init(
+                    id: "failureSummary",
+                    kind: .message,
+                    label: nil,
+                    value: failureSummary,
+                    auxiliary: nil,
+                    tone: displayState == .warning ? .warning : .neutral
+                ),
+            ]
+            if let failureDetail,
+               failureDetail != failureSummary
+            {
+                fields.append(
+                    .init(
+                        id: "failureDetail",
+                        kind: .message,
+                        label: nil,
+                        value: failureDetail,
+                        auxiliary: nil,
+                        tone: .neutral
+                    )
+                )
+            }
+            return fields
+        }()
+
         return AccountRecord(
             id: .init(provider: .codex, rawValue: outcome.id),
             providerName: "Codex",
@@ -475,18 +507,7 @@ enum AccountRecordBuilder {
             activationState: codexActivationState(from: presentation.selectionStyle),
             healthState: displayState,
             bodyFields: [],
-            detailFields: failureSummary.map {
-                [
-                    .init(
-                        id: "failureSummary",
-                        kind: .message,
-                        label: nil,
-                        value: $0,
-                        auxiliary: nil,
-                        tone: displayState == .warning ? .warning : .neutral
-                    )
-                ]
-            } ?? [],
+            detailFields: detailFields,
             quota: quota,
             accessibilityLabel: "Codex \(title)"
         )
