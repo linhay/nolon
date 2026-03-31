@@ -163,4 +163,114 @@ final class CodexQuickSwitchMenuBarSupportTests: XCTestCase {
 
         XCTAssertEqual(candidates.map(\.id), [gemini.id, codex.id])
     }
+
+    func testQuickSwitchSort_activeAccountAlwaysFirst_evenWhenNoQuota() {
+        let entries: [CodexQuickSwitchAccountSorter.Entry] = [
+            makeSortEntry(id: "B", isActive: false, remainingPercents: [80], createdAt: 20),
+            makeSortEntry(id: "A", isActive: true, remainingPercents: [0, 0], createdAt: 10),
+            makeSortEntry(id: "C", isActive: false, remainingPercents: [60], createdAt: 30)
+        ]
+
+        let sorted = CodexQuickSwitchAccountSorter.sort(entries).map(\.id)
+
+        XCTAssertEqual(sorted, ["A", "B", "C"])
+    }
+
+    func testQuickSwitchSort_accountsWithQuotaBeforeZeroQuota() {
+        let entries: [CodexQuickSwitchAccountSorter.Entry] = [
+            makeSortEntry(id: "A", isActive: true, remainingPercents: [50], createdAt: 10),
+            makeSortEntry(id: "B", isActive: false, remainingPercents: [0, 0], createdAt: 20),
+            makeSortEntry(id: "C", isActive: false, remainingPercents: [10], createdAt: 30)
+        ]
+
+        let sorted = CodexQuickSwitchAccountSorter.sort(entries).map(\.id)
+
+        XCTAssertEqual(sorted, ["A", "C", "B"])
+    }
+
+    func testQuickSwitchSort_sortByMaxRemainingPercentDescending() {
+        let entries: [CodexQuickSwitchAccountSorter.Entry] = [
+            makeSortEntry(id: "A", isActive: true, remainingPercents: [40], createdAt: 10),
+            makeSortEntry(id: "B", isActive: false, remainingPercents: [20, 70], createdAt: 20),
+            makeSortEntry(id: "C", isActive: false, remainingPercents: [65], createdAt: 30)
+        ]
+
+        let sorted = CodexQuickSwitchAccountSorter.sort(entries).map(\.id)
+
+        XCTAssertEqual(sorted, ["A", "B", "C"])
+    }
+
+    func testQuickSwitchSort_independentPerAccountWindowSets() {
+        let entries: [CodexQuickSwitchAccountSorter.Entry] = [
+            makeSortEntry(id: "A", isActive: true, remainingPercents: [30], createdAt: 10),
+            makeSortEntry(id: "B", isActive: false, remainingPercents: [15, 35, 5], createdAt: 20),
+            makeSortEntry(id: "C", isActive: false, remainingPercents: [34], createdAt: 30)
+        ]
+
+        let sorted = CodexQuickSwitchAccountSorter.sort(entries).map(\.id)
+
+        XCTAssertEqual(sorted, ["A", "B", "C"])
+    }
+
+    func testQuickSwitchSort_nilOrEmptyUsageTreatedAsNoQuota() {
+        let entries: [CodexQuickSwitchAccountSorter.Entry] = [
+            makeSortEntry(id: "A", isActive: true, remainingPercents: [], createdAt: 10),
+            makeSortEntry(id: "B", isActive: false, remainingPercents: [], createdAt: 20),
+            makeSortEntry(id: "C", isActive: false, remainingPercents: [5], createdAt: 30)
+        ]
+
+        let sorted = CodexQuickSwitchAccountSorter.sort(entries).map(\.id)
+
+        XCTAssertEqual(sorted, ["A", "C", "B"])
+    }
+
+    func testQuickSwitchSort_invalidWindowValuesTreatedAsNoQuota() {
+        let entries: [CodexQuickSwitchAccountSorter.Entry] = [
+            makeSortEntry(id: "A", isActive: true, remainingPercents: [10], createdAt: 10),
+            makeSortEntry(id: "B", isActive: false, remainingPercents: [-5, .nan, .infinity], createdAt: 20),
+            makeSortEntry(id: "C", isActive: false, remainingPercents: [1], createdAt: 30)
+        ]
+
+        let sorted = CodexQuickSwitchAccountSorter.sort(entries).map(\.id)
+
+        XCTAssertEqual(sorted, ["A", "C", "B"])
+    }
+
+    func testQuickSwitchSort_tieBreakerByCreatedAtDescending() {
+        let entries: [CodexQuickSwitchAccountSorter.Entry] = [
+            makeSortEntry(id: "A", isActive: true, remainingPercents: [50], createdAt: 10),
+            makeSortEntry(id: "B", isActive: false, remainingPercents: [20], createdAt: 200),
+            makeSortEntry(id: "C", isActive: false, remainingPercents: [20], createdAt: 100)
+        ]
+
+        let sorted = CodexQuickSwitchAccountSorter.sort(entries).map(\.id)
+
+        XCTAssertEqual(sorted, ["A", "B", "C"])
+    }
+
+    func testQuickSwitchSort_finalTieBreakerByUUIDAscending() {
+        let entries: [CodexQuickSwitchAccountSorter.Entry] = [
+            makeSortEntry(id: "A", isActive: true, remainingPercents: [50], createdAt: 10),
+            makeSortEntry(id: "00000000-0000-0000-0000-000000000020", isActive: false, remainingPercents: [20], createdAt: 100),
+            makeSortEntry(id: "00000000-0000-0000-0000-000000000010", isActive: false, remainingPercents: [20], createdAt: 100)
+        ]
+
+        let sorted = CodexQuickSwitchAccountSorter.sort(entries).map(\.id)
+
+        XCTAssertEqual(sorted, ["A", "00000000-0000-0000-0000-000000000010", "00000000-0000-0000-0000-000000000020"])
+    }
+
+    private func makeSortEntry(
+        id: String,
+        isActive: Bool,
+        remainingPercents: [Double],
+        createdAt secondsSince1970: TimeInterval
+    ) -> CodexQuickSwitchAccountSorter.Entry {
+        .init(
+            id: id,
+            isActive: isActive,
+            remainingPercents: remainingPercents,
+            createdAt: Date(timeIntervalSince1970: secondsSince1970)
+        )
+    }
 }

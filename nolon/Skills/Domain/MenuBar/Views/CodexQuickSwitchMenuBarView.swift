@@ -102,6 +102,52 @@ enum CodexQuickSwitchUsageFormatter {
     }
 }
 
+enum CodexQuickSwitchAccountSorter {
+    struct Entry: Equatable {
+        let id: String
+        let isActive: Bool
+        let remainingPercents: [Double]
+        let createdAt: Date
+
+        var maxRemainingPercent: Double {
+            CodexQuickSwitchAccountSorter.maxRemainingPercent(from: remainingPercents)
+        }
+
+        var hasQuota: Bool {
+            maxRemainingPercent > 0
+        }
+    }
+
+    static func sort(_ entries: [Entry]) -> [Entry] {
+        entries.sorted(by: ranksBefore)
+    }
+
+    static func ranksBefore(_ lhs: Entry, _ rhs: Entry) -> Bool {
+        if lhs.isActive != rhs.isActive {
+            return lhs.isActive
+        }
+        if lhs.hasQuota != rhs.hasQuota {
+            return lhs.hasQuota
+        }
+        if lhs.maxRemainingPercent != rhs.maxRemainingPercent {
+            return lhs.maxRemainingPercent > rhs.maxRemainingPercent
+        }
+        if lhs.createdAt != rhs.createdAt {
+            return lhs.createdAt > rhs.createdAt
+        }
+        return lhs.id < rhs.id
+    }
+
+    static func maxRemainingPercent(from values: [Double]) -> Double {
+        values.map(normalizedRemainingPercent).max() ?? 0
+    }
+
+    static func normalizedRemainingPercent(_ value: Double) -> Double {
+        guard value.isFinite else { return 0 }
+        return max(0, value)
+    }
+}
+
 @MainActor
 @Observable
 final class CodexQuickSwitchMenuBarViewModel {
@@ -271,20 +317,38 @@ final class CodexQuickSwitchMenuBarViewModel {
         from accountsViewModel: ProviderUsageAccountsViewModel,
         isRunningCLILogin: Bool
     ) -> [NolonUI.AccountListModeItem] {
-        accountsViewModel.codex.accountOutcomes.map { outcome in
+        let createdAtByAccountID: [UUID: Date] = Dictionary(
+            uniqueKeysWithValues: accountsViewModel.codex.accounts.map { ($0.id, $0.createdAt) }
+        )
+        let mapped: [(sortEntry: CodexQuickSwitchAccountSorter.Entry, item: NolonUI.AccountListModeItem)] = accountsViewModel.codex.accountOutcomes.map { outcome in
             let model = accountsViewModel.codex.makeUsageCardModel(
                 outcome: outcome,
                 hasActiveGatewayCardSelection: false,
                 isRunningCLILogin: isRunningCLILogin
             )
-            return NolonUI.AccountListModeItem(
+            let item = NolonUI.AccountListModeItem(
                 id: model.data.id,
                 presentation: model.presentation,
                 header: model.data.header,
                 usageWindows: compactUsageWindows(from: model.data),
                 menuActions: []
             )
+            let accountCreatedAt = model.accountID.flatMap { createdAtByAccountID[$0] } ?? .distantPast
+            let remainingPercents = remainingPercents(from: model.data)
+            let sortEntry = CodexQuickSwitchAccountSorter.Entry(
+                id: model.data.id,
+                isActive: model.accountID == accountsViewModel.codex.activeAccountId,
+                remainingPercents: remainingPercents,
+                createdAt: accountCreatedAt
+            )
+            return (sortEntry: sortEntry, item: item)
         }
+
+        return mapped
+            .sorted { lhs, rhs in
+                CodexQuickSwitchAccountSorter.ranksBefore(lhs.sortEntry, rhs.sortEntry)
+            }
+            .map(\.item)
     }
 
     private static func compactUsageWindows(from data: AccountCardViewData) -> [NolonUI.AccountListModeUsageWindow] {
@@ -313,6 +377,16 @@ final class CodexQuickSwitchMenuBarViewModel {
                     percentText: item.window.remainingPercent.isInfinite ? "∞" : String(format: "%.0f%%", normalized)
                 )
             }
+    }
+
+    private static func remainingPercents(from data: AccountCardViewData) -> [Double] {
+        guard case let .quota(quota) = data.body, let usage = quota.usage else {
+            return []
+        }
+        return ProviderQuotaSection
+            .displayWindows(for: usage, provider: quota.provider)
+            .map { $0.window.remainingPercent }
+            .map(CodexQuickSwitchAccountSorter.normalizedRemainingPercent)
     }
 }
 
