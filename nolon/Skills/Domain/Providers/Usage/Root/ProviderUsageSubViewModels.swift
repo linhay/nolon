@@ -22,8 +22,6 @@ final class ProviderUsageAccountsViewModel {
             let remainingPercent: Double
         }
 
-        static let autoSwitchThresholdOptions: [Double] = [5, 10, 15, 20, 30]
-        static let autoSwitchCandidateOptions: [Double] = [10, 20, 30, 40, 50]
         static let listPlanColumnWidth: CGFloat = 96
         static let listUsageColumnWidth: CGFloat = 232
 
@@ -33,20 +31,18 @@ final class ProviderUsageAccountsViewModel {
             self.state = state
         }
 
-        private var engine: ProviderUsageEngine { state.engine }
+        private var engine: any ProviderUsageCodexEngineProtocol { state.codexEngine }
 
         var accounts: [CodexAuthAccount] { engine.codexAccounts }
         var accountOutcomes: [ProviderAccountUsageOutcome] { engine.codexAccountOutcomes }
-        var autoSwitchThresholdOptions: [Double] { Self.autoSwitchThresholdOptions }
-        var autoSwitchCandidateOptions: [Double] { Self.autoSwitchCandidateOptions }
         var listPlanColumnWidth: CGFloat { Self.listPlanColumnWidth }
         var listUsageColumnWidth: CGFloat { Self.listUsageColumnWidth }
         var accountSummaries: [UUID: CodexAuthSummary] { engine.codexAccountSummaries }
         var accountCreditsRefreshedAt: [UUID: Date] { engine.codexAccountCreditsRefreshedAt }
-        var accountDisplaySections: [ProviderUsageEngine.CodexAccountDisplaySection] { engine.codexAccountDisplaySections }
+        var accountDisplaySections: [CodexAccountDisplaySection] { engine.codexAccountDisplaySections }
         var accountSectionTotalCountByID: [String: Int] { engine.codexAccountSectionTotalCountByID }
-        var primaryHeaderActions: [ProviderUsageEngine.CodexPrimaryHeaderAction] { engine.codexPrimaryHeaderActions }
-        var sortMenuOptions: [ProviderUsageEngine.CodexAccountSortOption] { engine.codexSortMenuOptions }
+        var primaryHeaderActions: [CodexPrimaryHeaderAction] { engine.codexPrimaryHeaderActions }
+        var sortMenuOptions: [CodexAccountSortOption] { engine.codexSortMenuOptions }
         var authFilePath: String? { engine.codexAuthFilePath }
         var activeAccountId: UUID? { engine.activeCodexAccountId }
         var refreshingAccountIds: Set<UUID> { engine.codexRefreshingAccountIds }
@@ -69,9 +65,12 @@ final class ProviderUsageAccountsViewModel {
             set { engine.pendingActivateCodexAccount = newValue }
         }
         var managementStatus: CodexAuthManager.CodexManagementStatus? { engine.codexManagementStatus }
-        var configEditorDraft: ProviderUsageEngine.CodexConfigEditorDraft? {
+        var configEditorDraft: CodexConfigEditorDraft? {
             get { engine.codexConfigEditorDraft }
             set { engine.codexConfigEditorDraft = newValue }
+        }
+        var configEditorModelProviderOptions: [String] {
+            engine.codexConfigEditorModelProviderOptions
         }
         var configEditorErrorMessage: String? { engine.codexConfigEditorErrorMessage }
         var usageQueryTestSuccessMessage: String? { engine.codexUsageQueryTestSuccessMessage }
@@ -94,16 +93,15 @@ final class ProviderUsageAccountsViewModel {
         var hideZeroQuotaAccounts: Bool { engine.codexHideZeroQuotaAccounts }
         var hideErroredAccounts: Bool { engine.codexHideErroredAccounts }
         var hasActiveAccountFilters: Bool { engine.hasActiveCodexAccountFilters }
-        var autoSwitchConfig: CodexAutoSwitchConfig { engine.codexAutoSwitchConfig }
-        var accountGroupingOption: ProviderUsageEngine.CodexAccountGroupingOption {
+        var accountGroupingOption: CodexAccountGroupingOption {
             get { engine.codexAccountGroupingOption }
-            set { engine.codexAccountGroupingOption = newValue }
+            set { engine.setCodexAccountGroupingOption(newValue) }
         }
-        var accountSortOption: ProviderUsageEngine.CodexAccountSortOption {
+        var accountSortOption: CodexAccountSortOption {
             get { engine.codexAccountSortOption }
             set { engine.codexAccountSortOption = newValue }
         }
-        var accountLayoutMode: ProviderUsageEngine.CodexAccountLayoutMode { engine.codexAccountLayoutMode }
+        var accountLayoutMode: UsageAccountLayoutMode { state.commonEngine.accountLayoutMode }
         var usesCompactListRows: Bool { Self.usesCompactListRows(layoutMode: accountLayoutMode) }
         var enablesTextSelection: Bool { Self.enablesTextSelection(layoutMode: accountLayoutMode) }
         var collapsedSectionIDs: Set<String> { engine.collapsedCodexSectionIDs }
@@ -133,30 +131,30 @@ final class ProviderUsageAccountsViewModel {
         }
 
         static func visiblePrimaryHeaderActions(
-            from actions: [ProviderUsageEngine.CodexPrimaryHeaderAction],
+            from actions: [CodexPrimaryHeaderAction],
             isMultiSelectionEnabled: Bool
-        ) -> [ProviderUsageEngine.CodexPrimaryHeaderAction] {
+        ) -> [CodexPrimaryHeaderAction] {
             guard !isMultiSelectionEnabled else { return [] }
-            return Array(actions.prefix(2))
+            return Array(actions.prefix(3))
         }
 
         static func shouldShowActivateGatewayContextAction(isActiveGateway: Bool) -> Bool {
             !isActiveGateway
         }
 
-        static func usesCompactListRows(layoutMode: ProviderUsageEngine.CodexAccountLayoutMode) -> Bool {
+        static func usesCompactListRows(layoutMode: UsageAccountLayoutMode) -> Bool {
             layoutMode == .list
         }
 
-        static func enablesTextSelection(layoutMode: ProviderUsageEngine.CodexAccountLayoutMode) -> Bool {
+        static func enablesTextSelection(layoutMode: UsageAccountLayoutMode) -> Bool {
             !usesCompactListRows(layoutMode: layoutMode)
         }
 
-        static func gatewayMemberDisplayLimit(layoutMode: ProviderUsageEngine.CodexAccountLayoutMode) -> Int {
+        static func gatewayMemberDisplayLimit(layoutMode: UsageAccountLayoutMode) -> Int {
             usesCompactListRows(layoutMode: layoutMode) ? 8 : 12
         }
 
-        static func gatewayMemberRowMaxHeight(layoutMode: ProviderUsageEngine.CodexAccountLayoutMode) -> CGFloat {
+        static func gatewayMemberRowMaxHeight(layoutMode: UsageAccountLayoutMode) -> CGFloat {
             usesCompactListRows(layoutMode: layoutMode) ? 48 : 70
         }
 
@@ -224,10 +222,6 @@ final class ProviderUsageAccountsViewModel {
             await engine.exportSelectedCodexAccountsAsZIP()
         }
 
-        func exportSelectedAccountsAsSub2API() async {
-            await engine.exportSelectedCodexAccountsAsSub2API()
-        }
-
         func beginEditActiveConfiguredAccount() {
             engine.beginEditActiveCodexConfiguredAccount()
         }
@@ -244,6 +238,10 @@ final class ProviderUsageAccountsViewModel {
             await engine.testCodexUsageQueryDraft()
         }
 
+        func validateConnectionDraft() async {
+            await engine.validateCodexConnectionDraft()
+        }
+
         func dismissConfigEditor() {
             engine.dismissCodexConfigEditor()
         }
@@ -252,15 +250,11 @@ final class ProviderUsageAccountsViewModel {
             await engine.saveCodexConfigEditor()
         }
 
-        func beginNewRelayAccount() {
-            engine.beginNewCodexRelayAccount()
-        }
-
         func beginNewAPIKeyAccount() {
             engine.beginNewCodexAPIKeyAccount()
         }
 
-        func selectSortOption(_ option: ProviderUsageEngine.CodexAccountSortOption) {
+        func selectSortOption(_ option: CodexAccountSortOption) {
             engine.selectCodexSortOption(option)
         }
 
@@ -273,7 +267,7 @@ final class ProviderUsageAccountsViewModel {
             engine.toggleCodexSectionSelection(section)
         }
 
-        func toggleSectionSelection(_ section: ProviderUsageEngine.CodexAccountDisplaySection) {
+        func toggleSectionSelection(_ section: CodexAccountDisplaySection) {
             engine.toggleCodexSectionSelection(section)
         }
 
@@ -287,22 +281,6 @@ final class ProviderUsageAccountsViewModel {
 
         func setHideErroredAccounts(_ hidden: Bool) {
             engine.setCodexHideErroredAccounts(hidden)
-        }
-
-        func setAutoSwitchEnabled(_ enabled: Bool) {
-            engine.setCodexAutoSwitchEnabled(enabled)
-        }
-
-        func setAutoSwitchThresholdPercent(_ percent: Int) {
-            engine.setCodexAutoSwitchThresholdPercent(percent)
-        }
-
-        func setAutoSwitchMinimumCandidateRemainingPercent(_ percent: Int) {
-            engine.setCodexAutoSwitchMinimumCandidateRemainingPercent(percent)
-        }
-
-        func setAutoSwitchSkipRelay(_ skipRelay: Bool) {
-            engine.setCodexAutoSwitchSkipRelay(skipRelay)
         }
 
         func enableManagement() async {
@@ -325,19 +303,19 @@ final class ProviderUsageAccountsViewModel {
             engine.editCodexAccountAuthJSON(id: id)
         }
 
-        func setAccountLayoutMode(_ mode: ProviderUsageEngine.CodexAccountLayoutMode) {
-            engine.setCodexAccountLayoutMode(mode)
+        func setAccountLayoutMode(_ mode: UsageAccountLayoutMode) {
+            state.commonEngine.setAccountLayoutMode(mode)
         }
 
         func isSectionCollapsed(_ sectionID: String) -> Bool {
             engine.isCodexSectionCollapsed(sectionID)
         }
 
-        func isSectionFullySelected(_ section: ProviderUsageEngine.CodexAccountDisplaySection) -> Bool {
+        func isSectionFullySelected(_ section: CodexAccountDisplaySection) -> Bool {
             engine.isCodexSectionFullySelected(section)
         }
 
-        func direction(for option: ProviderUsageEngine.CodexAccountSortOption) -> ProviderUsageEngine.CodexSortDirection? {
+        func direction(for option: CodexAccountSortOption) -> CodexSortDirection? {
             engine.codexDirection(for: option)
         }
 
@@ -353,20 +331,43 @@ final class ProviderUsageAccountsViewModel {
             engine.copyErrorText(text)
         }
 
-        func gatewayMembers(for card: CodexGatewayCard) -> [ProviderUsageEngine.CodexGatewayMemberDisplay] {
+        func gatewayMembers(for card: CodexGatewayCard) -> [CodexGatewayMemberDisplay] {
             engine.gatewayMembers(for: card)
         }
     }
 
     @MainActor
+    @Observable
     final class ClaudeState {
+        struct AccountEditorDraft: Equatable {
+            enum Mode: Equatable {
+                case create
+                case edit
+            }
+
+            let mode: Mode
+            let accountID: UUID
+            var name: String
+            var credentialType: ClaudeCredentialType
+            var credentialValue: String
+            var baseURL: String
+            var anthropicModel: String
+            var anthropicReasoningModel: String
+            var anthropicDefaultHaikuModel: String
+            var anthropicDefaultSonnetModel: String
+            var anthropicDefaultOpusModel: String
+        }
+
         fileprivate let state: ProviderUsageStateStore
+        var isShowingEditor = false
+        var editorDraft: AccountEditorDraft?
+        var editorErrorMessage: String?
 
         init(state: ProviderUsageStateStore) {
             self.state = state
         }
 
-        private var engine: ProviderUsageEngine { state.engine }
+        private var engine: any ProviderUsageClaudeEngineProtocol { state.claudeEngine }
 
         var accounts: [ClaudeAccount] { engine.claudeAccounts }
 
@@ -382,6 +383,156 @@ final class ProviderUsageAccountsViewModel {
             await engine.activateClaudeAccount(id: id)
         }
 
+        func beginEditAccount(id: UUID) {
+            guard let account = accounts.first(where: { $0.id == id }) else { return }
+            editorDraft = AccountEditorDraft(
+                mode: .edit,
+                accountID: account.id,
+                name: account.name,
+                credentialType: account.credentialType,
+                credentialValue: account.credentialValue,
+                baseURL: account.baseURL,
+                anthropicModel: account.anthropicModel,
+                anthropicReasoningModel: account.anthropicReasoningModel,
+                anthropicDefaultHaikuModel: account.anthropicDefaultHaikuModel,
+                anthropicDefaultSonnetModel: account.anthropicDefaultSonnetModel,
+                anthropicDefaultOpusModel: account.anthropicDefaultOpusModel
+            )
+            editorErrorMessage = nil
+            isShowingEditor = true
+        }
+
+        func beginCreateAccount() {
+            editorDraft = AccountEditorDraft(
+                mode: .create,
+                accountID: UUID(),
+                name: "",
+                credentialType: .authToken,
+                credentialValue: "",
+                baseURL: "https://api.anthropic.com",
+                anthropicModel: "gpt-5",
+                anthropicReasoningModel: "",
+                anthropicDefaultHaikuModel: "gpt-5(minimal)",
+                anthropicDefaultSonnetModel: "gpt-5(medium)",
+                anthropicDefaultOpusModel: "gpt-5(high)"
+            )
+            editorErrorMessage = nil
+            isShowingEditor = true
+        }
+
+        func dismissEditor() {
+            editorErrorMessage = nil
+            editorDraft = nil
+            isShowingEditor = false
+        }
+
+        func saveEditor() async {
+            guard let draft = editorDraft else { return }
+
+            let trimmedName = draft.name.trimmingCharacters(in: .whitespacesAndNewlines)
+            let trimmedCredential = draft.credentialValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            let trimmedBaseURL = draft.baseURL.trimmingCharacters(in: .whitespacesAndNewlines)
+            let trimmedModel = draft.anthropicModel.trimmingCharacters(in: .whitespacesAndNewlines)
+            let trimmedReasoningModel = draft.anthropicReasoningModel.trimmingCharacters(in: .whitespacesAndNewlines)
+            let trimmedHaiku = draft.anthropicDefaultHaikuModel.trimmingCharacters(in: .whitespacesAndNewlines)
+            let trimmedSonnet = draft.anthropicDefaultSonnetModel.trimmingCharacters(in: .whitespacesAndNewlines)
+            let trimmedOpus = draft.anthropicDefaultOpusModel.trimmingCharacters(in: .whitespacesAndNewlines)
+
+            guard !trimmedCredential.isEmpty else {
+                editorErrorMessage = NSLocalizedString(
+                    "claude.accounts.editor.error.empty_credential",
+                    value: "Credential cannot be empty.",
+                    comment: "Claude account editor empty credential error"
+                )
+                return
+            }
+            guard !trimmedBaseURL.isEmpty else {
+                editorErrorMessage = NSLocalizedString(
+                    "claude.accounts.editor.error.empty_base_url",
+                    value: "Base URL cannot be empty.",
+                    comment: "Claude account editor empty base url error"
+                )
+                return
+            }
+            guard !trimmedModel.isEmpty else {
+                editorErrorMessage = NSLocalizedString(
+                    "claude.accounts.editor.error.empty_model",
+                    value: "Model cannot be empty.",
+                    comment: "Claude account editor empty model error"
+                )
+                return
+            }
+            guard !trimmedHaiku.isEmpty else {
+                editorErrorMessage = NSLocalizedString(
+                    "claude.accounts.editor.error.empty_haiku_model",
+                    value: "Default Haiku model cannot be empty.",
+                    comment: "Claude account editor empty default haiku model error"
+                )
+                return
+            }
+            guard !trimmedSonnet.isEmpty else {
+                editorErrorMessage = NSLocalizedString(
+                    "claude.accounts.editor.error.empty_sonnet_model",
+                    value: "Default Sonnet model cannot be empty.",
+                    comment: "Claude account editor empty default sonnet model error"
+                )
+                return
+            }
+            guard !trimmedOpus.isEmpty else {
+                editorErrorMessage = NSLocalizedString(
+                    "claude.accounts.editor.error.empty_opus_model",
+                    value: "Default Opus model cannot be empty.",
+                    comment: "Claude account editor empty default opus model error"
+                )
+                return
+            }
+            do {
+                switch draft.mode {
+                case .create:
+                    var newAccount = ClaudeAccount(
+                        id: draft.accountID,
+                        name: trimmedName,
+                        credentialType: draft.credentialType,
+                        credentialValue: trimmedCredential,
+                        baseURL: trimmedBaseURL,
+                        anthropicModel: trimmedModel,
+                        anthropicReasoningModel: trimmedReasoningModel,
+                        anthropicDefaultHaikuModel: trimmedHaiku,
+                        anthropicDefaultSonnetModel: trimmedSonnet,
+                        anthropicDefaultOpusModel: trimmedOpus,
+                        source: .manual
+                    )
+                    newAccount.createdAt = Date()
+                    newAccount.updatedAt = Date()
+                    try await engine.createClaudeAccount(newAccount)
+                case .edit:
+                    guard let account = accounts.first(where: { $0.id == draft.accountID }) else {
+                        editorErrorMessage = NSLocalizedString(
+                            "claude.accounts.editor.error.not_found",
+                            value: "The account no longer exists. Please refresh and try again.",
+                            comment: "Claude account editor missing account error"
+                        )
+                        return
+                    }
+
+                    var updated = account
+                    updated.name = trimmedName
+                    updated.credentialType = draft.credentialType
+                    updated.credentialValue = trimmedCredential
+                    updated.baseURL = trimmedBaseURL
+                    updated.anthropicModel = trimmedModel
+                    updated.anthropicReasoningModel = trimmedReasoningModel
+                    updated.anthropicDefaultHaikuModel = trimmedHaiku
+                    updated.anthropicDefaultSonnetModel = trimmedSonnet
+                    updated.anthropicDefaultOpusModel = trimmedOpus
+                    try await engine.updateClaudeAccount(updated)
+                }
+                dismissEditor()
+            } catch {
+                editorErrorMessage = error.localizedDescription
+            }
+        }
+
         func isActiveAccount(_ account: ClaudeAccount) -> Bool {
             engine.isActiveClaudeAccount(account)
         }
@@ -395,7 +546,7 @@ final class ProviderUsageAccountsViewModel {
             self.state = state
         }
 
-        private var engine: ProviderUsageEngine { state.engine }
+        private var engine: any ProviderUsageGeminiEngineProtocol { state.geminiEngine }
 
         var accounts: [GeminiAuthAccount] { engine.geminiAccounts }
         var shouldShowImportAction: Bool { engine.shouldShowGeminiImportAction }
@@ -442,36 +593,40 @@ final class ProviderUsageAccountsViewModel {
         self.gemini = GeminiState(state: state)
     }
 
-    private var engine: ProviderUsageEngine { state.engine }
-    var outcomes: [ProviderAccountUsageOutcome] { state.engine.outcomes }
-    var usageProvider: UsageProvider? { state.engine.usageProvider }
+    private var engine: any ProviderUsageCommonEngineProtocol { state.commonEngine }
+    var outcomes: [ProviderAccountUsageOutcome] { engine.outcomes }
+    var usageProvider: UsageProvider? { state.usageProvider }
     var settings: UsageMonitorProviderSettings {
-        get { state.engine.settings }
-        set { state.engine.settings = newValue }
+        get { engine.settings }
+        set { engine.settings = newValue }
     }
-    var isLoading: Bool { state.engine.isLoading }
-    var accountLayoutMode: ProviderUsageEngine.CodexAccountLayoutMode { state.engine.codexAccountLayoutMode }
-    var isShowingCopyToast: Bool { state.engine.isShowingCopyToast }
-    var copyToastMessage: String? { state.engine.copyToastMessage }
+    var isLoading: Bool { engine.isLoading }
+    var accountLayoutMode: UsageAccountLayoutMode { engine.accountLayoutMode }
+    var isShowingCopyToast: Bool { engine.isShowingCopyToast }
+    var copyToastMessage: String? { engine.copyToastMessage }
     var alertTitle: String? {
-        get { state.engine.alertTitle }
-        set { state.engine.alertTitle = newValue }
+        get { engine.alertTitle }
+        set { engine.alertTitle = newValue }
     }
     var alertMessage: String? {
-        get { state.engine.alertMessage }
-        set { state.engine.alertMessage = newValue }
+        get { engine.alertMessage }
+        set { engine.alertMessage = newValue }
     }
 
     func load() async {
-        await state.engine.load()
+        await engine.load()
     }
 
     func loadIfNeeded() async -> Bool {
-        await state.engine.loadIfNeeded()
+        await engine.loadIfNeeded()
     }
 
     func performAutoRefresh() async {
         await engine.performAutoRefresh()
+    }
+
+    func performScheduledRefreshTick(now: Date = Date()) async {
+        await engine.performScheduledRefresh(now: now)
     }
 
     func updateSettings(_ settings: UsageMonitorProviderSettings) {
@@ -482,12 +637,12 @@ final class ProviderUsageAccountsViewModel {
         engine.handleHeaderRefreshButtonTap()
     }
 
-    func setAccountLayoutMode(_ mode: ProviderUsageEngine.CodexAccountLayoutMode) {
-        engine.setCodexAccountLayoutMode(mode)
+    func setAccountLayoutMode(_ mode: UsageAccountLayoutMode) {
+        engine.setAccountLayoutMode(mode)
     }
 
     static func shouldUseCompactUnifiedListRows(
-        layoutMode: ProviderUsageEngine.CodexAccountLayoutMode,
+        layoutMode: UsageAccountLayoutMode,
         accountCount: Int
     ) -> Bool {
         layoutMode == .list && accountCount > 0
@@ -504,18 +659,19 @@ final class ProviderTokenTrendViewModel {
         self.state = state
     }
 
-    var tokenTrendRange: ProviderUsageEngine.TokenTrendRange { state.engine.tokenTrendRange }
-    var tokenTrendSnapshot: ProviderTokenTrendSnapshot? { state.engine.tokenTrendSnapshot }
-    var tokenTrendErrorMessage: String? { state.engine.tokenTrendErrorMessage }
-    var isLoadingTokenTrend: Bool { state.engine.isLoadingTokenTrend }
-    var shouldShowLoadingSkeleton: Bool { state.engine.shouldShowTokenTrendLoadingSkeleton }
+    private var engine: any ProviderUsageCommonEngineProtocol { state.commonEngine }
+    var tokenTrendRange: UsageEngineTokenTrendRange { engine.tokenTrendRange }
+    var tokenTrendSnapshot: ProviderTokenTrendSnapshot? { engine.tokenTrendSnapshot }
+    var tokenTrendErrorMessage: String? { engine.tokenTrendErrorMessage }
+    var isLoadingTokenTrend: Bool { engine.isLoadingTokenTrend }
+    var shouldShowLoadingSkeleton: Bool { engine.shouldShowTokenTrendLoadingSkeleton }
 
-    func setRange(_ range: ProviderUsageEngine.TokenTrendRange) {
-        state.engine.setTokenTrendRange(range)
+    func setRange(_ range: UsageEngineTokenTrendRange) {
+        engine.setTokenTrendRange(range)
     }
 
     func refreshNow() {
-        state.engine.refreshTokenTrendNow()
+        engine.refreshTokenTrendNow()
     }
 }
 
@@ -528,73 +684,78 @@ final class ProviderUsageCodexImportSheetViewModel {
         self.state = state
     }
 
-    var sections: [ProviderUsageEngine.CodexImportCandidateSection] {
-        state.engine.codexImportCandidateSections
+    var sections: [CodexImportCandidateSection] {
+        state.codexEngine.codexImportCandidateSections
     }
 
-    var hasAnyCandidates: Bool { state.engine.hasCodexImportCandidates }
-    var isRunningValidation: Bool { state.engine.isRunningCodexImportValidation }
-    var isRunningConnectionTests: Bool { state.engine.isRunningCodexImportConnectionTests }
+    var hasAnyCandidates: Bool { state.codexEngine.hasCodexImportCandidates }
+    var canImport: Bool { state.codexEngine.canImportSelectedCodexCandidates }
+    var isRunningValidation: Bool { state.codexEngine.isRunningCodexImportValidation }
+    var isRunningConnectionTests: Bool { state.codexEngine.isRunningCodexImportConnectionTests }
     var isTargetingDropZone: Bool {
-        get { state.engine.isTargetingCodexImportDropZone }
-        set { state.engine.isTargetingCodexImportDropZone = newValue }
+        get { state.codexEngine.isTargetingCodexImportDropZone }
+        set { state.codexEngine.isTargetingCodexImportDropZone = newValue }
     }
     var searchText: String {
-        get { state.engine.codexImportSearchText }
-        set { state.engine.codexImportSearchText = newValue }
+        get { state.codexEngine.codexImportSearchText }
+        set { state.codexEngine.codexImportSearchText = newValue }
     }
-    var globalErrorMessage: String? { state.engine.codexImportGlobalErrorMessage }
+    var globalErrorMessage: String? { state.codexEngine.codexImportGlobalErrorMessage }
+    var importDestinationOption: CodexImportDestinationOption {
+        get { state.codexEngine.codexImportDestinationOption }
+        set { state.codexEngine.codexImportDestinationOption = newValue }
+    }
+    var customSQLiteGroupName: String {
+        get { state.codexEngine.codexImportCustomGroupName }
+        set { state.codexEngine.codexImportCustomGroupName = newValue }
+    }
 
     func pickFiles() {
-        Task { await state.engine.presentCodexImportFilePicker() }
+        Task { await state.codexEngine.presentCodexImportFilePicker() }
     }
 
     func pasteFromClipboard() {
-        Task { await state.engine.pasteCodexImportFromClipboard() }
+        Task { await state.codexEngine.pasteCodexImportFromClipboard() }
     }
 
     func handleDropFiles(_ urls: [URL]) {
-        Task { await state.engine.handleCodexImportURLs(urls) }
+        Task { await state.codexEngine.handleCodexImportURLs(urls) }
     }
 
     func setCandidateSelected(_ selected: Bool, id: UUID) {
-        state.engine.setCodexImportCandidateSelected(selected, id: id)
+        state.codexEngine.setCodexImportCandidateSelected(selected, id: id)
     }
 
     func setGroupSelected(_ selected: Bool, sourceGroupID: String) {
-        state.engine.setCodexImportCandidatesSelected(selected, sourceGroupID: sourceGroupID)
+        state.codexEngine.setCodexImportCandidatesSelected(selected, sourceGroupID: sourceGroupID)
     }
 
     func selectAll() {
-        state.engine.setAllCodexImportCandidatesSelected(true)
+        state.codexEngine.setAllCodexImportCandidatesSelected(true)
     }
 
     func deselectAll() {
-        state.engine.setAllCodexImportCandidatesSelected(false)
+        state.codexEngine.setAllCodexImportCandidatesSelected(false)
     }
 
     func retryConnectionTest(id: UUID) {
-        Task { await state.engine.retryCodexImportConnectionTest(id: id) }
+        Task { await state.codexEngine.retryCodexImportConnectionTest(id: id) }
     }
 
     func retryAllConnectionTests() {
-        Task { await state.engine.retryAllCodexImportConnectionTests() }
+        Task { await state.codexEngine.retryAllCodexImportConnectionTests() }
     }
 
     func removeCandidate(id: UUID) {
-        state.engine.removeCodexImportCandidate(id: id)
+        state.codexEngine.removeCodexImportCandidate(id: id)
     }
 
     func exportSelectedAsZIP() {
-        Task { await state.engine.exportSelectedCodexImportCandidatesAsZIP() }
-    }
-
-    func exportSelectedAsSub2API() {
-        Task { await state.engine.exportSelectedCodexImportCandidatesAsSub2API() }
+        Task { await state.codexEngine.exportSelectedCodexImportCandidatesAsZIP() }
     }
 
     func applySelectedImports() {
-        Task { await state.engine.applySelectedCodexImports() }
+        Task { await state.codexEngine.applySelectedCodexImports() }
     }
 }
 
@@ -610,8 +771,8 @@ final class CodexImportExportViewModel {
     }
 
     var isShowingCodexImportSheet: Bool {
-        get { state.engine.isShowingCodexImportSheet }
-        set { state.engine.isShowingCodexImportSheet = newValue }
+        get { state.codexEngine.isShowingCodexImportSheet }
+        set { state.codexEngine.isShowingCodexImportSheet = newValue }
     }
     var isShowingCodexImportSheetBinding: Binding<Bool> {
         Binding(
@@ -621,7 +782,7 @@ final class CodexImportExportViewModel {
     }
 
     func dismissCodexImportSheet() {
-        state.engine.dismissCodexImportSheet()
+        state.codexEngine.dismissCodexImportSheet()
     }
 }
 
@@ -629,15 +790,16 @@ final class CodexImportExportViewModel {
 @Observable
 final class ProviderLoginFlowViewModel {
     private let state: ProviderUsageStateStore
+    private var engine: any ProviderUsageCommonEngineProtocol { state.commonEngine }
 
     init(state: ProviderUsageStateStore) {
         self.state = state
     }
 
-    var isRunningCLILogin: Bool { state.engine.isRunningCLILogin }
+    var isRunningCLILogin: Bool { engine.isRunningCLILogin }
     var isShowingLogin: Bool {
-        get { state.engine.isShowingLogin }
-        set { state.engine.isShowingLogin = newValue }
+        get { engine.isShowingLogin }
+        set { engine.isShowingLogin = newValue }
     }
     var isShowingLoginBinding: Binding<Bool> {
         Binding(
@@ -645,11 +807,11 @@ final class ProviderLoginFlowViewModel {
             set: { self.isShowingLogin = $0 }
         )
     }
-    var dashboardURL: URL? { state.engine.dashboardURL }
-    var loginModeForSheet: String? { state.engine.loginModeForSheet }
+    var dashboardURL: URL? { engine.dashboardURL }
+    var loginModeForSheet: String? { engine.loginModeForSheet }
     var isShowingLoginURLSheet: Bool {
-        get { state.engine.isShowingLoginURLSheet }
-        set { state.engine.isShowingLoginURLSheet = newValue }
+        get { engine.isShowingLoginURLSheet }
+        set { engine.isShowingLoginURLSheet = newValue }
     }
     var isShowingLoginURLSheetBinding: Binding<Bool> {
         Binding(
@@ -657,26 +819,26 @@ final class ProviderLoginFlowViewModel {
             set: { self.isShowingLoginURLSheet = $0 }
         )
     }
-    var loginURLForSheet: URL? { state.engine.loginURLForSheet }
+    var loginURLForSheet: URL? { engine.loginURLForSheet }
 
     func startLoginFlow() {
-        state.engine.startLoginFlow()
+        engine.startLoginFlow()
     }
 
     func cancelCLILoginIfNeeded() {
-        state.engine.cancelCLILoginIfNeeded()
+        engine.cancelCLILoginIfNeeded()
     }
 
     func handleLoginURLSheetDismissed() {
-        state.engine.handleLoginURLSheetDismissed()
+        engine.handleLoginURLSheetDismissed()
     }
 
     func copyLoginURL() {
-        state.engine.copyLoginURL()
+        engine.copyLoginURL()
     }
 
     func reopenLoginURLInBrowser() {
-        state.engine.reopenLoginURLInBrowser()
+        engine.reopenLoginURLInBrowser()
     }
 }
 
@@ -689,58 +851,58 @@ final class CodexGatewayCardsViewModel {
         self.state = state
     }
 
-    var gatewayCards: [CodexGatewayCard] { state.engine.gatewayCards }
-    var gatewayCardsState: CodexGatewayCardsState { state.engine.gatewayCardsState }
-    var isGatewayCardsSectionCollapsed: Bool { state.engine.isGatewayCardsSectionCollapsed }
-    var hasActiveGatewayCardSelection: Bool { state.engine.hasActiveGatewayCardSelection }
-    var pendingGatewaySelectionAccountIDs: [UUID] { state.engine.pendingGatewaySelectionAccountIDs }
+    var gatewayCards: [CodexGatewayCard] { state.codexEngine.gatewayCards }
+    var gatewayCardsState: CodexGatewayCardsState { state.codexEngine.gatewayCardsState }
+    var isGatewayCardsSectionCollapsed: Bool { state.codexEngine.isGatewayCardsSectionCollapsed }
+    var hasActiveGatewayCardSelection: Bool { state.codexEngine.hasActiveGatewayCardSelection }
+    var pendingGatewaySelectionAccountIDs: [UUID] { state.codexEngine.pendingGatewaySelectionAccountIDs }
 
     func clearActiveGatewayCardSelection() {
-        state.engine.clearActiveGatewayCardSelection()
+        state.codexEngine.clearActiveGatewayCardSelection()
     }
 
     func toggleGatewayCardsSectionCollapsed() {
-        state.engine.toggleGatewayCardsSectionCollapsed()
+        state.codexEngine.toggleGatewayCardsSectionCollapsed()
     }
 
     func activateGatewayCard(cardID: UUID) -> Bool {
-        state.engine.activateGatewayCard(cardID: cardID)
+        state.codexEngine.activateGatewayCard(cardID: cardID)
     }
 
     func startGatewayForCardSelection(cardID: UUID) async {
-        await state.engine.startGatewayForCardSelection(cardID: cardID)
+        await state.codexEngine.startGatewayForCardSelection(cardID: cardID)
     }
 
     func renameGatewayCard(cardID: UUID, name: String) {
-        state.engine.renameGatewayCard(cardID: cardID, name: name)
+        state.codexEngine.renameGatewayCard(cardID: cardID, name: name)
     }
 
     func deleteGatewayCard(cardID: UUID) {
-        state.engine.deleteGatewayCard(cardID: cardID)
+        state.codexEngine.deleteGatewayCard(cardID: cardID)
     }
 
     func confirmAddPendingAccounts(to cardID: UUID) {
-        state.engine.confirmAddPendingAccounts(to: cardID)
+        state.codexEngine.confirmAddPendingAccounts(to: cardID)
     }
 
     func dismissGatewayCardPicker() {
-        state.engine.dismissGatewayCardPicker()
+        state.codexEngine.dismissGatewayCardPicker()
     }
 
     func gatewayCandidateAccounts(for cardID: UUID) -> [CodexAuthAccount] {
-        state.engine.gatewayCandidateAccounts(for: cardID)
+        state.codexEngine.gatewayCandidateAccounts(for: cardID)
     }
 
-    func gatewayCandidateSections(for cardID: UUID) -> [ProviderUsageEngine.CodexGatewayCandidateSection] {
-        state.engine.gatewayCandidateSections(for: cardID)
+    func gatewayCandidateSections(for cardID: UUID) -> [CodexGatewayCandidateSection] {
+        state.codexEngine.gatewayCandidateSections(for: cardID)
     }
 
     func addAccountsToGatewayCard(accountIDs: [UUID], cardID: UUID) {
-        state.engine.addAccountsToGatewayCard(accountIDs: accountIDs, cardID: cardID)
+        state.codexEngine.addAccountsToGatewayCard(accountIDs: accountIDs, cardID: cardID)
     }
 
     @discardableResult
     func createGatewayCard(name: String) -> CodexGatewayCard? {
-        state.engine.createGatewayCard(name: name)
+        state.codexEngine.createGatewayCard(name: name)
     }
 }

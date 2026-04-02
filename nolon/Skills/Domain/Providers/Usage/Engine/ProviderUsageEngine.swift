@@ -172,12 +172,26 @@ final class ProviderUsageEngine {
     @ObservationIgnored private var codexHeaderRefreshTask: Task<Void, Never>?
     private var codexHeaderRefreshSessionID: UUID?
     var isCodexHeaderRefreshing = false
+    private var nonCodexScheduledRefreshLastAt: Date?
+    private var codexScheduledRefreshLastAt: [UUID: Date] = [:]
+    private var codexScheduledRefreshFailureStreak: [UUID: Int] = [:]
+    private let refreshPolicyProfile: RefreshPolicyProfile = .balanced
 
     private struct CodexSQLiteObservationSnapshot: Equatable {
         let accountsCount: Int
         let credentialsCount: Int
         let metadataCount: Int
         let activeCount: Int
+    }
+
+    enum RefreshPolicyProfile: Equatable {
+        case balanced
+    }
+
+    struct RefreshDecision: Equatable {
+        let shouldRefresh: Bool
+        let nextEligibleAt: Date
+        let reason: String
     }
 
     private struct CodexValidationTarget {
@@ -229,6 +243,9 @@ final class ProviderUsageEngine {
         self.codexHideZeroQuotaAccounts = initialSettings.codexHideZeroQuotaAccounts
         self.codexHideErroredAccounts = initialSettings.codexHideErroredAccounts
         self.accountLayoutMode = initialSettings.codexUseListLayout ? .list : .cards
+        self.codexAccountGroupingOption = Self.codexGroupingOption(
+            rawValue: initialSettings.codexAccountGroupingOptionRawValue
+        )
         self.gatewayCardsState = resolvedCodexGatewayCardsStore.load(for: provider)
         if ProviderUsageEngine.mapToUsageProvider(provider) == .codex {
             self.isMultiAccountEnabled = true
@@ -359,6 +376,9 @@ final class ProviderUsageEngine {
         codexHideZeroQuotaAccounts = newSettings.codexHideZeroQuotaAccounts
         codexHideErroredAccounts = newSettings.codexHideErroredAccounts
         accountLayoutMode = newSettings.codexUseListLayout ? .list : .cards
+        codexAccountGroupingOption = Self.codexGroupingOption(
+            rawValue: newSettings.codexAccountGroupingOptionRawValue
+        )
         settingsStore.update(settings: newSettings, for: provider)
     }
 
@@ -382,6 +402,20 @@ final class ProviderUsageEngine {
         var updated = settings
         updated.codexUseListLayout = useListLayout
         updateSettings(updated)
+    }
+
+    func setCodexAccountGroupingOption(_ option: CodexAccountGroupingOption) {
+        guard
+            codexAccountGroupingOption != option
+                || settings.codexAccountGroupingOptionRawValue != option.rawValue
+        else { return }
+        var updated = settings
+        updated.codexAccountGroupingOptionRawValue = option.rawValue
+        updateSettings(updated)
+    }
+
+    private static func codexGroupingOption(rawValue: String) -> CodexAccountGroupingOption {
+        CodexAccountGroupingOption(rawValue: rawValue) ?? .typeInfo
     }
 
     func loadCodexManagementStatus() async {
@@ -563,28 +597,49 @@ final class ProviderUsageEngine {
     }
 
     func performAutoRefresh() async {
+        await performScheduledRefresh(now: Date())
+    }
+
+    func performScheduledRefresh(now: Date) async {
         guard !isLoading else { return }
         guard let usageProvider else { return }
 
         if usageProvider == .codex, isMultiAccountEnabled {
-            do {
-                _ = try await runCodexPreflight(forceBackup: false, reason: "usage_auto_refresh")
-            } catch {
-                Self.logger.error("Codex preflight failed on auto refresh: \(String(describing: error), privacy: .public)")
-            }
             if codexAccounts.isEmpty {
                 await load()
                 return
             }
 
-            if let account = activeCodexAccountForRefresh(),
-               !shouldSkipRefresh(accountID: account.id, summaries: codexAccountSummaries) {
-                await refreshCodexAccountOutcome(account)
+            let targets = codexAccounts.filter { account in
+                guard !shouldSkipRefresh(accountID: account.id, summaries: codexAccountSummaries) else {
+                    return false
+                }
+                let decision = codexScheduledRefreshDecision(for: account, now: now)
+                Self.logger.debug(
+                    "Codex scheduled refresh decision. provider=\(self.provider.id, privacy: .public) account=\(account.id.uuidString, privacy: .public) should=\(decision.shouldRefresh, privacy: .public) reason=\(decision.reason, privacy: .public) next=\(decision.nextEligibleAt.timeIntervalSince1970, privacy: .public)"
+                )
+                return decision.shouldRefresh
             }
+
+            guard !targets.isEmpty else { return }
+
+            do {
+                _ = try await runCodexPreflight(forceBackup: false, reason: "usage_auto_refresh")
+            } catch {
+                Self.logger.error("Codex preflight failed on auto refresh: \(String(describing: error), privacy: .public)")
+            }
+
+            await refreshCodexAccountsInParallel(targets)
             return
         }
 
+        let decision = nonCodexScheduledRefreshDecision(now: now)
+        Self.logger.debug(
+            "Scheduled refresh decision. provider=\(self.provider.id, privacy: .public) should=\(decision.shouldRefresh, privacy: .public) reason=\(decision.reason, privacy: .public) next=\(decision.nextEligibleAt.timeIntervalSince1970, privacy: .public)"
+        )
+        guard decision.shouldRefresh else { return }
         await load()
+        nonCodexScheduledRefreshLastAt = now
     }
 
     func refreshFromHeader() async {
@@ -783,6 +838,7 @@ final class ProviderUsageEngine {
             reconcileGatewayCardsWithCurrentAccounts()
             codexAccountSummaries = loadCodexAccountSummaries(accounts: codexAccounts)
             codexAccountCustomGroupNames = (try? await codexAuthManager.loadCustomGroupNamesByAccountID()) ?? [:]
+            normalizeCodexGroupingOptionIfNeeded()
             activeCodexAccountId = await codexAuthManager.activeAccountId(for: provider)
             codexAccountOutcomes = await loadCachedCodexAccountOutcomes(accounts: codexAccounts)
             reorderCodexAccountOutcomesForDisplay()
@@ -924,13 +980,28 @@ final class ProviderUsageEngine {
 
     private func applyCodexAccountsForDisplay(_ accounts: [CodexAuthAccount]) async {
         codexAccounts = filterGatewayVirtualCodexAccounts(accounts)
+        let validIDs = Set(codexAccounts.map(\.id))
+        codexScheduledRefreshLastAt = codexScheduledRefreshLastAt.filter { validIDs.contains($0.key) }
+        codexScheduledRefreshFailureStreak = codexScheduledRefreshFailureStreak.filter { validIDs.contains($0.key) }
         reconcileCodexSelections()
         reconcileGatewayCardsWithCurrentAccounts()
         codexAccountSummaries = loadCodexAccountSummaries(accounts: codexAccounts)
         codexAccountCustomGroupNames = (try? await codexAuthManager.loadCustomGroupNamesByAccountID()) ?? [:]
+        normalizeCodexGroupingOptionIfNeeded()
         activeCodexAccountId = await codexAuthManager.activeAccountId(for: provider)
         codexAccountOutcomes = await loadCachedCodexAccountOutcomes(accounts: codexAccounts)
         reorderCodexAccountOutcomesForDisplay()
+    }
+
+    private func normalizeCodexGroupingOptionIfNeeded() {
+        guard codexAccountGroupingOption == .customSQLiteGroup else { return }
+        guard !codexAccounts.isEmpty else { return }
+        let hasCustomGroup = codexAccounts.contains { account in
+            let name = codexAccountCustomGroupNames[account.id]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            return !name.isEmpty
+        }
+        guard !hasCustomGroup else { return }
+        setCodexAccountGroupingOption(.typeInfo)
     }
 
     private func filterGatewayVirtualCodexAccounts(_ accounts: [CodexAuthAccount]) -> [CodexAuthAccount] {
@@ -2237,6 +2308,8 @@ final class ProviderUsageEngine {
         currentCodexAuthHashHex = nil
         codexAuthFilePath = nil
         activeCodexAccountId = nil
+        codexScheduledRefreshLastAt = [:]
+        codexScheduledRefreshFailureStreak = [:]
         pendingActivateCodexAccount = nil
         pendingDeleteCodexAccount = nil
         isShowingDeleteConfirm = false
@@ -2936,10 +3009,12 @@ final class ProviderUsageEngine {
     func applyRefreshedCodexOutcome(_ outcome: ProviderAccountUsageOutcome, for account: CodexAuthAccount) async {
         let accountId = account.id
         lastUsageRefreshAt = Date()
+        codexScheduledRefreshLastAt[accountId] = Date()
 
         if case let .success(result) = outcome.outcome.result {
             replaceCodexOutcome(outcome, for: account.id)
             let now = Date()
+            codexScheduledRefreshFailureStreak[accountId] = 0
             codexRefreshedAccountIdsInSession.insert(accountId)
             try? await codexAuthManager.updateSyncSuccess(for: account, date: now)
             let creditsRefreshedAt: Date? = {
@@ -2980,9 +3055,9 @@ final class ProviderUsageEngine {
                     summary.email = email
                 }
                 if let plan = identity.plan?.trimmingCharacters(in: .whitespacesAndNewlines),
-                   Self.isNotBlank(plan),
-                   summary.plan == nil
+                   Self.isNotBlank(plan)
                 {
+                    _ = try? await codexAuthManager.upsertPlanType(for: account, plan: plan)
                     summary.plan = plan
                 }
                 summary.lastSyncSucceededAt = now
@@ -2992,6 +3067,8 @@ final class ProviderUsageEngine {
             }
         } else if case let .failure(error) = outcome.outcome.result {
             let now = Date()
+            let nextStreak = max(1, (codexScheduledRefreshFailureStreak[accountId] ?? 0) + 1)
+            codexScheduledRefreshFailureStreak[accountId] = nextStreak
             codexRefreshedAccountIdsInSession.remove(accountId)
             let message = error.localizedDescription
             if !shouldRetainExistingCodexSuccessResult(for: accountId, error: error) {
@@ -3044,6 +3121,107 @@ final class ProviderUsageEngine {
     func shouldSkipRefresh(accountID: UUID, summaries: [UUID: CodexAuthSummary]) -> Bool {
         guard let summary = summaries[accountID] else { return false }
         return CodexAuthFailureClassifier.shouldSkipRefresh(summary: summary)
+    }
+
+    func nonCodexScheduledRefreshDecision(now: Date) -> RefreshDecision {
+        let interval = refreshInterval(for: refreshPolicyProfile, role: .nonCodex)
+        let lastRefresh = nonCodexScheduledRefreshLastAt ?? lastUsageRefreshAt
+        guard let lastRefresh else {
+            return RefreshDecision(shouldRefresh: true, nextEligibleAt: now, reason: "noncodex_initial")
+        }
+        let nextEligibleAt = lastRefresh.addingTimeInterval(interval)
+        let shouldRefresh = now >= nextEligibleAt
+        return RefreshDecision(
+            shouldRefresh: shouldRefresh,
+            nextEligibleAt: nextEligibleAt,
+            reason: shouldRefresh ? "noncodex_interval_elapsed" : "noncodex_wait_interval"
+        )
+    }
+
+    enum CodexRefreshRole {
+        case active
+        case recent
+        case backoff(streak: Int)
+        case ignored
+        case nonCodex
+    }
+
+    func codexScheduledRefreshDecision(for account: CodexAuthAccount, now: Date) -> RefreshDecision {
+        guard let role = codexRefreshRole(for: account, now: now) else {
+            return RefreshDecision(shouldRefresh: false, nextEligibleAt: .distantFuture, reason: "codex_not_active_or_recent")
+        }
+        let interval = refreshInterval(for: refreshPolicyProfile, role: role)
+        let lastRefresh = codexScheduledRefreshLastAt[account.id]
+        let nextEligibleAt = (lastRefresh ?? .distantPast).addingTimeInterval(interval)
+        let shouldRefresh = now >= nextEligibleAt
+        return RefreshDecision(
+            shouldRefresh: shouldRefresh,
+            nextEligibleAt: shouldRefresh ? now : nextEligibleAt,
+            reason: codexDecisionReason(role: role, shouldRefresh: shouldRefresh)
+        )
+    }
+
+    func codexRefreshRole(for account: CodexAuthAccount, now: Date) -> CodexRefreshRole? {
+        let isActive = account.id == activeCodexAccountId
+        if isActive {
+            if isCodexAccountInFailureState(account.id) {
+                let streak = max(1, codexScheduledRefreshFailureStreak[account.id] ?? 1)
+                return .backoff(streak: streak)
+            }
+            return .active
+        }
+
+        guard isCodexRecentlyUsedAccount(account.id, now: now) else { return nil }
+        if isCodexAccountInFailureState(account.id) {
+            let streak = max(1, codexScheduledRefreshFailureStreak[account.id] ?? 1)
+            return .backoff(streak: streak)
+        }
+        return .recent
+    }
+
+    func isCodexRecentlyUsedAccount(_ accountID: UUID, now: Date) -> Bool {
+        guard let lastSuccess = codexAccountSummaries[accountID]?.lastSyncSucceededAt else { return false }
+        return now.timeIntervalSince(lastSuccess) <= 24 * 60 * 60
+    }
+
+    func isCodexAccountInFailureState(_ accountID: UUID) -> Bool {
+        guard let summary = codexAccountSummaries[accountID] else { return false }
+        guard let failedAt = summary.lastSyncFailedAt else { return false }
+        guard let succeededAt = summary.lastSyncSucceededAt else { return true }
+        return failedAt > succeededAt
+    }
+
+    func refreshInterval(for profile: RefreshPolicyProfile, role: CodexRefreshRole) -> TimeInterval {
+        switch profile {
+        case .balanced:
+            switch role {
+            case .active:
+                return 5 * 60
+            case .recent:
+                return 15 * 60
+            case let .backoff(streak):
+                return streak >= 2 ? 60 * 60 : 30 * 60
+            case .ignored:
+                return .infinity
+            case .nonCodex:
+                return 15 * 60
+            }
+        }
+    }
+
+    func codexDecisionReason(role: CodexRefreshRole, shouldRefresh: Bool) -> String {
+        switch role {
+        case .active:
+            return shouldRefresh ? "codex_active_due" : "codex_active_wait"
+        case .recent:
+            return shouldRefresh ? "codex_recent_due" : "codex_recent_wait"
+        case let .backoff(streak):
+            return shouldRefresh ? "codex_backoff_due_\(streak)" : "codex_backoff_wait_\(streak)"
+        case .ignored:
+            return "codex_ignored"
+        case .nonCodex:
+            return shouldRefresh ? "noncodex_due" : "noncodex_wait"
+        }
     }
 
     func persistCurrentCodexOutcomeIfPossible(
