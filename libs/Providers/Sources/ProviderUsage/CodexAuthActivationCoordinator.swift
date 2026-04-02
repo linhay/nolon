@@ -21,7 +21,7 @@ public actor CodexAuthActivationCoordinator {
     private let runtimeActivate: RuntimeActivate
 
     public init() {
-        let authManager = CodexAuthManager()
+        let authManager = CodexAuthManager.shared
         let runtimeCoordinator = CodexAuthRuntimeCoordinator.shared
         self.authActivate = { account, provider in
             try await authManager.activateAccountAndMarkActive(account, for: provider)

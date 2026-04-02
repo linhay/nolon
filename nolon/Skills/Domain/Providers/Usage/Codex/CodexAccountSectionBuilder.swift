@@ -16,6 +16,7 @@ enum CodexAccountSectionBuilder {
             accounts: accounts,
             outcomes: outcomes,
             summaries: summaries,
+            customGroupNames: [:],
             grouping: grouping,
             sorting: sorting,
             sortDirection: sortDirection,
@@ -24,4 +25,3 @@ enum CodexAccountSectionBuilder {
         )
     }
 }
-

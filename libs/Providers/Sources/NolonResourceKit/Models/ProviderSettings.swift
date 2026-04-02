@@ -245,6 +245,28 @@ public class ProviderSettings {
 
             // Keep vendor paths in sync with template (vendor paths are predefined and not user-editable).
             let expected = template.createProvider()
+            if expected.vendorCategory == .original,
+               updatedProviders[index].id != expected.id
+            {
+                let current = updatedProviders[index]
+                updatedProviders[index] = Provider(
+                    id: expected.id,
+                    kind: current.kind,
+                    name: current.name,
+                    projectRootPath: current.projectRootPath,
+                    defaultSkillsPath: current.defaultSkillsPath,
+                    workflowPath: current.workflowPath,
+                    commandPath: current.commandPath,
+                    iconName: current.iconName,
+                    installMethod: current.installMethod,
+                    skillsLinkEnabled: current.skillsLinkEnabled,
+                    vendorCategory: expected.vendorCategory,
+                    templateId: current.templateId,
+                    additionalSkillsPaths: current.additionalSkillsPaths,
+                    documentationURL: current.documentationURL
+                )
+                hasChanges = true
+            }
             if updatedProviders[index].defaultSkillsPath != expected.defaultSkillsPath
                 || updatedProviders[index].workflowPath != expected.workflowPath
                 || updatedProviders[index].commandPath != expected.commandPath

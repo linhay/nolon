@@ -85,149 +85,6 @@ struct NolonCodexCLIServiceTests {
         }
     }
 
-    @Test("autoswitch enable persists settings to store")
-    func autoSwitchEnablePersistsSettings() async throws {
-        let root = try makeTempRoot("nolon-codex-cli-autoswitch-enable")
-        defer { try? root.delete() }
-
-        let suiteName = "nolon-codex-cli-autoswitch-enable-\(UUID().uuidString)"
-        guard let userDefaults = UserDefaults(suiteName: suiteName) else {
-            Issue.record("Expected dedicated UserDefaults suite")
-            return
-        }
-        defer { userDefaults.removePersistentDomain(forName: suiteName) }
-
-        let authManager = CodexAuthManager(rootURL: root.url)
-        let settingsStore = CodexAutoSwitchSettingsStore(userDefaults: userDefaults)
-        let statusStore = CodexAutoSwitchStatusStore(authManager: authManager)
-        let service = NolonLiveCodexCLIService(
-            authManager: authManager,
-            binaryManager: CodexBinaryManager(homeURL: root.url),
-            loginRunner: .init(),
-            environment: [:],
-            runtimeProcessInspector: StubRuntimeProcessInspector(snapshots: []),
-            runtimeSignalController: StubRuntimeSignalController(),
-            currentPIDProvider: { 12345 },
-            sleep: { _ in },
-            autoSwitchSettingsStore: settingsStore,
-            autoSwitchStatusStore: statusStore
-        )
-
-        let payload = try await service.autoSwitchSetEnabled(providerID: "codex", enabled: true)
-        let stored = settingsStore.settings(for: makeCodexProvider())
-
-        #expect(payload.providerID == "codex")
-        #expect(payload.enabled == true)
-        #expect(stored.enabled == true)
-    }
-
-    @Test("autoswitch status reads persisted status snapshot")
-    func autoSwitchStatusReadsPersistedSnapshot() async throws {
-        let root = try makeTempRoot("nolon-codex-cli-autoswitch-status")
-        defer { try? root.delete() }
-
-        let suiteName = "nolon-codex-cli-autoswitch-status-\(UUID().uuidString)"
-        guard let userDefaults = UserDefaults(suiteName: suiteName) else {
-            Issue.record("Expected dedicated UserDefaults suite")
-            return
-        }
-        defer { userDefaults.removePersistentDomain(forName: suiteName) }
-
-        let authManager = CodexAuthManager(rootURL: root.url)
-        let settingsStore = CodexAutoSwitchSettingsStore(userDefaults: userDefaults)
-        settingsStore.update(
-            settings: CodexAutoSwitchConfig(
-                enabled: true,
-                thresholdPercent: 15,
-                minimumCandidateRemainingPercent: 35,
-                skipRelayAccounts: false,
-                cooldown: 120
-            ),
-            for: makeCodexProvider()
-        )
-
-        let statusStore = CodexAutoSwitchStatusStore(authManager: authManager)
-        try await statusStore.save(
-            CodexAutoSwitchStatusSnapshot(
-                providerID: "codex",
-                config: CodexAutoSwitchConfig(enabled: true, thresholdPercent: 15),
-                lastDecision: CodexAutoSwitchDecision(
-                    reason: .switched,
-                    fromAccountID: UUID(uuidString: "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA"),
-                    toAccountID: UUID(uuidString: "BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB"),
-                    currentRemainingPercent: 9,
-                    targetRemainingPercent: 76,
-                    checkedAt: Date(timeIntervalSince1970: 1_700_000_000)
-                ),
-                lastUpdatedAt: Date(timeIntervalSince1970: 1_700_000_000)
-            )
-        )
-
-        let service = NolonLiveCodexCLIService(
-            authManager: authManager,
-            binaryManager: CodexBinaryManager(homeURL: root.url),
-            loginRunner: .init(),
-            environment: [:],
-            runtimeProcessInspector: StubRuntimeProcessInspector(snapshots: []),
-            runtimeSignalController: StubRuntimeSignalController(),
-            currentPIDProvider: { 12345 },
-            sleep: { _ in },
-            autoSwitchSettingsStore: settingsStore,
-            autoSwitchStatusStore: statusStore
-        )
-
-        let payload = try await service.autoSwitchStatus(providerID: "codex")
-
-        #expect(payload.enabled == true)
-        #expect(payload.thresholdPercent == 15)
-        #expect(payload.minimumCandidateRemainingPercent == 35)
-        #expect(payload.skipRelayAccounts == false)
-        #expect(payload.cooldownSeconds == 120)
-        #expect(payload.lastDecision?.reason == .switched)
-        #expect(payload.lastDecision?.toAccountID == UUID(uuidString: "BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB"))
-    }
-
-    @Test("autoswitch disable persists settings to store")
-    func autoSwitchDisablePersistsSettings() async throws {
-        let root = try makeTempRoot("nolon-codex-cli-autoswitch-disable")
-        defer { try? root.delete() }
-
-        let suiteName = "nolon-codex-cli-autoswitch-disable-\(UUID().uuidString)"
-        guard let userDefaults = UserDefaults(suiteName: suiteName) else {
-            Issue.record("Expected dedicated UserDefaults suite")
-            return
-        }
-        defer { userDefaults.removePersistentDomain(forName: suiteName) }
-
-        let authManager = CodexAuthManager(rootURL: root.url)
-        let settingsStore = CodexAutoSwitchSettingsStore(userDefaults: userDefaults)
-        settingsStore.update(
-            settings: CodexAutoSwitchConfig(enabled: true, thresholdPercent: 10),
-            for: makeCodexProvider()
-        )
-
-        let statusStore = CodexAutoSwitchStatusStore(authManager: authManager)
-        let service = NolonLiveCodexCLIService(
-            authManager: authManager,
-            binaryManager: CodexBinaryManager(homeURL: root.url),
-            loginRunner: .init(),
-            environment: [:],
-            runtimeProcessInspector: StubRuntimeProcessInspector(snapshots: []),
-            runtimeSignalController: StubRuntimeSignalController(),
-            currentPIDProvider: { 12345 },
-            sleep: { _ in },
-            autoSwitchSettingsStore: settingsStore,
-            autoSwitchStatusStore: statusStore
-        )
-
-        let payload = try await service.autoSwitchSetEnabled(providerID: "codex", enabled: false)
-        let stored = settingsStore.settings(for: makeCodexProvider())
-
-        #expect(payload.providerID == "codex")
-        #expect(payload.enabled == false)
-        #expect(stored.enabled == false)
-    }
-
     @Test("gateway start persists running status to store")
     func gatewayStartPersistsStatus() async throws {
         let root = try makeTempRoot("nolon-codex-cli-gateway-start")
@@ -262,9 +119,7 @@ struct NolonCodexCLIServiceTests {
                 return 4567
             },
             gatewayHealthChecker: { _, _ in true },
-            gatewayExecutablePathProvider: { "/tmp/nolon" },
-            autoSwitchSettingsStore: CodexAutoSwitchSettingsStore(userDefaults: .standard),
-            autoSwitchStatusStore: CodexAutoSwitchStatusStore(authManager: authManager)
+            gatewayExecutablePathProvider: { "/tmp/nolon" }
         )
 
         let payload = try await service.gatewayStart(providerID: "codex", host: "127.0.0.1", port: 9090)
@@ -323,9 +178,7 @@ struct NolonCodexCLIServiceTests {
                 checkCount.set(current)
                 return current >= 25
             },
-            gatewayExecutablePathProvider: { "/tmp/nolon" },
-            autoSwitchSettingsStore: CodexAutoSwitchSettingsStore(userDefaults: .standard),
-            autoSwitchStatusStore: CodexAutoSwitchStatusStore(authManager: authManager)
+            gatewayExecutablePathProvider: { "/tmp/nolon" }
         )
 
         let payload = try await service.gatewayStart(providerID: "codex", host: "127.0.0.1", port: 9099)
@@ -428,9 +281,7 @@ struct NolonCodexCLIServiceTests {
                 throw NolonCoreCLIError.executionFailed("detached starter should not be called in embedded mode")
             },
             gatewayHealthChecker: { _, _ in true },
-            gatewayExecutablePathProvider: { "/Applications/nolon.app/Contents/MacOS/nolon" },
-            autoSwitchSettingsStore: CodexAutoSwitchSettingsStore(userDefaults: .standard),
-            autoSwitchStatusStore: CodexAutoSwitchStatusStore(authManager: authManager)
+            gatewayExecutablePathProvider: { "/Applications/nolon.app/Contents/MacOS/nolon" }
         )
 
         // Use codex-xcode to avoid sharing embedded runtime slot with codex gateway start tests.
@@ -480,9 +331,7 @@ struct NolonCodexCLIServiceTests {
             gatewayDetachedProcessStarter: { _, _ in 4567 },
             gatewayHealthChecker: { _, _ in true },
             gatewayExecutablePathProvider: { "/tmp/nolon" },
-            gatewayVirtualAccountStateStore: virtualStateStore,
-            autoSwitchSettingsStore: CodexAutoSwitchSettingsStore(userDefaults: .standard),
-            autoSwitchStatusStore: CodexAutoSwitchStatusStore(authManager: authManager)
+            gatewayVirtualAccountStateStore: virtualStateStore
         )
 
         _ = try await service.gatewayStart(providerID: "codex", host: "127.0.0.1", port: 9095)
@@ -562,9 +411,7 @@ struct NolonCodexCLIServiceTests {
             gatewayDetachedProcessStarter: { _, _ in 4567 },
             gatewayHealthChecker: { _, _ in true },
             gatewayExecutablePathProvider: { "/tmp/nolon" },
-            gatewayVirtualAccountStateStore: virtualStateStore,
-            autoSwitchSettingsStore: CodexAutoSwitchSettingsStore(userDefaults: .standard),
-            autoSwitchStatusStore: CodexAutoSwitchStatusStore(authManager: authManager)
+            gatewayVirtualAccountStateStore: virtualStateStore
         )
 
         _ = try await service.gatewayStart(providerID: "codex", host: "127.0.0.1", port: 9095)
@@ -638,9 +485,7 @@ struct NolonCodexCLIServiceTests {
             gatewayConfigManager: gatewayConfigManager,
             gatewayPIDStore: gatewayPIDStore,
             gatewayConfigFileResolver: { _ in configFile },
-            gatewayVirtualAccountStateStore: virtualStateStore,
-            autoSwitchSettingsStore: CodexAutoSwitchSettingsStore(userDefaults: .standard),
-            autoSwitchStatusStore: CodexAutoSwitchStatusStore(authManager: authManager)
+            gatewayVirtualAccountStateStore: virtualStateStore
         )
 
         _ = try await service.gatewayStop(providerID: "codex")
@@ -719,9 +564,7 @@ struct NolonCodexCLIServiceTests {
             gatewayConfigManager: gatewayConfigManager,
             gatewayPIDStore: gatewayPIDStore,
             gatewayConfigFileResolver: { _ in configFile },
-            gatewayVirtualAccountStateStore: virtualStateStore,
-            autoSwitchSettingsStore: CodexAutoSwitchSettingsStore(userDefaults: .standard),
-            autoSwitchStatusStore: CodexAutoSwitchStatusStore(authManager: authManager)
+            gatewayVirtualAccountStateStore: virtualStateStore
         )
 
         _ = try await service.gatewayStop(providerID: "codex")
@@ -772,9 +615,7 @@ struct NolonCodexCLIServiceTests {
             },
             gatewayDetachedProcessStarter: { _, _ in 4567 },
             gatewayHealthChecker: { _, _ in true },
-            gatewayExecutablePathProvider: { "/tmp/nolon" },
-            autoSwitchSettingsStore: CodexAutoSwitchSettingsStore(userDefaults: .standard),
-            autoSwitchStatusStore: CodexAutoSwitchStatusStore(authManager: authManager)
+            gatewayExecutablePathProvider: { "/tmp/nolon" }
         )
 
         _ = try await service.gatewayStart(providerID: "codex", host: "127.0.0.1", port: 9092)
@@ -841,9 +682,7 @@ struct NolonCodexCLIServiceTests {
             gatewayControlService: gatewayControl,
             gatewayConfigManager: gatewayConfigManager,
             gatewayPIDStore: gatewayPIDStore,
-            gatewayConfigFileResolver: { _ in configFile },
-            autoSwitchSettingsStore: CodexAutoSwitchSettingsStore(userDefaults: .standard),
-            autoSwitchStatusStore: CodexAutoSwitchStatusStore(authManager: authManager)
+            gatewayConfigFileResolver: { _ in configFile }
         )
 
         let payload = try await service.gatewayStop(providerID: "codex")
@@ -886,9 +725,7 @@ struct NolonCodexCLIServiceTests {
                 stateStore: CodexGatewayManagedConfigStateStore(authManager: authManager)
             ),
             gatewayPIDStore: CodexGatewayPIDStore(authManager: authManager),
-            gatewayConfigFileResolver: { _ in configFile },
-            autoSwitchSettingsStore: CodexAutoSwitchSettingsStore(userDefaults: .standard),
-            autoSwitchStatusStore: CodexAutoSwitchStatusStore(authManager: authManager)
+            gatewayConfigFileResolver: { _ in configFile }
         )
 
         let payload = try await service.gatewayStatus(providerID: "codex")

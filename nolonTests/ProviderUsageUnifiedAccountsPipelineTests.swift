@@ -1,4 +1,5 @@
 import Foundation
+import Observation
 import Testing
 import ProviderCatalog
 import ProviderUsage
@@ -27,8 +28,8 @@ struct ProviderUsageUnifiedAccountsPipelineTests {
             baseURL: "https://api.anthropic.com",
             source: .manual
         )
-        root.state.engine.claudeAccounts = [account]
-        root.state.engine.activeClaudeAccountId = account.id
+        root.state.claudeEngine.claudeAccounts = [account]
+        root.state.claudeEngine.activeClaudeAccountId = account.id
 
         let cards = root.accountsViewModel.unifiedAccountCards(
             providerName: provider.name,
@@ -40,7 +41,105 @@ struct ProviderUsageUnifiedAccountsPipelineTests {
         #expect(cards.first?.provider == .claude)
         #expect(cards.first?.isActive == true)
         #expect(cards.first?.data.menuActions.contains(where: { $0.actionID == .refresh }) == true)
+        #expect(cards.first?.data.menuActions.contains(where: { $0.actionID == .edit }) == true)
         #expect(root.accountsViewModel.unifiedAccountEmptyState != nil)
+    }
+
+    @Test("BDD: Given Claude account card when invoking edit action then opens account editor with selected account")
+    func testBDD_GivenClaudeCard_WhenInvokingEditAction_ThenOpensEditorForSelectedAccount() async throws {
+        let provider = Provider(
+            id: "claude",
+            kind: .vendor,
+            name: "Claude",
+            defaultSkillsPath: "/tmp/claude/skills",
+            workflowPath: "/tmp/claude/prompts",
+            vendorCategory: .original,
+            templateId: ProviderTemplate.claudeCode.rawValue
+        )
+        let root = ProviderUsageRootViewModel(provider: provider)
+        let account = ClaudeAccount(
+            id: UUID(uuidString: "aaaaaaaa-1111-1111-1111-111111111111")!,
+            name: "Claude Editor",
+            credentialType: .apiKey,
+            credentialValue: "sk-ant-1",
+            baseURL: "https://api.anthropic.com",
+            source: .manual
+        )
+        root.state.claudeEngine.claudeAccounts = [account]
+
+        let cards = root.accountsViewModel.unifiedAccountCards(
+            providerName: provider.name,
+            liveOutcome: nil,
+            isLoading: false
+        )
+        let card = try #require(cards.first)
+        await card.onAction(.edit)
+
+        #expect(root.accountsViewModel.claude.isShowingEditor == true)
+        #expect(root.accountsViewModel.claude.editorDraft?.accountID == account.id)
+        #expect(root.accountsViewModel.claude.editorDraft?.anthropicModel == "gpt-5")
+        #expect(root.accountsViewModel.claude.editorDraft?.anthropicReasoningModel == "")
+        #expect(root.accountsViewModel.claude.editorDraft?.anthropicDefaultHaikuModel == "gpt-5(minimal)")
+        #expect(root.accountsViewModel.claude.editorDraft?.anthropicDefaultSonnetModel == "gpt-5(medium)")
+        #expect(root.accountsViewModel.claude.editorDraft?.anthropicDefaultOpusModel == "gpt-5(high)")
+    }
+
+    @Test("BDD: Given Claude card edit action when opening editor then Claude state emits observation change")
+    func testBDD_GivenClaudeCardEdit_WhenOpeningEditor_ThenClaudeStateObservationUpdates() throws {
+        let provider = Provider(
+            id: "claude",
+            kind: .vendor,
+            name: "Claude",
+            defaultSkillsPath: "/tmp/claude/skills",
+            workflowPath: "/tmp/claude/prompts",
+            vendorCategory: .original,
+            templateId: ProviderTemplate.claudeCode.rawValue
+        )
+        let root = ProviderUsageRootViewModel(provider: provider)
+        let account = ClaudeAccount(
+            id: UUID(uuidString: "bbbbbbbb-1111-1111-1111-111111111111")!,
+            name: "Claude Observe",
+            credentialType: .apiKey,
+            credentialValue: "sk-ant-observe",
+            baseURL: "https://api.anthropic.com",
+            source: .manual
+        )
+        root.state.claudeEngine.claudeAccounts = [account]
+
+        var didObserveChange = false
+        withObservationTracking {
+            _ = root.accountsViewModel.claude.isShowingEditor
+            _ = root.accountsViewModel.claude.editorDraft
+        } onChange: {
+            didObserveChange = true
+        }
+
+        root.accountsViewModel.claude.beginEditAccount(id: account.id)
+
+        #expect(didObserveChange == true)
+        #expect(root.accountsViewModel.claude.isShowingEditor == true)
+        #expect(root.accountsViewModel.claude.editorDraft?.accountID == account.id)
+    }
+
+    @Test("BDD: Given Claude menu add action when invoked then opens editor in create mode")
+    func testBDD_GivenClaudeMenuAddAction_WhenInvoked_ThenOpensCreateEditor() {
+        let provider = Provider(
+            id: "claude",
+            kind: .vendor,
+            name: "Claude",
+            defaultSkillsPath: "/tmp/claude/skills",
+            workflowPath: "/tmp/claude/prompts",
+            vendorCategory: .original,
+            templateId: ProviderTemplate.claudeCode.rawValue
+        )
+        let root = ProviderUsageRootViewModel(provider: provider)
+
+        root.accountsViewModel.claude.beginCreateAccount()
+
+        #expect(root.accountsViewModel.claude.isShowingEditor == true)
+        #expect(root.accountsViewModel.claude.editorDraft?.mode == .create)
+        #expect(root.accountsViewModel.claude.editorDraft?.baseURL == "https://api.anthropic.com")
+        #expect(root.accountsViewModel.claude.editorDraft?.anthropicModel == "gpt-5")
     }
 
     @Test("BDD: Given Gemini provider account state when building unified cards then emits Gemini card models")
@@ -68,8 +167,8 @@ struct ProviderUsageUnifiedAccountsPipelineTests {
             location: nil,
             runtimeHomeRelativePath: ".gemini"
         )
-        root.state.engine.geminiAccounts = [account]
-        root.state.engine.activeGeminiAccountId = account.id
+        root.state.geminiEngine.geminiAccounts = [account]
+        root.state.geminiEngine.activeGeminiAccountId = account.id
 
         let cards = root.accountsViewModel.unifiedAccountCards(
             providerName: provider.name,
@@ -109,8 +208,8 @@ struct ProviderUsageUnifiedAccountsPipelineTests {
             location: nil,
             runtimeHomeRelativePath: ".gemini"
         )
-        root.state.engine.geminiAccounts = [account]
-        root.state.engine.activeGeminiAccountId = account.id
+        root.state.geminiEngine.geminiAccounts = [account]
+        root.state.geminiEngine.activeGeminiAccountId = account.id
 
         let usage = UsageSnapshot(
             identity: nil,
@@ -195,7 +294,7 @@ struct ProviderUsageUnifiedAccountsPipelineTests {
                 )
             )
         )
-        root.state.engine.outcomes = [failureOutcome, successOutcome]
+        root.state.commonEngine.outcomes = [failureOutcome, successOutcome]
 
         guard let selected = root.accountsViewModel.preferredUnifiedCardLiveOutcome else {
             Issue.record("Expected preferred unified card live outcome")

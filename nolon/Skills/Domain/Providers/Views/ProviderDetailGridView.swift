@@ -128,6 +128,52 @@ struct ProviderDetailGridView: View, DebugPageLocatable {
                 await viewModel.loadData()
             }
         }
+        .alert(
+            NSLocalizedString(
+                "provider.skills_link.confirm.title",
+                value: "Enable Skills Link",
+                comment: "Enable skills link confirmation title"
+            ),
+            isPresented: $viewModel.showingSkillsLinkEnableConfirmation
+        ) {
+            Button(
+                NSLocalizedString(
+                    "provider.skills_link.confirm.backup",
+                    value: "Backup and Switch",
+                    comment: "Backup and switch button"
+                )
+            ) {
+                Task {
+                    await viewModel.confirmSkillsLinkEnable(backupExisting: true)
+                }
+            }
+            Button(
+                NSLocalizedString(
+                    "provider.skills_link.confirm.replace",
+                    value: "Switch Without Backup",
+                    comment: "Switch without backup button"
+                ),
+                role: .destructive
+            ) {
+                Task {
+                    await viewModel.confirmSkillsLinkEnable(backupExisting: false)
+                }
+            }
+            Button(NSLocalizedString("generic.cancel", value: "Cancel", comment: "Cancel"), role: .cancel) {
+                viewModel.cancelSkillsLinkEnableConfirmation()
+            }
+        } message: {
+            Text(
+                String(
+                    format: NSLocalizedString(
+                        "provider.skills_link.confirm.message",
+                        value: "Current skills folder is not empty. Backup will overwrite existing backup at %@.",
+                        comment: "Enable skills link confirmation message"
+                    ),
+                    viewModel.skillsLinkBackupPath ?? "skills.bak"
+                )
+            )
+        }
         .debugPageLocator(debugPageMarkerItems)
     }
     
@@ -136,7 +182,28 @@ struct ProviderDetailGridView: View, DebugPageLocatable {
         NolonUI.ProviderDetailGridScaffoldView(
             showSearch: shouldShowSearch,
             searchText: $viewModel.searchText,
-            showFloatingButton: shouldShowQuickInstallButton
+            showFloatingButton: shouldShowQuickInstallButton,
+            searchTrailing: {
+                guard selectedTab == .skills, let provider else {
+                    return AnyView(EmptyView())
+                }
+                return AnyView(
+                    NolonUI.ProviderSkillsLinkToolbarMenuButton(
+                        isEnabled: Binding(
+                            get: { viewModel.skillsLinkEnabled },
+                            set: { _ in }
+                        ),
+                        isApplying: viewModel.isApplyingSkillsLink,
+                        providerPath: provider.defaultSkillsPath,
+                        onShowInFinder: {
+                            viewModel.revealSkillsFolderInFinder()
+                        },
+                        onToggleRequested: { newValue in
+                            Task { await viewModel.requestSetSkillsLinkEnabled(newValue) }
+                        }
+                    )
+                )
+            }
         ) { scrollProxy in
             NolonUI.ProviderCodexTopHintsView(
                 noticeData: codexXcodeNoticeData,

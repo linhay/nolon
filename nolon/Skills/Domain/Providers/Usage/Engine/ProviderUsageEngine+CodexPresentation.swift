@@ -48,6 +48,7 @@ extension ProviderUsageEngine {
         accounts: [CodexAuthAccount],
         outcomes: [ProviderAccountUsageOutcome],
         summaries: [UUID: CodexAuthSummary],
+        customGroupNames: [UUID: String] = [:],
         grouping: CodexAccountGroupingOption,
         sorting: CodexAccountSortOption,
         sortDirection: CodexSortDirection = .descending,
@@ -86,12 +87,44 @@ extension ProviderUsageEngine {
             return [.init(id: "all", title: nil, items: items.map(\.1))]
         case .typeInfo:
             let grouped = Dictionary(grouping: items) { item in
-                codexGroupingKey(account: item.0, summary: item.2)
+                codexGroupingKey(account: item.0, summary: item.2, customGroupName: customGroupNames[item.0.id])
             }
             return grouped.keys.sorted().map { key in
                 let items = grouped[key, default: []]
-                let title = items.first.map { codexGroupingTitle(account: $0.0, summary: $0.2) } ?? key
+                let title = items.first.map {
+                    codexGroupingTitle(account: $0.0, summary: $0.2, customGroupName: customGroupNames[$0.0.id])
+                } ?? key
                 return .init(id: key, title: title, items: items.map(\.1))
+            }
+        case .customSQLiteGroup:
+            let hasExplicitCustomGroup = items.contains { item in
+                let name = customGroupNames[item.0.id]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                return !name.isEmpty
+            }
+            guard hasExplicitCustomGroup else {
+                // If no account has custom group metadata, fall back to plan/provider grouping
+                // to avoid collapsing everything into a single "未分组" section.
+                return makeCodexAccountDisplaySections(
+                    accounts: accounts,
+                    outcomes: outcomes,
+                    summaries: summaries,
+                    customGroupNames: customGroupNames,
+                    grouping: .typeInfo,
+                    sorting: sorting,
+                    sortDirection: sortDirection,
+                    hideZeroQuotaAccounts: hideZeroQuotaAccounts,
+                    hideErroredAccounts: hideErroredAccounts
+                )
+            }
+            let grouped = Dictionary(grouping: items) { item in
+                codexCustomSQLiteGroupingKey(accountID: item.0.id, customGroupNames: customGroupNames)
+            }
+            return grouped.keys.sorted().map { key in
+                let sectionItems = grouped[key, default: []]
+                let title = sectionItems.first.map {
+                    codexCustomSQLiteGroupingTitle(accountID: $0.0.id, customGroupNames: customGroupNames)
+                } ?? key
+                return .init(id: key, title: title, items: sectionItems.map(\.1))
             }
         }
     }
@@ -158,8 +191,6 @@ extension ProviderUsageEngine {
         switch mode {
         case .newAPIKey:
             return NSLocalizedString("codex.accounts.config.new_api_key", value: "New API Key", comment: "New API key title")
-        case .newRelay:
-            return NSLocalizedString("codex.accounts.config.new_relay", value: "New Relay", comment: "New relay title")
         case .edit:
             return NSLocalizedString("codex.accounts.config.edit", value: "Edit Config", comment: "Edit config title")
         }
@@ -172,14 +203,8 @@ extension ProviderUsageEngine {
         case .newAPIKey:
             return NSLocalizedString(
                 "codex.accounts.config.subtitle.api_key",
-                value: "先填名称和 API Key。Base URL 默认官方地址，其他配置都是可选的。",
+                value: "先填名称和 API Key。若需要 Relay，可继续填写 Base URL 与 Provider。",
                 comment: "API key config subtitle"
-            )
-        case .newRelay:
-            return NSLocalizedString(
-                "codex.accounts.config.subtitle.relay",
-                value: "先填名称、API Key、Base URL 和 Provider。HTTP 用量查询与高级项都是可选的。",
-                comment: "Relay config subtitle"
             )
         case .edit:
             return NSLocalizedString(
@@ -194,7 +219,7 @@ extension ProviderUsageEngine {
         for mode: CodexConfigEditorMode
     ) -> String {
         switch mode {
-        case .newAPIKey, .newRelay:
+        case .newAPIKey:
             return NSLocalizedString("generic.create", value: "Create", comment: "Create")
         case .edit:
             return NSLocalizedString("generic.save", value: "Save", comment: "Save")
@@ -377,11 +402,17 @@ extension ProviderUsageEngine {
         return account.id.uuidString
     }
 
-    static func codexGroupingKey(account: CodexAuthAccount, summary: CodexAuthSummary?) -> String {
-        codexGroupingTitle(account: account, summary: summary).folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+    static func codexGroupingKey(account: CodexAuthAccount, summary: CodexAuthSummary?, customGroupName: String? = nil) -> String {
+        codexGroupingTitle(account: account, summary: summary, customGroupName: customGroupName)
+            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
     }
 
-    static func codexGroupingTitle(account: CodexAuthAccount, summary: CodexAuthSummary?) -> String {
+    static func codexGroupingTitle(account: CodexAuthAccount, summary: CodexAuthSummary?, customGroupName: String? = nil) -> String {
+        if let customGroupName = customGroupName?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !customGroupName.isEmpty
+        {
+            return customGroupName
+        }
         switch summary?.cardKind {
         case .officialAPIKey:
             return "OpenAI"
@@ -405,6 +436,19 @@ extension ProviderUsageEngine {
             }
             return NSLocalizedString("codex.accounts.group.unknown", value: "Unknown", comment: "Unknown codex account group")
         }
+    }
+
+    static func codexCustomSQLiteGroupingTitle(accountID: UUID, customGroupNames: [UUID: String]) -> String {
+        let name = customGroupNames[accountID]?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let name, !name.isEmpty {
+            return name
+        }
+        return NSLocalizedString("codex.accounts.grouping.custom.default", value: "未分组", comment: "Default custom sqlite group title")
+    }
+
+    static func codexCustomSQLiteGroupingKey(accountID: UUID, customGroupNames: [UUID: String]) -> String {
+        codexCustomSQLiteGroupingTitle(accountID: accountID, customGroupNames: customGroupNames)
+            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
     }
 
     private static func creditsRemaining(from outcome: ProviderAccountUsageOutcome) -> Double? {

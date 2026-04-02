@@ -90,6 +90,27 @@ extension ProviderUsageEngine {
         }
     }
 
+    func updateClaudeAccount(_ account: ClaudeAccount) async throws {
+        guard usageProvider == .claude else { return }
+        try await claudeAccountManager.updateAccount(account)
+        if activeClaudeAccountId == account.id {
+            _ = try await claudeAccountManager.activateAccount(id: account.id, provider: provider)
+        }
+        await load()
+    }
+
+    func createClaudeAccount(_ account: ClaudeAccount) async throws {
+        guard usageProvider == .claude else { return }
+        _ = try await claudeAccountManager.addAccount(
+            name: account.name,
+            credentialType: account.credentialType,
+            credentialValue: account.credentialValue,
+            baseURL: account.baseURL,
+            source: .manual
+        )
+        await load()
+    }
+
     func isActiveGeminiAccount(_ account: GeminiAuthAccount) -> Bool {
         account.id == activeGeminiAccountId
     }

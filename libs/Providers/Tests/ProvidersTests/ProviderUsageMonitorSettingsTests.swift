@@ -31,6 +31,7 @@ struct ProviderUsageMonitorSettingsTests {
 
         #expect(decoded.codexUseListLayout == false)
         #expect(decoded.codexHideErroredAccounts == false)
+        #expect(decoded.codexAccountGroupingOptionRawValue == "typeInfo")
     }
 
     @Test("Codex list layout flag round-trips through Codable")
@@ -51,5 +52,15 @@ struct ProviderUsageMonitorSettingsTests {
         let decoded = try JSONDecoder().decode(ProviderUsageMonitorSettings.self, from: encoded)
 
         #expect(decoded.codexHideErroredAccounts == true)
+    }
+
+    @Test("Codex grouping option raw value round-trips through Codable")
+    func codexGroupingOptionRawValueRoundTripsThroughCodable() throws {
+        let settings = ProviderUsageMonitorSettings(codexAccountGroupingOptionRawValue: "customSQLiteGroup")
+
+        let encoded = try JSONEncoder().encode(settings)
+        let decoded = try JSONDecoder().decode(ProviderUsageMonitorSettings.self, from: encoded)
+
+        #expect(decoded.codexAccountGroupingOptionRawValue == "customSQLiteGroup")
     }
 }

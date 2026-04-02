@@ -10,6 +10,8 @@ import SQLite3
 
 public actor CodexAuthManager {
     public static let shared = CodexAuthManager()
+    private nonisolated static let canonicalChatGPTAuthMode = "chatgpt"
+    private nonisolated static let legacyChatGPTAuthMode = "chatgptAuthTokens"
 
     public struct RuntimeHomeCleanupReport: Sendable, Equatable {
         public let scannedCount: Int
@@ -537,6 +539,14 @@ public actor CodexAuthManager {
         return try? encodeJSONObject(dict)
     }
 
+    private nonisolated static func canonicalAuthMode(_ raw: String?) -> String? {
+        guard let raw = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else { return nil }
+        if raw == legacyChatGPTAuthMode {
+            return canonicalChatGPTAuthMode
+        }
+        return raw
+    }
+
     /// Normalizes imported auth JSON payloads into the canonical Codex `auth.json` structure:
     /// - Move top-level token fields into `tokens.*` (without overwriting existing `tokens.*` values).
     /// - Map `expired` -> `expires_at` when missing.
@@ -595,12 +605,14 @@ public actor CodexAuthManager {
         }
 
         // Backfill auth_mode if missing.
-        let existingMode = get("auth_mode")
-        if existingMode == nil {
+        let existingMode = Self.canonicalAuthMode(get("auth_mode"))
+        if let existingMode {
+            rootObject["auth_mode"] = existingMode
+        } else {
             if trimmedNonEmpty(rootObject["OPENAI_API_KEY"]) != nil {
                 rootObject["auth_mode"] = "apikey"
             } else if trimmedNonEmpty(tokens["id_token"]) != nil {
-                rootObject["auth_mode"] = "chatgptAuthTokens"
+                rootObject["auth_mode"] = Self.canonicalChatGPTAuthMode
             }
         }
 
@@ -1236,6 +1248,34 @@ public actor CodexAuthManager {
         return changed
     }
 
+    @discardableResult
+    public func upsertPlanType(for account: CodexAuthAccount, plan: String) throws -> Bool {
+        let trimmedPlan = plan.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedPlan.isEmpty else { return false }
+
+        let data = try readAccountAuthData(account)
+        guard !data.isEmpty,
+              let rootJSON = try? JSON(data: data)
+        else { return false }
+
+        var rootObject = rootJSON.dictionaryObject ?? [:]
+        let currentPlanType = getString(rootObject, path: ["plan_type"])?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let currentPlan = getString(rootObject, path: ["plan"])?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let needsPlanTypeUpdate = currentPlanType != trimmedPlan
+        let needsPlanUpdate = currentPlan != trimmedPlan
+        guard needsPlanTypeUpdate || needsPlanUpdate else { return false }
+
+        if needsPlanTypeUpdate {
+            setValue(trimmedPlan, path: ["plan_type"], dict: &rootObject)
+        }
+        if needsPlanUpdate {
+            setValue(trimmedPlan, path: ["plan"], dict: &rootObject)
+        }
+
+        try saveAccountAuthData(account, data: Self.encodeJSONObject(rootObject))
+        return true
+    }
+
     public func currentAuthHashHex(for provider: Provider) -> String? {
         guard let raw = try? readAuthJSONString(from: provider) else { return nil }
         return CodexAuthAccount.hashHex(for: raw)
@@ -1594,15 +1634,15 @@ public actor CodexAuthManager {
             ?? trimmed(json["accessToken"].string)
         let hasTokenPair = (idToken != nil && accessToken != nil)
 
-        let authMode = trimmed(json["auth_mode"].string)
-        let hasLegacyTokenMode = (idToken != nil && authMode == "chatgptAuthTokens")
+        let authMode = Self.canonicalAuthMode(trimmed(json["auth_mode"].string))
+        let hasChatGPTTokenMode = (idToken != nil && authMode == Self.canonicalChatGPTAuthMode)
 
         let apiKey = trimmed(json["OPENAI_API_KEY"].string)
             ?? trimmed(json["openai_api_key"].string)
             ?? trimmed(json["api_key"].string)
             ?? trimmed(json["apiKey"].string)
         let hasAPIKey = apiKey != nil
-        return hasTokenPair || hasLegacyTokenMode || hasAPIKey
+        return hasTokenPair || hasChatGPTTokenMode || hasAPIKey
     }
 
     private struct CredentialIdentity: Sendable {
@@ -2706,11 +2746,13 @@ private extension CodexAuthManager {
             return explicit
         }
 
-        let authMode = authJSON["auth_mode"].string?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let authMode = Self.canonicalAuthMode(
+            authJSON["auth_mode"].string?.trimmingCharacters(in: .whitespacesAndNewlines)
+        )
         if authMode == "apikey" {
             return authJSON["nolon"]["relay"] != JSON.null ? "relayProfile" : "officialAPIKey"
         }
-        if authMode == "chatgpt" || authMode == "chatgptAuthTokens" {
+        if authMode == Self.canonicalChatGPTAuthMode {
             return "chatgptAccount"
         }
         return nil
@@ -2973,7 +3015,7 @@ extension CodexAuthManager {
         let hasOAuthTokenPair = firstNonEmptyString(in: tokens, keys: ["id_token", "idToken"]) != nil
             && firstNonEmptyString(in: tokens, keys: ["access_token", "accessToken"]) != nil
         if hasOAuthTokenPair, firstNonEmptyString(in: root, keys: ["auth_mode"]) == nil {
-            root["auth_mode"] = "chatgptAuthTokens"
+            root["auth_mode"] = Self.canonicalChatGPTAuthMode
             changed = true
         }
 
@@ -3827,6 +3869,7 @@ extension CodexAuthManager {
                 tokens_account_id TEXT,
                 expires_at TEXT,
                 email TEXT,
+                plan_type TEXT,
                 last_refresh TEXT,
                 custom_group_name TEXT,
                 nolon_account_kind TEXT,
@@ -3845,6 +3888,12 @@ extension CodexAuthManager {
             try executeSQLite(
                 db,
                 sql: "ALTER TABLE codex_account_metadata ADD COLUMN custom_group_name TEXT;"
+            )
+        }
+        if try !sqliteColumnExists(db: db, table: "codex_account_metadata", column: "plan_type") {
+            try executeSQLite(
+                db,
+                sql: "ALTER TABLE codex_account_metadata ADD COLUMN plan_type TEXT;"
             )
         }
         try executeSQLite(
@@ -4291,7 +4340,7 @@ extension CodexAuthManager {
             return
         }
 
-        let authMode = firstNonEmptyString(in: json, paths: [["auth_mode"], ["authMode"]])
+        let authMode = Self.canonicalAuthMode(firstNonEmptyString(in: json, paths: [["auth_mode"], ["authMode"]]))
         let openAIAPIKey = firstNonEmptyString(in: json, paths: [["OPENAI_API_KEY"], ["openai_api_key"]])
         let tokensAccountID = firstNonEmptyString(in: json, paths: [
             ["tokens", "account_id"], ["tokens", "accountId"], ["account_id"], ["accountId"],
@@ -4301,6 +4350,9 @@ extension CodexAuthManager {
             ["tokens", "expires_at"], ["tokens", "expiresAt"], ["tokens", "expired"],
         ])
         let email = deriveEmail(from: json)
+        let planType = firstNonEmptyString(in: json, paths: [
+            ["plan_type"], ["planType"], ["plan"], ["subscription", "plan"], ["account", "plan"],
+        ])
         let lastRefresh = firstNonEmptyString(in: json, paths: [["last_refresh"], ["lastRefresh"]])
         let customGroupName = firstNonEmptyString(in: json, paths: [["nolon", "custom_group_name"]])
         let kind = firstNonEmptyString(in: json, paths: [["nolon", "account", "kind"]])
@@ -4317,17 +4369,18 @@ extension CodexAuthManager {
             sql: """
             INSERT INTO codex_account_metadata (
                 account_id, auth_mode, openai_api_key, tokens_account_id, expires_at, email, last_refresh,
-                custom_group_name, nolon_account_kind, nolon_account_email, nolon_account_last_login_at,
+                plan_type, custom_group_name, nolon_account_kind, nolon_account_email, nolon_account_last_login_at,
                 nolon_account_last_sync_succeeded_at, nolon_account_last_sync_failed_at,
                 nolon_account_last_sync_failure_message, usage_cache_json, usage_query_json, updated_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(account_id) DO UPDATE SET
                 auth_mode=excluded.auth_mode,
                 openai_api_key=excluded.openai_api_key,
                 tokens_account_id=excluded.tokens_account_id,
                 expires_at=excluded.expires_at,
                 email=excluded.email,
+                plan_type=COALESCE(excluded.plan_type, codex_account_metadata.plan_type),
                 last_refresh=excluded.last_refresh,
                 custom_group_name=COALESCE(excluded.custom_group_name, codex_account_metadata.custom_group_name),
                 nolon_account_kind=excluded.nolon_account_kind,
@@ -4348,6 +4401,7 @@ extension CodexAuthManager {
                 .nullableText(expiresAt),
                 .nullableText(email),
                 .nullableText(lastRefresh),
+                .nullableText(planType),
                 .nullableText(customGroupName),
                 .nullableText(kind),
                 .nullableText(nolonAccountEmail),
@@ -4396,6 +4450,7 @@ extension CodexAuthManager {
             m.tokens_account_id,
             m.expires_at,
             m.email,
+            m.plan_type,
             m.last_refresh,
             m.custom_group_name,
             m.nolon_account_kind,
@@ -4447,26 +4502,27 @@ extension CodexAuthManager {
         let credentialLastRefresh = text(9)
         let credentialExpiresAt = text(10)
 
-        let authMode = text(11)
+        let authMode = Self.canonicalAuthMode(text(11))
         let metadataAPIKey = text(12)
         let metadataAccountID = text(13)
         let metadataExpiresAt = text(14)
         let metadataEmail = text(15)
-        let metadataLastRefresh = text(16)
-        let customGroupName = text(17)
-        let kind = text(18)
-        let nolonAccountEmail = text(19)
-        let lastLoginAt = text(20)
-        let lastSyncSucceededAt = text(21)
-        let lastSyncFailedAt = text(22)
-        let lastSyncFailureMessage = text(23)
-        let usageCacheJSON = text(24)
-        let usageQueryJSON = text(25)
-        let legacyAuthJSON = hasLegacyAuthJSONColumn ? text(26) : nil
+        let metadataPlanType = text(16)
+        let metadataLastRefresh = text(17)
+        let customGroupName = text(18)
+        let kind = text(19)
+        let nolonAccountEmail = text(20)
+        let lastLoginAt = text(21)
+        let lastSyncSucceededAt = text(22)
+        let lastSyncFailedAt = text(23)
+        let lastSyncFailureMessage = text(24)
+        let usageCacheJSON = text(25)
+        let usageQueryJSON = text(26)
+        let legacyAuthJSON = hasLegacyAuthJSONColumn ? text(27) : nil
 
         let hasStructuredData = [
             idToken, accessToken, refreshToken, credentialAPIKey, baseURL, credentialEmail, credentialAccountID,
-            authMode, metadataAPIKey, metadataAccountID, metadataEmail, customGroupName, kind, usageCacheJSON, usageQueryJSON,
+            authMode, metadataAPIKey, metadataAccountID, metadataEmail, metadataPlanType, customGroupName, kind, usageCacheJSON, usageQueryJSON,
         ].contains { $0 != nil }
 
         if !hasStructuredData, let legacyAuthJSON {
@@ -4484,7 +4540,7 @@ extension CodexAuthManager {
         }
 
         var root: JSONObject = [:]
-        if let resolvedAuthMode = authMode ?? ((metadataAPIKey ?? credentialAPIKey) != nil ? "apikey" : ((idToken ?? accessToken) != nil ? "chatgptAuthTokens" : nil)) {
+        if let resolvedAuthMode = authMode ?? ((metadataAPIKey ?? credentialAPIKey) != nil ? "apikey" : ((idToken ?? accessToken) != nil ? Self.canonicalChatGPTAuthMode : nil)) {
             root["auth_mode"] = resolvedAuthMode
         }
         if let apiKey = metadataAPIKey ?? credentialAPIKey {
@@ -4494,6 +4550,10 @@ extension CodexAuthManager {
         }
         if let email = metadataEmail ?? credentialEmail {
             root["email"] = email
+        }
+        if let planType = metadataPlanType {
+            root["plan_type"] = planType
+            root["plan"] = planType
         }
         if let lastRefresh = metadataLastRefresh ?? credentialLastRefresh {
             root["last_refresh"] = lastRefresh

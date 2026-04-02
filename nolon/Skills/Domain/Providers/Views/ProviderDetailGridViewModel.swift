@@ -46,6 +46,10 @@ final class ProviderDetailGridViewModel {
     var selectedCodexModel: String?
     var isSavingCodexModel = false
     var codexModelStatusMessage: String?
+    var skillsLinkEnabled = false
+    var isApplyingSkillsLink = false
+    var showingSkillsLinkEnableConfirmation = false
+    var skillsLinkBackupPath: String?
     
     enum RemoteBrowserType: Identifiable, Equatable {
         case skill, workflow, mcp
@@ -71,6 +75,7 @@ final class ProviderDetailGridViewModel {
     private let skillSnapshotService = ProviderSkillSnapshotService()
     private let snapshotService = ProviderResourceSnapshotService()
     private let resourceViewMapper = ProviderResourceViewMapper()
+    private let providerSkillsLinkService = ProviderSkillsLinkService()
     
     init(provider: Provider?, settings: ProviderSettings) {
         self.provider = provider
@@ -97,8 +102,12 @@ final class ProviderDetailGridViewModel {
             codexModelOptions = []
             selectedCodexModel = nil
             codexModelStatusMessage = nil
+            skillsLinkEnabled = false
+            showingSkillsLinkEnableConfirmation = false
+            skillsLinkBackupPath = nil
             return
         }
+        skillsLinkEnabled = provider.skillsLinkEnabled
         
         isLoading = true
         
@@ -113,6 +122,68 @@ final class ProviderDetailGridViewModel {
         loadCodexBinaryModels(for: provider)
         
         isLoading = false
+    }
+
+    func requestSetSkillsLinkEnabled(_ enabled: Bool) async {
+        guard let provider else { return }
+        guard enabled != provider.skillsLinkEnabled else {
+            skillsLinkEnabled = provider.skillsLinkEnabled
+            return
+        }
+
+        if enabled {
+            do {
+                let preflight = try providerSkillsLinkService.preflightEnable(provider: provider)
+                if preflight.requiresConfirmation {
+                    skillsLinkEnabled = provider.skillsLinkEnabled
+                    skillsLinkBackupPath = preflight.backupPath
+                    showingSkillsLinkEnableConfirmation = true
+                    return
+                }
+                await setSkillsLinkEnabled(true, backupExisting: false)
+            } catch {
+                skillsLinkEnabled = provider.skillsLinkEnabled
+                setError(error.localizedDescription, scope: .skills)
+            }
+            return
+        }
+
+        await setSkillsLinkEnabled(false, backupExisting: false)
+    }
+
+    func cancelSkillsLinkEnableConfirmation() {
+        showingSkillsLinkEnableConfirmation = false
+        skillsLinkBackupPath = nil
+        skillsLinkEnabled = provider?.skillsLinkEnabled ?? false
+    }
+
+    func confirmSkillsLinkEnable(backupExisting: Bool) async {
+        showingSkillsLinkEnableConfirmation = false
+        skillsLinkBackupPath = nil
+        await setSkillsLinkEnabled(true, backupExisting: backupExisting)
+    }
+
+    private func setSkillsLinkEnabled(_ enabled: Bool, backupExisting: Bool) async {
+        guard var provider else { return }
+        isApplyingSkillsLink = true
+        defer { isApplyingSkillsLink = false }
+
+        do {
+            if enabled {
+                try providerSkillsLinkService.applyEnable(provider: provider, backupExisting: backupExisting)
+            } else {
+                try providerSkillsLinkService.applyDisable(provider: provider)
+            }
+            provider.skillsLinkEnabled = enabled
+            settings.updateProvider(provider)
+            self.provider = provider
+            skillsLinkEnabled = enabled
+            clearError(scope: .skills)
+            await loadData()
+        } catch {
+            skillsLinkEnabled = provider.skillsLinkEnabled
+            setError(error.localizedDescription, scope: .skills)
+        }
     }
 
     private func applyResourceSnapshot(for provider: Provider) {
@@ -531,6 +602,11 @@ final class ProviderDetailGridViewModel {
         guard let provider = provider else { return }
         let path = (provider.defaultSkillsPath as NSString).appendingPathComponent(skill.id)
         NSWorkspace.shared.selectFile(path, inFileViewerRootedAtPath: "")
+    }
+
+    func revealSkillsFolderInFinder() {
+        guard let provider else { return }
+        NSWorkspace.shared.selectFile(provider.defaultSkillsPath, inFileViewerRootedAtPath: "")
     }
     
     func uninstallSkill(_ skill: Skill) async {

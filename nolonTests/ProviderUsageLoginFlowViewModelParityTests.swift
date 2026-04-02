@@ -17,8 +17,8 @@ struct ProviderUsageLoginFlowViewModelParityTests {
         )
         let root = ProviderUsageRootViewModel(provider: provider)
 
-        #expect(root.loginFlowViewModel.isRunningCLILogin == root.state.engine.isRunningCLILogin)
-        #expect(root.loginFlowViewModel.isShowingLoginURLSheet == root.state.engine.isShowingLoginURLSheet)
+        #expect(root.loginFlowViewModel.isRunningCLILogin == root.state.commonEngine.isRunningCLILogin)
+        #expect(root.loginFlowViewModel.isShowingLoginURLSheet == root.state.commonEngine.isShowingLoginURLSheet)
     }
 }
 

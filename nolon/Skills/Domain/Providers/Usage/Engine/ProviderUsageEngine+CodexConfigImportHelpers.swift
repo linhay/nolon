@@ -119,9 +119,7 @@ extension ProviderUsageEngine {
         let cardKind: CodexAuthSummary.CardKind? = {
             switch draft.mode {
             case .newAPIKey:
-                return .officialAPIKey
-            case .newRelay:
-                return .relayProfile
+                return draft.isRelay ? .relayProfile : .officialAPIKey
             case let .edit(accountID):
                 return codexAccountSummaries[accountID]?.cardKind ?? (draft.isRelay ? .relayProfile : .officialAPIKey)
             }
@@ -258,7 +256,17 @@ extension ProviderUsageEngine {
         let validIDs = Set(ids)
         guard !validIDs.isEmpty else { return }
         isRunningCodexImportConnectionTests = true
-        defer { isRunningCodexImportConnectionTests = false }
+        defer {
+            if Task.isCancelled {
+                codexImportCandidates = codexImportCandidates.map { candidate in
+                    guard validIDs.contains(candidate.id), candidate.testStatus == .testing else { return candidate }
+                    var updated = candidate
+                    updated.testStatus = .idle
+                    return updated
+                }
+            }
+            isRunningCodexImportConnectionTests = false
+        }
 
         codexImportCandidates = codexImportCandidates.map { candidate in
             guard validIDs.contains(candidate.id), candidate.validation.isValid else { return candidate }
@@ -269,19 +277,15 @@ extension ProviderUsageEngine {
             return updated
         }
 
-        await withTaskGroup(of: (UUID, ProviderAccountUsageOutcome).self) { group in
-            for candidate in codexImportCandidates where validIDs.contains(candidate.id) && candidate.validation.isValid {
-                let validation = candidate.validation
-                let settingsSnapshot = settings
-                group.addTask { [codexImportConnectionTestAction] in
-                    let outcome = await codexImportConnectionTestAction(validation, settingsSnapshot)
-                    return (candidate.id, outcome)
-                }
-            }
-
-            for await (id, outcome) in group {
-                applyCodexImportConnectionTestResult(outcome, for: id)
-            }
+        let candidatesToTest = codexImportCandidates.filter { candidate in
+            validIDs.contains(candidate.id) && candidate.validation.isValid
+        }
+        let settingsSnapshot = settings
+        for candidate in candidatesToTest {
+            guard !Task.isCancelled else { break }
+            let outcome = await codexImportConnectionTestAction(candidate.validation, settingsSnapshot)
+            guard !Task.isCancelled else { break }
+            applyCodexImportConnectionTestResult(outcome, for: candidate.id)
         }
     }
 

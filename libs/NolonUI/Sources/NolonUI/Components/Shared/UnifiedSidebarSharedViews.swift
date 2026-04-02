@@ -195,7 +195,8 @@ public enum SplitLayoutProfiles {
     public static let accounts = SplitLayoutProfile(mode: .twoColumn)
     public static let skillDetail = SplitLayoutProfile(
         mode: .twoColumn,
-        sidebarWidth: .init(min: 280, ideal: 280, max: 280)
+        sidebarWidth: .init(min: 280, ideal: 280, max: 280),
+        chromeStyle: .plain
     )
     public static let settings = SplitLayoutProfile(
         mode: .twoColumn,

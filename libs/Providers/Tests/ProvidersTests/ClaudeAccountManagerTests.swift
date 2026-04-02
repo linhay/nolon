@@ -66,6 +66,33 @@ struct ClaudeAccountManagerTests {
         }
     }
 
+    private func runSQLiteJSON(databaseURL: URL, sql: String) throws -> [[String: String]] {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/sqlite3")
+        process.arguments = ["-json", databaseURL.path, sql]
+
+        let stdoutPipe = Pipe()
+        let stderrPipe = Pipe()
+        process.standardOutput = stdoutPipe
+        process.standardError = stderrPipe
+        try process.run()
+        process.waitUntilExit()
+
+        if process.terminationStatus != 0 {
+            let errorData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
+            let message = String(data: errorData, encoding: .utf8) ?? "sqlite3 failed"
+            throw NSError(
+                domain: "ClaudeAccountManagerTests.sqlite",
+                code: Int(process.terminationStatus),
+                userInfo: [NSLocalizedDescriptionKey: message]
+            )
+        }
+
+        let outputData = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
+        guard !outputData.isEmpty else { return [] }
+        return try JSONDecoder().decode([[String: String]].self, from: outputData)
+    }
+
     @Test("Given account activation, when writing settings, then env and active-account snapshot are updated")
     func activateAccountWritesSettingsAndActiveID() async throws {
         let root = makeTempRoot("claude-account-activate")
@@ -101,6 +128,11 @@ struct ClaudeAccountManagerTests {
         #expect(env["FOO"] as? String == "bar")
         #expect(env["ANTHROPIC_AUTH_TOKEN"] as? String == "test-token")
         #expect(env["ANTHROPIC_API_KEY"] == nil)
+        #expect(env["ANTHROPIC_MODEL"] as? String == "gpt-5")
+        #expect(env["ANTHROPIC_REASONING_MODEL"] == nil)
+        #expect(env["ANTHROPIC_DEFAULT_HAIKU_MODEL"] as? String == "gpt-5(minimal)")
+        #expect(env["ANTHROPIC_DEFAULT_SONNET_MODEL"] as? String == "gpt-5(medium)")
+        #expect(env["ANTHROPIC_DEFAULT_OPUS_MODEL"] as? String == "gpt-5(high)")
         #expect(json["other"] as? Int == 1)
     }
 
@@ -125,6 +157,223 @@ struct ClaudeAccountManagerTests {
         #expect(accounts[0].credentialType == .apiKey)
         #expect(accounts[0].source == .migrated)
         #expect(accounts[0].normalizedBaseURL == "https://relay.example.com/v1")
+    }
+
+    @Test("Given current claude settings with reasoning model, when importing, then reasoning model is parsed into account")
+    func importFromCurrentSettingsParsesReasoningModel() async throws {
+        let root = makeTempRoot("claude-account-migrate-reasoning")
+        defer { try? root.delete() }
+
+        let manager = ClaudeAccountManager(rootURL: root.url)
+        let provider = makeClaudeProvider(root: root)
+        let settingsFile = try #require(manager.settingsFile(for: provider))
+        _ = settingsFile.parentFolder()?.createIfNotExists()
+        try settingsFile.overlay(with: Data(#"{"env":{"ANTHROPIC_AUTH_TOKEN":"token-1","ANTHROPIC_BASE_URL":"https://relay.example.com/v1","ANTHROPIC_MODEL":"gpt-5","ANTHROPIC_REASONING_MODEL":"gpt-5(high)"}}"#.utf8))
+
+        _ = try await manager.importFromCurrentSettings(provider: provider)
+        let accounts = try await manager.loadAccounts()
+        let account = try #require(accounts.first)
+
+        #expect(account.anthropicModel == "gpt-5")
+        #expect(account.anthropicReasoningModel == "gpt-5(high)")
+    }
+
+    @Test("Given active account with reasoning model, when activating, then settings env contains ANTHROPIC_REASONING_MODEL")
+    func activateAccountWritesReasoningModelToSettings() async throws {
+        let root = makeTempRoot("claude-account-activate-reasoning")
+        defer { try? root.delete() }
+
+        let manager = ClaudeAccountManager(
+            rootURL: root.url,
+            validationAction: { _ in
+                ClaudeAccountValidationResult(isEffective: true, statusCode: 200, message: "ok")
+            }
+        )
+        let provider = makeClaudeProvider(root: root)
+
+        let account = ClaudeAccount(
+            name: "reasoning",
+            credentialType: .authToken,
+            credentialValue: "reasoning-token",
+            baseURL: "https://api.anthropic.com",
+            anthropicModel: "gpt-5",
+            anthropicReasoningModel: "gpt-5(high)",
+            anthropicDefaultHaikuModel: "gpt-5(minimal)",
+            anthropicDefaultSonnetModel: "gpt-5(medium)",
+            anthropicDefaultOpusModel: "gpt-5(high)",
+            source: .manual
+        )
+        try await manager.saveAccounts([account])
+        _ = try await manager.activateAccount(id: account.id, provider: provider)
+
+        let settingsFile = try #require(manager.settingsFile(for: provider))
+        let data = try settingsFile.data()
+        let json = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let env = try #require(json["env"] as? [String: Any])
+        #expect(env["ANTHROPIC_REASONING_MODEL"] as? String == "gpt-5(high)")
+    }
+
+    @Test("Given Claude account storage initialization, when loading accounts, then SQLite schema tables are created")
+    func ensureSQLiteSchemaCreatedForClaudeAccounts() async throws {
+        let root = makeTempRoot("claude-account-schema")
+        defer { try? root.delete() }
+
+        let manager = ClaudeAccountManager(rootURL: root.url)
+        _ = try await manager.loadAccounts()
+
+        let dbURL = root.file("nolon.sqlite3").url
+        #expect(FileManager.default.fileExists(atPath: dbURL.path))
+
+        let tables = try runSQLiteJSON(
+            databaseURL: dbURL,
+            sql: """
+            SELECT name
+            FROM sqlite_master
+            WHERE type = 'table' AND name IN ('claude_accounts', 'claude_active_accounts')
+            ORDER BY name;
+            """
+        )
+        #expect(tables.map { $0["name"] ?? "" } == ["claude_accounts", "claude_active_accounts"])
+
+        let accountColumns = try runSQLiteJSON(
+            databaseURL: dbURL,
+            sql: """
+            SELECT name
+            FROM pragma_table_info('claude_accounts')
+            WHERE name IN (
+              'anthropic_model',
+              'anthropic_reasoning_model',
+              'anthropic_default_haiku_model',
+              'anthropic_default_sonnet_model',
+              'anthropic_default_opus_model'
+            )
+            ORDER BY name;
+            """
+        )
+        #expect(accountColumns.map { $0["name"] ?? "" } == [
+            "anthropic_default_haiku_model",
+            "anthropic_default_opus_model",
+            "anthropic_default_sonnet_model",
+            "anthropic_model",
+            "anthropic_reasoning_model",
+        ])
+
+        let activeScopes = try runSQLiteJSON(
+            databaseURL: dbURL,
+            sql: """
+            SELECT scope
+            FROM claude_active_accounts
+            ORDER BY scope;
+            """
+        )
+        #expect(activeScopes.map { $0["scope"] ?? "" } == ["default"])
+    }
+
+    @Test("Given legacy JSON snapshots, when loading accounts, then records are backfilled to SQLite")
+    func migrateLegacyJSONSnapshotsIntoSQLiteOnFirstLoad() async throws {
+        let root = makeTempRoot("claude-account-json-backfill")
+        defer { try? root.delete() }
+
+        let manager = ClaudeAccountManager(rootURL: root.url)
+        _ = manager.claudeDataFolder().createIfNotExists()
+
+        let accountID = UUID(uuidString: "bbbbbbbb-2222-2222-2222-222222222222")!
+        let now = Date()
+        let legacyAccount = ClaudeAccount(
+            id: accountID,
+            name: "legacy-json",
+            credentialType: .authToken,
+            credentialValue: "legacy-token",
+            baseURL: "https://api.anthropic.com",
+            source: .manual,
+            createdAt: now,
+            updatedAt: now
+        )
+
+        let accountsPayload = """
+        {
+          "schemaVersion" : 1,
+          "accounts" : [
+            {
+              "id" : "\(legacyAccount.id.uuidString)",
+              "name" : "\(legacyAccount.name)",
+              "credentialType" : "\(legacyAccount.credentialType.rawValue)",
+              "credentialValue" : "\(legacyAccount.credentialValue)",
+              "baseURL" : "\(legacyAccount.baseURL)",
+              "source" : "\(legacyAccount.source.rawValue)",
+              "createdAt" : \(legacyAccount.createdAt.timeIntervalSince1970),
+              "updatedAt" : \(legacyAccount.updatedAt.timeIntervalSince1970)
+            }
+          ]
+        }
+        """
+        try manager.accountsFile().overlay(with: Data(accountsPayload.utf8))
+        try manager.activeAccountFile().overlay(with: Data("{\"accountID\":\"\(legacyAccount.id.uuidString)\"}".utf8))
+
+        let loaded = try await manager.loadAccounts()
+        #expect(loaded.count == 1)
+        #expect(loaded.first?.id == legacyAccount.id)
+
+        let dbURL = root.file("nolon.sqlite3").url
+        let rows = try runSQLiteJSON(
+            databaseURL: dbURL,
+            sql: """
+            SELECT id, name
+            FROM claude_accounts
+            ORDER BY id;
+            """
+        )
+        #expect(rows.count == 1)
+        #expect(rows.first?["id"] == legacyAccount.id.uuidString)
+        #expect(rows.first?["name"] == legacyAccount.name)
+
+        let activeRows = try runSQLiteJSON(
+            databaseURL: dbURL,
+            sql: """
+            SELECT scope, account_id
+            FROM claude_active_accounts
+            WHERE scope = 'default';
+            """
+        )
+        #expect(activeRows.first?["scope"] == "default")
+        #expect(activeRows.first?["account_id"] == legacyAccount.id.uuidString)
+    }
+
+    @Test("Given fresh storage, when adding and activating account, then legacy JSON snapshots are not generated anymore")
+    func doesNotGenerateLegacyJSONSnapshotsAfterSQLiteCutover() async throws {
+        let root = makeTempRoot("claude-account-no-json-mirror")
+        defer { try? root.delete() }
+
+        let manager = ClaudeAccountManager(
+            rootURL: root.url,
+            validationAction: { _ in
+                ClaudeAccountValidationResult(isEffective: true, statusCode: 200, message: "ok")
+            }
+        )
+        let provider = makeClaudeProvider(root: root)
+
+        let account = try await manager.addAccount(
+            name: "sqlite-only",
+            credentialType: .apiKey,
+            credentialValue: "sk-ant-sqlite",
+            baseURL: "https://api.anthropic.com",
+            source: .manual
+        )
+        _ = try await manager.activateAccount(id: account.id, provider: provider)
+
+        #expect(manager.accountsFile().isExists == false)
+        #expect(manager.activeAccountFile().isExists == false)
+
+        let dbURL = root.file("nolon.sqlite3").url
+        let rows = try runSQLiteJSON(
+            databaseURL: dbURL,
+            sql: """
+            SELECT id
+            FROM claude_accounts
+            WHERE id = '\(account.id.uuidString)';
+            """
+        )
+        #expect(rows.count == 1)
     }
 
     @Test("Given existing ineffective account, when importing same key from cc-switch and candidate is effective, then existing snapshot is replaced")

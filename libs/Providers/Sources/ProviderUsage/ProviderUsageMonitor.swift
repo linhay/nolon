@@ -11,6 +11,7 @@ public struct ProviderUsageMonitorSettings: Sendable, Codable, Equatable {
     public var codexHideZeroQuotaAccounts: Bool
     public var codexHideErroredAccounts: Bool
     public var codexUseListLayout: Bool
+    public var codexAccountGroupingOptionRawValue: String
 
     public init(
         sourceMode: ProviderSourceMode = .auto,
@@ -20,7 +21,8 @@ public struct ProviderUsageMonitorSettings: Sendable, Codable, Equatable {
         costWindowDays: Int? = 30,
         codexHideZeroQuotaAccounts: Bool = false,
         codexHideErroredAccounts: Bool = false,
-        codexUseListLayout: Bool = false
+        codexUseListLayout: Bool = false,
+        codexAccountGroupingOptionRawValue: String = "typeInfo"
     ) {
         self.sourceMode = sourceMode
         self.includeCredits = includeCredits
@@ -30,6 +32,7 @@ public struct ProviderUsageMonitorSettings: Sendable, Codable, Equatable {
         self.codexHideZeroQuotaAccounts = codexHideZeroQuotaAccounts
         self.codexHideErroredAccounts = codexHideErroredAccounts
         self.codexUseListLayout = codexUseListLayout
+        self.codexAccountGroupingOptionRawValue = codexAccountGroupingOptionRawValue
     }
 
     public func effectiveCostWindowDays(selected: Int?) -> Int? {
@@ -45,6 +48,7 @@ public struct ProviderUsageMonitorSettings: Sendable, Codable, Equatable {
         case codexHideZeroQuotaAccounts
         case codexHideErroredAccounts
         case codexUseListLayout
+        case codexAccountGroupingOptionRawValue
     }
 
     public init(from decoder: Decoder) throws {
@@ -56,6 +60,7 @@ public struct ProviderUsageMonitorSettings: Sendable, Codable, Equatable {
         codexHideZeroQuotaAccounts = (try? container.decode(Bool.self, forKey: .codexHideZeroQuotaAccounts)) ?? false
         codexHideErroredAccounts = (try? container.decode(Bool.self, forKey: .codexHideErroredAccounts)) ?? false
         codexUseListLayout = (try? container.decode(Bool.self, forKey: .codexUseListLayout)) ?? false
+        codexAccountGroupingOptionRawValue = (try? container.decode(String.self, forKey: .codexAccountGroupingOptionRawValue)) ?? "typeInfo"
         if container.contains(.costWindowDays) {
             // Keep explicit `null` as nil ("All"), only default when key is absent (legacy data).
             costWindowDays = try container.decodeIfPresent(Int.self, forKey: .costWindowDays)
@@ -73,6 +78,7 @@ public struct ProviderUsageMonitorSettings: Sendable, Codable, Equatable {
         try container.encode(codexHideZeroQuotaAccounts, forKey: .codexHideZeroQuotaAccounts)
         try container.encode(codexHideErroredAccounts, forKey: .codexHideErroredAccounts)
         try container.encode(codexUseListLayout, forKey: .codexUseListLayout)
+        try container.encode(codexAccountGroupingOptionRawValue, forKey: .codexAccountGroupingOptionRawValue)
         if let costWindowDays {
             try container.encode(costWindowDays, forKey: .costWindowDays)
         } else {

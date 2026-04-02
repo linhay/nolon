@@ -21,7 +21,6 @@ public protocol NolonCodexCLIServing: Sendable {
     func authUsageTrend(providerID: String, range: NolonCodexUsageTrendRange) async throws -> NolonCodexAuthUsageTrendPayload
     func authUsageRefresh(providerID: String, accountID: UUID?) async throws -> NolonCodexAuthUsagePayload
     func authStatus(providerID: String) async throws -> NolonCodexAuthStatusPayload
-    func authExport(providerID: String, format: NolonCodexAuthExportFormat, accountIDs: [UUID], outputPath: String) async throws -> NolonCodexAuthExportPayload
     func authRefresh(providerID: String, accountID: UUID?) async throws -> NolonCodexAuthRefreshPayload
     func authActivate(providerID: String, accountID: UUID) async throws -> NolonCodexAuthActivatePayload
     func authLogin(providerID: String, preferredAccountID: UUID?) async throws -> NolonCodexAuthLoginPayload
@@ -41,19 +40,9 @@ public protocol NolonCodexCLIServing: Sendable {
     func gatewayStart(providerID: String, host: String, port: Int) async throws -> NolonCodexGatewaySetPayload
     func gatewayStop(providerID: String) async throws -> NolonCodexGatewaySetPayload
     func gatewayServe(providerID: String, host: String, port: Int) async throws
-    func autoSwitchStatus(providerID: String) async throws -> NolonCodexAutoSwitchStatusPayload
-    func autoSwitchSetEnabled(providerID: String, enabled: Bool) async throws -> NolonCodexAutoSwitchSetPayload
 }
 
 public extension NolonCodexCLIServing {
-    func authExport(providerID: String, format: NolonCodexAuthExportFormat, accountIDs: [UUID], outputPath: String) async throws -> NolonCodexAuthExportPayload {
-        _ = providerID
-        _ = format
-        _ = accountIDs
-        _ = outputPath
-        throw NolonCoreCLIError.invalidArguments("Auth export is not supported by this service.")
-    }
-
     func authUsageRefresh(providerID: String, accountID: UUID?) async throws -> NolonCodexAuthUsagePayload {
         _ = accountID
         return try await authUsage(providerID: providerID)
@@ -147,20 +136,6 @@ public extension NolonCodexCLIServing {
         )
     }
 
-    func autoSwitchStatus(providerID: String) async throws -> NolonCodexAutoSwitchStatusPayload {
-        let canonicalProviderID = providerID.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        return NolonCodexAutoSwitchStatusPayload(
-            providerID: canonicalProviderID,
-            enabled: false,
-            thresholdPercent: 10,
-            minimumCandidateRemainingPercent: 20,
-            skipRelayAccounts: true,
-            cooldownSeconds: 600,
-            lastDecision: nil,
-            lastUpdatedAt: nil
-        )
-    }
-
     func gatewayStatus(providerID: String) async throws -> NolonCodexGatewayStatusPayload {
         let canonicalProviderID = providerID.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         return NolonCodexGatewayStatusPayload(
@@ -200,17 +175,6 @@ public extension NolonCodexCLIServing {
         _ = port
     }
 
-    func autoSwitchSetEnabled(providerID: String, enabled: Bool) async throws -> NolonCodexAutoSwitchSetPayload {
-        let canonicalProviderID = providerID.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        return NolonCodexAutoSwitchSetPayload(
-            providerID: canonicalProviderID,
-            enabled: enabled,
-            thresholdPercent: 10,
-            minimumCandidateRemainingPercent: 20,
-            skipRelayAccounts: true,
-            cooldownSeconds: 600
-        )
-    }
 }
 
 public enum NolonCodexUsageTrendRange: String, Codable, Sendable, Equatable {
@@ -353,26 +317,6 @@ public struct NolonCodexAuthUsageSummaryView: Codable, Sendable, Equatable {
     }
 }
 
-public struct NolonCodexAutoSwitchStatusPayload: Codable, Sendable, Equatable {
-    public let providerID: String
-    public let enabled: Bool
-    public let thresholdPercent: Double
-    public let minimumCandidateRemainingPercent: Double
-    public let skipRelayAccounts: Bool
-    public let cooldownSeconds: Int
-    public let lastDecision: CodexAutoSwitchDecision?
-    public let lastUpdatedAt: Date?
-}
-
-public struct NolonCodexAutoSwitchSetPayload: Codable, Sendable, Equatable {
-    public let providerID: String
-    public let enabled: Bool
-    public let thresholdPercent: Double
-    public let minimumCandidateRemainingPercent: Double
-    public let skipRelayAccounts: Bool
-    public let cooldownSeconds: Int
-}
-
 public struct NolonCodexGatewayStatusPayload: Codable, Sendable, Equatable {
     public let providerID: String
     public let status: CodexGatewayRuntimeStatus
@@ -473,19 +417,6 @@ public struct NolonCodexAuthStatusPayload: Codable, Sendable, Equatable {
         self.usageAvgWeeklyRemainingPercent = usageAvgWeeklyRemainingPercent
         self.usageLatestRefreshedAt = usageLatestRefreshedAt
     }
-}
-
-public enum NolonCodexAuthExportFormat: String, Codable, Sendable, Equatable {
-    case sub2api
-}
-
-public struct NolonCodexAuthExportPayload: Codable, Sendable, Equatable {
-    public let providerID: String
-    public let format: NolonCodexAuthExportFormat
-    public let outputPath: String
-    public let exportedCount: Int
-    public let skippedRelayCount: Int
-    public let skippedUnsupportedCount: Int
 }
 
 public struct NolonCodexAuthActivatePayload: Codable, Sendable, Equatable {
@@ -694,8 +625,6 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
     private let gatewayHealthChecker: GatewayHealthChecker
     private let gatewayExecutablePathProvider: GatewayExecutablePathProvider
     private let gatewayVirtualAccountStateStore: any CodexGatewayVirtualAccountStateStoring
-    private let autoSwitchSettingsStore: CodexAutoSwitchSettingsStore
-    private let autoSwitchStatusStore: any CodexAutoSwitchStatusStoring
 
     private struct UsageRefreshReport: Sendable {
         var refreshOrder: [UUID] = []
@@ -795,9 +724,7 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
             gatewayDetachedProcessStarter: Self.startDetachedProcess,
             gatewayHealthChecker: Self.healthCheck,
             gatewayExecutablePathProvider: Self.resolveCurrentExecutablePath,
-            gatewayVirtualAccountStateStore: CodexGatewayVirtualAccountStateStore(authManager: authManager),
-            autoSwitchSettingsStore: .shared,
-            autoSwitchStatusStore: CodexAutoSwitchStatusStore(authManager: authManager)
+            gatewayVirtualAccountStateStore: CodexGatewayVirtualAccountStateStore(authManager: authManager)
         )
     }
 
@@ -836,9 +763,7 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
             gatewayDetachedProcessStarter: Self.startDetachedProcess,
             gatewayHealthChecker: Self.healthCheck,
             gatewayExecutablePathProvider: Self.resolveCurrentExecutablePath,
-            gatewayVirtualAccountStateStore: CodexGatewayVirtualAccountStateStore(authManager: authManager),
-            autoSwitchSettingsStore: .shared,
-            autoSwitchStatusStore: CodexAutoSwitchStatusStore(authManager: authManager)
+            gatewayVirtualAccountStateStore: CodexGatewayVirtualAccountStateStore(authManager: authManager)
         )
     }
 
@@ -863,9 +788,7 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
         gatewayDetachedProcessStarter: @escaping GatewayDetachedProcessStarter = Self.startDetachedProcess,
         gatewayHealthChecker: @escaping GatewayHealthChecker = Self.healthCheck,
         gatewayExecutablePathProvider: @escaping GatewayExecutablePathProvider = Self.resolveCurrentExecutablePath,
-        gatewayVirtualAccountStateStore: any CodexGatewayVirtualAccountStateStoring = CodexGatewayVirtualAccountStateStore(),
-        autoSwitchSettingsStore: CodexAutoSwitchSettingsStore = .shared,
-        autoSwitchStatusStore: any CodexAutoSwitchStatusStoring = CodexAutoSwitchStatusStore()
+        gatewayVirtualAccountStateStore: any CodexGatewayVirtualAccountStateStoring = CodexGatewayVirtualAccountStateStore()
     ) {
         self.authManager = authManager
         self.binaryManager = binaryManager
@@ -886,8 +809,6 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
         self.gatewayHealthChecker = gatewayHealthChecker
         self.gatewayExecutablePathProvider = gatewayExecutablePathProvider
         self.gatewayVirtualAccountStateStore = gatewayVirtualAccountStateStore
-        self.autoSwitchSettingsStore = autoSwitchSettingsStore
-        self.autoSwitchStatusStore = autoSwitchStatusStore
     }
 
     public func authList(providerID: String) async throws -> NolonCodexAuthListPayload {
@@ -959,70 +880,6 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
 
     public func authUsageRefresh(providerID: String, accountID: UUID?) async throws -> NolonCodexAuthUsagePayload {
         try await buildAuthUsagePayload(providerID: providerID, refreshTargetAccountID: accountID, refreshBeforeRead: true)
-    }
-
-    public func autoSwitchStatus(providerID: String) async throws -> NolonCodexAutoSwitchStatusPayload {
-        let canonicalProviderID = try Self.canonicalProviderID(providerID)
-        let provider = try Self.provider(for: canonicalProviderID)
-        let settings = autoSwitchSettingsStore.settings(for: provider)
-        let snapshot = await autoSwitchStatusStore.load()
-        let lastDecision = snapshot?.providerID == provider.id ? snapshot?.lastDecision : nil
-        let lastUpdatedAt = snapshot?.providerID == provider.id ? snapshot?.lastUpdatedAt : nil
-        return NolonCodexAutoSwitchStatusPayload(
-            providerID: canonicalProviderID,
-            enabled: settings.enabled,
-            thresholdPercent: settings.thresholdPercent,
-            minimumCandidateRemainingPercent: settings.minimumCandidateRemainingPercent,
-            skipRelayAccounts: settings.skipRelayAccounts,
-            cooldownSeconds: Int(settings.cooldown),
-            lastDecision: lastDecision,
-            lastUpdatedAt: lastUpdatedAt
-        )
-    }
-
-    public func autoSwitchSetEnabled(providerID: String, enabled: Bool) async throws -> NolonCodexAutoSwitchSetPayload {
-        let canonicalProviderID = try Self.canonicalProviderID(providerID)
-        let provider = try Self.provider(for: canonicalProviderID)
-        var settings = autoSwitchSettingsStore.settings(for: provider)
-        settings.enabled = enabled
-        autoSwitchSettingsStore.update(settings: settings, for: provider)
-        return NolonCodexAutoSwitchSetPayload(
-            providerID: canonicalProviderID,
-            enabled: settings.enabled,
-            thresholdPercent: settings.thresholdPercent,
-            minimumCandidateRemainingPercent: settings.minimumCandidateRemainingPercent,
-            skipRelayAccounts: settings.skipRelayAccounts,
-            cooldownSeconds: Int(settings.cooldown)
-        )
-    }
-
-    public func authExport(
-        providerID: String,
-        format: NolonCodexAuthExportFormat,
-        accountIDs: [UUID],
-        outputPath: String
-    ) async throws -> NolonCodexAuthExportPayload {
-        let canonicalProviderID = try Self.canonicalProviderID(providerID)
-        _ = try Self.provider(for: canonicalProviderID)
-
-        let destinationURL = URL(fileURLWithPath: outputPath).standardizedFileURL
-        let result: Sub2APIExportResult
-        switch format {
-        case .sub2api:
-            result = try await authManager.exportAccountsAsSub2API(
-                accountIDs: accountIDs,
-                destinationURL: destinationURL
-            )
-        }
-
-        return NolonCodexAuthExportPayload(
-            providerID: canonicalProviderID,
-            format: format,
-            outputPath: destinationURL.path,
-            exportedCount: result.exportedCount,
-            skippedRelayCount: result.skippedRelayCount,
-            skippedUnsupportedCount: result.skippedUnsupportedCount
-        )
     }
 
     private func buildAuthUsagePayload(
@@ -1179,8 +1036,12 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
             let runtimeHome = authManager.runtimeHomeFolder(accountID: account.id)
             _ = runtimeHome.createIfNotExists()
             let runtimeAuth = runtimeHome.file("auth.json")
-            let sourceAuth = authManager.accountAuthFile(relativeAuthPath: account.relativeAuthPath)
-            let authData = try sourceAuth.data()
+            guard let authData = authManager.accountAuthData(for: account) else {
+                throw NolonCoreCLIError.domainFailed(
+                    code: "codex_auth_payload_missing",
+                    message: "Codex account auth payload is missing: \(account.id.uuidString)"
+                )
+            }
             try runtimeAuth.overlay(with: authData)
 
             var accountEnvironment = mergedEnvironment
@@ -2456,13 +2317,13 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
     }
 
     private static func loadEmail(for account: CodexAuthAccount, authManager: CodexAuthManager) -> String? {
-        guard let data = try? authManager.accountAuthFile(relativeAuthPath: account.relativeAuthPath).data(), !data.isEmpty else { return nil }
+        guard let data = authManager.accountAuthData(for: account), !data.isEmpty else { return nil }
         let summary = CodexAuthSummary.fromJSONData(data)
         return summary.email
     }
 
     private static func loadSummary(for account: CodexAuthAccount, authManager: CodexAuthManager) -> CodexAuthSummary {
-        guard let data = try? authManager.accountAuthFile(relativeAuthPath: account.relativeAuthPath).data(),
+        guard let data = authManager.accountAuthData(for: account),
               !data.isEmpty
         else { return CodexAuthSummary() }
         return CodexAuthSummary.fromJSONData(data)
@@ -2494,14 +2355,14 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
     }
 
     private static func resolveAuthTokenInfo(for account: CodexAuthAccount, authManager: CodexAuthManager) -> (expiresAt: Date?, hasRefreshToken: Bool?) {
-        guard let data = try? authManager.accountAuthFile(relativeAuthPath: account.relativeAuthPath).data(),
+        guard let data = authManager.accountAuthData(for: account),
               !data.isEmpty
         else { return (nil, nil) }
         return parseAuthTokenInfo(fromAuthData: data)
     }
 
     private static func resolveSyncFailureInfo(for account: CodexAuthAccount, authManager: CodexAuthManager) -> (failedAt: Date?, message: String?) {
-        guard let data = try? authManager.accountAuthFile(relativeAuthPath: account.relativeAuthPath).data(),
+        guard let data = authManager.accountAuthData(for: account),
               !data.isEmpty
         else { return (nil, nil) }
         let summary = CodexAuthSummary.fromJSONData(data)
@@ -2738,7 +2599,7 @@ public enum NolonCLIEntrypoint {
         }
         let root = normalized[0].lowercased()
         let groupsNeedingHelp: [String: Set<String>] = [
-            "codex": ["auth", "binary", "status", "runtime", "provider", "gateway", "autoswitch"],
+            "codex": ["auth", "binary", "status", "runtime", "provider", "gateway"],
             "skills": [],
         ]
         let rootCommands = Set(["codex", "provider", "skills", "workflow", "mcp", "plugin", "remote"])
@@ -2802,9 +2663,6 @@ public enum NolonCLIEntrypoint {
             case "gateway":
                 guard arguments.count >= 3 else { return NolonCodexGatewayGroupCommand.self }
                 return codexGatewayCommandType(action: arguments[2])
-            case "autoswitch":
-                guard arguments.count >= 3 else { return NolonCodexAutoSwitchGroupCommand.self }
-                return codexAutoSwitchCommandType(action: arguments[2])
             default:
                 return NolonCodexRootCommand.self
             }
@@ -2954,19 +2812,6 @@ public enum NolonCLIEntrypoint {
             return NolonCodexGatewayServeCommand.self
         default:
             return NolonCodexGatewayGroupCommand.self
-        }
-    }
-
-    private static func codexAutoSwitchCommandType(action: String) -> ParsableCommand.Type? {
-        switch action.lowercased() {
-        case "status":
-            return NolonCodexAutoSwitchStatusCommand.self
-        case "enable":
-            return NolonCodexAutoSwitchEnableCommand.self
-        case "disable":
-            return NolonCodexAutoSwitchDisableCommand.self
-        default:
-            return NolonCodexAutoSwitchGroupCommand.self
         }
     }
 

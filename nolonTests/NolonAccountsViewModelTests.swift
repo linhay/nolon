@@ -39,7 +39,7 @@ final class NolonAccountsViewModelTests: XCTestCase {
         XCTAssertEqual(NolonAccountsThemeTokens.panelBackgroundLight, 0xFFFFFF)
     }
 
-    func testBDD_GivenCodexXcodeProvider_WhenResolvingUsageProvider_ThenReturnsNil() {
+    func testBDD_GivenCodexXcodeProvider_WhenResolvingUsageProvider_ThenReturnsCodex() {
         let provider = Provider(
             id: "codex-xcode",
             kind: .vendor,
@@ -52,7 +52,7 @@ final class NolonAccountsViewModelTests: XCTestCase {
 
         let mapped = NolonAccountsViewModel.mapUsageProvider(for: provider)
 
-        XCTAssertNil(mapped)
+        XCTAssertEqual(mapped, .codex)
     }
 
     func testBDD_GivenGeminiAndAntigravityProviders_WhenResolvingUsageProvider_ThenReturnsMatchingUsageProvider() {
@@ -529,6 +529,8 @@ final class NolonAccountsViewModelTests: XCTestCase {
         let file = service.accountAuthFile(relativeAuthPath: account.relativeAuthPath)
         let expected = try file.read()
         XCTAssertEqual(sink.value, expected)
+        XCTAssertTrue(viewModel.isShowingCopyToast)
+        XCTAssertFalse(viewModel.copyToastMessage.isEmpty)
     }
 
     func testBDD_GivenCodexSnapshotID_WhenEditingAuthJSON_ThenOpenActionReceivesAuthFileURL() async throws {

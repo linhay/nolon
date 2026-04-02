@@ -3,6 +3,7 @@ import Testing
 import ProviderCatalog
 import STFilePath
 import STJSON
+import SQLite3
 @testable import ProviderUsage
 
 @Suite("CodexAuthManager")
@@ -24,6 +25,103 @@ struct CodexAuthManagerTests {
 
         let header = #"{"alg":"RS256","typ":"JWT"}"#
         return "\(encode(header)).\(encode(payload)).signature"
+    }
+
+    private func sqliteCount(databaseURL: URL, sql: String, bind: String) throws -> Int {
+        var db: OpaquePointer?
+        guard sqlite3_open_v2(databaseURL.path, &db, SQLITE_OPEN_READONLY | SQLITE_OPEN_FULLMUTEX, nil) == SQLITE_OK else {
+            let message = String(cString: sqlite3_errmsg(db))
+            sqlite3_close(db)
+            throw NSError(domain: "CodexAuthManagerTests.sqlite", code: 1, userInfo: [NSLocalizedDescriptionKey: message])
+        }
+        defer { sqlite3_close(db) }
+
+        var statement: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK else {
+            let message = String(cString: sqlite3_errmsg(db))
+            throw NSError(domain: "CodexAuthManagerTests.sqlite", code: 2, userInfo: [NSLocalizedDescriptionKey: message])
+        }
+        defer { sqlite3_finalize(statement) }
+
+        _ = sqlite3_bind_text(statement, 1, bind, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
+        guard sqlite3_step(statement) == SQLITE_ROW else {
+            let message = String(cString: sqlite3_errmsg(db))
+            throw NSError(domain: "CodexAuthManagerTests.sqlite", code: 3, userInfo: [NSLocalizedDescriptionKey: message])
+        }
+        return Int(sqlite3_column_int(statement, 0))
+    }
+
+    private func sqliteCount(databaseURL: URL, sql: String) throws -> Int {
+        var db: OpaquePointer?
+        guard sqlite3_open_v2(databaseURL.path, &db, SQLITE_OPEN_READONLY | SQLITE_OPEN_FULLMUTEX, nil) == SQLITE_OK else {
+            let message = String(cString: sqlite3_errmsg(db))
+            sqlite3_close(db)
+            throw NSError(domain: "CodexAuthManagerTests.sqlite", code: 11, userInfo: [NSLocalizedDescriptionKey: message])
+        }
+        defer { sqlite3_close(db) }
+
+        var statement: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK else {
+            let message = String(cString: sqlite3_errmsg(db))
+            throw NSError(domain: "CodexAuthManagerTests.sqlite", code: 12, userInfo: [NSLocalizedDescriptionKey: message])
+        }
+        defer { sqlite3_finalize(statement) }
+
+        guard sqlite3_step(statement) == SQLITE_ROW else {
+            let message = String(cString: sqlite3_errmsg(db))
+            throw NSError(domain: "CodexAuthManagerTests.sqlite", code: 13, userInfo: [NSLocalizedDescriptionKey: message])
+        }
+        return Int(sqlite3_column_int(statement, 0))
+    }
+
+    private func sqliteString(databaseURL: URL, sql: String, bind: String) throws -> String? {
+        var db: OpaquePointer?
+        guard sqlite3_open_v2(databaseURL.path, &db, SQLITE_OPEN_READONLY | SQLITE_OPEN_FULLMUTEX, nil) == SQLITE_OK else {
+            let message = String(cString: sqlite3_errmsg(db))
+            sqlite3_close(db)
+            throw NSError(domain: "CodexAuthManagerTests.sqlite", code: 21, userInfo: [NSLocalizedDescriptionKey: message])
+        }
+        defer { sqlite3_close(db) }
+
+        var statement: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK else {
+            let message = String(cString: sqlite3_errmsg(db))
+            throw NSError(domain: "CodexAuthManagerTests.sqlite", code: 22, userInfo: [NSLocalizedDescriptionKey: message])
+        }
+        defer { sqlite3_finalize(statement) }
+
+        _ = sqlite3_bind_text(statement, 1, bind, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
+        guard sqlite3_step(statement) == SQLITE_ROW else {
+            return nil
+        }
+        guard let value = sqlite3_column_text(statement, 0) else { return nil }
+        return String(cString: value)
+    }
+
+    private func sqliteExecute(databaseURL: URL, sql: String, bindings: [String] = []) throws {
+        var db: OpaquePointer?
+        guard sqlite3_open_v2(databaseURL.path, &db, SQLITE_OPEN_READWRITE | SQLITE_OPEN_FULLMUTEX, nil) == SQLITE_OK else {
+            let message = String(cString: sqlite3_errmsg(db))
+            sqlite3_close(db)
+            throw NSError(domain: "CodexAuthManagerTests.sqlite", code: 31, userInfo: [NSLocalizedDescriptionKey: message])
+        }
+        defer { sqlite3_close(db) }
+
+        var statement: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK else {
+            let message = String(cString: sqlite3_errmsg(db))
+            throw NSError(domain: "CodexAuthManagerTests.sqlite", code: 32, userInfo: [NSLocalizedDescriptionKey: message])
+        }
+        defer { sqlite3_finalize(statement) }
+
+        for (index, value) in bindings.enumerated() {
+            _ = sqlite3_bind_text(statement, Int32(index + 1), value, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
+        }
+        let result = sqlite3_step(statement)
+        guard result == SQLITE_DONE || result == SQLITE_ROW else {
+            let message = String(cString: sqlite3_errmsg(db))
+            throw NSError(domain: "CodexAuthManagerTests.sqlite", code: 33, userInfo: [NSLocalizedDescriptionKey: message])
+        }
     }
 
     @Test("Given NOLON_HOME env, when manager uses default root, then snapshots root is isolated to env path")
@@ -121,6 +219,66 @@ struct CodexAuthManagerTests {
         #expect(marker.isExists == true)
     }
 
+    @Test("Given stale runtime homes, when cleanup runs, then active account runtime home is preserved while stale inactive homes are removed")
+    func cleanupRuntimeHomesPreservesActiveRemovesStaleInactive() async throws {
+        let root = try makeTempRoot("codex-runtime-home-cleanup-active")
+        defer { try? root.delete() }
+
+        let manager = CodexAuthManager(rootURL: root.url)
+        let provider = Provider(
+            name: "Codex",
+            defaultSkillsPath: root.folder("provider").folder("skills").url.path,
+            workflowPath: root.folder("provider").folder("prompts").url.path,
+            installMethod: .symlink,
+            templateId: "codex"
+        )
+        let activeAccount = try await manager.addAccount(
+            name: "active",
+            authJSONString: #"{"tokens":{"id_token":"id-active","access_token":"access-active"}}"#
+        )
+        try await manager.setActiveAccount(activeAccount, for: provider)
+
+        let staleInactiveID = UUID(uuidString: "44444444-4444-4444-4444-444444444444")!
+        let activeRuntime = await manager.runtimeHomeFolder(accountID: activeAccount.id)
+        let staleRuntime = await manager.runtimeHomeFolder(accountID: staleInactiveID)
+        _ = activeRuntime.createIfNotExists()
+        _ = staleRuntime.createIfNotExists()
+
+        let oldDate = Date(timeIntervalSince1970: 1_700_000_000)
+        try FileManager.default.setAttributes([.modificationDate: oldDate], ofItemAtPath: activeRuntime.url.path)
+        try FileManager.default.setAttributes([.modificationDate: oldDate], ofItemAtPath: staleRuntime.url.path)
+
+        let report = try await manager.cleanupRuntimeHomesOnAppLaunch(maxAge: 60, now: oldDate.addingTimeInterval(3600))
+
+        #expect(report.removedCount == 1)
+        #expect(report.preservedActiveCount == 1)
+        #expect(activeRuntime.isExists == true)
+        #expect(staleRuntime.isExists == false)
+    }
+
+    @Test("Given recent inactive runtime home, when cleanup runs, then recent directory is kept")
+    func cleanupRuntimeHomesKeepsRecentInactive() async throws {
+        let root = try makeTempRoot("codex-runtime-home-cleanup-recent")
+        defer { try? root.delete() }
+
+        let manager = CodexAuthManager(rootURL: root.url)
+        let inactiveID = UUID(uuidString: "55555555-5555-5555-5555-555555555555")!
+        let runtime = await manager.runtimeHomeFolder(accountID: inactiveID)
+        _ = runtime.createIfNotExists()
+
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        try FileManager.default.setAttributes(
+            [.modificationDate: now.addingTimeInterval(-120)],
+            ofItemAtPath: runtime.url.path
+        )
+
+        let report = try await manager.cleanupRuntimeHomesOnAppLaunch(maxAge: 3600, now: now)
+
+        #expect(report.removedCount == 0)
+        #expect(report.skippedRecentCount == 1)
+        #expect(runtime.isExists == true)
+    }
+
     @Test("Given account snapshot, when reading token pair, then returns id/access token and chatgpt account id")
     func readTokenPairFromSnapshot() async throws {
         let root = try makeTempRoot("codex-auth-manager")
@@ -158,6 +316,22 @@ struct CodexAuthManagerTests {
         let emailRange = try #require(raw.range(of: "\"email\""))
         #expect(openAIKeyRange.lowerBound < authModeRange.lowerBound)
         #expect(authModeRange.lowerBound < emailRange.lowerBound)
+    }
+
+    @Test("Given legacy chatgptAuthTokens mode, when saving account, then auth_mode is canonicalized to chatgpt")
+    func addAccountCanonicalizesLegacyChatGPTAuthMode() async throws {
+        let root = try makeTempRoot("codex-auth-canonical-mode")
+        defer { try? root.delete() }
+
+        let manager = CodexAuthManager(rootURL: root.url)
+        let account = try await manager.addAccount(
+            name: "canonical-mode",
+            authJSONString: #"{"auth_mode":"chatgptAuthTokens","tokens":{"id_token":"id-token","access_token":"access-token"}}"#
+        )
+
+        let file = await manager.accountAuthFile(account)
+        let json = try #require(try? JSON(data: file.data()))
+        #expect(json["auth_mode"].string == "chatgpt")
     }
 
     @Test("Given selected snapshot, when activating account, then provider auth is symlinked to snapshot")
@@ -657,6 +831,354 @@ struct CodexAuthManagerTests {
         #expect(tokenPair?.accessToken == "access-valid")
     }
 
+    @Test("Given auth payload with api_key plus email/account_id, when validating import then it is rejected as unsupported combination")
+    func validateImportRejectsFourthIdentityCombination() async throws {
+        let root = try makeTempRoot("codex-auth-identity-invalid")
+        defer { try? root.delete() }
+
+        let manager = CodexAuthManager(rootURL: root.url)
+        let inputFolder = root.folder("input")
+        _ = inputFolder.createIfNotExists()
+        let invalidURL = inputFolder.file("invalid-combo.json").url
+        try #"{"OPENAI_API_KEY":"sk-123","email":"user@example.com","tokens":{"account_id":"acct-1","id_token":"id-token","access_token":"access-token"}}"#
+            .write(to: invalidURL, atomically: true, encoding: .utf8)
+
+        let results = await manager.validateImportAuthFiles(urls: [invalidURL])
+        #expect(results.count == 1)
+        #expect(results[0].isValid == false)
+        #expect((results[0].reason ?? "").contains("仅支持"))
+    }
+
+    @Test("Given auth payload with email/account_id only, when validating import then it is accepted")
+    func validateImportAcceptsEmailAccountIDIdentityCombination() async throws {
+        let root = try makeTempRoot("codex-auth-identity-email-account")
+        defer { try? root.delete() }
+
+        let manager = CodexAuthManager(rootURL: root.url)
+        let inputFolder = root.folder("input")
+        _ = inputFolder.createIfNotExists()
+        let validURL = inputFolder.file("valid-combo.json").url
+        try #"{"email":"user@example.com","tokens":{"account_id":"acct-1","id_token":"id-token","access_token":"access-token"}}"#
+            .write(to: validURL, atomically: true, encoding: .utf8)
+
+        let results = await manager.validateImportAuthFiles(urls: [validURL])
+        #expect(results.count == 1)
+        #expect(results[0].isValid == true)
+    }
+
+    @Test("Given legacy snapshot files and active account file, when loading accounts then manager migrates account system to sqlite")
+    func migrateLegacyAccountSystemToSQLiteOnLoad() async throws {
+        let root = try makeTempRoot("codex-auth-sqlite-migration")
+        defer { try? root.delete() }
+
+        let codexRoot = root.folder("codex")
+        let authFolder = codexRoot.folder("auth")
+        _ = authFolder.createIfNotExists()
+        let authFile = authFolder.file("legacy.json")
+        try #"{"tokens":{"id_token":"id-legacy","access_token":"access-legacy"},"email":"legacy@example.com"}"#
+            .write(to: authFile.url, atomically: true, encoding: .utf8)
+
+        let activeFile = codexRoot.file("active-accounts.json")
+        try #"{"providers":{"codex":"00000000-0000-0000-0000-000000000001"}}"#
+            .write(to: activeFile.url, atomically: true, encoding: .utf8)
+
+        let manager = CodexAuthManager(rootURL: root.url)
+        let accounts = try await manager.loadAccounts()
+        #expect(accounts.count == 1)
+
+        let dbURL = codexRoot.file("accounts.sqlite3").url
+        #expect(FileManager.default.fileExists(atPath: dbURL.path))
+
+        let accountCount = try sqliteCount(
+            databaseURL: dbURL,
+            sql: "SELECT COUNT(*) FROM codex_accounts;"
+        )
+        #expect(accountCount == 1)
+
+        let activeCount = try sqliteCount(
+            databaseURL: dbURL,
+            sql: "SELECT COUNT(*) FROM codex_active_accounts;"
+        )
+        #expect(activeCount == 1)
+    }
+
+    @Test("Given custom SQLite group destination, when importing validated auth files then rows are upserted in sqlite group")
+    func importValidatedAuthFilesToCustomSQLiteGroup() async throws {
+        let root = try makeTempRoot("codex-auth-import-sqlite-group")
+        defer { try? root.delete() }
+
+        let manager = CodexAuthManager(rootURL: root.url)
+        let inputFolder = root.folder("input")
+        _ = inputFolder.createIfNotExists()
+
+        let url = inputFolder.file("valid.json").url
+        try #"{"tokens":{"id_token":"id-valid","access_token":"access-valid"},"email":"valid@example.com"}"#
+            .write(to: url, atomically: true, encoding: .utf8)
+
+        let results = await manager.validateImportAuthFiles(urls: [url])
+        #expect(results.count == 1)
+        #expect(results[0].isValid == true)
+
+        _ = try await manager.importValidatedAuthFiles(
+            results: results,
+            destination: .customSQLiteGroup(name: "Team A")
+        )
+        _ = try await manager.importValidatedAuthFiles(
+            results: results,
+            destination: .customSQLiteGroup(name: "Team A")
+        )
+
+        let dbURL = root.folder("codex").file("imports.sqlite3").url
+        #expect(FileManager.default.fileExists(atPath: dbURL.path))
+
+        let groupCount = try sqliteCount(
+            databaseURL: dbURL,
+            sql: "SELECT COUNT(*) FROM custom_import_groups WHERE name = ?;",
+            bind: "Team A"
+        )
+        #expect(groupCount == 1)
+
+        let accountCount = try sqliteCount(
+            databaseURL: dbURL,
+            sql: """
+                SELECT COUNT(*) FROM imported_codex_accounts
+                WHERE group_id = (
+                    SELECT id FROM custom_import_groups WHERE name = ?
+                );
+            """,
+            bind: "Team A"
+        )
+        #expect(accountCount == 1)
+    }
+
+    @Test("Given new account creation, when adding account then sqlite index is updated")
+    func addAccountAlsoPersistsSQLiteIndex() async throws {
+        let root = try makeTempRoot("codex-auth-sqlite-add")
+        defer { try? root.delete() }
+
+        let manager = CodexAuthManager(rootURL: root.url)
+        _ = try await manager.addAccount(
+            name: "A",
+            authJSONString: #"{"tokens":{"id_token":"id-a","access_token":"access-a"},"email":"a@example.com"}"#
+        )
+
+        let dbURL = root.folder("codex").file("accounts.sqlite3").url
+        let count = try sqliteCount(databaseURL: dbURL, sql: "SELECT COUNT(*) FROM codex_accounts;")
+        #expect(count == 1)
+    }
+
+    @Test("Given auth json carries plan type, when persisting account then metadata stores plan_type and sqlite reconstruction keeps plan")
+    func addAccountPersistsPlanTypeIntoMetadataAndReconstructsFromSQLite() async throws {
+        let root = try makeTempRoot("codex-auth-sqlite-plan-type")
+        defer { try? root.delete() }
+
+        let manager = CodexAuthManager(rootURL: root.url)
+        let account = try await manager.addAccount(
+            name: "Plan",
+            authJSONString: #"{"auth_mode":"chatgpt","email":"plan@example.com","plan_type":"pro","tokens":{"id_token":"id-pro","access_token":"access-pro","account_id":"acct-pro"}}"#
+        )
+
+        let dbURL = manager.accountsSQLiteFile().url
+        let persistedPlanType = try sqliteString(
+            databaseURL: dbURL,
+            sql: "SELECT plan_type FROM codex_account_metadata WHERE account_id = ?;",
+            bind: account.id.uuidString
+        )
+        #expect(persistedPlanType == "pro")
+
+        let reconstructedData = try #require(manager.accountAuthDataWithoutMaterialization(for: account))
+        let reconstructedJSON = try #require(try? JSON(data: reconstructedData))
+        #expect(reconstructedJSON["plan_type"].string == "pro")
+        #expect(reconstructedJSON["plan"].string == "pro")
+    }
+
+    @Test("Given refreshed plan from usage outcome, when upserting plan type then auth and metadata plan_type are both updated")
+    func upsertPlanTypePersistsToAuthAndMetadata() async throws {
+        let root = try makeTempRoot("codex-auth-upsert-plan-type")
+        defer { try? root.delete() }
+
+        let manager = CodexAuthManager(rootURL: root.url)
+        let account = try await manager.addAccount(
+            name: "Plan",
+            authJSONString: #"{"auth_mode":"chatgpt","email":"plan@example.com","plan_type":"free","tokens":{"id_token":"id-pro","access_token":"access-pro","account_id":"acct-pro"}}"#
+        )
+
+        let changed = try await manager.upsertPlanType(for: account, plan: "pro")
+        #expect(changed == true)
+
+        let latest = try #require(manager.accountAuthDataWithoutMaterialization(for: account))
+        let json = try #require(try? JSON(data: latest))
+        #expect(json["plan_type"].string == "pro")
+        #expect(json["plan"].string == "pro")
+
+        let dbURL = manager.accountsSQLiteFile().url
+        let persistedPlanType = try sqliteString(
+            databaseURL: dbURL,
+            sql: "SELECT plan_type FROM codex_account_metadata WHERE account_id = ?;",
+            bind: account.id.uuidString
+        )
+        #expect(persistedPlanType == "pro")
+    }
+
+    @Test("Given two provider active rows, when updating one provider active account then unrelated provider updated_at remains unchanged")
+    func setActiveAccountDoesNotRewriteUnchangedProviderRows() async throws {
+        let root = try makeTempRoot("codex-auth-active-map-incremental")
+        defer { try? root.delete() }
+
+        let manager = CodexAuthManager(rootURL: root.url)
+        let accountA = try await manager.addAccount(
+            name: "A",
+            authJSONString: #"{"tokens":{"id_token":"id-a","access_token":"access-a"},"email":"a@example.com"}"#
+        )
+        let accountB = try await manager.addAccount(
+            name: "B",
+            authJSONString: #"{"tokens":{"id_token":"id-b","access_token":"access-b"},"email":"b@example.com"}"#
+        )
+
+        let providerRoot = root.folder("provider")
+        _ = providerRoot.createIfNotExists()
+        let providerA = Provider(
+            id: "codex-a",
+            name: "Codex A",
+            defaultSkillsPath: providerRoot.folder("skills-a").url.path,
+            workflowPath: providerRoot.folder("prompts-a").url.path,
+            installMethod: .symlink,
+            templateId: "codex"
+        )
+        let providerB = Provider(
+            id: "codex-b",
+            name: "Codex B",
+            defaultSkillsPath: providerRoot.folder("skills-b").url.path,
+            workflowPath: providerRoot.folder("prompts-b").url.path,
+            installMethod: .symlink,
+            templateId: "codex"
+        )
+
+        try await manager.setActiveAccount(accountA, for: providerA)
+        let dbURL = manager.accountsSQLiteFile().url
+        let providerATimestampBeforeRaw = try sqliteString(
+            databaseURL: dbURL,
+            sql: "SELECT updated_at FROM codex_active_accounts WHERE provider_id = ?;",
+            bind: providerA.id
+        )
+        let providerATimestampBefore = try #require(providerATimestampBeforeRaw)
+
+        try await manager.setActiveAccount(accountB, for: providerB)
+        let providerATimestampAfterRaw = try sqliteString(
+            databaseURL: dbURL,
+            sql: "SELECT updated_at FROM codex_active_accounts WHERE provider_id = ?;",
+            bind: providerA.id
+        )
+        let providerATimestampAfter = try #require(providerATimestampAfterRaw)
+
+        #expect(providerATimestampAfter == providerATimestampBefore)
+    }
+
+    @Test("Given stale legacy provider rows in active sqlite map, when setting active account for original codex vendor then stale rows are pruned")
+    func setActiveAccountPrunesStaleLegacyProviderRows() async throws {
+        let root = try makeTempRoot("codex-auth-active-map-prune")
+        defer { try? root.delete() }
+
+        let provider = Provider(
+            id: "E7D873DA-5E19-44D2-A389-E995A4C0A223",
+            kind: .vendor,
+            name: "Codex",
+            defaultSkillsPath: root.folder("skills").url.path,
+            workflowPath: root.folder("workflows").url.path,
+            iconName: "terminal",
+            installMethod: .symlink,
+            skillsLinkEnabled: false,
+            vendorCategory: .original,
+            templateId: ProviderTemplate.codex.rawValue
+        )
+        _ = try root.file("providers.json").overlay(with: JSONEncoder().encode([provider]))
+
+        let manager = CodexAuthManager(rootURL: root.url)
+        let account = try await manager.addAccount(
+            name: "A",
+            authJSONString: #"{"tokens":{"id_token":"id-a","access_token":"access-a"},"email":"a@example.com"}"#
+        )
+
+        try await manager.setActiveAccount(account, for: provider)
+        let dbURL = manager.accountsSQLiteFile().url
+        try sqliteExecute(
+            databaseURL: dbURL,
+            sql: "INSERT INTO codex_active_accounts (provider_id, account_id, updated_at) VALUES (?, ?, ?);",
+            bindings: [
+                "2113FA21-6970-4938-84A7-2A3B36B34DEE",
+                account.id.uuidString,
+                "2026-04-01T09:53:49.463Z",
+            ]
+        )
+        let pollutedCount = try sqliteCount(databaseURL: dbURL, sql: "SELECT COUNT(*) FROM codex_active_accounts;")
+        #expect(pollutedCount == 2)
+
+        try await manager.setActiveAccount(account, for: provider)
+
+        let count = try sqliteCount(databaseURL: dbURL, sql: "SELECT COUNT(*) FROM codex_active_accounts;")
+        #expect(count == 1)
+        let activeAccountRaw = try sqliteString(
+            databaseURL: dbURL,
+            sql: "SELECT account_id FROM codex_active_accounts WHERE provider_id = ?;",
+            bind: "codex"
+        )
+        let activeAccount = try #require(activeAccountRaw)
+        #expect(activeAccount == account.id.uuidString)
+    }
+
+    @Test("Given legacy original-vendor provider id row in sqlite, when loading accounts then active map migrates to canonical codex key")
+    func loadAccountsMigratesLegacyOriginalVendorActiveKeyToCanonical() async throws {
+        let root = try makeTempRoot("codex-auth-active-map-migrate")
+        defer { try? root.delete() }
+
+        let provider = Provider(
+            id: "E7D873DA-5E19-44D2-A389-E995A4C0A223",
+            kind: .vendor,
+            name: "Codex",
+            defaultSkillsPath: root.folder("skills").url.path,
+            workflowPath: root.folder("workflows").url.path,
+            iconName: "terminal",
+            installMethod: .symlink,
+            skillsLinkEnabled: false,
+            vendorCategory: .original,
+            templateId: ProviderTemplate.codex.rawValue
+        )
+        _ = try root.file("providers.json").overlay(with: JSONEncoder().encode([provider]))
+
+        let manager = CodexAuthManager(rootURL: root.url)
+        let account = try await manager.addAccount(
+            name: "A",
+            authJSONString: #"{"tokens":{"id_token":"id-a","access_token":"access-a"},"email":"a@example.com"}"#
+        )
+
+        let dbURL = manager.accountsSQLiteFile().url
+        try sqliteExecute(
+            databaseURL: dbURL,
+            sql: "INSERT INTO codex_active_accounts (provider_id, account_id, updated_at) VALUES (?, ?, ?);",
+            bindings: [
+                provider.id,
+                account.id.uuidString,
+                "2026-04-01T09:53:49.463Z",
+            ]
+        )
+
+        _ = try await manager.loadAccounts()
+
+        let legacyCount = try sqliteCount(
+            databaseURL: dbURL,
+            sql: "SELECT COUNT(*) FROM codex_active_accounts WHERE provider_id = ?;",
+            bind: provider.id
+        )
+        #expect(legacyCount == 0)
+
+        let canonicalCount = try sqliteCount(
+            databaseURL: dbURL,
+            sql: "SELECT COUNT(*) FROM codex_active_accounts WHERE provider_id = ?;",
+            bind: "codex"
+        )
+        #expect(canonicalCount == 1)
+    }
+
     @Test("Given batch JSON array import file, when validating then importing, each element becomes a snapshot and top-level tokens are normalized into tokens.*")
     func validateAndImportAuthFilesExpandsJSONArrayFile() async throws {
         let root = try makeTempRoot("codex-auth-import-array")
@@ -723,6 +1245,127 @@ struct CodexAuthManagerTests {
         #expect(results.count == 1)
         #expect(results[0].isValid == false)
         #expect(results[0].reason?.lowercased().contains("type") == true)
+    }
+
+    @Test("Given oauth import only has access and refresh token, when validating then manager refreshes tokens and backfills account metadata")
+    func validateImportAuthFilesRefreshesAndBackfillsMetadata() async throws {
+        let root = try makeTempRoot("codex-auth-import-refresh")
+        defer { try? root.delete() }
+
+        let jwt = Self.makeJWT(payload: #"{"email":"refreshed@example.com","https://api.openai.com/auth":{"chatgpt_account_id":"acct-refreshed","chatgpt_plan_type":"pro"}}"#)
+        let manager = CodexAuthManager(
+            rootURL: root.url,
+            refreshCodexTokenAction: { refreshToken in
+                #expect(refreshToken == "refresh-only")
+                return .init(
+                    accessToken: "access-refreshed",
+                    idToken: jwt,
+                    refreshToken: "refresh-refreshed",
+                    expiresIn: 3600
+                )
+            }
+        )
+
+        let inputFolder = root.folder("input")
+        _ = inputFolder.createIfNotExists()
+        let url = inputFolder.file("refresh-only.json").url
+        try #"{"tokens":{"access_token":"access-only","refresh_token":"refresh-only"}}"#
+            .write(to: url, atomically: true, encoding: .utf8)
+
+        let results = await manager.validateImportAuthFiles(urls: [url])
+        let result = try #require(results.first)
+        #expect(results.count == 1)
+        #expect(result.isValid == true)
+        #expect(result.email == "refreshed@example.com")
+        #expect(result.suggestedName == "refreshed@example.com")
+
+        let raw = try #require(result.authJSONString)
+        let json = try JSON(data: Data(raw.utf8))
+        #expect(json["tokens"]["id_token"].string == jwt)
+        #expect(json["tokens"]["access_token"].string == "access-refreshed")
+        #expect(json["tokens"]["refresh_token"].string == "refresh-refreshed")
+        #expect(json["tokens"]["account_id"].string == "acct-refreshed")
+        #expect(json["chatgpt_account_id"].string == "acct-refreshed")
+        #expect(json["email"].string == "refreshed@example.com")
+        #expect(json["plan_type"].string == "pro")
+        #expect(json["plan"].string == "pro")
+    }
+
+    @Test("Given oauth import has jwt tokens but missing profile fields, when validating then manager derives email account and plan from jwt")
+    func validateImportAuthFilesDerivesMetadataFromJWTClaims() async throws {
+        let root = try makeTempRoot("codex-auth-import-jwt-derive")
+        defer { try? root.delete() }
+
+        let jwt = Self.makeJWT(payload: #"{"email":"jwt-only@example.com","https://api.openai.com/auth":{"chatgpt_account_id":"acct-jwt","chatgpt_plan_type":"plus"}}"#)
+        let manager = CodexAuthManager(
+            rootURL: root.url,
+            refreshCodexTokenAction: { _ in
+                throw NSError(domain: "CodexAuthManagerTests", code: 1, userInfo: [NSLocalizedDescriptionKey: "refresh should not be called"])
+            }
+        )
+
+        let inputFolder = root.folder("input")
+        _ = inputFolder.createIfNotExists()
+        let url = inputFolder.file("jwt-only.json").url
+        try #"{"tokens":{"id_token":"\#(jwt)","access_token":"access-jwt-only"}}"#
+            .write(to: url, atomically: true, encoding: .utf8)
+
+        let results = await manager.validateImportAuthFiles(urls: [url])
+        let result = try #require(results.first)
+        #expect(results.count == 1)
+        #expect(result.isValid == true)
+        #expect(result.email == "jwt-only@example.com")
+        #expect(result.suggestedName == "jwt-only@example.com")
+
+        let raw = try #require(result.authJSONString)
+        let json = try JSON(data: Data(raw.utf8))
+        #expect(json["email"].string == "jwt-only@example.com")
+        #expect(json["tokens"]["account_id"].string == "acct-jwt")
+        #expect(json["chatgpt_account_id"].string == "acct-jwt")
+        #expect(json["plan_type"].string == "plus")
+        #expect(json["plan"].string == "plus")
+    }
+
+    @Test("Given oauth import lacks profile fields and jwt hints, when validating then manager fetches resource account info with access token")
+    func validateImportAuthFilesFetchesResourceAccountInfo() async throws {
+        let root = try makeTempRoot("codex-auth-import-resource-info")
+        defer { try? root.delete() }
+
+        let manager = CodexAuthManager(
+            rootURL: root.url,
+            refreshCodexTokenAction: { _ in
+                throw NSError(domain: "CodexAuthManagerTests", code: 1, userInfo: [NSLocalizedDescriptionKey: "refresh should not be called"])
+            },
+            fetchCodexAccountInfoAction: { accessToken in
+                #expect(accessToken == "access-resource")
+                return .init(
+                    email: "resource@example.com",
+                    accountID: "acct-resource",
+                    planType: "team"
+                )
+            }
+        )
+
+        let inputFolder = root.folder("input")
+        _ = inputFolder.createIfNotExists()
+        let url = inputFolder.file("resource-only.json").url
+        try #"{"tokens":{"id_token":"header.payload.signature","access_token":"access-resource"}}"#
+            .write(to: url, atomically: true, encoding: .utf8)
+
+        let results = await manager.validateImportAuthFiles(urls: [url])
+        let result = try #require(results.first)
+        #expect(results.count == 1)
+        #expect(result.isValid == true)
+        #expect(result.email == "resource@example.com")
+        #expect(result.suggestedName == "resource@example.com")
+
+        let raw = try #require(result.authJSONString)
+        let json = try JSON(data: Data(raw.utf8))
+        #expect(json["email"].string == "resource@example.com")
+        #expect(json["tokens"]["account_id"].string == "acct-resource")
+        #expect(json["chatgpt_account_id"].string == "acct-resource")
+        #expect(json["plan_type"].string == "team")
+        #expect(json["plan"].string == "team")
     }
 
     @Test("Given codexXcode provider template, when resolving codex home, then auth manager returns valid home folder")
@@ -1492,148 +2135,6 @@ struct CodexAuthManagerTests {
         #expect((json["nolon"]["account"]["email"].string ?? "").lowercased() == "fresh@example.com")
     }
 
-    @Test("Given selected OAuth snapshot, when exporting sub2api, then result contains one oauth account with token credentials")
-    func exportSelectedAccountsAsSub2APIOAuth() async throws {
-        let root = try makeTempRoot("codex-export-sub2api-oauth")
-        defer { try? root.delete() }
-
-        let manager = CodexAuthManager(rootURL: root.url)
-        let account = try await manager.addAccount(
-            name: "oauth",
-            authJSONString: #"""
-            {
-              "auth_mode": "chatgptAuthTokens",
-              "email": "oauth@example.com",
-              "expires_at": "2026-03-18T11:50:00+08:00",
-              "client_id": "client-123",
-              "organization_id": "org_123",
-              "plan_type": "plus",
-              "chatgpt_user_id": "user-123",
-              "tokens": {
-                "id_token": "id-oauth",
-                "access_token": "access-oauth",
-                "refresh_token": "refresh-oauth",
-                "account_id": "acct-oauth"
-              }
-            }
-            """#
-        )
-
-        let destinationURL = root.url.appendingPathComponent("codex-sub2api.json")
-        let result = try await manager.exportAccountsAsSub2API(
-            accountIDs: [account.id],
-            destinationURL: destinationURL
-        )
-        let json = try JSON(data: Data(contentsOf: destinationURL))
-
-        #expect(result.exportedCount == 1)
-        #expect(result.skippedRelayCount == 0)
-        #expect(json["type"].string == "sub2api-data")
-        #expect(json["version"].int == 1)
-        #expect(json["proxies"].arrayObject?.isEmpty == true)
-        #expect(json["accounts"].arrayObject?.count == 1)
-        #expect(json["accounts"][0]["platform"].string == "openai")
-        #expect(json["accounts"][0]["type"].string == "oauth")
-        #expect(json["accounts"][0]["credentials"]["access_token"].string == "access-oauth")
-        #expect(json["accounts"][0]["credentials"]["refresh_token"].string == "refresh-oauth")
-        #expect(json["accounts"][0]["credentials"]["id_token"].string == "id-oauth")
-        #expect(json["accounts"][0]["credentials"]["chatgpt_account_id"].string == "acct-oauth")
-        #expect(json["accounts"][0]["credentials"]["chatgpt_user_id"].string == "user-123")
-        #expect(json["accounts"][0]["credentials"]["organization_id"].string == "org_123")
-        #expect(json["accounts"][0]["credentials"]["plan_type"].string == "plus")
-        #expect(json["accounts"][0]["credentials"]["client_id"].string == "client-123")
-        #expect(json["accounts"][0]["extra"]["openai_passthrough"].bool == true)
-        #expect(json["accounts"][0]["extra"]["codex_cli_only"].bool == true)
-        #expect(json["accounts"][0]["auto_pause_on_expired"].bool == true)
-    }
-
-    @Test("Given selected official api key snapshot, when exporting sub2api, then result contains one apikey account")
-    func exportSelectedAccountsAsSub2APIApiKey() async throws {
-        let root = try makeTempRoot("codex-export-sub2api-apikey")
-        defer { try? root.delete() }
-
-        let manager = CodexAuthManager(rootURL: root.url)
-        let account = try await manager.addConfiguredAccount(
-            name: "OpenAI Direct",
-            apiKey: "sk-live-12345678",
-            relay: nil
-        )
-
-        let destinationURL = root.url.appendingPathComponent("codex-sub2api.json")
-        let result = try await manager.exportAccountsAsSub2API(
-            accountIDs: [account.id],
-            destinationURL: destinationURL
-        )
-        let json = try JSON(data: Data(contentsOf: destinationURL))
-
-        #expect(result.exportedCount == 1)
-        #expect(result.skippedRelayCount == 0)
-        #expect(json["accounts"].arrayObject?.count == 1)
-        #expect(json["accounts"][0]["type"].string == "apikey")
-        #expect(json["accounts"][0]["credentials"]["api_key"].string == "sk-live-12345678")
-        #expect(json["accounts"][0]["extra"]["openai_passthrough"].bool == true)
-        #expect(json["accounts"][0]["auto_pause_on_expired"].bool == false)
-    }
-
-    @Test("Given selected relay and supported snapshots, when exporting sub2api, then relay is skipped and supported accounts are preserved")
-    func exportSelectedAccountsAsSub2APISkipsRelay() async throws {
-        let root = try makeTempRoot("codex-export-sub2api-skip-relay")
-        defer { try? root.delete() }
-
-        let manager = CodexAuthManager(rootURL: root.url)
-        let relay = try await manager.addConfiguredAccount(
-            name: "Work Relay",
-            apiKey: "rk-live-12345678",
-            relay: .init(
-                baseURL: "https://relay.example.com/v1",
-                modelProvider: "relay"
-            )
-        )
-        let direct = try await manager.addConfiguredAccount(
-            name: "OpenAI Direct",
-            apiKey: "sk-live-12345678",
-            relay: nil
-        )
-
-        let destinationURL = root.url.appendingPathComponent("codex-sub2api.json")
-        let result = try await manager.exportAccountsAsSub2API(
-            accountIDs: [relay.id, direct.id],
-            destinationURL: destinationURL
-        )
-        let json = try JSON(data: Data(contentsOf: destinationURL))
-
-        #expect(result.exportedCount == 1)
-        #expect(result.skippedRelayCount == 1)
-        #expect(json["accounts"].arrayObject?.count == 1)
-        #expect(json["accounts"][0]["type"].string == "apikey")
-        #expect(json["accounts"][0]["credentials"]["api_key"].string == "sk-live-12345678")
-    }
-
-    @Test("Given only relay snapshots are selected, when exporting sub2api, then export fails with no supported accounts error")
-    func exportSelectedAccountsAsSub2APIFailsWhenOnlyRelaySelected() async throws {
-        let root = try makeTempRoot("codex-export-sub2api-only-relay")
-        defer { try? root.delete() }
-
-        let manager = CodexAuthManager(rootURL: root.url)
-        let relay = try await manager.addConfiguredAccount(
-            name: "Work Relay",
-            apiKey: "rk-live-12345678",
-            relay: .init(
-                baseURL: "https://relay.example.com/v1",
-                modelProvider: "relay"
-            )
-        )
-
-        let destinationURL = root.url.appendingPathComponent("codex-sub2api.json")
-
-        await #expect(throws: NSError.self) {
-            try await manager.exportAccountsAsSub2API(
-                accountIDs: [relay.id],
-                destinationURL: destinationURL
-            )
-        }
-    }
-
     @Test("Given selected validated import candidates, when exporting zip, then only selected valid candidates are archived")
     func exportSelectedValidatedImportCandidatesAsZip() async throws {
         let root = try makeTempRoot("codex-import-export-zip")
@@ -1682,63 +2183,6 @@ struct CodexAuthManagerTests {
         #expect(roundTripped[0].email == "selected@example.com")
         #expect(roundTripped[0].fileURL.lastPathComponent.contains("selected"))
         #expect(roundTripped.allSatisfy { $0.email != unselected.email })
-    }
-
-    @Test("Given selected validated import candidates, when exporting sub2api, then relay is skipped and supported candidates are preserved")
-    func exportSelectedValidatedImportCandidatesAsSub2API() async throws {
-        let root = try makeTempRoot("codex-import-export-sub2api")
-        defer { try? root.delete() }
-
-        let manager = CodexAuthManager(rootURL: root.url)
-        let oauth = CodexAuthManager.CodexImportValidationResult(
-            fileURL: root.url.appendingPathComponent("oauth.json"),
-            isValid: true,
-            reason: nil,
-            suggestedName: "OAuth",
-            email: "oauth-import@example.com",
-            authJSONString: #"""
-            {
-              "auth_mode": "chatgptAuthTokens",
-              "email": "oauth-import@example.com",
-              "tokens": {
-                "id_token": "id-import",
-                "access_token": "access-import"
-              }
-            }
-            """#
-        )
-        let relay = CodexAuthManager.CodexImportValidationResult(
-            fileURL: root.url.appendingPathComponent("relay.json"),
-            isValid: true,
-            reason: nil,
-            suggestedName: "Relay",
-            email: nil,
-            authJSONString: #"""
-            {
-              "auth_mode": "apikey",
-              "OPENAI_API_KEY": "rk-live-12345678",
-              "nolon": {
-                "relay": {
-                  "base_url": "https://relay.example.com/v1",
-                  "model_provider": "relay"
-                }
-              }
-            }
-            """#
-        )
-
-        let destinationURL = root.url.appendingPathComponent("selected-imports-sub2api.json")
-        let result = try await manager.exportValidatedAuthFilesAsSub2API(
-            results: [oauth, relay],
-            destinationURL: destinationURL
-        )
-        let json = try JSON(data: Data(contentsOf: destinationURL))
-
-        #expect(result.exportedCount == 1)
-        #expect(result.skippedRelayCount == 1)
-        #expect(json["accounts"].arrayObject?.count == 1)
-        #expect(json["accounts"][0]["type"].string == "oauth")
-        #expect(json["accounts"][0]["credentials"]["email"].string == "oauth-import@example.com")
     }
 
 }

@@ -504,6 +504,7 @@ public struct ProviderDetailGridScaffoldView<Content: View, FloatingButton: View
     let searchPlaceholder: String
     @Binding var searchText: String
     let showFloatingButton: Bool
+    let searchTrailing: (() -> AnyView)?
     let content: (ScrollViewProxy) -> Content
     let floatingButton: () -> FloatingButton
 
@@ -526,6 +527,7 @@ public struct ProviderDetailGridScaffoldView<Content: View, FloatingButton: View
     public init(
         searchText: Binding<String>,
         config: Config,
+        searchTrailing: (() -> AnyView)? = nil,
         @ViewBuilder content: @escaping (ScrollViewProxy) -> Content,
         @ViewBuilder floatingButton: @escaping () -> FloatingButton
     ) {
@@ -533,6 +535,7 @@ public struct ProviderDetailGridScaffoldView<Content: View, FloatingButton: View
         self.searchPlaceholder = config.searchPlaceholder
         self._searchText = searchText
         self.showFloatingButton = config.showFloatingButton
+        self.searchTrailing = searchTrailing
         self.content = content
         self.floatingButton = floatingButton
     }
@@ -542,6 +545,7 @@ public struct ProviderDetailGridScaffoldView<Content: View, FloatingButton: View
         searchPlaceholder: String = NSLocalizedString("search.placeholder", value: "Search", comment: "Search placeholder"),
         searchText: Binding<String>,
         showFloatingButton: Bool,
+        searchTrailing: (() -> AnyView)? = nil,
         @ViewBuilder content: @escaping (ScrollViewProxy) -> Content,
         @ViewBuilder floatingButton: @escaping () -> FloatingButton
     ) {
@@ -552,6 +556,7 @@ public struct ProviderDetailGridScaffoldView<Content: View, FloatingButton: View
                 searchPlaceholder: searchPlaceholder,
                 showFloatingButton: showFloatingButton
             ),
+            searchTrailing: searchTrailing,
             content: content,
             floatingButton: floatingButton
         )
@@ -564,14 +569,16 @@ public struct ProviderDetailGridScaffoldView<Content: View, FloatingButton: View
                     ScrollView {
                         VStack(alignment: .leading, spacing: 16) {
                             if showSearch {
-                                HStack {
+                                HStack(spacing: 12) {
                                     SearchField(
                                         config: .init(
                                             placeholder: searchPlaceholder,
                                             text: $searchText
                                         )
                                     )
-                                    Spacer()
+                                    if let searchTrailing {
+                                        searchTrailing()
+                                    }
                                 }
                             }
                             content(scrollProxy)
@@ -586,6 +593,68 @@ public struct ProviderDetailGridScaffoldView<Content: View, FloatingButton: View
                 }
             }
         }
+    }
+}
+
+public struct ProviderSkillsLinkToolbarMenuButton: View {
+    @Binding var isEnabled: Bool
+    let isApplying: Bool
+    let providerPath: String
+    let onShowInFinder: () -> Void
+    let onToggleRequested: (Bool) -> Void
+
+    public init(
+        isEnabled: Binding<Bool>,
+        isApplying: Bool,
+        providerPath: String,
+        onShowInFinder: @escaping () -> Void,
+        onToggleRequested: @escaping (Bool) -> Void
+    ) {
+        self._isEnabled = isEnabled
+        self.isApplying = isApplying
+        self.providerPath = providerPath
+        self.onShowInFinder = onShowInFinder
+        self.onToggleRequested = onToggleRequested
+    }
+
+    public var body: some View {
+        EllipsisMenuButton {
+            Button(action: onShowInFinder) {
+                Label(
+                    NSLocalizedString("action.show_in_finder", comment: "Show in Finder"),
+                    systemImage: "folder"
+                )
+                .dsIconLabelButton()
+            }
+
+            Divider()
+
+            Toggle(
+                NSLocalizedString(
+                    "provider.skills_link.toggle",
+                    value: "Link this provider's skills folder to ~/.nolon/skills",
+                    comment: "Skills link toggle title"
+                ),
+                isOn: Binding(
+                    get: { isEnabled },
+                    set: { newValue in onToggleRequested(newValue) }
+                )
+            )
+            .disabled(isApplying)
+
+            Divider()
+
+            Text(providerPath)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
+        .help(
+            NSLocalizedString(
+                "provider.skills_link.menu.help",
+                value: "Skills link settings",
+                comment: "Skills link menu button help text"
+            )
+        )
     }
 }
 

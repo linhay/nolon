@@ -40,8 +40,19 @@ struct NolonAccountsView: View, DebugPageLocatable {
             accountsDashboard
         }
         .navigationTitle("")
+        .bottomTrailingOverlay(isPresented: viewModel.isShowingCopyToast) {
+            NolonUI.ToastView(
+                config: .init(
+                    text: viewModel.copyToastMessage,
+                    systemImage: "doc.on.doc",
+                    style: .success
+                )
+            )
+        }
+        .animation(.easeOut(duration: 0.2), value: viewModel.isShowingCopyToast)
         .debugPageLocator(debugPageMarkerItems)
         .task(id: settings.providers.map(\.id).joined(separator: ",")) {
+            viewModel.updateSettings(settings)
             viewModel.refresh()
         }
     }

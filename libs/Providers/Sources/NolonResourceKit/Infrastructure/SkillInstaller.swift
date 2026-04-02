@@ -522,6 +522,13 @@ public final class SkillInstaller {
 
         switch provider.installMethod {
         case .symlink:
+            let globalRootPath = URL(fileURLWithPath: nolonManager.skillsPath).standardizedFileURL.path
+            let providerRootPath = STPath(provider.defaultSkillsPath)
+            if providerRootPath.isSymbolicLink,
+               let providerRootDestination = try? providerRootPath.destinationOfSymbolicLink().url.standardizedFileURL.path,
+               providerRootDestination == globalRootPath {
+                return .installed
+            }
             // For symlink mode: symlinks FROM .nolon/skills are installed, others are orphaned
             if isSymlink, let dest = symlinkDestination {
                 let globalSkillsPath = nolonManager.skillsPath

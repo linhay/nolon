@@ -22,6 +22,7 @@ public struct CodexImportCandidateRowData: Identifiable {
     public let id: UUID
     public let title: String
     public let email: String?
+    public let readonlyDetails: [String]
     public let sourceFileName: String
     public let isValid: Bool
     public let isSelected: Bool
@@ -36,6 +37,7 @@ public struct CodexImportCandidateRowData: Identifiable {
         id: UUID,
         title: String,
         email: String?,
+        readonlyDetails: [String] = [],
         sourceFileName: String,
         isValid: Bool,
         isSelected: Bool,
@@ -49,6 +51,7 @@ public struct CodexImportCandidateRowData: Identifiable {
         self.id = id
         self.title = title
         self.email = email
+        self.readonlyDetails = readonlyDetails
         self.sourceFileName = sourceFileName
         self.isValid = isValid
         self.isSelected = isSelected
@@ -131,13 +134,11 @@ public struct CodexImportToolbarData {
     public let selectAllTitle: String
     public let deselectAllTitle: String
     public let exportZipTitle: String
-    public let exportSub2apiTitle: String
     public let pasteTitle: String
     public let retryAllTitle: String
     public let isSelectAllDisabled: Bool
     public let isDeselectAllDisabled: Bool
     public let isExportZipDisabled: Bool
-    public let isExportSub2apiDisabled: Bool
     public let isRetryAllDisabled: Bool
 
     public init(
@@ -151,13 +152,11 @@ public struct CodexImportToolbarData {
         selectAllTitle: String = NSLocalizedString("codex.import.sheet.select_all", value: "Select All", comment: "Select all import candidates"),
         deselectAllTitle: String = NSLocalizedString("codex.import.sheet.deselect_all", value: "Deselect All", comment: "Deselect all import candidates"),
         exportZipTitle: String = NSLocalizedString("codex.import.sheet.action.export_zip", value: "Export ZIP", comment: "Export selected import candidates to ZIP"),
-        exportSub2apiTitle: String = NSLocalizedString("codex.import.sheet.action.export_sub2api", value: "Export sub2api", comment: "Export selected import candidates to sub2api"),
         pasteTitle: String = NSLocalizedString("codex.import.sheet.paste", value: "Paste", comment: "Paste import content"),
         retryAllTitle: String = NSLocalizedString("codex.import.sheet.retry_all", value: "Retry All", comment: "Retry all Codex import tests"),
         isSelectAllDisabled: Bool,
         isDeselectAllDisabled: Bool,
         isExportZipDisabled: Bool,
-        isExportSub2apiDisabled: Bool,
         isRetryAllDisabled: Bool
     ) {
         self.selectedCountText = selectedCountText
@@ -166,13 +165,11 @@ public struct CodexImportToolbarData {
         self.selectAllTitle = selectAllTitle
         self.deselectAllTitle = deselectAllTitle
         self.exportZipTitle = exportZipTitle
-        self.exportSub2apiTitle = exportSub2apiTitle
         self.pasteTitle = pasteTitle
         self.retryAllTitle = retryAllTitle
         self.isSelectAllDisabled = isSelectAllDisabled
         self.isDeselectAllDisabled = isDeselectAllDisabled
         self.isExportZipDisabled = isExportZipDisabled
-        self.isExportSub2apiDisabled = isExportSub2apiDisabled
         self.isRetryAllDisabled = isRetryAllDisabled
     }
 }

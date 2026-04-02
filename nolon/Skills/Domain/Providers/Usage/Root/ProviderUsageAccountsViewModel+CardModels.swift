@@ -60,6 +60,14 @@ extension ProviderUsageAccountsViewModel.ClaudeState {
             ],
             menuActions: [
                 .init(
+                    id: "edit",
+                    actionID: .edit,
+                    title: NSLocalizedString("claude.accounts.action.edit", value: "编辑", comment: "Edit Claude account"),
+                    systemImage: "pencil",
+                    role: nil,
+                    isEnabled: true
+                ),
+                .init(
                     id: "refresh",
                     actionID: .refresh,
                     title: NSLocalizedString("usage.monitor.refresh", value: "Refresh", comment: "Refresh"),
@@ -174,6 +182,8 @@ extension ProviderUsageAccountsViewModel {
                         switch action {
                         case .activate:
                             await claude.activateAccount(id: account.id)
+                        case .edit:
+                            claude.beginEditAccount(id: account.id)
                         case .refresh:
                             await self.load()
                         default:

@@ -626,6 +626,99 @@ struct NolonResourceKitTests {
         #expect(STPath(migrated.targetPath).isExists)
     }
 
+    @Test("ProviderSkillsLinkService enables link directly for empty provider skills folder")
+    func providerSkillsLinkServiceEnableForEmptyFolder() throws {
+        let root = try STFolder(sanbox: .temporary)
+            .folder("nolon-provider-skills-link-empty-\(UUID().uuidString)")
+            .create()
+        defer { try? root.deleteIncludingBrokenSymlink() }
+
+        let manager = NolonManager(rootURL: root.folder("nolon-home").url)
+        let providerSkills = root.folder("provider-home").folder("skills")
+        _ = providerSkills.createIfNotExists()
+
+        let provider = Provider(
+            kind: .project,
+            name: "Project Provider",
+            defaultSkillsPath: providerSkills.url.path,
+            workflowPath: root.folder("provider-home").folder("workflows").url.path
+        )
+
+        let service = ProviderSkillsLinkService(nolonManager: manager)
+        let preflight = try service.preflightEnable(provider: provider)
+        #expect(preflight.requiresConfirmation == false)
+        #expect(preflight.isProviderSkillsEmpty == true)
+
+        try service.applyEnable(provider: provider, backupExisting: false)
+        #expect(STPath(provider.defaultSkillsPath).isSymbolicLink)
+    }
+
+    @Test("ProviderSkillsLinkService backs up non-empty provider skills folder before linking")
+    func providerSkillsLinkServiceBackupsAndLinks() throws {
+        let root = try STFolder(sanbox: .temporary)
+            .folder("nolon-provider-skills-link-backup-\(UUID().uuidString)")
+            .create()
+        defer { try? root.deleteIncludingBrokenSymlink() }
+
+        let manager = NolonManager(rootURL: root.folder("nolon-home").url)
+        let providerHome = root.folder("provider-home")
+        let providerSkills = providerHome.folder("skills")
+        _ = providerSkills.createIfNotExists()
+        try "legacy".write(to: providerSkills.file("legacy.txt").url, atomically: true, encoding: .utf8)
+
+        let staleBackup = providerHome.folder("skills.bak")
+        _ = staleBackup.createIfNotExists()
+        try "stale".write(to: staleBackup.file("stale.txt").url, atomically: true, encoding: .utf8)
+
+        let provider = Provider(
+            kind: .vendor,
+            name: "Vendor Provider",
+            defaultSkillsPath: providerSkills.url.path,
+            workflowPath: providerHome.folder("workflows").url.path
+        )
+
+        let service = ProviderSkillsLinkService(nolonManager: manager)
+        let preflight = try service.preflightEnable(provider: provider)
+        #expect(preflight.requiresConfirmation == true)
+        #expect(preflight.isProviderSkillsEmpty == false)
+
+        try service.applyEnable(provider: provider, backupExisting: true)
+
+        let backupFolder = providerHome.folder("skills.bak")
+        #expect(backupFolder.isExists)
+        #expect(backupFolder.file("legacy.txt").isExists)
+        #expect(backupFolder.file("stale.txt").isExists == false)
+        #expect(STPath(providerSkills.url.path).isSymbolicLink)
+    }
+
+    @Test("ProviderSkillMaintenanceService marks skills as installed when provider skills root links to global")
+    func providerSkillMaintenanceServiceTreatsGlobalRootLinkAsInstalled() throws {
+        let root = try STFolder(sanbox: .temporary)
+            .folder("nolon-skill-maintenance-global-link-\(UUID().uuidString)")
+            .create()
+        defer { try? root.deleteIncludingBrokenSymlink() }
+
+        let globalFolder = root.folder("global-skills")
+        _ = globalFolder.createIfNotExists()
+        let globalSkill = globalFolder.folder("find-skills")
+        _ = globalSkill.createIfNotExists()
+        try "x".write(to: globalSkill.file("SKILL.md").url, atomically: true, encoding: .utf8)
+
+        let providerHome = root.folder("provider-home")
+        _ = providerHome.createIfNotExists()
+        let providerSkillsPath = providerHome.subpath("skills")
+        try providerSkillsPath.createSymbolicLink(to: STPath(globalFolder.url.path))
+
+        let providerScannableFolder = STFolder((try providerSkillsPath.destinationOfSymbolicLink()).url.path)
+        let service = ProviderSkillMaintenanceService()
+        let scan = try service.scanProviderSkills(
+            providerPath: providerScannableFolder,
+            globalSkillsPath: globalFolder
+        )
+        #expect(scan.states.count == 1)
+        #expect(scan.states.first?.state == .installed)
+    }
+
     @Test("WorkflowBindingService binds and unbinds workflows for skill and MCP")
     func workflowBindingServiceBindsAndUnbindsWorkflows() throws {
         let root = try STFolder(sanbox: .temporary)
@@ -1432,5 +1525,46 @@ struct NolonResourceKitTests {
         let orphaned = skills.first(where: { $0.id == "orphaned-skill" })
         #expect(orphaned?.installationState == .orphaned)
         #expect(orphaned?.sourcePath == additionalSkills.url.path)
+    }
+
+    @Test("ProviderSkillSnapshotService resolves symlinked default skills root before scanning")
+    func providerSkillSnapshotServiceResolvesSymlinkedDefaultRoot() throws {
+        let root = try STFolder(sanbox: .temporary)
+            .folder("nolon-skill-snapshot-symlink-\(UUID().uuidString)")
+            .create()
+        defer { try? root.deleteIncludingBrokenSymlink() }
+
+        let nolonHome = root.folder(".nolon")
+        _ = nolonHome.createIfNotExists()
+        let manager = NolonManager(rootURL: nolonHome.url)
+
+        let globalSkill = manager.skillsFolder.folder("find-skills")
+        _ = globalSkill.createIfNotExists()
+        try """
+        ---
+        name: Find Skills
+        description: test
+        version: 1.0.0
+        ---
+        """.write(to: globalSkill.file("SKILL.md").url, atomically: true, encoding: .utf8)
+
+        let providerRoot = root.folder("provider")
+        _ = providerRoot.createIfNotExists()
+        let providerSkillsPath = providerRoot.subpath("skills")
+        try providerSkillsPath.createSymbolicLink(to: STPath(manager.skillsFolder.url.path))
+
+        let provider = Provider(
+            kind: .vendor,
+            name: "Codex",
+            defaultSkillsPath: providerSkillsPath.url.path,
+            workflowPath: providerRoot.folder("prompts").url.path
+        )
+
+        let service = ProviderSkillSnapshotService(nolonManager: manager)
+        let skills = try service.load(provider: provider)
+
+        #expect(skills.count == 1)
+        #expect(skills.first?.id == "find-skills")
+        #expect(skills.first?.installationState == .installed)
     }
 }

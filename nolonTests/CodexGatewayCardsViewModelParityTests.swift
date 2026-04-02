@@ -17,7 +17,7 @@ struct CodexGatewayCardsViewModelParityTests {
         )
         let root = ProviderUsageRootViewModel(provider: provider)
 
-        #expect(root.gatewayCardsViewModel.gatewayCards == root.state.engine.gatewayCards)
+        #expect(root.gatewayCardsViewModel.gatewayCards == root.state.codexEngine.gatewayCards)
     }
 }
 

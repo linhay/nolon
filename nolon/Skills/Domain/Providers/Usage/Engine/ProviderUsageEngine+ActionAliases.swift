@@ -1,0 +1,57 @@
+import ProviderCatalog
+import ProviderUsage
+import CodexBarProviderCatalog
+import UniformTypeIdentifiers
+
+typealias UsageEngineCodexActivateAction = @MainActor @Sendable (CodexAuthAccount, Provider) async throws -> CodexAuthActivationResult
+typealias UsageEngineCodexDeleteAction = @MainActor @Sendable (UUID) async throws -> Void
+typealias UsageEngineCodexRefreshAllAction = @MainActor @Sendable ([CodexAuthAccount]) async -> Void
+typealias UsageEngineCodexPreflightAction = @MainActor @Sendable (Provider, Bool, String) async throws -> CodexAuthAccount?
+typealias UsageEngineCodexOutcomeFetchAction = @Sendable (CodexAuthAccount, UsageMonitorProviderSettings, URL) async -> ProviderAccountUsageOutcome
+typealias UsageEngineCodexUsageQueryTestAction = @MainActor @Sendable (CodexHTTPUsageQueryResolvedConfiguration, Bool) async throws -> ProviderFetchResult
+typealias UsageEngineCodexConfiguredAccountValidateAction = @Sendable (CodexAuthAccount) async throws -> String
+typealias UsageEngineCodexImportConnectionTestAction = @Sendable (CodexAuthManager.CodexImportValidationResult, UsageMonitorProviderSettings) async -> ProviderAccountUsageOutcome
+typealias UsageEngineCodexGatewayStartAction = @MainActor @Sendable (String, String, Int) async throws -> Void
+typealias UsageEngineCodexGatewayStopAction = @MainActor @Sendable (String) async throws -> Void
+typealias UsageEngineCodexImportOpenPanelAction = @MainActor @Sendable () -> [URL]
+typealias UsageEngineCodexExportSavePanelAction = @MainActor @Sendable (UTType, String) -> URL?
+typealias UsageEngineCodexImportExportArchiveAction = @MainActor @Sendable ([CodexAuthManager.CodexImportValidationResult], URL) async throws -> Int
+typealias UsageEngineGeminiTokenTrendFetchAction = @Sendable (UsageProvider, Int?) async throws -> ProviderTokenTrendSnapshot?
+typealias UsageEngineAsyncVoidAction = @MainActor @Sendable () async -> Void
+
+extension ProviderUsageEngine {
+    struct ActionDependencies {
+        let codexActivate: CodexActivateAction
+        let postActivationLoad: AsyncVoidAction?
+        let codexDelete: CodexDeleteAction?
+        let postDeleteLoad: AsyncVoidAction?
+        let codexRefreshAll: CodexRefreshAllAction?
+        let codexPreflight: CodexPreflightAction?
+        let codexOutcomeFetch: CodexOutcomeFetchAction
+        let codexUsageQueryTest: CodexUsageQueryTestAction
+        let codexConfiguredAccountValidate: CodexConfiguredAccountValidateAction
+        let codexImportConnectionTest: CodexImportConnectionTestAction
+        let codexGatewayStart: CodexGatewayStartAction
+        let codexGatewayStop: CodexGatewayStopAction
+        let codexImportOpenPanel: CodexImportOpenPanelAction
+        let codexExportSavePanel: CodexExportSavePanelAction
+        let codexImportExportArchive: CodexImportExportArchiveAction
+        let geminiTokenTrendFetch: GeminiTokenTrendFetchAction
+    }
+
+    typealias CodexActivateAction = UsageEngineCodexActivateAction
+    typealias CodexDeleteAction = UsageEngineCodexDeleteAction
+    typealias CodexRefreshAllAction = UsageEngineCodexRefreshAllAction
+    typealias CodexPreflightAction = UsageEngineCodexPreflightAction
+    typealias CodexOutcomeFetchAction = UsageEngineCodexOutcomeFetchAction
+    typealias CodexUsageQueryTestAction = UsageEngineCodexUsageQueryTestAction
+    typealias CodexConfiguredAccountValidateAction = UsageEngineCodexConfiguredAccountValidateAction
+    typealias CodexImportConnectionTestAction = UsageEngineCodexImportConnectionTestAction
+    typealias CodexGatewayStartAction = UsageEngineCodexGatewayStartAction
+    typealias CodexGatewayStopAction = UsageEngineCodexGatewayStopAction
+    typealias CodexImportOpenPanelAction = UsageEngineCodexImportOpenPanelAction
+    typealias CodexExportSavePanelAction = UsageEngineCodexExportSavePanelAction
+    typealias CodexImportExportArchiveAction = UsageEngineCodexImportExportArchiveAction
+    typealias GeminiTokenTrendFetchAction = UsageEngineGeminiTokenTrendFetchAction
+    typealias AsyncVoidAction = UsageEngineAsyncVoidAction
+}

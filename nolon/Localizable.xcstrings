@@ -1617,6 +1617,30 @@
         }
       }
     },
+    "claude.accounts.action.add" : {
+      "comment" : "Add Claude account",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "添加账号"
+          }
+        }
+      }
+    },
+    "claude.accounts.action.edit" : {
+      "comment" : "Edit Claude account",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "编辑"
+          }
+        }
+      }
+    },
     "claude.accounts.cc_switch.empty" : {
       "comment" : "No Claude accounts found in cc-switch",
       "extractionState" : "extracted_with_value",
@@ -1637,6 +1661,282 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "Imported %1$d, replaced %2$d, skipped %3$d."
+          }
+        }
+      }
+    },
+    "claude.accounts.editor.credential.api_key" : {
+      "comment" : "Claude API key type",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "API Key"
+          }
+        }
+      }
+    },
+    "claude.accounts.editor.credential.auth_token" : {
+      "comment" : "Claude auth token type",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Auth Token"
+          }
+        }
+      }
+    },
+    "claude.accounts.editor.error.empty_base_url" : {
+      "comment" : "Claude account editor empty base url error",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Base URL cannot be empty."
+          }
+        }
+      }
+    },
+    "claude.accounts.editor.error.empty_credential" : {
+      "comment" : "Claude account editor empty credential error",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Credential cannot be empty."
+          }
+        }
+      }
+    },
+    "claude.accounts.editor.error.empty_haiku_model" : {
+      "comment" : "Claude account editor empty default haiku model error",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Default Haiku model cannot be empty."
+          }
+        }
+      }
+    },
+    "claude.accounts.editor.error.empty_model" : {
+      "comment" : "Claude account editor empty model error",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Model cannot be empty."
+          }
+        }
+      }
+    },
+    "claude.accounts.editor.error.empty_opus_model" : {
+      "comment" : "Claude account editor empty default opus model error",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Default Opus model cannot be empty."
+          }
+        }
+      }
+    },
+    "claude.accounts.editor.error.empty_sonnet_model" : {
+      "comment" : "Claude account editor empty default sonnet model error",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Default Sonnet model cannot be empty."
+          }
+        }
+      }
+    },
+    "claude.accounts.editor.error.not_found" : {
+      "comment" : "Claude account editor missing account error",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "The account no longer exists. Please refresh and try again."
+          }
+        }
+      }
+    },
+    "claude.accounts.editor.field.base_url" : {
+      "comment" : "Claude account editor base url field",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Base URL"
+          }
+        }
+      }
+    },
+    "claude.accounts.editor.field.credential_type" : {
+      "comment" : "Claude account editor credential type field",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "鉴权类型"
+          }
+        }
+      }
+    },
+    "claude.accounts.editor.field.credential_value" : {
+      "comment" : "Claude account editor credential field",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "密钥"
+          }
+        }
+      }
+    },
+    "claude.accounts.editor.field.haiku_model" : {
+      "comment" : "Claude account editor haiku model field",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Haiku 模型 (ANTHROPIC_DEFAULT_HAIKU_MODEL)"
+          }
+        }
+      }
+    },
+    "claude.accounts.editor.field.model" : {
+      "comment" : "Claude account editor default model field",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "默认模型 (ANTHROPIC_MODEL)"
+          }
+        }
+      }
+    },
+    "claude.accounts.editor.field.name" : {
+      "comment" : "Claude account editor name field",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "账号名称"
+          }
+        }
+      }
+    },
+    "claude.accounts.editor.field.opus_model" : {
+      "comment" : "Claude account editor opus model field",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Opus 模型 (ANTHROPIC_DEFAULT_OPUS_MODEL)"
+          }
+        }
+      }
+    },
+    "claude.accounts.editor.field.reasoning_model" : {
+      "comment" : "Claude account editor reasoning model field",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "推理模型 (ANTHROPIC_REASONING_MODEL)"
+          }
+        }
+      }
+    },
+    "claude.accounts.editor.field.sonnet_model" : {
+      "comment" : "Claude account editor sonnet model field",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Sonnet 模型 (ANTHROPIC_DEFAULT_SONNET_MODEL)"
+          }
+        }
+      }
+    },
+    "claude.accounts.editor.section.basic" : {
+      "comment" : "Claude account editor basic section title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "基础信息"
+          }
+        }
+      }
+    },
+    "claude.accounts.editor.section.models" : {
+      "comment" : "Claude account editor models section title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "模型配置"
+          }
+        }
+      }
+    },
+    "claude.accounts.editor.title" : {
+      "comment" : "Claude account editor title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "编辑 Claude 账号"
+          }
+        }
+      }
+    },
+    "claude.accounts.editor.unavailable.desc" : {
+      "comment" : "Claude account editor unavailable description",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "账号已不存在，请刷新后重试。"
+          }
+        }
+      }
+    },
+    "claude.accounts.editor.unavailable.title" : {
+      "comment" : "Claude account editor unavailable title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "无法编辑账号"
           }
         }
       }
@@ -1838,18 +2138,6 @@
         }
       }
     },
-    "codex.accounts.action.export_sub2api" : {
-      "comment" : "Export selected Codex accounts to sub2api",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "导出 sub2api"
-          }
-        }
-      }
-    },
     "codex.accounts.action.export_zip" : {
       "comment" : "Export selected Codex accounts to ZIP",
       "extractionState" : "extracted_with_value",
@@ -1882,18 +2170,6 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "新增 API Key"
-          }
-        }
-      }
-    },
-    "codex.accounts.action.new_relay" : {
-      "comment" : "New relay account",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "新增 Relay"
           }
         }
       }
@@ -2216,78 +2492,6 @@
         }
       }
     },
-    "codex.accounts.auto_switch.candidate.option" : {
-      "comment" : "Codex auto switch candidate threshold option",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "候选至少保留 %d%%"
-          }
-        }
-      }
-    },
-    "codex.accounts.auto_switch.candidate.title" : {
-      "comment" : "Codex auto switch candidate threshold title",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "候选余量：%d%%"
-          }
-        }
-      }
-    },
-    "codex.accounts.auto_switch.enabled" : {
-      "comment" : "Codex auto switch enabled",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "自动切号"
-          }
-        }
-      }
-    },
-    "codex.accounts.auto_switch.skip_relay" : {
-      "comment" : "Skip relay accounts in auto switch",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "跳过 Relay 账号"
-          }
-        }
-      }
-    },
-    "codex.accounts.auto_switch.threshold.option" : {
-      "comment" : "Codex auto switch threshold option",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "低于 %d%% 时切换"
-          }
-        }
-      }
-    },
-    "codex.accounts.auto_switch.threshold.title" : {
-      "comment" : "Codex auto switch threshold title",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "切号阈值：%d%%"
-          }
-        }
-      }
-    },
     "codex.accounts.badge.active" : {
       "comment" : "Active badge",
       "extractionState" : "stale",
@@ -2428,7 +2632,7 @@
     },
     "codex.accounts.config.error.name_required" : {
       "comment" : "Codex config missing name",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2451,7 +2655,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "Relay requires both Base URL and Model Provider."
+            "value" : "Relay requires Base URL."
           }
         }
       }
@@ -2476,7 +2680,7 @@
     },
     "codex.accounts.config.new_relay" : {
       "comment" : "New relay title",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2535,7 +2739,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "先填名称和 API Key。Base URL 默认官方地址，其他配置都是可选的。"
+            "value" : "先填名称和 API Key。若需要 Relay，可继续填写 Base URL 与 Provider。"
           }
         },
         "zh-Hans" : {
@@ -2566,7 +2770,7 @@
     },
     "codex.accounts.config.subtitle.relay" : {
       "comment" : "Relay config subtitle",
-      "extractionState" : "extracted_with_value",
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2720,6 +2924,30 @@
         }
       }
     },
+    "codex.accounts.empty_unexpected.desc" : {
+      "comment" : "Codex empty fallback description",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "已加载账号数据，但当前卡片列表为空。请尝试刷新或切换分组/筛选。"
+          }
+        }
+      }
+    },
+    "codex.accounts.empty_unexpected.title" : {
+      "comment" : "Codex empty fallback title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "暂无可展示账号"
+          }
+        }
+      }
+    },
     "codex.accounts.empty.desc" : {
       "comment" : "Empty state description",
       "extractionState" : "extracted_with_value",
@@ -2824,42 +3052,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "删除账号失败。"
-          }
-        }
-      }
-    },
-    "codex.accounts.export_sub2api.error.no_supported_accounts" : {
-      "comment" : "No supported sub2api accounts",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "所选账号中没有可导出的 sub2api 账号。"
-          }
-        }
-      }
-    },
-    "codex.accounts.export_sub2api.partial_success" : {
-      "comment" : "Codex sub2api partial export success",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "已导出 %1$d 个账号为 sub2api，跳过 %2$d 个 relay 账号。"
-          }
-        }
-      }
-    },
-    "codex.accounts.export_sub2api.success" : {
-      "comment" : "Codex sub2api export success",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "已导出 %d 个账号为 sub2api。"
           }
         }
       }
@@ -3074,6 +3266,30 @@
         }
       }
     },
+    "codex.accounts.grouping.custom_sqlite" : {
+      "comment" : "Group by custom sqlite import group",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "按自定义分组"
+          }
+        }
+      }
+    },
+    "codex.accounts.grouping.custom.default" : {
+      "comment" : "Default custom sqlite group title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "未分组"
+          }
+        }
+      }
+    },
     "codex.accounts.grouping.none" : {
       "comment" : "No grouping",
       "extractionState" : "extracted_with_value",
@@ -3188,54 +3404,6 @@
         }
       }
     },
-    "codex.accounts.layout.cards" : {
-      "comment" : "Codex account card layout",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "卡片"
-          }
-        }
-      }
-    },
-    "codex.accounts.layout.help" : {
-      "comment" : "Codex account layout picker help",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "切换账号显示为卡片或列表模式"
-          }
-        }
-      }
-    },
-    "codex.accounts.layout.list" : {
-      "comment" : "Codex account list layout",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "列表"
-          }
-        }
-      }
-    },
-    "codex.accounts.layout.title" : {
-      "comment" : "Codex account layout title",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "布局"
-          }
-        }
-      }
-    },
     "codex.accounts.list.header.account" : {
       "comment" : "Codex account list table account column",
       "extractionState" : "extracted_with_value",
@@ -3244,18 +3412,6 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "Account"
-          }
-        }
-      }
-    },
-    "codex.accounts.list.header.plan" : {
-      "comment" : "Codex account list table plan column",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Plan"
           }
         }
       }
@@ -3370,30 +3526,6 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "账号管理"
-          }
-        }
-      }
-    },
-    "codex.accounts.menu.section.auto_switch" : {
-      "comment" : "Codex menu section for auto switch",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "自动切号"
-          }
-        }
-      }
-    },
-    "codex.accounts.menu.section.view" : {
-      "comment" : "Codex menu section for view options",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "显示"
           }
         }
       }
@@ -7237,6 +7369,18 @@
         }
       }
     },
+    "codex.import.sheet.error.custom_group_required" : {
+      "comment" : "Custom SQLite group name required",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "请先填写自定义分组名称。"
+          }
+        }
+      }
+    },
     "codex.import.sheet.error.empty_pasteboard" : {
       "comment" : "Empty clipboard import error",
       "extractionState" : "extracted_with_value",
@@ -7261,30 +7405,6 @@
         }
       }
     },
-    "codex.import.sheet.export_sub2api.partial_success" : {
-      "comment" : "Codex import sub2api partial export success",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "已导出 %1$d 个候选账号为 sub2api，跳过 %2$d 个 relay 账号。"
-          }
-        }
-      }
-    },
-    "codex.import.sheet.export_sub2api.success" : {
-      "comment" : "Codex import sub2api export success",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "已导出 %d 个候选账号为 sub2api。"
-          }
-        }
-      }
-    },
     "codex.import.sheet.export_zip.success" : {
       "comment" : "Codex import ZIP export success",
       "extractionState" : "extracted_with_value",
@@ -7305,6 +7425,18 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "请先选择至少一个可导出的账号。"
+          }
+        }
+      }
+    },
+    "codex.import.sheet.fetch_usage" : {
+      "comment" : "Fetch usage for all valid import candidates",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "获取用量"
           }
         }
       }
@@ -11457,6 +11589,54 @@
         }
       }
     },
+    "provider.skills_link.confirm.backup" : {
+      "comment" : "Backup and switch button",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Backup and Switch"
+          }
+        }
+      }
+    },
+    "provider.skills_link.confirm.message" : {
+      "comment" : "Enable skills link confirmation message",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Current skills folder is not empty. Backup will overwrite existing backup at %@."
+          }
+        }
+      }
+    },
+    "provider.skills_link.confirm.replace" : {
+      "comment" : "Switch without backup button",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Switch Without Backup"
+          }
+        }
+      }
+    },
+    "provider.skills_link.confirm.title" : {
+      "comment" : "Enable skills link confirmation title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Enable Skills Link"
+          }
+        }
+      }
+    },
     "provider.title" : {
       "comment" : "Provider Skills",
       "extractionState" : "stale",
@@ -13725,6 +13905,54 @@
         }
       }
     },
+    "usage.accounts.layout.cards" : {
+      "comment" : "Usage account card layout",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "卡片"
+          }
+        }
+      }
+    },
+    "usage.accounts.layout.help" : {
+      "comment" : "Usage account layout picker help",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "切换账号显示为卡片或列表模式"
+          }
+        }
+      }
+    },
+    "usage.accounts.layout.list" : {
+      "comment" : "Usage account list layout",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "列表"
+          }
+        }
+      }
+    },
+    "usage.accounts.layout.title" : {
+      "comment" : "Usage account layout title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "布局"
+          }
+        }
+      }
+    },
     "usage.menu.section.account" : {
       "comment" : "Generic menu section for account management",
       "extractionState" : "extracted_with_value",
@@ -13749,14 +13977,14 @@
         }
       }
     },
-    "usage.menu.section.system" : {
-      "comment" : "Menu section for system options",
+    "usage.menu.section.view" : {
+      "comment" : "Usage menu section for view options",
       "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "系统"
+            "value" : "显示"
           }
         }
       }
@@ -14021,18 +14249,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "快照于 %@"
-          }
-        }
-      }
-    },
-    "usage.monitor.auto_refresh.title" : {
-      "comment" : "Auto refresh interval",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Auto refresh"
           }
         }
       }
@@ -14400,6 +14616,24 @@
           }
         }
       }
+    },
+    "导入目标" : {
+
+    },
+    "自定义 SQLite 分组" : {
+
+    },
+    "该分组中的账号将直接写入本地 SQLite，不会创建账号快照文件。" : {
+
+    },
+    "账号信息由凭证自动补全，导入面板仅展示只读信息。" : {
+
+    },
+    "账号库" : {
+
+    },
+    "输入分组名称（必填）" : {
+
     }
   },
   "version" : "1.1"

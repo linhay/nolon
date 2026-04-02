@@ -17,8 +17,8 @@ struct ProviderUsageAccountsViewModelParityTests {
         )
         let root = ProviderUsageRootViewModel(provider: provider)
 
-        #expect(root.accountsViewModel.codex.accounts == root.state.engine.codexAccounts)
-        #expect(root.accountsViewModel.codex.accountSummaries == root.state.engine.codexAccountSummaries)
+        #expect(root.accountsViewModel.codex.accounts == root.state.codexEngine.codexAccounts)
+        #expect(root.accountsViewModel.codex.accountSummaries == root.state.codexEngine.codexAccountSummaries)
     }
 }
 

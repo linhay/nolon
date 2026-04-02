@@ -26,7 +26,6 @@ struct NolonCodexRootCommand: ParsableCommand {
             NolonCodexRuntimeGroupCommand.self,
             NolonCodexProviderGroupCommand.self,
             NolonCodexGatewayGroupCommand.self,
-            NolonCodexAutoSwitchGroupCommand.self,
         ]
     )
 }
@@ -39,7 +38,6 @@ struct NolonCodexAuthGroupCommand: ParsableCommand {
             NolonCodexAuthUsageCommand.self,
             NolonCodexAuthUsageTrendCommand.self,
             NolonCodexAuthStatusCommand.self,
-            NolonCodexAuthExportCommand.self,
             NolonCodexAuthRefreshCommand.self,
             NolonCodexAuthActivateCommand.self,
             NolonCodexAuthLoginCommand.self,
@@ -95,17 +93,6 @@ struct NolonCodexGatewayGroupCommand: ParsableCommand {
             NolonCodexGatewayStartCommand.self,
             NolonCodexGatewayStopCommand.self,
             NolonCodexGatewayServeCommand.self,
-        ]
-    )
-}
-
-struct NolonCodexAutoSwitchGroupCommand: ParsableCommand {
-    static let configuration = CommandConfiguration(
-        commandName: "autoswitch",
-        subcommands: [
-            NolonCodexAutoSwitchStatusCommand.self,
-            NolonCodexAutoSwitchEnableCommand.self,
-            NolonCodexAutoSwitchDisableCommand.self,
         ]
     )
 }
@@ -191,28 +178,6 @@ struct NolonCodexAuthStatusCommand: ParsableCommand {
 
     @Option(name: .long, help: "Provider id, default is codex.")
     var provider: String = "codex"
-}
-
-struct NolonCodexAuthExportCommand: ParsableCommand {
-    static let configuration = CommandConfiguration(commandName: "export")
-
-    @Option(name: .long, help: "Provider id, default is codex.")
-    var provider: String = "codex"
-
-    @Option(name: .long, help: "Export format, currently only sub2api.")
-    var format: String = "sub2api"
-
-    @Option(name: .long, parsing: .upToNextOption, help: "One or more account id UUIDs.")
-    var accountID: [String] = []
-
-    @Option(name: .long, parsing: .upToNextOption, help: "One or more account emails.")
-    var email: [String] = []
-
-    @Flag(name: .long, help: "Export all accounts.")
-    var all: Bool = false
-
-    @Option(name: .long, help: "Output file path.")
-    var output: String
 }
 
 struct NolonCodexAuthRefreshCommand: ParsableCommand {
@@ -334,27 +299,6 @@ struct NolonCodexRuntimeStopCommand: ParsableCommand {
 
 struct NolonCodexProviderDiscoverCommand: ParsableCommand {
     static let configuration = CommandConfiguration(commandName: "discover")
-}
-
-struct NolonCodexAutoSwitchStatusCommand: ParsableCommand {
-    static let configuration = CommandConfiguration(commandName: "status")
-
-    @Option(name: .long, help: "Provider id, default is codex.")
-    var provider: String = "codex"
-}
-
-struct NolonCodexAutoSwitchEnableCommand: ParsableCommand {
-    static let configuration = CommandConfiguration(commandName: "enable")
-
-    @Option(name: .long, help: "Provider id, default is codex.")
-    var provider: String = "codex"
-}
-
-struct NolonCodexAutoSwitchDisableCommand: ParsableCommand {
-    static let configuration = CommandConfiguration(commandName: "disable")
-
-    @Option(name: .long, help: "Provider id, default is codex.")
-    var provider: String = "codex"
 }
 
 struct NolonGeminiRootCommand: ParsableCommand {

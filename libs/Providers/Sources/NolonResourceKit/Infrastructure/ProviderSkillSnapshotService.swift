@@ -66,17 +66,17 @@ private extension ProviderSkillSnapshotService {
 
     func resolveScannableFolder(path: String) -> STFolder? {
         let rawPath = STPath(path)
-        if rawPath.isFolderExists {
-            return STFolder(path)
+        if rawPath.isSymbolicLink {
+            guard let destination = try? rawPath.destinationOfSymbolicLink(),
+                  destination.isFolderExists
+            else {
+                return nil
+            }
+            return STFolder(destination.url.path)
         }
 
-        guard rawPath.isSymbolicLink,
-              let destination = try? rawPath.destinationOfSymbolicLink(),
-              destination.isFolderExists
-        else {
-            return nil
-        }
-        return STFolder(destination.url.path)
+        guard rawPath.isFolderExists else { return nil }
+        return STFolder(path)
     }
 
     static func installationState(_ state: ProviderSkillStateKind) -> SkillInstallationState {

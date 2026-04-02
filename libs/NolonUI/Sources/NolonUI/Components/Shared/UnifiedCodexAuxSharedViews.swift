@@ -88,6 +88,7 @@ public struct CodexConfigEditorSheetView: View {
     let isRelayMode: Bool
     let isTestingUsageQuery: Bool
     let canRunTest: Bool
+    let canValidateConnection: Bool
     let canSaveDraft: Bool
     let httpMethods: [String]
     @Binding var selectedHTTPMethod: String
@@ -95,6 +96,7 @@ public struct CodexConfigEditorSheetView: View {
     @Binding var apiKey: String
     @Binding var baseURL: String
     @Binding var modelProvider: String
+    let modelProviderOptions: [String]
     @Binding var queryParamsText: String
     @Binding var headersText: String
     @Binding var httpUsageEnabled: Bool
@@ -115,6 +117,7 @@ public struct CodexConfigEditorSheetView: View {
     @Binding var httpUsageErrorMessagePath: String
     let onCancel: () -> Void
     let onTest: () -> Void
+    let onValidateConnection: () -> Void
     let onSave: () -> Void
 
     public struct Config {
@@ -127,10 +130,13 @@ public struct CodexConfigEditorSheetView: View {
         public var isRelayMode: Bool
         public var isTestingUsageQuery: Bool
         public var canRunTest: Bool
+        public var canValidateConnection: Bool
         public var canSaveDraft: Bool
         public var httpMethods: [String]
+        public var modelProviderOptions: [String]
         public var onCancel: () -> Void
         public var onTest: () -> Void
+        public var onValidateConnection: () -> Void
         public var onSave: () -> Void
 
         public init(
@@ -143,10 +149,13 @@ public struct CodexConfigEditorSheetView: View {
             isRelayMode: Bool,
             isTestingUsageQuery: Bool,
             canRunTest: Bool,
+            canValidateConnection: Bool,
             canSaveDraft: Bool,
             httpMethods: [String],
+            modelProviderOptions: [String] = [],
             onCancel: @escaping () -> Void,
             onTest: @escaping () -> Void,
+            onValidateConnection: @escaping () -> Void,
             onSave: @escaping () -> Void
         ) {
             self.title = title
@@ -158,10 +167,13 @@ public struct CodexConfigEditorSheetView: View {
             self.isRelayMode = isRelayMode
             self.isTestingUsageQuery = isTestingUsageQuery
             self.canRunTest = canRunTest
+            self.canValidateConnection = canValidateConnection
             self.canSaveDraft = canSaveDraft
             self.httpMethods = httpMethods
+            self.modelProviderOptions = modelProviderOptions
             self.onCancel = onCancel
             self.onTest = onTest
+            self.onValidateConnection = onValidateConnection
             self.onSave = onSave
         }
     }
@@ -201,6 +213,7 @@ public struct CodexConfigEditorSheetView: View {
         self.isRelayMode = config.isRelayMode
         self.isTestingUsageQuery = config.isTestingUsageQuery
         self.canRunTest = config.canRunTest
+        self.canValidateConnection = config.canValidateConnection
         self.canSaveDraft = config.canSaveDraft
         self.httpMethods = config.httpMethods
         self._selectedHTTPMethod = selectedHTTPMethod
@@ -208,6 +221,7 @@ public struct CodexConfigEditorSheetView: View {
         self._apiKey = apiKey
         self._baseURL = baseURL
         self._modelProvider = modelProvider
+        self.modelProviderOptions = config.modelProviderOptions
         self._queryParamsText = queryParamsText
         self._headersText = headersText
         self._httpUsageEnabled = httpUsageEnabled
@@ -228,6 +242,7 @@ public struct CodexConfigEditorSheetView: View {
         self._httpUsageErrorMessagePath = httpUsageErrorMessagePath
         self.onCancel = config.onCancel
         self.onTest = config.onTest
+        self.onValidateConnection = config.onValidateConnection
         self.onSave = config.onSave
     }
     @State private var isRelayAdvancedExpanded = false
@@ -246,6 +261,7 @@ public struct CodexConfigEditorSheetView: View {
         isRelayMode: Bool,
         isTestingUsageQuery: Bool,
         canRunTest: Bool,
+        canValidateConnection: Bool,
         canSaveDraft: Bool,
         httpMethods: [String],
         selectedHTTPMethod: Binding<String>,
@@ -253,6 +269,7 @@ public struct CodexConfigEditorSheetView: View {
         apiKey: Binding<String>,
         baseURL: Binding<String>,
         modelProvider: Binding<String>,
+        modelProviderOptions: [String] = [],
         queryParamsText: Binding<String>,
         headersText: Binding<String>,
         httpUsageEnabled: Binding<Bool>,
@@ -273,6 +290,7 @@ public struct CodexConfigEditorSheetView: View {
         httpUsageErrorMessagePath: Binding<String>,
         onCancel: @escaping () -> Void,
         onTest: @escaping () -> Void,
+        onValidateConnection: @escaping () -> Void,
         onSave: @escaping () -> Void
     ) {
         self.init(
@@ -309,10 +327,13 @@ public struct CodexConfigEditorSheetView: View {
                 isRelayMode: isRelayMode,
                 isTestingUsageQuery: isTestingUsageQuery,
                 canRunTest: canRunTest,
+                canValidateConnection: canValidateConnection,
                 canSaveDraft: canSaveDraft,
                 httpMethods: httpMethods,
+                modelProviderOptions: modelProviderOptions,
                 onCancel: onCancel,
                 onTest: onTest,
+                onValidateConnection: onValidateConnection,
                 onSave: onSave
             )
         )
@@ -340,7 +361,7 @@ public struct CodexConfigEditorSheetView: View {
                         NSLocalizedString("codex.accounts.config.name", value: "Name", comment: "Codex config name"),
                         text: $name
                     )
-                    SecureField(
+                    TextField(
                         NSLocalizedString("codex.accounts.config.api_key", value: "API Key", comment: "Codex API key"),
                         text: $apiKey
                     )
@@ -396,6 +417,26 @@ public struct CodexConfigEditorSheetView: View {
                             NSLocalizedString("codex.accounts.config.model_provider", value: "Model Provider", comment: "Codex relay model provider"),
                             text: $modelProvider
                         )
+                        if !modelProviderOptions.isEmpty {
+                            Menu {
+                                ForEach(modelProviderOptions, id: \.self) { option in
+                                    Button(option) {
+                                        modelProvider = option
+                                    }
+                                }
+                            } label: {
+                                Label(
+                                    NSLocalizedString(
+                                        "codex.accounts.config.model_provider.suggested",
+                                        value: "Suggested from models cache",
+                                        comment: "Model provider suggested options"
+                                    ),
+                                    systemImage: "list.bullet"
+                                )
+                                .font(.caption)
+                                .foregroundStyle(DesignSystem.Colors.Text.secondary)
+                            }
+                        }
                     } header: {
                         Text(NSLocalizedString("codex.accounts.config.relay", value: "Relay", comment: "Relay section title"))
                     } footer: {
@@ -590,6 +631,12 @@ public struct CodexConfigEditorSheetView: View {
 
                 Spacer()
 
+                Button(NSLocalizedString("codex.accounts.action.validate", value: "Validate", comment: "Validate configured account")) {
+                    onValidateConnection()
+                }
+                .dsSecondaryButton()
+                .disabled(!canValidateConnection)
+
                 Button(primaryActionTitle) {
                     onSave()
                 }
@@ -731,6 +778,14 @@ public struct CodexImportCandidateRowView: View {
                             .font(.caption2)
                             .foregroundStyle(DesignSystem.Colors.Text.secondary)
                     }
+                    if !data.readonlyDetails.isEmpty {
+                        ForEach(Array(data.readonlyDetails.enumerated()), id: \.offset) { _, detail in
+                            Text(detail)
+                                .font(.caption2)
+                                .foregroundStyle(DesignSystem.Colors.Text.tertiary)
+                                .lineLimit(1)
+                        }
+                    }
                 }
 
                 Spacer(minLength: 8)
@@ -740,7 +795,7 @@ public struct CodexImportCandidateRowView: View {
 
                     HStack(spacing: 8) {
                         if data.canRetry {
-                            Button(NSLocalizedString("codex.import.sheet.retry_single", value: "重试", comment: "Retry single import test")) {
+                            Button(NSLocalizedString("codex.import.sheet.fetch_usage_single", value: "获取用量", comment: "Fetch usage for single import candidate")) {
                                 onRetry()
                             }
                             .disabled(data.isRetryDisabled)
@@ -1018,7 +1073,6 @@ public struct CodexImportToolbarView: View {
     let onSelectAll: () -> Void
     let onDeselectAll: () -> Void
     let onExportZip: () -> Void
-    let onExportSub2api: () -> Void
     let onPaste: () -> Void
     let onRetryAll: () -> Void
 
@@ -1028,7 +1082,6 @@ public struct CodexImportToolbarView: View {
         public var onSelectAll: () -> Void
         public var onDeselectAll: () -> Void
         public var onExportZip: () -> Void
-        public var onExportSub2api: () -> Void
         public var onPaste: () -> Void
         public var onRetryAll: () -> Void
 
@@ -1038,7 +1091,6 @@ public struct CodexImportToolbarView: View {
             onSelectAll: @escaping () -> Void,
             onDeselectAll: @escaping () -> Void,
             onExportZip: @escaping () -> Void,
-            onExportSub2api: @escaping () -> Void,
             onPaste: @escaping () -> Void,
             onRetryAll: @escaping () -> Void
         ) {
@@ -1047,7 +1099,6 @@ public struct CodexImportToolbarView: View {
             self.onSelectAll = onSelectAll
             self.onDeselectAll = onDeselectAll
             self.onExportZip = onExportZip
-            self.onExportSub2api = onExportSub2api
             self.onPaste = onPaste
             self.onRetryAll = onRetryAll
         }
@@ -1059,7 +1110,6 @@ public struct CodexImportToolbarView: View {
         self.onSelectAll = config.onSelectAll
         self.onDeselectAll = config.onDeselectAll
         self.onExportZip = config.onExportZip
-        self.onExportSub2api = config.onExportSub2api
         self.onPaste = config.onPaste
         self.onRetryAll = config.onRetryAll
     }
@@ -1070,7 +1120,6 @@ public struct CodexImportToolbarView: View {
         onSelectAll: @escaping () -> Void,
         onDeselectAll: @escaping () -> Void,
         onExportZip: @escaping () -> Void,
-        onExportSub2api: @escaping () -> Void,
         onPaste: @escaping () -> Void,
         onRetryAll: @escaping () -> Void
     ) {
@@ -1081,7 +1130,6 @@ public struct CodexImportToolbarView: View {
                 onSelectAll: onSelectAll,
                 onDeselectAll: onDeselectAll,
                 onExportZip: onExportZip,
-                onExportSub2api: onExportSub2api,
                 onPaste: onPaste,
                 onRetryAll: onRetryAll
             )
@@ -1128,11 +1176,6 @@ public struct CodexImportToolbarView: View {
                     onExportZip()
                 }
                 .disabled(data.isExportZipDisabled)
-
-                Button(data.exportSub2apiTitle) {
-                    onExportSub2api()
-                }
-                .disabled(data.isExportSub2apiDisabled)
 
                 Button(data.pasteTitle) {
                     onPaste()

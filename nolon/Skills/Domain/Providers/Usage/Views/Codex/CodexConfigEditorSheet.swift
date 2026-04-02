@@ -4,12 +4,14 @@ import NolonUI
 
 struct CodexConfigEditorSheet: View {
     @Binding var draft: ProviderUsageEngine.CodexConfigEditorDraft?
+    let modelProviderOptions: [String]
     let errorMessage: String?
     let testSuccessMessage: String?
     let testErrorMessage: String?
     let isTestingUsageQuery: Bool
     let onCancel: () -> Void
     let onTest: () -> Void
+    let onValidateConnection: () -> Void
     let onSave: () -> Void
 
     private var currentDraft: ProviderUsageEngine.CodexConfigEditorDraft? {
@@ -18,14 +20,7 @@ struct CodexConfigEditorSheet: View {
 
     private var isRelayMode: Bool {
         guard let draft = currentDraft else { return false }
-        switch draft.mode {
-        case .newRelay:
-            return true
-        case .newAPIKey:
-            return false
-        case .edit:
-            return draft.isRelay
-        }
+        return draft.isRelay
     }
 
     private var editorMode: ProviderUsageEngine.CodexConfigEditorMode? {
@@ -64,8 +59,17 @@ struct CodexConfigEditorSheet: View {
 
     private var canSaveDraft: Bool {
         guard let draft = currentDraft else { return false }
-        return !draft.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            && !draft.apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        return !draft.apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var canValidateConnection: Bool {
+        guard let draft = currentDraft else { return false }
+        let hasAPIKey = !draft.apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        if !hasAPIKey { return false }
+        if draft.isRelay {
+            return !draft.baseURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+        return true
     }
 
     private func binding(_ keyPath: WritableKeyPath<ProviderUsageEngine.CodexConfigEditorDraft, String>) -> Binding<String> {
@@ -102,6 +106,7 @@ struct CodexConfigEditorSheet: View {
                     isRelayMode: isRelayMode,
                     isTestingUsageQuery: isTestingUsageQuery,
                     canRunTest: canRunTest,
+                    canValidateConnection: canValidateConnection,
                     canSaveDraft: canSaveDraft,
                     httpMethods: CodexHTTPMethod.allCases.map(\.rawValue),
                     selectedHTTPMethod: httpMethodRawValueBinding,
@@ -109,6 +114,7 @@ struct CodexConfigEditorSheet: View {
                     apiKey: binding(\.apiKey),
                     baseURL: binding(\.baseURL),
                     modelProvider: binding(\.modelProvider),
+                    modelProviderOptions: modelProviderOptions,
                     queryParamsText: binding(\.queryParamsText),
                     headersText: binding(\.headersText),
                     httpUsageEnabled: httpUsageEnabledBinding,
@@ -129,6 +135,7 @@ struct CodexConfigEditorSheet: View {
                     httpUsageErrorMessagePath: binding(\.httpUsageErrorMessagePath),
                     onCancel: onCancel,
                     onTest: onTest,
+                    onValidateConnection: onValidateConnection,
                     onSave: onSave
                 )
             }

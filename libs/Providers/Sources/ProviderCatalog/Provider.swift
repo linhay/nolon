@@ -27,6 +27,8 @@ public struct Provider: Codable, Identifiable, Hashable, Sendable {
     public var commandPath: String?
     public var iconName: String
     public var installMethod: SkillInstallationMethod
+    /// When enabled, provider skills path is managed as a symlink to ~/.nolon/skills.
+    public var skillsLinkEnabled: Bool
     public var vendorCategory: VendorCategory?
 
     /// Template ID if created from a built-in template.
@@ -71,6 +73,7 @@ public struct Provider: Codable, Identifiable, Hashable, Sendable {
         commandPath: String? = nil,
         iconName: String = "folder",
         installMethod: SkillInstallationMethod = .symlink,
+        skillsLinkEnabled: Bool = false,
         vendorCategory: VendorCategory? = nil,
         templateId: String? = nil,
         additionalSkillsPaths: [String]? = nil,
@@ -85,6 +88,7 @@ public struct Provider: Codable, Identifiable, Hashable, Sendable {
         self.commandPath = commandPath
         self.iconName = iconName
         self.installMethod = installMethod
+        self.skillsLinkEnabled = skillsLinkEnabled
         self.vendorCategory = kind == .project ? nil : (vendorCategory ?? .integrated)
         self.templateId = templateId
         self.additionalSkillsPaths = additionalSkillsPaths
@@ -103,6 +107,7 @@ public struct Provider: Codable, Identifiable, Hashable, Sendable {
         case commandPath
         case iconName
         case installMethod
+        case skillsLinkEnabled
         case vendorCategory
         case templateId
         case additionalSkillsPaths
@@ -121,6 +126,7 @@ public struct Provider: Codable, Identifiable, Hashable, Sendable {
         commandPath = try container.decodeIfPresent(String.self, forKey: .commandPath)
         iconName = try container.decode(String.self, forKey: .iconName)
         installMethod = try container.decode(SkillInstallationMethod.self, forKey: .installMethod)
+        skillsLinkEnabled = try container.decodeIfPresent(Bool.self, forKey: .skillsLinkEnabled) ?? false
         let decodedVendorCategory = try container.decodeIfPresent(VendorCategory.self, forKey: .vendorCategory)
         templateId = try container.decodeIfPresent(String.self, forKey: .templateId)
         additionalSkillsPaths = try container.decodeIfPresent([String].self, forKey: .additionalSkillsPaths)

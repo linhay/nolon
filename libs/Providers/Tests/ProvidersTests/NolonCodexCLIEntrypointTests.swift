@@ -326,67 +326,6 @@ struct NolonCodexCLIEntrypointTests {
         #expect(await mock.lastCall() == "gatewayStop")
     }
 
-    @Test("codex autoswitch --help prints autoswitch help")
-    func codexAutoSwitchHelpPrintsHelp() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: ["codex", "autoswitch", "--help"],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("USAGE: nolon codex autoswitch"))
-        #expect(result.stdout.contains("status"))
-        #expect(result.stdout.contains("enable"))
-        #expect(result.stdout.contains("disable"))
-    }
-
-    @Test("codex autoswitch status routes successfully")
-    func codexAutoSwitchStatusRoutesSuccessfully() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: ["codex", "autoswitch", "status", "--json"],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("\"command\":\"codex.autoswitch.status\""))
-        #expect(result.stdout.contains("\"enabled\":false"))
-        #expect(await mock.lastCall() == "autoSwitchStatus")
-    }
-
-    @Test("codex autoswitch enable routes successfully")
-    func codexAutoSwitchEnableRoutesSuccessfully() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: ["codex", "autoswitch", "enable", "--json"],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("\"command\":\"codex.autoswitch.enable\""))
-        #expect(result.stdout.contains("\"enabled\":true"))
-        #expect(await mock.lastCall() == "autoSwitchSetEnabled:true")
-    }
-
-    @Test("codex autoswitch disable routes successfully")
-    func codexAutoSwitchDisableRoutesSuccessfully() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: ["codex", "autoswitch", "disable", "--json"],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("\"command\":\"codex.autoswitch.disable\""))
-        #expect(result.stdout.contains("\"enabled\":false"))
-        #expect(await mock.lastCall() == "autoSwitchSetEnabled:false")
-    }
-
     @Test("codex runtime list --help prints action help")
     func codexRuntimeListHelpPrintsHelp() async {
         let mock = MockCodexCLIService()
@@ -850,21 +789,6 @@ struct NolonCodexCLIEntrypointTests {
         #expect(result.stderr.isEmpty)
         #expect(result.stdout.contains("Usage: nolon codex auth delete"))
         #expect(result.stdout.contains("--account-id"))
-    }
-
-    @Test("codex auth export --help prints action help")
-    func codexAuthExportHelpPrintsHelp() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: ["codex", "auth", "export", "--help"],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("Usage: nolon codex auth export --format sub2api"))
-        #expect(result.stdout.contains("--format sub2api"))
-        #expect(result.stdout.contains("--output <path>"))
     }
 
     @Test("codex binary install --help prints action help")
@@ -1335,28 +1259,6 @@ struct NolonCodexCLIEntrypointTests {
         #expect(result.stdout.contains("运行时切换"))
         #expect(result.stdout.contains("汇总-总数: 1"))
         #expect(await mock.lastCall() == "authRefresh")
-    }
-
-    @Test("routes auth export via all accounts")
-    func routesAuthExport() async {
-        let mock = MockCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: [
-                "codex", "auth", "export",
-                "--provider", "codex",
-                "--format", "sub2api",
-                "--all",
-                "--output", "/tmp/codex-sub2api.json",
-            ],
-            codexService: mock
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-        #expect(result.stdout.contains("format: sub2api"))
-        #expect(result.stdout.contains("output_path: /tmp/codex-sub2api.json"))
-        #expect(result.stdout.contains("skipped_relay_count: 1"))
-        #expect(await mock.lastCall() == "authExport")
     }
 
     @Test("auth activate supports tui selection by index")
@@ -2172,35 +2074,6 @@ struct NolonCodexCLIEntrypointTests {
         #expect(try canonicalJSON(result.stdout) == expected)
     }
 
-    @Test("json contract snapshot for codex auth export success")
-    func jsonContractSnapshotAuthExportSuccess() async throws {
-        let service = JSONContractCodexCLIService()
-        let result = await NolonCLIEntrypoint.execute(
-            arguments: [
-                "codex", "auth", "export",
-                "--provider", "codex",
-                "--format", "sub2api",
-                "--all",
-                "--output", "/tmp/codex-sub2api.json",
-                "--json",
-            ],
-            codexService: service
-        )
-
-        #expect(result.exitCode == 0)
-        #expect(result.stderr.isEmpty)
-        let object = try JSONSerialization.jsonObject(with: Data(result.stdout.utf8)) as? [String: Any]
-        let data = object?["data"] as? [String: Any]
-        #expect(object?["ok"] as? Bool == true)
-        #expect(object?["command"] as? String == "codex.auth.export")
-        #expect(data?["providerID"] as? String == "codex")
-        #expect(data?["format"] as? String == "sub2api")
-        #expect(data?["outputPath"] as? String == URL(fileURLWithPath: "/tmp/codex-sub2api.json").standardizedFileURL.path)
-        #expect(data?["exportedCount"] as? Int == 1)
-        #expect(data?["skippedRelayCount"] as? Int == 1)
-        #expect(data?["skippedUnsupportedCount"] as? Int == 0)
-    }
-
     @Test("json contract snapshot for codex auth delete success")
     func jsonContractSnapshotAuthDeleteSuccess() async throws {
         let service = JSONContractCodexCLIService()
@@ -2232,7 +2105,7 @@ struct NolonCodexCLIEntrypointTests {
         #expect(result.exitCode == 2)
         #expect(result.stdout.isEmpty)
 
-        let expected = #"{"error":{"code":"invalid_arguments","message":"Unknown group 'oops'. Available groups: auth, autoswitch, binary, gateway, provider, runtime, status."},"ok":false}"#
+        let expected = #"{"error":{"code":"invalid_arguments","message":"Unknown group 'oops'. Available groups: auth, binary, gateway, provider, runtime, status."},"ok":false}"#
         #expect(try canonicalJSON(result.stderr) == expected)
     }
 
@@ -2313,18 +2186,6 @@ private actor MockCodexCLIService: NolonCodexCLIServing {
     func authStatus(providerID: String) async throws -> NolonCodexAuthStatusPayload {
         call = "authStatus"
         return NolonCodexAuthStatusPayload(providerID: providerID, activeAccountID: nil, accountCount: 0, authHashHex: nil)
-    }
-
-    func authExport(providerID: String, format: NolonCodexAuthExportFormat, accountIDs: [UUID], outputPath: String) async throws -> NolonCodexAuthExportPayload {
-        call = "authExport"
-        return NolonCodexAuthExportPayload(
-            providerID: providerID,
-            format: format,
-            outputPath: outputPath,
-            exportedCount: max(1, accountIDs.count),
-            skippedRelayCount: 1,
-            skippedUnsupportedCount: 0
-        )
     }
 
     func authUsage(providerID: String) async throws -> NolonCodexAuthUsagePayload {
@@ -2629,31 +2490,6 @@ private actor MockCodexCLIService: NolonCodexCLIServing {
         call = "gatewayServe:\(host):\(port)"
     }
 
-    func autoSwitchStatus(providerID: String) async throws -> NolonCodexAutoSwitchStatusPayload {
-        call = "autoSwitchStatus"
-        return NolonCodexAutoSwitchStatusPayload(
-            providerID: providerID,
-            enabled: false,
-            thresholdPercent: 10,
-            minimumCandidateRemainingPercent: 20,
-            skipRelayAccounts: true,
-            cooldownSeconds: 600,
-            lastDecision: nil,
-            lastUpdatedAt: nil
-        )
-    }
-
-    func autoSwitchSetEnabled(providerID: String, enabled: Bool) async throws -> NolonCodexAutoSwitchSetPayload {
-        call = "autoSwitchSetEnabled:\(enabled)"
-        return NolonCodexAutoSwitchSetPayload(
-            providerID: providerID,
-            enabled: enabled,
-            thresholdPercent: 10,
-            minimumCandidateRemainingPercent: 20,
-            skipRelayAccounts: true,
-            cooldownSeconds: 600
-        )
-    }
 }
 
 private actor DomainErrorCodexCLIService: NolonCodexCLIServing {
@@ -2922,17 +2758,6 @@ private actor JSONContractCodexCLIService: NolonCodexCLIServing {
             usageAvgFiveHourRemainingPercent: 70,
             usageAvgWeeklyRemainingPercent: 55,
             usageLatestRefreshedAt: Date(timeIntervalSince1970: 60)
-        )
-    }
-    func authExport(providerID: String, format: NolonCodexAuthExportFormat, accountIDs: [UUID], outputPath: String) async throws -> NolonCodexAuthExportPayload {
-        _ = accountIDs
-        return NolonCodexAuthExportPayload(
-            providerID: providerID,
-            format: format,
-            outputPath: outputPath,
-            exportedCount: 1,
-            skippedRelayCount: 1,
-            skippedUnsupportedCount: 0
         )
     }
     func authActivate(providerID: String, accountID: UUID) async throws -> NolonCodexAuthActivatePayload {

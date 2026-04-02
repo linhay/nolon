@@ -17,8 +17,8 @@ struct ProviderTokenTrendViewModelParityTests {
         )
         let root = ProviderUsageRootViewModel(provider: provider)
 
-        #expect(root.tokenTrendViewModel.tokenTrendRange == root.state.engine.tokenTrendRange)
-        #expect(root.tokenTrendViewModel.tokenTrendSnapshot == root.state.engine.tokenTrendSnapshot)
+        #expect(root.tokenTrendViewModel.tokenTrendRange == root.state.commonEngine.tokenTrendRange)
+        #expect(root.tokenTrendViewModel.tokenTrendSnapshot == root.state.commonEngine.tokenTrendSnapshot)
     }
 }
 

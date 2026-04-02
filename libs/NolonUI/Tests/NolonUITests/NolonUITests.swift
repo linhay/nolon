@@ -95,6 +95,10 @@ final class NolonUITests: XCTestCase {
         XCTAssertEqual(SplitLayoutProfiles.resourceCenter(isTwoColumn: false).mode, .threeColumn)
     }
 
+    func testSplitLayoutProfiles_GivenSkillDetail_UsesPlainChromeStyle() {
+        XCTAssertEqual(SplitLayoutProfiles.skillDetail.chromeStyle, .plain)
+    }
+
     func testMcpServerCardCacheState_ContainsExpectedStates() {
         let states: Set<McpServerCardCacheState> = [.notMigrated, .migratedUpToDate, .migratedNeedsUpdate]
         XCTAssertEqual(states.count, 3)

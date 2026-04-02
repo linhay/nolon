@@ -77,6 +77,38 @@ final class CodexAccountDisplaySectionsTests: XCTestCase {
         XCTAssertEqual(sections[0].items.count, 1)
     }
 
+    func testBDD_GivenCustomSQLiteGroupingWithoutGroupNames_WhenBuildingDisplaySections_ThenFallsBackToTypeInfoGrouping() {
+        let chatgptAccount = CodexAuthAccount(
+            id: UUID(uuidString: "aaaaaaaa-1111-1111-1111-111111111111")!,
+            name: "Personal",
+            createdAt: Date(timeIntervalSince1970: 100),
+            relativeAuthPath: "auth/personal.json"
+        )
+        let apiKeyAccount = CodexAuthAccount(
+            id: UUID(uuidString: "bbbbbbbb-2222-2222-2222-222222222222")!,
+            name: "OpenAI Direct",
+            createdAt: Date(timeIntervalSince1970: 200),
+            relativeAuthPath: "auth/openai-direct.json"
+        )
+
+        let sections = ProviderUsageEngine.makeCodexAccountDisplaySections(
+            accounts: [chatgptAccount, apiKeyAccount],
+            outcomes: [
+                Self.makeOutcome(account: chatgptAccount, label: "Personal", remaining: 8),
+                Self.makeOutcome(account: apiKeyAccount, label: "OpenAI Direct", remaining: 6)
+            ],
+            summaries: [
+                chatgptAccount.id: CodexAuthSummary(plan: "Plus", name: "Personal", cardKind: .chatgptAccount),
+                apiKeyAccount.id: CodexAuthSummary(name: "OpenAI Direct", cardKind: .officialAPIKey)
+            ],
+            customGroupNames: [:],
+            grouping: .customSQLiteGroup,
+            sorting: .remainingCredits
+        )
+
+        XCTAssertEqual(sections.map(\.title), ["OpenAI", "Plus"])
+    }
+
     func testBDD_GivenRemainingCreditsSort_WhenBuildingSections_ThenOrdersDescendingBeforeMissingCredits() {
         let high = CodexAuthAccount(id: UUID(), name: "High", createdAt: .distantPast, relativeAuthPath: "auth/high.json")
         let low = CodexAuthAccount(id: UUID(), name: "Low", createdAt: .distantPast, relativeAuthPath: "auth/low.json")
@@ -646,6 +678,47 @@ final class CodexAccountDisplaySectionsTests: XCTestCase {
         XCTAssertEqual(viewModel.codexSelectedImportCandidateCount, 0)
     }
 
+    func testBDD_GivenCustomSQLiteImportTarget_WhenGroupNameIsEmpty_ThenImportActionIsDisabled() {
+        let viewModel = ProviderUsageEngine(provider: Self.makeCodexProvider())
+        viewModel.codexImportCandidates = [
+            .init(
+                sourceFileURL: URL(fileURLWithPath: "/tmp/a.json"),
+                validation: .init(
+                    fileURL: URL(fileURLWithPath: "/tmp/a.json"),
+                    isValid: true,
+                    reason: nil,
+                    suggestedName: "A",
+                    email: "a@example.com",
+                    authJSONString: "{}"
+                ),
+                isSelected: true,
+                testStatus: .idle,
+                testSummary: nil,
+                testDetail: nil
+            ),
+        ]
+
+        viewModel.codexImportDestinationOption = .customSQLiteGroup
+        viewModel.codexImportCustomGroupName = "   "
+
+        XCTAssertFalse(viewModel.canImportSelectedCodexCandidates)
+
+        viewModel.codexImportCustomGroupName = "team-a"
+        XCTAssertTrue(viewModel.canImportSelectedCodexCandidates)
+    }
+
+    func testBDD_GivenImportSheetState_WhenDismissingSheet_ThenCustomDestinationDraftIsReset() {
+        let viewModel = ProviderUsageEngine(provider: Self.makeCodexProvider())
+        viewModel.codexImportDestinationOption = .customSQLiteGroup
+        viewModel.codexImportCustomGroupName = "legacy-group"
+        viewModel.isShowingCodexImportSheet = true
+
+        viewModel.dismissCodexImportSheet()
+
+        XCTAssertEqual(viewModel.codexImportDestinationOption, .managedSnapshots)
+        XCTAssertTrue(viewModel.codexImportCustomGroupName.isEmpty)
+    }
+
     func testBDD_GivenGatewayCard_WhenAddingSingleAccount_ThenMemberAppearsWithoutDuplicates() {
         let viewModel = ProviderUsageEngine(provider: Self.makeCodexProvider())
         let account = CodexAuthAccount(
@@ -1043,6 +1116,33 @@ final class CodexAccountDisplaySectionsTests: XCTestCase {
         )
     }
 
+    func testBDD_GivenCodexAccountPlanChanged_WhenRefreshingOutcome_ThenGroupingUsesLatestPlan() async {
+        let viewModel = ProviderUsageEngine(provider: Self.makeCodexProvider())
+        let account = CodexAuthAccount(
+            id: UUID(uuidString: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")!,
+            name: "Personal",
+            createdAt: .distantPast,
+            relativeAuthPath: "auth/personal.json"
+        )
+        viewModel.codexAccounts = [account]
+        viewModel.codexAccountSummaries[account.id] = CodexAuthSummary(
+            plan: "Plus",
+            cardKind: .chatgptAccount
+        )
+
+        let refreshed = Self.makeOutcome(
+            account: account,
+            label: "Personal",
+            remaining: 10,
+            plan: "Pro"
+        )
+        await viewModel.applyRefreshedCodexOutcome(refreshed, for: account)
+
+        let sections = viewModel.codexAccountDisplaySections
+        XCTAssertEqual(sections.map(\.title), ["Pro"])
+        XCTAssertEqual(viewModel.codexAccountSummaries[account.id]?.plan, "Pro")
+    }
+
     func testBDD_GivenGatewayCardHasMembers_WhenBuildingCandidateSections_ThenExistingMembersAreExcluded() {
         let viewModel = ProviderUsageEngine(provider: Self.makeCodexProvider())
         let first = CodexAuthAccount(id: UUID(), name: "A", createdAt: .distantPast, relativeAuthPath: "auth/a.json")
@@ -1145,6 +1245,7 @@ final class CodexAccountDisplaySectionsTests: XCTestCase {
         account: CodexAuthAccount,
         label: String,
         remaining: Double?,
+        plan: String? = nil,
         primaryWindow: RateWindow? = nil,
         secondaryWindow: RateWindow? = nil,
         tertiaryWindow: RateWindow? = nil
@@ -1157,7 +1258,7 @@ final class CodexAccountDisplaySectionsTests: XCTestCase {
             lastUsed: nil
         )
         let usage = UsageSnapshot(
-            identity: UsageIdentity(accountEmail: nil, accountOrganization: nil, loginMethod: nil, plan: nil),
+            identity: UsageIdentity(accountEmail: nil, accountOrganization: nil, loginMethod: nil, plan: plan),
             primary: primaryWindow,
             secondary: secondaryWindow,
             tertiary: tertiaryWindow,

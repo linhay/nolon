@@ -109,20 +109,20 @@ enum CodexQuickSwitchAccountSorter {
         let remainingPercents: [Double]
         let createdAt: Date
 
-        var maxRemainingPercent: Double {
+        nonisolated var maxRemainingPercent: Double {
             CodexQuickSwitchAccountSorter.maxRemainingPercent(from: remainingPercents)
         }
 
-        var hasQuota: Bool {
+        nonisolated var hasQuota: Bool {
             maxRemainingPercent > 0
         }
     }
 
-    static func sort(_ entries: [Entry]) -> [Entry] {
+    nonisolated static func sort(_ entries: [Entry]) -> [Entry] {
         entries.sorted(by: ranksBefore)
     }
 
-    static func ranksBefore(_ lhs: Entry, _ rhs: Entry) -> Bool {
+    nonisolated static func ranksBefore(_ lhs: Entry, _ rhs: Entry) -> Bool {
         if lhs.isActive != rhs.isActive {
             return lhs.isActive
         }
@@ -138,11 +138,11 @@ enum CodexQuickSwitchAccountSorter {
         return lhs.id < rhs.id
     }
 
-    static func maxRemainingPercent(from values: [Double]) -> Double {
+    nonisolated static func maxRemainingPercent(from values: [Double]) -> Double {
         values.map(normalizedRemainingPercent).max() ?? 0
     }
 
-    static func normalizedRemainingPercent(_ value: Double) -> Double {
+    nonisolated static func normalizedRemainingPercent(_ value: Double) -> Double {
         guard value.isFinite else { return 0 }
         return max(0, value)
     }

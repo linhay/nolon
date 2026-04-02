@@ -8,7 +8,12 @@ final class ProviderUsageRootViewModelStore {
 
     func viewModel(for provider: Provider) -> ProviderUsageRootViewModel {
         if let existing = cached[provider.id] {
-            return existing
+            if existing.provider == provider {
+                return existing
+            }
+            let recreated = ProviderUsageRootViewModel(provider: provider)
+            cached[provider.id] = recreated
+            return recreated
         }
         let created = ProviderUsageRootViewModel(provider: provider)
         cached[provider.id] = created
@@ -19,4 +24,3 @@ final class ProviderUsageRootViewModelStore {
         cached.removeAll()
     }
 }
-

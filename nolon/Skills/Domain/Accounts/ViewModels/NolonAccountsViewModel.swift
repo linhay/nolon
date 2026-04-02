@@ -8,10 +8,12 @@ import NolonCoreCLIKit
 import STFilePath
 import NolonResourceKit
 import Shimmer
+import OSLog
 
 @MainActor
 @Observable
 final class NolonAccountsViewModel {
+    private static let logger = Logger(subsystem: "com.nolon", category: "NolonAccountsViewModel")
     typealias CodexActivateAction = @Sendable (CodexAuthAccount, Provider) async throws -> Void
     typealias CodexGatewayStopAction = @Sendable (String) async throws -> Void
     typealias CopyTextAction = @Sendable (String) -> Void
@@ -47,7 +49,7 @@ final class NolonAccountsViewModel {
         let isSnapshotOnly: Bool
     }
 
-    let settings: ProviderSettings
+    private(set) var settings: ProviderSettings
     private let usageMonitor: ProviderUsageMonitorService
     private let usageSettingsStore: UsageMonitorSettingsStore
     private let codexAuthManager: CodexAuthManager
@@ -67,12 +69,15 @@ final class NolonAccountsViewModel {
     var geminiAccountsByProviderID: [Provider.ID: [GeminiAuthAccount]] = [:]
     var activeGeminiAccountIDByProviderID: [Provider.ID: UUID] = [:]
     var isRefreshing = false
+    var isShowingCopyToast = false
+    var copyToastMessage = NSLocalizedString("remote.error.copied", value: "Copied", comment: "Copied tooltip")
+    @ObservationIgnored private var copyToastGeneration = 0
 
     init(
         settings: ProviderSettings,
         usageMonitor: ProviderUsageMonitorService? = nil,
         usageSettingsStore: UsageMonitorSettingsStore? = nil,
-        codexAuthManager: CodexAuthManager = CodexAuthManager(),
+        codexAuthManager: CodexAuthManager = .shared,
         codexActivateAction: CodexActivateAction? = nil,
         codexGatewayStopAction: CodexGatewayStopAction? = nil,
         copyTextAction: CopyTextAction? = nil,
@@ -128,6 +133,13 @@ final class NolonAccountsViewModel {
         ProviderPresentationSections.accountProviders(from: settings.providers)
     }
 
+    func updateSettings(_ settings: ProviderSettings) {
+        self.settings = settings
+        // Provider payload may change while keeping same id (e.g. template/path migration).
+        // Rebuild child VMs to avoid stale provider context.
+        providerUsageAccountsViewModelsByProviderID.removeAll()
+    }
+
     func refresh() {
         Task {
             await refreshAsync()
@@ -137,6 +149,7 @@ final class NolonAccountsViewModel {
     private func refreshAsync() async {
         isRefreshing = true
         defer { isRefreshing = false }
+        let sqlitePath = codexAuthManager.accountsSQLiteFile().url.path
 
         var latestUsage: [Provider.ID: UsageSummary] = [:]
         var latestAccountUsage: [Provider.ID: [AccountUsageSummary]] = [:]
@@ -161,6 +174,9 @@ final class NolonAccountsViewModel {
                 }
 
                 if usageProvider == .codex {
+                    Self.logger.info(
+                        "Accounts refresh(codex) begin. providerID=\(provider.id, privacy: .public) templateID=\(provider.templateId ?? "-", privacy: .public) sqlite=\(sqlitePath, privacy: .public) loadedAccounts=\(accountsViewModel.codex.accounts.count, privacy: .public) loadedOutcomes=\(accountsViewModel.codex.accountOutcomes.count, privacy: .public)"
+                    )
                     let codexSummary = Self.makeCodexAccountSummary(
                         activeAccountID: accountsViewModel.codex.activeAccountId,
                         accounts: accountsViewModel.codex.accounts,
@@ -183,6 +199,9 @@ final class NolonAccountsViewModel {
                     if !mergedAccountSummaries.isEmpty {
                         latestAccountUsage[provider.id] = mergedAccountSummaries
                     }
+                    Self.logger.info(
+                        "Accounts refresh(codex) end. providerID=\(provider.id, privacy: .public) mergedSummaries=\(mergedAccountSummaries.count, privacy: .public) activeAccountID=\(accountsViewModel.codex.activeAccountId?.uuidString ?? "-", privacy: .public)"
+                    )
                 } else if usageProvider == .claude {
                     let sortedAccounts = Self.sortedProviderAccounts(
                         accountsViewModel.claude.accounts,
@@ -220,6 +239,9 @@ final class NolonAccountsViewModel {
         activeClaudeAccountIDByProviderID = latestActiveClaudeAccounts
         geminiAccountsByProviderID = latestGeminiAccounts
         activeGeminiAccountIDByProviderID = latestActiveGeminiAccounts
+        Self.logger.info(
+            "Accounts refresh completed. sections=\(self.sections.count, privacy: .public) codexProviders=\(latestCodexSummary.count, privacy: .public) codexAccountGroups=\(latestAccountUsage.filter { key, _ in self.settings.providers.first(where: { $0.id == key })?.templateId == ProviderTemplate.codex.rawValue }.count, privacy: .public)"
+        )
     }
 
     func activateCodexAccount(id: UUID, for provider: Provider) async {
@@ -255,6 +277,7 @@ final class NolonAccountsViewModel {
 
     func copyCodexAccountID(_ id: UUID) {
         copyTextAction(id.uuidString.lowercased())
+        showCopyToast()
     }
 
     func copyCodexAccountPath(_ id: UUID) async {
@@ -263,15 +286,19 @@ final class NolonAccountsViewModel {
         else { return }
         let file = await codexAuthManager.accountAuthFile(account)
         copyTextAction(file.url.path)
+        showCopyToast()
     }
 
     func copyCodexAccountAuthJSON(_ id: UUID) async {
         guard let accounts = try? await codexAuthManager.loadAccounts(),
               let account = accounts.first(where: { $0.id == id })
         else { return }
-        let file = await codexAuthManager.accountAuthFile(account)
-        guard let raw = try? file.read(), !raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        guard let data = await codexAuthManager.accountAuthDataWithoutMaterialization(for: account),
+              let raw = String(data: data, encoding: .utf8),
+              !raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        else { return }
         copyTextAction(raw)
+        showCopyToast()
     }
 
     func editCodexAccountAuthJSON(_ id: UUID) async {
@@ -280,6 +307,18 @@ final class NolonAccountsViewModel {
         else { return }
         let file = await codexAuthManager.accountAuthFile(account)
         openURLAction(file.url)
+    }
+
+    private func showCopyToast() {
+        copyToastGeneration += 1
+        let currentGeneration = copyToastGeneration
+        copyToastMessage = NSLocalizedString("remote.error.copied", value: "Copied", comment: "Copied tooltip")
+        isShowingCopyToast = true
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 1_200_000_000)
+            guard let self, self.copyToastGeneration == currentGeneration else { return }
+            self.isShowingCopyToast = false
+        }
     }
 
     private func providerUsageAccountsViewModel(for provider: Provider) -> ProviderUsageAccountsViewModel {
@@ -476,7 +515,7 @@ extension NolonAccountsViewModel {
 
     static func mapUsageProvider(for provider: Provider) -> UsageProvider? {
         if provider.templateId == ProviderTemplate.codexXcode.rawValue {
-            return nil
+            return .codex
         }
         if provider.templateId == ProviderTemplate.claudeCode.rawValue {
             return .claude

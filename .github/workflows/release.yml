@@ -25,7 +25,10 @@ concurrency:
 jobs:
   release:
     name: Build and Publish Release
-    runs-on: macos-latest
+    runs-on:
+      - self-hosted
+      - macOS
+      - ARM64
 
     steps:
       - name: Checkout
@@ -33,15 +36,49 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Setup Xcode
-        uses: maxim-lobanov/setup-xcode@v1
-        with:
-          xcode-version: "26.3"
-
       - name: Print toolchain versions
         run: |
+          xcode-select -p
           xcodebuild -version
           swift --version
+
+      - name: Load runner local release env (optional)
+        run: |
+          set -euo pipefail
+          ENV_FILE="${HOME}/.nolon/release-secrets/release.env"
+          if [ ! -f "${ENV_FILE}" ]; then
+            echo "No local release env found at ${ENV_FILE}; fallback to GitHub Secrets."
+            exit 0
+          fi
+
+          echo "Loading release env from ${ENV_FILE}"
+          set -a
+          # shellcheck disable=SC1090
+          source "${ENV_FILE}"
+          set +a
+
+          vars=(
+            SPARKLE_PRIVATE_KEY
+            SPARKLE_KEYCHAIN_ACCOUNT
+            MACOS_CERTIFICATE_P12_BASE64
+            MACOS_CERTIFICATE_P12_PASSWORD
+            SIGNING_IDENTITY
+            NOTARY_PROFILE
+            APPLE_ID
+            APPLE_APP_PASSWORD
+            TEAM_ID
+          )
+
+          for key in "${vars[@]}"; do
+            value="${!key:-}"
+            if [ -n "${value}" ]; then
+              {
+                echo "${key}<<EOF"
+                printf '%s\n' "${value}"
+                echo "EOF"
+              } >> "${GITHUB_ENV}"
+            fi
+          done
 
       - name: Ensure branch checkout for manual runs
         if: ${{ github.event_name == 'workflow_dispatch' }}
@@ -63,22 +100,22 @@ jobs:
           fi
 
       - name: Validate required secrets
+        env:
+          SPARKLE_PRIVATE_KEY_SECRET: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+          SPARKLE_KEYCHAIN_ACCOUNT_SECRET: ${{ secrets.SPARKLE_KEYCHAIN_ACCOUNT }}
+          SIGNING_IDENTITY_SECRET: ${{ secrets.SIGNING_IDENTITY }}
         run: |
-          if [ -z "${{ secrets.SPARKLE_PRIVATE_KEY }}" ]; then
-            echo "Missing required secret: SPARKLE_PRIVATE_KEY"
-            exit 1
-          fi
-          if [ -z "${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}" ]; then
-            echo "Missing required secret: MACOS_CERTIFICATE_P12_BASE64"
-            exit 1
-          fi
-          if [ -z "${{ secrets.MACOS_CERTIFICATE_P12_PASSWORD }}" ]; then
-            echo "Missing required secret: MACOS_CERTIFICATE_P12_PASSWORD"
-            exit 1
-          fi
-          if [ -z "${{ secrets.SIGNING_IDENTITY }}" ]; then
+          : "${SPARKLE_PRIVATE_KEY:=${SPARKLE_PRIVATE_KEY_SECRET:-}}"
+          : "${SPARKLE_KEYCHAIN_ACCOUNT:=${SPARKLE_KEYCHAIN_ACCOUNT_SECRET:-}}"
+          : "${SIGNING_IDENTITY:=${SIGNING_IDENTITY_SECRET:-}}"
+
+          if [ -z "${SIGNING_IDENTITY:-}" ]; then
             echo "Missing required secret: SIGNING_IDENTITY"
             exit 1
+          fi
+
+          if [ -z "${SPARKLE_PRIVATE_KEY:-}" ]; then
+            echo "SPARKLE_PRIVATE_KEY not provided; will fallback to Sparkle keychain account (${SPARKLE_KEYCHAIN_ACCOUNT:-ed25519})."
           fi
 
       - name: Resolve release parameters
@@ -99,10 +136,17 @@ jobs:
 
       - name: Import signing certificate
         env:
-          MACOS_CERTIFICATE_P12_BASE64: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}
-          MACOS_CERTIFICATE_P12_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_P12_PASSWORD }}
+          MACOS_CERTIFICATE_P12_BASE64_SECRET: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}
+          MACOS_CERTIFICATE_P12_PASSWORD_SECRET: ${{ secrets.MACOS_CERTIFICATE_P12_PASSWORD }}
         run: |
           set -euo pipefail
+          : "${MACOS_CERTIFICATE_P12_BASE64:=${MACOS_CERTIFICATE_P12_BASE64_SECRET:-}}"
+          : "${MACOS_CERTIFICATE_P12_PASSWORD:=${MACOS_CERTIFICATE_P12_PASSWORD_SECRET:-}}"
+
+          if [ -z "${MACOS_CERTIFICATE_P12_BASE64:-}" ] || [ -z "${MACOS_CERTIFICATE_P12_PASSWORD:-}" ]; then
+            echo "No P12 certificate payload provided; skip temporary keychain import."
+            exit 0
+          fi
 
           CERT_PATH="${RUNNER_TEMP}/nolon-signing.p12"
           KEYCHAIN_PATH="${RUNNER_TEMP}/nolon-signing.keychain-db"
@@ -126,15 +170,24 @@ jobs:
       - name: Run release script
         env:
           GH_TOKEN: ${{ github.token }}
-          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
-          SIGNING_IDENTITY: ${{ secrets.SIGNING_IDENTITY }}
-          NOTARY_PROFILE: ${{ secrets.NOTARY_PROFILE }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
-          TEAM_ID: ${{ secrets.TEAM_ID }}
+          SPARKLE_PRIVATE_KEY_SECRET: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+          SPARKLE_KEYCHAIN_ACCOUNT_SECRET: ${{ secrets.SPARKLE_KEYCHAIN_ACCOUNT }}
+          SIGNING_IDENTITY_SECRET: ${{ secrets.SIGNING_IDENTITY }}
+          NOTARY_PROFILE_SECRET: ${{ secrets.NOTARY_PROFILE }}
+          APPLE_ID_SECRET: ${{ secrets.APPLE_ID }}
+          APPLE_APP_PASSWORD_SECRET: ${{ secrets.APPLE_APP_PASSWORD }}
+          TEAM_ID_SECRET: ${{ secrets.TEAM_ID }}
           CI_TAG_MODE: ${{ steps.params.outputs.ci_tag_mode }}
           RELEASE_PUSH_BRANCH: ${{ steps.params.outputs.release_push_branch }}
         run: |
+          : "${SPARKLE_PRIVATE_KEY:=${SPARKLE_PRIVATE_KEY_SECRET:-}}"
+          : "${SPARKLE_KEYCHAIN_ACCOUNT:=${SPARKLE_KEYCHAIN_ACCOUNT_SECRET:-}}"
+          : "${SIGNING_IDENTITY:=${SIGNING_IDENTITY_SECRET:-}}"
+          : "${NOTARY_PROFILE:=${NOTARY_PROFILE_SECRET:-}}"
+          : "${APPLE_ID:=${APPLE_ID_SECRET:-}}"
+          : "${APPLE_APP_PASSWORD:=${APPLE_APP_PASSWORD_SECRET:-}}"
+          : "${TEAM_ID:=${TEAM_ID_SECRET:-}}"
+
           chmod +x scripts/release.sh scripts/build-dmg.sh
           if [ -n "${{ steps.params.outputs.changelog_file }}" ]; then
             ./scripts/release.sh "${{ steps.params.outputs.version }}" "${{ steps.params.outputs.changelog_file }}"

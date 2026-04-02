@@ -93,6 +93,16 @@ public final class ProviderSkillMaintenanceService: @unchecked Sendable {
         let globalRoot = globalSkillsPath.url.path.hasSuffix("/")
             ? globalSkillsPath.url.path
             : "\(globalSkillsPath.url.path)/"
+        let providerRootResolvedPath: String = {
+            if STPath(providerPath.url).isSymbolicLink,
+               let destination = try? STPath(providerPath.url).destinationOfSymbolicLink() {
+                return destination.url.standardizedFileURL.path
+            }
+            return providerPath.url.standardizedFileURL.path
+        }()
+        let globalRootResolvedPath = globalSkillsPath.url.standardizedFileURL.path
+        let providerUsesGlobalRoot = providerRootResolvedPath == globalRootResolvedPath
+
         let states = entries.map { path -> ProviderSkillStateItem in
             let skillID = path.url.lastPathComponent
             let globalCandidate = globalSkillsPath.subpath(skillID).url.path
@@ -100,12 +110,18 @@ public final class ProviderSkillMaintenanceService: @unchecked Sendable {
             if path.isSymbolicLink {
                 let dest = ((try? path.destinationOfSymbolicLink()) ?? path).url.path
                 if STPath(dest).isExists {
+                    if providerUsesGlobalRoot {
+                        return ProviderSkillStateItem(skillID: skillID, path: path.url.path, state: .installed)
+                    }
                     if dest.hasPrefix(globalRoot) {
                         return ProviderSkillStateItem(skillID: skillID, path: path.url.path, state: .installed)
                     }
                     return ProviderSkillStateItem(skillID: skillID, path: path.url.path, state: .orphaned)
                 }
                 return ProviderSkillStateItem(skillID: skillID, path: path.url.path, state: .broken)
+            }
+            if providerUsesGlobalRoot {
+                return ProviderSkillStateItem(skillID: skillID, path: path.url.path, state: .installed)
             }
             if globalExists {
                 return ProviderSkillStateItem(skillID: skillID, path: path.url.path, state: .orphaned)

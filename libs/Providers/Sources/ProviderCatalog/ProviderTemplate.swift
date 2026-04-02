@@ -15,6 +15,28 @@ public enum ProviderTemplate: String, CaseIterable, Sendable, Identifiable {
 
     public var id: String { rawValue }
 
+    /// Stable provider UUID used for built-in original vendor rows in `providers.json`.
+    public var stableProviderUUID: String {
+        switch self {
+        case .codex:
+            return "8A458B6A-C630-4B7F-AF77-9D88B36EA1A1"
+        case .codexXcode:
+            return "34D152D6-E3D2-486F-AE31-9AB8E0A1B402"
+        case .claudeCode:
+            return "2F8F2B72-3E6C-4A95-A71E-0D8C0A26E003"
+        case .opencode:
+            return "AB0CA372-7C3B-4A87-8A3E-D46FE9AE7604"
+        case .copilot:
+            return "0391A4B5-6F2F-4C3E-93FC-A6B9C4B2F705"
+        case .gemini:
+            return "5D1D9CFA-5F42-4A5E-9F15-4D4DCC0BC906"
+        case .antigravity:
+            return "D68D182E-4D57-4A6D-ACB8-2E8E53B9BA07"
+        case .pi:
+            return "E3C2755A-9B4F-4145-AB1C-FB6D4AA6AD08"
+        }
+    }
+
     /// Configuration loaded from JSON.
     public var config: ProviderTemplateConfig? {
         ProviderTemplateLoader.shared.config(for: rawValue)
@@ -160,6 +182,7 @@ public enum ProviderTemplate: String, CaseIterable, Sendable, Identifiable {
         let commandPath = defaultCommandPath?.path
         let effectiveWorkflowPath = commandPath ?? defaultWorkflowPath.path
         return Provider(
+            id: stableProviderUUID,
             kind: .vendor,
             name: displayName,
             defaultSkillsPath: defaultSkillsPath.path,

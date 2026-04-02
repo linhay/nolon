@@ -84,27 +84,25 @@ final class ProviderUsageRootViewModel {
         return [.refresh]
     }
 
-    init(provider: Provider) {
+    convenience init(provider: Provider) {
         let engine = ProviderUsageEngine(provider: provider)
-        let state = ProviderUsageStateStore(provider: provider, engine: engine)
-        self.state = state
-        self.accountsViewModel = ProviderUsageAccountsViewModel(state: state)
-        self.tokenTrendViewModel = ProviderTokenTrendViewModel(state: state)
-        self.importExportViewModel = CodexImportExportViewModel(state: state)
-        self.loginFlowViewModel = ProviderLoginFlowViewModel(state: state)
-        self.gatewayCardsViewModel = CodexGatewayCardsViewModel(state: state)
+        self.init(provider: provider, engine: engine)
     }
 
-    init(
+    convenience init(
         provider: Provider,
         usageMonitor: ProviderUsageMonitorService,
-        codexActivateAction: @escaping ProviderUsageEngine.CodexActivateAction
+        codexActivateAction: @escaping UsageEngineCodexActivateAction
     ) {
         let engine = ProviderUsageEngine(
             provider: provider,
             usageMonitor: usageMonitor,
             codexActivateAction: codexActivateAction
         )
+        self.init(provider: provider, engine: engine)
+    }
+
+    init(provider: Provider, engine: any AnyUsageEngine) {
         let state = ProviderUsageStateStore(provider: provider, engine: engine)
         self.state = state
         self.accountsViewModel = ProviderUsageAccountsViewModel(state: state)

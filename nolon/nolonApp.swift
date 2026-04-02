@@ -114,7 +114,7 @@ final class CodexAuthBackgroundPoller {
     static let shared = CodexAuthBackgroundPoller()
 
     private static let logger = Logger(subsystem: "com.nolon.app", category: "CodexAuthBackgroundPoller")
-    private let authManager = CodexAuthManager()
+    private let authManager = CodexAuthManager.shared
     private var pollTask: Task<Void, Never>?
     private let pollIntervalNanoseconds: UInt64 = 60 * 1_000_000_000
     private let enabledDefaultsKey = "codex.auth.background_poll.enabled"
@@ -172,6 +172,34 @@ final class CodexAuthBackgroundPoller {
                 Self.logger.error(
                     "Codex auth preflight failed in background poll. provider=\(provider.id, privacy: .public) error=\(String(describing: error), privacy: .public)"
                 )
+            }
+        }
+    }
+}
+
+@MainActor
+final class CodexRuntimeHomeCleanupService {
+    static let shared = CodexRuntimeHomeCleanupService()
+
+    private static let logger = Logger(subsystem: "com.nolon.app", category: "CodexRuntimeHomeCleanup")
+    private let authManager = CodexAuthManager.shared
+    private var cleanupTask: Task<Void, Never>?
+
+    private init() {}
+
+    func start() {
+        guard !UITestSupport.isRunningUnitTests else { return }
+        guard cleanupTask == nil else { return }
+        cleanupTask = Task(priority: .utility) { [weak self] in
+            guard let self else { return }
+            defer { self.cleanupTask = nil }
+            do {
+                let report = try await self.authManager.cleanupRuntimeHomesOnAppLaunch()
+                Self.logger.info(
+                    "Runtime home cleanup finished. scanned=\(report.scannedCount, privacy: .public) removed=\(report.removedCount, privacy: .public) active=\(report.preservedActiveCount, privacy: .public) recent=\(report.skippedRecentCount, privacy: .public) failed=\(report.failureCount, privacy: .public)"
+                )
+            } catch {
+                Self.logger.error("Runtime home cleanup failed: \(String(describing: error), privacy: .public)")
             }
         }
     }
@@ -241,6 +269,7 @@ struct nolonApp: App {
                 }
                 .task {
                     if !UITestSupport.isRunningUnitTests {
+                        CodexRuntimeHomeCleanupService.shared.start()
                         CodexAuthBackgroundPoller.shared.start()
                     }
                 }

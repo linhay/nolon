@@ -18,7 +18,7 @@ struct CodexImportSheet: View {
     }
 
     private var canImport: Bool {
-        selectedCount > 0
+        viewModel.canImport
     }
 
     private var isBusy: Bool {
@@ -27,6 +27,13 @@ struct CodexImportSheet: View {
 
     private var hasSearchText: Bool {
         !viewModel.searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var canFetchUsage: Bool {
+        let hasValidCandidates = viewModel.sections
+            .flatMap(\.items)
+            .contains(where: { $0.validation.isValid })
+        return hasValidCandidates && !viewModel.isRunningConnectionTests && !viewModel.isRunningValidation
     }
 
     private var importButtonTitle: String {
@@ -71,30 +78,68 @@ struct CodexImportSheet: View {
     }
 
     private var candidateToolbar: some View {
-        NolonUI.CodexImportToolbarView(
-            data: .init(
-                selectedCountText: String(
-                    format: NSLocalizedString("codex.accounts.selection.count", value: "已选 %d", comment: "Selected Codex account count"),
-                    selectedCount
+        VStack(alignment: .leading, spacing: 12) {
+            importDestinationControls
+
+            NolonUI.CodexImportToolbarView(
+                data: .init(
+                    selectedCountText: String(
+                        format: NSLocalizedString("codex.accounts.selection.count", value: "已选 %d", comment: "Selected Codex account count"),
+                        selectedCount
+                    ),
+                    sourceGroupCountText: String(
+                        format: NSLocalizedString("codex.import.sheet.source_group_count", value: "%d 个来源组", comment: "Codex import source group count"),
+                        viewModel.sections.count
+                    ),
+                    isSelectAllDisabled: viewModel.sections.flatMap(\.items).allSatisfy { !$0.validation.isValid },
+                    isDeselectAllDisabled: viewModel.sections.flatMap(\.items).isEmpty,
+                    isExportZipDisabled: !canImport || viewModel.isRunningValidation,
+                    isRetryAllDisabled: viewModel.sections.flatMap(\.items).filter(\.validation.isValid).isEmpty || viewModel.isRunningConnectionTests || viewModel.isRunningValidation
                 ),
-                sourceGroupCountText: String(
-                    format: NSLocalizedString("codex.import.sheet.source_group_count", value: "%d 个来源组", comment: "Codex import source group count"),
-                    viewModel.sections.count
-                ),
-                isSelectAllDisabled: viewModel.sections.flatMap(\.items).allSatisfy { !$0.validation.isValid },
-                isDeselectAllDisabled: viewModel.sections.flatMap(\.items).isEmpty,
-                isExportZipDisabled: !canImport || viewModel.isRunningValidation,
-                isExportSub2apiDisabled: !canImport || viewModel.isRunningValidation,
-                isRetryAllDisabled: viewModel.sections.flatMap(\.items).filter(\.validation.isValid).isEmpty || viewModel.isRunningConnectionTests || viewModel.isRunningValidation
-            ),
-            searchText: $viewModel.searchText,
-            onSelectAll: { viewModel.selectAll() },
-            onDeselectAll: { viewModel.deselectAll() },
-            onExportZip: { viewModel.exportSelectedAsZIP() },
-            onExportSub2api: { viewModel.exportSelectedAsSub2API() },
-            onPaste: { viewModel.pasteFromClipboard() },
-            onRetryAll: { viewModel.retryAllConnectionTests() }
-        )
+                searchText: $viewModel.searchText,
+                onSelectAll: { viewModel.selectAll() },
+                onDeselectAll: { viewModel.deselectAll() },
+                onExportZip: { viewModel.exportSelectedAsZIP() },
+                onPaste: { viewModel.pasteFromClipboard() },
+                onRetryAll: { viewModel.retryAllConnectionTests() }
+            )
+        }
+    }
+
+    private var importDestinationControls: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Picker("导入目标", selection: $viewModel.importDestinationOption) {
+                Text("账号库").tag(ProviderUsageEngine.CodexImportDestinationOption.managedSnapshots)
+                Text("自定义 SQLite 分组").tag(ProviderUsageEngine.CodexImportDestinationOption.customSQLiteGroup)
+            }
+            .pickerStyle(.segmented)
+
+            Text("账号信息由凭证自动补全，导入面板仅展示只读信息。")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            HStack {
+                Spacer()
+                Button(
+                    NSLocalizedString(
+                        "codex.import.sheet.fetch_usage",
+                        value: "获取用量",
+                        comment: "Fetch usage for all valid import candidates"
+                    )
+                ) {
+                    viewModel.retryAllConnectionTests()
+                }
+                .disabled(!canFetchUsage)
+            }
+
+            if viewModel.importDestinationOption == .customSQLiteGroup {
+                TextField("输入分组名称（必填）", text: $viewModel.customSQLiteGroupName)
+                    .textFieldStyle(.roundedBorder)
+                Text("该分组中的账号将直接写入本地 SQLite，不会创建账号快照文件。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
     }
 
     private var candidateList: some View {
@@ -142,6 +187,7 @@ struct CodexImportSheet: View {
             id: candidate.id,
             title: candidate.validation.suggestedName ?? candidate.sourceFileURL.deletingPathExtension().lastPathComponent,
             email: candidate.validation.email,
+            readonlyDetails: readonlyDetailLines(for: candidate.validation),
             sourceFileName: candidate.sourceFileURL.lastPathComponent,
             isValid: isValid,
             isSelected: candidate.isSelected,
@@ -155,9 +201,21 @@ struct CodexImportSheet: View {
 
         return NolonUI.CodexImportCandidateRowView(
             data: rowData,
-            onSetSelected: { viewModel.setCandidateSelected($0, id: candidate.id) },
-            onRetry: { viewModel.retryConnectionTest(id: candidate.id) },
-            onRemove: { viewModel.removeCandidate(id: candidate.id) }
+            onSetSelected: { selected in
+                Task { @MainActor in
+                    viewModel.setCandidateSelected(selected, id: candidate.id)
+                }
+            },
+            onRetry: {
+                Task { @MainActor in
+                    viewModel.retryConnectionTest(id: candidate.id)
+                }
+            },
+            onRemove: {
+                Task { @MainActor in
+                    viewModel.removeCandidate(id: candidate.id)
+                }
+            }
         )
     }
 
@@ -181,6 +239,44 @@ struct CodexImportSheet: View {
             tone = .error
         }
         return .init(text: label, tone: tone)
+    }
+
+    private func readonlyDetailLines(for validation: CodexAuthManager.CodexImportValidationResult) -> [String] {
+        guard let raw = validation.authJSONString,
+              let data = raw.data(using: .utf8),
+              let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+        else {
+            return []
+        }
+
+        func fetch(_ path: [String]) -> String? {
+            guard !path.isEmpty else { return nil }
+            var current: Any = object
+            for key in path {
+                guard let dict = current as? [String: Any], let value = dict[key] else { return nil }
+                current = value
+            }
+            guard let stringValue = current as? String else { return nil }
+            let trimmed = stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? nil : trimmed
+        }
+
+        let authMode = fetch(["auth_mode"])
+        let accountID = fetch(["tokens", "account_id"]) ?? fetch(["account_id"]) ?? fetch(["chatgpt_account_id"])
+        let plan = fetch(["plan_type"]) ?? fetch(["plan"])
+        let baseURL = fetch(["base_url"])
+        let apiKey = fetch(["OPENAI_API_KEY"])
+
+        var lines: [String] = []
+        if let authMode { lines.append("模式: \(authMode)") }
+        if let accountID { lines.append("Account ID: \(accountID)") }
+        if let plan { lines.append("Plan: \(plan)") }
+        if let baseURL { lines.append("Base URL: \(baseURL)") }
+        if let apiKey {
+            let suffix = String(apiKey.suffix(min(6, apiKey.count)))
+            lines.append("API Key: ****\(suffix)")
+        }
+        return lines
     }
 
 }
