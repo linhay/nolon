@@ -12,6 +12,7 @@ import Combine
 import NolonResourceKit
 import NolonCoreCLIKit
 import NolonUIFoundation
+import GRDB
 @preconcurrency import STFilePath
 import STJSON
 
@@ -23,48 +24,31 @@ final class ProviderUsageEngine {
     private static let codexOfficialAPIBaseURL = "https://api.openai.com/v1"
     private static let codexGatewayDefaultHost = "127.0.0.1"
     private static let codexGatewayDefaultPort = 8080
-    typealias CodexActivateAction = @MainActor @Sendable (CodexAuthAccount, Provider) async throws -> CodexAuthActivationResult
-    typealias CodexDeleteAction = @MainActor @Sendable (UUID) async throws -> Void
-    typealias CodexRefreshAllAction = @MainActor @Sendable ([CodexAuthAccount]) async -> Void
-    typealias CodexPreflightAction = @MainActor @Sendable (Provider, Bool, String) async throws -> CodexAuthAccount?
-    typealias CodexOutcomeFetchAction = @Sendable (CodexAuthAccount, UsageMonitorProviderSettings, URL) async -> ProviderAccountUsageOutcome
-    typealias CodexAutoSwitchAction = @MainActor @Sendable (Provider) async -> CodexAutoSwitchDecision?
-    typealias CodexUsageQueryTestAction = @MainActor @Sendable (CodexHTTPUsageQueryResolvedConfiguration, Bool) async throws -> ProviderFetchResult
-    typealias CodexImportConnectionTestAction = @Sendable (CodexAuthManager.CodexImportValidationResult, UsageMonitorProviderSettings) async -> ProviderAccountUsageOutcome
-    typealias CodexGatewayStartAction = @MainActor @Sendable (String, String, Int) async throws -> Void
-    typealias CodexGatewayStopAction = @MainActor @Sendable (String) async throws -> Void
-    typealias CodexImportOpenPanelAction = @MainActor @Sendable () -> [URL]
-    typealias CodexExportSavePanelAction = @MainActor @Sendable (UTType, String) -> URL?
-    typealias CodexImportExportArchiveAction = @MainActor @Sendable ([CodexAuthManager.CodexImportValidationResult], URL) async throws -> Int
-    typealias CodexImportExportSub2APIAction = @MainActor @Sendable ([CodexAuthManager.CodexImportValidationResult], URL) async throws -> Sub2APIExportResult
-    typealias GeminiTokenTrendFetchAction = @Sendable (UsageProvider, Int?) async throws -> ProviderTokenTrendSnapshot?
-    typealias AsyncVoidAction = @MainActor @Sendable () async -> Void
-
     private let usageMonitor: ProviderUsageMonitorService
     private let codexTokenTrendService = CodexTokenTrendService()
-    private let geminiTokenTrendFetchAction: GeminiTokenTrendFetchAction
+    private let codexModelPreferenceService: CodexModelPreferenceService
     private let settingsStore = UsageMonitorSettingsStore.shared
-    private let codexAutoSwitchSettingsStore: CodexAutoSwitchSettingsStore
     private let codexGatewayCardsStore: CodexGatewayCardsStore
-    private let codexAuthManager = CodexAuthManager()
+    private let codexAuthManager: CodexAuthManager
     let claudeAccountManager = ClaudeAccountManager()
     let geminiAuthStore = GeminiAuthStore.shared
-    private let codexActivateAction: CodexActivateAction
-    private let postActivationLoadAction: AsyncVoidAction?
-    private let codexDeleteAction: CodexDeleteAction?
-    private let postDeleteLoadAction: AsyncVoidAction?
-    private let codexRefreshAllAction: CodexRefreshAllAction?
-    private let codexPreflightAction: CodexPreflightAction?
-    private let codexOutcomeFetchAction: CodexOutcomeFetchAction
-    private let codexAutoSwitchAction: CodexAutoSwitchAction
-    private let codexUsageQueryTestAction: CodexUsageQueryTestAction
-    let codexImportConnectionTestAction: CodexImportConnectionTestAction
-    private let codexGatewayStartAction: CodexGatewayStartAction
-    private let codexGatewayStopAction: CodexGatewayStopAction
-    private let codexImportOpenPanelAction: CodexImportOpenPanelAction
-    private let codexExportSavePanelAction: CodexExportSavePanelAction
-    private let codexImportExportArchiveAction: CodexImportExportArchiveAction
-    private let codexImportExportSub2APIAction: CodexImportExportSub2APIAction
+    private let actions: ActionDependencies
+    private var codexActivateAction: CodexActivateAction { actions.codexActivate }
+    private var postActivationLoadAction: AsyncVoidAction? { actions.postActivationLoad }
+    private var codexDeleteAction: CodexDeleteAction? { actions.codexDelete }
+    private var postDeleteLoadAction: AsyncVoidAction? { actions.postDeleteLoad }
+    private var codexRefreshAllAction: CodexRefreshAllAction? { actions.codexRefreshAll }
+    private var codexPreflightAction: CodexPreflightAction? { actions.codexPreflight }
+    private var codexOutcomeFetchAction: CodexOutcomeFetchAction { actions.codexOutcomeFetch }
+    private var codexUsageQueryTestAction: CodexUsageQueryTestAction { actions.codexUsageQueryTest }
+    private var codexConfiguredAccountValidateAction: CodexConfiguredAccountValidateAction { actions.codexConfiguredAccountValidate }
+    var codexImportConnectionTestAction: CodexImportConnectionTestAction { actions.codexImportConnectionTest }
+    private var codexGatewayStartAction: CodexGatewayStartAction { actions.codexGatewayStart }
+    private var codexGatewayStopAction: CodexGatewayStopAction { actions.codexGatewayStop }
+    private var codexImportOpenPanelAction: CodexImportOpenPanelAction { actions.codexImportOpenPanel }
+    private var codexExportSavePanelAction: CodexExportSavePanelAction { actions.codexExportSavePanel }
+    private var codexImportExportArchiveAction: CodexImportExportArchiveAction { actions.codexImportExportArchive }
+    private var geminiTokenTrendFetchAction: GeminiTokenTrendFetchAction { actions.geminiTokenTrendFetch }
     private let usageSnapshotService = ProviderUsageSnapshotService()
     @ObservationIgnored private var usageWatcher: UsageMonitorFileWatcher? = nil
 
@@ -84,6 +68,7 @@ final class ProviderUsageEngine {
     var codexAccounts: [CodexAuthAccount] = []
     var codexAccountOutcomes: [ProviderAccountUsageOutcome] = []
     var codexAccountSummaries: [UUID: CodexAuthSummary] = [:]
+    var codexAccountCustomGroupNames: [UUID: String] = [:]
     var codexAccountCreditsRefreshedAt: [UUID: Date] = [:]
     var codexRefreshingAccountIds: Set<UUID> = []
     var codexRefreshedAccountIdsInSession: Set<UUID> = []
@@ -105,8 +90,7 @@ final class ProviderUsageEngine {
     var codexCurrentSortDirection: CodexSortDirection = .descending
     var codexHideZeroQuotaAccounts = false
     var codexHideErroredAccounts = false
-    var codexAccountLayoutMode: CodexAccountLayoutMode = .cards
-    var codexAutoSwitchConfig = CodexAutoSwitchConfig()
+    var accountLayoutMode: UsageAccountLayoutMode = .cards
     var collapsedCodexSectionIDs: Set<String> = []
     var isCodexMultiSelectionEnabled = false
     var selectedCodexAccountIDs: Set<UUID> = []
@@ -130,6 +114,8 @@ final class ProviderUsageEngine {
     var codexImportGlobalErrorMessage: String?
     var codexImportSearchText = ""
     var codexImportCandidates: [CodexImportCandidate] = []
+    var codexImportDestinationOption: CodexImportDestinationOption = .managedSnapshots
+    var codexImportCustomGroupName = ""
     var isRunningCLILogin = false
     var cliLoginStatus: String?
     var cliLoginPreferredAccountId: UUID?
@@ -152,6 +138,7 @@ final class ProviderUsageEngine {
     var loginModeForSheet: String?
     var isShowingCodexConfigEditor = false
     var codexConfigEditorDraft: CodexConfigEditorDraft?
+    var codexConfigEditorModelProviderOptions: [String] = []
     var codexConfigEditorErrorMessage: String?
     var isTestingCodexUsageQuery = false
     var codexUsageQueryTestSuccessMessage: String?
@@ -164,10 +151,14 @@ final class ProviderUsageEngine {
 
     var cliLoginTask: Task<Void, Never>?
     var cliLoginSessionId: UUID?
+    @ObservationIgnored private var codexImportConnectionTestsTask: Task<Void, Never>?
     @ObservationIgnored private var copyToastTask: Task<Void, Never>?
     @ObservationIgnored private var codexAuthReloadSignalCancellable: AnyCancellable?
     @ObservationIgnored private var codexReloadTask: Task<Void, Never>?
     @ObservationIgnored private let codexAuthReloadSignal = PassthroughSubject<Void, Never>()
+    @ObservationIgnored private var codexSQLiteObservationDatabaseQueue: DatabaseQueue?
+    @ObservationIgnored private var codexSQLiteObservationCancellable: AnyDatabaseCancellable?
+    @ObservationIgnored private var codexSQLiteObservationLastSnapshot: CodexSQLiteObservationSnapshot?
     private var codexReloadPending = false
     private var codexReloadPendingRefreshUsage = false
     private var codexUsageCacheWriteCount = 0
@@ -182,282 +173,26 @@ final class ProviderUsageEngine {
     private var codexHeaderRefreshSessionID: UUID?
     var isCodexHeaderRefreshing = false
 
-    enum CodexAccountDisplayState: String, Sendable {
-        case pending
-        case healthy
-        case failed
-        case needsReauth
+    private struct CodexSQLiteObservationSnapshot: Equatable {
+        let accountsCount: Int
+        let credentialsCount: Int
+        let metadataCount: Int
+        let activeCount: Int
     }
 
-    enum CodexAccountGroupingOption: String, CaseIterable, Identifiable {
-        case none
-        case typeInfo
-
-        var id: String { rawValue }
-    }
-
-    enum CodexAccountSortOption: Hashable, Identifiable {
-        case remainingCredits
-        case expiryTime
-        case name
-        case quotaWindowRemaining(windowMinutes: Int)
-
-        var id: String {
-            switch self {
-            case .remainingCredits:
-                return "remainingCredits"
-            case .expiryTime:
-                return "expiryTime"
-            case .name:
-                return "name"
-            case let .quotaWindowRemaining(windowMinutes):
-                return "quotaWindowRemaining-\(windowMinutes)"
-            }
-        }
-    }
-
-    enum CodexSortDirection: String, CaseIterable, Identifiable {
-        case descending
-        case ascending
-
-        var id: String { rawValue }
-    }
-
-    enum CodexAccountLayoutMode: String, CaseIterable, Identifiable {
-        case cards
-        case list
-
-        var id: String { rawValue }
-    }
-
-    enum CodexPrimaryHeaderAction: String, CaseIterable, Identifiable {
-        case refreshAll
-        case login
-        case importAuth
-        case editConfig
-        case validateConfig
-
-        var id: String { rawValue }
-    }
-
-    struct CodexAccountDisplaySection: Identifiable {
-        let id: String
-        let title: String?
-        let items: [ProviderAccountUsageOutcome]
-    }
-
-    struct CodexGatewayMemberDisplay: Identifiable, Equatable {
-        let id: UUID
-        let title: String
-        let subtitle: String?
-        let plan: String?
-    }
-
-    struct CodexGatewayCandidateSection: Identifiable, Equatable {
-        let id: String
-        let title: String
-        let items: [CodexAuthAccount]
-    }
-
-    enum CodexConfigEditorMode: Equatable {
-        case newAPIKey
-        case newRelay
-        case edit(accountID: UUID)
-    }
-
-    struct CodexConfigEditorDraft: Equatable {
-        var mode: CodexConfigEditorMode
-        var name: String
-        var apiKey: String
-        var baseURL: String
-        var modelProvider: String
-        var queryParamsText: String
-        var headersText: String
-        var httpUsageEnabled: Bool
-        var httpUsageMethod: CodexHTTPMethod
-        var httpUsageURL: String
-        var httpUsageHeadersText: String
-        var httpUsageBody: String
-        var httpUsageTimeoutSeconds: String
-        var httpUsageOverrideBaseURL: String
-        var httpUsageOverrideAPIKey: String
-        var httpUsageOverrideAccessToken: String
-        var httpUsageOverrideUserID: String
-        var httpUsagePlanPath: String
-        var httpUsageCreditsRemainingPath: String
-        var httpUsageUsedPath: String
-        var httpUsageTotalPath: String
-        var httpUsageCostTodayPath: String
-        var httpUsageCostLast30DaysPath: String
-        var httpUsageErrorMessagePath: String
-
-        var isRelay: Bool {
-            switch mode {
-            case .newRelay, .edit:
-                return !baseURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                    || !modelProvider.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            case .newAPIKey:
-                return false
-            }
-        }
-    }
-
-    struct CodexImportCandidate: Identifiable, Equatable {
-        let id: UUID
-        let sourceFileURL: URL
-        let validation: CodexAuthManager.CodexImportValidationResult
-        var isSelected: Bool
-        var testStatus: CodexImportConnectionTestStatus
-        var testSummary: String?
-        var testDetail: String?
-
-        init(
-            id: UUID = UUID(),
-            sourceFileURL: URL,
-            validation: CodexAuthManager.CodexImportValidationResult,
-            isSelected: Bool,
-            testStatus: CodexImportConnectionTestStatus,
-            testSummary: String?,
-            testDetail: String?
-        ) {
-            self.id = id
-            self.sourceFileURL = sourceFileURL
-            self.validation = validation
-            self.isSelected = isSelected
-            self.testStatus = testStatus
-            self.testSummary = testSummary
-            self.testDetail = testDetail
-        }
-    }
-
-    enum CodexImportConnectionTestStatus: Equatable {
-        case idle
-        case testing
-        case success
-        case failure
-    }
-
-    struct CodexImportCandidateSection: Identifiable, Equatable {
-        let id: String
-        let title: String
-        let items: [CodexImportCandidate]
-
-        var selectableItemCount: Int {
-            items.filter(\.validation.isValid).count
-        }
-
-        var selectedItemCount: Int {
-            items.filter { $0.validation.isValid && $0.isSelected }.count
-        }
+    private struct CodexValidationTarget {
+        let baseURL: URL
+        let headers: [String: String]
+        let queryParams: [String: String]
     }
 
     var usageAggregate: ProviderUsageAggregate {
         usageSnapshotService.aggregate(items: currentSnapshotItems())
     }
 
-    var codexAccountDisplaySections: [CodexAccountDisplaySection] {
-        Self.makeCodexAccountDisplaySections(
-            accounts: uniqueCodexAccountsInDisplayOrder(),
-            outcomes: codexAccountOutcomes,
-            summaries: codexAccountSummaries,
-            grouping: codexAccountGroupingOption,
-            sorting: codexAccountSortOption,
-            sortDirection: codexCurrentSortDirection,
-            hideZeroQuotaAccounts: codexHideZeroQuotaAccounts,
-            hideErroredAccounts: codexHideErroredAccounts
-        )
-    }
-
-    var codexAccountSectionTotalCountByID: [String: Int] {
-        let allSections = Self.makeCodexAccountDisplaySections(
-            accounts: uniqueCodexAccountsInDisplayOrder(),
-            outcomes: codexAccountOutcomes,
-            summaries: codexAccountSummaries,
-            grouping: codexAccountGroupingOption,
-            sorting: codexAccountSortOption,
-            sortDirection: codexCurrentSortDirection,
-            hideZeroQuotaAccounts: false,
-            hideErroredAccounts: false
-        )
-        return Dictionary(uniqueKeysWithValues: allSections.map { ($0.id, $0.items.count) })
-    }
-
-    var hasActiveCodexAccountFilters: Bool {
-        codexHideZeroQuotaAccounts || codexHideErroredAccounts
-    }
-
-    var codexSortMenuOptions: [CodexAccountSortOption] {
-        Self.codexSortMenuOptions(from: codexAccountOutcomes)
-    }
-
-    var activeCodexCardKind: CodexAuthSummary.CardKind? {
-        codexCardKind(accountID: activeCodexAccountId)
-    }
-
-    var codexPrimaryHeaderActions: [CodexPrimaryHeaderAction] {
-        Self.codexPrimaryHeaderActions(for: activeCodexCardKind)
-    }
-
-    var codexSelectedAccountCount: Int {
-        selectedCodexAccountIDs.count
-    }
-
-    var canExportSelectedCodexAccounts: Bool {
-        isCodexMultiSelectionEnabled && !selectedCodexAccountIDs.isEmpty
-    }
-
-    var gatewayCards: [CodexGatewayCard] {
-        gatewayCardsState.cards
-    }
-
-    var canAddSelectedToGatewayCard: Bool {
-        isCodexMultiSelectionEnabled && !selectedCodexAccountIDs.isEmpty && !gatewayCards.isEmpty
-    }
-
-    var hasActiveGatewayCardSelection: Bool {
-        gatewayCardsState.lastUsedCardID != nil
-    }
-
-    var codexSelectedImportCandidateCount: Int {
-        codexImportCandidates.filter { $0.validation.isValid && $0.isSelected }.count
-    }
-
-    var canImportSelectedCodexCandidates: Bool {
-        codexSelectedImportCandidateCount > 0
-    }
-
-    var canExportSelectedCodexImportCandidates: Bool {
-        codexSelectedImportCandidateCount > 0
-    }
-
-    var hasCodexImportCandidates: Bool {
-        !codexImportCandidates.isEmpty
-    }
-
-    var codexImportSearchResultCount: Int {
-        filteredCodexImportCandidates.count
-    }
-
-    var codexImportCandidateSections: [CodexImportCandidateSection] {
-        let grouped = Dictionary(grouping: filteredCodexImportCandidates, by: { $0.validation.sourceGroupID })
-        return grouped.keys.sorted { lhs, rhs in
-            let leftTitle = grouped[lhs]?.first?.validation.sourceGroupLabel ?? lhs
-            let rightTitle = grouped[rhs]?.first?.validation.sourceGroupLabel ?? rhs
-            return leftTitle.localizedCaseInsensitiveCompare(rightTitle) == .orderedAscending
-        }.map { key in
-            let items = (grouped[key] ?? []).sorted {
-                $0.sourceFileURL.lastPathComponent.localizedCaseInsensitiveCompare($1.sourceFileURL.lastPathComponent) == .orderedAscending
-            }
-            return CodexImportCandidateSection(
-                id: key,
-                title: items.first?.validation.sourceGroupLabel ?? key,
-                items: items
-            )
-        }
-    }
-
     init(
         provider: Provider,
+        codexAuthManager: CodexAuthManager = .shared,
         usageMonitor: ProviderUsageMonitorService? = nil,
         codexActivateAction: CodexActivateAction? = nil,
         postActivationLoadAction: AsyncVoidAction? = nil,
@@ -465,76 +200,63 @@ final class ProviderUsageEngine {
         codexRefreshAllAction: CodexRefreshAllAction? = nil,
         codexPreflightAction: CodexPreflightAction? = nil,
         codexOutcomeFetchAction: CodexOutcomeFetchAction? = nil,
-        codexAutoSwitchAction: CodexAutoSwitchAction? = nil,
         codexUsageQueryTestAction: CodexUsageQueryTestAction? = nil,
+        codexConfiguredAccountValidateAction: CodexConfiguredAccountValidateAction? = nil,
         codexImportConnectionTestAction: CodexImportConnectionTestAction? = nil,
         codexGatewayStartAction: CodexGatewayStartAction? = nil,
         codexGatewayStopAction: CodexGatewayStopAction? = nil,
         codexImportOpenPanelAction: CodexImportOpenPanelAction? = nil,
         codexExportSavePanelAction: CodexExportSavePanelAction? = nil,
         codexImportExportArchiveAction: CodexImportExportArchiveAction? = nil,
-        codexImportExportSub2APIAction: CodexImportExportSub2APIAction? = nil,
         geminiTokenTrendFetchAction: GeminiTokenTrendFetchAction? = nil,
         postDeleteLoadAction: AsyncVoidAction? = nil,
         codexRefreshTimeoutGraceSeconds: TimeInterval = 5,
         initialSettingsOverride: UsageMonitorProviderSettings? = nil,
-        codexAutoSwitchSettingsStore: CodexAutoSwitchSettingsStore? = nil,
-        codexGatewayCardsStore: CodexGatewayCardsStore? = nil
+        codexGatewayCardsStore: CodexGatewayCardsStore? = nil,
+        codexModelPreferenceService: CodexModelPreferenceService = CodexModelPreferenceService()
     ) {
         let tokenStore = FileTokenAccountStore(fileURL: ProviderUsagePaths.defaultTokenAccountsFileURL())
-        let resolvedCodexAutoSwitchSettingsStore = codexAutoSwitchSettingsStore ?? .shared
         let resolvedCodexGatewayCardsStore = codexGatewayCardsStore ?? .shared
         self.usageMonitor = usageMonitor ?? ProviderUsageMonitorService(tokenAccountStore: tokenStore)
-        self.codexAutoSwitchSettingsStore = resolvedCodexAutoSwitchSettingsStore
         self.codexGatewayCardsStore = resolvedCodexGatewayCardsStore
+        self.codexAuthManager = codexAuthManager
         self.provider = provider
+        self.codexModelPreferenceService = codexModelPreferenceService
         self.usageProvider = ProviderUsageEngine.mapToUsageProvider(provider)
         self.codexRefreshTimeoutGraceSeconds = codexRefreshTimeoutGraceSeconds
         let initialSettings = initialSettingsOverride ?? settingsStore.settings(for: provider)
         self.settings = initialSettings
         self.codexHideZeroQuotaAccounts = initialSettings.codexHideZeroQuotaAccounts
         self.codexHideErroredAccounts = initialSettings.codexHideErroredAccounts
-        self.codexAccountLayoutMode = initialSettings.codexUseListLayout ? .list : .cards
-        self.codexAutoSwitchConfig = resolvedCodexAutoSwitchSettingsStore.settings(for: provider)
+        self.accountLayoutMode = initialSettings.codexUseListLayout ? .list : .cards
         self.gatewayCardsState = resolvedCodexGatewayCardsStore.load(for: provider)
         if ProviderUsageEngine.mapToUsageProvider(provider) == .codex {
             self.isMultiAccountEnabled = true
         } else {
             self.isMultiAccountEnabled = settingsStore.isMultiAccountEnabled(for: provider)
         }
-        self.codexActivateAction = codexActivateAction ?? { account, provider in
+        let resolvedCodexActivateAction = codexActivateAction ?? { account, provider in
             try await CodexAuthActivationCoordinator.shared.activate(account: account, provider: provider)
         }
-        self.postActivationLoadAction = postActivationLoadAction
-        self.codexDeleteAction = codexDeleteAction
-        self.codexRefreshAllAction = codexRefreshAllAction
-        self.codexPreflightAction = codexPreflightAction
-        self.codexOutcomeFetchAction = codexOutcomeFetchAction ?? { account, settings, authSourceURL in
+        let resolvedCodexOutcomeFetchAction = codexOutcomeFetchAction ?? { account, settings, authSourceURL in
             await Self.fetchCodexOutcomeDetached(for: account, settings: settings, authSourceURL: authSourceURL)
         }
-        self.codexAutoSwitchAction = codexAutoSwitchAction ?? { provider in
-            let config = resolvedCodexAutoSwitchSettingsStore.settings(for: provider)
-            guard config.enabled else { return nil }
-            do {
-                return try await CodexAutoSwitchService(config: config).evaluateAndSwitchIfNeeded(for: provider)
-            } catch {
-                Self.logger.error("Codex auto switch failed: \(String(describing: error), privacy: .public)")
-                return nil
-            }
-        }
-        self.codexUsageQueryTestAction = codexUsageQueryTestAction ?? { resolved, includeCredits in
+        let resolvedCodexUsageQueryTestAction = codexUsageQueryTestAction ?? { resolved, includeCredits in
             try await CodexHTTPUsageQueryExecutor().execute(resolved, includeCredits: includeCredits)
         }
-        self.codexImportConnectionTestAction = codexImportConnectionTestAction ?? { validationResult, settings in
+        let resolvedCodexConfiguredAccountValidateAction = codexConfiguredAccountValidateAction ?? { account in
+            try await Self.validateCodexConfiguredAccountDetached(account: account)
+        }
+        let resolvedCodexImportConnectionTestAction = codexImportConnectionTestAction ?? { validationResult, settings in
             await Self.testCodexImportConnectionDetached(validationResult: validationResult, settings: settings)
         }
-        self.codexGatewayStartAction = codexGatewayStartAction ?? { providerID, host, port in
+        let resolvedCodexGatewayStartAction = codexGatewayStartAction ?? { providerID, host, port in
             _ = try await NolonLiveCodexCLIService().gatewayStart(providerID: providerID, host: host, port: port)
         }
-        self.codexGatewayStopAction = codexGatewayStopAction ?? { providerID in
+        let resolvedCodexGatewayStopAction = codexGatewayStopAction ?? { providerID in
             _ = try await NolonLiveCodexCLIService().gatewayStop(providerID: providerID)
         }
-        self.codexImportOpenPanelAction = codexImportOpenPanelAction ?? {
+        let resolvedCodexImportOpenPanelAction = codexImportOpenPanelAction ?? {
             let panel = NSOpenPanel()
             panel.canChooseFiles = true
             panel.canChooseDirectories = false
@@ -548,7 +270,7 @@ final class ProviderUsageEngine {
             panel.prompt = NSLocalizedString("select", comment: "Select")
             return panel.runModal() == .OK ? panel.urls : []
         }
-        self.codexExportSavePanelAction = codexExportSavePanelAction ?? { contentType, defaultName in
+        let resolvedCodexExportSavePanelAction = codexExportSavePanelAction ?? { contentType, defaultName in
             let panel = NSSavePanel()
             panel.allowedContentTypes = [contentType]
             panel.canCreateDirectories = true
@@ -556,18 +278,33 @@ final class ProviderUsageEngine {
             panel.nameFieldStringValue = defaultName
             return panel.runModal() == .OK ? panel.url : nil
         }
-        self.codexImportExportArchiveAction = codexImportExportArchiveAction ?? { [codexAuthManager] results, destinationURL in
+        let resolvedCodexImportExportArchiveAction = codexImportExportArchiveAction ?? { [codexAuthManager] results, destinationURL in
             try await codexAuthManager.exportValidatedAuthFilesArchive(results: results, destinationURL: destinationURL)
         }
-        self.codexImportExportSub2APIAction = codexImportExportSub2APIAction ?? { [codexAuthManager] results, destinationURL in
-            try await codexAuthManager.exportValidatedAuthFilesAsSub2API(results: results, destinationURL: destinationURL)
-        }
-        self.geminiTokenTrendFetchAction = geminiTokenTrendFetchAction ?? { provider, trailingDays in
+        let resolvedGeminiTokenTrendFetchAction = geminiTokenTrendFetchAction ?? { provider, trailingDays in
             try await GeminiTokenTrendService().fetchActiveSnapshot(provider: provider, trailingDays: trailingDays)
         }
-        self.postDeleteLoadAction = postDeleteLoadAction
+        self.actions = ActionDependencies(
+            codexActivate: resolvedCodexActivateAction,
+            postActivationLoad: postActivationLoadAction,
+            codexDelete: codexDeleteAction,
+            postDeleteLoad: postDeleteLoadAction,
+            codexRefreshAll: codexRefreshAllAction,
+            codexPreflight: codexPreflightAction,
+            codexOutcomeFetch: resolvedCodexOutcomeFetchAction,
+            codexUsageQueryTest: resolvedCodexUsageQueryTestAction,
+            codexConfiguredAccountValidate: resolvedCodexConfiguredAccountValidateAction,
+            codexImportConnectionTest: resolvedCodexImportConnectionTestAction,
+            codexGatewayStart: resolvedCodexGatewayStartAction,
+            codexGatewayStop: resolvedCodexGatewayStopAction,
+            codexImportOpenPanel: resolvedCodexImportOpenPanelAction,
+            codexExportSavePanel: resolvedCodexExportSavePanelAction,
+            codexImportExportArchive: resolvedCodexImportExportArchiveAction,
+            geminiTokenTrendFetch: resolvedGeminiTokenTrendFetchAction
+        )
         self.updateSupportedModes()
         self.configureCodexAuthReloadPipeline()
+        self.configureCodexSQLiteObservationIfNeeded()
         let watcher = UsageMonitorFileWatcher { [weak self] change in
             Task { await self?.handleUsageFileChange(change) }
         }
@@ -577,30 +314,12 @@ final class ProviderUsageEngine {
     deinit {
         copyToastTask?.cancel()
         codexAuthReloadSignalCancellable?.cancel()
+        codexSQLiteObservationCancellable?.cancel()
         codexReloadTask?.cancel()
         codexHeaderRefreshTask?.cancel()
         let watcher = usageWatcher
         Task { @MainActor in
             watcher?.stop()
-        }
-    }
-
-    enum CodexAddSource: String, CaseIterable, Identifiable {
-        case current
-        case file
-        case cliLogin
-
-        var id: String { rawValue }
-
-        var title: String {
-            switch self {
-            case .current:
-                return NSLocalizedString("codex.accounts.add.source.current", value: "Current auth.json", comment: "Current auth.json")
-            case .file:
-                return NSLocalizedString("codex.accounts.add.source.file", value: "Import auth.json file", comment: "Import auth.json file")
-            case .cliLogin:
-                return NSLocalizedString("codex.accounts.add.source.cli", value: "CLI Login", comment: "CLI login")
-            }
         }
     }
 
@@ -639,7 +358,7 @@ final class ProviderUsageEngine {
         settings = newSettings
         codexHideZeroQuotaAccounts = newSettings.codexHideZeroQuotaAccounts
         codexHideErroredAccounts = newSettings.codexHideErroredAccounts
-        codexAccountLayoutMode = newSettings.codexUseListLayout ? .list : .cards
+        accountLayoutMode = newSettings.codexUseListLayout ? .list : .cards
         settingsStore.update(settings: newSettings, for: provider)
     }
 
@@ -657,48 +376,12 @@ final class ProviderUsageEngine {
         updateSettings(updated)
     }
 
-    func setCodexAccountLayoutMode(_ mode: CodexAccountLayoutMode) {
+    func setAccountLayoutMode(_ mode: UsageAccountLayoutMode) {
         let useListLayout = mode == .list
-        guard codexAccountLayoutMode != mode || settings.codexUseListLayout != useListLayout else { return }
+        guard accountLayoutMode != mode || settings.codexUseListLayout != useListLayout else { return }
         var updated = settings
         updated.codexUseListLayout = useListLayout
         updateSettings(updated)
-    }
-
-    func updateCodexAutoSwitchConfig(_ newConfig: CodexAutoSwitchConfig) {
-        guard codexAutoSwitchConfig != newConfig else { return }
-        codexAutoSwitchConfig = newConfig
-        codexAutoSwitchSettingsStore.update(settings: newConfig, for: provider)
-    }
-
-    func setCodexAutoSwitchEnabled(_ enabled: Bool) {
-        guard codexAutoSwitchConfig.enabled != enabled else { return }
-        var updated = codexAutoSwitchConfig
-        updated.enabled = enabled
-        updateCodexAutoSwitchConfig(updated)
-    }
-
-    func setCodexAutoSwitchThresholdPercent(_ thresholdPercent: Int) {
-        let normalized = Double(thresholdPercent)
-        guard codexAutoSwitchConfig.thresholdPercent != normalized else { return }
-        var updated = codexAutoSwitchConfig
-        updated.thresholdPercent = normalized
-        updateCodexAutoSwitchConfig(updated)
-    }
-
-    func setCodexAutoSwitchMinimumCandidateRemainingPercent(_ percent: Int) {
-        let normalized = Double(percent)
-        guard codexAutoSwitchConfig.minimumCandidateRemainingPercent != normalized else { return }
-        var updated = codexAutoSwitchConfig
-        updated.minimumCandidateRemainingPercent = normalized
-        updateCodexAutoSwitchConfig(updated)
-    }
-
-    func setCodexAutoSwitchSkipRelay(_ skipRelay: Bool) {
-        guard codexAutoSwitchConfig.skipRelayAccounts != skipRelay else { return }
-        var updated = codexAutoSwitchConfig
-        updated.skipRelayAccounts = skipRelay
-        updateCodexAutoSwitchConfig(updated)
     }
 
     func loadCodexManagementStatus() async {
@@ -744,6 +427,9 @@ final class ProviderUsageEngine {
 
     func load() async {
         guard let usageProvider else { return }
+        if usageProvider == .codex {
+            configureCodexSQLiteObservationIfNeeded()
+        }
 
         didStartInitialLoad = true
         isLoading = true
@@ -894,11 +580,6 @@ final class ProviderUsageEngine {
             if let account = activeCodexAccountForRefresh(),
                !shouldSkipRefresh(accountID: account.id, summaries: codexAccountSummaries) {
                 await refreshCodexAccountOutcome(account)
-                if let decision = await codexAutoSwitchAction(provider),
-                   decision.reason == .switched
-                {
-                    await reloadCodexFromDisk(refreshUsage: false)
-                }
             }
             return
         }
@@ -1101,6 +782,7 @@ final class ProviderUsageEngine {
             reconcileCodexSelections()
             reconcileGatewayCardsWithCurrentAccounts()
             codexAccountSummaries = loadCodexAccountSummaries(accounts: codexAccounts)
+            codexAccountCustomGroupNames = (try? await codexAuthManager.loadCustomGroupNamesByAccountID()) ?? [:]
             activeCodexAccountId = await codexAuthManager.activeAccountId(for: provider)
             codexAccountOutcomes = await loadCachedCodexAccountOutcomes(accounts: codexAccounts)
             reorderCodexAccountOutcomesForDisplay()
@@ -1156,6 +838,75 @@ final class ProviderUsageEngine {
             }
     }
 
+    private func configureCodexSQLiteObservationIfNeeded() {
+        guard usageProvider == .codex else {
+            codexSQLiteObservationCancellable?.cancel()
+            codexSQLiteObservationCancellable = nil
+            codexSQLiteObservationDatabaseQueue = nil
+            codexSQLiteObservationLastSnapshot = nil
+            return
+        }
+        guard codexSQLiteObservationCancellable == nil else { return }
+
+        let dbURL = codexAuthManager.accountsSQLiteFile().url
+        guard FileManager.default.fileExists(atPath: dbURL.path) else {
+            Self.logger.debug("Skipped GRDB sqlite observation because db does not exist yet. path=\(dbURL.path, privacy: .public)")
+            return
+        }
+
+        do {
+            var configuration = Configuration()
+            configuration.readonly = true
+            let dbQueue = try DatabaseQueue(path: dbURL.path, configuration: configuration)
+            codexSQLiteObservationDatabaseQueue = dbQueue
+
+            let observation = ValueObservation.tracking { db -> CodexSQLiteObservationSnapshot in
+                let accountsCount = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM codex_accounts;") ?? 0
+                let credentialsCount = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM codex_account_credentials;") ?? 0
+                let metadataCount = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM codex_account_metadata;") ?? 0
+                let activeCount = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM codex_active_accounts;") ?? 0
+                return CodexSQLiteObservationSnapshot(
+                    accountsCount: accountsCount,
+                    credentialsCount: credentialsCount,
+                    metadataCount: metadataCount,
+                    activeCount: activeCount
+                )
+            }
+
+            codexSQLiteObservationCancellable = observation.start(
+                in: dbQueue,
+                scheduling: .immediate,
+                onError: { [weak self] error in
+                    Self.logger.error("GRDB sqlite observation failed: \(String(describing: error), privacy: .public)")
+                    Task { @MainActor [weak self] in
+                        self?.codexSQLiteObservationCancellable?.cancel()
+                        self?.codexSQLiteObservationCancellable = nil
+                        self?.codexSQLiteObservationDatabaseQueue = nil
+                        self?.codexSQLiteObservationLastSnapshot = nil
+                    }
+                },
+                onChange: { [weak self] snapshot in
+                    Task { @MainActor [weak self] in
+                        guard let self else { return }
+                        if self.codexSQLiteObservationLastSnapshot == nil {
+                            self.codexSQLiteObservationLastSnapshot = snapshot
+                            return
+                        }
+                        guard self.codexSQLiteObservationLastSnapshot != snapshot else { return }
+                        self.codexSQLiteObservationLastSnapshot = snapshot
+                        Self.logger.debug(
+                            "GRDB sqlite change detected. accounts=\(snapshot.accountsCount, privacy: .public) credentials=\(snapshot.credentialsCount, privacy: .public) metadata=\(snapshot.metadataCount, privacy: .public) active=\(snapshot.activeCount, privacy: .public)"
+                        )
+                        self.enqueueCodexReload(refreshUsage: false, reason: "grdb_sqlite_observation")
+                    }
+                }
+            )
+            Self.logger.info("Started GRDB sqlite observation for codex accounts. db=\(dbURL.path, privacy: .public)")
+        } catch {
+            Self.logger.error("Failed to start GRDB sqlite observation: \(String(describing: error), privacy: .public)")
+        }
+    }
+
     private func normalizedPath(_ path: String) -> String {
         URL(fileURLWithPath: path).standardizedFileURL.path
     }
@@ -1176,6 +927,7 @@ final class ProviderUsageEngine {
         reconcileCodexSelections()
         reconcileGatewayCardsWithCurrentAccounts()
         codexAccountSummaries = loadCodexAccountSummaries(accounts: codexAccounts)
+        codexAccountCustomGroupNames = (try? await codexAuthManager.loadCustomGroupNamesByAccountID()) ?? [:]
         activeCodexAccountId = await codexAuthManager.activeAccountId(for: provider)
         codexAccountOutcomes = await loadCachedCodexAccountOutcomes(accounts: codexAccounts)
         reorderCodexAccountOutcomesForDisplay()
@@ -1183,8 +935,7 @@ final class ProviderUsageEngine {
 
     private func filterGatewayVirtualCodexAccounts(_ accounts: [CodexAuthAccount]) -> [CodexAuthAccount] {
         accounts.filter { account in
-            let authFile = codexAuthManager.accountAuthFile(relativeAuthPath: account.relativeAuthPath)
-            let data = try? authFile.data()
+            let data = codexAuthManager.accountAuthData(for: account)
             return !Self.isGatewayVirtualCodexAccount(
                 relativeAuthPath: account.relativeAuthPath,
                 authData: data
@@ -1395,11 +1146,15 @@ final class ProviderUsageEngine {
     }
 
     func beginImportAuthFiles() {
+        codexImportConnectionTestsTask?.cancel()
+        codexImportConnectionTestsTask = nil
         importedAuthFileURL = nil
         importedAuthFileURLs = []
         codexImportGlobalErrorMessage = nil
         codexImportSearchText = ""
         codexImportCandidates = []
+        codexImportDestinationOption = .managedSnapshots
+        codexImportCustomGroupName = ""
         isTargetingCodexImportDropZone = false
         isRunningCodexImportValidation = false
         isRunningCodexImportConnectionTests = false
@@ -1407,6 +1162,8 @@ final class ProviderUsageEngine {
     }
 
     func dismissCodexImportSheet() {
+        codexImportConnectionTestsTask?.cancel()
+        codexImportConnectionTestsTask = nil
         isShowingCodexImportSheet = false
         isTargetingCodexImportDropZone = false
         isRunningCodexImportValidation = false
@@ -1414,6 +1171,8 @@ final class ProviderUsageEngine {
         codexImportGlobalErrorMessage = nil
         codexImportSearchText = ""
         codexImportCandidates = []
+        codexImportDestinationOption = .managedSnapshots
+        codexImportCustomGroupName = ""
         importedAuthFileURL = nil
         importedAuthFileURLs = []
         pendingImportValidationResults = []
@@ -1491,6 +1250,8 @@ final class ProviderUsageEngine {
         guard usageProvider == .codex else { return }
         guard !urls.isEmpty else { return }
 
+        codexImportConnectionTestsTask?.cancel()
+        codexImportConnectionTestsTask = nil
         importedAuthFileURLs = urls
         codexImportGlobalErrorMessage = nil
         isRunningCodexImportValidation = true
@@ -1498,10 +1259,18 @@ final class ProviderUsageEngine {
         isRunningCodexImportValidation = false
 
         mergeCodexImportCandidates(results: results)
-        await runCodexImportConnectionTests(for: codexImportCandidates.compactMap { candidate in
+        let pendingTestIDs: [UUID] = codexImportCandidates.compactMap { candidate -> UUID? in
             guard candidate.validation.isValid, candidate.testStatus != .success else { return nil }
             return candidate.id
-        })
+        }
+        guard !pendingTestIDs.isEmpty else { return }
+
+        // Show validated list immediately, then fill usage details one by one in the background.
+        codexImportConnectionTestsTask = Task { [weak self] in
+            guard let self else { return }
+            await self.runCodexImportConnectionTests(for: pendingTestIDs)
+            self.codexImportConnectionTestsTask = nil
+        }
     }
 
     func setCodexMultiSelectionEnabled(_ enabled: Bool) {
@@ -1540,7 +1309,7 @@ final class ProviderUsageEngine {
         )
     }
 
-    private func codexSectionAccountIDs(from items: [ProviderAccountUsageOutcome]) -> Set<UUID> {
+    func codexSectionAccountIDs(from items: [ProviderAccountUsageOutcome]) -> Set<UUID> {
         Set(items.compactMap { outcome in
             guard case let .tokenAccount(account) = outcome.account else { return nil }
             return account.id
@@ -1801,42 +1570,19 @@ final class ProviderUsageEngine {
         isShowingGatewayCardPicker = false
     }
 
-    func beginNewCodexAPIKeyAccount() {
-        codexConfigEditorDraft = CodexConfigEditorDraft(
-            mode: .newAPIKey,
-            name: "",
-            apiKey: "",
-            baseURL: Self.codexOfficialAPIBaseURL,
-            modelProvider: "",
-            queryParamsText: "",
-            headersText: "",
-            httpUsageEnabled: false,
-            httpUsageMethod: .get,
-            httpUsageURL: "",
-            httpUsageHeadersText: "",
-            httpUsageBody: "",
-            httpUsageTimeoutSeconds: "15",
-            httpUsageOverrideBaseURL: "",
-            httpUsageOverrideAPIKey: "",
-            httpUsageOverrideAccessToken: "",
-            httpUsageOverrideUserID: "",
-            httpUsagePlanPath: "",
-            httpUsageCreditsRemainingPath: "",
-            httpUsageUsedPath: "",
-            httpUsageTotalPath: "",
-            httpUsageCostTodayPath: "",
-            httpUsageCostLast30DaysPath: "",
-            httpUsageErrorMessagePath: ""
-        )
-        codexConfigEditorErrorMessage = nil
-        codexUsageQueryTestSuccessMessage = nil
-        codexUsageQueryTestErrorMessage = nil
-        isShowingCodexConfigEditor = true
+    private func loadCodexConfigEditorModelProviderOptions(current: String) -> [String] {
+        guard codexModelPreferenceService.supports(provider: provider) else { return [] }
+        var options = codexModelPreferenceService.loadVisibleModelSlugs(for: provider)
+        let normalizedCurrent = current.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !normalizedCurrent.isEmpty && !options.contains(normalizedCurrent) {
+            options.insert(normalizedCurrent, at: 0)
+        }
+        return options
     }
 
-    func beginNewCodexRelayAccount() {
-        codexConfigEditorDraft = CodexConfigEditorDraft(
-            mode: .newRelay,
+    func beginNewCodexAPIKeyAccount() {
+        let draft = CodexConfigEditorDraft(
+            mode: .newAPIKey,
             name: "",
             apiKey: "",
             baseURL: "",
@@ -1861,6 +1607,10 @@ final class ProviderUsageEngine {
             httpUsageCostLast30DaysPath: "",
             httpUsageErrorMessagePath: ""
         )
+        codexConfigEditorDraft = draft
+        codexConfigEditorModelProviderOptions = loadCodexConfigEditorModelProviderOptions(
+            current: draft.modelProvider
+        )
         codexConfigEditorErrorMessage = nil
         codexUsageQueryTestSuccessMessage = nil
         codexUsageQueryTestErrorMessage = nil
@@ -1872,9 +1622,8 @@ final class ProviderUsageEngine {
               let summary = codexAccountSummaries[id]
         else { return }
 
-        let file = codexAuthManager.accountAuthFile(relativeAuthPath: account.relativeAuthPath)
         let rawJSON: JSON? = {
-            guard let data = try? file.data() else { return nil }
+            guard let data = codexAuthManager.accountAuthData(for: account) else { return nil }
             return try? JSON(data: data)
         }()
         let relayObject: [String: String] = Self.stringDictionary(from: rawJSON?["nolon"]["relay"]["query_params"])
@@ -1888,7 +1637,7 @@ final class ProviderUsageEngine {
             return try? JSONDecoder().decode(CodexHTTPUsageQuery.self, from: data)
         }()
 
-        codexConfigEditorDraft = CodexConfigEditorDraft(
+        let draft = CodexConfigEditorDraft(
             mode: .edit(accountID: id),
             name: account.name,
             apiKey: rawJSON?["OPENAI_API_KEY"].string ?? "",
@@ -1914,6 +1663,10 @@ final class ProviderUsageEngine {
             httpUsageCostLast30DaysPath: usageQuery?.mapping?.costLast30DaysUSDPath ?? "",
             httpUsageErrorMessagePath: usageQuery?.mapping?.errorMessagePath ?? ""
         )
+        codexConfigEditorDraft = draft
+        codexConfigEditorModelProviderOptions = loadCodexConfigEditorModelProviderOptions(
+            current: draft.modelProvider
+        )
         codexConfigEditorErrorMessage = nil
         codexUsageQueryTestSuccessMessage = nil
         codexUsageQueryTestErrorMessage = nil
@@ -1926,21 +1679,12 @@ final class ProviderUsageEngine {
         codexUsageQueryTestErrorMessage = nil
         isTestingCodexUsageQuery = false
         codexConfigEditorDraft = nil
+        codexConfigEditorModelProviderOptions = []
         isShowingCodexConfigEditor = false
     }
 
     func saveCodexConfigEditor() async {
         guard let draft = codexConfigEditorDraft else { return }
-
-        let name = Self.trimmed(draft.name)
-        guard !name.isEmpty else {
-            codexConfigEditorErrorMessage = NSLocalizedString(
-                "codex.accounts.config.error.name_required",
-                value: "Name is required.",
-                comment: "Codex config missing name"
-            )
-            return
-        }
 
         let apiKey = Self.trimmed(draft.apiKey)
         guard !apiKey.isEmpty else {
@@ -1953,16 +1697,12 @@ final class ProviderUsageEngine {
         }
 
         let relay: CodexAuthManager.ConfiguredRelay?
-        if draft.isRelay || {
-            if case .newRelay = draft.mode { return true }
-            return false
-        }() {
+        if draft.isRelay {
             let baseURL = Self.trimmed(draft.baseURL)
-            let modelProvider = Self.trimmed(draft.modelProvider)
-            guard !baseURL.isEmpty, !modelProvider.isEmpty else {
+            guard !baseURL.isEmpty else {
                 codexConfigEditorErrorMessage = NSLocalizedString(
                     "codex.accounts.config.error.relay_required",
-                    value: "Relay requires both Base URL and Model Provider.",
+                    value: "Relay requires Base URL.",
                     comment: "Codex relay required fields"
                 )
                 return
@@ -1970,7 +1710,7 @@ final class ProviderUsageEngine {
             do {
                 relay = try .init(
                     baseURL: baseURL,
-                    modelProvider: modelProvider,
+                    modelProvider: Self.trimmed(draft.modelProvider),
                     queryParams: Self.parseKeyValueLines(draft.queryParamsText),
                     headers: Self.parseKeyValueLines(draft.headersText)
                 )
@@ -1991,10 +1731,19 @@ final class ProviderUsageEngine {
         }
 
         do {
+            let preferredName = resolvedConfiguredAccountName(
+                userInputName: draft.name,
+                baseURLText: draft.baseURL,
+                apiKey: apiKey,
+                editingAccountID: {
+                    if case let .edit(accountID) = draft.mode { return accountID }
+                    return nil
+                }()
+            )
             switch draft.mode {
-            case .newAPIKey, .newRelay:
+            case .newAPIKey:
                 _ = try await codexAuthManager.addConfiguredAccount(
-                    name: name,
+                    name: preferredName,
                     apiKey: apiKey,
                     relay: relay,
                     usageQuery: usageQuery
@@ -2003,7 +1752,7 @@ final class ProviderUsageEngine {
                 guard let account = codexAccounts.first(where: { $0.id == accountID }) else { return }
                 try await codexAuthManager.updateConfiguredAccount(
                     account,
-                    name: name,
+                    name: preferredName,
                     apiKey: apiKey,
                     relay: relay,
                     usageQuery: usageQuery
@@ -2014,6 +1763,57 @@ final class ProviderUsageEngine {
         } catch {
             codexConfigEditorErrorMessage = error.localizedDescription
         }
+    }
+
+    private func resolvedConfiguredAccountName(
+        userInputName: String,
+        baseURLText: String,
+        apiKey: String,
+        editingAccountID: UUID?
+    ) -> String {
+        let explicitName = Self.trimmed(userInputName)
+        if !explicitName.isEmpty {
+            return explicitName
+        }
+
+        let baseURLHost = Self.hostFromBaseURLText(baseURLText) ?? "api.openai.com"
+        let existingNames = Set(
+            codexAccounts
+                .filter { account in
+                    if let editingAccountID {
+                        return account.id != editingAccountID
+                    }
+                    return true
+                }
+                .map { Self.trimmed($0.name).lowercased() }
+        )
+
+        if !existingNames.contains(baseURLHost.lowercased()) {
+            return baseURLHost
+        }
+
+        let suffix = Self.apiKeySuffix(apiKey)
+        var candidate = "\(baseURLHost)-\(suffix)"
+        var counter = 2
+        while existingNames.contains(candidate.lowercased()) {
+            candidate = "\(baseURLHost)-\(suffix)-\(counter)"
+            counter += 1
+        }
+        return candidate
+    }
+
+    private static func hostFromBaseURLText(_ baseURLText: String) -> String? {
+        let raw = trimmed(baseURLText)
+        guard !raw.isEmpty else { return nil }
+        guard let host = URL(string: raw)?.host else { return nil }
+        let normalized = trimmed(host).lowercased()
+        return normalized.isEmpty ? nil : normalized
+    }
+
+    private static func apiKeySuffix(_ apiKey: String) -> String {
+        let normalized = trimmed(apiKey)
+        guard normalized.count >= 4 else { return "key" }
+        return String(normalized.suffix(4)).lowercased()
     }
 
     func testCodexUsageQueryDraft() async {
@@ -2052,6 +1852,57 @@ final class ProviderUsageEngine {
         }
     }
 
+    func validateCodexConnectionDraft() async {
+        guard let draft = codexConfigEditorDraft else { return }
+
+        let apiKey = Self.trimmed(draft.apiKey)
+        guard !apiKey.isEmpty else {
+            codexConfigEditorErrorMessage = NSLocalizedString(
+                "codex.accounts.config.error.api_key_required",
+                value: "API Key is required.",
+                comment: "Codex config missing API key"
+            )
+            return
+        }
+
+        do {
+            var authObject: [String: Any] = ["OPENAI_API_KEY": apiKey]
+            if draft.isRelay {
+                let baseURL = Self.trimmed(draft.baseURL)
+                guard !baseURL.isEmpty else {
+                    codexConfigEditorErrorMessage = NSLocalizedString(
+                        "codex.accounts.config.error.relay_required",
+                        value: "Relay requires Base URL.",
+                        comment: "Codex relay required fields"
+                    )
+                    return
+                }
+                var relay: [String: Any] = ["base_url": baseURL]
+                let modelProvider = Self.trimmed(draft.modelProvider)
+                if !modelProvider.isEmpty {
+                    relay["model_provider"] = modelProvider
+                }
+                let queryParams = try Self.parseKeyValueLines(draft.queryParamsText)
+                if !queryParams.isEmpty {
+                    relay["query_params"] = queryParams
+                }
+                let headers = try Self.parseKeyValueLines(draft.headersText)
+                if !headers.isEmpty {
+                    relay["headers"] = headers
+                }
+                authObject["nolon"] = ["relay": relay]
+            }
+
+            let authData = try JSONSerialization.data(withJSONObject: authObject, options: [])
+            let target = try Self.resolveCodexValidationTarget(from: authData)
+            let message = try await Self.executeCodexValidationRequest(target: target)
+            alertTitle = NSLocalizedString("codex.accounts.action.validate", value: "Validate", comment: "Validate configured account")
+            alertMessage = message
+        } catch {
+            codexConfigEditorErrorMessage = Self.errorSummaryText(error: error)
+        }
+    }
+
     func validateImportedAuthFiles(_ urls: [URL]) async {
         await handleCodexImportURLs(urls)
     }
@@ -2085,8 +1936,31 @@ final class ProviderUsageEngine {
             return
         }
 
+        if codexImportDestinationOption == .customSQLiteGroup,
+           !Self.isNotBlank(codexImportCustomGroupName)
+        {
+            codexImportGlobalErrorMessage = NSLocalizedString(
+                "codex.import.sheet.error.custom_group_required",
+                value: "请先填写自定义分组名称。",
+                comment: "Custom SQLite group name required"
+            )
+            return
+        }
+
+        let destination: CodexAuthManager.ImportDestination = {
+            switch codexImportDestinationOption {
+            case .managedSnapshots:
+                return .managedSnapshots
+            case .customSQLiteGroup:
+                return .customSQLiteGroup(name: Self.trimmed(codexImportCustomGroupName))
+            }
+        }()
+
         do {
-            _ = try await codexAuthManager.importValidatedAuthFiles(results: selectedResults)
+            _ = try await codexAuthManager.importValidatedAuthFiles(
+                results: selectedResults,
+                destination: destination
+            )
             dismissCodexImportSheet()
             await load()
         } catch {
@@ -2124,62 +1998,6 @@ final class ProviderUsageEngine {
         } catch {
             alertTitle = NSLocalizedString("codex.import.sheet.title", value: "导入账号", comment: "Codex import sheet title")
             alertMessage = error.localizedDescription
-        }
-    }
-
-    func exportSelectedCodexImportCandidatesAsSub2API() async {
-        guard canExportSelectedCodexImportCandidates else {
-            alertTitle = NSLocalizedString("codex.import.sheet.title", value: "导入账号", comment: "Codex import sheet title")
-            alertMessage = NSLocalizedString(
-                "codex.import.sheet.export.error.none_selected",
-                value: "请先选择至少一个可导出的账号。",
-                comment: "No selected import candidates for export"
-            )
-            return
-        }
-
-        guard let destinationURL = codexExportSavePanelAction(.json, Self.defaultCodexImportExportSub2APIFileName()) else { return }
-        let selectedResults = codexImportCandidates
-            .filter { $0.validation.isValid && $0.isSelected }
-            .map(\.validation)
-
-        do {
-            let result = try await codexImportExportSub2APIAction(selectedResults, destinationURL)
-            alertTitle = NSLocalizedString("codex.import.sheet.title", value: "导入账号", comment: "Codex import sheet title")
-            if result.skippedRelayCount > 0 {
-                alertMessage = String(
-                    format: NSLocalizedString(
-                        "codex.import.sheet.export_sub2api.partial_success",
-                        value: "已导出 %d 个候选账号为 sub2api，跳过 %d 个 relay 账号。",
-                        comment: "Codex import sub2api partial export success"
-                    ),
-                    result.exportedCount,
-                    result.skippedRelayCount
-                )
-            } else {
-                alertMessage = String(
-                    format: NSLocalizedString(
-                        "codex.import.sheet.export_sub2api.success",
-                        value: "已导出 %d 个候选账号为 sub2api。",
-                        comment: "Codex import sub2api export success"
-                    ),
-                    result.exportedCount
-                )
-            }
-        } catch {
-            alertTitle = NSLocalizedString("codex.import.sheet.title", value: "导入账号", comment: "Codex import sheet title")
-            if let nsError = error as NSError?,
-               nsError.domain == "CodexAuthManager.Export",
-               nsError.code == 3
-            {
-                alertMessage = NSLocalizedString(
-                    "codex.accounts.export_sub2api.error.no_supported_accounts",
-                    value: "所选账号中没有可导出的 sub2api 账号。",
-                    comment: "No supported sub2api accounts"
-                )
-            } else {
-                alertMessage = error.localizedDescription
-            }
         }
     }
 
@@ -2223,66 +2041,6 @@ final class ProviderUsageEngine {
         }
     }
 
-    func exportSelectedCodexAccountsAsSub2API() async {
-        guard canExportSelectedCodexAccounts else {
-            alertTitle = NSLocalizedString("codex.accounts.title", value: "Accounts", comment: "Codex accounts title")
-            alertMessage = NSLocalizedString(
-                "codex.accounts.export.error.no_selection",
-                value: "请先选择要导出的账号卡片。",
-                comment: "No selected Codex accounts for export"
-            )
-            return
-        }
-
-        let savePanel = NSSavePanel()
-        savePanel.allowedContentTypes = [.json]
-        savePanel.canCreateDirectories = true
-        savePanel.isExtensionHidden = false
-        savePanel.nameFieldStringValue = Self.defaultCodexExportSub2APIFileName()
-
-        guard savePanel.runModal() == .OK, let destinationURL = savePanel.url else { return }
-
-        do {
-            let result = try await codexAuthManager.exportAccountsAsSub2API(
-                accountIDs: Array(selectedCodexAccountIDs),
-                destinationURL: destinationURL
-            )
-            setCodexMultiSelectionEnabled(false)
-            alertTitle = NSLocalizedString("codex.accounts.title", value: "Accounts", comment: "Codex accounts title")
-            if result.skippedRelayCount > 0 {
-                alertMessage = String(
-                    format: NSLocalizedString(
-                        "codex.accounts.export_sub2api.partial_success",
-                        value: "已导出 %d 个账号为 sub2api，跳过 %d 个 relay 账号。",
-                        comment: "Codex sub2api partial export success"
-                    ),
-                    result.exportedCount,
-                    result.skippedRelayCount
-                )
-            } else {
-                alertMessage = String(
-                    format: NSLocalizedString(
-                        "codex.accounts.export_sub2api.success",
-                        value: "已导出 %d 个账号为 sub2api。",
-                        comment: "Codex sub2api export success"
-                    ),
-                    result.exportedCount
-                )
-            }
-        } catch {
-            alertTitle = NSLocalizedString("codex.accounts.title", value: "Accounts", comment: "Codex accounts title")
-            if let nsError = error as NSError?, nsError.domain == "CodexAuthManager.Export", nsError.code == 3 {
-                alertMessage = NSLocalizedString(
-                    "codex.accounts.export_sub2api.error.no_supported_accounts",
-                    value: "所选账号中没有可导出的 sub2api 账号。",
-                    comment: "No supported sub2api accounts"
-                )
-            } else {
-                alertMessage = error.localizedDescription
-            }
-        }
-    }
-
     func startLoginFlow() {
         if isRunningCLILogin {
             cancelCLILoginIfNeeded()
@@ -2317,8 +2075,10 @@ final class ProviderUsageEngine {
 
     func copyCodexAccountAuthJSON(id: UUID) {
         guard let account = codexAccounts.first(where: { $0.id == id }) else { return }
-        let file = codexAuthManager.accountAuthFile(relativeAuthPath: account.relativeAuthPath)
-        guard let raw = try? file.read(), Self.isNotBlank(raw) else { return }
+        guard let data = codexAuthManager.accountAuthDataWithoutMaterialization(for: account),
+              let raw = String(data: data, encoding: .utf8),
+              Self.isNotBlank(raw)
+        else { return }
         copyText(raw)
     }
 
@@ -2328,13 +2088,13 @@ final class ProviderUsageEngine {
         NSWorkspace.shared.open(file.url)
     }
 
-    private func copyText(_ text: String) {
+    func copyText(_ text: String) {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
         showCopyToast()
     }
 
-    private func showCopyToast() {
+    func showCopyToast() {
         copyToastTask?.cancel()
         copyToastMessage = NSLocalizedString("remote.error.copied", value: "Copied", comment: "Copied tooltip")
         isShowingCopyToast = true
@@ -2445,7 +2205,7 @@ final class ProviderUsageEngine {
         cancelCLILoginIfNeeded()
     }
 
-    private func cleanupCLILoginArtifacts() {
+    func cleanupCLILoginArtifacts() {
         cliLoginHandle?.cancel()
         cliLoginHandle = nil
         geminiLoginHandle?.cancel()
@@ -2466,10 +2226,11 @@ final class ProviderUsageEngine {
         loginModeForSheet = nil
     }
 
-    private func resetCodexMultiAccountState() {
+    func resetCodexMultiAccountState() {
         codexAccounts = []
         codexAccountOutcomes = []
         codexAccountSummaries = [:]
+        codexAccountCustomGroupNames = [:]
         codexAccountCreditsRefreshedAt = [:]
         codexRefreshingAccountIds = []
         codexRefreshedAccountIdsInSession = []
@@ -2504,7 +2265,7 @@ final class ProviderUsageEngine {
         }
     }
 
-    private func runUnifiedLoginFlow(sessionId: UUID) async {
+    func runUnifiedLoginFlow(sessionId: UUID) async {
         defer {
             finalizeCLILoginSessionIfNeeded(sessionId: sessionId)
         }
@@ -2514,8 +2275,8 @@ final class ProviderUsageEngine {
             return
         } catch {
             guard cliLoginSessionId == sessionId else { return }
-            Self.logger.error("App-server login failed without fallback. error=\(String(describing: error), privacy: .public)")
-            handleAppServerLoginFailure(error)
+            Self.logger.error("App-server login failed. Falling back to direct CLI login. error=\(String(describing: error), privacy: .public)")
+            await runCLILoginFlow(sessionId: sessionId, shouldFinalizeSession: false)
         }
     }
 
@@ -2545,7 +2306,7 @@ final class ProviderUsageEngine {
         alertMessage = error.localizedDescription
     }
 
-    private func runAppServerLoginFlow(sessionId: UUID) async throws {
+    func runAppServerLoginFlow(sessionId: UUID) async throws {
         guard cliLoginSessionId == sessionId else { return }
         let loginHome = try prepareCLILoginHomeDirectory()
         cliLoginHomeDir = loginHome
@@ -2582,9 +2343,11 @@ final class ProviderUsageEngine {
         schedulePostLoginReload(preferredBackfillAccount: account)
     }
 
-    private func runCLILoginFlow(sessionId: UUID) async {
+    func runCLILoginFlow(sessionId: UUID, shouldFinalizeSession: Bool = true) async {
         defer {
-            finalizeCLILoginSessionIfNeeded(sessionId: sessionId)
+            if shouldFinalizeSession {
+                finalizeCLILoginSessionIfNeeded(sessionId: sessionId)
+            }
         }
 
         do {
@@ -2686,7 +2449,7 @@ final class ProviderUsageEngine {
         }
     }
 
-    private func schedulePostLoginReload(preferredBackfillAccount account: CodexAuthAccount? = nil) {
+    func schedulePostLoginReload(preferredBackfillAccount account: CodexAuthAccount? = nil) {
         Task { [weak self] in
             guard let self else { return }
             if let account {
@@ -2701,7 +2464,7 @@ final class ProviderUsageEngine {
         }
     }
 
-    private func probeLoginSnapshotUsageAndBackfillEmailIfMissing(account: CodexAuthAccount) async -> ProviderAccountUsageOutcome {
+    func probeLoginSnapshotUsageAndBackfillEmailIfMissing(account: CodexAuthAccount) async -> ProviderAccountUsageOutcome {
         let authURL = codexAuthManager.accountAuthFile(relativeAuthPath: account.relativeAuthPath).url
         let outcome = await codexOutcomeFetchAction(account, settings, authURL)
 
@@ -2757,11 +2520,31 @@ final class ProviderUsageEngine {
     }
 
     func validateActiveCodexConfiguredAccount() {
-        guard let activeCodexAccountId else { return }
-        refreshCodexAccount(id: activeCodexAccountId)
+        guard let activeCodexAccountId,
+              let account = codexAccounts.first(where: { $0.id == activeCodexAccountId }),
+              codexAccountSupportsEditing(accountID: activeCodexAccountId),
+              !codexRefreshingAccountIds.contains(activeCodexAccountId)
+        else {
+            return
+        }
+
+        codexRefreshingAccountIds.insert(activeCodexAccountId)
+        Task { [weak self] in
+            guard let self else { return }
+            defer { self.codexRefreshingAccountIds.remove(activeCodexAccountId) }
+
+            do {
+                let validationMessage = try await self.codexConfiguredAccountValidateAction(account)
+                self.alertTitle = NSLocalizedString("codex.accounts.action.validate", value: "Validate", comment: "Validate configured account")
+                self.alertMessage = validationMessage
+            } catch {
+                self.alertTitle = NSLocalizedString("codex.accounts.action.validate", value: "Validate", comment: "Validate configured account")
+                self.alertMessage = Self.errorSummaryText(error: error)
+            }
+        }
     }
 
-    private func reconcileCodexSelections() {
+    func reconcileCodexSelections() {
         let validIDs = Set(codexAccounts.map(\.id))
         selectedCodexAccountIDs = selectedCodexAccountIDs.intersection(validIDs)
         if selectedCodexAccountIDs.isEmpty, !isCodexMultiSelectionEnabled {
@@ -2772,7 +2555,7 @@ final class ProviderUsageEngine {
         }
     }
 
-    private func orderedUniqueValidAccountIDs(_ accountIDs: [UUID], validAccountIDs: Set<UUID>) -> [UUID] {
+    func orderedUniqueValidAccountIDs(_ accountIDs: [UUID], validAccountIDs: Set<UUID>) -> [UUID] {
         var seen: Set<UUID> = []
         var result: [UUID] = []
         for id in accountIDs {
@@ -2790,14 +2573,14 @@ final class ProviderUsageEngine {
             .filter { selectedCodexAccountIDs.contains($0) }
     }
 
-    private func updateGatewayCardsState(_ state: CodexGatewayCardsState) {
+    func updateGatewayCardsState(_ state: CodexGatewayCardsState) {
         let validAccountIDs = Set(codexAccounts.map(\.id))
         let normalized = codexGatewayCardsStore.normalized(state, validAccountIDs: validAccountIDs)
         gatewayCardsState = normalized
         codexGatewayCardsStore.save(normalized, for: provider, validAccountIDs: validAccountIDs)
     }
 
-    private func reconcileGatewayCardsWithCurrentAccounts() {
+    func reconcileGatewayCardsWithCurrentAccounts() {
         let validAccountIDs = Set(codexAccounts.map(\.id))
         let normalized = codexGatewayCardsStore.normalized(
             gatewayCardsState,
@@ -2857,32 +2640,18 @@ final class ProviderUsageEngine {
         isShowingDeleteConfirm = true
     }
 
-    private static func defaultCodexExportArchiveName(now: Date = Date()) -> String {
+    static func defaultCodexExportArchiveName(now: Date = Date()) -> String {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "yyyyMMdd-HHmmss"
         return "codex-accounts-\(formatter.string(from: now)).zip"
     }
 
-    private static func defaultCodexExportSub2APIFileName(now: Date = Date()) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.dateFormat = "yyyyMMdd-HHmmss"
-        return "codex-sub2api-\(formatter.string(from: now)).json"
-    }
-
-    private static func defaultCodexImportExportArchiveName(now: Date = Date()) -> String {
+    static func defaultCodexImportExportArchiveName(now: Date = Date()) -> String {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "yyyyMMdd-HHmmss"
         return "codex-import-\(formatter.string(from: now)).zip"
-    }
-
-    private static func defaultCodexImportExportSub2APIFileName(now: Date = Date()) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.dateFormat = "yyyyMMdd-HHmmss"
-        return "codex-import-sub2api-\(formatter.string(from: now)).json"
     }
 
     func requestLoginForCodexAccount(id: UUID) {
@@ -2898,7 +2667,7 @@ final class ProviderUsageEngine {
         await performCodexActivation(account)
     }
 
-    private func performCodexActivation(_ account: CodexAuthAccount) async {
+    func performCodexActivation(_ account: CodexAuthAccount) async {
         do {
             clearActiveGatewayCardSelection()
             if let gatewayProviderID = resolvedGatewayProviderIDForCLI() {
@@ -2920,7 +2689,7 @@ final class ProviderUsageEngine {
         }
     }
 
-    private func resolvedGatewayProviderIDForCLI() -> String? {
+    func resolvedGatewayProviderIDForCLI() -> String? {
         guard usageProvider == .codex else { return nil }
         return "codex"
     }
@@ -2955,26 +2724,24 @@ final class ProviderUsageEngine {
             return account.id == activeCodexAccountId
         }
         guard let currentCodexAuthHashHex else { return false }
-        let file = codexAuthManager.accountAuthFile(relativeAuthPath: account.relativeAuthPath)
-        guard let data = try? file.data(),
+        guard let data = codexAuthManager.accountAuthData(for: account),
               let raw = String(data: data, encoding: .utf8)
         else { return false }
         return CodexAuthAccount.hashHex(for: raw) == currentCodexAuthHashHex
     }
 
-    private func loadCodexAccountSummaries(accounts: [CodexAuthAccount]) -> [UUID: CodexAuthSummary] {
+    func loadCodexAccountSummaries(accounts: [CodexAuthAccount]) -> [UUID: CodexAuthSummary] {
         var summaries: [UUID: CodexAuthSummary] = [:]
         summaries.reserveCapacity(accounts.count)
         for account in accounts {
-            let file = codexAuthManager.accountAuthFile(relativeAuthPath: account.relativeAuthPath)
-            if let data = try? file.data() {
+            if let data = codexAuthManager.accountAuthData(for: account) {
                 summaries[account.id] = CodexAuthSummary.fromJSONData(data)
             }
         }
         return summaries
     }
 
-    private func mergeCachedCodexUsageIfNeeded(
+    func mergeCachedCodexUsageIfNeeded(
         outcome: ProviderAccountUsageOutcome,
         accounts: [CodexAuthAccount]
     ) async -> ProviderAccountUsageOutcome {
@@ -2997,7 +2764,7 @@ final class ProviderUsageEngine {
         return ProviderAccountUsageOutcome(provider: outcome.provider, account: outcome.account, outcome: mergedOutcome)
     }
 
-    private func mergeUsageSnapshot(live: UsageSnapshot, cached: UsageSnapshot) -> UsageSnapshot {
+    func mergeUsageSnapshot(live: UsageSnapshot, cached: UsageSnapshot) -> UsageSnapshot {
         let mergedWindows = mergeUsageWindows(live: live, cached: cached)
         return UsageSnapshot(
             identity: live.identity ?? cached.identity,
@@ -3009,7 +2776,7 @@ final class ProviderUsageEngine {
         )
     }
 
-    private func mergeUsageWindows(live: UsageSnapshot, cached: UsageSnapshot) -> [UsageWindow] {
+    func mergeUsageWindows(live: UsageSnapshot, cached: UsageSnapshot) -> [UsageWindow] {
         guard !live.windows.isEmpty || !cached.windows.isEmpty else {
             return []
         }
@@ -3036,7 +2803,7 @@ final class ProviderUsageEngine {
         return ordered
     }
 
-    private func mergeRateWindow(live: RateWindow?, cached: RateWindow?) -> RateWindow? {
+    func mergeRateWindow(live: RateWindow?, cached: RateWindow?) -> RateWindow? {
         switch (live, cached) {
         case (nil, nil):
             return nil
@@ -3056,8 +2823,20 @@ final class ProviderUsageEngine {
 
     func revealCodexAccountInFinder(id: UUID) {
         guard let account = codexAccounts.first(where: { $0.id == id }) else { return }
-        let file = codexAuthManager.accountAuthFile(relativeAuthPath: account.relativeAuthPath)
-        NSWorkspace.shared.activateFileViewerSelecting([file.url])
+        guard let data = codexAuthManager.accountAuthDataWithoutMaterialization(for: account), !data.isEmpty else {
+            return
+        }
+        let tempRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("nolon-codex-auth-reveal", isDirectory: true)
+            .appendingPathComponent(account.id.uuidString.lowercased(), isDirectory: true)
+        do {
+            try FileManager.default.createDirectory(at: tempRoot, withIntermediateDirectories: true, attributes: nil)
+            let authURL = tempRoot.appendingPathComponent("auth.json", isDirectory: false)
+            try data.write(to: authURL, options: .atomic)
+            NSWorkspace.shared.activateFileViewerSelecting([authURL])
+        } catch {
+            Self.logger.error("Failed to materialize temporary auth.json for Finder reveal: \(error.localizedDescription, privacy: .public)")
+        }
     }
 
     func refreshCodexAccount(id: UUID) {
@@ -3072,7 +2851,7 @@ final class ProviderUsageEngine {
         await refreshCodexAccountOutcome(account)
     }
 
-    private func refreshCodexAccountsIfNeeded(activeId: UUID?, summaries: [UUID: CodexAuthSummary]) async {
+    func refreshCodexAccountsIfNeeded(activeId: UUID?, summaries: [UUID: CodexAuthSummary]) async {
         let targets = orderedAccounts(activeId: activeId).filter { account in
             if shouldSkipRefresh(accountID: account.id, summaries: summaries) {
                 return false
@@ -3085,7 +2864,7 @@ final class ProviderUsageEngine {
         await refreshCodexAccountsInParallel(targets)
     }
 
-    private func refreshCodexAccountOutcome(_ account: CodexAuthAccount) async {
+    func refreshCodexAccountOutcome(_ account: CodexAuthAccount) async {
         let accountId = account.id
         guard isMultiAccountEnabled,
               codexAccounts.contains(where: { $0.id == accountId })
@@ -3109,7 +2888,7 @@ final class ProviderUsageEngine {
         await applyRefreshedCodexOutcome(outcome, for: account)
     }
 
-    private func refreshCodexAccountsOnInitialLoad(activeId: UUID?, summaries: [UUID: CodexAuthSummary]) async {
+    func refreshCodexAccountsOnInitialLoad(activeId: UUID?, summaries: [UUID: CodexAuthSummary]) async {
         let targets = orderedAccounts(activeId: activeId).filter { account in
             if shouldSkipRefresh(accountID: account.id, summaries: summaries) {
                 return false
@@ -3119,7 +2898,7 @@ final class ProviderUsageEngine {
         await refreshCodexAccountsInParallel(targets)
     }
 
-    private func refreshCodexAccountsInParallel(_ accounts: [CodexAuthAccount]) async {
+    func refreshCodexAccountsInParallel(_ accounts: [CodexAuthAccount]) async {
         guard !accounts.isEmpty else { return }
         let targets = accounts.filter { account in
             codexAccounts.contains(where: { $0.id == account.id }) && !codexRefreshingAccountIds.contains(account.id)
@@ -3154,7 +2933,7 @@ final class ProviderUsageEngine {
         }
     }
 
-    private func applyRefreshedCodexOutcome(_ outcome: ProviderAccountUsageOutcome, for account: CodexAuthAccount) async {
+    func applyRefreshedCodexOutcome(_ outcome: ProviderAccountUsageOutcome, for account: CodexAuthAccount) async {
         let accountId = account.id
         lastUsageRefreshAt = Date()
 
@@ -3226,7 +3005,7 @@ final class ProviderUsageEngine {
         }
     }
 
-    private func shouldRetainExistingCodexSuccessResult(for accountID: UUID, error: Error) -> Bool {
+    func shouldRetainExistingCodexSuccessResult(for accountID: UUID, error: Error) -> Bool {
         guard error is CodexHTTPUsageQueryError else { return false }
         guard let existing = codexAccountOutcomes.first(where: { outcome in
             guard case let .tokenAccount(account) = outcome.account else { return false }
@@ -3238,7 +3017,7 @@ final class ProviderUsageEngine {
         return true
     }
 
-    private func orderedAccounts(activeId: UUID?) -> [CodexAuthAccount] {
+    func orderedAccounts(activeId: UUID?) -> [CodexAuthAccount] {
         guard !codexAccounts.isEmpty else { return [] }
         let uniqueAccounts = uniqueCodexAccountsInDisplayOrder()
         let resolvedActiveID: UUID? = {
@@ -3262,12 +3041,12 @@ final class ProviderUsageEngine {
         return ordered
     }
 
-    private func shouldSkipRefresh(accountID: UUID, summaries: [UUID: CodexAuthSummary]) -> Bool {
+    func shouldSkipRefresh(accountID: UUID, summaries: [UUID: CodexAuthSummary]) -> Bool {
         guard let summary = summaries[accountID] else { return false }
         return CodexAuthFailureClassifier.shouldSkipRefresh(summary: summary)
     }
 
-    private func persistCurrentCodexOutcomeIfPossible(
+    func persistCurrentCodexOutcomeIfPossible(
         outcome: ProviderAccountUsageOutcome,
         accounts: [CodexAuthAccount]
     ) async {
@@ -3306,7 +3085,7 @@ final class ProviderUsageEngine {
         }
     }
 
-    private func shouldIgnoreAuthChange(path: String, kind: STPathChangeKind) -> Bool {
+    func shouldIgnoreAuthChange(path: String, kind: STPathChangeKind) -> Bool {
         let authFolderPath = codexAuthManager.nolonCodexAuthFolder().url.standardizedFileURL.path
         let isAuthFolderChange = path == authFolderPath || path.hasPrefix(authFolderPath + "/")
         if isAuthFolderChange {
@@ -3327,14 +3106,14 @@ final class ProviderUsageEngine {
         return false
     }
 
-    private func withGatewaySwitchInProgress(_ operation: @MainActor () async -> Void) async {
+    func withGatewaySwitchInProgress(_ operation: @MainActor () async -> Void) async {
         let token = UUID()
         gatewaySwitchInProgressTokens.insert(token)
         defer { gatewaySwitchInProgressTokens.remove(token) }
         await operation()
     }
 
-    private func ensureGatewayVirtualAccountActivatedForCurrentProviderIfNeeded() async {
+    func ensureGatewayVirtualAccountActivatedForCurrentProviderIfNeeded() async {
         guard let gatewayProviderID = resolvedGatewayProviderIDForCLI() else {
             return
         }
@@ -3344,8 +3123,7 @@ final class ProviderUsageEngine {
         } else {
             let accounts = (try? await codexAuthManager.loadAccounts()) ?? []
             virtual = accounts.first(where: { account in
-                let authFile = codexAuthManager.accountAuthFile(relativeAuthPath: account.relativeAuthPath)
-                let data = try? authFile.data()
+                let data = codexAuthManager.accountAuthData(for: account)
                 return Self.isGatewayVirtualCodexAccount(
                     relativeAuthPath: account.relativeAuthPath,
                     authData: data
@@ -3356,7 +3134,7 @@ final class ProviderUsageEngine {
         try? await codexAuthManager.activateAccountAndMarkActive(virtual, for: provider)
     }
 
-    private func fetchCodexOutcomeWithTimeout(
+    func fetchCodexOutcomeWithTimeout(
         account: CodexAuthAccount,
         settings: UsageMonitorProviderSettings,
         authURL: URL
@@ -3379,7 +3157,7 @@ final class ProviderUsageEngine {
         }
     }
 
-    nonisolated private static func codexTimedOutOutcome(
+    nonisolated static func codexTimedOutOutcome(
         for account: CodexAuthAccount,
         timeoutSeconds: TimeInterval
     ) -> ProviderAccountUsageOutcome {
@@ -3443,7 +3221,7 @@ final class ProviderUsageEngine {
         codexAccountOutcomes = uniqueCodexAccountIDsInDisplayOrder().compactMap { byAccountID[$0] }
     }
 
-    private func uniqueCodexAccountIDsInDisplayOrder() -> [UUID] {
+    func uniqueCodexAccountIDsInDisplayOrder() -> [UUID] {
         var seen: Set<UUID> = []
         return codexAccounts.compactMap { account in
             if seen.insert(account.id).inserted {
@@ -3453,7 +3231,7 @@ final class ProviderUsageEngine {
         }
     }
 
-    private func uniqueCodexAccountsInDisplayOrder() -> [CodexAuthAccount] {
+    func uniqueCodexAccountsInDisplayOrder() -> [CodexAuthAccount] {
         var seen: Set<UUID> = []
         return codexAccounts.compactMap { account in
             if seen.insert(account.id).inserted {
@@ -3463,7 +3241,7 @@ final class ProviderUsageEngine {
         }
     }
 
-    private func isAccountInfoMissing(accountId: UUID, summaries: [UUID: CodexAuthSummary]) -> Bool {
+    func isAccountInfoMissing(accountId: UUID, summaries: [UUID: CodexAuthSummary]) -> Bool {
         let summary = summaries[accountId]
         let email = summary?.email?.trimmingCharacters(in: .whitespacesAndNewlines)
         let plan = summary?.plan?.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -3518,7 +3296,7 @@ final class ProviderUsageEngine {
         return codexRefreshedAccountIdsInSession.contains(accountID) ? .healthy : .pending
     }
 
-    nonisolated private static func fetchCodexOutcomeDetached(
+    nonisolated static func fetchCodexOutcomeDetached(
         for account: CodexAuthAccount,
         settings: UsageMonitorProviderSettings,
         authSourceURL: URL
@@ -3567,7 +3345,7 @@ final class ProviderUsageEngine {
         }
     }
 
-    nonisolated private static func testCodexImportConnectionDetached(
+    nonisolated static func testCodexImportConnectionDetached(
         validationResult: CodexAuthManager.CodexImportValidationResult,
         settings: UsageMonitorProviderSettings
     ) async -> ProviderAccountUsageOutcome {
@@ -3652,7 +3430,198 @@ final class ProviderUsageEngine {
         }
     }
 
-    private func readAuthJSONString(fromImportedFileURL url: URL) throws -> String {
+    nonisolated static func validateCodexConfiguredAccountDetached(
+        account: CodexAuthAccount,
+        authManager: CodexAuthManager = .shared,
+        session: URLSession = .shared
+    ) async throws -> String {
+        guard let authData = authManager.accountAuthData(for: account), !authData.isEmpty else {
+            throw NSError(
+                domain: "ProviderUsageEngine.CodexValidate",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "auth.json is missing for the selected account."]
+            )
+        }
+
+        let target = try resolveCodexValidationTarget(from: authData)
+        return try await executeCodexValidationRequest(target: target, session: session)
+    }
+
+    nonisolated static func makeRandomCodexValidationInput() -> String {
+        "nolon-connectivity-\(UUID().uuidString.lowercased())"
+    }
+
+    private nonisolated static func resolveCodexValidationTarget(from authData: Data) throws -> CodexValidationTarget {
+        guard let object = try JSONSerialization.jsonObject(with: authData, options: []) as? [String: Any] else {
+            throw NSError(
+                domain: "ProviderUsageEngine.CodexValidate",
+                code: 4,
+                userInfo: [NSLocalizedDescriptionKey: "auth.json is not a valid JSON object."]
+            )
+        }
+
+        guard let apiKey = authStringValue(object["OPENAI_API_KEY"]) else {
+            throw NSError(
+                domain: "ProviderUsageEngine.CodexValidate",
+                code: 5,
+                userInfo: [NSLocalizedDescriptionKey: "OPENAI_API_KEY is missing in auth.json."]
+            )
+        }
+
+        let relayObject = (object["nolon"] as? [String: Any])?["relay"] as? [String: Any]
+        let relayBaseURLString = authStringValue(relayObject?["base_url"])
+        let relayHeaders = authStringDictionary(relayObject?["headers"])
+        let relayQueryParams = authStringDictionary(relayObject?["query_params"])
+
+        let baseURL: URL
+        if let relayBaseURLString {
+            guard let relayURL = URL(string: relayBaseURLString) else {
+                throw NSError(
+                    domain: "ProviderUsageEngine.CodexValidate",
+                    code: 6,
+                    userInfo: [NSLocalizedDescriptionKey: "Relay base_url is invalid: \(relayBaseURLString)"]
+                )
+            }
+            baseURL = relayURL
+        } else {
+            guard let officialURL = URL(string: codexOfficialAPIBaseURL) else {
+                throw NSError(
+                    domain: "ProviderUsageEngine.CodexValidate",
+                    code: 7,
+                    userInfo: [NSLocalizedDescriptionKey: "Official OpenAI base URL is invalid."]
+                )
+            }
+            baseURL = officialURL
+        }
+
+        var headers = relayHeaders
+        headers["Authorization"] = "Bearer \(apiKey)"
+        return CodexValidationTarget(
+            baseURL: baseURL,
+            headers: headers,
+            queryParams: relayQueryParams
+        )
+    }
+
+    private nonisolated static func codexValidationResponsesURL(baseURL: URL, queryParams: [String: String]) -> URL? {
+        var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false)
+        let segments = (components?.path ?? "")
+            .split(separator: "/", omittingEmptySubsequences: true)
+            .map(String.init)
+
+        let pathSegments: [String]
+        if segments.last?.lowercased() == "v1" {
+            pathSegments = segments + ["responses"]
+        } else {
+            pathSegments = segments + ["v1", "responses"]
+        }
+        components?.path = "/" + pathSegments.joined(separator: "/")
+
+        if !queryParams.isEmpty {
+            var queryItems = components?.queryItems ?? []
+            for key in queryParams.keys {
+                queryItems.removeAll { $0.name == key }
+            }
+            for (key, value) in queryParams.sorted(by: { $0.key < $1.key }) {
+                queryItems.append(URLQueryItem(name: key, value: value))
+            }
+            components?.queryItems = queryItems
+        }
+
+        return components?.url
+    }
+
+    private nonisolated static func executeCodexValidationRequest(
+        target: CodexValidationTarget,
+        session: URLSession = .shared
+    ) async throws -> String {
+        guard let requestURL = codexValidationResponsesURL(baseURL: target.baseURL, queryParams: target.queryParams) else {
+            throw NSError(
+                domain: "ProviderUsageEngine.CodexValidate",
+                code: 2,
+                userInfo: [NSLocalizedDescriptionKey: "Unable to build /v1/responses URL."]
+            )
+        }
+
+        let randomInput = makeRandomCodexValidationInput()
+        let requestBody: [String: Any] = [
+            "model": "gpt-4.1-mini",
+            "input": randomInput,
+            "max_output_tokens": 1
+        ]
+        let bodyData = try JSONSerialization.data(withJSONObject: requestBody, options: [])
+
+        var request = URLRequest(url: requestURL)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 15
+        request.httpBody = bodyData
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        for (header, value) in target.headers {
+            request.setValue(value, forHTTPHeaderField: header)
+        }
+
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw NSError(
+                domain: "ProviderUsageEngine.CodexValidate",
+                code: 3,
+                userInfo: [NSLocalizedDescriptionKey: "Received an invalid HTTP response."]
+            )
+        }
+
+        if (200 ... 299).contains(httpResponse.statusCode) {
+            return "Connected (\(httpResponse.statusCode)). Input: \(randomInput)"
+        }
+
+        let serverMessage = codexValidationServerMessage(from: data) ?? HTTPURLResponse.localizedString(forStatusCode: httpResponse.statusCode)
+        throw NSError(
+            domain: "ProviderUsageEngine.CodexValidate",
+            code: httpResponse.statusCode,
+            userInfo: [NSLocalizedDescriptionKey: "Validation failed (\(httpResponse.statusCode)): \(serverMessage). Input: \(randomInput)"]
+        )
+    }
+
+    private nonisolated static func codexValidationServerMessage(from data: Data) -> String? {
+        guard let object = try? JSONSerialization.jsonObject(with: data, options: []) else { return nil }
+        if let root = object as? [String: Any] {
+            if let errorObject = root["error"] as? [String: Any],
+               let message = authStringValue(errorObject["message"]) {
+                return message
+            }
+            if let message = authStringValue(root["message"]) {
+                return message
+            }
+        }
+        if let text = String(data: data, encoding: .utf8) {
+            let trimmedText = nonisolatedTrimmed(text)
+            return trimmedText.isEmpty ? nil : trimmedText
+        }
+        return nil
+    }
+
+    private nonisolated static func authStringValue(_ value: Any?) -> String? {
+        guard let raw = value as? String else { return nil }
+        let normalized = nonisolatedTrimmed(raw)
+        return normalized.isEmpty ? nil : normalized
+    }
+
+    private nonisolated static func authStringDictionary(_ value: Any?) -> [String: String] {
+        guard let raw = value as? [String: Any] else { return [:] }
+        var result: [String: String] = [:]
+        for (key, value) in raw {
+            if let normalized = authStringValue(value) {
+                result[key] = normalized
+            }
+        }
+        return result
+    }
+
+    private nonisolated static func nonisolatedTrimmed(_ string: String) -> String {
+        string.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    func readAuthJSONString(fromImportedFileURL url: URL) throws -> String {
         let scoped = url.startAccessingSecurityScopedResource()
         defer {
             if scoped { url.stopAccessingSecurityScopedResource() }
@@ -3674,7 +3643,7 @@ final class ProviderUsageEngine {
         return codexHome.url.standardizedFileURL
     }
 
-    private static func canonicalCodexProviderID(for provider: Provider) -> String {
+    static func canonicalCodexProviderID(for provider: Provider) -> String {
         let normalized = provider.templateId?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? ""
         switch normalized {
         case "codex":
@@ -3686,7 +3655,7 @@ final class ProviderUsageEngine {
         }
     }
 
-    private func writeCLILoginConfig(codexHome: STFolder) throws {
+    func writeCLILoginConfig(codexHome: STFolder) throws {
         let configFile = codexHome.file("config.toml")
         let content = "cli_auth_credentials_store = \"file\"\n"
         if configFile.isExists,
@@ -3697,7 +3666,7 @@ final class ProviderUsageEngine {
         try configFile.overlay(with: content)
     }
 
-    private func removeCLILoginAuthFileIfPresent(codexHome: STFolder) throws {
+    func removeCLILoginAuthFileIfPresent(codexHome: STFolder) throws {
         let authFileURL = codexHome.file("auth.json").url
         do {
             try FileManager.default.removeItem(at: authFileURL)
@@ -3707,7 +3676,6 @@ final class ProviderUsageEngine {
             return
         }
     }
-
     static func isNotBlank(_ string: String) -> Bool {
         !string.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
