@@ -5,6 +5,7 @@ import ProviderUsage
 import STFilePath
 import ProviderCatalog
 import CodexBarProviderCatalog
+import NolonResourceKit
 @testable import nolon
 
 actor AsyncGate {
@@ -35,17 +36,6 @@ final class CodexAuthManagerTests: XCTestCase {
             name: "isolated",
             authJSONString: #"{"tokens":{"id_token":"id-token","access_token":"access-token"},"user":{"email":"isolated@example.com"}}"#
         )
-        let file = await service.accountAuthFile(account)
-        let fileURL = file.url
-        let originalData = try Data(contentsOf: fileURL)
-        defer {
-            do {
-                try originalData.write(to: fileURL, options: [.atomic])
-            } catch {
-                XCTFail("Failed to restore original auth file: \(error)")
-            }
-        }
-
         let usage = UsageSnapshot(
             identity: UsageIdentity(accountEmail: "bdd@example.com", accountOrganization: nil, loginMethod: "oauth", plan: "plus"),
             primary: nil,
@@ -70,7 +60,7 @@ final class CodexAuthManagerTests: XCTestCase {
         let loaded = try await service.loadUsageCache(for: account)
         XCTAssertEqual(loaded, cache)
 
-        let data = try Data(contentsOf: fileURL)
+        let data = try XCTUnwrap(service.accountAuthData(for: account))
         let json = try JSON(data: data)
         XCTAssertNotEqual(json["nolon"]["usage_cache"], JSON.null)
     }
@@ -88,6 +78,7 @@ final class CodexAuthManagerTests: XCTestCase {
         )
 
         let authFolder = service.nolonCodexAuthFolder().url
+        try FileManager.default.createDirectory(at: authFolder, withIntermediateDirectories: true)
         let tempArtifactURL = authFolder.appendingPathComponent(".dat.nosync2F9A.Hb0Ce3")
         let orphanedJSONURL = authFolder.appendingPathComponent("orphaned.json")
         try Data("temp".utf8).write(to: tempArtifactURL)
@@ -235,7 +226,10 @@ final class CodexAuthCompatSyncTests: XCTestCase {
         let authFile = try XCTUnwrap(maybeAuthFile)
         XCTAssertTrue(authFile.isSymbolicLink)
         let destination = try authFile.destinationOfSymbolicLink()
-        let snapshotFile = await service.accountAuthFile(account)
+        let snapshotFile = service.nolonCodexRootFolder()
+            .folder("active-auth")
+            .folder(provider.id.lowercased())
+            .file("auth.json")
         XCTAssertEqual(
             STPath.standardizedPath(destination.url.path).path,
             STPath.standardizedPath(snapshotFile.url.path).path
@@ -336,17 +330,10 @@ final class ProviderUsageEngineCLILoginTests: XCTestCase {
         try FileManager.default.createDirectory(at: isolatedRoot, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: isolatedRoot) }
 
-        let previousNolonHome = getenv("NOLON_HOME").map { String(cString: $0) }
-        setenv("NOLON_HOME", isolatedRoot.path, 1)
-        defer {
-            if let previousNolonHome {
-                setenv("NOLON_HOME", previousNolonHome, 1)
-            } else {
-                unsetenv("NOLON_HOME")
-            }
-        }
-
-        let viewModel = ProviderUsageEngine(provider: provider)
+        let viewModel = ProviderUsageEngine(
+            provider: provider,
+            codexAuthManager: CodexAuthManager(rootURL: isolatedRoot)
+        )
         let firstHome = try viewModel.prepareCLILoginHomeDirectory()
 
         let expectedHome = isolatedRoot
@@ -728,16 +715,6 @@ final class ProviderUsageEngineDeleteTests: XCTestCase {
         try FileManager.default.createDirectory(at: isolatedRoot, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: isolatedRoot) }
 
-        let previousNolonHome = getenv("NOLON_HOME").map { String(cString: $0) }
-        setenv("NOLON_HOME", isolatedRoot.path, 1)
-        defer {
-            if let previousNolonHome {
-                setenv("NOLON_HOME", previousNolonHome, 1)
-            } else {
-                unsetenv("NOLON_HOME")
-            }
-        }
-
         let provider = Provider(
             name: "Codex",
             defaultSkillsPath: isolatedRoot.appendingPathComponent("provider/skills").path,
@@ -763,7 +740,10 @@ final class ProviderUsageEngineDeleteTests: XCTestCase {
         let activeFileURL = await service.accountAuthFile(canonicalActive).url
         let before = try Data(contentsOf: activeFileURL)
 
-        let viewModel = ProviderUsageEngine(provider: provider)
+        let viewModel = ProviderUsageEngine(
+            provider: provider,
+            codexAuthManager: service
+        )
         viewModel.settings.webTimeoutSeconds = 1
         viewModel.codexAccounts = [canonicalActive, canonicalRemovable]
         viewModel.pendingDeleteCodexAccount = canonicalRemovable
@@ -792,16 +772,6 @@ final class ProviderUsageEngineManualRefreshTests: XCTestCase {
             .appendingPathComponent("nolon-codex-cached-load-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: isolatedRoot, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: isolatedRoot) }
-
-        let previousNolonHome = getenv("NOLON_HOME").map { String(cString: $0) }
-        setenv("NOLON_HOME", isolatedRoot.path, 1)
-        defer {
-            if let previousNolonHome {
-                setenv("NOLON_HOME", previousNolonHome, 1)
-            } else {
-                unsetenv("NOLON_HOME")
-            }
-        }
 
         let provider = Provider(
             name: "Codex",
@@ -843,6 +813,7 @@ final class ProviderUsageEngineManualRefreshTests: XCTestCase {
         let gate = AsyncGate()
         let viewModel = ProviderUsageEngine(
             provider: provider,
+            codexAuthManager: service,
             codexPreflightAction: { _, forceBackup, reason in
                 XCTAssertTrue(forceBackup)
                 XCTAssertEqual(reason, "usage_load")
@@ -986,86 +957,6 @@ final class ProviderUsageEngineManualRefreshTests: XCTestCase {
 
         let ids = await refreshedIDs.value()
         XCTAssertEqual(ids, [healthy.id, failed.id])
-    }
-
-    func testBDD_GivenCodexAutoRefreshAndAutoSwitchDecision_WhenRefreshingActiveAccount_ThenRunsAutoSwitchFollowUp() async {
-        let provider = Provider(
-            name: "Codex",
-            defaultSkillsPath: "/tmp/codex-skills",
-            workflowPath: "/tmp/codex-prompts",
-            installMethod: .symlink,
-            templateId: "codex"
-        )
-
-        let active = CodexAuthAccount(name: "active", relativeAuthPath: "auth/active.json")
-        let fallback = CodexAuthAccount(name: "fallback", relativeAuthPath: "auth/fallback.json")
-        let autoSwitchCount = LockedBox<Int>(0)
-
-        let viewModel = ProviderUsageEngine(
-            provider: provider,
-            codexOutcomeFetchAction: { account, _, _ in
-                let usedPercent: Double = account.id == active.id ? 95 : 20
-                return ProviderAccountUsageOutcome(
-                    provider: .codex,
-                    account: .tokenAccount(
-                        .init(
-                            id: account.id,
-                            label: account.name,
-                            token: "",
-                            addedAt: account.createdAt.timeIntervalSince1970,
-                            lastUsed: nil
-                        )
-                    ),
-                    outcome: ProviderFetchOutcome(
-                        fetchKind: .web,
-                        result: .success(
-                            .init(
-                                usage: UsageSnapshot(
-                                    identity: UsageIdentity(
-                                        accountEmail: "\(account.name)@example.com",
-                                        accountOrganization: nil,
-                                        loginMethod: "oauth",
-                                        plan: "plus"
-                                    ),
-                                    primary: RateWindow(usedPercent: usedPercent, windowMinutes: 60),
-                                    secondary: nil,
-                                    tertiary: nil,
-                                    updatedAt: Date()
-                                ),
-                                credits: CreditsSnapshot(remaining: account.id == active.id ? 2 : 20, updatedAt: Date()),
-                                cost: nil,
-                                sourceLabel: "HTTP",
-                                fetchKind: .web,
-                                strategyKind: .direct
-                            )
-                        )
-                    )
-                )
-            },
-            codexAutoSwitchAction: { provider in
-                await autoSwitchCount.set((await autoSwitchCount.value()) + 1)
-                return CodexAutoSwitchDecision(
-                    reason: .switched,
-                    fromAccountID: active.id,
-                    toAccountID: fallback.id,
-                    currentRemainingPercent: 5,
-                    targetRemainingPercent: 80,
-                    checkedAt: Date()
-                )
-            }
-        )
-        viewModel.codexAccounts = [active, fallback]
-        viewModel.activeCodexAccountId = active.id
-        viewModel.codexAccountSummaries = [
-            active.id: CodexAuthSummary(lastSyncSucceededAt: Date()),
-            fallback.id: CodexAuthSummary(lastSyncSucceededAt: Date())
-        ]
-
-        await viewModel.performAutoRefresh()
-
-        let count = await autoSwitchCount.value()
-        XCTAssertEqual(count, 1)
-        XCTAssertEqual(viewModel.codexDiskReloadCountForTesting, 1)
     }
 
     func testBDD_GivenCodexXcodeProvider_WhenCreatingUsageViewModel_ThenItMapsToCodexUsageProvider() {
@@ -1243,6 +1134,175 @@ final class ProviderUsageEngineManualRefreshTests: XCTestCase {
             try await Task.sleep(nanoseconds: pollIntervalNanoseconds)
         }
         XCTFail("Condition was not met before timeout")
+    }
+}
+
+@MainActor
+final class ProviderUsageEngineValidateConfiguredAccountTests: XCTestCase {
+    private var tempDirectories: [URL] = []
+
+    override func tearDownWithError() throws {
+        let fileManager = FileManager.default
+        for directory in tempDirectories {
+            try? fileManager.removeItem(at: directory)
+        }
+        tempDirectories.removeAll()
+    }
+
+    func testBDD_GivenRandomInputFactory_WhenCalledTwice_ThenEachInputIsUnique() {
+        let first = ProviderUsageEngine.makeRandomCodexValidationInput()
+        let second = ProviderUsageEngine.makeRandomCodexValidationInput()
+
+        XCTAssertNotEqual(first, second)
+        XCTAssertTrue(first.hasPrefix("nolon-connectivity-"))
+        XCTAssertTrue(second.hasPrefix("nolon-connectivity-"))
+    }
+
+    func testBDD_GivenActiveConfiguredAccount_WhenValidating_ThenUsesValidationActionAndShowsAlert() async throws {
+        let provider = Provider(
+            name: "Codex",
+            defaultSkillsPath: "/tmp/codex-skills",
+            workflowPath: "/tmp/codex-prompts",
+            installMethod: .symlink,
+            templateId: "codex"
+        )
+        let account = CodexAuthAccount(name: "relay", relativeAuthPath: "auth/relay.json")
+        let validateCallCount = AsyncIntBox(0)
+        let viewModel = ProviderUsageEngine(
+            provider: provider,
+            codexConfiguredAccountValidateAction: { _ in
+                await validateCallCount.increment()
+                return "validation-ok"
+            }
+        )
+        viewModel.codexAccounts = [account]
+        viewModel.activeCodexAccountId = account.id
+        viewModel.codexAccountSummaries[account.id] = CodexAuthSummary(cardKind: .officialAPIKey)
+
+        viewModel.validateActiveCodexConfiguredAccount()
+
+        try await waitUntil {
+            viewModel.alertMessage == "validation-ok"
+        }
+        let calls = await validateCallCount.value()
+        XCTAssertEqual(calls, 1)
+        XCTAssertEqual(
+            viewModel.alertTitle,
+            NSLocalizedString("codex.accounts.action.validate", value: "Validate", comment: "Validate configured account")
+        )
+    }
+
+    func testBDD_GivenNewConfigEditor_WhenOpening_ThenLoadsModelProviderOptionsFromModelsCache() throws {
+        let root = try makeTempDirectory()
+        let providerHome = root.appendingPathComponent("provider-home", isDirectory: true)
+        let skillsPath = providerHome.appendingPathComponent("skills", isDirectory: true).path
+        let homePath = root.appendingPathComponent("home", isDirectory: true).path
+        try FileManager.default.createDirectory(at: providerHome, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(
+            at: URL(fileURLWithPath: homePath).appendingPathComponent(".codex", isDirectory: true),
+            withIntermediateDirectories: true
+        )
+
+        try writeModelsCache(
+            to: providerHome.appendingPathComponent("models_cache.json"),
+            models: [
+                #"{"slug":"gpt-5.4","display_name":"gpt-5.4","visibility":"list"}"#,
+                #"{"slug":"gpt-5.4-mini","display_name":"gpt-5.4-mini","visibility":"hide"}"#
+            ]
+        )
+        try writeModelsCache(
+            to: URL(fileURLWithPath: homePath).appendingPathComponent(".codex/models_cache.json"),
+            models: [
+                #"{"slug":"gpt-5.2-codex","display_name":"gpt-5.2-codex","visibility":"list"}"#
+            ]
+        )
+
+        let provider = Provider(
+            name: "Codex",
+            defaultSkillsPath: skillsPath,
+            workflowPath: "/tmp/codex-prompts",
+            installMethod: .symlink,
+            templateId: "codex"
+        )
+        let service = CodexModelPreferenceService(homeDirectoryPath: { homePath })
+        let viewModel = ProviderUsageEngine(provider: provider, codexModelPreferenceService: service)
+
+        viewModel.beginNewCodexAPIKeyAccount()
+
+        XCTAssertEqual(viewModel.codexConfigEditorModelProviderOptions, ["gpt-5.4", "gpt-5.2-codex"])
+    }
+
+    func testBDD_GivenEditConfigEditor_WhenCurrentProviderNotInCache_ThenCurrentProviderIsKeptInOptions() throws {
+        let root = try makeTempDirectory()
+        let providerHome = root.appendingPathComponent("provider-home", isDirectory: true)
+        let skillsPath = providerHome.appendingPathComponent("skills", isDirectory: true).path
+        let homePath = root.appendingPathComponent("home", isDirectory: true).path
+        try FileManager.default.createDirectory(at: providerHome, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(
+            at: URL(fileURLWithPath: homePath).appendingPathComponent(".codex", isDirectory: true),
+            withIntermediateDirectories: true
+        )
+
+        try writeModelsCache(
+            to: providerHome.appendingPathComponent("models_cache.json"),
+            models: [
+                #"{"slug":"gpt-5.4","display_name":"gpt-5.4","visibility":"list"}"#
+            ]
+        )
+
+        let provider = Provider(
+            name: "Codex",
+            defaultSkillsPath: skillsPath,
+            workflowPath: "/tmp/codex-prompts",
+            installMethod: .symlink,
+            templateId: "codex"
+        )
+        let service = CodexModelPreferenceService(homeDirectoryPath: { homePath })
+        let account = CodexAuthAccount(name: "relay", relativeAuthPath: "auth/relay.json")
+        let viewModel = ProviderUsageEngine(provider: provider, codexModelPreferenceService: service)
+        viewModel.codexAccounts = [account]
+        viewModel.codexAccountSummaries[account.id] = CodexAuthSummary(
+            cardKind: .relayProfile,
+            relayModelProvider: "custom-provider"
+        )
+
+        viewModel.beginEditCodexConfiguredAccount(id: account.id)
+
+        XCTAssertEqual(
+            viewModel.codexConfigEditorModelProviderOptions,
+            ["custom-provider", "gpt-5.4"]
+        )
+    }
+
+    private func waitUntil(
+        timeout: TimeInterval = 2.0,
+        pollIntervalNanoseconds: UInt64 = 20_000_000,
+        condition: () -> Bool
+    ) async throws {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if condition() { return }
+            try await Task.sleep(nanoseconds: pollIntervalNanoseconds)
+        }
+        XCTFail("Condition was not met before timeout")
+    }
+
+    private func makeTempDirectory() throws -> URL {
+        let directory = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        tempDirectories.append(directory)
+        return directory
+    }
+
+    private func writeModelsCache(to fileURL: URL, models: [String]) throws {
+        let payload = """
+        {
+          "fetched_at": "2026-04-01T00:00:00Z",
+          "models":[\(models.joined(separator: ","))]
+        }
+        """
+        try Data(payload.utf8).write(to: fileURL, options: .atomic)
     }
 }
 

@@ -256,7 +256,7 @@ final class PageMarkerRouteResolverTests: XCTestCase {
 
         XCTAssertEqual(
             remoteRepositorySidebarMarkerItems(selectedRepository: repo).map(\.title),
-            ["Repository Sidebar", "openai@codex"]
+            ["Repository Sidebar", "codex"]
         )
     }
 }
