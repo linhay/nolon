@@ -16,6 +16,7 @@ struct ProviderDetailGridView: View, DebugPageLocatable {
     var refreshTrigger: Int
     var onSelectProvider: ((Provider.ID) -> Void)?
     var onSelectTab: ((ProviderContentTabType) -> Void)?
+    var onSelectNolon: (() -> Void)?
     
     @State private var viewModel: ProviderDetailGridViewModel
     @AppStorage("provider.codex_xcode.notice.dismissed") private var codexXcodeNoticeDismissed = false
@@ -32,7 +33,8 @@ struct ProviderDetailGridView: View, DebugPageLocatable {
         settings: ProviderSettings,
         refreshTrigger: Int = 0,
         onSelectProvider: ((Provider.ID) -> Void)? = nil,
-        onSelectTab: ((ProviderContentTabType) -> Void)? = nil
+        onSelectTab: ((ProviderContentTabType) -> Void)? = nil,
+        onSelectNolon: (() -> Void)? = nil
     ) {
         self.provider = provider
         self.selectedTab = selectedTab
@@ -40,6 +42,7 @@ struct ProviderDetailGridView: View, DebugPageLocatable {
         self.refreshTrigger = refreshTrigger
         self.onSelectProvider = onSelectProvider
         self.onSelectTab = onSelectTab
+        self.onSelectNolon = onSelectNolon
         self._viewModel = State(initialValue: ProviderDetailGridViewModel(provider: provider, settings: settings))
     }
 
@@ -235,15 +238,11 @@ struct ProviderDetailGridView: View, DebugPageLocatable {
     }
 
     private var shouldShowQuickInstallButton: Bool {
-        guard let selectedTab else { return false }
-        switch selectedTab {
-        case .skills, .workflows, .rules, .agents:
-            return !isCurrentTabLinkedToCodex
-        case .mcp:
-            return true
-        default:
-            return false
-        }
+        Self.shouldShowQuickInstallButton(
+            selectedTab: selectedTab,
+            isCurrentTabLinkedToCodex: isCurrentTabLinkedToCodex,
+            skillsLinkEnabled: viewModel.skillsLinkEnabled
+        )
     }
 
     private var orphanedSkillCount: Int {
@@ -390,49 +389,56 @@ struct ProviderDetailGridView: View, DebugPageLocatable {
         switch selectedTab {
         case .skills:
             if let provider = provider {
-                NolonUI.ProviderTabSectionView(warningMessage: viewModel.skillsErrorMessage) {
-                    NolonUI.ProviderResourceGridSectionView(
-                        isEmpty: viewModel.filteredSkills.isEmpty,
-                        searchText: viewModel.searchText,
-                        kind: .skills,
-                        noResultsDescription: "No matching skills found",
-                        columns: columns
-                    ) {
-                        ForEach(viewModel.groupedFilteredSkills, id: \.path) { group in
-                            Section {
-                                ForEach(group.skills, id: \.uniqueId) { skill in
-                                    NolonUI.SkillCardView(
-                                        name: skill.name,
-                                        description: skill.description,
-                                        version: skill.version,
-                                        isOrphaned: skill.installationState == .orphaned,
-                                        hasWorkflow: viewModel.workflowIds.contains(skill.id),
-                                        referenceCount: skill.referenceCount,
-                                        scriptCount: skill.scriptCount,
-                                        searchText: viewModel.searchText,
-                                        onReveal: { viewModel.revealSkillInFinder(skill) },
-                                        onUninstall: { await viewModel.uninstallSkill(skill) },
-                                        onLinkWorkflow: { viewModel.linkSkillToWorkflow(skill) },
-                                        onUnlinkWorkflow: { viewModel.unlinkSkillFromWorkflow(skill) },
-                                        onMigrate: { await viewModel.migrateSkill(skill) },
-                                        onTap: { viewModel.selectedSkillForDetail = skill }
-                                    ) {
-                                        debugPageMarkerMenuItem(
-                                            [
-                                                PageMarkerItem(title: provider.displayName),
-                                                PageMarkerItem(title: NSLocalizedString("tab.skills", comment: "Skills")),
-                                                PageMarkerItem(title: skill.name)
-                                            ]
-                                        )
+                if Self.shouldShowNolonSkillsLinkedPlaceholder(
+                    skillsLinkEnabled: viewModel.skillsLinkEnabled,
+                    selectedTab: selectedTab
+                ) {
+                    skillsLinkEnabledPlaceholderCard
+                } else {
+                    NolonUI.ProviderTabSectionView(warningMessage: viewModel.skillsErrorMessage) {
+                        NolonUI.ProviderResourceGridSectionView(
+                            isEmpty: viewModel.filteredSkills.isEmpty,
+                            searchText: viewModel.searchText,
+                            kind: .skills,
+                            noResultsDescription: "No matching skills found",
+                            columns: columns
+                        ) {
+                            ForEach(viewModel.groupedFilteredSkills, id: \.path) { group in
+                                Section {
+                                    ForEach(group.skills, id: \.uniqueId) { skill in
+                                        NolonUI.SkillCardView(
+                                            name: skill.name,
+                                            description: skill.description,
+                                            version: skill.version,
+                                            isOrphaned: skill.installationState == .orphaned,
+                                            hasWorkflow: viewModel.workflowIds.contains(skill.id),
+                                            referenceCount: skill.referenceCount,
+                                            scriptCount: skill.scriptCount,
+                                            searchText: viewModel.searchText,
+                                            onReveal: { viewModel.revealSkillInFinder(skill) },
+                                            onUninstall: { await viewModel.uninstallSkill(skill) },
+                                            onLinkWorkflow: { viewModel.linkSkillToWorkflow(skill) },
+                                            onUnlinkWorkflow: { viewModel.unlinkSkillFromWorkflow(skill) },
+                                            onMigrate: { await viewModel.migrateSkill(skill) },
+                                            onTap: { viewModel.selectedSkillForDetail = skill }
+                                        ) {
+                                            debugPageMarkerMenuItem(
+                                                [
+                                                    PageMarkerItem(title: provider.displayName),
+                                                    PageMarkerItem(title: NSLocalizedString("tab.skills", comment: "Skills")),
+                                                    PageMarkerItem(title: skill.name)
+                                                ]
+                                            )
+                                        }
+                                        .id(skill.uniqueId)
+                                        .debugCardLocator(debugPageMarkerItems + [PageMarkerItem(title: skill.name)])
                                     }
-                                    .id(skill.uniqueId)
-                                    .debugCardLocator(debugPageMarkerItems + [PageMarkerItem(title: skill.name)])
+                                } header: {
+                                    NolonUI.ProviderGroupedPathHeaderView(
+                                        title: viewModel.displayPath(for: group.path),
+                                        columnCount: columns.count
+                                    )
                                 }
-                            } header: {
-                                NolonUI.ProviderGroupedPathHeaderView(
-                                    title: viewModel.displayPath(for: group.path),
-                                    columnCount: columns.count
-                                )
                             }
                         }
                     }
@@ -576,6 +582,78 @@ struct ProviderDetailGridView: View, DebugPageLocatable {
         case .none:
             EmptyView()
         }
+    }
+
+    static func shouldShowNolonSkillsLinkedPlaceholder(
+        skillsLinkEnabled: Bool,
+        selectedTab: ProviderContentTabType?
+    ) -> Bool {
+        skillsLinkEnabled && selectedTab == .skills
+    }
+
+    static func shouldShowQuickInstallButton(
+        selectedTab: ProviderContentTabType?,
+        isCurrentTabLinkedToCodex: Bool,
+        skillsLinkEnabled: Bool
+    ) -> Bool {
+        guard let selectedTab else { return false }
+        switch selectedTab {
+        case .skills:
+            return !isCurrentTabLinkedToCodex && !skillsLinkEnabled
+        case .workflows, .rules, .agents:
+            return !isCurrentTabLinkedToCodex
+        case .mcp:
+            return true
+        default:
+            return false
+        }
+    }
+
+    private var skillsLinkEnabledPlaceholderCard: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "link.icloud.fill")
+                .font(.system(size: 46, weight: .medium))
+                .foregroundStyle(.secondary)
+
+            VStack(spacing: 8) {
+                Text(
+                    NSLocalizedString(
+                        "provider.skills_link.placeholder.title",
+                        value: "Skills are linked to Nolon",
+                        comment: "Skills link placeholder title"
+                    )
+                )
+                .font(.headline)
+
+                Text(
+                    NSLocalizedString(
+                        "provider.skills_link.placeholder.description",
+                        value: "This provider now uses ~/.nolon/skills. Manage linked skills from the Nolon page.",
+                        comment: "Skills link placeholder description"
+                    )
+                )
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+            }
+
+            Button {
+                onSelectNolon?()
+            } label: {
+                Label(
+                    NSLocalizedString(
+                        "provider.skills_link.placeholder.action",
+                        value: "Go to Nolon",
+                        comment: "Skills link placeholder action title"
+                    ),
+                    systemImage: "arrow.up.forward.app"
+                )
+            }
+            .buttonStyle(.borderedProminent)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(32)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 
     private var codexXcodeNoticeData: ProviderCodexXcodeNoticeData? {

@@ -833,6 +833,9 @@ public struct MainSplitView: View, DebugPageLocatable {
                         },
                         onSelectTab: { tab in
                             viewModel.selectedTab = tab
+                        },
+                        onSelectNolon: {
+                            viewModel.selectedSidebarItem = .nolon
                         }
                     )
                 }

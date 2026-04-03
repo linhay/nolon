@@ -29,6 +29,53 @@ final class ProviderDetailGridViewIssueNavigationTests: XCTestCase {
         XCTAssertNil(target)
     }
 
+    func testBDD_GivenSkillsTabAndSkillsLinkEnabled_WhenCheckingPlaceholderVisibility_ThenReturnsTrue() {
+        let result = ProviderDetailGridView.shouldShowNolonSkillsLinkedPlaceholder(
+            skillsLinkEnabled: true,
+            selectedTab: .skills
+        )
+        XCTAssertTrue(result)
+    }
+
+    func testBDD_GivenNonSkillsTabOrLinkDisabled_WhenCheckingPlaceholderVisibility_ThenReturnsFalse() {
+        XCTAssertFalse(
+            ProviderDetailGridView.shouldShowNolonSkillsLinkedPlaceholder(
+                skillsLinkEnabled: false,
+                selectedTab: .skills
+            )
+        )
+        XCTAssertFalse(
+            ProviderDetailGridView.shouldShowNolonSkillsLinkedPlaceholder(
+                skillsLinkEnabled: true,
+                selectedTab: .workflows
+            )
+        )
+        XCTAssertFalse(
+            ProviderDetailGridView.shouldShowNolonSkillsLinkedPlaceholder(
+                skillsLinkEnabled: true,
+                selectedTab: nil
+            )
+        )
+    }
+
+    func testBDD_GivenSkillsTabAndSkillsLinkEnabled_WhenCheckingQuickInstallVisibility_ThenReturnsFalse() {
+        let visible = ProviderDetailGridView.shouldShowQuickInstallButton(
+            selectedTab: .skills,
+            isCurrentTabLinkedToCodex: false,
+            skillsLinkEnabled: true
+        )
+        XCTAssertFalse(visible)
+    }
+
+    func testBDD_GivenSkillsTabAndSkillsLinkDisabled_WhenCheckingQuickInstallVisibility_ThenReturnsTrue() {
+        let visible = ProviderDetailGridView.shouldShowQuickInstallButton(
+            selectedTab: .skills,
+            isCurrentTabLinkedToCodex: false,
+            skillsLinkEnabled: false
+        )
+        XCTAssertTrue(visible)
+    }
+
     private func makeSkill(
         id: String,
         name: String,
