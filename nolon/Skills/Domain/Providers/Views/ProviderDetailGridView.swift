@@ -624,25 +624,18 @@ struct ProviderDetailGridView: View, DebugPageLocatable {
     }
 
     private var skillsLinkEnabledPlaceholderCard: some View {
+        let kind = linkedPlaceholderKind
         VStack(spacing: 16) {
-            skillsLinkPlaceholderArtwork
+            linkedPlaceholderArtwork(for: kind)
 
             VStack(spacing: 8) {
                 Text(
-                    NSLocalizedString(
-                        "provider.skills_link.placeholder.title",
-                        value: "Skills are linked to Nolon",
-                        comment: "Skills link placeholder title"
-                    )
+                    linkedPlaceholderTitle(for: kind)
                 )
                 .font(.headline)
 
                 Text(
-                    NSLocalizedString(
-                        "provider.skills_link.placeholder.description",
-                        value: "This provider now uses ~/.nolon/skills. Manage linked skills from the Nolon page.",
-                        comment: "Skills link placeholder description"
-                    )
+                    linkedPlaceholderDescription(for: kind)
                 )
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
@@ -668,15 +661,63 @@ struct ProviderDetailGridView: View, DebugPageLocatable {
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 
-    private var skillsLinkPlaceholderArtwork: some View {
+    private var linkedPlaceholderKind: LinkedPlaceholderKind {
+        selectedTab == .mcp ? .mcp : .skills
+    }
+
+    private func linkedPlaceholderArtwork(for kind: LinkedPlaceholderKind) -> some View {
         HStack(spacing: 14) {
-            placeholderFolderChip(systemImage: "folder", label: "Provider")
+            switch kind {
+            case .skills:
+                placeholderFolderChip(systemImage: "folder", label: "Provider Skills")
+            case .mcp:
+                placeholderFolderChip(systemImage: "server.rack", label: "Provider MCP")
+            }
             Image(systemName: "link")
                 .font(.system(size: 16, weight: .semibold))
                 .foregroundStyle(.secondary)
-            placeholderFolderChip(systemImage: "tray.2.fill", label: "Nolon")
+            switch kind {
+            case .skills:
+                placeholderFolderChip(systemImage: "tray.2.fill", label: "Nolon Skills")
+            case .mcp:
+                placeholderFolderChip(systemImage: "externaldrive.connected.to.line.below", label: "Nolon MCP")
+            }
         }
         .padding(.vertical, 6)
+    }
+
+    private func linkedPlaceholderTitle(for kind: LinkedPlaceholderKind) -> String {
+        switch kind {
+        case .skills:
+            return NSLocalizedString(
+                "provider.skills_link.placeholder.title",
+                value: "Skills are linked to Nolon",
+                comment: "Skills link placeholder title"
+            )
+        case .mcp:
+            return NSLocalizedString(
+                "provider.mcp_link.placeholder.title",
+                value: "MCP is linked to Nolon",
+                comment: "MCP link placeholder title"
+            )
+        }
+    }
+
+    private func linkedPlaceholderDescription(for kind: LinkedPlaceholderKind) -> String {
+        switch kind {
+        case .skills:
+            return NSLocalizedString(
+                "provider.skills_link.placeholder.description",
+                value: "This provider now uses ~/.nolon/skills. Manage linked skills from the Nolon page.",
+                comment: "Skills link placeholder description"
+            )
+        case .mcp:
+            return NSLocalizedString(
+                "provider.mcp_link.placeholder.description",
+                value: "This provider now uses ~/.nolon/mcps. Manage linked MCP entries from the Nolon page.",
+                comment: "MCP link placeholder description"
+            )
+        }
     }
 
     private func placeholderFolderChip(systemImage: String, label: String) -> some View {
@@ -693,6 +734,11 @@ struct ProviderDetailGridView: View, DebugPageLocatable {
             RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .fill(.quaternary.opacity(0.4))
         )
+    }
+
+    private enum LinkedPlaceholderKind {
+        case skills
+        case mcp
     }
 
     private var codexXcodeNoticeData: ProviderCodexXcodeNoticeData? {
