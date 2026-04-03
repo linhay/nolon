@@ -37,12 +37,12 @@ final class ProviderDetailGridViewIssueNavigationTests: XCTestCase {
         XCTAssertTrue(result)
     }
 
-    func testBDD_GivenMcpTabAndSkillsLinkEnabled_WhenCheckingPlaceholderVisibility_ThenReturnsTrue() {
+    func testBDD_GivenMcpTabAndSkillsLinkEnabled_WhenCheckingPlaceholderVisibility_ThenReturnsFalse() {
         let result = ProviderDetailGridView.shouldShowNolonSkillsLinkedPlaceholder(
             skillsLinkEnabled: true,
             selectedTab: .mcp
         )
-        XCTAssertTrue(result)
+        XCTAssertFalse(result)
     }
 
     func testBDD_GivenNonSkillsTabOrLinkDisabled_WhenCheckingPlaceholderVisibility_ThenReturnsFalse() {
@@ -75,13 +75,13 @@ final class ProviderDetailGridViewIssueNavigationTests: XCTestCase {
         XCTAssertFalse(visible)
     }
 
-    func testBDD_GivenMcpTabAndSkillsLinkEnabled_WhenCheckingQuickInstallVisibility_ThenReturnsFalse() {
+    func testBDD_GivenMcpTabAndSkillsLinkEnabled_WhenCheckingQuickInstallVisibility_ThenReturnsTrue() {
         let visible = ProviderDetailGridView.shouldShowQuickInstallButton(
             selectedTab: .mcp,
             isCurrentTabLinkedToCodex: false,
             skillsLinkEnabled: true
         )
-        XCTAssertFalse(visible)
+        XCTAssertTrue(visible)
     }
 
     func testBDD_GivenSkillsTabAndSkillsLinkDisabled_WhenCheckingQuickInstallVisibility_ThenReturnsTrue() {
