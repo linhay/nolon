@@ -33,7 +33,8 @@ public struct MCPCacheMigrationResult: Sendable, Equatable {
 
 public enum MCPConfigManager {
     public static func listServers(for template: ProviderTemplate) throws -> [MCPServerInfo] {
-        let servers = try readServersDict(for: template)
+        guard template.supportsNativeMcpConfig else { return [] }
+        let servers = try synchronizedServers(for: template)
         return servers.keys.sorted().map { name in
             let fields = MCPJsonFile.serverFields(from: servers[name] ?? [:])
             return MCPServerInfo(
@@ -48,35 +49,10 @@ public enum MCPConfigManager {
     }
 
     public static func setEnabled(for template: ProviderTemplate, name: String, enabled: Bool) throws {
+        guard template.supportsNativeMcpConfig else { return }
         let serverName = try validateComponent(name, field: "name")
-        let path = template.defaultMcpConfigPath
-        let ext = path.pathExtension.lowercased()
-        if ext == "toml" {
-            let data = try Data(contentsOf: path)
-            var config = try TOMLDecoder().decode(CodexMCPConfig.self, from: data)
-            if config.mcpServers == nil { config.mcpServers = [:] }
-            var server = config.mcpServers?[serverName] ?? .init(url: nil, command: nil, args: nil, env: nil, enabled: nil)
-            server.enabled = enabled
-            config.mcpServers?[serverName] = server
-            let output = try TOMLEncoder().encode(config)
-            try output.write(to: path, options: .atomic)
-            return
-        }
-
-        if template.rawValue == "opencode" {
-            var root = try readJSONObject(fileURL: path)
-            var mcp = root["mcp"] as? [String: Any] ?? [:]
-            var raw = mcp[serverName] as? [String: Any] ?? [:]
-            raw["enabled"] = enabled
-            mcp[serverName] = raw
-            root["mcp"] = mcp
-            try writeJSONObject(root, to: path)
-            return
-        }
-
-        var root = try readJSONObject(fileURL: path)
-        var servers = (root["mcpServers"] as? [String: Any]) ?? (root["mcp_servers"] as? [String: Any]) ?? [:]
-        var server = servers[serverName] as? [String: Any] ?? [:]
+        var projected = try synchronizedServers(for: template)
+        var server = projected[serverName] ?? [:]
         if enabled {
             server["disabled"] = nil
             server["enabled"] = true
@@ -84,10 +60,9 @@ public enum MCPConfigManager {
             server["enabled"] = nil
             server["disabled"] = true
         }
-        servers[serverName] = server
-        root["mcpServers"] = servers
-        root["mcp_servers"] = nil
-        try writeJSONObject(root, to: path)
+        projected[serverName] = server
+        try writeCacheServer(name: serverName, server: server, provider: template.rawValue, mergeProviders: true)
+        try writeServersDict(for: template, servers: projected)
     }
 
     public static func upsertServer(
@@ -95,130 +70,66 @@ public enum MCPConfigManager {
         name: String,
         serverConfig: [String: Any]
     ) throws {
+        guard template.supportsNativeMcpConfig else { return }
         let serverName = try validateComponent(name, field: "name")
-        let fields = MCPJsonFile.serverFields(from: serverConfig)
-        let path = template.defaultMcpConfigPath
-        let ext = path.pathExtension.lowercased()
-        let configDir = STFolder(path.deletingLastPathComponent())
-        _ = configDir.createIfNotExists()
-
-        if ext == "toml" {
-            var config: CodexMCPConfig
-            if STFile(path).isExists,
-               let data = try? Data(contentsOf: path),
-               let parsed = try? TOMLDecoder().decode(CodexMCPConfig.self, from: data) {
-                config = parsed
-            } else {
-                config = .init(model: nil, modelReasoningEffort: nil, projects: nil, notice: nil, mcpServers: [:])
-            }
-            var servers = config.mcpServers ?? [:]
-            servers[serverName] = .init(
-                url: fields.url,
-                command: fields.command,
-                args: fields.args,
-                env: fields.env,
-                enabled: fields.isEnabled
-            )
-            config.mcpServers = servers
-            let output = try TOMLEncoder().encode(config)
-            try output.write(to: path, options: .atomic)
-            return
-        }
-
-        if template.rawValue == "opencode" {
-            var root = try readJSONObject(fileURL: path)
-            var mcp = root["mcp"] as? [String: Any] ?? [:]
-            mcp[serverName] = encodeOpenCodeServer(from: serverConfig)
-            root["mcp"] = mcp
-            try writeJSONObject(root, to: path)
-            return
-        }
-
-        var root = try readJSONObject(fileURL: path)
-        var servers = (root["mcpServers"] as? [String: Any]) ?? (root["mcp_servers"] as? [String: Any]) ?? [:]
-        servers[serverName] = normalizeServerConfigForStorage(serverConfig)
-        root["mcpServers"] = servers
-        root["mcp_servers"] = nil
-        try writeJSONObject(root, to: path)
+        var projected = try synchronizedServers(for: template)
+        let base = projected[serverName] ?? [:]
+        let merged = normalizeServerConfigForStorage(base.merging(serverConfig, uniquingKeysWith: { _, new in new }))
+        projected[serverName] = merged
+        try writeCacheServer(name: serverName, server: merged, provider: template.rawValue, mergeProviders: true)
+        try writeServersDict(for: template, servers: projected)
     }
 
     public static func removeServer(for template: ProviderTemplate, name: String) throws {
+        guard template.supportsNativeMcpConfig else { return }
         let serverName = try validateComponent(name, field: "name")
-        let path = template.defaultMcpConfigPath
-        guard STFile(path).isExists else { return }
-
-        let ext = path.pathExtension.lowercased()
-        if ext == "toml" {
-            let data = try Data(contentsOf: path)
-            var config = try TOMLDecoder().decode(CodexMCPConfig.self, from: data)
-            var servers = config.mcpServers ?? [:]
-            servers[serverName] = nil
-            config.mcpServers = servers
-            let output = try TOMLEncoder().encode(config)
-            try output.write(to: path, options: .atomic)
-            return
-        }
-
-        if template.rawValue == "opencode" {
-            var root = try readJSONObject(fileURL: path)
-            var mcp = root["mcp"] as? [String: Any] ?? [:]
-            mcp[serverName] = nil
-            root["mcp"] = mcp
-            try writeJSONObject(root, to: path)
-            return
-        }
-
-        var root = try readJSONObject(fileURL: path)
-        var servers = (root["mcpServers"] as? [String: Any]) ?? (root["mcp_servers"] as? [String: Any]) ?? [:]
-        servers[serverName] = nil
-        root["mcpServers"] = servers
-        root["mcp_servers"] = nil
-        try writeJSONObject(root, to: path)
+        var projected = try synchronizedServers(for: template)
+        projected[serverName] = nil
+        try writeServersDict(for: template, servers: projected)
+        try unbindProviderFromCacheServer(name: serverName, provider: template.rawValue)
     }
 
     public static func migrateServersToGlobalCache(
         for template: ProviderTemplate,
         overwrite: Bool
     ) throws -> MCPCacheMigrationResult {
-        let manager = NolonManager.shared
-        _ = STFolder(manager.mcpsURL).createIfNotExists()
-        let servers = try readServersDict(for: template)
+        guard template.supportsNativeMcpConfig else {
+            return MCPCacheMigrationResult(migrated: 0, skipped: 0, updated: 0)
+        }
+        let servers = try synchronizedServers(for: template)
         var migrated = 0
         var skipped = 0
         var updated = 0
 
         for (name, raw) in servers {
-            let stem = safeMcpCacheFileStem(for: name)
-            let targetURL = manager.mcpsURL.appendingPathComponent("\(stem).json")
-            let desiredServer = normalizeServerConfigForComparison(raw, name: name)
-            if STFile(targetURL).isExists {
-                if !overwrite {
-                    skipped += 1
-                    continue
-                }
-                if let existingData = try? Data(contentsOf: targetURL),
-                   let existingServer = try? MCPJsonFile.serverConfig(from: existingData, slug: name),
-                   canonicalJSON(existingServer) == canonicalJSON(desiredServer) {
-                    skipped += 1
-                    continue
-                }
-                let data = try buildCacheFile(name: name, server: desiredServer)
-                try data.write(to: targetURL, options: .atomic)
-                updated += 1
+            let existing = cacheEntry(for: name)
+            if existing != nil, !overwrite {
+                skipped += 1
                 continue
             }
 
-            let data = try buildCacheFile(name: name, server: desiredServer)
-            try data.write(to: targetURL, options: .atomic)
-            migrated += 1
+            let desired = normalizeServerConfigForComparison(raw, name: name)
+            if let existing, canonicalJSON(existing.server) == canonicalJSON(desired) {
+                if existing.providers.contains(template.rawValue) || existing.providers.isEmpty {
+                    skipped += 1
+                    continue
+                }
+            }
+
+            try writeCacheServer(name: name, server: desired, provider: template.rawValue, mergeProviders: true)
+            if existing == nil {
+                migrated += 1
+            } else {
+                updated += 1
+            }
         }
 
         return MCPCacheMigrationResult(migrated: migrated, skipped: skipped, updated: updated)
     }
 
     public static func cacheStatus(for template: ProviderTemplate, name: String? = nil) throws -> [MCPCacheStatusInfo] {
-        let manager = NolonManager.shared
-        let servers = try readServersDict(for: template)
+        guard template.supportsNativeMcpConfig else { return [] }
+        let servers = try synchronizedServers(for: template)
         let filtered: [String: [String: Any]]
         if let name, !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             let normalized = try validateComponent(name, field: "name")
@@ -229,26 +140,60 @@ public enum MCPConfigManager {
 
         let sortedNames = filtered.keys.sorted()
         return sortedNames.map { serverName in
-            let targetURL = manager.mcpsURL.appendingPathComponent("\(safeMcpCacheFileStem(for: serverName)).json")
-            guard STFile(targetURL).isExists else {
+            let targetURL = cacheFileURL(for: serverName)
+            guard let entry = cacheEntry(for: serverName),
+                  entry.applies(to: template.rawValue)
+            else {
                 return MCPCacheStatusInfo(name: serverName, state: .notMigrated, cachePath: targetURL.path)
             }
+
             let desired = normalizeServerConfigForComparison(filtered[serverName] ?? [:], name: serverName)
-            let state: MCPCacheState
-            if let existingData = try? Data(contentsOf: targetURL),
-               let existingServer = try? MCPJsonFile.serverConfig(from: existingData, slug: serverName),
-               canonicalJSON(existingServer) == canonicalJSON(desired) {
-                state = .migratedUpToDate
-            } else {
-                state = .migratedNeedsUpdate
-            }
+            let state: MCPCacheState = canonicalJSON(entry.server) == canonicalJSON(desired)
+                ? .migratedUpToDate
+                : .migratedNeedsUpdate
             return MCPCacheStatusInfo(name: serverName, state: state, cachePath: targetURL.path)
         }
     }
 }
 
 private extension MCPConfigManager {
-    static func readServersDict(for template: ProviderTemplate) throws -> [String: [String: Any]] {
+    struct CacheServerEntry {
+        let name: String
+        let server: [String: Any]
+        var providers: Set<String>
+        let fileURL: URL
+
+        func applies(to provider: String) -> Bool {
+            providers.isEmpty || providers.contains(provider)
+        }
+    }
+
+    static func synchronizedServers(for template: ProviderTemplate) throws -> [String: [String: Any]] {
+        var providerServers = try readProviderServersDict(for: template)
+        let cacheEntries = readCacheEntriesIndexedByName()
+        let providerID = template.rawValue
+
+        // Import provider-native entries into fragment source when missing.
+        for (name, server) in providerServers where cacheEntries[name] == nil {
+            try writeCacheServer(name: name, server: server, provider: providerID, mergeProviders: true)
+        }
+
+        let refreshedCacheEntries = readCacheEntriesIndexedByName()
+
+        // Fragment source is authoritative for entries bound to this provider.
+        for (name, entry) in refreshedCacheEntries where entry.applies(to: providerID) {
+            if let existing = providerServers[name] {
+                providerServers[name] = existing.merging(entry.server, uniquingKeysWith: { _, cacheValue in cacheValue })
+            } else {
+                providerServers[name] = entry.server
+            }
+        }
+
+        try writeServersDict(for: template, servers: providerServers)
+        return providerServers
+    }
+
+    static func readProviderServersDict(for template: ProviderTemplate) throws -> [String: [String: Any]] {
         let path = template.defaultMcpConfigPath
         guard STFile(path).isExists else { return [:] }
         let ext = path.pathExtension.lowercased()
@@ -260,13 +205,7 @@ private extension MCPConfigManager {
             let servers = config.mcpServers ?? [:]
             var result: [String: [String: Any]] = [:]
             for (name, server) in servers {
-                var dict: [String: Any] = [:]
-                if let url = server.url { dict["url"] = url }
-                if let command = server.command { dict["command"] = command }
-                if let args = server.args { dict["args"] = args }
-                if let env = server.env { dict["env"] = env }
-                if let enabled = server.enabled { dict["enabled"] = enabled }
-                result[name] = dict
+                result[name] = codexServerDictionary(server)
             }
             return result
         }
@@ -274,15 +213,85 @@ private extension MCPConfigManager {
         let root = try readJSONObject(fileURL: path)
         if template.rawValue == "opencode" {
             let mcp = root["mcp"] as? [String: Any] ?? [:]
-            var result: [String: [String: Any]] = [:]
-            for (name, value) in mcp {
-                result[name] = decodeOpenCodeServer(value)
-            }
-            return result
+            return mcp.compactMapValues { decodeOpenCodeServer($0) }
         }
 
-        let servers = (root["mcpServers"] as? [String: Any]) ?? (root["mcp_servers"] as? [String: Any]) ?? [:]
-        return servers.compactMapValues { $0 as? [String: Any] }
+        if template.rawValue == "copilot",
+           let servers = root["servers"] as? [String: Any] {
+            return servers.compactMapValues { $0 as? [String: Any] }
+        }
+
+        if let servers = (root["mcpServers"] as? [String: Any]) ?? (root["mcp_servers"] as? [String: Any]) {
+            return servers.compactMapValues { $0 as? [String: Any] }
+        }
+
+        if let mcp = root["mcp"] as? [String: Any] {
+            return mcp.compactMapValues { $0 as? [String: Any] }
+        }
+
+        return [:]
+    }
+
+    static func writeServersDict(for template: ProviderTemplate, servers: [String: [String: Any]]) throws {
+        let path = template.defaultMcpConfigPath
+        let ext = path.pathExtension.lowercased()
+        _ = STFolder(path.deletingLastPathComponent()).createIfNotExists()
+
+        if ext == "toml" {
+            var config: CodexMCPConfig
+            if STFile(path).isExists,
+               let data = try? Data(contentsOf: path),
+               let parsed = try? TOMLDecoder().decode(CodexMCPConfig.self, from: data) {
+                config = parsed
+            } else {
+                config = .init(model: nil, modelReasoningEffort: nil, projects: nil, notice: nil, mcpServers: [:])
+            }
+            var mapped: [String: CodexMCPServer] = [:]
+            for (name, server) in servers {
+                mapped[name] = codexServer(from: server)
+            }
+            config.mcpServers = mapped
+            let output = try TOMLEncoder().encode(config)
+            try output.write(to: path, options: .atomic)
+            return
+        }
+
+        if template.rawValue == "opencode" {
+            var root = try readJSONObject(fileURL: path)
+            var mapped: [String: Any] = [:]
+            for (name, server) in servers {
+                mapped[name] = encodeOpenCodeServer(from: server)
+            }
+            root["mcp"] = mapped
+            try writeJSONObject(root, to: path)
+            return
+        }
+
+        var root = try readJSONObject(fileURL: path)
+        var mapped: [String: Any] = [:]
+        for (name, server) in servers {
+            mapped[name] = normalizeServerConfigForStorage(server)
+        }
+        let key = preferredServersKey(for: template, root: root)
+        root["servers"] = nil
+        root["mcpServers"] = nil
+        root["mcp_servers"] = nil
+        root["mcp"] = nil
+        root[key] = mapped
+        try writeJSONObject(root, to: path)
+    }
+
+    static func preferredServersKey(for template: ProviderTemplate, root: [String: Any]) -> String {
+        if template.rawValue == "copilot" {
+            if root["servers"] != nil { return "servers" }
+            if root["mcpServers"] != nil { return "mcpServers" }
+            if root["mcp_servers"] != nil { return "mcp_servers" }
+            return "servers"
+        }
+        if root["mcp_servers"] != nil, root["mcpServers"] == nil {
+            return "mcp_servers"
+        }
+        return "mcpServers"
     }
 
     static func decodeOpenCodeServer(_ value: Any) -> [String: Any] {
@@ -315,6 +324,12 @@ private extension MCPConfigManager {
         if let enabled = dict["enabled"] as? Bool {
             result["enabled"] = enabled
         }
+
+        // Preserve unknown fields in canonical payload.
+        for (key, value) in dict where result[key] == nil && key != "environment" {
+            result[key] = value
+        }
+
         return result
     }
 
@@ -332,6 +347,11 @@ private extension MCPConfigManager {
         }
         if let env = fields.env, !env.isEmpty { result["environment"] = env }
         result["enabled"] = fields.isEnabled
+
+        for (key, value) in server where result[key] == nil && key != "env" {
+            result[key] = value
+        }
+
         return result
     }
 
@@ -368,6 +388,155 @@ private extension MCPConfigManager {
         return dict
     }
 
+    static func readCacheEntriesIndexedByName() -> [String: CacheServerEntry] {
+        let manager = NolonManager.shared
+        _ = manager.mcpsFolder.createIfNotExists()
+        guard let files = try? manager.mcpsFolder.files() else { return [:] }
+        var result: [String: CacheServerEntry] = [:]
+        for file in files where file.url.pathExtension.lowercased() == "json" {
+            guard let data = try? Data(contentsOf: file.url),
+                  let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let servers = (root["mcpServers"] as? [String: Any]) ?? (root["mcp_servers"] as? [String: Any])
+            else { continue }
+
+            let providers: Set<String> = {
+                guard let nolon = root["x-nolon"] as? [String: Any],
+                      let rawProviders = nolon["providers"] as? [String]
+                else { return [] }
+                return Set(rawProviders.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty })
+            }()
+
+            for (name, value) in servers {
+                guard let server = value as? [String: Any] else { continue }
+                result[name] = CacheServerEntry(name: name, server: server, providers: providers, fileURL: file.url)
+            }
+        }
+        return result
+    }
+
+    static func cacheEntry(for name: String) -> CacheServerEntry? {
+        readCacheEntriesIndexedByName()[name]
+    }
+
+    static func cacheFileURL(for name: String) -> URL {
+        NolonManager.shared.mcpsURL.appendingPathComponent("\(safeMcpCacheFileStem(for: name)).json")
+    }
+
+    static func writeCacheServer(
+        name: String,
+        server: [String: Any],
+        provider: String?,
+        mergeProviders: Bool
+    ) throws {
+        let manager = NolonManager.shared
+        _ = manager.mcpsFolder.createIfNotExists()
+        let fileURL = cacheFileURL(for: name)
+        var root: [String: Any] = [:]
+        var providers = Set<String>()
+
+        if let data = try? Data(contentsOf: fileURL),
+           let existingRoot = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            root = existingRoot
+            if let nolon = existingRoot["x-nolon"] as? [String: Any],
+               let rawProviders = nolon["providers"] as? [String] {
+                providers = Set(rawProviders)
+            }
+        }
+
+        if mergeProviders, let provider, !provider.isEmpty {
+            providers.insert(provider)
+        }
+
+        root["mcpServers"] = [name: normalizeServerConfigForComparison(server, name: name)]
+        root["mcp_servers"] = nil
+        if !providers.isEmpty {
+            root["x-nolon"] = ["providers": providers.sorted()]
+        }
+        let data = try JSONSerialization.data(
+            withJSONObject: root,
+            options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+        )
+        try data.write(to: fileURL, options: .atomic)
+    }
+
+    static func unbindProviderFromCacheServer(name: String, provider: String) throws {
+        guard var entry = cacheEntry(for: name) else { return }
+        guard !entry.providers.isEmpty else { return } // legacy/global entry: keep as-is
+        entry.providers.remove(provider)
+        let data = try Data(contentsOf: entry.fileURL)
+        var root = (try JSONSerialization.jsonObject(with: data) as? [String: Any]) ?? [:]
+        if entry.providers.isEmpty {
+            root["x-nolon"] = nil
+        } else {
+            root["x-nolon"] = ["providers": entry.providers.sorted()]
+        }
+        let output = try JSONSerialization.data(
+            withJSONObject: root,
+            options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+        )
+        try output.write(to: entry.fileURL, options: .atomic)
+    }
+
+    static func codexServerDictionary(_ server: CodexMCPServer) -> [String: Any] {
+        var dict: [String: Any] = [:]
+        if let url = server.url { dict["url"] = url }
+        if let command = server.command { dict["command"] = command }
+        if let args = server.args { dict["args"] = args }
+        if let env = server.env { dict["env"] = env }
+        if let enabled = server.enabled { dict["enabled"] = enabled }
+        if let enabledTools = server.enabledTools { dict["enabled_tools"] = enabledTools }
+        if let disabledTools = server.disabledTools { dict["disabled_tools"] = disabledTools }
+        if let envVars = server.envVars { dict["env_vars"] = envVars }
+        if let httpHeaders = server.httpHeaders { dict["http_headers"] = httpHeaders }
+        if let envHTTPHeaders = server.envHTTPHeaders { dict["env_http_headers"] = envHTTPHeaders }
+        if let oauthResource = server.oauthResource { dict["oauth_resource"] = oauthResource }
+        if let scopes = server.scopes { dict["scopes"] = scopes }
+        if let required = server.required { dict["required"] = required }
+        if let startupTimeoutSec = server.startupTimeoutSec { dict["startup_timeout_sec"] = startupTimeoutSec }
+        if let startupTimeoutMs = server.startupTimeoutMs { dict["startup_timeout_ms"] = startupTimeoutMs }
+        if let toolTimeoutSec = server.toolTimeoutSec { dict["tool_timeout_sec"] = toolTimeoutSec }
+        if let type = server.type { dict["type"] = type }
+        if let transport = server.transport { dict["transport"] = transport }
+        if let identity = server.identity { dict["identity"] = identity }
+        return dict
+    }
+
+    static func codexServer(from dict: [String: Any]) -> CodexMCPServer {
+        CodexMCPServer(
+            url: dict["url"] as? String,
+            command: dict["command"] as? String,
+            args: (dict["args"] as? [String]) ?? (dict["args"] as? [Any])?.compactMap { $0 as? String },
+            env: (dict["env"] as? [String: String]) ?? (dict["env"] as? [String: Any])?.compactMapValues { $0 as? String },
+            enabled: {
+                if let enabled = dict["enabled"] as? Bool { return enabled }
+                if let disabled = dict["disabled"] as? Bool { return !disabled }
+                return nil
+            }(),
+            enabledTools: dict["enabled_tools"] as? [String],
+            disabledTools: dict["disabled_tools"] as? [String],
+            envVars: dict["env_vars"] as? [String],
+            httpHeaders: (dict["http_headers"] as? [String: String]) ?? (dict["http_headers"] as? [String: Any])?.compactMapValues { $0 as? String },
+            envHTTPHeaders: (dict["env_http_headers"] as? [String: String]) ?? (dict["env_http_headers"] as? [String: Any])?.compactMapValues { $0 as? String },
+            oauthResource: dict["oauth_resource"] as? String,
+            scopes: dict["scopes"] as? [String],
+            required: dict["required"] as? Bool,
+            startupTimeoutSec: numberValue(dict["startup_timeout_sec"]),
+            startupTimeoutMs: numberValue(dict["startup_timeout_ms"]),
+            toolTimeoutSec: numberValue(dict["tool_timeout_sec"]),
+            type: dict["type"] as? String,
+            transport: dict["transport"] as? String,
+            identity: (dict["identity"] as? [String: String]) ?? (dict["identity"] as? [String: Any])?.compactMapValues { $0 as? String }
+        )
+    }
+
+    static func numberValue(_ raw: Any?) -> Double? {
+        if let value = raw as? Double { return value }
+        if let value = raw as? Int { return Double(value) }
+        if let value = raw as? NSNumber { return value.doubleValue }
+        if let value = raw as? String { return Double(value) }
+        return nil
+    }
+
     static func safeMcpCacheFileStem(for name: String) -> String {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return UUID().uuidString }
@@ -379,14 +548,6 @@ private extension MCPConfigManager {
         while result.contains("--") { result = result.replacingOccurrences(of: "--", with: "-") }
         result = result.trimmingCharacters(in: CharacterSet(charactersIn: " .-"))
         return result.isEmpty ? UUID().uuidString : result
-    }
-
-    static func buildCacheFile(name: String, server: [String: Any]) throws -> Data {
-        let root: [String: Any] = ["mcpServers": [name: server]]
-        return try JSONSerialization.data(
-            withJSONObject: root,
-            options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
-        )
     }
 
     static func canonicalJSON(_ object: Any) -> Data? {

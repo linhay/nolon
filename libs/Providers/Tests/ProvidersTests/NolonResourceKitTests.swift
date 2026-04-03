@@ -309,6 +309,180 @@ struct NolonResourceKitTests {
         #expect(snapshot.cacheStates[serverName] == .migratedUpToDate)
     }
 
+    @Test("MCP fragments are source of truth and projected back to provider native config")
+    func mcpFragmentsAuthoritativeAndProjectedToProviderConfig() throws {
+        let root = try STFolder(sanbox: .temporary)
+            .folder("nolon-mcp-fragment-source-\(UUID().uuidString)")
+            .create()
+        defer { try? root.deleteIncludingBrokenSymlink() }
+
+        let previousHome = getenv("HOME").map { String(cString: $0) }
+        let previousNolonHome = getenv("NOLON_HOME").map { String(cString: $0) }
+        setenv("HOME", root.url.path, 1)
+        setenv("NOLON_HOME", root.folder(".nolon").url.path, 1)
+        defer {
+            if let previousHome {
+                setenv("HOME", previousHome, 1)
+            }
+            if let previousNolonHome {
+                setenv("NOLON_HOME", previousNolonHome, 1)
+            } else {
+                unsetenv("NOLON_HOME")
+            }
+        }
+
+        let providerConfigPath = ProviderTemplate.codex.defaultMcpConfigPath
+        _ = STFolder(providerConfigPath.deletingLastPathComponent()).createIfNotExists()
+        try """
+        [mcp_servers.playwright]
+        command = "provider-cmd"
+        args = ["from-provider"]
+        enabled = true
+        """.write(to: providerConfigPath, atomically: true, encoding: .utf8)
+
+        let manager = NolonManager.shared
+        _ = manager.mcpsFolder.createIfNotExists()
+        let fragmentPath = manager.mcpsURL.appendingPathComponent("playwright.json")
+        let fragment: [String: Any] = [
+            "mcpServers": [
+                "playwright": [
+                    "command": "cache-cmd",
+                    "args": ["from-cache"],
+                    "enabled": true,
+                    "http_headers": ["x-token": "abc"]
+                ]
+            ],
+            "x-nolon": ["providers": ["codex"]]
+        ]
+        let fragmentData = try JSONSerialization.data(withJSONObject: fragment, options: [.prettyPrinted, .sortedKeys])
+        try fragmentData.write(to: fragmentPath, options: .atomic)
+
+        let servers = try MCPConfigManager.listServers(for: .codex)
+        let playwright = try #require(servers.first(where: { $0.name == "playwright" }))
+        #expect(playwright.command == "cache-cmd")
+        #expect(playwright.args == ["from-cache"])
+
+        let projected = try Data(contentsOf: providerConfigPath)
+        let projectedConfig = try TOMLDecoder().decode(CodexMCPConfig.self, from: projected)
+        let projectedServer = try #require(projectedConfig.mcpServers?["playwright"])
+        #expect(projectedServer.command == "cache-cmd")
+        #expect(projectedServer.args == ["from-cache"])
+        #expect(projectedServer.httpHeaders?["x-token"] == "abc")
+    }
+
+    @Test("Copilot provider keeps native servers key while syncing with fragments")
+    func copilotKeepsNativeServersKeyWhileSyncing() throws {
+        let root = try STFolder(sanbox: .temporary)
+            .folder("nolon-mcp-copilot-servers-\(UUID().uuidString)")
+            .create()
+        defer { try? root.deleteIncludingBrokenSymlink() }
+
+        let previousHome = getenv("HOME").map { String(cString: $0) }
+        let previousNolonHome = getenv("NOLON_HOME").map { String(cString: $0) }
+        setenv("HOME", root.url.path, 1)
+        setenv("NOLON_HOME", root.folder(".nolon").url.path, 1)
+        defer {
+            if let previousHome {
+                setenv("HOME", previousHome, 1)
+            }
+            if let previousNolonHome {
+                setenv("NOLON_HOME", previousNolonHome, 1)
+            } else {
+                unsetenv("NOLON_HOME")
+            }
+        }
+
+        let configPath = ProviderTemplate.copilot.defaultMcpConfigPath
+        _ = STFolder(configPath.deletingLastPathComponent()).createIfNotExists()
+        try """
+        {
+          "servers": {
+            "serverA": {
+              "command": "node",
+              "args": ["a.js"],
+              "enabled": true
+            }
+          },
+          "workspace": "test"
+        }
+        """.write(to: configPath, atomically: true, encoding: .utf8)
+
+        _ = try MCPConfigManager.listServers(for: .copilot)
+        try MCPConfigManager.upsertServer(
+            for: .copilot,
+            name: "serverB",
+            serverConfig: [
+                "command": "node",
+                "args": ["b.js"],
+                "enabled": true
+            ]
+        )
+
+        let rootJSON = try JSONSerialization.jsonObject(with: Data(contentsOf: configPath)) as? [String: Any]
+        let servers = rootJSON?["servers"] as? [String: Any]
+        #expect(servers?["serverA"] != nil)
+        #expect(servers?["serverB"] != nil)
+        #expect(rootJSON?["mcpServers"] == nil)
+        #expect(rootJSON?["workspace"] as? String == "test")
+    }
+
+    @Test("Codex private MCP fields persist through fragment sync")
+    func codexPrivateMcpFieldsPersistThroughFragmentSync() throws {
+        let root = try STFolder(sanbox: .temporary)
+            .folder("nolon-mcp-private-fields-\(UUID().uuidString)")
+            .create()
+        defer { try? root.deleteIncludingBrokenSymlink() }
+
+        let previousHome = getenv("HOME").map { String(cString: $0) }
+        let previousNolonHome = getenv("NOLON_HOME").map { String(cString: $0) }
+        setenv("HOME", root.url.path, 1)
+        setenv("NOLON_HOME", root.folder(".nolon").url.path, 1)
+        defer {
+            if let previousHome {
+                setenv("HOME", previousHome, 1)
+            }
+            if let previousNolonHome {
+                setenv("NOLON_HOME", previousNolonHome, 1)
+            } else {
+                unsetenv("NOLON_HOME")
+            }
+        }
+
+        let name = "private-\(UUID().uuidString.prefix(8))"
+        defer { try? MCPConfigManager.removeServer(for: .codex, name: name) }
+
+        try MCPConfigManager.upsertServer(
+            for: .codex,
+            name: name,
+            serverConfig: [
+                "command": "npx",
+                "args": ["@playwright/mcp@latest"],
+                "enabled": true,
+                "enabled_tools": ["search", "open"],
+                "http_headers": ["authorization": "Bearer token"],
+                "oauth_resource": "https://example.com/mcp",
+                "startup_timeout_sec": 25
+            ]
+        )
+
+        let configPath = ProviderTemplate.codex.defaultMcpConfigPath
+        let configData = try Data(contentsOf: configPath)
+        let config = try TOMLDecoder().decode(CodexMCPConfig.self, from: configData)
+        let server = try #require(config.mcpServers?[name])
+        #expect(server.enabledTools == ["search", "open"])
+        #expect(server.httpHeaders?["authorization"] == "Bearer token")
+        #expect(server.oauthResource == "https://example.com/mcp")
+        #expect(server.startupTimeoutSec == 25)
+
+        let cachePath = NolonManager.shared.mcpsURL.appendingPathComponent("\(name).json")
+        #expect(STFile(cachePath).isExists)
+        let cacheData = try Data(contentsOf: cachePath)
+        let cachedServer = try MCPJsonFile.serverConfig(from: cacheData, slug: name)
+        #expect(cachedServer["enabled_tools"] as? [String] == ["search", "open"])
+        #expect((cachedServer["http_headers"] as? [String: Any])?["authorization"] as? String == "Bearer token")
+        #expect(cachedServer["oauth_resource"] as? String == "https://example.com/mcp")
+    }
+
     @Test("WorkflowSourceResolver resolves relative symlink destination against link directory")
     func workflowSourceResolverResolvesRelativeSymlinkDestination() {
         let linkPath = "/tmp/providers/codex/prompts/find-skills.md"
