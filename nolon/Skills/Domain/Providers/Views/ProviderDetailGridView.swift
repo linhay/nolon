@@ -546,8 +546,15 @@ struct ProviderDetailGridView: View, DebugPageLocatable {
                 }
             }
         case .mcp:
-            NolonUI.ProviderTabSectionView(warningMessage: viewModel.mcpErrorMessage) {
-                mcpGrid
+            if Self.shouldShowNolonSkillsLinkedPlaceholder(
+                skillsLinkEnabled: effectiveSkillsLinkEnabled,
+                selectedTab: selectedTab
+            ) {
+                skillsLinkEnabledPlaceholderCard
+            } else {
+                NolonUI.ProviderTabSectionView(warningMessage: viewModel.mcpErrorMessage) {
+                    mcpGrid
+                }
             }
         case .binary:
             if let provider = provider {
@@ -592,7 +599,7 @@ struct ProviderDetailGridView: View, DebugPageLocatable {
         skillsLinkEnabled: Bool,
         selectedTab: ProviderContentTabType?
     ) -> Bool {
-        skillsLinkEnabled && selectedTab == .skills
+        skillsLinkEnabled && (selectedTab == .skills || selectedTab == .mcp)
     }
 
     static func shouldShowQuickInstallButton(
@@ -601,9 +608,12 @@ struct ProviderDetailGridView: View, DebugPageLocatable {
         skillsLinkEnabled: Bool
     ) -> Bool {
         guard let selectedTab else { return false }
+        if skillsLinkEnabled {
+            return false
+        }
         switch selectedTab {
         case .skills:
-            return !isCurrentTabLinkedToCodex && !skillsLinkEnabled
+            return !isCurrentTabLinkedToCodex
         case .workflows, .rules, .agents:
             return !isCurrentTabLinkedToCodex
         case .mcp:
