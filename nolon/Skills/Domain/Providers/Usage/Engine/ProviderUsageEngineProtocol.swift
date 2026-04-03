@@ -28,6 +28,7 @@ protocol ProviderUsageCommonEngineProtocol: AnyObject {
     func loadIfNeeded() async -> Bool
     func performAutoRefresh() async
     func performScheduledRefresh(now: Date) async
+    func scheduledRefreshPollInterval(now: Date) -> TimeInterval
     func updateSettings(_ settings: UsageMonitorProviderSettings)
     func handleHeaderRefreshButtonTap()
     func setTokenTrendRange(_ range: UsageEngineTokenTrendRange)

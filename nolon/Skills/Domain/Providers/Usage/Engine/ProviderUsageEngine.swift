@@ -642,6 +642,42 @@ final class ProviderUsageEngine {
         nonCodexScheduledRefreshLastAt = now
     }
 
+    func scheduledRefreshPollInterval(now: Date) -> TimeInterval {
+        let minPollInterval: TimeInterval = 1
+        let maxPollInterval: TimeInterval = 60
+
+        guard !isLoading else { return minPollInterval }
+        guard let usageProvider else { return maxPollInterval }
+
+        if usageProvider == .codex, isMultiAccountEnabled {
+            guard !codexAccounts.isEmpty else { return maxPollInterval }
+
+            var nearestWait: TimeInterval = maxPollInterval
+            var hasCandidate = false
+            for account in codexAccounts {
+                if shouldSkipRefresh(accountID: account.id, summaries: codexAccountSummaries) {
+                    continue
+                }
+                hasCandidate = true
+                let decision = codexScheduledRefreshDecision(for: account, now: now)
+                if decision.shouldRefresh {
+                    return minPollInterval
+                }
+                let wait = max(minPollInterval, decision.nextEligibleAt.timeIntervalSince(now))
+                nearestWait = min(nearestWait, wait)
+            }
+            guard hasCandidate else { return maxPollInterval }
+            return min(maxPollInterval, max(minPollInterval, nearestWait))
+        }
+
+        let decision = nonCodexScheduledRefreshDecision(now: now)
+        if decision.shouldRefresh {
+            return minPollInterval
+        }
+        let wait = max(minPollInterval, decision.nextEligibleAt.timeIntervalSince(now))
+        return min(maxPollInterval, max(minPollInterval, wait))
+    }
+
     func refreshFromHeader() async {
         guard !isLoading else { return }
         guard let usageProvider else { return }
@@ -2140,8 +2176,7 @@ final class ProviderUsageEngine {
 
     func copyCodexAccountPath(id: UUID) {
         guard let account = codexAccounts.first(where: { $0.id == id }) else { return }
-        let file = codexAuthManager.accountAuthFile(relativeAuthPath: account.relativeAuthPath)
-        copyText(file.url.path)
+        copyText(account.relativeAuthPath)
     }
 
     func copyCodexAccountAuthJSON(id: UUID) {
@@ -2155,8 +2190,23 @@ final class ProviderUsageEngine {
 
     func editCodexAccountAuthJSON(id: UUID) {
         guard let account = codexAccounts.first(where: { $0.id == id }) else { return }
-        let file = codexAuthManager.accountAuthFile(relativeAuthPath: account.relativeAuthPath)
-        NSWorkspace.shared.open(file.url)
+        guard let data = codexAuthManager.accountAuthDataWithoutMaterialization(for: account),
+              let fileURL = Self.writeAuthInspectionFile(accountID: account.id, data: data)
+        else { return }
+        NSWorkspace.shared.open(fileURL)
+    }
+
+    private static func writeAuthInspectionFile(accountID: UUID, data: Data) -> URL? {
+        let folderURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("nolon-auth-inspect", isDirectory: true)
+        do {
+            try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
+            let fileURL = folderURL.appendingPathComponent("\(accountID.uuidString.lowercased()).json")
+            try data.write(to: fileURL, options: .atomic)
+            return fileURL
+        } catch {
+            return nil
+        }
     }
 
     func copyText(_ text: String) {
@@ -2538,7 +2588,9 @@ final class ProviderUsageEngine {
     }
 
     func probeLoginSnapshotUsageAndBackfillEmailIfMissing(account: CodexAuthAccount) async -> ProviderAccountUsageOutcome {
-        let authURL = codexAuthManager.accountAuthFile(relativeAuthPath: account.relativeAuthPath).url
+        guard let authURL = codexAuthSourceURL(for: account) else {
+            return Self.codexMissingAuthSourceOutcome(for: account)
+        }
         let outcome = await codexOutcomeFetchAction(account, settings, authURL)
 
         if case let .success(result) = outcome.outcome.result,
@@ -2954,7 +3006,13 @@ final class ProviderUsageEngine {
             }
         }
 
-        let authURL = codexAuthManager.accountAuthFile(relativeAuthPath: account.relativeAuthPath).url
+        guard let authURL = codexAuthSourceURL(for: account) else {
+            let outcome = Self.codexMissingAuthSourceOutcome(for: account)
+            codexRefreshingAccountIds.remove(accountId)
+            isRefreshingCleared = true
+            await applyRefreshedCodexOutcome(outcome, for: account)
+            return
+        }
         let outcome = await fetchCodexOutcomeWithTimeout(account: account, settings: settings, authURL: authURL)
         codexRefreshingAccountIds.remove(accountId)
         isRefreshingCleared = true
@@ -2987,9 +3045,11 @@ final class ProviderUsageEngine {
         tasks.reserveCapacity(targets.count)
 
         for account in targets {
-            let authURL = codexAuthManager.accountAuthFile(relativeAuthPath: account.relativeAuthPath).url
             tasks[account.id] = Task(priority: .userInitiated) {
-                await self.fetchCodexOutcomeWithTimeout(account: account, settings: settingsSnapshot, authURL: authURL)
+                guard let authURL = self.codexAuthSourceURL(for: account) else {
+                    return Self.codexMissingAuthSourceOutcome(for: account)
+                }
+                return await self.fetchCodexOutcomeWithTimeout(account: account, settings: settingsSnapshot, authURL: authURL)
             }
         }
 
@@ -3146,19 +3206,85 @@ final class ProviderUsageEngine {
         case nonCodex
     }
 
+    struct CodexScheduledRefreshPolicy: Equatable {
+        let interval: TimeInterval
+        let dueReason: String
+        let waitReason: String
+    }
+
+    struct CodexWindowUsageSignal: Equatable {
+        let windowMinutes: Int
+        let usedPercent: Double
+        let remainingPercent: Double
+    }
+
     func codexScheduledRefreshDecision(for account: CodexAuthAccount, now: Date) -> RefreshDecision {
         guard let role = codexRefreshRole(for: account, now: now) else {
             return RefreshDecision(shouldRefresh: false, nextEligibleAt: .distantFuture, reason: "codex_not_active_or_recent")
         }
-        let interval = refreshInterval(for: refreshPolicyProfile, role: role)
+        let policy = codexScheduledRefreshPolicy(for: account.id, role: role)
         let lastRefresh = codexScheduledRefreshLastAt[account.id]
-        let nextEligibleAt = (lastRefresh ?? .distantPast).addingTimeInterval(interval)
+        let nextEligibleAt = (lastRefresh ?? .distantPast).addingTimeInterval(policy.interval)
         let shouldRefresh = now >= nextEligibleAt
         return RefreshDecision(
             shouldRefresh: shouldRefresh,
             nextEligibleAt: shouldRefresh ? now : nextEligibleAt,
-            reason: codexDecisionReason(role: role, shouldRefresh: shouldRefresh)
+            reason: shouldRefresh ? policy.dueReason : policy.waitReason
         )
+    }
+
+    func codexScheduledRefreshPolicy(for accountID: UUID, role: CodexRefreshRole) -> CodexScheduledRefreshPolicy {
+        switch role {
+        case .active, .recent:
+            if let longestSignal = codexLongestWindowSignal(for: accountID),
+               longestSignal.remainingPercent <= 0
+            {
+                let remainingToken = Self.codexPercentReasonToken(longestSignal.remainingPercent)
+                Self.logger.debug(
+                    "Codex longest-window zero quota throttle hit. provider=\(self.provider.id, privacy: .public) account=\(accountID.uuidString, privacy: .public) window=\(longestSignal.windowMinutes, privacy: .public) remaining=\(remainingToken, privacy: .public)"
+                )
+                let base = "codex_longest_zero_quota_w\(longestSignal.windowMinutes)_r\(remainingToken)"
+                return CodexScheduledRefreshPolicy(
+                    interval: 60 * 60,
+                    dueReason: "\(base)_due",
+                    waitReason: "\(base)_wait"
+                )
+            }
+
+            if let tierSignal = codexTieredShortestWindowSignal(for: accountID),
+               let roleLabel = codexTierRoleLabel(for: role)
+            {
+                let usedToken = Self.codexPercentReasonToken(tierSignal.usedPercent)
+                let base = "codex_\(roleLabel)_tier_\(tierSignal.tierLabel)_w\(tierSignal.windowMinutes)_u\(usedToken)"
+                return CodexScheduledRefreshPolicy(
+                    interval: tierSignal.interval,
+                    dueReason: "\(base)_due",
+                    waitReason: "\(base)_wait"
+                )
+            }
+
+            let fallbackInterval = refreshInterval(for: refreshPolicyProfile, role: role)
+            return CodexScheduledRefreshPolicy(
+                interval: fallbackInterval,
+                dueReason: codexDecisionReason(role: role, shouldRefresh: true),
+                waitReason: codexDecisionReason(role: role, shouldRefresh: false)
+            )
+        case let .backoff(streak):
+            let backoffRole = CodexRefreshRole.backoff(streak: streak)
+            return CodexScheduledRefreshPolicy(
+                interval: refreshInterval(for: refreshPolicyProfile, role: backoffRole),
+                dueReason: codexDecisionReason(role: backoffRole, shouldRefresh: true),
+                waitReason: codexDecisionReason(role: backoffRole, shouldRefresh: false)
+            )
+        case .ignored:
+            return CodexScheduledRefreshPolicy(interval: .infinity, dueReason: "codex_ignored", waitReason: "codex_ignored")
+        case .nonCodex:
+            return CodexScheduledRefreshPolicy(
+                interval: refreshInterval(for: refreshPolicyProfile, role: .nonCodex),
+                dueReason: "noncodex_due",
+                waitReason: "noncodex_wait"
+            )
+        }
     }
 
     func codexRefreshRole(for account: CodexAuthAccount, now: Date) -> CodexRefreshRole? {
@@ -3222,6 +3348,89 @@ final class ProviderUsageEngine {
         case .nonCodex:
             return shouldRefresh ? "noncodex_due" : "noncodex_wait"
         }
+    }
+
+    func codexUsageSnapshot(for accountID: UUID) -> UsageSnapshot? {
+        guard let outcome = codexAccountOutcomes.first(where: { outcome in
+            guard case let .tokenAccount(account) = outcome.account else { return false }
+            return account.id == accountID
+        }) else {
+            return nil
+        }
+        guard case let .success(result) = outcome.outcome.result else { return nil }
+        return result.usage
+    }
+
+    func codexShortestWindowSignal(for accountID: UUID) -> CodexWindowUsageSignal? {
+        guard let usage = codexUsageSnapshot(for: accountID) else { return nil }
+        let windows = usage.allWindows
+            .map(\.window)
+            .filter { ($0.windowMinutes ?? 0) > 0 }
+        guard let shortest = windows.min(by: { ($0.windowMinutes ?? 0) < ($1.windowMinutes ?? 0) }),
+              let windowMinutes = shortest.windowMinutes,
+              let usedPercent = Self.normalizedPercent(shortest.usedPercent),
+              let remainingPercent = Self.normalizedPercent(shortest.remainingPercent)
+        else {
+            return nil
+        }
+        return CodexWindowUsageSignal(
+            windowMinutes: windowMinutes,
+            usedPercent: usedPercent,
+            remainingPercent: remainingPercent
+        )
+    }
+
+    func codexLongestWindowSignal(for accountID: UUID) -> CodexWindowUsageSignal? {
+        guard let usage = codexUsageSnapshot(for: accountID) else { return nil }
+        let windows = usage.allWindows
+            .map(\.window)
+            .filter { ($0.windowMinutes ?? 0) > 0 }
+        guard let longest = windows.max(by: { ($0.windowMinutes ?? 0) < ($1.windowMinutes ?? 0) }),
+              let windowMinutes = longest.windowMinutes,
+              let usedPercent = Self.normalizedPercent(longest.usedPercent),
+              let remainingPercent = Self.normalizedPercent(longest.remainingPercent)
+        else {
+            return nil
+        }
+        return CodexWindowUsageSignal(
+            windowMinutes: windowMinutes,
+            usedPercent: usedPercent,
+            remainingPercent: remainingPercent
+        )
+    }
+
+    func codexTieredShortestWindowSignal(for accountID: UUID) -> (interval: TimeInterval, tierLabel: String, windowMinutes: Int, usedPercent: Double)? {
+        guard let shortest = codexShortestWindowSignal(for: accountID) else { return nil }
+        switch shortest.usedPercent {
+        case 90...:
+            return (3 * 60, "ge90", shortest.windowMinutes, shortest.usedPercent)
+        case 75..<90:
+            return (5 * 60, "ge75", shortest.windowMinutes, shortest.usedPercent)
+        case 50..<75:
+            return (10 * 60, "ge50", shortest.windowMinutes, shortest.usedPercent)
+        default:
+            return (15 * 60, "lt50", shortest.windowMinutes, shortest.usedPercent)
+        }
+    }
+
+    func codexTierRoleLabel(for role: CodexRefreshRole) -> String? {
+        switch role {
+        case .active:
+            return "active"
+        case .recent:
+            return "recent"
+        default:
+            return nil
+        }
+    }
+
+    static func normalizedPercent(_ value: Double) -> Double? {
+        guard value.isFinite else { return nil }
+        return max(0, min(100, value))
+    }
+
+    static func codexPercentReasonToken(_ value: Double) -> Int {
+        Int(value.rounded())
     }
 
     func persistCurrentCodexOutcomeIfPossible(
@@ -3365,6 +3574,52 @@ final class ProviderUsageEngine {
             account: .tokenAccount(tokenAccount),
             outcome: ProviderFetchOutcome(fetchKind: .cli, result: .failure(error))
         )
+    }
+
+    nonisolated static func codexMissingAuthSourceOutcome(
+        for account: CodexAuthAccount
+    ) -> ProviderAccountUsageOutcome {
+        let tokenAccount = ProviderTokenAccount(
+            id: account.id,
+            label: account.name,
+            token: "",
+            addedAt: account.createdAt.timeIntervalSince1970,
+            lastUsed: nil
+        )
+        let error = NSError(
+            domain: "ProviderUsageEngine.CodexRefresh",
+            code: 404,
+            userInfo: [
+                NSLocalizedDescriptionKey: NSLocalizedString(
+                    "usage.monitor.codex.missing_auth_source",
+                    value: "Codex auth snapshot is missing.",
+                    comment: "Codex auth source missing message"
+                ),
+            ]
+        )
+        return ProviderAccountUsageOutcome(
+            provider: .codex,
+            account: .tokenAccount(tokenAccount),
+            outcome: ProviderFetchOutcome(fetchKind: .cli, result: .failure(error))
+        )
+    }
+
+    func codexAuthSourceURL(for account: CodexAuthAccount) -> URL? {
+        guard let data = codexAuthManager.accountAuthData(for: account), !data.isEmpty else {
+            return nil
+        }
+        let folderURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("nolon-codex-auth-sources", isDirectory: true)
+            .appendingPathComponent(account.id.uuidString.lowercased(), isDirectory: true)
+        let fileURL = folderURL.appendingPathComponent("auth.json", isDirectory: false)
+        do {
+            try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
+            try data.write(to: fileURL, options: .atomic)
+            return fileURL
+        } catch {
+            Self.logger.error("Failed to materialize Codex auth source file. accountId=\(account.id.uuidString, privacy: .public) error=\(error.localizedDescription, privacy: .public)")
+            return nil
+        }
     }
 
     func replaceCodexOutcome(_ outcome: ProviderAccountUsageOutcome, for accountID: UUID) {

@@ -999,6 +999,128 @@ final class ProviderUsageEngineManualRefreshTests: XCTestCase {
         XCTAssertEqual(dueDecision.reason, "codex_recent_due")
     }
 
+    func testBDD_GivenCodexActiveAccountWithShortestWindowHighUsage_WhenEvaluatingDecision_ThenUsesTiered3MinuteInterval() async {
+        let provider = Provider(
+            name: "Codex",
+            defaultSkillsPath: "/tmp/codex-skills",
+            workflowPath: "/tmp/codex-prompts",
+            installMethod: .symlink,
+            templateId: "codex"
+        )
+        let account = CodexAuthAccount(name: "active-tier", relativeAuthPath: "auth/active-tier.json")
+        let viewModel = ProviderUsageEngine(
+            provider: provider,
+            codexOutcomeFetchAction: { account, _, _ in
+                Self.makeScheduledRefreshOutcome(
+                    account: account,
+                    windows: [
+                        ("short", "Short", 300, 95),
+                        ("weekly", "Weekly", 10_080, 40)
+                    ]
+                )
+            }
+        )
+        viewModel.codexAccounts = [account]
+        viewModel.activeCodexAccountId = account.id
+        viewModel.codexAccountSummaries[account.id] = CodexAuthSummary(lastSyncSucceededAt: Date())
+
+        await viewModel.refreshCodexAccountImmediately(id: account.id)
+
+        let waitDecision = viewModel.codexScheduledRefreshDecision(for: account, now: Date().addingTimeInterval(2 * 60))
+        XCTAssertFalse(waitDecision.shouldRefresh)
+        XCTAssertTrue(waitDecision.reason.hasPrefix("codex_active_tier_ge90_w300_u95_"))
+
+        let dueDecision = viewModel.codexScheduledRefreshDecision(for: account, now: Date().addingTimeInterval(4 * 60))
+        XCTAssertTrue(dueDecision.shouldRefresh)
+        XCTAssertTrue(dueDecision.reason.hasPrefix("codex_active_tier_ge90_w300_u95_"))
+    }
+
+    func testBDD_GivenCodexRecentAccountWithShortestWindowMediumUsage_WhenEvaluatingDecision_ThenUsesTiered10MinuteInterval() async {
+        let provider = Provider(
+            name: "Codex",
+            defaultSkillsPath: "/tmp/codex-skills",
+            workflowPath: "/tmp/codex-prompts",
+            installMethod: .symlink,
+            templateId: "codex"
+        )
+        let account = CodexAuthAccount(name: "recent-tier", relativeAuthPath: "auth/recent-tier.json")
+        let viewModel = ProviderUsageEngine(
+            provider: provider,
+            codexOutcomeFetchAction: { account, _, _ in
+                Self.makeScheduledRefreshOutcome(
+                    account: account,
+                    windows: [
+                        ("short", "Short", 300, 55),
+                        ("weekly", "Weekly", 10_080, 20)
+                    ]
+                )
+            }
+        )
+        viewModel.codexAccounts = [account]
+        viewModel.activeCodexAccountId = nil
+        viewModel.codexAccountSummaries[account.id] = CodexAuthSummary(lastSyncSucceededAt: Date())
+
+        await viewModel.refreshCodexAccountImmediately(id: account.id)
+
+        let waitDecision = viewModel.codexScheduledRefreshDecision(for: account, now: Date().addingTimeInterval(9 * 60))
+        XCTAssertFalse(waitDecision.shouldRefresh)
+        XCTAssertTrue(waitDecision.reason.hasPrefix("codex_recent_tier_ge50_w300_u55_"))
+
+        let dueDecision = viewModel.codexScheduledRefreshDecision(for: account, now: Date().addingTimeInterval(11 * 60))
+        XCTAssertTrue(dueDecision.shouldRefresh)
+        XCTAssertTrue(dueDecision.reason.hasPrefix("codex_recent_tier_ge50_w300_u55_"))
+    }
+
+    func testBDD_GivenCodexLongestWindowZeroQuota_WhenEvaluatingDecision_ThenUses60MinuteThrottleAndRecoversToTiered() async {
+        let provider = Provider(
+            name: "Codex",
+            defaultSkillsPath: "/tmp/codex-skills",
+            workflowPath: "/tmp/codex-prompts",
+            installMethod: .symlink,
+            templateId: "codex"
+        )
+        let account = CodexAuthAccount(name: "zero-long", relativeAuthPath: "auth/zero-long.json")
+        let viewModel = ProviderUsageEngine(
+            provider: provider,
+            codexOutcomeFetchAction: { account, _, _ in
+                Self.makeScheduledRefreshOutcome(
+                    account: account,
+                    windows: [
+                        ("short", "Short", 300, 95),
+                        ("weekly", "Weekly", 10_080, 100)
+                    ]
+                )
+            }
+        )
+        viewModel.codexAccounts = [account]
+        viewModel.activeCodexAccountId = account.id
+        viewModel.codexAccountSummaries[account.id] = CodexAuthSummary(lastSyncSucceededAt: Date())
+
+        await viewModel.refreshCodexAccountImmediately(id: account.id)
+
+        let throttledWait = viewModel.codexScheduledRefreshDecision(for: account, now: Date().addingTimeInterval(10 * 60))
+        XCTAssertFalse(throttledWait.shouldRefresh)
+        XCTAssertTrue(throttledWait.reason.hasPrefix("codex_longest_zero_quota_w10080_r0_"))
+
+        let throttledDue = viewModel.codexScheduledRefreshDecision(for: account, now: Date().addingTimeInterval(61 * 60))
+        XCTAssertTrue(throttledDue.shouldRefresh)
+        XCTAssertTrue(throttledDue.reason.hasPrefix("codex_longest_zero_quota_w10080_r0_"))
+
+        viewModel.codexAccountOutcomes = [
+            Self.makeScheduledRefreshOutcome(
+                account: account,
+                windows: [
+                    ("short", "Short", 300, 95),
+                    ("weekly", "Weekly", 10_080, 40)
+                ]
+            )
+        ]
+
+        let recoveredTier = viewModel.codexScheduledRefreshDecision(for: account, now: Date().addingTimeInterval(4 * 60))
+        XCTAssertTrue(recoveredTier.shouldRefresh)
+        XCTAssertTrue(recoveredTier.reason.hasPrefix("codex_active_tier_ge90_w300_u95_"))
+    }
+
     func testBDD_GivenCodexFailureStreak_WhenEvaluatingScheduledRefreshDecision_ThenBackoffEscalatesFrom30To60Minutes() async {
         let provider = Provider(
             name: "Codex",
@@ -1036,6 +1158,20 @@ final class ProviderUsageEngineManualRefreshTests: XCTestCase {
         let decisionAt61m = viewModel.codexScheduledRefreshDecision(for: account, now: Date().addingTimeInterval(61 * 60))
         XCTAssertTrue(decisionAt61m.shouldRefresh)
         XCTAssertEqual(decisionAt61m.reason, "codex_backoff_due_2")
+
+        viewModel.codexAccountOutcomes = [
+            Self.makeScheduledRefreshOutcome(
+                account: account,
+                windows: [
+                    ("short", "Short", 300, 95),
+                    ("weekly", "Weekly", 10_080, 100)
+                ]
+            )
+        ]
+
+        let precedenceDecision = viewModel.codexScheduledRefreshDecision(for: account, now: Date().addingTimeInterval(31 * 60))
+        XCTAssertFalse(precedenceDecision.shouldRefresh)
+        XCTAssertEqual(precedenceDecision.reason, "codex_backoff_wait_2")
     }
 
     func testBDD_GivenBalancedProfile_WhenResolvingNonCodexInterval_ThenUses15Minutes() {
@@ -1258,6 +1394,51 @@ final class ProviderUsageEngineManualRefreshTests: XCTestCase {
             try await Task.sleep(nanoseconds: pollIntervalNanoseconds)
         }
         XCTFail("Condition was not met before timeout")
+    }
+
+    private static func makeScheduledRefreshOutcome(
+        account: CodexAuthAccount,
+        windows: [(id: String, title: String, minutes: Int, used: Double)]
+    ) -> ProviderAccountUsageOutcome {
+        let usageWindows = windows.map { item in
+            UsageWindow(
+                id: item.id,
+                title: item.title,
+                window: RateWindow(
+                    usedPercent: item.used,
+                    windowMinutes: item.minutes
+                )
+            )
+        }
+        let usage = UsageSnapshot(
+            identity: UsageIdentity(accountEmail: "\(account.name)@example.com", accountOrganization: nil, loginMethod: "oauth", plan: "plus"),
+            windows: usageWindows,
+            primary: nil,
+            secondary: nil,
+            tertiary: nil,
+            updatedAt: Date()
+        )
+        let result = ProviderFetchResult(
+            usage: usage,
+            credits: nil,
+            cost: nil,
+            sourceLabel: "CLI",
+            fetchKind: .cli,
+            strategyKind: .direct
+        )
+        return ProviderAccountUsageOutcome(
+            provider: .codex,
+            account: .tokenAccount(
+                .init(
+                    id: account.id,
+                    label: account.name,
+                    token: "",
+                    addedAt: account.createdAt.timeIntervalSince1970,
+                    lastUsed: nil
+                )
+            ),
+            outcome: ProviderFetchOutcome(fetchKind: .cli, result: .success(result))
+        )
     }
 }
 

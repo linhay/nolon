@@ -629,6 +629,10 @@ final class ProviderUsageAccountsViewModel {
         await engine.performScheduledRefresh(now: now)
     }
 
+    func scheduledRefreshPollInterval(now: Date = Date()) -> TimeInterval {
+        engine.scheduledRefreshPollInterval(now: now)
+    }
+
     func updateSettings(_ settings: UsageMonitorProviderSettings) {
         engine.updateSettings(settings)
     }

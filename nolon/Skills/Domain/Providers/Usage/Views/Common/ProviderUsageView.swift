@@ -87,9 +87,11 @@ struct ProviderUsageView: View, DebugPageLocatable {
         }
         .task(id: provider.id) {
             while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: 60 * 1_000_000_000)
-                if Task.isCancelled { break }
                 await viewModel.performScheduledRefreshTick()
+                if Task.isCancelled { break }
+                let waitSeconds = viewModel.scheduledRefreshPollInterval(now: Date())
+                let waitNanoseconds = UInt64(max(1, waitSeconds) * 1_000_000_000)
+                try? await Task.sleep(nanoseconds: waitNanoseconds)
             }
         }
         .sheet(isPresented: loginFlowViewModel.isShowingLoginBinding) {
@@ -903,46 +905,6 @@ extension ProviderUsageView {
     var header: some View {
         NolonUI.ProviderUsageTitleHeaderView(title: provider.name) {
             if viewModel.capabilities.isCodexFamily {
-                Button {
-                    viewModel.codex.setHideZeroQuotaAccounts(!viewModel.codex.hideZeroQuotaAccounts)
-                } label: {
-                    Label(
-                        viewModel.codex.hideZeroQuotaAccounts
-                            ? NSLocalizedString("codex.accounts.filter.hide_zero_on", value: "显示全部账号", comment: "Show all Codex accounts")
-                            : NSLocalizedString("codex.accounts.filter.hide_zero_off", value: "隐藏无额度账号", comment: "Hide zero-quota Codex accounts"),
-                        systemImage: "line.3.horizontal.decrease.circle"
-                    )
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                .help(
-                    NSLocalizedString(
-                        "codex.accounts.filter.hide_zero.help",
-                        value: "切换是否显示额度为 0 的账号",
-                        comment: "Help for hide zero quota filter"
-                    )
-                )
-
-                Button {
-                    viewModel.codex.setHideErroredAccounts(!viewModel.codex.hideErroredAccounts)
-                } label: {
-                    Label(
-                        viewModel.codex.hideErroredAccounts
-                            ? NSLocalizedString("codex.accounts.filter.hide_error_on", value: "显示报错账号", comment: "Show errored Codex accounts")
-                            : NSLocalizedString("codex.accounts.filter.hide_error_off", value: "隐藏报错账号", comment: "Hide errored Codex accounts"),
-                        systemImage: "exclamationmark.triangle"
-                    )
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                .help(
-                    NSLocalizedString(
-                        "codex.accounts.filter.hide_error.help",
-                        value: "切换是否隐藏报错账号",
-                        comment: "Help for hide errored accounts filter"
-                    )
-                )
-
                 accountLayoutPicker
 
                 if accountsViewModel.codex.isMultiSelectionEnabled {
@@ -1013,9 +975,11 @@ extension ProviderUsageView {
                     ),
                     id: \.id
                 ) { action in
-                    headerActionButton(action)
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
+                    if action != .importAuth {
+                        headerActionButton(action)
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                    }
                 }
                 actionsMenu
             } else {
@@ -1252,6 +1216,41 @@ extension ProviderUsageView {
                     .performMenuAction(in: currentRootViewModel, createGatewayCard: createGatewayCardWithPrompt)
             }
         )
+
+        Section {
+            Button {
+                viewModel.codex.setHideZeroQuotaAccounts(!viewModel.codex.hideZeroQuotaAccounts)
+            } label: {
+                Label(
+                    viewModel.codex.hideZeroQuotaAccounts
+                        ? NSLocalizedString("codex.accounts.filter.hide_zero_on", value: "显示全部账号", comment: "Show all Codex accounts")
+                        : NSLocalizedString("codex.accounts.filter.hide_zero_off", value: "隐藏无额度账号", comment: "Hide zero-quota Codex accounts"),
+                    systemImage: "line.3.horizontal.decrease.circle"
+                )
+            }
+
+            Button {
+                viewModel.codex.setHideErroredAccounts(!viewModel.codex.hideErroredAccounts)
+            } label: {
+                Label(
+                    viewModel.codex.hideErroredAccounts
+                        ? NSLocalizedString("codex.accounts.filter.hide_error_on", value: "显示报错账号", comment: "Show errored Codex accounts")
+                        : NSLocalizedString("codex.accounts.filter.hide_error_off", value: "隐藏报错账号", comment: "Hide errored Codex accounts"),
+                    systemImage: "exclamationmark.triangle"
+                )
+            }
+
+            Button {
+                viewModel.codex.beginImportAuthFiles()
+            } label: {
+                Label(
+                    NSLocalizedString("codex.accounts.import", value: "导入", comment: "Codex import"),
+                    systemImage: "tray.and.arrow.down"
+                )
+            }
+        } header: {
+            Text(NSLocalizedString("codex.accounts.menu.section.quick_actions", value: "快捷操作", comment: "Codex quick actions menu section"))
+        }
 
         NolonUI.ProviderUsageMenuActionsSectionView(
             section: codexAccountManagementSectionModel,
