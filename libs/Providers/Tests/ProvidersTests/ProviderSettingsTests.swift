@@ -228,5 +228,6 @@ struct ProviderSettingsTests {
         let settings = ProviderSettings(userDefaults: userDefaults, nolonManager: manager)
         let provider = try #require(settings.providers.first(where: { $0.id == "legacy-provider" }))
         #expect(provider.skillsLinkEnabled == false)
+        #expect(provider.mcpLinkEnabled == false)
     }
 }

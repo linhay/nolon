@@ -260,6 +260,7 @@ public class ProviderSettings {
                     iconName: current.iconName,
                     installMethod: current.installMethod,
                     skillsLinkEnabled: current.skillsLinkEnabled,
+                    mcpLinkEnabled: current.mcpLinkEnabled,
                     vendorCategory: expected.vendorCategory,
                     templateId: current.templateId,
                     additionalSkillsPaths: current.additionalSkillsPaths,

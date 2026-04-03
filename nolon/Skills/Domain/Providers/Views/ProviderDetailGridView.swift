@@ -187,25 +187,43 @@ struct ProviderDetailGridView: View, DebugPageLocatable {
             searchText: $viewModel.searchText,
             showFloatingButton: shouldShowQuickInstallButton,
             searchTrailing: {
-                guard selectedTab == .skills, let provider else {
-                    return AnyView(EmptyView())
-                }
-                return AnyView(
-                    NolonUI.ProviderSkillsLinkToolbarMenuButton(
-                        isEnabled: Binding(
-                            get: { viewModel.skillsLinkEnabled },
-                            set: { _ in }
-                        ),
-                        isApplying: viewModel.isApplyingSkillsLink,
-                        providerPath: provider.defaultSkillsPath,
-                        onShowInFinder: {
-                            viewModel.revealSkillsFolderInFinder()
-                        },
-                        onToggleRequested: { newValue in
-                            Task { await viewModel.requestSetSkillsLinkEnabled(newValue) }
-                        }
+                guard let provider else { return AnyView(EmptyView()) }
+                if selectedTab == .skills {
+                    return AnyView(
+                        NolonUI.ProviderSkillsLinkToolbarMenuButton(
+                            isEnabled: Binding(
+                                get: { viewModel.skillsLinkEnabled },
+                                set: { _ in }
+                            ),
+                            isApplying: viewModel.isApplyingSkillsLink,
+                            providerPath: provider.defaultSkillsPath,
+                            onShowInFinder: {
+                                viewModel.revealSkillsFolderInFinder()
+                            },
+                            onToggleRequested: { newValue in
+                                Task { await viewModel.requestSetSkillsLinkEnabled(newValue) }
+                            }
+                        )
                     )
-                )
+                }
+                if selectedTab == .mcp, let mcpPath = providerMcpConfigPath {
+                    return AnyView(
+                        NolonUI.ProviderMCPLinkToolbarMenuButton(
+                            isEnabled: Binding(
+                                get: { viewModel.mcpLinkEnabled },
+                                set: { _ in }
+                            ),
+                            providerPath: mcpPath,
+                            onShowInFinder: {
+                                viewModel.revealMcpConfigInFinder()
+                            },
+                            onToggleRequested: { newValue in
+                                Task { await viewModel.requestSetMcpLinkEnabled(newValue) }
+                            }
+                        )
+                    )
+                }
+                return AnyView(EmptyView())
             }
         ) { scrollProxy in
             NolonUI.ProviderCodexTopHintsView(
@@ -241,12 +259,26 @@ struct ProviderDetailGridView: View, DebugPageLocatable {
         Self.shouldShowQuickInstallButton(
             selectedTab: selectedTab,
             isCurrentTabLinkedToCodex: isCurrentTabLinkedToCodex,
-            skillsLinkEnabled: effectiveSkillsLinkEnabled
+            skillsLinkEnabled: effectiveSkillsLinkEnabled,
+            mcpLinkEnabled: effectiveMcpLinkEnabled
         )
     }
 
     private var effectiveSkillsLinkEnabled: Bool {
         viewModel.skillsLinkEnabled || (provider?.skillsLinkEnabled ?? false)
+    }
+
+    private var effectiveMcpLinkEnabled: Bool {
+        viewModel.mcpLinkEnabled || (provider?.mcpLinkEnabled ?? false)
+    }
+
+    private var providerMcpConfigPath: String? {
+        guard let provider,
+              let templateId = provider.templateId,
+              let template = ProviderTemplate(rawValue: templateId),
+              template.supportsNativeMcpConfig
+        else { return nil }
+        return template.defaultMcpConfigPath.path
     }
 
     private var orphanedSkillCount: Int {
@@ -546,8 +578,15 @@ struct ProviderDetailGridView: View, DebugPageLocatable {
                 }
             }
         case .mcp:
-            NolonUI.ProviderTabSectionView(warningMessage: viewModel.mcpErrorMessage) {
-                mcpGrid
+            if Self.shouldShowNolonMcpLinkedPlaceholder(
+                mcpLinkEnabled: effectiveMcpLinkEnabled,
+                selectedTab: selectedTab
+            ) {
+                mcpLinkEnabledPlaceholderCard
+            } else {
+                NolonUI.ProviderTabSectionView(warningMessage: viewModel.mcpErrorMessage) {
+                    mcpGrid
+                }
             }
         case .binary:
             if let provider = provider {
@@ -598,7 +637,8 @@ struct ProviderDetailGridView: View, DebugPageLocatable {
     static func shouldShowQuickInstallButton(
         selectedTab: ProviderContentTabType?,
         isCurrentTabLinkedToCodex: Bool,
-        skillsLinkEnabled: Bool
+        skillsLinkEnabled: Bool,
+        mcpLinkEnabled: Bool
     ) -> Bool {
         guard let selectedTab else { return false }
         switch selectedTab {
@@ -607,10 +647,17 @@ struct ProviderDetailGridView: View, DebugPageLocatable {
         case .workflows, .rules, .agents:
             return !isCurrentTabLinkedToCodex
         case .mcp:
-            return true
+            return !mcpLinkEnabled
         default:
             return false
         }
+    }
+
+    static func shouldShowNolonMcpLinkedPlaceholder(
+        mcpLinkEnabled: Bool,
+        selectedTab: ProviderContentTabType?
+    ) -> Bool {
+        mcpLinkEnabled && selectedTab == .mcp
     }
 
     private var skillsLinkEnabledPlaceholderCard: some View {
@@ -667,6 +714,58 @@ struct ProviderDetailGridView: View, DebugPageLocatable {
             placeholderFolderChip(systemImage: "tray.2.fill", label: "Nolon Skills")
         }
         .padding(.vertical, 6)
+    }
+
+    private var mcpLinkEnabledPlaceholderCard: some View {
+        VStack(spacing: 16) {
+            HStack(spacing: 14) {
+                placeholderFolderChip(systemImage: "server.rack", label: "Provider MCP")
+                Image(systemName: "link")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                placeholderFolderChip(systemImage: "externaldrive.connected.to.line.below", label: "Nolon MCP")
+            }
+            .padding(.vertical, 6)
+
+            VStack(spacing: 8) {
+                Text(
+                    NSLocalizedString(
+                        "provider.mcp_link.placeholder.title",
+                        value: "MCP is linked to Nolon",
+                        comment: "MCP link placeholder title"
+                    )
+                )
+                .font(.headline)
+
+                Text(
+                    NSLocalizedString(
+                        "provider.mcp_link.placeholder.description",
+                        value: "This provider now uses ~/.nolon/mcps. Manage linked MCP entries from the Nolon page.",
+                        comment: "MCP link placeholder description"
+                    )
+                )
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+            }
+
+            Button {
+                onSelectNolon?()
+            } label: {
+                Label(
+                    NSLocalizedString(
+                        "provider.skills_link.placeholder.action",
+                        value: "Go to Nolon",
+                        comment: "Skills link placeholder action title"
+                    ),
+                    systemImage: "arrow.up.forward.app"
+                )
+            }
+            .buttonStyle(.borderedProminent)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(32)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 
     private func placeholderFolderChip(systemImage: String, label: String) -> some View {

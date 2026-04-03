@@ -70,27 +70,63 @@ final class ProviderDetailGridViewIssueNavigationTests: XCTestCase {
         let visible = ProviderDetailGridView.shouldShowQuickInstallButton(
             selectedTab: .skills,
             isCurrentTabLinkedToCodex: false,
-            skillsLinkEnabled: true
+            skillsLinkEnabled: true,
+            mcpLinkEnabled: false
         )
         XCTAssertFalse(visible)
     }
 
-    func testBDD_GivenMcpTabAndSkillsLinkEnabled_WhenCheckingQuickInstallVisibility_ThenReturnsTrue() {
+    func testBDD_GivenMcpTabAndMcpLinkDisabled_WhenCheckingQuickInstallVisibility_ThenReturnsTrue() {
         let visible = ProviderDetailGridView.shouldShowQuickInstallButton(
             selectedTab: .mcp,
             isCurrentTabLinkedToCodex: false,
-            skillsLinkEnabled: true
+            skillsLinkEnabled: true,
+            mcpLinkEnabled: false
         )
         XCTAssertTrue(visible)
+    }
+
+    func testBDD_GivenMcpTabAndMcpLinkEnabled_WhenCheckingQuickInstallVisibility_ThenReturnsFalse() {
+        let visible = ProviderDetailGridView.shouldShowQuickInstallButton(
+            selectedTab: .mcp,
+            isCurrentTabLinkedToCodex: false,
+            skillsLinkEnabled: false,
+            mcpLinkEnabled: true
+        )
+        XCTAssertFalse(visible)
     }
 
     func testBDD_GivenSkillsTabAndSkillsLinkDisabled_WhenCheckingQuickInstallVisibility_ThenReturnsTrue() {
         let visible = ProviderDetailGridView.shouldShowQuickInstallButton(
             selectedTab: .skills,
             isCurrentTabLinkedToCodex: false,
-            skillsLinkEnabled: false
+            skillsLinkEnabled: false,
+            mcpLinkEnabled: false
         )
         XCTAssertTrue(visible)
+    }
+
+    func testBDD_GivenMcpTabAndMcpLinkEnabled_WhenCheckingMcpPlaceholderVisibility_ThenReturnsTrue() {
+        let visible = ProviderDetailGridView.shouldShowNolonMcpLinkedPlaceholder(
+            mcpLinkEnabled: true,
+            selectedTab: .mcp
+        )
+        XCTAssertTrue(visible)
+    }
+
+    func testBDD_GivenNonMcpTabOrLinkDisabled_WhenCheckingMcpPlaceholderVisibility_ThenReturnsFalse() {
+        XCTAssertFalse(
+            ProviderDetailGridView.shouldShowNolonMcpLinkedPlaceholder(
+                mcpLinkEnabled: false,
+                selectedTab: .mcp
+            )
+        )
+        XCTAssertFalse(
+            ProviderDetailGridView.shouldShowNolonMcpLinkedPlaceholder(
+                mcpLinkEnabled: true,
+                selectedTab: .skills
+            )
+        )
     }
 
     private func makeSkill(

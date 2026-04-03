@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 import ProviderCatalog
 import Observation
 import STJSON
@@ -47,6 +48,7 @@ final class ProviderDetailGridViewModel {
     var isSavingCodexModel = false
     var codexModelStatusMessage: String?
     var skillsLinkEnabled = false
+    var mcpLinkEnabled = false
     var isApplyingSkillsLink = false
     var showingSkillsLinkEnableConfirmation = false
     var skillsLinkBackupPath: String?
@@ -103,11 +105,13 @@ final class ProviderDetailGridViewModel {
             selectedCodexModel = nil
             codexModelStatusMessage = nil
             skillsLinkEnabled = false
+            mcpLinkEnabled = false
             showingSkillsLinkEnableConfirmation = false
             skillsLinkBackupPath = nil
             return
         }
         skillsLinkEnabled = provider.skillsLinkEnabled
+        mcpLinkEnabled = provider.mcpLinkEnabled
         
         isLoading = true
         
@@ -161,6 +165,18 @@ final class ProviderDetailGridViewModel {
         showingSkillsLinkEnableConfirmation = false
         skillsLinkBackupPath = nil
         await setSkillsLinkEnabled(true, backupExisting: backupExisting)
+    }
+
+    func requestSetMcpLinkEnabled(_ enabled: Bool) async {
+        guard var provider else { return }
+        guard enabled != provider.mcpLinkEnabled else {
+            mcpLinkEnabled = provider.mcpLinkEnabled
+            return
+        }
+        provider.mcpLinkEnabled = enabled
+        settings.updateProvider(provider)
+        self.provider = provider
+        mcpLinkEnabled = enabled
     }
 
     private func setSkillsLinkEnabled(_ enabled: Bool, backupExisting: Bool) async {
@@ -293,6 +309,17 @@ final class ProviderDetailGridViewModel {
     }
     
     private let homeDirectory = NSHomeDirectory()
+
+    func revealMcpConfigInFinder() {
+        guard
+            let provider,
+            let templateId = provider.templateId,
+            let template = ProviderTemplate(rawValue: templateId),
+            template.supportsNativeMcpConfig
+        else { return }
+        let configURL = template.defaultMcpConfigPath
+        NSWorkspace.shared.activateFileViewerSelecting([configURL])
+    }
     
     func displayPath(for path: String) -> String {
         guard let provider = provider else { return path }
