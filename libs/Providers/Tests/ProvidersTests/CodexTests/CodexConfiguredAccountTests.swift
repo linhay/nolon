@@ -119,7 +119,7 @@ struct CodexConfiguredAccountTests {
             )
         )
 
-        let data = try await manager.accountAuthFile(account).data()
+        let data = try #require(await manager.accountAuthData(for: account))
         let summary = CodexAuthSummary.fromJSONData(data)
         let json = try JSON(data: data)
 
@@ -156,8 +156,10 @@ struct CodexConfiguredAccountTests {
             usageQuery: usageQuery
         )
 
-        let authFile = manager.accountAuthFile(relativeAuthPath: account.relativeAuthPath)
-        let data = try authFile.data()
+        let data = try #require(await manager.accountAuthData(for: account))
+        let authFile = root.folder("tmp").file("\(account.id.uuidString.lowercased()).json")
+        _ = authFile.parentFolder()?.createIfNotExists()
+        try authFile.overlay(with: data)
         let resolved = try CodexHTTPUsageQueryExecutor.resolveConfiguration(
             from: [CodexHTTPUsageQueryExecutor.authSourcePathEnvironmentKey: authFile.url.path]
         )

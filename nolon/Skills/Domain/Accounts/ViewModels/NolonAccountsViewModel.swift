@@ -284,8 +284,7 @@ final class NolonAccountsViewModel {
         guard let accounts = try? await codexAuthManager.loadAccounts(),
               let account = accounts.first(where: { $0.id == id })
         else { return }
-        let file = await codexAuthManager.accountAuthFile(account)
-        copyTextAction(file.url.path)
+        copyTextAction(account.relativeAuthPath)
         showCopyToast()
     }
 
@@ -305,8 +304,23 @@ final class NolonAccountsViewModel {
         guard let accounts = try? await codexAuthManager.loadAccounts(),
               let account = accounts.first(where: { $0.id == id })
         else { return }
-        let file = await codexAuthManager.accountAuthFile(account)
-        openURLAction(file.url)
+        guard let data = await codexAuthManager.accountAuthData(for: account),
+              let url = Self.writeAuthInspectionFile(accountID: account.id, data: data)
+        else { return }
+        openURLAction(url)
+    }
+
+    private static func writeAuthInspectionFile(accountID: UUID, data: Data) -> URL? {
+        let folderURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("nolon-auth-inspect", isDirectory: true)
+        do {
+            try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
+            let fileURL = folderURL.appendingPathComponent("\(accountID.uuidString.lowercased()).json")
+            try data.write(to: fileURL, options: .atomic)
+            return fileURL
+        } catch {
+            return nil
+        }
     }
 
     private func showCopyToast() {

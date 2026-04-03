@@ -31,8 +31,9 @@ public actor CodexGatewayAccountSource {
     }
 
     private func makeCandidate(for account: CodexAuthAccount) async throws -> CodexGatewayCandidate {
-        let authFile = authManager.accountAuthFile(relativeAuthPath: account.relativeAuthPath)
-        let data = try authFile.data()
+        guard let data = authManager.accountAuthData(for: account), !data.isEmpty else {
+            throw CocoaError(.fileNoSuchFile)
+        }
         let summary = CodexAuthSummary.fromJSONData(data)
         let usageCache = try await authManager.loadUsageCache(for: account)
         let authPayload = try parseAuthPayload(from: data)
@@ -65,7 +66,7 @@ public actor CodexGatewayAccountSource {
             apiKey: Self.stringValue(root["OPENAI_API_KEY"]),
             accessToken: Self.stringValue(tokens?["access_token"]) ?? Self.stringValue(root["access_token"]),
             accountID: Self.stringValue(root["account_id"]),
-            relayBaseURL: Self.stringValue(relay?["base_url"]),
+            relayBaseURL: Self.stringValue(relay?["base_url"]) ?? Self.stringValue(root["base_url"]),
             relayQueryParams: Self.stringMap(relay?["query_params"]),
             relayHeaders: Self.stringMap(relay?["headers"])
         )
@@ -74,6 +75,14 @@ public actor CodexGatewayAccountSource {
     private func resolveUpstream(summary: CodexAuthSummary, payload: AuthPayload) -> UpstreamConfiguration? {
         if payload.isGatewayVirtual {
             return nil
+        }
+        if let baseURLString = payload.relayBaseURL,
+           let baseURL = URL(string: baseURLString),
+           let apiKey = payload.apiKey
+        {
+            var headers = payload.relayHeaders
+            headers["Authorization"] = "Bearer \(apiKey)"
+            return UpstreamConfiguration(baseURL: baseURL, headers: headers)
         }
         switch summary.cardKind {
         case .officialAPIKey:

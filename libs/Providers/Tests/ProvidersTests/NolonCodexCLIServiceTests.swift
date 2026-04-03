@@ -339,13 +339,13 @@ struct NolonCodexCLIServiceTests {
         let virtual = try #require(await authManager.gatewayVirtualAccount(providerID: "codex"))
         let activeID = await authManager.activeAccountId(for: gatewayProvider)
         let virtualState = await virtualStateStore.load(providerID: "codex")
-        let virtualData = try await authManager.accountAuthFile(virtual).data()
+        let virtualData = try #require(await authManager.accountAuthData(for: virtual))
         let virtualObject = try #require(try JSONSerialization.jsonObject(with: virtualData) as? [String: Any])
         let relay = try #require(((virtualObject["nolon"] as? [String: Any])?["relay"] as? [String: Any]))
         let queryParams = try #require(relay["query_params"] as? [String: Any])
         let providerAuthFile = root.folder("provider-home").file("auth.json")
         let providerAuthLinkedTo = try providerAuthFile.destinationOfSymbolicLink()
-        let virtualAuthFile = await authManager.accountAuthFile(virtual)
+        let providerAuthData = try Data(contentsOf: providerAuthLinkedTo.url)
 
         #expect(activeID == virtual.id)
         #expect(virtual.relativeAuthPath.hasPrefix("gateway/virtual-auth/"))
@@ -354,7 +354,7 @@ struct NolonCodexCLIServiceTests {
         #expect(queryParams["nolon_gateway_virtual"] as? String == "1")
         #expect(queryParams["provider_id"] as? String == "codex")
         #expect(providerAuthFile.isSymbolicLink == true)
-        #expect(STPath.standardizedPath(providerAuthLinkedTo.url.path).path == STPath.standardizedPath(virtualAuthFile.url.path).path)
+        #expect(providerAuthData == virtualData)
     }
 
     @Test("gateway start resolves previous active account from auth symlink when active map is polluted by legacy gateway marker")
@@ -494,11 +494,12 @@ struct NolonCodexCLIServiceTests {
         let virtualState = await virtualStateStore.load(providerID: "codex")
         let providerAuthFile = root.folder("provider-home").file("auth.json")
         let providerAuthLinkedTo = try providerAuthFile.destinationOfSymbolicLink()
-        let previousAuthFile = await authManager.accountAuthFile(previous)
+        let previousAuthData = try #require(await authManager.accountAuthData(for: previous))
+        let providerAuthData = try Data(contentsOf: providerAuthLinkedTo.url)
         #expect(activeID == previous.id)
         #expect(virtualState == nil)
         #expect(providerAuthFile.isSymbolicLink == true)
-        #expect(STPath.standardizedPath(providerAuthLinkedTo.url.path).path == STPath.standardizedPath(previousAuthFile.url.path).path)
+        #expect(providerAuthData == previousAuthData)
     }
 
     @Test("gateway stop clears provider auth link when virtual state has no previous account")

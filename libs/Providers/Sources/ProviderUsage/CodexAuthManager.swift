@@ -443,16 +443,10 @@ public actor CodexAuthManager {
     }
 
     public nonisolated func accountAuthFile(relativeAuthPath: String) -> STFile {
-        let file = nolonCodexRootFolder().file(relativeAuthPath)
-        materializeSQLiteAuthMirrorIfNeeded(file: file, relativeAuthPath: relativeAuthPath)
-        return file
+        nolonCodexRootFolder().file(relativeAuthPath)
     }
 
     public nonisolated func accountAuthData(relativeAuthPath: String) -> Data? {
-        let file = accountAuthFile(relativeAuthPath: relativeAuthPath)
-        if let data = try? file.data(), !data.isEmpty {
-            return data
-        }
         guard let accountID = sqliteAccountID(fromRelativeAuthPath: relativeAuthPath),
               let data = try? loadCodexAccountAuthDataFromSQLite(accountID: accountID),
               !data.isEmpty
@@ -463,31 +457,15 @@ public actor CodexAuthManager {
     }
 
     public nonisolated func accountAuthData(for account: CodexAuthAccount) -> Data? {
-        if let data = try? loadCodexAccountAuthDataFromSQLite(accountID: account.id), !data.isEmpty {
-            return data
-        }
-        return accountAuthData(relativeAuthPath: account.relativeAuthPath)
+        guard let data = try? loadCodexAccountAuthDataFromSQLite(accountID: account.id),
+              !data.isEmpty
+        else { return nil }
+        return data
     }
 
-    /// Reads account auth payload without triggering legacy mirror materialization on disk.
+    /// Reads account auth payload directly from SQLite-backed storage.
     public nonisolated func accountAuthDataWithoutMaterialization(for account: CodexAuthAccount) -> Data? {
-        if let data = try? loadCodexAccountAuthDataFromSQLite(accountID: account.id), !data.isEmpty {
-            return data
-        }
-
-        let file = nolonCodexRootFolder().file(account.relativeAuthPath)
-        if let data = try? file.data(), !data.isEmpty {
-            return data
-        }
-        return nil
-    }
-
-    private nonisolated func materializeSQLiteAuthMirrorIfNeeded(file: STFile, relativeAuthPath: String) {
-        guard !file.isExists else { return }
-        guard let accountID = sqliteAccountID(fromRelativeAuthPath: relativeAuthPath) else { return }
-        guard let data = try? loadCodexAccountAuthDataFromSQLite(accountID: accountID), !data.isEmpty else { return }
-        _ = file.parentFolder()?.createIfNotExists()
-        try? file.overlay(with: data)
+        accountAuthData(for: account)
     }
 
     private nonisolated func sqliteAccountID(fromRelativeAuthPath relativeAuthPath: String) -> UUID? {
@@ -2429,10 +2407,6 @@ private extension CodexAuthManager {
         if let data = try loadCodexAccountAuthDataFromSQLite(accountID: account.id), !data.isEmpty {
             return data
         }
-        let file = accountAuthFile(account)
-        if file.isExists {
-            return try file.data()
-        }
         throw CocoaError(.fileNoSuchFile)
     }
 
@@ -3880,6 +3854,9 @@ extension CodexAuthManager {
                 nolon_account_last_sync_failure_message TEXT,
                 usage_cache_json TEXT,
                 usage_query_json TEXT,
+                relay_model_provider TEXT,
+                relay_query_params_json TEXT,
+                relay_headers_json TEXT,
                 updated_at TEXT NOT NULL
             );
             """
@@ -3894,6 +3871,24 @@ extension CodexAuthManager {
             try executeSQLite(
                 db,
                 sql: "ALTER TABLE codex_account_metadata ADD COLUMN plan_type TEXT;"
+            )
+        }
+        if try !sqliteColumnExists(db: db, table: "codex_account_metadata", column: "relay_model_provider") {
+            try executeSQLite(
+                db,
+                sql: "ALTER TABLE codex_account_metadata ADD COLUMN relay_model_provider TEXT;"
+            )
+        }
+        if try !sqliteColumnExists(db: db, table: "codex_account_metadata", column: "relay_query_params_json") {
+            try executeSQLite(
+                db,
+                sql: "ALTER TABLE codex_account_metadata ADD COLUMN relay_query_params_json TEXT;"
+            )
+        }
+        if try !sqliteColumnExists(db: db, table: "codex_account_metadata", column: "relay_headers_json") {
+            try executeSQLite(
+                db,
+                sql: "ALTER TABLE codex_account_metadata ADD COLUMN relay_headers_json TEXT;"
             )
         }
         try executeSQLite(
@@ -4283,7 +4278,7 @@ extension CodexAuthManager {
             ["OPENAI_API_KEY"], ["openai_api_key"], ["api_key"], ["apiKey"],
         ])
         let baseURL = firstNonEmptyString(in: json, paths: [
-            ["base_url"], ["baseURL"],
+            ["base_url"], ["baseURL"], ["nolon", "relay", "base_url"],
         ])?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         let email = deriveEmail(from: json)?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         let accountRaw = CodexAuthSummary.canonicalAccountID(json: json, payload: nil)?
@@ -4363,6 +4358,9 @@ extension CodexAuthManager {
         let lastSyncFailureMessage = firstNonEmptyString(in: json, paths: [["nolon", "account", "lastSyncFailureMessage"]])
         let usageCacheJSON = json["nolon"]["usage_cache"].rawString()
         let usageQueryJSON = json["nolon"]["usage_query"].rawString()
+        let relayModelProvider = firstNonEmptyString(in: json, paths: [["nolon", "relay", "model_provider"]])
+        let relayQueryParamsJSON = json["nolon"]["relay"]["query_params"].rawString()
+        let relayHeadersJSON = json["nolon"]["relay"]["headers"].rawString()
 
         try executeSQLite(
             db,
@@ -4371,9 +4369,10 @@ extension CodexAuthManager {
                 account_id, auth_mode, openai_api_key, tokens_account_id, expires_at, email, last_refresh,
                 plan_type, custom_group_name, nolon_account_kind, nolon_account_email, nolon_account_last_login_at,
                 nolon_account_last_sync_succeeded_at, nolon_account_last_sync_failed_at,
-                nolon_account_last_sync_failure_message, usage_cache_json, usage_query_json, updated_at
+                nolon_account_last_sync_failure_message, usage_cache_json, usage_query_json,
+                relay_model_provider, relay_query_params_json, relay_headers_json, updated_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(account_id) DO UPDATE SET
                 auth_mode=excluded.auth_mode,
                 openai_api_key=excluded.openai_api_key,
@@ -4391,6 +4390,9 @@ extension CodexAuthManager {
                 nolon_account_last_sync_failure_message=excluded.nolon_account_last_sync_failure_message,
                 usage_cache_json=excluded.usage_cache_json,
                 usage_query_json=excluded.usage_query_json,
+                relay_model_provider=excluded.relay_model_provider,
+                relay_query_params_json=excluded.relay_query_params_json,
+                relay_headers_json=excluded.relay_headers_json,
                 updated_at=excluded.updated_at;
             """,
             bindings: [
@@ -4411,6 +4413,9 @@ extension CodexAuthManager {
                 .nullableText(lastSyncFailureMessage),
                 .nullableText(usageCacheJSON),
                 .nullableText(usageQueryJSON),
+                .nullableText(relayModelProvider),
+                .nullableText(relayQueryParamsJSON),
+                .nullableText(relayHeadersJSON),
                 .text(updatedAtISO),
             ]
         )
@@ -4460,7 +4465,10 @@ extension CodexAuthManager {
             m.nolon_account_last_sync_failed_at,
             m.nolon_account_last_sync_failure_message,
             m.usage_cache_json,
-            m.usage_query_json
+            m.usage_query_json,
+            m.relay_model_provider,
+            m.relay_query_params_json,
+            m.relay_headers_json
             \(hasLegacyAuthJSONColumn ? ", a.auth_json" : "")
         FROM codex_accounts a
         LEFT JOIN codex_account_credentials c ON c.account_id = a.id
@@ -4518,11 +4526,15 @@ extension CodexAuthManager {
         let lastSyncFailureMessage = text(24)
         let usageCacheJSON = text(25)
         let usageQueryJSON = text(26)
-        let legacyAuthJSON = hasLegacyAuthJSONColumn ? text(27) : nil
+        let relayModelProvider = text(27)
+        let relayQueryParamsJSON = text(28)
+        let relayHeadersJSON = text(29)
+        let legacyAuthJSON = hasLegacyAuthJSONColumn ? text(30) : nil
 
         let hasStructuredData = [
             idToken, accessToken, refreshToken, credentialAPIKey, baseURL, credentialEmail, credentialAccountID,
-            authMode, metadataAPIKey, metadataAccountID, metadataEmail, metadataPlanType, customGroupName, kind, usageCacheJSON, usageQueryJSON,
+            authMode, metadataAPIKey, metadataAccountID, metadataEmail, metadataPlanType, customGroupName, kind,
+            usageCacheJSON, usageQueryJSON, relayModelProvider, relayQueryParamsJSON, relayHeadersJSON,
         ].contains { $0 != nil }
 
         if !hasStructuredData, let legacyAuthJSON {
@@ -4564,6 +4576,22 @@ extension CodexAuthManager {
         if let baseURL {
             root["base_url"] = baseURL
         }
+        if baseURL != nil || relayModelProvider != nil || relayQueryParamsJSON != nil || relayHeadersJSON != nil {
+            var relay: JSONObject = [:]
+            if let baseURL { relay["base_url"] = baseURL }
+            if let relayModelProvider { relay["model_provider"] = relayModelProvider }
+            if let relayQueryParams = decodeEmbeddedJSONObject(relayQueryParamsJSON), !relayQueryParams.isEmpty {
+                relay["query_params"] = relayQueryParams
+            }
+            if let relayHeaders = decodeEmbeddedJSONObject(relayHeadersJSON), !relayHeaders.isEmpty {
+                relay["headers"] = relayHeaders
+            }
+            if !relay.isEmpty {
+                var nolon = (root["nolon"] as? JSONObject) ?? [:]
+                nolon["relay"] = relay
+                root["nolon"] = nolon
+            }
+        }
 
         var tokens: JSONObject = [:]
         if let idToken { tokens["id_token"] = idToken }
@@ -4593,7 +4621,8 @@ extension CodexAuthManager {
         if let lastSyncFailedAt { nolonAccount["lastSyncFailedAt"] = lastSyncFailedAt }
         if let lastSyncFailureMessage { nolonAccount["lastSyncFailureMessage"] = lastSyncFailureMessage }
 
-        var nolonObject: JSONObject = ["account": nolonAccount]
+        var nolonObject: JSONObject = (root["nolon"] as? JSONObject) ?? [:]
+        nolonObject["account"] = nolonAccount
         if let customGroupName {
             nolonObject["custom_group_name"] = customGroupName
         }

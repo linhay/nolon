@@ -3170,18 +3170,6 @@
         }
       }
     },
-    "codex.accounts.filter.hide_zero.help" : {
-      "comment" : "Help for hide zero quota filter",
-      "extractionState" : "extracted_with_value",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "切换是否显示额度为 0 的账号"
-          }
-        }
-      }
-    },
     "codex.accounts.filtered_empty.desc" : {
       "comment" : "All accounts hidden by zero quota filter description",
       "extractionState" : "manual",
@@ -3526,6 +3514,18 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "账号管理"
+          }
+        }
+      }
+    },
+    "codex.accounts.menu.section.quick_actions" : {
+      "comment" : "Codex quick actions menu section",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "快捷操作"
           }
         }
       }
@@ -11637,6 +11637,42 @@
         }
       }
     },
+    "provider.skills_link.placeholder.action" : {
+      "comment" : "Skills link placeholder action title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Go to Nolon"
+          }
+        }
+      }
+    },
+    "provider.skills_link.placeholder.description" : {
+      "comment" : "Skills link placeholder description",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "This provider now uses ~/.nolon/skills. Manage linked skills from the Nolon page."
+          }
+        }
+      }
+    },
+    "provider.skills_link.placeholder.title" : {
+      "comment" : "Skills link placeholder title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Skills are linked to Nolon"
+          }
+        }
+      }
+    },
     "provider.title" : {
       "comment" : "Provider Skills",
       "extractionState" : "stale",
@@ -12697,6 +12733,54 @@
         }
       }
     },
+    "settings.advanced.updates.channel.description" : {
+      "comment" : "Update channel description",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Switch between stable and beta updates. Beta may include unfinished changes."
+          }
+        }
+      }
+    },
+    "settings.advanced.updates.channel.dialog_title" : {
+      "comment" : "Update channel picker dialog title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Choose update channel"
+          }
+        }
+      }
+    },
+    "settings.advanced.updates.channel.open" : {
+      "comment" : "Open update channel picker",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Update channel"
+          }
+        }
+      }
+    },
+    "settings.advanced.updates.channel.title" : {
+      "comment" : "Update channel section title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Update Channel"
+          }
+        }
+      }
+    },
     "settings.advanced.updates.open" : {
       "comment" : "Open updates",
       "extractionState" : "extracted_with_value",
@@ -13080,6 +13164,30 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "跳过确认，仅移除链接（文件保留在项目中）"
+          }
+        }
+      }
+    },
+    "settings.updates.channel.beta" : {
+      "comment" : "Beta update channel label",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Beta"
+          }
+        }
+      }
+    },
+    "settings.updates.channel.stable" : {
+      "comment" : "Stable update channel label",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Stable"
           }
         }
       }
@@ -14261,6 +14369,18 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "Cached"
+          }
+        }
+      }
+    },
+    "usage.monitor.codex.missing_auth_source" : {
+      "comment" : "Codex auth source missing message",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Codex auth snapshot is missing."
           }
         }
       }

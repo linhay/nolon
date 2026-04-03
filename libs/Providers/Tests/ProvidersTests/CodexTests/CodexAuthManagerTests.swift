@@ -124,6 +124,20 @@ struct CodexAuthManagerTests {
         }
     }
 
+    private func accountAuthDataFromSQLite(
+        manager: CodexAuthManager,
+        account: CodexAuthAccount
+    ) throws -> Data {
+        guard let data = manager.accountAuthDataWithoutMaterialization(for: account), !data.isEmpty else {
+            throw NSError(
+                domain: "CodexAuthManagerTests",
+                code: 9001,
+                userInfo: [NSLocalizedDescriptionKey: "Expected SQLite auth payload for account \(account.id.uuidString)"]
+            )
+        }
+        return data
+    }
+
     @Test("Given NOLON_HOME env, when manager uses default root, then snapshots root is isolated to env path")
     func defaultRootRespectsNolonHomeEnv() async throws {
         let isolatedRoot = STFolder("/tmp")
@@ -307,8 +321,7 @@ struct CodexAuthManagerTests {
             authJSONString: #"{"tokens":{"id_token":"id-token","access_token":"access-token"},"email":"pretty@example.com","auth_mode":"chatgpt","OPENAI_API_KEY":null}"#
         )
 
-        let file = await manager.accountAuthFile(account)
-        let raw = try file.read()
+        let raw = try #require(String(data: accountAuthDataFromSQLite(manager: manager, account: account), encoding: .utf8))
 
         #expect(raw.contains("\n  \"auth_mode\""))
         let openAIKeyRange = try #require(raw.range(of: "\"OPENAI_API_KEY\""))
@@ -329,9 +342,26 @@ struct CodexAuthManagerTests {
             authJSONString: #"{"auth_mode":"chatgptAuthTokens","tokens":{"id_token":"id-token","access_token":"access-token"}}"#
         )
 
-        let file = await manager.accountAuthFile(account)
-        let json = try #require(try? JSON(data: file.data()))
+        let json = try #require(try? JSON(data: accountAuthDataFromSQLite(manager: manager, account: account)))
         #expect(json["auth_mode"].string == "chatgpt")
+    }
+
+    @Test("Given sqlite-only account payload, when requesting account auth file path, then manager does not materialize legacy snapshot file")
+    func accountAuthFileDoesNotMaterializeSQLiteMirror() async throws {
+        let root = try makeTempRoot("codex-auth-no-mirror")
+        defer { try? root.delete() }
+
+        let manager = CodexAuthManager(rootURL: root.url)
+        let account = try await manager.addAccount(
+            name: "no-mirror",
+            authJSONString: #"{"tokens":{"id_token":"id-token","access_token":"access-token"},"email":"sqlite-only@example.com"}"#
+        )
+
+        let sqliteData = try accountAuthDataFromSQLite(manager: manager, account: account)
+        #expect(!sqliteData.isEmpty)
+
+        let file = await manager.accountAuthFile(relativeAuthPath: account.relativeAuthPath)
+        #expect(file.isExists == false)
     }
 
     @Test("Given selected snapshot, when activating account, then provider auth is symlinked to snapshot")

@@ -1908,7 +1908,9 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
         guard let providerAuthFile = await authManager.authFile(for: provider),
               providerAuthFile.isExists,
               providerAuthFile.isSymbolicLink,
-              let destinationURL = Self.symlinkDestinationURL(for: providerAuthFile.url)
+              let destinationURL = Self.symlinkDestinationURL(for: providerAuthFile.url),
+              let payloadData = try? Data(contentsOf: destinationURL),
+              !payloadData.isEmpty
         else {
             return nil
         }
@@ -1918,13 +1920,32 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
             return nil
         }
 
+        if let accountID = Self.accountID(fromAuthPayloadData: payloadData) {
+            let accounts = (try? await authManager.loadAccounts()) ?? []
+            if let matched = accounts.first(where: { $0.id == accountID }) {
+                return await isGatewayVirtualMarkedAccount(matched) ? nil : matched.id
+            }
+        }
+
         let accounts = (try? await authManager.loadAccounts()) ?? []
-        for account in accounts {
-            let snapshotPath = await authManager.accountAuthFile(account).url.standardizedFileURL.path
-            guard snapshotPath == standardizedDestination else { continue }
-            return await isGatewayVirtualMarkedAccount(account) ? nil : account.id
+        for account in accounts where !(await isGatewayVirtualMarkedAccount(account)) {
+            guard let data = authManager.accountAuthData(for: account),
+                  data == payloadData
+            else { continue }
+            return account.id
         }
         return nil
+    }
+
+    private static func accountID(fromAuthPayloadData data: Data) -> UUID? {
+        guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let nolon = object["nolon"] as? [String: Any],
+              let account = nolon["account"] as? [String: Any],
+              let accountIDRaw = account["id"] as? String
+        else {
+            return nil
+        }
+        return UUID(uuidString: accountIDRaw.trimmingCharacters(in: .whitespacesAndNewlines))
     }
 
     private static func symlinkDestinationURL(for fileURL: URL) -> URL? {
@@ -1950,8 +1971,7 @@ public struct NolonLiveCodexCLIService: NolonCodexCLIServing {
         if Self.looksLikeGatewayVirtualPath(account.relativeAuthPath) {
             return true
         }
-        let file = await authManager.accountAuthFile(account)
-        guard let data = try? file.data(),
+        guard let data = authManager.accountAuthData(for: account),
               let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let nolon = object["nolon"] as? [String: Any],
               let relay = nolon["relay"] as? [String: Any],
