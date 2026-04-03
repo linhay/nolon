@@ -5,5 +5,61 @@
         <link>https://linhay.github.io/nolon/appcast-beta.xml</link>
         <description>Most recent beta changes with links to updates.</description>
         <language>en</language>
+    
+        <item>
+            <title>2.1.10</title>
+            <pubDate>Fri, 03 Apr 2026 14:11:37 +0800</pubDate>
+            <sparkle:version>202604031352</sparkle:version>
+            <sparkle:shortVersionString>2.1.10</sparkle:shortVersionString>
+            <link>https://github.com/linhay/nolon/releases/download/v2.1.10/nolon-arm64.dmg</link>
+            <description><![CDATA[<div style="white-space: pre-wrap; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;">## nolon 2.1.10
+
+### Changes
+- feat(release): add switchable stable/beta Sparkle channels
+- chore: commit remaining workspace changes
+- test(usage): cover scheduled refresh policy windows
+- feat(usage): adopt policy-driven refresh scheduling
+- test(codex): align auth/link assertions and isolate usage engine fixtures
+- refactor(codex): stabilize active account key and inject auth manager
+- feat(menu-bar): sort quick switch accounts by active and quota priority
+- chore(release): sync appcast for v2.1.9
+
+### Downloads
+
+| Platform | Architecture | Download |
+|----------|--------------|----------|
+| macOS | Apple Silicon (M1/M2/M3) | `nolon-arm64.dmg` |
+| macOS | Intel | `nolon-x86_64.dmg` |
+
+### Installation
+1. Download the appropriate DMG for your Mac
+   - **Apple Silicon** (M1, M2, M3 chips): `nolon-arm64.dmg`
+   - **Intel** (older Macs): `nolon-x86_64.dmg`
+2. Open the DMG and drag nolon to Applications
+3. Launch nolon from Applications
+
+### System Requirements
+- macOS 14.0 or later
+
+---
+*Built on 2026-04-03*</div>]]></description>
+            <enclosure url="https://github.com/linhay/nolon/releases/download/v2.1.10/nolon-arm64.dmg"
+                       sparkle:version="202604031352"
+                       sparkle:shortVersionString="2.1.10"
+                       sparkle:edSignature="jOTfsOB1YrDKk4Ag6clMHx/qYIL5c9tjePAQXhZOCz1LPRA6aR1kBVBj8lolko+FR38BVwhc6zDu4UZ23lzKDQ=="
+                       length="40341325"
+                       type="application/x-apple-diskimage"
+                       sparkle:os="macos"
+                       xml:lang="en" />
+            <enclosure url="https://github.com/linhay/nolon/releases/download/v2.1.10/nolon-x86_64.dmg"
+                       sparkle:version="202604031352"
+                       sparkle:shortVersionString="2.1.10"
+                       sparkle:edSignature="o5yOhy28kgCLLyIZpldnW2jcQXHVtAG+xveSJZhNp1pKUD/Jxy502p3gRMfin0sIexJxdO04AqAfnXd8Oa7kCA=="
+                       length="41877054"
+                       type="application/x-apple-diskimage"
+                       sparkle:os="macos"
+                       xml:lang="en" />
+        </item>
+
     </channel>
 </rss>
