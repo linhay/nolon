@@ -10,6 +10,14 @@ on:
         description: "Release version (e.g. 2.1.6)"
         required: true
         type: string
+      release_channel:
+        description: "Release channel"
+        required: true
+        default: "stable"
+        type: choice
+        options:
+          - stable
+          - beta
       changelog_file:
         description: "Optional changelog file path (e.g. docs/RELEASE_NOTES_2.1.6.md)"
         required: false
@@ -126,11 +134,13 @@ jobs:
             echo "version=${version}" >> "$GITHUB_OUTPUT"
             echo "ci_tag_mode=1" >> "$GITHUB_OUTPUT"
             echo "release_push_branch=main" >> "$GITHUB_OUTPUT"
+            echo "release_channel=stable" >> "$GITHUB_OUTPUT"
             echo "changelog_file=" >> "$GITHUB_OUTPUT"
           else
             echo "version=${{ github.event.inputs.version }}" >> "$GITHUB_OUTPUT"
             echo "ci_tag_mode=0" >> "$GITHUB_OUTPUT"
             echo "release_push_branch=" >> "$GITHUB_OUTPUT"
+            echo "release_channel=${{ github.event.inputs.release_channel }}" >> "$GITHUB_OUTPUT"
             echo "changelog_file=${{ github.event.inputs.changelog_file }}" >> "$GITHUB_OUTPUT"
           fi
 
@@ -179,6 +189,7 @@ jobs:
           TEAM_ID_SECRET: ${{ secrets.TEAM_ID }}
           CI_TAG_MODE: ${{ steps.params.outputs.ci_tag_mode }}
           RELEASE_PUSH_BRANCH: ${{ steps.params.outputs.release_push_branch }}
+          RELEASE_CHANNEL: ${{ steps.params.outputs.release_channel }}
         run: |
           : "${SPARKLE_PRIVATE_KEY:=${SPARKLE_PRIVATE_KEY_SECRET:-}}"
           : "${SPARKLE_KEYCHAIN_ACCOUNT:=${SPARKLE_KEYCHAIN_ACCOUNT_SECRET:-}}"

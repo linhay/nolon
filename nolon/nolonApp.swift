@@ -51,6 +51,28 @@ struct CheckForUpdatesView: View {
     }
 }
 
+final class SparkleFeedDelegate: NSObject, SPUUpdaterDelegate {
+    private let lock = NSLock()
+    private var feedURLStringStorage: String
+
+    init(feedURLString: String) {
+        self.feedURLStringStorage = feedURLString
+    }
+
+    func updateFeedURLString(_ value: String) {
+        lock.lock()
+        feedURLStringStorage = value
+        lock.unlock()
+    }
+
+    func feedURLString(for updater: SPUUpdater) -> String? {
+        lock.lock()
+        let value = feedURLStringStorage
+        lock.unlock()
+        return value
+    }
+}
+
 // MARK: - URL Scheme Handler
 
 /// Singleton to share pending URL across app
@@ -209,6 +231,10 @@ final class CodexRuntimeHomeCleanupService {
 struct nolonApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     static var updaterController: SPUStandardUpdaterController?
+    static var sparkleFeedDelegate: SparkleFeedDelegate?
+    static let stableFeedURL = URL(string: "https://linhay.github.io/nolon/appcast.xml")!
+    static let betaFeedURL = URL(string: "https://linhay.github.io/nolon/appcast-beta.xml")!
+    static var appliedUpdateChannel: AppUpdateChannel?
     private let isRunningSwiftUIPreviews: Bool
 
     init() {
@@ -222,8 +248,35 @@ struct nolonApp: App {
             // Apply app settings (appearance, etc.)
             AppSettingsStore.shared.applyAllSettings()
 
-            let controller = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
+            let initialFeedURL = Self.feedURL(for: AppSettingsStore.shared.updateChannel).absoluteString
+            let feedDelegate = SparkleFeedDelegate(feedURLString: initialFeedURL)
+            let controller = SPUStandardUpdaterController(
+                startingUpdater: true,
+                updaterDelegate: feedDelegate,
+                userDriverDelegate: nil
+            )
+            Self.sparkleFeedDelegate = feedDelegate
             Self.updaterController = controller
+            Self.applyUpdaterFeed(channel: AppSettingsStore.shared.updateChannel)
+        }
+    }
+
+    static func feedURL(for channel: AppUpdateChannel) -> URL {
+        switch channel {
+        case .stable:
+            return stableFeedURL
+        case .beta:
+            return betaFeedURL
+        }
+    }
+
+    static func applyUpdaterFeed(channel: AppUpdateChannel) {
+        guard let updater = updaterController?.updater else { return }
+        let target = feedURL(for: channel).absoluteString
+        sparkleFeedDelegate?.updateFeedURLString(target)
+        if appliedUpdateChannel != channel {
+            appliedUpdateChannel = channel
+            updater.resetUpdateCycle()
         }
     }
 

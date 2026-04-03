@@ -16,6 +16,7 @@ final class AppSettingsStore {
         static let appearance = "app.appearance"
         static let language = "app.language"
         static let unlinkingPolicy = "app.unlinking_policy"
+        static let updateChannel = "app.update_channel"
         static let appleLanguages = "AppleLanguages"
     }
 
@@ -38,6 +39,12 @@ final class AppSettingsStore {
     var unlinkingPolicy: AppUnlinkingPolicy {
         didSet {
             userDefaults.set(unlinkingPolicy.rawValue, forKey: Keys.unlinkingPolicy)
+        }
+    }
+
+    var updateChannel: AppUpdateChannel {
+        didSet {
+            userDefaults.set(updateChannel.rawValue, forKey: Keys.updateChannel)
         }
     }
 
@@ -73,6 +80,9 @@ final class AppSettingsStore {
 
         let unlinkRaw = userDefaults.string(forKey: Keys.unlinkingPolicy) ?? AppUnlinkingPolicy.askEveryTime.rawValue
         self.unlinkingPolicy = AppUnlinkingPolicy(rawValue: unlinkRaw) ?? .askEveryTime
+
+        let channelRaw = userDefaults.string(forKey: Keys.updateChannel) ?? AppUpdateChannel.stable.rawValue
+        self.updateChannel = AppUpdateChannel(rawValue: channelRaw) ?? .stable
     }
 
     func applyAllSettings() {

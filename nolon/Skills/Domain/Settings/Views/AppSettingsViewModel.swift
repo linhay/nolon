@@ -34,6 +34,7 @@ final class AppSettingsViewModel {
     var rebuildErrorMessage: String?
     var showingRebuildConfirmation = false
     var showingUpdatesSheet = false
+    var showingUpdateChannelDialog = false
     var updateCount = 0
 
     private let defaults: UserDefaults
@@ -188,6 +189,19 @@ final class AppSettingsViewModel {
         )
     }
 
+    var updateChannelActionData: SettingsActionCardData {
+        .init(
+            leadingSystemImage: "dot.radiowaves.left.and.right",
+            title: NSLocalizedString(
+                "settings.advanced.updates.channel.open",
+                value: "Update channel",
+                comment: "Open update channel picker"
+            ),
+            trailingText: settingsStore.updateChannel.displayName,
+            trailingTone: .secondary
+        )
+    }
+
     func confirmOnboardingReset() {
         defaults.set(false, forKey: onboardingCompletedKey)
     }
@@ -211,6 +225,17 @@ final class AppSettingsViewModel {
     func refreshUpdateCount() async {
         let checker = SkillUpdateChecker()
         updateCount = await checker.getUpdatableSkillsCount()
+    }
+
+    func openUpdateChannelDialog() {
+        showingUpdateChannelDialog = true
+    }
+
+    func selectUpdateChannel(id: String) {
+        guard let channel = AppUpdateChannel(rawValue: id) else { return }
+        guard settingsStore.updateChannel != channel else { return }
+        settingsStore.updateChannel = channel
+        nolonApp.applyUpdaterFeed(channel: channel)
     }
 
     func rebuildSkillLock() async {

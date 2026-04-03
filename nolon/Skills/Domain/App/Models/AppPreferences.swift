@@ -7,12 +7,38 @@ struct AppPreferences: Codable, Equatable, Sendable {
     var appearance: AppAppearance
     var language: AppLanguage
     var unlinkingPolicy: AppUnlinkingPolicy
+    var updateChannel: AppUpdateChannel
 
     static let `default` = AppPreferences(
         appearance: .system,
         language: .system,
-        unlinkingPolicy: .askEveryTime
+        unlinkingPolicy: .askEveryTime,
+        updateChannel: .stable
     )
+}
+
+enum AppUpdateChannel: String, CaseIterable, Identifiable, Codable, Sendable {
+    case stable = "stable"
+    case beta = "beta"
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .stable:
+            return NSLocalizedString(
+                "settings.updates.channel.stable",
+                value: "Stable",
+                comment: "Stable update channel label"
+            )
+        case .beta:
+            return NSLocalizedString(
+                "settings.updates.channel.beta",
+                value: "Beta",
+                comment: "Beta update channel label"
+            )
+        }
+    }
 }
 
 enum AppUnlinkingPolicy: String, CaseIterable, Identifiable, Codable, Sendable {
@@ -82,4 +108,3 @@ enum AppLanguage: String, CaseIterable, Identifiable, Codable, Sendable {
         }
     }
 }
-

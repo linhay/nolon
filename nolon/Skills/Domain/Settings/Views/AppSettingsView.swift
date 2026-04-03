@@ -56,16 +56,44 @@ struct AppSettingsView: View {
                 viewModel.normalizeLanguageIfNeeded()
             }
         case .advanced:
-            NolonUI.AdvancedSettingsContentView(
-                config: .init(
-                    skillLockData: viewModel.skillLockSectionData,
-                    overwriteExisting: $viewModel.overwriteExisting,
-                    isRebuildingSkillLock: viewModel.isRebuildingSkillLock,
-                    onTapRebuildSkillLock: { viewModel.showingRebuildConfirmation = true },
-                    updatesActionData: viewModel.updatesActionData,
-                    onTapUpdates: { viewModel.showingUpdatesSheet = true }
+            VStack(alignment: .leading, spacing: 24) {
+                NolonUI.AdvancedSettingsContentView(
+                    config: .init(
+                        skillLockData: viewModel.skillLockSectionData,
+                        overwriteExisting: $viewModel.overwriteExisting,
+                        isRebuildingSkillLock: viewModel.isRebuildingSkillLock,
+                        onTapRebuildSkillLock: { viewModel.showingRebuildConfirmation = true },
+                        updatesActionData: viewModel.updatesActionData,
+                        onTapUpdates: { viewModel.showingUpdatesSheet = true }
+                    )
                 )
-            )
+
+                VStack(alignment: .leading, spacing: 12) {
+                    Text(
+                        NSLocalizedString(
+                            "settings.advanced.updates.channel.title",
+                            value: "Update Channel",
+                            comment: "Update channel section title"
+                        )
+                    )
+                    .font(.headline)
+
+                    NolonUI.SettingsActionCardView(
+                        data: viewModel.updateChannelActionData,
+                        onTap: { viewModel.openUpdateChannelDialog() }
+                    )
+
+                    Text(
+                        NSLocalizedString(
+                            "settings.advanced.updates.channel.description",
+                            value: "Switch between stable and beta updates. Beta may include unfinished changes.",
+                            comment: "Update channel description"
+                        )
+                    )
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                }
+            }
             .confirmationAlert(
                 data: viewModel.rebuildSkillLockConfirmationData,
                 isPresented: $viewModel.showingRebuildConfirmation,
@@ -74,6 +102,22 @@ struct AppSettingsView: View {
                 },
                 onCancel: {}
             )
+            .confirmationDialog(
+                NSLocalizedString(
+                    "settings.advanced.updates.channel.dialog_title",
+                    value: "Choose update channel",
+                    comment: "Update channel picker dialog title"
+                ),
+                isPresented: $viewModel.showingUpdateChannelDialog,
+                titleVisibility: .visible
+            ) {
+                ForEach(AppUpdateChannel.allCases) { channel in
+                    Button(channel.displayName) {
+                        viewModel.selectUpdateChannel(id: channel.rawValue)
+                    }
+                }
+                Button(NSLocalizedString("action.cancel", value: "Cancel", comment: "Cancel"), role: .cancel) {}
+            }
             .sheet(isPresented: $viewModel.showingUpdatesSheet) {
                 UpdatesView()
             }

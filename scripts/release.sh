@@ -10,6 +10,7 @@
 #
 # Optional env:
 #   SKIP_BUILD=1            Skip ./scripts/build-dmg.sh all
+#   RELEASE_CHANNEL=stable  Release channel: stable|beta
 #   CI_TAG_MODE=1           Tag-trigger mode: skip creating tag, commit appcast back to RELEASE_PUSH_BRANCH
 #   RELEASE_PUSH_BRANCH=main Target branch for appcast sync when CI_TAG_MODE=1
 #   UPLOAD_RETRIES=5        Retry count for each asset upload
@@ -50,6 +51,20 @@ fi
 
 TAG="v${VERSION}"
 CI_TAG_MODE="${CI_TAG_MODE:-0}"
+RELEASE_CHANNEL="${RELEASE_CHANNEL:-stable}"
+
+case "${RELEASE_CHANNEL}" in
+    stable|beta) ;;
+    *)
+        echo -e "${RED}❌ RELEASE_CHANNEL must be stable or beta, got: ${RELEASE_CHANNEL}${NC}"
+        exit 1
+        ;;
+esac
+
+IS_BETA_CHANNEL=0
+if [ "${RELEASE_CHANNEL}" = "beta" ]; then
+    IS_BETA_CHANNEL=1
+fi
 
 # Check if gh is installed
 if ! command -v gh &> /dev/null; then
@@ -201,9 +216,19 @@ RELEASE_NOTES="${RELEASE_NOTES}
 *Built on $(date '+%Y-%m-%d')*"
 
 # Update Appcast
-APPCAST_FILE="docs/appcast.xml"
-APPCAST_FILE_ROOT="appcast.xml"
-APPCAST_URL="https://linhay.github.io/nolon/appcast.xml"
+if [ "${IS_BETA_CHANNEL}" = "1" ]; then
+    APPCAST_FILE="${APPCAST_FILE:-docs/appcast-beta.xml}"
+    APPCAST_FILE_ROOT="${APPCAST_FILE_ROOT:-appcast-beta.xml}"
+    APPCAST_URL="${APPCAST_URL:-https://linhay.github.io/nolon/appcast-beta.xml}"
+    APPCAST_TITLE="Nolon Beta Changelog"
+    APPCAST_DESCRIPTION="Most recent beta changes with links to updates."
+else
+    APPCAST_FILE="${APPCAST_FILE:-docs/appcast.xml}"
+    APPCAST_FILE_ROOT="${APPCAST_FILE_ROOT:-appcast.xml}"
+    APPCAST_URL="${APPCAST_URL:-https://linhay.github.io/nolon/appcast.xml}"
+    APPCAST_TITLE="Nolon Changelog"
+    APPCAST_DESCRIPTION="Most recent changes with links to updates."
+fi
 DOWNLOAD_BASE_URL="https://github.com/linhay/nolon/releases/download/${TAG}"
 DATE_RFC2822=$(date "+%a, %d %b %Y %H:%M:%S %z")
 
@@ -216,9 +241,9 @@ if [ ! -f "$APPCAST_FILE" ]; then
 <?xml version="1.0" standalone="yes"?>
 <rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
     <channel>
-        <title>Nolon Changelog</title>
+        <title>${APPCAST_TITLE}</title>
         <link>${APPCAST_URL}</link>
-        <description>Most recent changes with links to updates.</description>
+        <description>${APPCAST_DESCRIPTION}</description>
         <language>en</language>
     </channel>
 </rss>
@@ -353,16 +378,28 @@ RELEASE_TITLE="${APP_NAME} ${VERSION}"
 # Create or update the Release (draft) first; uploads happen separately to avoid "stuck" large uploads.
 if gh release view "$TAG" >/dev/null 2>&1; then
     echo -e "${YELLOW}🧩 Release exists; updating title/notes and keeping draft for uploads...${NC}"
-    gh release edit "$TAG" \
-        --title "${RELEASE_TITLE}" \
-        --notes "$RELEASE_NOTES" \
+    RELEASE_EDIT_ARGS=(
+        "$TAG"
+        --title "${RELEASE_TITLE}"
+        --notes "$RELEASE_NOTES"
         --draft
+    )
+    if [ "${IS_BETA_CHANNEL}" = "1" ]; then
+        RELEASE_EDIT_ARGS+=(--prerelease)
+    fi
+    gh release edit "${RELEASE_EDIT_ARGS[@]}"
 else
     echo -e "${YELLOW}🆕 Creating draft release ${TAG} (upload assets next)...${NC}"
-    gh release create "$TAG" \
-        --title "${RELEASE_TITLE}" \
-        --notes "$RELEASE_NOTES" \
+    RELEASE_CREATE_ARGS=(
+        "$TAG"
+        --title "${RELEASE_TITLE}"
+        --notes "$RELEASE_NOTES"
         --draft
+    )
+    if [ "${IS_BETA_CHANNEL}" = "1" ]; then
+        RELEASE_CREATE_ARGS+=(--prerelease)
+    fi
+    gh release create "${RELEASE_CREATE_ARGS[@]}"
 fi
 
 UPLOAD_RETRIES="${UPLOAD_RETRIES:-5}"
@@ -481,7 +518,11 @@ if ! wait_for_pages_and_appcast; then
 fi
 
 echo -e "${YELLOW}✅ Assets uploaded. Publishing release ${TAG}...${NC}"
-gh release edit "$TAG" --draft=false --latest
+if [ "${IS_BETA_CHANNEL}" = "1" ]; then
+    gh release edit "$TAG" --draft=false --prerelease
+else
+    gh release edit "$TAG" --draft=false --latest
+fi
 
 echo -e "${GREEN}✅ Release ${TAG} published successfully!${NC}"
 echo -e "${GREEN}📍 View at: $(gh repo view --json url -q .url)/releases/tag/${TAG}${NC}"
