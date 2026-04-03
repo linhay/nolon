@@ -548,6 +548,13 @@ struct NolonResourceKitTests {
         let alphaNolon = try #require(alphaJSON["x-nolon"] as? [String: Any])
         let alphaProviders = try #require(alphaNolon["providers"] as? [String])
         #expect(alphaProviders.contains("codex"))
+
+        // Deleting a fragment should prune provider projection on next linked sync.
+        try STFile(aPath).deleteIncludingBrokenSymlink()
+        let resynced = try MCPConfigManager.syncAllCacheServersToProvider(for: .codex)
+        #expect(resynced == 1)
+        let providerServersAfterDelete = try MCPConfigManager.listServers(for: .codex).map(\.name).sorted()
+        #expect(providerServersAfterDelete == ["beta"])
     }
 
     @Test("WorkflowSourceResolver resolves relative symlink destination against link directory")

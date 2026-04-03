@@ -16,10 +16,10 @@ public final class ProviderResourceMonitor {
         self.onChange = onChange
     }
 
-    public func startWatching(provider: Provider) {
+    public func startWatching(provider: Provider, watchGlobalMcpCache: Bool = false) {
         stop()
 
-        let targets = watchedTargets(for: provider)
+        let targets = watchedTargets(for: provider, watchGlobalMcpCache: watchGlobalMcpCache)
         guard !targets.isEmpty else { return }
 
         watchers = targets.map { STPathWatcher(path: $0) }
@@ -61,7 +61,7 @@ public final class ProviderResourceMonitor {
         }
     }
 
-    private func watchedTargets(for provider: Provider) -> [STPath] {
+    private func watchedTargets(for provider: Provider, watchGlobalMcpCache: Bool) -> [STPath] {
         var paths: [String] = []
         paths.append(provider.defaultSkillsPath)
         paths.append(provider.workflowPath)
@@ -72,7 +72,7 @@ public final class ProviderResourceMonitor {
             paths.append(template.defaultMcpConfigPath.path)
         }
 
-        if provider.mcpLinkEnabled {
+        if provider.mcpLinkEnabled || watchGlobalMcpCache {
             paths.append(NolonManager.shared.mcpsURL.path)
         }
 

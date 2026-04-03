@@ -132,6 +132,7 @@ final class MainSplitViewModel {
         refreshNolonResourceCenterState()
         if !UITestSupport.isRunningUnitTests {
             resourceMonitor = ProviderResourceMonitor { [weak self] in
+                self?.syncLinkedMcpProjectionForAllProviders()
                 self?.refreshTrigger += 1
             }
         }
@@ -251,11 +252,54 @@ final class MainSplitViewModel {
 
     @MainActor
     func updateResourceMonitoring() {
-        guard let provider = selectedProvider else {
-            resourceMonitor?.stop()
+        let hasLinkedNativeMcpProvider = settings.providers.contains { provider in
+            guard provider.mcpLinkEnabled,
+                  let templateId = provider.templateId,
+                  let template = ProviderTemplate(rawValue: templateId)
+            else {
+                return false
+            }
+            return template.supportsNativeMcpConfig
+        }
+
+        if let provider = selectedProvider {
+            resourceMonitor?.startWatching(
+                provider: provider,
+                watchGlobalMcpCache: hasLinkedNativeMcpProvider
+            )
             return
         }
-        resourceMonitor?.startWatching(provider: provider)
+
+        if hasLinkedNativeMcpProvider,
+           let fallbackProvider = settings.providers.first {
+            resourceMonitor?.startWatching(
+                provider: fallbackProvider,
+                watchGlobalMcpCache: true
+            )
+            return
+        }
+
+        resourceMonitor?.stop()
+    }
+
+    @MainActor
+    private func syncLinkedMcpProjectionForAllProviders() {
+        for provider in settings.providers where provider.mcpLinkEnabled {
+            guard
+                let templateId = provider.templateId,
+                let template = ProviderTemplate(rawValue: templateId),
+                template.supportsNativeMcpConfig
+            else {
+                continue
+            }
+            do {
+                _ = try MCPConfigManager.syncAllCacheServersToProvider(for: template)
+            } catch {
+                Self.logger.error(
+                    "Linked MCP projection sync failed. provider=\(provider.id, privacy: .public) template=\(template.rawValue, privacy: .public) error=\(error.localizedDescription, privacy: .public)"
+                )
+            }
+        }
     }
 
     @MainActor
