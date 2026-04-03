@@ -271,8 +271,16 @@ private extension MCPConfigManager {
             for (name, server) in servers {
                 mapped[name] = codexServer(from: server)
             }
+            let existingMapped = (config.mcpServers ?? [:]).mapValues(codexServerDictionary)
+            let desiredMapped = mapped.mapValues(codexServerDictionary)
+            if canonicalJSON(existingMapped) == canonicalJSON(desiredMapped) {
+                return
+            }
             config.mcpServers = mapped
             let output = try TOMLEncoder().encode(config)
+            if let existing = try? Data(contentsOf: path), existing == output {
+                return
+            }
             try output.write(to: path, options: .atomic)
             return
         }
@@ -284,7 +292,7 @@ private extension MCPConfigManager {
                 mapped[name] = encodeOpenCodeServer(from: server)
             }
             root["mcp"] = mapped
-            try writeJSONObject(root, to: path)
+            try writeJSONObjectIfChanged(root, to: path)
             return
         }
 
@@ -299,7 +307,7 @@ private extension MCPConfigManager {
         root["mcp_servers"] = nil
         root["mcp"] = nil
         root[key] = mapped
-        try writeJSONObject(root, to: path)
+        try writeJSONObjectIfChanged(root, to: path)
     }
 
     static func preferredServersKey(for template: ProviderTemplate, root: [String: Any]) -> String {
@@ -477,6 +485,9 @@ private extension MCPConfigManager {
             withJSONObject: root,
             options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
         )
+        if let existing = try? Data(contentsOf: fileURL), existing == data {
+            return
+        }
         try data.write(to: fileURL, options: .atomic)
     }
 
@@ -590,6 +601,17 @@ private extension MCPConfigManager {
             withJSONObject: object,
             options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
         )
+        try data.write(to: fileURL, options: .atomic)
+    }
+
+    static func writeJSONObjectIfChanged(_ object: [String: Any], to fileURL: URL) throws {
+        let data = try JSONSerialization.data(
+            withJSONObject: object,
+            options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+        )
+        if let existing = try? Data(contentsOf: fileURL), existing == data {
+            return
+        }
         try data.write(to: fileURL, options: .atomic)
     }
 
