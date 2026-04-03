@@ -241,8 +241,12 @@ struct ProviderDetailGridView: View, DebugPageLocatable {
         Self.shouldShowQuickInstallButton(
             selectedTab: selectedTab,
             isCurrentTabLinkedToCodex: isCurrentTabLinkedToCodex,
-            skillsLinkEnabled: viewModel.skillsLinkEnabled
+            skillsLinkEnabled: effectiveSkillsLinkEnabled
         )
+    }
+
+    private var effectiveSkillsLinkEnabled: Bool {
+        viewModel.skillsLinkEnabled || (provider?.skillsLinkEnabled ?? false)
     }
 
     private var orphanedSkillCount: Int {
@@ -390,7 +394,7 @@ struct ProviderDetailGridView: View, DebugPageLocatable {
         case .skills:
             if let provider = provider {
                 if Self.shouldShowNolonSkillsLinkedPlaceholder(
-                    skillsLinkEnabled: viewModel.skillsLinkEnabled,
+                    skillsLinkEnabled: effectiveSkillsLinkEnabled,
                     selectedTab: selectedTab
                 ) {
                     skillsLinkEnabledPlaceholderCard
@@ -611,9 +615,7 @@ struct ProviderDetailGridView: View, DebugPageLocatable {
 
     private var skillsLinkEnabledPlaceholderCard: some View {
         VStack(spacing: 16) {
-            Image(systemName: "link.icloud.fill")
-                .font(.system(size: 46, weight: .medium))
-                .foregroundStyle(.secondary)
+            skillsLinkPlaceholderArtwork
 
             VStack(spacing: 8) {
                 Text(
@@ -654,6 +656,33 @@ struct ProviderDetailGridView: View, DebugPageLocatable {
         .frame(maxWidth: .infinity)
         .padding(32)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
+
+    private var skillsLinkPlaceholderArtwork: some View {
+        HStack(spacing: 14) {
+            placeholderFolderChip(systemImage: "folder", label: "Provider")
+            Image(systemName: "link")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(.secondary)
+            placeholderFolderChip(systemImage: "tray.2.fill", label: "Nolon")
+        }
+        .padding(.vertical, 6)
+    }
+
+    private func placeholderFolderChip(systemImage: String, label: String) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: systemImage)
+                .font(.system(size: 13, weight: .semibold))
+            Text(label)
+                .font(.system(size: 12, weight: .medium))
+        }
+        .foregroundStyle(.secondary)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(.quaternary.opacity(0.4))
+        )
     }
 
     private var codexXcodeNoticeData: ProviderCodexXcodeNoticeData? {
