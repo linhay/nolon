@@ -154,6 +154,27 @@ public enum MCPConfigManager {
             return MCPCacheStatusInfo(name: serverName, state: state, cachePath: targetURL.path)
         }
     }
+
+    /// For linked-provider mode: project all fragment files from ~/.nolon/mcps to this provider's
+    /// native MCP config and bind provider ownership metadata into each fragment.
+    @discardableResult
+    public static func syncAllCacheServersToProvider(for template: ProviderTemplate) throws -> Int {
+        guard template.supportsNativeMcpConfig else { return 0 }
+        let entries = readCacheEntriesIndexedByName()
+        var projected: [String: [String: Any]] = [:]
+        for (name, entry) in entries {
+            let normalized = normalizeServerConfigForStorage(entry.server)
+            projected[name] = normalized
+            try writeCacheServer(
+                name: name,
+                server: normalized,
+                provider: template.rawValue,
+                mergeProviders: true
+            )
+        }
+        try writeServersDict(for: template, servers: projected)
+        return projected.count
+    }
 }
 
 private extension MCPConfigManager {

@@ -11439,6 +11439,30 @@
         }
       }
     },
+    "provider.mcp_link.placeholder.description" : {
+      "comment" : "MCP link placeholder description",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "This provider now uses ~/.nolon/mcps. Manage linked MCP entries from the Nolon page."
+          }
+        }
+      }
+    },
+    "provider.mcp_link.placeholder.title" : {
+      "comment" : "MCP link placeholder title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "MCP is linked to Nolon"
+          }
+        }
+      }
+    },
     "provider.mcp.not_supported_native" : {
       "comment" : "Provider does not expose native MCP config",
       "extractionState" : "extracted_with_value",

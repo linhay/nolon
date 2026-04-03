@@ -72,6 +72,10 @@ public final class ProviderResourceMonitor {
             paths.append(template.defaultMcpConfigPath.path)
         }
 
+        if provider.mcpLinkEnabled {
+            paths.append(NolonManager.shared.mcpsURL.path)
+        }
+
         // Canonicalize + dedupe.
         var unique: [String] = []
         var seen = Set<String>()

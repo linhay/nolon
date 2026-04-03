@@ -112,6 +112,7 @@ final class ProviderDetailGridViewModel {
         }
         skillsLinkEnabled = provider.skillsLinkEnabled
         mcpLinkEnabled = provider.mcpLinkEnabled
+        syncLinkedMcpProjectionIfNeeded(for: provider)
         
         isLoading = true
         
@@ -177,6 +178,8 @@ final class ProviderDetailGridViewModel {
         settings.updateProvider(provider)
         self.provider = provider
         mcpLinkEnabled = enabled
+        syncLinkedMcpProjectionIfNeeded(for: provider)
+        await loadData()
     }
 
     private func setSkillsLinkEnabled(_ enabled: Bool, backupExisting: Bool) async {
@@ -309,6 +312,22 @@ final class ProviderDetailGridViewModel {
     }
     
     private let homeDirectory = NSHomeDirectory()
+
+    private func syncLinkedMcpProjectionIfNeeded(for provider: Provider) {
+        guard provider.mcpLinkEnabled else { return }
+        guard
+            let templateId = provider.templateId,
+            let template = ProviderTemplate(rawValue: templateId),
+            template.supportsNativeMcpConfig
+        else {
+            return
+        }
+        do {
+            _ = try MCPConfigManager.syncAllCacheServersToProvider(for: template)
+        } catch {
+            setError(error.localizedDescription, scope: .mcp)
+        }
+    }
 
     func revealMcpConfigInFinder() {
         guard

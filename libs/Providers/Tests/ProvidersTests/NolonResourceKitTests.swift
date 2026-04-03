@@ -483,6 +483,73 @@ struct NolonResourceKitTests {
         #expect(cachedServer["oauth_resource"] as? String == "https://example.com/mcp")
     }
 
+    @Test("Linked MCP sync projects all cache fragments to provider native config")
+    func linkedMcpSyncProjectsAllFragments() throws {
+        let root = try STFolder(sanbox: .temporary)
+            .folder("nolon-mcp-linked-sync-\(UUID().uuidString)")
+            .create()
+        defer { try? root.deleteIncludingBrokenSymlink() }
+
+        let previousHome = getenv("HOME").map { String(cString: $0) }
+        let previousNolonHome = getenv("NOLON_HOME").map { String(cString: $0) }
+        setenv("HOME", root.url.path, 1)
+        setenv("NOLON_HOME", root.folder(".nolon").url.path, 1)
+        defer {
+            if let previousHome {
+                setenv("HOME", previousHome, 1)
+            }
+            if let previousNolonHome {
+                setenv("NOLON_HOME", previousNolonHome, 1)
+            } else {
+                unsetenv("NOLON_HOME")
+            }
+        }
+
+        let manager = NolonManager.shared
+        _ = manager.mcpsFolder.createIfNotExists()
+
+        let aPath = manager.mcpsURL.appendingPathComponent("alpha.json")
+        let bPath = manager.mcpsURL.appendingPathComponent("beta.json")
+        let aRoot: [String: Any] = [
+            "mcpServers": [
+                "alpha": [
+                    "command": "npx",
+                    "args": ["-y", "@acme/alpha-mcp"],
+                    "enabled": true
+                ]
+            ]
+        ]
+        let bRoot: [String: Any] = [
+            "mcpServers": [
+                "beta": [
+                    "url": "http://localhost:8081/mcp",
+                    "enabled": true
+                ]
+            ]
+        ]
+        try JSONSerialization.data(withJSONObject: aRoot, options: [.prettyPrinted, .sortedKeys]).write(to: aPath)
+        try JSONSerialization.data(withJSONObject: bRoot, options: [.prettyPrinted, .sortedKeys]).write(to: bPath)
+
+        let configPath = ProviderTemplate.codex.defaultMcpConfigPath
+        _ = STFolder(configPath.deletingLastPathComponent()).createIfNotExists()
+        try """
+        [mcp_servers.legacy]
+        command = "legacy"
+        """.write(to: configPath, atomically: true, encoding: .utf8)
+
+        let synced = try MCPConfigManager.syncAllCacheServersToProvider(for: .codex)
+        #expect(synced == 2)
+
+        let providerServers = try MCPConfigManager.listServers(for: .codex).map(\.name).sorted()
+        #expect(providerServers == ["alpha", "beta"])
+
+        let alphaData = try Data(contentsOf: aPath)
+        let alphaJSON = try #require(JSONSerialization.jsonObject(with: alphaData) as? [String: Any])
+        let alphaNolon = try #require(alphaJSON["x-nolon"] as? [String: Any])
+        let alphaProviders = try #require(alphaNolon["providers"] as? [String])
+        #expect(alphaProviders.contains("codex"))
+    }
+
     @Test("WorkflowSourceResolver resolves relative symlink destination against link directory")
     func workflowSourceResolverResolvesRelativeSymlinkDestination() {
         let linkPath = "/tmp/providers/codex/prompts/find-skills.md"
