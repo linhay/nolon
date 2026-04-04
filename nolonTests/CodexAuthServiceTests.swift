@@ -1396,7 +1396,7 @@ final class ProviderUsageEngineManualRefreshTests: XCTestCase {
         XCTFail("Condition was not met before timeout")
     }
 
-    private static func makeScheduledRefreshOutcome(
+    nonisolated private static func makeScheduledRefreshOutcome(
         account: CodexAuthAccount,
         windows: [(id: String, title: String, minutes: Int, used: Double)]
     ) -> ProviderAccountUsageOutcome {
