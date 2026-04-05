@@ -162,7 +162,8 @@ public enum MCPConfigManager {
         guard template.supportsNativeMcpConfig else { return 0 }
         let entries = readCacheEntriesIndexedByName()
         var projected: [String: [String: Any]] = [:]
-        for (name, entry) in entries {
+        for name in entries.keys.sorted() {
+            guard let entry = entries[name] else { continue }
             let normalized = normalizeServerConfigForStorage(entry.server)
             projected[name] = normalized
             try writeCacheServer(
@@ -268,7 +269,8 @@ private extension MCPConfigManager {
                 config = .init(model: nil, modelReasoningEffort: nil, projects: nil, notice: nil, mcpServers: [:])
             }
             var mapped: [String: CodexMCPServer] = [:]
-            for (name, server) in servers {
+            for name in servers.keys.sorted() {
+                guard let server = servers[name] else { continue }
                 mapped[name] = codexServer(from: server)
             }
             let existingMapped = (config.mcpServers ?? [:]).mapValues(codexServerDictionary)
