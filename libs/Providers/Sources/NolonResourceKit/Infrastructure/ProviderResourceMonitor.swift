@@ -72,6 +72,14 @@ public final class ProviderResourceMonitor {
             paths.append(template.defaultMcpConfigPath.path)
         }
 
+        if provider.templateId == "codex" || provider.templateId == "codexXcode" {
+            paths.append(provider.codexAgentsFileURL.path)
+            paths.append(provider.codexAgentsOverrideFile.url.path)
+            if provider.agentsLinkEnabled {
+                paths.append(NolonManager.shared.agentsURL.path)
+            }
+        }
+
         if provider.mcpLinkEnabled || watchGlobalMcpCache {
             paths.append(NolonManager.shared.mcpsURL.path)
         }

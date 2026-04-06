@@ -716,6 +716,64 @@ public struct ProviderMCPLinkToolbarMenuButton: View {
     }
 }
 
+public struct ProviderAgentsLinkToolbarMenuButton: View {
+    @Binding var isEnabled: Bool
+    let providerPath: String
+    let onShowInFinder: () -> Void
+    let onToggleRequested: (Bool) -> Void
+
+    public init(
+        isEnabled: Binding<Bool>,
+        providerPath: String,
+        onShowInFinder: @escaping () -> Void,
+        onToggleRequested: @escaping (Bool) -> Void
+    ) {
+        self._isEnabled = isEnabled
+        self.providerPath = providerPath
+        self.onShowInFinder = onShowInFinder
+        self.onToggleRequested = onToggleRequested
+    }
+
+    public var body: some View {
+        EllipsisMenuButton {
+            Button(action: onShowInFinder) {
+                Label(
+                    NSLocalizedString("action.show_in_finder", comment: "Show in Finder"),
+                    systemImage: "folder"
+                )
+                .dsIconLabelButton()
+            }
+
+            Divider()
+
+            Toggle(
+                NSLocalizedString(
+                    "provider.agents_link.toggle",
+                    value: "Link this provider's AGENTS docs to ~/.nolon/agents",
+                    comment: "Agents link toggle title"
+                ),
+                isOn: Binding(
+                    get: { isEnabled },
+                    set: { newValue in onToggleRequested(newValue) }
+                )
+            )
+
+            Divider()
+
+            Text(providerPath)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
+        .help(
+            NSLocalizedString(
+                "provider.agents_link.menu.help",
+                value: "AGENTS link settings",
+                comment: "Agents link menu button help text"
+            )
+        )
+    }
+}
+
 // MARK: - ProviderDetailStateContainerView
 
 public struct ProviderDetailStateContainerView<NoProviderView: View, NoTabView: View, Content: View>: View {

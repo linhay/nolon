@@ -223,6 +223,23 @@ struct ProviderDetailGridView: View, DebugPageLocatable {
                         )
                     )
                 }
+                if selectedTab == .agents, provider.templateId == "codex" || provider.templateId == "codexXcode" {
+                    return AnyView(
+                        NolonUI.ProviderAgentsLinkToolbarMenuButton(
+                            isEnabled: Binding(
+                                get: { viewModel.agentsLinkEnabled },
+                                set: { _ in }
+                            ),
+                            providerPath: NolonManager.shared.agentsURL.path,
+                            onShowInFinder: {
+                                viewModel.revealAgentsFolderInFinder()
+                            },
+                            onToggleRequested: { newValue in
+                                Task { await viewModel.requestSetAgentsLinkEnabled(newValue) }
+                            }
+                        )
+                    )
+                }
                 return AnyView(EmptyView())
             }
         ) { scrollProxy in
@@ -260,7 +277,8 @@ struct ProviderDetailGridView: View, DebugPageLocatable {
             selectedTab: selectedTab,
             isCurrentTabLinkedToCodex: isCurrentTabLinkedToCodex,
             skillsLinkEnabled: effectiveSkillsLinkEnabled,
-            mcpLinkEnabled: effectiveMcpLinkEnabled
+            mcpLinkEnabled: effectiveMcpLinkEnabled,
+            agentsLinkEnabled: effectiveAgentsLinkEnabled
         )
     }
 
@@ -270,6 +288,10 @@ struct ProviderDetailGridView: View, DebugPageLocatable {
 
     private var effectiveMcpLinkEnabled: Bool {
         viewModel.mcpLinkEnabled || (provider?.mcpLinkEnabled ?? false)
+    }
+
+    private var effectiveAgentsLinkEnabled: Bool {
+        viewModel.agentsLinkEnabled || (provider?.agentsLinkEnabled ?? false)
     }
 
     private var providerMcpConfigPath: String? {
@@ -545,34 +567,41 @@ struct ProviderDetailGridView: View, DebugPageLocatable {
                 }
             }
         case .agents:
-            NolonUI.ProviderTabSectionView(warningMessage: viewModel.agentsErrorMessage) {
-                NolonUI.ProviderResourceGridSectionView(
-                    isEmpty: viewModel.filteredAgentsFiles.isEmpty,
-                    searchText: viewModel.searchText,
-                    kind: .agents,
-                    noResultsDescription: NSLocalizedString(
-                        "remote.search.no_results_desc",
-                        value: "No matching workflows found",
-                        comment: "No search results description"
-                    ),
-                    columns: columns
-                ) {
-                    ForEach(viewModel.filteredAgentsFiles) { doc in
-                        NolonUI.AgentDocCardView(
-                            doc: doc,
-                            searchText: viewModel.searchText,
-                            onReveal: { viewModel.revealAgentDocInFinder(doc) },
-                            onDelete: { await viewModel.deleteAgentDoc(doc) },
-                            onTap: {
-                                editingMarkdownDocument = EditingMarkdownDocument(url: URL(fileURLWithPath: doc.path))
+            if Self.shouldShowNolonAgentsLinkedPlaceholder(
+                agentsLinkEnabled: effectiveAgentsLinkEnabled,
+                selectedTab: selectedTab
+            ) {
+                agentsLinkEnabledPlaceholderCard
+            } else {
+                NolonUI.ProviderTabSectionView(warningMessage: viewModel.agentsErrorMessage) {
+                    NolonUI.ProviderResourceGridSectionView(
+                        isEmpty: viewModel.filteredAgentsFiles.isEmpty,
+                        searchText: viewModel.searchText,
+                        kind: .agents,
+                        noResultsDescription: NSLocalizedString(
+                            "remote.search.no_results_desc",
+                            value: "No matching workflows found",
+                            comment: "No search results description"
+                        ),
+                        columns: columns
+                    ) {
+                        ForEach(viewModel.filteredAgentsFiles) { doc in
+                            NolonUI.AgentDocCardView(
+                                doc: doc,
+                                searchText: viewModel.searchText,
+                                onReveal: { viewModel.revealAgentDocInFinder(doc) },
+                                onDelete: { await viewModel.deleteAgentDoc(doc) },
+                                onTap: {
+                                    editingMarkdownDocument = EditingMarkdownDocument(url: URL(fileURLWithPath: doc.path))
+                                }
+                            ) { doc in
+                                debugPageMarkerMenuItem(
+                                    [
+                                        PageMarkerItem(title: NSLocalizedString("tab.agents", value: "Agents", comment: "Agents tab")),
+                                        PageMarkerItem(title: doc.fileName)
+                                    ]
+                                )
                             }
-                        ) { doc in
-                            debugPageMarkerMenuItem(
-                                [
-                                    PageMarkerItem(title: NSLocalizedString("tab.agents", value: "Agents", comment: "Agents tab")),
-                                    PageMarkerItem(title: doc.fileName)
-                                ]
-                            )
                         }
                     }
                 }
@@ -638,19 +667,29 @@ struct ProviderDetailGridView: View, DebugPageLocatable {
         selectedTab: ProviderContentTabType?,
         isCurrentTabLinkedToCodex: Bool,
         skillsLinkEnabled: Bool,
-        mcpLinkEnabled: Bool
+        mcpLinkEnabled: Bool,
+        agentsLinkEnabled: Bool
     ) -> Bool {
         guard let selectedTab else { return false }
         switch selectedTab {
         case .skills:
             return !isCurrentTabLinkedToCodex && !skillsLinkEnabled
-        case .workflows, .rules, .agents:
+        case .workflows, .rules:
             return !isCurrentTabLinkedToCodex
+        case .agents:
+            return !isCurrentTabLinkedToCodex && !agentsLinkEnabled
         case .mcp:
             return !mcpLinkEnabled
         default:
             return false
         }
+    }
+
+    static func shouldShowNolonAgentsLinkedPlaceholder(
+        agentsLinkEnabled: Bool,
+        selectedTab: ProviderContentTabType?
+    ) -> Bool {
+        agentsLinkEnabled && selectedTab == .agents
     }
 
     static func shouldShowNolonMcpLinkedPlaceholder(
@@ -742,6 +781,58 @@ struct ProviderDetailGridView: View, DebugPageLocatable {
                         "provider.mcp_link.placeholder.description",
                         value: "This provider now uses ~/.nolon/mcps. Manage linked MCP entries from the Nolon page.",
                         comment: "MCP link placeholder description"
+                    )
+                )
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+            }
+
+            Button {
+                onSelectNolon?()
+            } label: {
+                Label(
+                    NSLocalizedString(
+                        "provider.skills_link.placeholder.action",
+                        value: "Go to Nolon",
+                        comment: "Skills link placeholder action title"
+                    ),
+                    systemImage: "arrow.up.forward.app"
+                )
+            }
+            .buttonStyle(.borderedProminent)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(32)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
+
+    private var agentsLinkEnabledPlaceholderCard: some View {
+        VStack(spacing: 16) {
+            HStack(spacing: 14) {
+                placeholderFolderChip(systemImage: "doc.text", label: "Provider AGENTS")
+                Image(systemName: "link")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                placeholderFolderChip(systemImage: "folder.badge.person.crop", label: "Nolon AGENTS")
+            }
+            .padding(.vertical, 6)
+
+            VStack(spacing: 8) {
+                Text(
+                    NSLocalizedString(
+                        "provider.agents_link.placeholder.title",
+                        value: "AGENTS docs are linked to Nolon",
+                        comment: "Agents link placeholder title"
+                    )
+                )
+                .font(.headline)
+
+                Text(
+                    NSLocalizedString(
+                        "provider.agents_link.placeholder.description",
+                        value: "This provider now uses ~/.nolon/agents. Manage linked AGENTS docs from the Nolon page.",
+                        comment: "Agents link placeholder description"
                     )
                 )
                 .font(.subheadline)

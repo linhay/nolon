@@ -15,6 +15,7 @@ public final class NolonManager: Sendable {
     public nonisolated let providersConfigFile: STFile
     public nonisolated let mcpsFolder: STFolder
     public nonisolated let mcpsWorkflowsFolder: STFolder
+    public nonisolated let agentsFolder: STFolder
 
     public nonisolated let rootURL: URL
     public nonisolated let skillsURL: URL
@@ -24,6 +25,7 @@ public final class NolonManager: Sendable {
     public nonisolated let providersConfigURL: URL
     public nonisolated let mcpsURL: URL
     public nonisolated let mcpsWorkflowsURL: URL
+    public nonisolated let agentsURL: URL
     
     // MARK: - Path Strings
     public nonisolated var rootPath: String { rootURL.path }
@@ -34,6 +36,7 @@ public final class NolonManager: Sendable {
     public nonisolated var providersConfigPath: String { providersConfigURL.path }
     public nonisolated var mcpsPath: String { mcpsURL.path }
     public nonisolated var mcpsWorkflowsPath: String { mcpsWorkflowsURL.path }
+    public nonisolated var agentsPath: String { agentsURL.path }
     
     public init(
         rootURL: URL? = nil,
@@ -58,6 +61,7 @@ public final class NolonManager: Sendable {
         self.providersConfigFile = rootFolder.file("providers.json")
         self.mcpsFolder = rootFolder.folder("mcps")
         self.mcpsWorkflowsFolder = rootFolder.folder("mcps-workflows")
+        self.agentsFolder = rootFolder.folder("agents")
 
         self.rootURL = self.rootFolder.url
         self.skillsURL = self.skillsFolder.url
@@ -67,6 +71,7 @@ public final class NolonManager: Sendable {
         self.providersConfigURL = self.providersConfigFile.url
         self.mcpsURL = self.mcpsFolder.url
         self.mcpsWorkflowsURL = self.mcpsWorkflowsFolder.url
+        self.agentsURL = self.agentsFolder.url
 
         ensureDirectoriesExist()
     }
@@ -80,6 +85,7 @@ public final class NolonManager: Sendable {
             repositoriesFolder,
             mcpsFolder,
             mcpsWorkflowsFolder,
+            agentsFolder,
         ]
 
         folders.forEach { _ = $0.createIfNotExists() }

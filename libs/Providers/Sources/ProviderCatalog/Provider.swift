@@ -31,6 +31,8 @@ public struct Provider: Codable, Identifiable, Hashable, Sendable {
     public var skillsLinkEnabled: Bool
     /// When enabled, provider MCP management is linked to ~/.nolon/mcps from Nolon.
     public var mcpLinkEnabled: Bool
+    /// When enabled, provider AGENTS docs are linked to ~/.nolon/agents from Nolon.
+    public var agentsLinkEnabled: Bool
     public var vendorCategory: VendorCategory?
 
     /// Template ID if created from a built-in template.
@@ -77,6 +79,7 @@ public struct Provider: Codable, Identifiable, Hashable, Sendable {
         installMethod: SkillInstallationMethod = .symlink,
         skillsLinkEnabled: Bool = false,
         mcpLinkEnabled: Bool = false,
+        agentsLinkEnabled: Bool = false,
         vendorCategory: VendorCategory? = nil,
         templateId: String? = nil,
         additionalSkillsPaths: [String]? = nil,
@@ -93,6 +96,7 @@ public struct Provider: Codable, Identifiable, Hashable, Sendable {
         self.installMethod = installMethod
         self.skillsLinkEnabled = skillsLinkEnabled
         self.mcpLinkEnabled = mcpLinkEnabled
+        self.agentsLinkEnabled = agentsLinkEnabled
         self.vendorCategory = kind == .project ? nil : (vendorCategory ?? .integrated)
         self.templateId = templateId
         self.additionalSkillsPaths = additionalSkillsPaths
@@ -113,6 +117,7 @@ public struct Provider: Codable, Identifiable, Hashable, Sendable {
         case installMethod
         case skillsLinkEnabled
         case mcpLinkEnabled
+        case agentsLinkEnabled
         case vendorCategory
         case templateId
         case additionalSkillsPaths
@@ -133,6 +138,7 @@ public struct Provider: Codable, Identifiable, Hashable, Sendable {
         installMethod = try container.decode(SkillInstallationMethod.self, forKey: .installMethod)
         skillsLinkEnabled = try container.decodeIfPresent(Bool.self, forKey: .skillsLinkEnabled) ?? false
         mcpLinkEnabled = try container.decodeIfPresent(Bool.self, forKey: .mcpLinkEnabled) ?? false
+        agentsLinkEnabled = try container.decodeIfPresent(Bool.self, forKey: .agentsLinkEnabled) ?? false
         let decodedVendorCategory = try container.decodeIfPresent(VendorCategory.self, forKey: .vendorCategory)
         templateId = try container.decodeIfPresent(String.self, forKey: .templateId)
         additionalSkillsPaths = try container.decodeIfPresent([String].self, forKey: .additionalSkillsPaths)

@@ -229,5 +229,6 @@ struct ProviderSettingsTests {
         let provider = try #require(settings.providers.first(where: { $0.id == "legacy-provider" }))
         #expect(provider.skillsLinkEnabled == false)
         #expect(provider.mcpLinkEnabled == false)
+        #expect(provider.agentsLinkEnabled == false)
     }
 }

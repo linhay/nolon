@@ -71,7 +71,8 @@ final class ProviderDetailGridViewIssueNavigationTests: XCTestCase {
             selectedTab: .skills,
             isCurrentTabLinkedToCodex: false,
             skillsLinkEnabled: true,
-            mcpLinkEnabled: false
+            mcpLinkEnabled: false,
+            agentsLinkEnabled: false
         )
         XCTAssertFalse(visible)
     }
@@ -81,7 +82,8 @@ final class ProviderDetailGridViewIssueNavigationTests: XCTestCase {
             selectedTab: .mcp,
             isCurrentTabLinkedToCodex: false,
             skillsLinkEnabled: true,
-            mcpLinkEnabled: false
+            mcpLinkEnabled: false,
+            agentsLinkEnabled: false
         )
         XCTAssertTrue(visible)
     }
@@ -91,7 +93,8 @@ final class ProviderDetailGridViewIssueNavigationTests: XCTestCase {
             selectedTab: .mcp,
             isCurrentTabLinkedToCodex: false,
             skillsLinkEnabled: false,
-            mcpLinkEnabled: true
+            mcpLinkEnabled: true,
+            agentsLinkEnabled: false
         )
         XCTAssertFalse(visible)
     }
@@ -101,7 +104,27 @@ final class ProviderDetailGridViewIssueNavigationTests: XCTestCase {
             selectedTab: .skills,
             isCurrentTabLinkedToCodex: false,
             skillsLinkEnabled: false,
-            mcpLinkEnabled: false
+            mcpLinkEnabled: false,
+            agentsLinkEnabled: false
+        )
+        XCTAssertTrue(visible)
+    }
+
+    func testBDD_GivenAgentsTabAndAgentsLinkEnabled_WhenCheckingQuickInstallVisibility_ThenReturnsFalse() {
+        let visible = ProviderDetailGridView.shouldShowQuickInstallButton(
+            selectedTab: .agents,
+            isCurrentTabLinkedToCodex: false,
+            skillsLinkEnabled: false,
+            mcpLinkEnabled: false,
+            agentsLinkEnabled: true
+        )
+        XCTAssertFalse(visible)
+    }
+
+    func testBDD_GivenAgentsTabAndAgentsLinkEnabled_WhenCheckingPlaceholderVisibility_ThenReturnsTrue() {
+        let visible = ProviderDetailGridView.shouldShowNolonAgentsLinkedPlaceholder(
+            agentsLinkEnabled: true,
+            selectedTab: .agents
         )
         XCTAssertTrue(visible)
     }

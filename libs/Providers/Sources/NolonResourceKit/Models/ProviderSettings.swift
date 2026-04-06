@@ -261,6 +261,7 @@ public class ProviderSettings {
                     installMethod: current.installMethod,
                     skillsLinkEnabled: current.skillsLinkEnabled,
                     mcpLinkEnabled: current.mcpLinkEnabled,
+                    agentsLinkEnabled: current.agentsLinkEnabled,
                     vendorCategory: expected.vendorCategory,
                     templateId: current.templateId,
                     additionalSkillsPaths: current.additionalSkillsPaths,

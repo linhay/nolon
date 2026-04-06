@@ -49,6 +49,7 @@ final class ProviderDetailGridViewModel {
     var codexModelStatusMessage: String?
     var skillsLinkEnabled = false
     var mcpLinkEnabled = false
+    var agentsLinkEnabled = false
     var isApplyingSkillsLink = false
     var showingSkillsLinkEnableConfirmation = false
     var skillsLinkBackupPath: String?
@@ -78,6 +79,7 @@ final class ProviderDetailGridViewModel {
     private let snapshotService = ProviderResourceSnapshotService()
     private let resourceViewMapper = ProviderResourceViewMapper()
     private let providerSkillsLinkService = ProviderSkillsLinkService()
+    private let providerAgentsLinkService = ProviderAgentsLinkService()
     
     init(provider: Provider?, settings: ProviderSettings) {
         self.provider = provider
@@ -106,12 +108,14 @@ final class ProviderDetailGridViewModel {
             codexModelStatusMessage = nil
             skillsLinkEnabled = false
             mcpLinkEnabled = false
+            agentsLinkEnabled = false
             showingSkillsLinkEnableConfirmation = false
             skillsLinkBackupPath = nil
             return
         }
         skillsLinkEnabled = provider.skillsLinkEnabled
         mcpLinkEnabled = provider.mcpLinkEnabled
+        agentsLinkEnabled = provider.agentsLinkEnabled
         syncLinkedMcpProjectionIfNeeded(for: provider)
         
         isLoading = true
@@ -180,6 +184,30 @@ final class ProviderDetailGridViewModel {
         mcpLinkEnabled = enabled
         syncLinkedMcpProjectionIfNeeded(for: provider)
         await loadData()
+    }
+
+    func requestSetAgentsLinkEnabled(_ enabled: Bool) async {
+        guard var provider else { return }
+        guard enabled != provider.agentsLinkEnabled else {
+            agentsLinkEnabled = provider.agentsLinkEnabled
+            return
+        }
+        do {
+            if enabled {
+                try providerAgentsLinkService.applyEnable(provider: provider)
+            } else {
+                try providerAgentsLinkService.applyDisable(provider: provider)
+            }
+            provider.agentsLinkEnabled = enabled
+            settings.updateProvider(provider)
+            self.provider = provider
+            agentsLinkEnabled = enabled
+            clearError(scope: .agents)
+            await loadData()
+        } catch {
+            agentsLinkEnabled = provider.agentsLinkEnabled
+            setError(error.localizedDescription, scope: .agents)
+        }
     }
 
     private func setSkillsLinkEnabled(_ enabled: Bool, backupExisting: Bool) async {
@@ -338,6 +366,10 @@ final class ProviderDetailGridViewModel {
         else { return }
         let configURL = template.defaultMcpConfigPath
         NSWorkspace.shared.activateFileViewerSelecting([configURL])
+    }
+
+    func revealAgentsFolderInFinder() {
+        NSWorkspace.shared.activateFileViewerSelecting([NolonManager.shared.agentsURL])
     }
     
     func displayPath(for path: String) -> String {
