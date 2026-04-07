@@ -1,5 +1,6 @@
 import XCTest
 import NolonResourceKit
+import ProviderCatalog
 @testable import nolon
 
 final class ProviderDetailGridViewIssueNavigationTests: XCTestCase {
@@ -148,6 +149,111 @@ final class ProviderDetailGridViewIssueNavigationTests: XCTestCase {
             ProviderDetailGridView.shouldShowNolonMcpLinkedPlaceholder(
                 mcpLinkEnabled: true,
                 selectedTab: .skills
+            )
+        )
+    }
+
+    func testBDD_GivenSupportedAgentsProviders_WhenCheckingAgentsLinkSupport_ThenReturnsTrueOnlyForSupportedVendors() throws {
+        let codex = try XCTUnwrap(ProviderTemplate(rawValue: "codex")).createProvider()
+        let openCode = try XCTUnwrap(ProviderTemplate(rawValue: "opencode")).createProvider()
+        let copilot = try XCTUnwrap(ProviderTemplate(rawValue: "copilot")).createProvider()
+        let claude = try XCTUnwrap(ProviderTemplate(rawValue: "claudeCode")).createProvider()
+        let gemini = try XCTUnwrap(ProviderTemplate(rawValue: "gemini")).createProvider()
+
+        XCTAssertTrue(ProviderDetailGridView.supportsAgentsLink(codex))
+        XCTAssertTrue(ProviderDetailGridView.supportsAgentsLink(openCode))
+        XCTAssertTrue(ProviderDetailGridView.supportsAgentsLink(copilot))
+        XCTAssertFalse(ProviderDetailGridView.supportsAgentsLink(claude))
+        XCTAssertFalse(ProviderDetailGridView.supportsAgentsLink(gemini))
+        XCTAssertFalse(ProviderDetailGridView.supportsAgentsLink(nil))
+    }
+
+    func testBDD_GivenAgentsTabAndSupportedProvider_WhenCheckingAgentsToolbarVisibility_ThenReturnsTrueOnlyForSupportedVendors() throws {
+        let codex = try XCTUnwrap(ProviderTemplate(rawValue: "codex")).createProvider()
+        let openCode = try XCTUnwrap(ProviderTemplate(rawValue: "opencode")).createProvider()
+        let claude = try XCTUnwrap(ProviderTemplate(rawValue: "claudeCode")).createProvider()
+
+        XCTAssertTrue(
+            ProviderDetailGridView.shouldShowAgentsLinkToolbar(
+                selectedTab: .agents,
+                provider: codex
+            )
+        )
+        XCTAssertTrue(
+            ProviderDetailGridView.shouldShowAgentsLinkToolbar(
+                selectedTab: .agents,
+                provider: openCode
+            )
+        )
+        XCTAssertFalse(
+            ProviderDetailGridView.shouldShowAgentsLinkToolbar(
+                selectedTab: .agents,
+                provider: claude
+            )
+        )
+        XCTAssertFalse(
+            ProviderDetailGridView.shouldShowAgentsLinkToolbar(
+                selectedTab: .skills,
+                provider: codex
+            )
+        )
+        XCTAssertFalse(
+            ProviderDetailGridView.shouldShowAgentsLinkToolbar(
+                selectedTab: .agents,
+                provider: nil
+            )
+        )
+    }
+
+    func testBDD_GivenDifferentProviders_WhenResolvingAgentsLinkPath_ThenReturnsVendorNativeTarget() throws {
+        let codex = try XCTUnwrap(ProviderTemplate(rawValue: "codex")).createProvider()
+        let openCode = try XCTUnwrap(ProviderTemplate(rawValue: "opencode")).createProvider()
+        let copilot = try XCTUnwrap(ProviderTemplate(rawValue: "copilot")).createProvider()
+        let claude = try XCTUnwrap(ProviderTemplate(rawValue: "claudeCode")).createProvider()
+
+        XCTAssertEqual(
+            ProviderDetailGridView.agentsLinkProviderPath(for: codex, fallbackPath: "/tmp/nolon/AGENTS.md"),
+            codex.codexAgentsFileURL.path
+        )
+        XCTAssertEqual(
+            ProviderDetailGridView.agentsLinkProviderPath(for: openCode, fallbackPath: "/tmp/nolon/AGENTS.md"),
+            URL(fileURLWithPath: openCode.defaultSkillsPath)
+                .deletingLastPathComponent()
+                .appendingPathComponent("AGENTS.md")
+                .path
+        )
+        XCTAssertEqual(
+            ProviderDetailGridView.agentsLinkProviderPath(for: copilot, fallbackPath: "/tmp/nolon/AGENTS.md"),
+            URL(fileURLWithPath: copilot.defaultSkillsPath)
+                .deletingLastPathComponent()
+                .appendingPathComponent("AGENTS.md")
+                .path
+        )
+        XCTAssertEqual(
+            ProviderDetailGridView.agentsLinkProviderPath(for: claude, fallbackPath: "/tmp/nolon/AGENTS.md"),
+            "/tmp/nolon/AGENTS.md"
+        )
+        XCTAssertEqual(
+            ProviderDetailGridView.agentsLinkProviderPath(for: nil, fallbackPath: "/tmp/nolon/AGENTS.md"),
+            "/tmp/nolon/AGENTS.md"
+        )
+    }
+
+    func testBDD_GivenAgentsScreenCopy_WhenResolvingDescriptions_ThenUsesProviderNeutralEmptyStateAndAgentSpecificNoResults() {
+        XCTAssertEqual(
+            ProviderDetailGridView.agentsEmptyDescription(),
+            NSLocalizedString(
+                "agents.empty_desc",
+                value: "No AGENTS.md files found for this provider",
+                comment: "No agents docs"
+            )
+        )
+        XCTAssertEqual(
+            ProviderDetailGridView.agentsNoResultsDescription(),
+            NSLocalizedString(
+                "agents.search.no_results_desc",
+                value: "No matching AGENTS.md files found",
+                comment: "No agent docs search results description"
             )
         )
     }

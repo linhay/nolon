@@ -343,6 +343,42 @@ final class MainSplitViewModelTests: XCTestCase {
         XCTAssertEqual(selection?.tab, .usage)
     }
 
+    func testBDD_GivenUITestLaunchSelectionForOpenCodeAgents_WhenResolved_ThenAgentsTabIsApplied() {
+        let providerIndex = fixture.providerSettings.providers.firstIndex { $0.templateId == "opencode" }
+        guard let providerIndex else {
+            XCTFail("Missing opencode provider fixture")
+            return
+        }
+
+        let selection = MainSplitViewModel.resolveInitialLaunchSelection(
+            providers: fixture.providerSettings.providers,
+            selectedProviderIndex: providerIndex,
+            initialTab: .agents,
+            isRunningUnitTests: false
+        )
+
+        XCTAssertEqual(selection?.provider.templateId, "opencode")
+        XCTAssertEqual(selection?.tab, .agents)
+    }
+
+    func testBDD_GivenUITestLaunchSelectionForClaudeAgents_WhenResolved_ThenFallsBackWithoutInvalidAgentsTab() {
+        let providerIndex = fixture.providerSettings.providers.firstIndex { $0.templateId == "claudeCode" }
+        guard let providerIndex else {
+            XCTFail("Missing claudeCode provider fixture")
+            return
+        }
+
+        let selection = MainSplitViewModel.resolveInitialLaunchSelection(
+            providers: fixture.providerSettings.providers,
+            selectedProviderIndex: providerIndex,
+            initialTab: .agents,
+            isRunningUnitTests: false
+        )
+
+        XCTAssertEqual(selection?.provider.templateId, "claudeCode")
+        XCTAssertNil(selection?.tab)
+    }
+
     func testBDD_GivenPersistedProviderSelectionKey_WhenValidating_ThenKeepSelection() {
         let codexProvider = fixture.providerSettings.providers.first { $0.templateId == "codex" }
         XCTAssertNotNil(codexProvider)

@@ -821,51 +821,55 @@ public struct MainSplitView: View, DebugPageLocatable {
                 if viewModel.isPluginManagementSelected {
                     PluginManagementView()
                 } else if viewModel.isNolonSelected {
-                    ResourceCatalogGridView(
-                        repository: viewModel.nolonRepository,
-                        selectedTab: viewModel.nolonCenterViewModel.selectedTab,
-                        searchText: nolonSearchTextBinding,
-                        installedSlugs: viewModel.nolonCenterViewModel.installedSlugs,
-                        installedSkills: viewModel.nolonCenterViewModel.installedSkills,
-                        installedWorkflowSlugs: viewModel.nolonCenterViewModel.installedWorkflowSlugs,
-                        installedMcpSlugs: viewModel.nolonCenterViewModel.installedMcpSlugs,
-                        providers: viewModel.settings.providers,
-                        refreshTrigger: viewModel.nolonCenterViewModel.refreshTrigger,
-                        targetProvider: nil,
-                        onInstall: { skill, provider in
-                            Task {
-                                await viewModel.installRemoteSkill(skill, to: provider)
-                            }
-                        },
-                        onInstallWorkflow: { workflow, provider in
-                            Task {
-                                await viewModel.installRemoteWorkflow(workflow, to: provider)
-                            }
-                        },
-                        onInstallMCP: { mcp, provider in
-                            Task {
-                                await viewModel.installRemoteMCP(mcp, to: provider)
-                            }
-                        },
-                        onRegisterDeleteRequest: { slug, resourceType, providerIndex, removeGlobalCache, globalCachePathHint in
-                            viewModel.registerDeleteRequest(
-                                slug: slug,
-                                resourceType: resourceType,
-                                providerIndex: providerIndex,
-                                removeGlobalCache: removeGlobalCache,
-                                globalCachePathHint: globalCachePathHint
-                            )
-                        },
-                        onMakeDeleteRequestExecutor: { requestID in
-                            {
-                                await viewModel.executeRegisteredDeleteRequest(id: requestID)
-                            }
-                        },
-                        onRefresh: {
-                            viewModel.refreshNolonResourceCenterState()
-                        },
-                        onClose: nil
-                    )
+                    if viewModel.nolonCenterViewModel.selectedTab == .agents {
+                        NolonAgentsManagementView()
+                    } else {
+                        ResourceCatalogGridView(
+                            repository: viewModel.nolonRepository,
+                            selectedTab: viewModel.nolonCenterViewModel.selectedTab,
+                            searchText: nolonSearchTextBinding,
+                            installedSlugs: viewModel.nolonCenterViewModel.installedSlugs,
+                            installedSkills: viewModel.nolonCenterViewModel.installedSkills,
+                            installedWorkflowSlugs: viewModel.nolonCenterViewModel.installedWorkflowSlugs,
+                            installedMcpSlugs: viewModel.nolonCenterViewModel.installedMcpSlugs,
+                            providers: viewModel.settings.providers,
+                            refreshTrigger: viewModel.nolonCenterViewModel.refreshTrigger,
+                            targetProvider: nil,
+                            onInstall: { skill, provider in
+                                Task {
+                                    await viewModel.installRemoteSkill(skill, to: provider)
+                                }
+                            },
+                            onInstallWorkflow: { workflow, provider in
+                                Task {
+                                    await viewModel.installRemoteWorkflow(workflow, to: provider)
+                                }
+                            },
+                            onInstallMCP: { mcp, provider in
+                                Task {
+                                    await viewModel.installRemoteMCP(mcp, to: provider)
+                                }
+                            },
+                            onRegisterDeleteRequest: { slug, resourceType, providerIndex, removeGlobalCache, globalCachePathHint in
+                                viewModel.registerDeleteRequest(
+                                    slug: slug,
+                                    resourceType: resourceType,
+                                    providerIndex: providerIndex,
+                                    removeGlobalCache: removeGlobalCache,
+                                    globalCachePathHint: globalCachePathHint
+                                )
+                            },
+                            onMakeDeleteRequestExecutor: { requestID in
+                                {
+                                    await viewModel.executeRegisteredDeleteRequest(id: requestID)
+                                }
+                            },
+                            onRefresh: {
+                                viewModel.refreshNolonResourceCenterState()
+                            },
+                            onClose: nil
+                        )
+                    }
                 } else {
                     ProviderDetailGridView(
                         provider: viewModel.selectedProvider,

@@ -157,17 +157,14 @@ public final class ProviderResourceService: @unchecked Sendable {
     }
 
     public func scanAgentDocs(provider: Provider) -> [ProviderResourceItem] {
-        guard isCodexProvider(provider) else { return [] }
+        let targets = agentDocTargets(for: provider)
+        guard !targets.isEmpty else { return [] }
         var items: [ProviderResourceItem] = []
 
-        let base = provider.codexAgentsFileURL
-        if STFile(base).isExists, let item = parseAgentDoc(url: base, kind: .base) {
-            items.append(item)
-        }
-
-        let override = provider.codexAgentsOverrideFile.url
-        if STFile(override).isExists, let item = parseAgentDoc(url: override, kind: .override) {
-            items.append(item)
+        for target in targets {
+            if STFile(target.url).isExists, let item = parseAgentDoc(url: target.url, kind: target.kind) {
+                items.append(item)
+            }
         }
 
         return items.sorted { lhs, rhs in
@@ -233,6 +230,16 @@ public final class ProviderResourceService: @unchecked Sendable {
         try STPath(path).deleteIncludingBrokenSymlink()
     }
 
+    @discardableResult
+    public func copyAgentDocToNolon(atPath path: String) throws -> URL {
+        try transferAgentDocToNolon(atPath: path, mode: .copy)
+    }
+
+    @discardableResult
+    public func moveAgentDocToNolon(atPath path: String) throws -> URL {
+        try transferAgentDocToNolon(atPath: path, mode: .move)
+    }
+
     public func deleteWorkflow(workflowID: String, provider: Provider) throws {
         let workflowFolder = STFolder(provider.workflowPath)
         let primary = workflowFolder.file("\(workflowID).md")
@@ -271,11 +278,18 @@ public final class ProviderResourceService: @unchecked Sendable {
             try "".write(to: candidate.url, atomically: true, encoding: .utf8)
             return candidate.url
         case .agentBase:
-            _ = provider.codexHomeFolder.createIfNotExists()
-            if !provider.codexAgentsFile.isExists {
-                try "".write(to: provider.codexAgentsFile.url, atomically: true, encoding: .utf8)
+            guard let baseURL = preferredBaseAgentDocURL(for: provider) else {
+                throw NSError(
+                    domain: "ProviderResourceService",
+                    code: 400,
+                    userInfo: [NSLocalizedDescriptionKey: "Provider does not support AGENTS.md draft creation."]
+                )
             }
-            return provider.codexAgentsFile.url
+            _ = STFolder(baseURL.deletingLastPathComponent()).createIfNotExists()
+            if !STFile(baseURL).isExists {
+                try "".write(to: baseURL, atomically: true, encoding: .utf8)
+            }
+            return baseURL
         case .agentOverride:
             _ = provider.codexHomeFolder.createIfNotExists()
             if !provider.codexAgentsOverrideFile.isExists {
@@ -332,5 +346,117 @@ public final class ProviderResourceService: @unchecked Sendable {
     private static func nonEmptyTrimmed(_ value: String) -> String? {
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
+    }
+
+    private enum AgentTransferMode {
+        case copy
+        case move
+    }
+
+    private func transferAgentDocToNolon(atPath path: String, mode: AgentTransferMode) throws -> URL {
+        let sourceURL = URL(fileURLWithPath: path).standardizedFileURL
+        let sourcePath = sourceURL.path
+        guard fileManager.fileExists(atPath: sourcePath) else {
+            throw NSError(
+                domain: "ProviderResourceService",
+                code: 404,
+                userInfo: [NSLocalizedDescriptionKey: "Source AGENTS file not found."]
+            )
+        }
+
+        let destinationFolder = nolonManager.agentsURL.standardizedFileURL
+        _ = STFolder(destinationFolder).createIfNotExists()
+        let destinationURL = uniqueAgentDestinationURL(
+            in: destinationFolder,
+            sourceName: sourceURL.lastPathComponent
+        )
+
+        switch mode {
+        case .copy:
+            try fileManager.copyItem(at: sourceURL, to: destinationURL)
+        case .move:
+            if sourcePath == destinationURL.path {
+                return destinationURL
+            }
+            try fileManager.moveItem(at: sourceURL, to: destinationURL)
+        }
+
+        return destinationURL
+    }
+
+    private func uniqueAgentDestinationURL(in folder: URL, sourceName: String) -> URL {
+        let source = URL(fileURLWithPath: sourceName)
+        let ext = source.pathExtension
+        let base = source.deletingPathExtension().lastPathComponent
+
+        var candidate = folder.appendingPathComponent(sourceName)
+        var index = 1
+        while fileManager.fileExists(atPath: candidate.path) {
+            let suffix = "-copy-\(index)"
+            let fileName: String
+            if ext.isEmpty {
+                fileName = base + suffix
+            } else {
+                fileName = "\(base)\(suffix).\(ext)"
+            }
+            candidate = folder.appendingPathComponent(fileName)
+            index += 1
+        }
+        return candidate
+    }
+
+    private struct AgentDocTarget {
+        let url: URL
+        let kind: ProviderAgentKind
+    }
+
+    private func agentDocTargets(for provider: Provider) -> [AgentDocTarget] {
+        if isCodexProvider(provider) {
+            return [
+                AgentDocTarget(url: provider.codexAgentsFileURL, kind: .base),
+                AgentDocTarget(url: provider.codexAgentsOverrideFile.url, kind: .override),
+            ]
+        }
+
+        if provider.templateId == "opencode" {
+            let baseURL = URL(fileURLWithPath: provider.defaultSkillsPath)
+                .deletingLastPathComponent()
+                .appendingPathComponent("AGENTS.md")
+            return [AgentDocTarget(url: baseURL, kind: .base)]
+        }
+
+        if provider.templateId == "copilot" {
+            var targets: [AgentDocTarget] = []
+            let homeURL = URL(fileURLWithPath: provider.defaultSkillsPath)
+                .deletingLastPathComponent()
+                .appendingPathComponent("AGENTS.md")
+            targets.append(AgentDocTarget(url: homeURL, kind: .base))
+
+            let env = ProcessInfo.processInfo.environment["COPILOT_CUSTOM_INSTRUCTIONS_DIRS"] ?? ""
+            let directories = env
+                .split(separator: ",")
+                .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+            for directory in directories {
+                let expanded = (directory as NSString).expandingTildeInPath
+                let url = URL(fileURLWithPath: expanded).appendingPathComponent("AGENTS.md")
+                targets.append(AgentDocTarget(url: url, kind: .base))
+            }
+
+            var deduped: [AgentDocTarget] = []
+            var seen = Set<String>()
+            for target in targets {
+                let path = target.url.standardizedFileURL.path
+                guard seen.insert(path).inserted else { continue }
+                deduped.append(target)
+            }
+            return deduped
+        }
+
+        return []
+    }
+
+    private func preferredBaseAgentDocURL(for provider: Provider) -> URL? {
+        agentDocTargets(for: provider).first(where: { $0.kind == .base })?.url
     }
 }

@@ -78,6 +78,21 @@ public final class ProviderResourceMonitor {
             if provider.agentsLinkEnabled {
                 paths.append(NolonManager.shared.agentsURL.path)
             }
+        } else if provider.templateId == "opencode" {
+            let opencodeHome = URL(fileURLWithPath: provider.defaultSkillsPath).deletingLastPathComponent()
+            paths.append(opencodeHome.appendingPathComponent("AGENTS.md").path)
+        } else if provider.templateId == "copilot" {
+            let copilotHome = URL(fileURLWithPath: provider.defaultSkillsPath).deletingLastPathComponent()
+            paths.append(copilotHome.appendingPathComponent("AGENTS.md").path)
+            let env = ProcessInfo.processInfo.environment["COPILOT_CUSTOM_INSTRUCTIONS_DIRS"] ?? ""
+            let directories = env
+                .split(separator: ",")
+                .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+            for directory in directories {
+                let expanded = (directory as NSString).expandingTildeInPath
+                paths.append(URL(fileURLWithPath: expanded).appendingPathComponent("AGENTS.md").path)
+            }
         }
 
         if provider.mcpLinkEnabled || watchGlobalMcpCache {

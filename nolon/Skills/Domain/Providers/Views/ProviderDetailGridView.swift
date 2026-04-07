@@ -206,14 +206,14 @@ struct ProviderDetailGridView: View, DebugPageLocatable {
                         )
                     )
                 }
-                if selectedTab == .mcp, let mcpPath = providerMcpConfigPath {
+                if selectedTab == .mcp {
                     return AnyView(
                         NolonUI.ProviderMCPLinkToolbarMenuButton(
                             isEnabled: Binding(
                                 get: { viewModel.mcpLinkEnabled },
                                 set: { _ in }
                             ),
-                            providerPath: mcpPath,
+                            providerPath: providerMcpConfigPath ?? NolonManager.shared.mcpsPath,
                             onShowInFinder: {
                                 viewModel.revealMcpConfigInFinder()
                             },
@@ -223,14 +223,14 @@ struct ProviderDetailGridView: View, DebugPageLocatable {
                         )
                     )
                 }
-                if selectedTab == .agents, provider.templateId == "codex" || provider.templateId == "codexXcode" {
+                if selectedTab == .agents, supportsAgentsLink(provider) {
                     return AnyView(
                         NolonUI.ProviderAgentsLinkToolbarMenuButton(
                             isEnabled: Binding(
                                 get: { viewModel.agentsLinkEnabled },
                                 set: { _ in }
                             ),
-                            providerPath: NolonManager.shared.agentsURL.path,
+                            providerPath: providerAgentsFilePath(for: provider),
                             onShowInFinder: {
                                 viewModel.revealAgentsFolderInFinder()
                             },
@@ -578,11 +578,7 @@ struct ProviderDetailGridView: View, DebugPageLocatable {
                         isEmpty: viewModel.filteredAgentsFiles.isEmpty,
                         searchText: viewModel.searchText,
                         kind: .agents,
-                        noResultsDescription: NSLocalizedString(
-                            "remote.search.no_results_desc",
-                            value: "No matching workflows found",
-                            comment: "No search results description"
-                        ),
+                        noResultsDescription: Self.agentsNoResultsDescription(),
                         columns: columns
                     ) {
                         ForEach(viewModel.filteredAgentsFiles) { doc in
@@ -595,6 +591,34 @@ struct ProviderDetailGridView: View, DebugPageLocatable {
                                     editingMarkdownDocument = EditingMarkdownDocument(url: URL(fileURLWithPath: doc.path))
                                 }
                             ) { doc in
+                                Button {
+                                    viewModel.moveAgentDocToNolon(doc)
+                                } label: {
+                                    Label(
+                                        NSLocalizedString(
+                                            "agents.context.move_to_nolon",
+                                            value: "Move to Nolon",
+                                            comment: "Move AGENTS file to Nolon folder"
+                                        ),
+                                        systemImage: "arrowshape.right.fill"
+                                    )
+                                }
+
+                                Button {
+                                    viewModel.copyAgentDocToNolon(doc)
+                                } label: {
+                                    Label(
+                                        NSLocalizedString(
+                                            "agents.context.copy_to_nolon",
+                                            value: "Copy to Nolon",
+                                            comment: "Copy AGENTS file to Nolon folder"
+                                        ),
+                                        systemImage: "doc.on.doc"
+                                    )
+                                }
+
+                                Divider()
+
                                 debugPageMarkerMenuItem(
                                     [
                                         PageMarkerItem(title: NSLocalizedString("tab.agents", value: "Agents", comment: "Agents tab")),
@@ -697,6 +721,55 @@ struct ProviderDetailGridView: View, DebugPageLocatable {
         selectedTab: ProviderContentTabType?
     ) -> Bool {
         mcpLinkEnabled && selectedTab == .mcp
+    }
+
+    static func shouldShowAgentsLinkToolbar(
+        selectedTab: ProviderContentTabType?,
+        provider: Provider?
+    ) -> Bool {
+        selectedTab == .agents && supportsAgentsLink(provider)
+    }
+
+    static func supportsAgentsLink(_ provider: Provider?) -> Bool {
+        guard let templateId = provider?.templateId else { return false }
+        return templateId == "codex"
+            || templateId == "codexXcode"
+            || templateId == "opencode"
+            || templateId == "copilot"
+    }
+
+    static func agentsEmptyDescription() -> String {
+        NSLocalizedString(
+            "agents.empty_desc",
+            value: "No AGENTS.md files found for this provider",
+            comment: "No agents docs"
+        )
+    }
+
+    static func agentsNoResultsDescription() -> String {
+        NSLocalizedString(
+            "agents.search.no_results_desc",
+            value: "No matching AGENTS.md files found",
+            comment: "No agent docs search results description"
+        )
+    }
+
+    static func agentsLinkProviderPath(
+        for provider: Provider?,
+        fallbackPath: String = NolonManager.shared.agentsURL.path
+    ) -> String {
+        guard let provider else { return fallbackPath }
+        switch provider.templateId {
+        case "codex", "codexXcode":
+            return provider.codexAgentsFileURL.path
+        case "opencode", "copilot":
+            return URL(fileURLWithPath: provider.defaultSkillsPath)
+                .deletingLastPathComponent()
+                .appendingPathComponent("AGENTS.md")
+                .path
+        default:
+            return fallbackPath
+        }
     }
 
     private var skillsLinkEnabledPlaceholderCard: some View {
@@ -1060,6 +1133,14 @@ struct ProviderDetailGridView: View, DebugPageLocatable {
         } catch {
             return false
         }
+    }
+
+    private func supportsAgentsLink(_ provider: Provider) -> Bool {
+        Self.supportsAgentsLink(provider)
+    }
+
+    private func providerAgentsFilePath(for provider: Provider) -> String {
+        Self.agentsLinkProviderPath(for: provider)
     }
     
     @ViewBuilder

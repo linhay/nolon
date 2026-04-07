@@ -1969,7 +1969,7 @@ public struct ProviderResourceGridSectionView<Content: View>: View {
         case .rules:
             return NSLocalizedString("rules.empty_desc", value: "No rules in this provider", comment: "No rules in provider")
         case .agents:
-            return NSLocalizedString("agents.empty_desc", value: "No AGENTS.md files found in Codex home", comment: "No agents docs")
+            return NSLocalizedString("agents.empty_desc", value: "No AGENTS.md files found for this provider", comment: "No agents docs")
         case nil:
             return NSLocalizedString("remote.search.no_results_desc", value: "No matching results found", comment: "No search results description")
         }

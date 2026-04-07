@@ -358,14 +358,21 @@ final class ProviderDetailGridViewModel {
     }
 
     func revealMcpConfigInFinder() {
+        guard let provider else {
+            NSWorkspace.shared.activateFileViewerSelecting([NolonManager.shared.mcpsURL])
+            return
+        }
+
         guard
-            let provider,
             let templateId = provider.templateId,
             let template = ProviderTemplate(rawValue: templateId),
             template.supportsNativeMcpConfig
-        else { return }
-        let configURL = template.defaultMcpConfigPath
-        NSWorkspace.shared.activateFileViewerSelecting([configURL])
+        else {
+            NSWorkspace.shared.activateFileViewerSelecting([NolonManager.shared.mcpsURL])
+            return
+        }
+
+        NSWorkspace.shared.activateFileViewerSelecting([template.defaultMcpConfigPath])
     }
 
     func revealAgentsFolderInFinder() {
@@ -794,12 +801,38 @@ final class ProviderDetailGridViewModel {
         applyResourceSnapshot(for: provider)
     }
 
+    func copyAgentDocToNolon(_ doc: NolonUIFoundation.AgentDocInfo) {
+        guard provider != nil else { return }
+        do {
+            _ = try resourceService.copyAgentDocToNolon(atPath: doc.path)
+            clearError(scope: .agents)
+        } catch {
+            setError(error.localizedDescription, scope: .agents)
+        }
+    }
+
+    func moveAgentDocToNolon(_ doc: NolonUIFoundation.AgentDocInfo) {
+        guard let provider else { return }
+        do {
+            _ = try resourceService.moveAgentDocToNolon(atPath: doc.path)
+            clearError(scope: .agents)
+        } catch {
+            setError(error.localizedDescription, scope: .agents)
+        }
+        applyResourceSnapshot(for: provider)
+    }
+
     func createAgentDocDraft() -> URL? {
         guard let provider else { return nil }
-        guard provider.templateId == "codex" || provider.templateId == "codexXcode" else { return nil }
+        guard supportsAgentDocsProvider(provider) else { return nil }
         do {
-            let basePath = STPath(provider.codexAgentsFileURL)
-            let draftKind: ProviderResourceDraftKind = basePath.isExists ? .agentOverride : .agentBase
+            let draftKind: ProviderResourceDraftKind
+            if provider.templateId == "codex" || provider.templateId == "codexXcode" {
+                let basePath = STPath(provider.codexAgentsFileURL)
+                draftKind = basePath.isExists ? .agentOverride : .agentBase
+            } else {
+                draftKind = .agentBase
+            }
             let targetURL = try resourceService.createDraft(provider: provider, kind: draftKind)
             clearError(scope: .agents)
             applyResourceSnapshot(for: provider)
@@ -823,6 +856,14 @@ final class ProviderDetailGridViewModel {
             setError(error.localizedDescription, scope: .rules)
             return nil
         }
+    }
+
+    private func supportsAgentDocsProvider(_ provider: Provider) -> Bool {
+        guard let templateId = provider.templateId else { return false }
+        return templateId == "codex"
+            || templateId == "codexXcode"
+            || templateId == "opencode"
+            || templateId == "copilot"
     }
     
     func installRemoteSkill(_ skill: RemoteSkill, to provider: Provider) async {

@@ -93,6 +93,9 @@ enum ProviderTemplateEmbeddedJSON {
         "supportsAccounts": false,
         "supportsMultiAccount": false,
         "secondaryResourceLabel": "Commands",
+        "vendorTabs": [
+            "agents"
+        ],
         "defaultSkillsPaths": [
             "skills",
             ".claude/skills"
@@ -113,7 +116,10 @@ enum ProviderTemplateEmbeddedJSON {
         "supportsNativeMcpConfig": true,
         "supportsAccounts": false,
         "supportsMultiAccount": false,
-        "secondaryResourceLabel": "Workflows"
+        "secondaryResourceLabel": "Workflows",
+        "vendorTabs": [
+            "agents"
+        ]
     },
     "gemini": {
         "displayName": "Gemini CLI",

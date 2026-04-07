@@ -49,4 +49,128 @@ final class ProviderAgentsLinkServiceTests: XCTestCase {
         XCTAssertEqual(try base.read(), "local-base")
         XCTAssertEqual(try override.read(), "local-override")
     }
+
+    func testEnableAgentsLinkForOpenCodeWithoutExistingFileCreatesSymlink() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "nolon-agents-link-opencode-\(UUID().uuidString)",
+            isDirectory: true
+        )
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let manager = NolonManager(rootURL: root.appendingPathComponent(".nolon", isDirectory: true))
+        let service = ProviderAgentsLinkService(nolonManager: manager)
+
+        let opencodeHome = root.appendingPathComponent(".config/opencode", isDirectory: true)
+        let skills = opencodeHome.appendingPathComponent("skills", isDirectory: true)
+        try FileManager.default.createDirectory(at: skills, withIntermediateDirectories: true)
+        let provider = Provider(
+            name: "OpenCode",
+            defaultSkillsPath: skills.path,
+            workflowPath: opencodeHome.appendingPathComponent("commands", isDirectory: true).path,
+            templateId: "opencode"
+        )
+
+        let providerAgents = STFile(opencodeHome.appendingPathComponent("AGENTS.md", isDirectory: false))
+        XCTAssertFalse(providerAgents.isExists)
+
+        try service.applyEnable(provider: provider)
+
+        XCTAssertTrue(STPath(providerAgents.url).isSymbolicLink)
+        XCTAssertTrue(manager.agentsFolder.file("AGENTS.md").isExists)
+    }
+
+    func testDisableAgentsLinkForOpenCodeWithoutBackupRemovesSymlink() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "nolon-agents-link-opencode-disable-\(UUID().uuidString)",
+            isDirectory: true
+        )
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let manager = NolonManager(rootURL: root.appendingPathComponent(".nolon", isDirectory: true))
+        let service = ProviderAgentsLinkService(nolonManager: manager)
+
+        let opencodeHome = root.appendingPathComponent(".config/opencode", isDirectory: true)
+        let skills = opencodeHome.appendingPathComponent("skills", isDirectory: true)
+        try FileManager.default.createDirectory(at: skills, withIntermediateDirectories: true)
+        let provider = Provider(
+            name: "OpenCode",
+            defaultSkillsPath: skills.path,
+            workflowPath: opencodeHome.appendingPathComponent("commands", isDirectory: true).path,
+            templateId: "opencode"
+        )
+
+        let providerAgents = STFile(opencodeHome.appendingPathComponent("AGENTS.md", isDirectory: false))
+
+        try service.applyEnable(provider: provider)
+        XCTAssertTrue(STPath(providerAgents.url).isSymbolicLink)
+
+        try service.applyDisable(provider: provider)
+
+        XCTAssertFalse(providerAgents.isExists)
+        XCTAssertFalse(STPath(providerAgents.url).isSymbolicLink)
+    }
+
+    func testEnableAgentsLinkForCopilotWithoutExistingFileCreatesSymlink() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "nolon-agents-link-copilot-\(UUID().uuidString)",
+            isDirectory: true
+        )
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let manager = NolonManager(rootURL: root.appendingPathComponent(".nolon", isDirectory: true))
+        let service = ProviderAgentsLinkService(nolonManager: manager)
+
+        let copilotHome = root.appendingPathComponent(".copilot", isDirectory: true)
+        let skills = copilotHome.appendingPathComponent("agents", isDirectory: true)
+        try FileManager.default.createDirectory(at: skills, withIntermediateDirectories: true)
+        let provider = Provider(
+            name: "GitHub Copilot",
+            defaultSkillsPath: skills.path,
+            workflowPath: copilotHome.appendingPathComponent("workflows", isDirectory: true).path,
+            templateId: "copilot"
+        )
+
+        let providerAgents = STFile(copilotHome.appendingPathComponent("AGENTS.md", isDirectory: false))
+        XCTAssertFalse(providerAgents.isExists)
+
+        try service.applyEnable(provider: provider)
+
+        XCTAssertTrue(STPath(providerAgents.url).isSymbolicLink)
+        XCTAssertTrue(manager.agentsFolder.file("AGENTS.md").isExists)
+    }
+
+    func testDisableAgentsLinkForCopilotWithoutBackupRemovesSymlink() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "nolon-agents-link-copilot-disable-\(UUID().uuidString)",
+            isDirectory: true
+        )
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let manager = NolonManager(rootURL: root.appendingPathComponent(".nolon", isDirectory: true))
+        let service = ProviderAgentsLinkService(nolonManager: manager)
+
+        let copilotHome = root.appendingPathComponent(".copilot", isDirectory: true)
+        let skills = copilotHome.appendingPathComponent("agents", isDirectory: true)
+        try FileManager.default.createDirectory(at: skills, withIntermediateDirectories: true)
+        let provider = Provider(
+            name: "GitHub Copilot",
+            defaultSkillsPath: skills.path,
+            workflowPath: copilotHome.appendingPathComponent("workflows", isDirectory: true).path,
+            templateId: "copilot"
+        )
+
+        let providerAgents = STFile(copilotHome.appendingPathComponent("AGENTS.md", isDirectory: false))
+
+        try service.applyEnable(provider: provider)
+        XCTAssertTrue(STPath(providerAgents.url).isSymbolicLink)
+
+        try service.applyDisable(provider: provider)
+
+        XCTAssertFalse(providerAgents.isExists)
+        XCTAssertFalse(STPath(providerAgents.url).isSymbolicLink)
+    }
 }

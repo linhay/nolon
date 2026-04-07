@@ -43,6 +43,15 @@ struct ProviderCatalogTemplateTests {
         #expect(claudeTabs.contains("usage"))
     }
 
+    @Test("opencode and copilot templates expose agents vendor tab")
+    func agentsVendorTabs() throws {
+        let opencodeTabs = try #require(ProviderTemplate.opencode.config?.vendorTabs)
+        #expect(opencodeTabs.contains("agents"))
+
+        let copilotTabs = try #require(ProviderTemplate.copilot.config?.vendorTabs)
+        #expect(copilotTabs.contains("agents"))
+    }
+
     @Test("resolve providerID supports stable ids and codex-xcode aliases")
     func resolveProviderID() {
         #expect(ProviderTemplate.resolve(providerID: "codex") == .codex)

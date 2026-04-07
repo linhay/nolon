@@ -762,6 +762,18 @@
         }
       }
     },
+    "action.new" : {
+      "comment" : "New action",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "New"
+          }
+        }
+      }
+    },
     "action.ok" : {
       "comment" : "OK action",
       "extractionState" : "stale",
@@ -1288,6 +1300,30 @@
         }
       }
     },
+    "agents.context.copy_to_nolon" : {
+      "comment" : "Copy AGENTS file to Nolon folder",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Copy to Nolon"
+          }
+        }
+      }
+    },
+    "agents.context.move_to_nolon" : {
+      "comment" : "Move AGENTS file to Nolon folder",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Move to Nolon"
+          }
+        }
+      }
+    },
     "agents.create.base" : {
       "comment" : "Create base agents",
       "extractionState" : "stale",
@@ -1325,7 +1361,7 @@
       }
     },
     "agents.empty" : {
-      "comment" : "No AGENTS files",
+      "comment" : "No agent docs",
       "extractionState" : "stale",
       "localizations" : {
         "en" : {
@@ -1344,18 +1380,18 @@
     },
     "agents.empty_desc" : {
       "comment" : "No agents docs",
-      "extractionState" : "stale",
+      "extractionState" : "extracted_with_value",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "No AGENTS.md files found in Codex home"
+            "value" : "No AGENTS.md files found for this provider"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "在 Codex Home 中未找到 AGENTS.md 文件"
+            "value" : "此厂商下未找到 AGENTS.md 文件"
           }
         }
       }
@@ -1392,6 +1428,24 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "更高优先级（override）"
+          }
+        }
+      }
+    },
+    "agents.search.no_results_desc" : {
+      "comment" : "No agent docs search results description",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "No matching AGENTS.md files found"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没有找到匹配的 AGENTS.md 文件"
           }
         }
       }
@@ -8715,6 +8769,18 @@
         }
       }
     },
+    "detail.search_placeholder" : {
+      "comment" : "Search placeholder",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Search"
+          }
+        }
+      }
+    },
     "detail.select_tab" : {
       "comment" : "Select a Tab",
       "localizations" : {
@@ -11179,6 +11245,30 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Provider"
+          }
+        }
+      }
+    },
+    "provider.agents_link.placeholder.description" : {
+      "comment" : "Agents link placeholder description",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "This provider now uses ~/.nolon/agents. Manage linked AGENTS docs from the Nolon page."
+          }
+        }
+      }
+    },
+    "provider.agents_link.placeholder.title" : {
+      "comment" : "Agents link placeholder title",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "AGENTS docs are linked to Nolon"
           }
         }
       }
@@ -14618,6 +14708,9 @@
           }
         }
       }
+    },
+    "Use" : {
+
     },
     "v%@" : {
       "comment" : "Version badge",

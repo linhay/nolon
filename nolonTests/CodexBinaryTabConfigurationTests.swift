@@ -83,10 +83,14 @@ final class CodexBinaryTabConfigurationTests: XCTestCase {
             tabs.contains("binary"),
             "Expected generic template not to include 'binary', got: \(tabs)"
         )
+        XCTAssertTrue(
+            tabs.contains("agents"),
+            "Expected copilot vendorTabs to include 'agents', got: \(tabs)"
+        )
     }
 
     @MainActor
-    func testBDD_GivenGenericTemplate_WhenReadingAvailableTabs_ThenDoesNotContainAdvancedTab() throws {
+    func testBDD_GivenCopilotTemplate_WhenReadingAvailableTabs_ThenContainsAgentsWithoutAdvanced() throws {
         // Given
         let provider = try XCTUnwrap(ProviderTemplate(rawValue: "copilot")).createProvider()
 
@@ -96,7 +100,41 @@ final class CodexBinaryTabConfigurationTests: XCTestCase {
         // Then
         XCTAssertFalse(tabs.contains(.advanced), "Expected generic tabs not to include advanced")
         XCTAssertFalse(tabs.contains(.rules), "Expected generic tabs not to include rules")
-        XCTAssertFalse(tabs.contains(.agents), "Expected generic tabs not to include agents")
+        XCTAssertTrue(tabs.contains(.agents), "Expected copilot tabs to include agents")
+    }
+
+    func testBDD_GivenOpenCodeTemplate_WhenReadingVendorTabs_ThenContainsAgentsWithoutAdvancedOrRules() throws {
+        // Given
+        let template = try XCTUnwrap(ProviderTemplate(rawValue: "opencode"))
+        let tabs = template.config?.vendorTabs ?? []
+
+        // When / Then
+        XCTAssertTrue(
+            tabs.contains("agents"),
+            "Expected opencode vendorTabs to include 'agents', got: \(tabs)"
+        )
+        XCTAssertFalse(
+            tabs.contains("binary"),
+            "Expected opencode vendorTabs not to include 'binary', got: \(tabs)"
+        )
+        XCTAssertFalse(
+            tabs.contains("rules"),
+            "Expected opencode vendorTabs not to include 'rules', got: \(tabs)"
+        )
+    }
+
+    @MainActor
+    func testBDD_GivenOpenCodeTemplate_WhenReadingAvailableTabs_ThenContainsAgentsWithoutAdvancedOrRules() throws {
+        // Given
+        let provider = try XCTUnwrap(ProviderTemplate(rawValue: "opencode")).createProvider()
+
+        // When
+        let tabs = ProviderContentTabType.availableTabs(for: provider)
+
+        // Then
+        XCTAssertFalse(tabs.contains(.advanced), "Expected opencode tabs not to include advanced")
+        XCTAssertFalse(tabs.contains(.rules), "Expected opencode tabs not to include rules")
+        XCTAssertTrue(tabs.contains(.agents), "Expected opencode tabs to include agents")
     }
 
 }

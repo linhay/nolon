@@ -15,36 +15,68 @@ public final class ProviderAgentsLinkService: @unchecked Sendable {
     }
 
     public func applyEnable(provider: Provider) throws {
-        guard provider.templateId == "codex" || provider.templateId == "codexXcode" else { return }
+        let targets = linkTargets(for: provider)
+        guard !targets.isEmpty else { return }
         _ = nolonManager.agentsFolder.createIfNotExists()
-        _ = provider.codexHomeFolder.createIfNotExists()
-
-        let globalBase = nolonManager.agentsFolder.file("AGENTS.md")
-        let globalOverride = nolonManager.agentsFolder.file("AGENTS.override.md")
-
-        try ensureLinked(
-            providerFile: provider.codexAgentsFile,
-            globalFile: globalBase,
-            backupFile: provider.codexHomeFolder.file("AGENTS.md.bak")
-        )
-        try ensureLinked(
-            providerFile: provider.codexAgentsOverrideFile,
-            globalFile: globalOverride,
-            backupFile: provider.codexHomeFolder.file("AGENTS.override.md.bak")
-        )
+        for target in targets {
+            _ = STFolder(target.providerFile.url.deletingLastPathComponent()).createIfNotExists()
+            try ensureLinked(
+                providerFile: target.providerFile,
+                globalFile: target.globalFile,
+                backupFile: target.backupFile
+            )
+        }
     }
 
     public func applyDisable(provider: Provider) throws {
-        guard provider.templateId == "codex" || provider.templateId == "codexXcode" else { return }
-
-        let baseBackup = provider.codexHomeFolder.file("AGENTS.md.bak")
-        let overrideBackup = provider.codexHomeFolder.file("AGENTS.override.md.bak")
-        try restoreFromBackupIfNeeded(target: provider.codexAgentsFile, backup: baseBackup)
-        try restoreFromBackupIfNeeded(target: provider.codexAgentsOverrideFile, backup: overrideBackup)
+        let targets = linkTargets(for: provider)
+        guard !targets.isEmpty else { return }
+        for target in targets {
+            try restoreFromBackupIfNeeded(target: target.providerFile, backup: target.backupFile)
+        }
     }
 }
 
 private extension ProviderAgentsLinkService {
+    struct LinkTarget {
+        let providerFile: STFile
+        let globalFile: STFile
+        let backupFile: STFile
+    }
+
+    func linkTargets(for provider: Provider) -> [LinkTarget] {
+        let globalBase = nolonManager.agentsFolder.file("AGENTS.md")
+        let globalOverride = nolonManager.agentsFolder.file("AGENTS.override.md")
+
+        if provider.templateId == "codex" || provider.templateId == "codexXcode" {
+            return [
+                LinkTarget(
+                    providerFile: provider.codexAgentsFile,
+                    globalFile: globalBase,
+                    backupFile: provider.codexHomeFolder.file("AGENTS.md.bak")
+                ),
+                LinkTarget(
+                    providerFile: provider.codexAgentsOverrideFile,
+                    globalFile: globalOverride,
+                    backupFile: provider.codexHomeFolder.file("AGENTS.override.md.bak")
+                ),
+            ]
+        }
+
+        if provider.templateId == "opencode" || provider.templateId == "copilot" {
+            let providerHome = STFolder(URL(fileURLWithPath: provider.defaultSkillsPath).deletingLastPathComponent())
+            return [
+                LinkTarget(
+                    providerFile: providerHome.file("AGENTS.md"),
+                    globalFile: globalBase,
+                    backupFile: providerHome.file("AGENTS.md.bak")
+                ),
+            ]
+        }
+
+        return []
+    }
+
     func ensureLinked(providerFile: STFile, globalFile: STFile, backupFile: STFile) throws {
         if isLinked(providerFile: providerFile, to: globalFile.url) {
             return
@@ -75,6 +107,8 @@ private extension ProviderAgentsLinkService {
                 try target.deleteIncludingBrokenSymlink()
             }
             try backup.move(to: target, isOverlay: true)
+        } else if target.isExists {
+            try target.deleteIncludingBrokenSymlink()
         }
     }
 
